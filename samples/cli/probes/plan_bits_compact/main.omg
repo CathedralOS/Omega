@@ -1,10 +1,4 @@
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\FixedLayout;
-use omega\language\core\LayoutPlan;
-use omega\language\core\LayoutStorage;
-use omega\language\core\LayoutTarget;
-use omega\language\core\Schema;
+use {omega}/language/core/layout.omg;
 // A plan-laid value whose three logical fields share ONE byte: `code` is
 // itself split across two `FieldPlan::Bits` fragments — masked RMW writes
 // preserve siblings and reads reconstruct the scalar.
@@ -12,13 +6,13 @@ public domain u8::Mode requires self <= 7;
 public domain u8::Code requires self <= 15;
 
 public data PackedFlags { present: bool; mode: u8 in Mode; code: u8 in Code; }
-CompactBits satisfies FixedLayout<PackedFlags> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+CompactBits satisfies |layout|::FixedLayout<PackedFlags> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
     reaches none terminates {
-        let mutable entries: [FieldEntry; 64];
-        entries[0] = FieldEntry {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry {
             key: schema.fields[0].key,
-            representation: FieldPlan::Bits {
+            representation: |layout|::FieldPlan::Bits {
                 container: 0,
                 container_width: 8,
                 destination_lsb: 0,
@@ -26,9 +20,9 @@ CompactBits satisfies FixedLayout<PackedFlags> {
                 width: 1,
             },
         };
-        entries[1] = FieldEntry {
+        entries[1] = |layout|::FieldEntry {
             key: schema.fields[1].key,
-            representation: FieldPlan::Bits {
+            representation: |layout|::FieldPlan::Bits {
                 container: 0,
                 container_width: 8,
                 destination_lsb: 1,
@@ -36,9 +30,9 @@ CompactBits satisfies FixedLayout<PackedFlags> {
                 width: 3,
             },
         };
-        entries[2] = FieldEntry {
+        entries[2] = |layout|::FieldEntry {
             key: schema.fields[2].key,
-            representation: FieldPlan::Bits {
+            representation: |layout|::FieldPlan::Bits {
                 container: 0,
                 container_width: 8,
                 destination_lsb: 4,
@@ -46,9 +40,9 @@ CompactBits satisfies FixedLayout<PackedFlags> {
                 width: 2,
             },
         };
-        entries[3] = FieldEntry {
+        entries[3] = |layout|::FieldEntry {
             key: schema.fields[2].key,
-            representation: FieldPlan::Bits {
+            representation: |layout|::FieldPlan::Bits {
                 container: 0,
                 container_width: 8,
                 destination_lsb: 6,
@@ -56,7 +50,7 @@ CompactBits satisfies FixedLayout<PackedFlags> {
                 width: 2,
             },
         };
-        LayoutPlan {
+        |layout|::LayoutPlan {
             entries: entries,
             entry_count: 4,
             size_fixed: 1,
@@ -65,7 +59,7 @@ CompactBits satisfies FixedLayout<PackedFlags> {
         }
     }
 }
-data Main { packed: LayoutStorage<PackedFlags, CompactBits>; }
+data Main { packed: |layout|::LayoutStorage<PackedFlags, CompactBits>; }
 machine Main::main(main: @mutable Main) {
     main.packed.present = true;
     main.packed.mode = 5;

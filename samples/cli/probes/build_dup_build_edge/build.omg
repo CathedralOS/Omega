@@ -3,12 +3,12 @@
 // this probes whether the build-purpose row family behaves the same way.
 
 use {omega}/build/dependency.omg;
-use k1;
+use {k1}/main.omg as k1;
 
-machine build(builder: @mutable Build)
+machine build(builder: @mutable BuildPlan)
 suspends
 {
-    Build::application(builder, "build_dup_build_edge");
+    builder.product = BuildProduct::Application { name: "build_dup_build_edge" };
     let mutable k1_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
     |dependency|::with_alias(@mutable k1_dependency, "k1");
     let k1_registration: DependencyRegistration = Build::build_dependency(builder, k1_dependency);
@@ -16,7 +16,7 @@ suspends
     |dependency|::with_alias(@mutable k2_dependency, "k2");
     let k2_registration: DependencyRegistration = Build::build_dependency(builder, k2_dependency);
     suspend Build::prepare_dependency(builder, k1_registration);
-    let observed: i32 = k1\seed();
+    let observed: i32 = |k1|::seed();
     transition observed == 3 {
         true -> done(),
         _ -> wrong()

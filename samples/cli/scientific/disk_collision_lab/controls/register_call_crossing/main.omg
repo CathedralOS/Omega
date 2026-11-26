@@ -1,28 +1,25 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use formatting/formatting.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Complete reproduction: a scaled integer survives ordinary Console calls.
-use system\ByteRead;
-use system\Console;
-use omega\language\core\F64::from_i32;
-use formatting;
-use formatting\number;
 data Main {}
-machine main(main:@mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
- let byte:ByteRead=block Console::read_byte();
- transition byte {ByteRead::Byte{value} -> render(main,value), _ -> fail(main)}
+machine main(main:@mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+ let byte:|console|::ByteRead=block |console|::Console::read_byte();
+ transition byte {|console|::ByteRead::Byte{value} -> render(main,value), _ -> fail(main)}
  machine render(main:@mutable Main,value:i32) {
   transition value >= 48 && value <= 57 {true -> bounded(main,value), _ -> fail(main)}
  }
  machine bounded(main:@mutable Main,value:i32) requires value >= 48 && value <= 57 {
-  number((F64::from_i32(value)-48.0)/10.0);
-  Console::write_line("");ProcessExit::exit_process(70);
+  |formatting|::number((|float_operations|::F64::from_i32(value)-48.0)/10.0);
+  |console|::Console::write_line("");|process_exit|::ProcessExit::exit_process(70);
  }
- machine fail(main:@mutable Main) {ProcessExit::exit_process(71);}
+ machine fail(main:@mutable Main) {|process_exit|::ProcessExit::exit_process(71);}
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

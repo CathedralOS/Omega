@@ -1,15 +1,15 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 
 // Expected exit: 0. `finish` never returns: its only path ends the process.
 // The two loans `entry_start` forms for it are carried into that call, each
 // of its own storage, and nothing of `entry_start` runs after it.
 data Main { status: i32; }
 
-machine finish(first: @mutable Main, second: @mutable Main) reaches ProcessExit {
-    ProcessExit::exit_process(0);
+machine finish(first: @mutable Main, second: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable first: Main;
     let mutable second: Main;
     finish(@mutable first, @mutable second);

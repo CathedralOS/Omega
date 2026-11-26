@@ -49,8 +49,8 @@ accepted on it.
 
 use arena::IdTable;
 use semantic_vocabulary::{
-    BlockId, CrashCause, EdgeId, InvocationSite, MachineId, ObligationId, Proposition, ScalarType,
-    StructuralTypeId, ValueId,
+    BlockId, CrashCause, CycleComponentId, EdgeId, InvocationSite, MachineId, ObligationId,
+    Proposition, ScalarType, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
@@ -405,6 +405,42 @@ fn successors(terminator: &Terminator) -> Vec<(EdgeId, Destination)> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum OwedKey {
+    CrashCoverage {
+        site: CrashSite,
+        cause: CrashCause,
+    },
+    ArrivalInvariant {
+        edge: EdgeId,
+    },
+    WellFoundedness {
+        component: CycleComponentId,
+    },
+    RankComparison {
+        component: CycleComponentId,
+        edge: EdgeId,
+    },
+}
+
+impl OwedKey {
+    fn from_kind(kind: ObligationKind) -> Option<Self> {
+        match kind {
+            ObligationKind::CrashCoverage { site, cause } => {
+                Some(Self::CrashCoverage { site, cause })
+            }
+            ObligationKind::ArrivalInvariant { edge } => Some(Self::ArrivalInvariant { edge }),
+            ObligationKind::WellFoundedness { component } => {
+                Some(Self::WellFoundedness { component })
+            }
+            ObligationKind::RankComparison { component, edge } => {
+                Some(Self::RankComparison { component, edge })
+            }
+            _ => None,
+        }
+    }
+}
+
 struct Minted<'a> {
     machine: MachineId,
     module: &'a terminal_psi::TerminalModule,
@@ -416,6 +452,8 @@ struct Minted<'a> {
     obligations: Vec<bool>,
     /// The exact invocation row and claim state, sorted by source site once.
     invocations: Vec<(InvocationSite, InvocationId, bool)>,
+    /// Owed obligation kinds sorted by key, keeping the first row for duplicates.
+    owed_index: Vec<(OwedKey, ObligationId)>,
 }
 
 impl Minted<'_> {
@@ -428,11 +466,13 @@ impl Minted<'_> {
         point: ProgramPoint,
         concerns: Construct,
     ) -> Checked<()> {
-        let (obligation, _) = self
-            .tables
-            .obligations
-            .iter()
-            .find(|(_, row)| row.kind == kind)
+        let obligation = OwedKey::from_kind(kind)
+            .and_then(|key| {
+                self.owed_index
+                    .binary_search_by_key(&key, |(indexed, _)| *indexed)
+                    .ok()
+                    .map(|position| self.owed_index[position].1)
+            })
             .ok_or_else(|| self.foreign(concerns, "a site owes an obligation with no row"))?;
         self.claim(obligation, kind, point)
     }
@@ -760,6 +800,13 @@ pub(crate) fn follow_the_lowered_form(
             "a call does not have exactly one invocation row",
         ));
     }
+    let mut owed_index = tables
+        .obligations
+        .iter()
+        .filter_map(|(obligation, row)| OwedKey::from_kind(row.kind).map(|key| (key, obligation)))
+        .collect::<Vec<_>>();
+    owed_index.sort_by_key(|(key, _)| *key);
+    owed_index.dedup_by_key(|(key, _)| *key);
     let mut minted = Minted {
         machine: id,
         module,
@@ -796,6 +843,7 @@ pub(crate) fn follow_the_lowered_form(
         tables,
         obligations: vec![false; tables.obligations.len()],
         invocations,
+        owed_index,
     };
 
     // Each logical use owns every premise exactly once, before its successor.

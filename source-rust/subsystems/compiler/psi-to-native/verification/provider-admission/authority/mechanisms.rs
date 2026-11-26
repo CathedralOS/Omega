@@ -136,6 +136,21 @@ impl CheckedPhysicalTerminalMechanismIdentity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TableBindingAuthority {
+    Provider(provider_plans::ProviderPlanDigest),
+    Build([u8; 32]),
+}
+
+impl TableBindingAuthority {
+    pub fn commitment(&self) -> &[u8; 32] {
+        match self {
+            Self::Provider(plan) => plan.as_bytes(),
+            Self::Build(receipt) => receipt,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalMechanismIdentity {
     CompilerIntrinsic(CompilerIntrinsicExecutionIdentity),
     NormalizedForeign(NormalizedForeignTerminalMechanismIdentity),
@@ -143,7 +158,7 @@ pub enum TerminalMechanismIdentity {
     Syscall(SyscallTerminalMechanismIdentity),
     Table {
         target: target::TargetProfile,
-        provider: provider_plans::ProviderPlanDigest,
+        authority: TableBindingAuthority,
         calling: provider_plans::BoundaryCallingPlanCommitment,
         byte_offset: u32,
         table_operand: u32,
@@ -179,7 +194,7 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
     match identity {
         TerminalMechanismIdentity::Table {
             target,
-            provider,
+            authority,
             calling,
             byte_offset,
             table_operand,
@@ -189,7 +204,11 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
             let mut bytes = vec![4];
             bytes.extend_from_slice(&(target.len() as u32).to_be_bytes());
             bytes.extend_from_slice(target);
-            bytes.extend_from_slice(provider.as_bytes());
+            bytes.push(match authority {
+                TableBindingAuthority::Provider(_) => 0,
+                TableBindingAuthority::Build(_) => 1,
+            });
+            bytes.extend_from_slice(authority.commitment());
             bytes.extend_from_slice(&calling.as_bytes());
             bytes.extend_from_slice(&byte_offset.to_be_bytes());
             bytes.extend_from_slice(&table_operand.to_be_bytes());

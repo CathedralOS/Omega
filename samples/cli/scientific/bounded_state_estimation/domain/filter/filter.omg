@@ -1,16 +1,10 @@
 // Constant-velocity prediction followed by a scalar observation. Joseph form
 // keeps roundoff from subtracting nearly equal covariance matrices. No library
 // numerics or external worker implementation participates in these operations.
-use domain\matrix;
-use domain\matrix\Matrix;
-use domain\matrix\Vector;
-use domain\matrix\multiply;
-use domain\matrix\transpose;
-use domain\matrix\add;
-use domain\matrix\apply;
+use domain/matrix/matrix.omg;
 public data Filter {
-    estimate: Vector;
-    covariance: Matrix;
+    estimate: |matrix|::Vector;
+    covariance: |matrix|::Matrix;
     interval: f64;
     process_noise: f64;
     observation_noise: f64;
@@ -19,17 +13,17 @@ public data Filter {
     updated: bool;
 }
 public machine initialize(filter: @mutable Filter, interval: f64, process_noise: f64, observation_noise: f64) {
-    filter.estimate = Vector { position: 0.0, velocity: 1.0 };
-    filter.covariance = Matrix { a: 1.0, b: 0.0, c: 0.0, d: 1.0 };
+    filter.estimate = |matrix|::Vector { position: 0.0, velocity: 1.0 };
+    filter.covariance = |matrix|::Matrix { a: 1.0, b: 0.0, c: 0.0, d: 1.0 };
     filter.interval = interval;
     filter.process_noise = process_noise;
     filter.observation_noise = observation_noise;
 }
 public machine predict(filter: @mutable Filter) {
-    let dynamics: Matrix = Matrix { a: 1.0, b: filter.interval, c: 0.0, d: 1.0 };
-    let noise: Matrix = Matrix { a: filter.process_noise, b: 0.0, c: 0.0, d: filter.process_noise };
-    filter.estimate = apply(dynamics, filter.estimate);
-    filter.covariance = add(multiply(multiply(dynamics, filter.covariance), transpose(dynamics)), noise);
+    let dynamics: |matrix|::Matrix = |matrix|::Matrix { a: 1.0, b: filter.interval, c: 0.0, d: 1.0 };
+    let noise: |matrix|::Matrix = |matrix|::Matrix { a: filter.process_noise, b: 0.0, c: 0.0, d: filter.process_noise };
+    filter.estimate = |matrix|::apply(dynamics, filter.estimate);
+    filter.covariance = |matrix|::add(|matrix|::multiply(|matrix|::multiply(dynamics, filter.covariance), |matrix|::transpose(dynamics)), noise);
     filter.innovation = 0.0;
     filter.innovation_variance = 0.0;
     filter.updated = false;
@@ -38,11 +32,11 @@ public machine predict(filter: @mutable Filter) {
 // remains available and no division or measurement mutation has occurred.
 public machine observe(filter: @mutable Filter, measurement: f64, position_axis: bool) -> bool {
     transition position_axis {
-        true -> update(filter, measurement, Vector { position: 1.0, velocity: 0.0 }),
-        false -> update(filter, measurement, Vector { position: 0.0, velocity: 1.0 })
+        true -> update(filter, measurement, |matrix|::Vector { position: 1.0, velocity: 0.0 }),
+        false -> update(filter, measurement, |matrix|::Vector { position: 0.0, velocity: 1.0 })
     }
-    machine update(filter: @mutable Filter, measurement: f64, axis: Vector) -> bool {
-        let projection: Vector = apply(filter.covariance, axis);
+    machine update(filter: @mutable Filter, measurement: f64, axis: |matrix|::Vector) -> bool {
+        let projection: |matrix|::Vector = |matrix|::apply(filter.covariance, axis);
         filter.innovation = measurement - axis.position * filter.estimate.position - axis.velocity * filter.estimate.velocity;
         filter.innovation_variance = axis.position * projection.position + axis.velocity * projection.velocity + filter.observation_noise;
         transition filter.innovation_variance > 0.000000000001 {
@@ -50,19 +44,19 @@ public machine observe(filter: @mutable Filter, measurement: f64, position_axis:
             false -> false
         }
     }
-    machine accepted(filter: @mutable Filter, axis: Vector, projection: Vector) -> bool {
-        let gain: Vector = Vector { position: projection.position / filter.innovation_variance,
+    machine accepted(filter: @mutable Filter, axis: |matrix|::Vector, projection: |matrix|::Vector) -> bool {
+        let gain: |matrix|::Vector = |matrix|::Vector { position: projection.position / filter.innovation_variance,
             velocity: projection.velocity / filter.innovation_variance };
-        let residual: Matrix = Matrix { a: 1.0 - gain.position * axis.position,
+        let residual: |matrix|::Matrix = |matrix|::Matrix { a: 1.0 - gain.position * axis.position,
             b: -gain.position * axis.velocity, c: -gain.velocity * axis.position,
             d: 1.0 - gain.velocity * axis.velocity };
-        let noise: Matrix = Matrix { a: gain.position * gain.position * filter.observation_noise,
+        let noise: |matrix|::Matrix = |matrix|::Matrix { a: gain.position * gain.position * filter.observation_noise,
             b: gain.position * gain.velocity * filter.observation_noise,
             c: gain.velocity * gain.position * filter.observation_noise,
             d: gain.velocity * gain.velocity * filter.observation_noise };
         filter.estimate.position = filter.estimate.position + gain.position * filter.innovation;
         filter.estimate.velocity = filter.estimate.velocity + gain.velocity * filter.innovation;
-        filter.covariance = add(multiply(multiply(residual, filter.covariance), transpose(residual)), noise);
+        filter.covariance = |matrix|::add(|matrix|::multiply(|matrix|::multiply(residual, filter.covariance), |matrix|::transpose(residual)), noise);
         filter.updated = true;
         transition { _ -> true }
     }

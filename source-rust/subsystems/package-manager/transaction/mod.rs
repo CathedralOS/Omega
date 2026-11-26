@@ -43,7 +43,6 @@ use build_evaluation_result::CompileFailure;
 use package_compilation::build_execution::BuildSnapshotRequest;
 use platform_custody::record_file::{RecordFileRoot, RootRecordRead};
 use proposal::PendingPackageChange;
-pub(crate) use proposal::legacy_publication_kind;
 use source_acquisition::PrimaryGitChoices;
 use source_acquisition::git::resolution::GitExactRevisionAcquisition;
 use source_acquisition::local::staging::StagedLocalSnapshot;
@@ -117,16 +116,7 @@ impl PackageCommandTransaction {
         if matches!(command, PackageCommand::DiscardReview) {
             return Err(failure("discard does not require a review command"));
         }
-        let storage = match storage {
-            Some(storage) => CommandStorage::Supplied(storage),
-            None => CommandStorage::Opened(
-                SourceResolver::for_current_user(PrimaryGitChoices {
-                    excluded_controlled_roots: &[transaction.project_root().to_path_buf()],
-                    ..PrimaryGitChoices::default()
-                })
-                .map_err(failure)?,
-            ),
-        };
+        let storage = CommandStorage::open(storage, transaction.project_root()).map_err(failure)?;
         let PackageCommandOptions {
             targets: requested_targets,
             offline,
@@ -244,27 +234,29 @@ impl PackageCommandTransaction {
         } else {
             GitExactRevisionAcquisition::AllowFetch
         };
-        Ok(PackageCommandAdmission::Review(Box::new(PackageCommandPreparation {
-            identity: Arc::new(CommandReviewIdentity),
-            transaction,
-            files,
-            pending_file,
-            storage,
-            acquisition,
-            before_lock,
-            accepted,
-            replacement,
-            stage,
-            targets,
-            build_snapshot,
-            resume,
-            kind,
-            before_build,
-            build_inputs,
-            recovered,
-            updates,
-            offline,
-        })))
+        Ok(PackageCommandAdmission::Review(Box::new(
+            PackageCommandPreparation {
+                identity: Arc::new(CommandReviewIdentity),
+                transaction,
+                files,
+                pending_file,
+                storage,
+                acquisition,
+                before_lock,
+                accepted,
+                replacement,
+                stage,
+                targets,
+                build_snapshot,
+                resume,
+                kind,
+                before_build,
+                build_inputs,
+                recovered,
+                updates,
+                offline,
+            },
+        )))
     }
 }
 
@@ -409,14 +401,14 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
             }
             Err(error) => error,
         };
-        let PackageCommandCause::RootBuildPreparation(CompileFailure::BuildConsentRequired {
-            site,
-            requests,
-            ..
-        }) = &error.cause
+        let Some(CompileFailure::BuildConsentRequired { site, requests, .. }) =
+            error.compilation_failure()
         else {
             return Err(error);
         };
+        if site.subject.is_none() {
+            return Err(error);
+        }
         self.stage.verify_live_source_unchanged().map_err(failure)?;
         let original = rows.len();
         rows.extend(phase.findings(site, requests)?);
@@ -491,13 +483,28 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
     }
 }
 
-enum CommandStorage<'storage> {
+/// The caller's source storage, or the current user's own storage opened for
+/// one package command or inspection with the project kept out of Git control.
+pub(crate) enum CommandStorage<'storage> {
     Supplied(&'storage SourceResolver),
     Opened(SourceResolver),
 }
 
-impl CommandStorage<'_> {
-    fn resolver(&self) -> &SourceResolver {
+impl<'storage> CommandStorage<'storage> {
+    pub(crate) fn open(
+        supplied: Option<&'storage SourceResolver>,
+        project_root: &Path,
+    ) -> Result<Self, source_acquisition::SourceResolveError> {
+        Ok(match supplied {
+            Some(storage) => Self::Supplied(storage),
+            None => Self::Opened(SourceResolver::for_current_user(PrimaryGitChoices {
+                excluded_controlled_roots: &[project_root.to_path_buf()],
+                ..PrimaryGitChoices::default()
+            })?),
+        })
+    }
+
+    pub(crate) fn resolver(&self) -> &SourceResolver {
         match self {
             Self::Supplied(storage) => storage,
             Self::Opened(storage) => storage,
@@ -709,7 +716,10 @@ impl PreparedPackageCommand<'_, '_> {
             .ok_or_else(|| failure("reviewed package proposal disappeared before publication"))?;
         let published = publish_reviewed_package_change(
             transaction,
-            ReviewedProposal { kind, digest: digest(proposal.bytes()) },
+            ReviewedProposal {
+                kind,
+                digest: digest(proposal.bytes()),
+            },
             &replacement,
             &stage,
             &paired,
@@ -848,7 +858,6 @@ enum PackageCommandCause {
     Review(Box<CompileResolvedPackageReviewsError>),
     Change(Box<crate::review::PackageChangeError>),
     Compilation(CompileFailure),
-    RootBuildPreparation(CompileFailure),
     Preparation(Box<crate::dependencies::PrepareLocalProjectError>),
 }
 
@@ -865,36 +874,9 @@ impl PackageCommandError {
         self
     }
 
-    pub(crate) fn for_build_preparation(failure: CompileFailure, root: bool) -> Self {
-        if root && matches!(failure, CompileFailure::BuildConsentRequired { .. }) {
-            let accounting = failure
-                .source_completion_accounting()
-                .cloned()
-                .unwrap_or_default();
-            Self {
-                cause: PackageCommandCause::RootBuildPreparation(failure),
-                accounting,
-            }
-        } else {
-            Self::from(failure)
-        }
-    }
-
     pub fn compilation_failure(&self) -> Option<&CompileFailure> {
         match &self.cause {
-            PackageCommandCause::Compilation(failure)
-            | PackageCommandCause::RootBuildPreparation(failure) => Some(failure),
-            _ => None,
-        }
-    }
-
-    pub fn review_failure(&self) -> Option<&CompileResolvedPackageReviewsError> {
-        match &self.cause {
-            PackageCommandCause::Review(failure) => Some(failure),
-            PackageCommandCause::Change(failure) => match failure.as_ref() {
-                crate::review::PackageChangeError::Compilation(error) => Some(error),
-                _ => None,
-            },
+            PackageCommandCause::Compilation(failure) => Some(failure),
             _ => None,
         }
     }
@@ -977,8 +959,7 @@ impl PackageCommandError {
             PackageCommandCause::Review(error) => error.fmt_with_diagnostics(formatter, render),
             PackageCommandCause::Change(error) => error.fmt_with_diagnostics(formatter, render),
             PackageCommandCause::Preparation(error) => fmt::Display::fmt(error, formatter),
-            PackageCommandCause::Compilation(failure)
-            | PackageCommandCause::RootBuildPreparation(failure) => {
+            PackageCommandCause::Compilation(failure) => {
                 render(formatter, &failure.clone().into_diagnostics())
             }
         }

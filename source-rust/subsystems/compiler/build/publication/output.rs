@@ -43,12 +43,9 @@ impl<'artifact> RetainedNativeProgram<'artifact> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompileOutputKind {
-    CheckOnly,
     TerminalArtifact,
     RetainedNativeArtifact,
     NativeExecutable,
-    ObjectContainer,
-    BuildArtifacts,
 }
 
 #[derive(Debug)]
@@ -58,60 +55,58 @@ struct TerminalProduct {
     runtime_provisions: TerminalRuntimeProvisions,
 }
 
+/// A native image (direct or dynamic ELF) retained before publication.
 #[derive(Debug)]
-struct NativeProduct {
-    artifact: RetainedNativeArtifact,
+struct NativeProduct<Artifact> {
+    artifact: Artifact,
     runtime_provisions: Option<TerminalRuntimeProvisions>,
     optimization_rollback: Option<OptimizationRollbackReceipt>,
     application: NativeApplicationMetadata,
 }
 
+/// A published native image. Direct images keep their macOS .app package
+/// receipt (flat publications retain None); dynamic ELF images have none (`()`).
 #[derive(Debug)]
-struct PublishedNativeProduct {
+struct PublishedNativeProduct<Receipt, Package = Option<NativePackagePublicationReceipt>> {
     runtime_provisions: Option<TerminalRuntimeProvisions>,
-    executable: ExecutablePublicationReceipt,
-    package: Option<NativePackagePublicationReceipt>, // macOS .app package receipt; flat publications retain None
+    executable: Receipt,
+    package: Package,
     optimization_rollback: Option<OptimizationRollbackReceipt>,
     application: NativeApplicationMetadata,
 }
 
-#[derive(Debug)]
-struct DynamicElfProduct {
-    artifact: RetainedDynamicElfArtifact,
-    runtime_provisions: Option<TerminalRuntimeProvisions>,
-    optimization_rollback: Option<OptimizationRollbackReceipt>,
-    application: NativeApplicationMetadata,
-}
-
-#[derive(Debug)]
-struct PublishedDynamicElfProduct {
-    runtime_provisions: Option<TerminalRuntimeProvisions>,
-    executable: DynamicElfPublicationReceipt,
-    optimization_rollback: Option<OptimizationRollbackReceipt>,
-    application: NativeApplicationMetadata,
+impl<Artifact> NativeProduct<Artifact> {
+    fn published<Receipt, Package>(
+        self,
+        executable: Receipt,
+        package: Package,
+    ) -> Box<PublishedNativeProduct<Receipt, Package>> {
+        Box::new(PublishedNativeProduct {
+            runtime_provisions: self.runtime_provisions,
+            executable,
+            package,
+            optimization_rollback: self.optimization_rollback,
+            application: self.application,
+        })
+    }
 }
 
 #[derive(Debug)]
 enum CompileProduct {
-    CheckOnly,
-    BuildArtifacts,
     TerminalArtifact(Box<TerminalProduct>),
     PublishedPsi(
         std::sync::Arc<CanonicalTerminalArtifact>,
         Option<OptimizationRollbackReceipt>,
     ),
-    RetainedNativeArtifact(Box<NativeProduct>),
-    NativeExecutable(Box<PublishedNativeProduct>),
-    RetainedDynamicElfArtifact(Box<DynamicElfProduct>),
-    DynamicElfExecutable(Box<PublishedDynamicElfProduct>),
-    ObjectContainer,
+    RetainedNativeArtifact(Box<NativeProduct<RetainedNativeArtifact>>),
+    NativeExecutable(Box<PublishedNativeProduct<ExecutablePublicationReceipt>>),
+    RetainedDynamicElfArtifact(Box<NativeProduct<RetainedDynamicElfArtifact>>),
+    DynamicElfExecutable(Box<PublishedNativeProduct<DynamicElfPublicationReceipt, ()>>),
 }
 
 impl CompileProduct {
     const fn kind(&self) -> CompileOutputKind {
         match self {
-            Self::CheckOnly => CompileOutputKind::CheckOnly,
-            Self::BuildArtifacts => CompileOutputKind::BuildArtifacts,
             Self::TerminalArtifact(_) | Self::PublishedPsi(..) => {
                 CompileOutputKind::TerminalArtifact
             }
@@ -121,7 +116,6 @@ impl CompileProduct {
             Self::NativeExecutable(_) | Self::DynamicElfExecutable(_) => {
                 CompileOutputKind::NativeExecutable
             }
-            Self::ObjectContainer => CompileOutputKind::ObjectContainer,
         }
     }
 
@@ -143,7 +137,6 @@ impl CompileProduct {
             Self::NativeExecutable(product) => product.optimization_rollback.as_ref(),
             Self::RetainedDynamicElfArtifact(product) => product.optimization_rollback.as_ref(),
             Self::DynamicElfExecutable(product) => product.optimization_rollback.as_ref(),
-            _ => None,
         }
     }
 }
@@ -155,51 +148,6 @@ pub struct CompletedProduct {
 }
 
 impl CompletedProduct {
-    pub fn build_artifacts() -> Self {
-        Self {
-            product: CompileProduct::BuildArtifacts,
-            wrote_output: false,
-        }
-    }
-
-    pub fn checked(
-        wrote_output: bool,
-        output_kind: CompileOutputKind,
-        executable_publication: Option<ExecutablePublicationReceipt>,
-    ) -> Result<Self, &'static str> {
-        if executable_publication.is_some() && output_kind != CompileOutputKind::NativeExecutable {
-            return Err("compiler report retained inconsistent executable publication receipts");
-        }
-        let product = match output_kind {
-            CompileOutputKind::CheckOnly => CompileProduct::CheckOnly,
-            CompileOutputKind::ObjectContainer => CompileProduct::ObjectContainer,
-            CompileOutputKind::NativeExecutable => match executable_publication {
-                Some(executable) => {
-                    CompileProduct::NativeExecutable(Box::new(PublishedNativeProduct {
-                        runtime_provisions: None,
-                        executable,
-                        package: None,
-                        optimization_rollback: None,
-                        application: NativeApplicationMetadata::default(),
-                    }))
-                }
-                None => {
-                    return Err("a native executable report requires its publication receipt");
-                }
-            },
-            CompileOutputKind::TerminalArtifact
-            | CompileOutputKind::RetainedNativeArtifact
-            | CompileOutputKind::BuildArtifacts => {
-                return Err(
-                    "a retained report requires its product payload; use the retained constructors",
-                );
-            }
-        };
-        Ok(Self {
-            product,
-            wrote_output,
-        })
-    }
     /// Publication accepts the completed image and its admitted runtime as a single input.
     ///
     /// ```compile_fail,E0308
@@ -234,7 +182,7 @@ impl CompletedProduct {
                 }))
             }
             native_artifact::RequestedNativeArtifact::DynamicElf(artifact) => {
-                CompileProduct::RetainedDynamicElfArtifact(Box::new(DynamicElfProduct {
+                CompileProduct::RetainedDynamicElfArtifact(Box::new(NativeProduct {
                     artifact: artifact.into_retained(),
                     runtime_provisions,
                     optimization_rollback,
@@ -273,10 +221,6 @@ impl CompletedProduct {
             })),
             wrote_output: false,
         }
-    }
-
-    pub const fn wrote_output(&self) -> bool {
-        self.wrote_output
     }
 
     pub const fn output_kind(&self) -> CompileOutputKind {
@@ -397,10 +341,6 @@ impl CompletedProduct {
         }
     }
 
-    pub fn application_metadata(&self) -> Option<&NativeApplicationMetadata> {
-        self.product.application()
-    }
-
     pub fn application_name(&self) -> Option<&str> {
         self.product
             .application()
@@ -466,19 +406,14 @@ impl CompletedProduct {
         receipt: ExecutablePublicationReceipt,
         package: Option<NativePackagePublicationReceipt>,
     ) -> Result<Self, String> {
+        const REFUSAL: &str = "native publication requires exactly one retained native artifact";
         let CompileProduct::RetainedNativeArtifact(product) = self.product else {
-            return Err("native publication requires exactly one retained native artifact".into());
+            return Err(REFUSAL.into());
         };
         if self.wrote_output {
-            return Err("native publication requires exactly one retained native artifact".into());
+            return Err(REFUSAL.into());
         }
-        self.product = CompileProduct::NativeExecutable(Box::new(PublishedNativeProduct {
-            runtime_provisions: product.runtime_provisions,
-            executable: receipt,
-            package,
-            optimization_rollback: product.optimization_rollback,
-            application: product.application,
-        }));
+        self.product = CompileProduct::NativeExecutable(product.published(receipt, package));
         self.wrote_output = true;
         Ok(self)
     }
@@ -487,22 +422,15 @@ impl CompletedProduct {
         mut self,
         receipt: DynamicElfPublicationReceipt,
     ) -> Result<Self, String> {
+        const REFUSAL: &str =
+            "dynamic ELF publication requires exactly one retained dynamic ELF artifact";
         let CompileProduct::RetainedDynamicElfArtifact(product) = self.product else {
-            return Err(
-                "dynamic ELF publication requires exactly one retained dynamic ELF artifact".into(),
-            );
+            return Err(REFUSAL.into());
         };
         if self.wrote_output {
-            return Err(
-                "dynamic ELF publication requires exactly one retained dynamic ELF artifact".into(),
-            );
+            return Err(REFUSAL.into());
         }
-        self.product = CompileProduct::DynamicElfExecutable(Box::new(PublishedDynamicElfProduct {
-            runtime_provisions: product.runtime_provisions,
-            executable: receipt,
-            optimization_rollback: product.optimization_rollback,
-            application: product.application,
-        }));
+        self.product = CompileProduct::DynamicElfExecutable(product.published(receipt, ()));
         self.wrote_output = true;
         Ok(self)
     }
@@ -514,12 +442,6 @@ impl CompletedProduct {
             );
         }
         self.wrote_output = true;
-        Ok(self)
-    }
-
-    /// Save the source-issued portable program at the requested file path.
-    pub fn save_published_psi(mut self, path: &Path) -> Result<Self, String> {
-        Self::save_shared_psi(&mut [&mut self], path)?;
         Ok(self)
     }
 
@@ -575,7 +497,6 @@ impl CompletedProduct {
     }
 
     /// Install the primary artifact and retain the receipts for these exact bytes.
-    /// Build-only reports proceed directly to their completed outputs.
     pub fn publish(self, root: &Path, build_dir: &Path) -> Result<Self, String> {
         if self.wrote_output {
             return Err("publication requires an unpublished product".into());
@@ -590,7 +511,6 @@ impl CompletedProduct {
                 crate::publish_psi(root, artifact, build_dir)?;
                 self.record_terminal_publication()
             }
-            CompileOutputKind::BuildArtifacts => Ok(self),
             _ => Err("compilation did not retain a publishable product".into()),
         }
     }

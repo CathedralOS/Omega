@@ -41,12 +41,7 @@ impl DescriptorFlowStep {
             return;
         };
         let from = source.observation();
-        for slot in inventory.slots.into_iter().chain(
-            inventory
-                .unknown_contents
-                .into_iter()
-                .map(|item| item.location),
-        ) {
+        for slot in inventory.into_observations() {
             let mut query = source.clone();
             query.steps.extend(
                 slot.path

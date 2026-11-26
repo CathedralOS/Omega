@@ -278,3 +278,152 @@ fn a_field_of_a_joined_record_reads_the_record_the_chosen_arm_hands_over() {
         program.judged(|_| {}).accepted();
     }
 }
+
+/// A field read still observes the element's declared bound at its actual
+/// index. Unread neighbors add no storage snapshots, regardless of capacity.
+#[test]
+fn a_readers_snapshots_depend_on_its_reads_not_on_the_array_capacity() {
+    let [small, large] = [32, 65_536].map(|length| {
+        let program = Program::of(&format!(
+            "data Cell requires value <= 31, {{ value: u64; }}
+             data Table {{ rows: [Cell; {length}]; }}
+             machine read(table: @Table) -> u64 crashes none {{ 31 -! table.rows[3].value }}"
+        ));
+        let lowered = program.lower();
+        let machine = lowered.machine("read");
+        let tables = lowered.elaboration.tables.machines.get(machine.id).unwrap();
+        (tables.places.len(), tables.values.len())
+    });
+    assert!(small.0 > 0);
+    assert_eq!(small, large, "an unread index acquired a snapshot");
+}
+
+/// The callee may mutate the entire field it receives. Its caller keeps the
+/// sibling array, including every element's default. The outer call returns the whole table
+/// under a fixed contract. Neither caller needs names for the unseen array.
+#[test]
+fn passing_one_field_keeps_the_sibling_arrays_out_of_the_call_snapshot() {
+    let [small, large] = [32, 4096].map(|length| {
+        let program = Program::of(&format!(
+            "data Cell requires value <= 31, {{ value: u64; }}
+             data Counter {{ count: u64; }}
+             data Table requires stamp <= 9, {{ stamp: u64; active: Counter; rows: [Cell; {length}]; }}
+             machine touch(counter: @mutable Counter) {{ counter.count = 7; }}
+             machine projected(table: @mutable Table) {{ touch(@mutable table.active); }}
+             machine whole(table: @mutable Table) {{ projected(table); }}"
+        ));
+        let lowered = program.lower();
+        ["projected", "whole"].map(|name| {
+            let machine = lowered.machine(name);
+            let tables = lowered.elaboration.tables.machines.get(machine.id).unwrap();
+            (tables.places.len(), tables.values.len())
+        })
+    });
+    assert_eq!(small, large, "neither caller reads the sibling array");
+}
+
+/// Both fields of the enclosing record matter when its own invariant relates
+/// them. The selected write must satisfy that predicate on return.
+#[test]
+fn a_field_handoff_still_checks_the_sibling_named_by_its_owner() {
+    let program = |stored| {
+        Program::of(&format!(
+            "data Cell requires value <= 31, {{ value: u64; }}
+             data Counter {{ count: u64; }}
+             data Table requires active.count <= rows[7].value, {{ active: Counter; rows: [Cell; 8]; }}
+             machine touch(counter: @mutable Counter) ensures counter.count == {stored} {{ counter.count = {stored}; }}
+             machine projected(table: @mutable Table) {{ touch(@mutable table.active); }}"
+        ))
+    };
+    program(0).judged(|_| {}).accepted();
+    assert!(matches!(
+        program(32).judged(|_| {}),
+        program::Verdict::Rejected(_)
+    ));
+}
+
+/// Each member sees the same borrowed record at a different block parameter.
+/// A field first inspected after two transfers still carries its declared bound.
+#[test]
+fn a_cycle_materializes_the_fields_its_members_expose() {
+    let source = |length: usize, action: &str| {
+        format!(
+            "data Cell requires value <= 31, {{ value: u64; }}
+             data Counter {{ count: u64; }}
+             data Table {{ active: Counter; rows: [Cell; {length}]; }}
+             machine touch(counter: @mutable Counter) {{ counter.count = 7; }}
+             machine first(table: @mutable Table, done: bool) {{
+                 touch(@mutable table.active);
+                 transition done {{ true -> finish(), _ -> second(table, done) }}
+             }}
+             machine second(table: @mutable Table, done: bool) {{
+                 transition done {{ true -> finish(), _ -> third(table, done) }}
+             }}
+             machine third(table: @mutable Table, done: bool) {{
+                 {action}
+                 transition done {{ true -> finish(), _ -> first(table, done) }}
+             }}
+             machine finish() {{}}"
+        )
+    };
+    let [small, large] = [3, 128].map(|length| {
+        let program = Program::of(&source(length, ""));
+        let lowered = program.lower();
+        ["first", "second", "third"].map(|name| {
+            let machine = lowered.machine(name);
+            let tables = lowered.elaboration.tables.machines.get(machine.id).unwrap();
+            (tables.places.len(), tables.values.len())
+        })
+    });
+    assert_eq!(small, large);
+    let write = |value| Program::of(&source(3, &format!("table.rows[1].value = {value}u64;")));
+    write(31).judged(|_| {}).accepted();
+    assert!(matches!(
+        write(32).judged(|_| {}),
+        program::Verdict::Rejected(_)
+    ));
+}
+
+/// A fixed input promise consumes the complete loan. The callee restores its
+/// domains on return; only fields the caller itself observes need local names.
+#[test]
+fn a_fixed_whole_borrow_preserves_defaults_without_naming_its_unused_elements() {
+    let [small, large] = [4, 4096].map(|length| {
+        let program = Program::of(&format!(
+            "data Cell requires value <= 31, {{ value: u64; }}
+             data Table {{ count: u64; rows: [Cell; {length}]; }}
+             machine service(table: @mutable Table) requires true {{ table.count = 7; }}
+             machine process(table: @mutable Table) -> u64 {{ service(table); table.count }}"
+        ));
+        let lowered = program.lower();
+        let machine = lowered.machine("process");
+        let tables = lowered.elaboration.tables.machines.get(machine.id).unwrap();
+        (tables.places.len(), tables.values.len())
+    });
+    assert_eq!(small, large);
+
+    let program = |written| Program::of(&format!(
+        "data Cell requires value <= 31, {{ value: u64; }}
+         data Table {{ rows: [Cell; 4]; }}
+         machine service(table: @mutable Table) requires true {{ table.rows[1].value = {written}; }}
+         machine process(table: @mutable Table) -> u64 ensures result <= 31 {{
+             service(table);
+             table.rows[1].value
+         }}"
+    ));
+    program(31).judged(|_| {}).accepted();
+    assert!(matches!(program(32).judged(|_| {}), program::Verdict::Rejected(_)));
+
+    let overwritten = Program::of(
+        "data Cell requires value <= 31, { value: u64; }
+         data Table { rows: [Cell; 4]; }
+         machine service(table: @mutable Table) requires true { table.rows[1].value = 2; }
+         machine process(table: @mutable Table) -> u64
+         requires table.rows[1].value == 1
+         ensures result == 1 {
+             service(table);
+             table.rows[1].value
+         }",
+    );
+    assert!(matches!(overwritten.judged(|_| {}), program::Verdict::Rejected(_)));
+}

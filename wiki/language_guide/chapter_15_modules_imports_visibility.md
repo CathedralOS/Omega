@@ -6,13 +6,13 @@ filename, then select its declarations through the alias bound in this file.
 ## A package
 
 ```omega
-machine build(builder: @mutable Build) {
-    Build::package(builder, "arithmetic_kernels");
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "arithmetic_kernels" };
 }
 ```
 
-Use `Build::application` instead for a program, and `Build::member` to list
-the members of a workspace. Commit `omega.lock`: it pins dependency sources
+An executable returns `BuildProduct::Application`. A workspace returns
+`BuildProduct::Workspace` with its member directories. Commit `omega.lock`: it pins dependency sources
 and records what you reviewed. [Using source packages](packages.md) covers
 adding and updating dependencies.
 
@@ -125,6 +125,11 @@ Either way, `|tables|::generate_tables(builder)` is an ordinary call. The
 compiler resolves the import before the Build starts. The invoker supplies
 the root's external libraries, and the parent supplies each child's. Product
 source sees the libraries selected for the product.
+
+A shared file can declare `use tables.omg;` before that file exists. If only
+the successor calls `|tables|::generate_tables`, the first stage can write
+`tables.omg` for it. If no compiled stage uses the import, the build reports
+one unused-import warning at the end.
 [Checked Build stages](../spec/build/scoped_execution.md#checked-build-stages)
 
 A build helper runs on the machine doing the build, whatever the target is,

@@ -7,24 +7,23 @@ operations with the optimized program's accepted obligations and ownership
 facts, the admitted boundary origins and interrupt installations, and the
 sealed module. Native stage 05 receives that `PreparedExecutionPlan`.
 
-The same crate holds the plan validator. `verify_execution_plan`
-derives the plan a second way, from the abstract program and the optimization
-unit, and compares it with the plan preparation published. Ordinary
-compilation never calls it; it runs on an explicit validator request and in
-tests.
+The same crate holds the plan validator. `verify_execution_plan` checks the
+published plan's seal, header, callable facts, publication, closed types,
+ABIs, installations, boundary origins, and target-to-source operation
+correspondence, then re-derives the legalized functions from the target
+operations and compares them row for row. Ordinary compilation never calls it;
+it runs on an explicit validator request and in tests.
 */
 
 /*
-- `legalization.rs` coordinates preparation and verification.
+- `legalization.rs` coordinates preparation and validation.
 - `legalization/instruction.rs` and `legalization/control.rs` prepare the plan from retained target rows.
-- The other files under `legalization/` derive the input rows and verify their correspondence.
+- `legalization/source.rs` and `legalization/scalar_graph.rs` hold retained row projectors and boundary checks.
 - `installed_interrupts.rs` and `interrupt_installation.rs` join the target program to its admitted interrupt installations.
 */
 
 pub(crate) mod native_geometry {
-    pub(crate) use legalized_operations::native_geometry::{
-        NativeGeometries, NativeGeometry, exact_cast_has_native_carriers,
-    };
+    pub(crate) use legalized_operations::native_geometry::{NativeGeometries, NativeGeometry};
 
     /// The integer types the accepted module retains.
     ///
@@ -74,60 +73,6 @@ pub(crate) mod native_geometry {
         (closed.identity() == psi && std::ptr::eq(closed.module(), module))
             .then(|| ModuleTypes(closed.closed_types().clone()))
     }
-
-    /// Prepared layouts and module types used to close the execution plan.
-    pub(crate) struct NativeInput<'a, T> {
-        input: legalized_operations::native_geometry::NativeInput<'a, T>,
-        types: &'a ModuleTypes,
-    }
-
-    impl<'a, T> NativeInput<'a, T> {
-        pub(crate) fn with_types(
-            source: &'a T,
-            geometry: &'a NativeGeometry<'a>,
-            types: &'a ModuleTypes,
-        ) -> Self {
-            Self {
-                input: legalized_operations::native_geometry::NativeInput::new(source, geometry),
-                types,
-            }
-        }
-
-        pub(crate) fn closed_scalar(
-            &self,
-            scalar: semantic_vocabulary::ScalarType,
-        ) -> Option<semantic_vocabulary::ClosedScalarType> {
-            self.types.scalar(scalar)
-        }
-
-        pub(crate) fn closed_integer(
-            &self,
-            integer: semantic_vocabulary::IntegerType,
-        ) -> Option<semantic_vocabulary::ClosedIntegerType> {
-            self.types.integer(integer)
-        }
-
-        pub(crate) const fn closed_types(&self) -> &'a ModuleTypes {
-            self.types
-        }
-
-        pub(crate) fn geometry(&self) -> &'a NativeGeometry<'a> {
-            self.input.geometry()
-        }
-    }
-
-    impl<'a, T> std::ops::Deref for NativeInput<'a, T> {
-        type Target = legalized_operations::native_geometry::NativeInput<'a, T>;
-
-        fn deref(&self) -> &Self::Target {
-            &self.input
-        }
-    }
-
-    /// The validator reads the abstract program and the optimization unit
-    /// with the same prepared layouts and module types as the plan.
-    pub(crate) type NativePlan<'a> = NativeInput<'a, abstract_operations::AbstractOperationPlan>;
-    pub(crate) type NativeUnit<'a> = NativeInput<'a, optimization_unit::PsiOptimizationUnit>;
 
     #[cfg(test)]
     mod tests {
@@ -206,20 +151,12 @@ pub(crate) mod interrupt_installation;
 mod legalization;
 #[path = "legalization/control.rs"]
 mod legalization_control;
-#[path = "legalization/descriptor_inputs.rs"]
-mod legalization_descriptor_inputs;
-#[path = "legalization/function_inputs.rs"]
-mod legalization_function_inputs;
 #[path = "legalization/instruction.rs"]
 mod legalization_instruction;
-#[path = "legalization/reference_custody.rs"]
-mod legalization_reference_custody;
 #[path = "legalization/scalar_graph.rs"]
 mod legalization_scalar_graph;
 #[path = "legalization/source.rs"]
 mod legalization_source;
-#[path = "legalization/target.rs"]
-mod legalization_target;
 
 pub(crate) use legalization::LegalizationError;
 pub use legalization::{

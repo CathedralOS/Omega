@@ -10,20 +10,20 @@ use terminal_psi::{
 };
 
 /// Checked content obligations are indexed by the same clause ordinal as
-/// scalar guarantees. Each receipt names the actual claim that reaches every
-/// normal return. Bodies and saved artifacts run the same custody judgment.
+/// scalar guarantees. Each receipt names all the original claims conserved on
+/// every normal return. Bodies and saved artifacts use the same judgment.
 pub fn checked_returns(
     module: &TerminalModule,
     machine: &TerminalMachine,
-) -> Result<Vec<(usize, ClaimId)>, &'static str> {
+) -> Result<Vec<(usize, Vec<ClaimId>)>, &'static str> {
     let mut proved = Vec::new();
     let mut origins = ancestry::OriginTraversal::unchanged_content();
     for (ordinal, clause) in machine.ensures.iter().enumerate() {
         if let Proposition::ContentConservation(law) = &clause.proposition {
             let input = if super::partition::is_interval_partition(law) {
-                super::partition::checked_return(module, machine, law)?.input
+                super::partition::checked_return(module, machine, law)?.inputs
             } else {
-                forwarded_projection(module, machine, law, &mut origins)?
+                vec![forwarded_projection(module, machine, law, &mut origins)?]
             };
             proved.push((ordinal, input));
         }

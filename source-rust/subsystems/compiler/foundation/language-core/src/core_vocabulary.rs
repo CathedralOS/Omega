@@ -52,6 +52,9 @@ pub enum CoreVocabulary {
     StandardOutputService,
     ProcessExitService,
     NetworkService,
+    UnsafeService,
+    UnsafeAtom(UnsafeAtom),
+    NativeImageLoadService,
     /// One of core `filesystem_authority.omg`'s capability-only services.
     FilesystemService(FilesystemService),
     /// A private segment-selector primitive in core `code_segment.omg` or
@@ -89,6 +92,26 @@ pub enum CoreVocabulary {
     ExternalBinding(ExternalBindingVocabulary),
     /// Core `integer.omg`'s carrier metadata query or its result type.
     IntegerCarrier(IntegerCarrierDeclaration),
+}
+
+/// Specific Product opt-ins admitted by the memberless core Unsafe parent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
+pub enum UnsafeAtom {
+    RawMemoryRead,
+    RawMemoryWrite,
+    BorrowMutabilityUpgrade,
+    ForeignCodeExecution,
+}
+
+impl UnsafeAtom {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::RawMemoryRead => "RawMemoryRead",
+            Self::RawMemoryWrite => "RawMemoryWrite",
+            Self::BorrowMutabilityUpgrade => "BorrowMutabilityUpgrade",
+            Self::ForeignCodeExecution => "ForeignCodeExecution",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -134,6 +157,7 @@ pub enum AssemblyEffect {
 /// The native-binding vocabulary types in `external_binding.omg`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ExternalBindingVocabulary {
+    FunctionFieldBinding,
     ForeignBinding,
     DllImport,
 }
@@ -272,6 +296,42 @@ const ROWS: &[CoreVocabularyRow] = &[
         "Nat",
         BundledFile::CoreNat,
         CoreVocabulary::ProofNatural,
+    ),
+    row(
+        "native_execution_authority.omg",
+        "NativeImageLoad",
+        BundledFile::CoreNativeExecutionAuthority,
+        CoreVocabulary::NativeImageLoadService,
+    ),
+    row(
+        "unsafe.omg",
+        "Unsafe",
+        BundledFile::CoreUnsafe,
+        CoreVocabulary::UnsafeService,
+    ),
+    row(
+        "unsafe.omg",
+        UnsafeAtom::RawMemoryRead.name(),
+        BundledFile::CoreUnsafe,
+        CoreVocabulary::UnsafeAtom(UnsafeAtom::RawMemoryRead),
+    ),
+    row(
+        "unsafe.omg",
+        UnsafeAtom::RawMemoryWrite.name(),
+        BundledFile::CoreUnsafe,
+        CoreVocabulary::UnsafeAtom(UnsafeAtom::RawMemoryWrite),
+    ),
+    row(
+        "unsafe.omg",
+        UnsafeAtom::BorrowMutabilityUpgrade.name(),
+        BundledFile::CoreUnsafe,
+        CoreVocabulary::UnsafeAtom(UnsafeAtom::BorrowMutabilityUpgrade),
+    ),
+    row(
+        "unsafe.omg",
+        UnsafeAtom::ForeignCodeExecution.name(),
+        BundledFile::CoreUnsafe,
+        CoreVocabulary::UnsafeAtom(UnsafeAtom::ForeignCodeExecution),
     ),
     row(
         "network_authority.omg",
@@ -679,6 +739,12 @@ const ROWS: &[CoreVocabularyRow] = &[
     ),
     row(
         "external_binding.omg",
+        "FunctionFieldBinding",
+        BundledFile::CoreExternalBinding,
+        CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::FunctionFieldBinding),
+    ),
+    row(
+        "external_binding.omg",
         "ForeignBinding",
         BundledFile::CoreExternalBinding,
         CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::ForeignBinding),
@@ -710,6 +776,7 @@ pub enum CoreSource {
     Layout,
     Run,
     CodeLayout,
+    Foundation,
 }
 
 const CORE_SOURCES: &[(CoreSource, &str, BundledFile)] = &[
@@ -739,6 +806,11 @@ const CORE_SOURCES: &[(CoreSource, &str, BundledFile)] = &[
         CoreSource::FloatMeaning,
         "float_meaning.omg",
         BundledFile::CoreFloatMeaning,
+    ),
+    (
+        CoreSource::Foundation,
+        "foundation.omg",
+        BundledFile::CoreFoundation,
     ),
     (CoreSource::Layout, "layout.omg", BundledFile::CoreLayout),
     (CoreSource::Run, "run.omg", BundledFile::CoreRun),

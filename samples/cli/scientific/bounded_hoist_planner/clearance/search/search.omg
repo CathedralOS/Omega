@@ -2,10 +2,7 @@
 // A feasible word keeps every height inside its span's [floor, ceiling], limits
 // each hoist step to four units, and ends at the required height. The word code
 // orders profiles lexicographically; retain the first tied optimum.
-use clearance\model;
-use clearance\model\Plan;
-use clearance\model\Travel;
-use clearance\model\Certificate;
+use clearance/model/model.omg;
 
 // Each extracted digit is below ten; the guard before the Exact narrowing to
 // i32 authorizes the conversion, matching the route-event convention.
@@ -20,18 +17,18 @@ machine digit(code: u64 in Wrapping, divisor: u64 in Wrapping) -> i32 in Saturat
     machine undefined() -> i32 in Saturating { 0 }
 }
 
-public machine solve(plan: @Plan, certificate: @mutable Certificate) {
+public machine solve(plan: @|model|::Plan, certificate: @mutable |model|::Certificate) {
     certificate.feasible = 0;
     certificate.ties = 0;
     transition { _ -> enumerate(plan, certificate, 0) }
-    machine enumerate(plan: @Plan, certificate: @mutable Certificate, code: u64) {
+    machine enumerate(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64) {
         transition code < 10000 {
             true -> candidate(plan, certificate, code),
             false -> done()
         }
     }
-    machine candidate(plan: @Plan, certificate: @mutable Certificate, code: u64) {
-        let mutable travel: Travel;
+    machine candidate(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64) {
+        let mutable travel: |model|::Travel;
         travel.heights[0] = digit(code as u64 +Wrapping, 1000);
         travel.heights[1] = digit(code as u64 +Wrapping, 100);
         travel.heights[2] = digit(code as u64 +Wrapping, 10);
@@ -42,14 +39,14 @@ public machine solve(plan: @Plan, certificate: @mutable Certificate) {
             false -> next(plan, certificate, code)
         }
     }
-    machine feasible(plan: @Plan, certificate: @mutable Certificate, code: u64, travel: @Travel) {
+    machine feasible(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64, travel: @|model|::Travel) {
         certificate.feasible = certificate.feasible + 1;
         transition certificate.ties == 0 || travel.cost < certificate.best.cost {
             true -> better(plan, certificate, code, travel),
             false -> compare(plan, certificate, code, travel)
         }
     }
-    machine better(plan: @Plan, certificate: @mutable Certificate, code: u64, travel: @Travel) {
+    machine better(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64, travel: @|model|::Travel) {
         certificate.ties = 1;
         certificate.code = code;
         certificate.best.cost = travel.cost;
@@ -59,17 +56,17 @@ public machine solve(plan: @Plan, certificate: @mutable Certificate) {
         certificate.best.heights[3] = travel.heights[3];
         transition { _ -> next(plan, certificate, code) }
     }
-    machine compare(plan: @Plan, certificate: @mutable Certificate, code: u64, travel: @Travel) {
+    machine compare(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64, travel: @|model|::Travel) {
         transition travel.cost == certificate.best.cost {
             true -> tied(plan, certificate, code),
             false -> next(plan, certificate, code)
         }
     }
-    machine tied(plan: @Plan, certificate: @mutable Certificate, code: u64) {
+    machine tied(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64) {
         certificate.ties = certificate.ties + 1;
         transition { _ -> next(plan, certificate, code) }
     }
-    machine next(plan: @Plan, certificate: @mutable Certificate, code: u64) {
+    machine next(plan: @|model|::Plan, certificate: @mutable |model|::Certificate, code: u64) {
         transition code < 10000 {
             true -> enumerate(plan, certificate, code + 1),
             false -> done()
@@ -78,15 +75,15 @@ public machine solve(plan: @Plan, certificate: @mutable Certificate) {
     machine done() { }
 }
 
-machine evaluate(plan: @Plan, travel: @mutable Travel) -> bool {
+machine evaluate(plan: @|model|::Plan, travel: @mutable |model|::Travel) -> bool {
     transition { _ -> admit(plan, travel, 0, plan.start, 0) }
-    machine admit(plan: @Plan, travel: @mutable Travel, index: u64, previous: i32 in Saturating, cost: i32 in Saturating) -> bool {
+    machine admit(plan: @|model|::Plan, travel: @mutable |model|::Travel, index: u64, previous: i32 in Saturating, cost: i32 in Saturating) -> bool {
         transition index < 4 {
             true -> span(plan, travel, index, previous, cost),
             false -> finish(plan, travel, cost)
         }
     }
-    machine span(plan: @Plan, travel: @mutable Travel, index: u64, previous: i32 in Saturating, cost: i32 in Saturating) -> bool {
+    machine span(plan: @|model|::Plan, travel: @mutable |model|::Travel, index: u64, previous: i32 in Saturating, cost: i32 in Saturating) -> bool {
         let height: i32 in Saturating = travel.heights[index];
         let inside: bool = plan.floors[index] <= height && height <= plan.ceilings[index];
         let step: i32 in Saturating = difference(height, previous);
@@ -95,7 +92,7 @@ machine evaluate(plan: @Plan, travel: @mutable Travel) -> bool {
             false -> false
         }
     }
-    machine finish(plan: @Plan, travel: @mutable Travel, cost: i32 in Saturating) -> bool {
+    machine finish(plan: @|model|::Plan, travel: @mutable |model|::Travel, cost: i32 in Saturating) -> bool {
         travel.cost = cost;
         travel.heights[3] == plan.end
     }

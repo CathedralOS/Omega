@@ -2,12 +2,14 @@
 // allocation-recovery rules. compiler/tests/selected_allocation_handoff.rs
 // rolls back every rule except the ones a test checks; together they would be
 // an unsupported composition.
-machine build(builder: @mutable Build) {
-    Build::application(builder, "selected_allocation_high_pressure");
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+use main.omg as app;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "selected_allocation_high_pressure" };
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
     Optimizations::enable(@mutable builder.optimizations, Optimization::SelectedIncomingWrappingAddZeroIdentityCopy);
     Optimizations::enable(@mutable builder.optimizations, Optimization::SelectedSameBlockCopyI64RemovalV1);
     Optimizations::enable(@mutable builder.optimizations, Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1);

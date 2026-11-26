@@ -288,21 +288,9 @@ fn observe_leaf<'storage>(
                 .ok_or(TerminalStorageObservationError::UnknownPath)?;
             Ok(TerminalStorageObservationValue::Storage(observed.contents))
         }
-        StorageLeafKind::ByteField { parent, field, .. } => {
-            let namespace = if matches!(path.iter().rev().nth(1), Some(Path::Case(_))) {
-                StructuralFieldNamespace::CasePayload
-            } else {
-                StructuralFieldNamespace::Member
-            };
-            let bytes = execution
-                .byte_field_read(&StructuralByteSequenceRuntimeField {
-                    parent: parent.clone(),
-                    namespace,
-                    field: *field,
-                })
-                .map_err(|error| error.in_argument_preparation("read observed byte field"))?;
-            Ok(TerminalStorageObservationValue::Bytes(bytes))
-        }
+        StorageLeafKind::ByteField { .. } => Ok(TerminalStorageObservationValue::Bytes(
+            leaf.read_byte_view(execution, path, None)?,
+        )),
         StorageLeafKind::EmptyScalarArray {
             destination,
             structural_type,
@@ -329,21 +317,52 @@ fn observe_leaf<'storage>(
                 .ok_or(TerminalStorageObservationError::OpaqueContents)?;
             Ok(TerminalStorageObservationValue::Bytes(bytes.read_view()?))
         }
-        StorageLeafKind::Opaque {
-            destination,
-            declaration,
-        } if execution
-            .structural_declaration(*declaration)?
-            .shape
-            .is_shared_readable_byte_view() =>
+        StorageLeafKind::Opaque { declaration, .. }
+            if execution
+                .structural_declaration(*declaration)?
+                .shape
+                .is_shared_readable_byte_view() =>
         {
-            let unsupported = |reason| {
-                TerminalStorageObservationError::Execution(
-                    TerminalInterpretError::UnsupportedSemanticVariant(reason),
-                )
-            };
-            let binding =
-                if let Some(binding) = execution.structural_byte_descriptors.get(destination) {
+            Ok(TerminalStorageObservationValue::Bytes(
+                leaf.read_byte_view(execution, path, Some(value))?,
+            ))
+        }
+        StorageLeafKind::Opaque { .. } => Err(TerminalStorageObservationError::OpaqueContents),
+    }
+}
+
+impl StorageLeaf {
+    /// Read the descriptor at its actual storage home. Only a result observed at
+    /// its root may use the return slot when there is no stored descriptor.
+    pub(crate) fn read_byte_view<'execution>(
+        &self,
+        execution: &'execution TerminalExecution<'_>,
+        path: &[Path],
+        returned_root: Option<&TerminalStructuralValue>,
+    ) -> Result<crate::TerminalByteRead<'execution>, TerminalInterpretError> {
+        match &self.kind {
+            StorageLeafKind::ByteField { parent, field, .. } => {
+                let namespace = if matches!(path.iter().rev().nth(1), Some(Path::Case(_))) {
+                    StructuralFieldNamespace::CasePayload
+                } else {
+                    StructuralFieldNamespace::Member
+                };
+                execution
+                    .byte_field_read(&StructuralByteSequenceRuntimeField {
+                        parent: parent.clone(),
+                        namespace,
+                        field: *field,
+                    })
+                    .map_err(|error| error.in_argument_preparation("read observed byte field"))
+            }
+            StorageLeafKind::Opaque {
+                destination,
+                declaration,
+            } => {
+                let unsupported = TerminalInterpretError::UnsupportedSemanticVariant;
+                let binding = if let Some(binding) =
+                    execution.structural_byte_descriptors.get(destination)
+                {
                     let home = match binding {
                         ByteSequenceBinding::Immutable(bytes) => bytes.descriptor_home(),
                         binding => binding.descriptor_home(),
@@ -360,10 +379,16 @@ fn observe_leaf<'storage>(
                         ));
                     }
                     binding
-                } else if path.is_empty()
-                    && value.structural_type == *declaration
-                    && StructuralRuntimePlace::from(value) == *destination
-                {
+                } else {
+                    let value = returned_root
+                        .filter(|root| {
+                            path.is_empty()
+                                && root.structural_type == *declaration
+                                && StructuralRuntimePlace::from(*root) == *destination
+                        })
+                        .ok_or_else(|| {
+                            unsupported("observed byte field has no retained descriptor binding")
+                        })?;
                     let binding = execution.returned_byte_sequence.as_ref().ok_or_else(|| {
                         unsupported("returned byte value has no retained descriptor binding")
                     })?;
@@ -373,16 +398,11 @@ fn observe_leaf<'storage>(
                         ));
                     }
                     binding
-                } else {
-                    return Err(unsupported(
-                        "observed byte field has no retained descriptor binding",
-                    ));
                 };
-            Ok(TerminalStorageObservationValue::Bytes(
-                binding.read_view(execution)?,
-            ))
+                binding.read_view(execution)
+            }
+            _ => Err(malformed()),
         }
-        StorageLeafKind::Opaque { .. } => Err(TerminalStorageObservationError::OpaqueContents),
     }
 }
 

@@ -62,10 +62,8 @@ fn name_expression_source_custody_survives_nested_constant_leaves() {
 
 #[test]
 fn local_bindings_parse_their_type_and_initializer_once() {
-    let tokens = Lexer::new("machine sample() { let value: Buffer<count(4)> = make(9); }")
-        .tokenize()
-        .unwrap();
-    let parsed = parse_syntax_trees(&tokens).unwrap();
+    let parsed =
+        crate::tests::parse_source("machine sample() { let value: Buffer<count(4)> = make(9); }");
     assert_eq!(parsed.type_references.const_expression_nodes().len(), 1);
     for name in ["count", "make"] {
         assert_eq!(
@@ -100,7 +98,7 @@ fn member_calls_preserve_their_written_initializer_and_binding_properties() {
         ] {
             let source =
                 format!("machine update(cell: u64) {{ let {binding}: u64 = cell.{operation}; }}");
-            let parsed = crate::tests::parse_source_unwrap(&source);
+            let parsed = crate::tests::parse_source(&source);
             let statements = first_machine_statements(&parsed);
             let [local] = statements else {
                 panic!("one authored binding: {source}")
@@ -131,7 +129,7 @@ fn unmatched_atomic_shapes_publish_only_the_ordinary_binding() {
         "cell.unrelated(1, NoOrdering)",
     ] {
         let source = format!("machine sample() {{ let value: u64 = {expression}; }}");
-        let parsed = crate::tests::parse_source_unwrap(&source);
+        let parsed = crate::tests::parse_source(&source);
         assert_eq!(first_machine_statements(&parsed).len(), 1, "{source}");
         assert!(
             !parsed
@@ -145,19 +143,15 @@ fn unmatched_atomic_shapes_publish_only_the_ordinary_binding() {
 
 #[test]
 fn malformed_binding_reports_its_initializer_error() {
-    let tokens = Lexer::new("machine sample() { let value: u64 = ; }")
-        .tokenize()
-        .unwrap();
-    let error = parse_syntax_trees(&tokens).unwrap_err();
+    let error = crate::tests::parse_error("machine sample() { let value: u64 = ; }");
     assert!(error.message.contains("expression"), "{}", error.message);
 }
 
 #[test]
 fn trait_defaults_keep_the_authored_member_call() {
-    let tokens = Lexer::new(
+    let parsed = crate::tests::parse_source(
         "trait Updates { machine update(cell: u64) { let prior: u64 = cell.swap(1, NoOrdering); } }",
-    ).tokenize().unwrap();
-    let parsed = parse_syntax_trees(&tokens).unwrap();
+    );
     let definition = crate::tests::root_trait(&parsed, "trait");
     let signature = parsed
         .items
@@ -191,7 +185,7 @@ fn terminal_acknowledgements_preserve_named_and_parenthesized_call_forms() {
         ("block pick().next(input; proof)", false, false, true),
     ] {
         let source = format!("machine run(input: u32) -> u32 {{ transition {{ _ -> {target} }} }}");
-        let parsed = crate::tests::parse_source_unwrap(&source);
+        let parsed = crate::tests::parse_source(&source);
         let machine = crate::tests::root_machine_unwrap(&parsed);
         let state = parsed
             .items
@@ -253,7 +247,7 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
         let source = format!(
             "machine Main::next(main: @Main, input: u64) -> u64 {{ transition {{ _ -> {target}(input; proof) }} }}"
         );
-        let parsed = crate::tests::parse_source_unwrap(&source);
+        let parsed = crate::tests::parse_source(&source);
         let machine = crate::tests::root_machine_unwrap(&parsed);
         let state = parsed
             .items
@@ -266,7 +260,10 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
             else {
                 panic!("state/namespace target changed: {target}");
             };
-            assert_eq!(parsed.expressions.call(*expression).evidence_arguments[0].as_str(&parsed), "proof");
+            assert_eq!(
+                parsed.expressions.call(*expression).evidence_arguments[0].as_str(&parsed),
+                "proof"
+            );
         } else {
             let syntax_trees::statement::TransitionTargetNode::Value(expression) = target_node
             else {
@@ -306,7 +303,7 @@ fn opposite_boolean_subject_arms_retain_their_authored_patterns_and_shared_subje
             "machine value() -> u8 {{ transition probe() {{ {first} -> 1u8, {} -> 2u8 }} }}",
             !first
         );
-        let parsed = crate::tests::parse_source_unwrap(&source);
+        let parsed = crate::tests::parse_source(&source);
         let mut copied = syntax_trees::SyntaxTrees::new_with_generation(parsed.source_id, 90);
         copied.extend_from(&parsed);
         assert_eq!(copied.snapshot(), parsed.snapshot());
@@ -341,7 +338,7 @@ fn copying_a_dispatch_preserves_wildcard_positions_and_structural_bindings() {
     let source = "data Pair { v: u32; } machine inspect(first: Pair, second: bool) -> u32 {
         transition (first, second) { (Pair { v }, _) if v > 0u32 -> {}, (_, false) -> 7u32 }
     }";
-    let parsed = crate::tests::parse_source_unwrap(source);
+    let parsed = crate::tests::parse_source(source);
     let mut copied = syntax_trees::SyntaxTrees::new_with_generation(parsed.source_id, 90);
     copied.extend_from(&parsed);
     let find = |item: &syntax_trees::item::Item| item.as_machine().cloned();
@@ -392,7 +389,7 @@ fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
         "transition probe() { true -> 1u8 } transition probe() { false -> 2u8 }",
     ] {
         let source = format!("machine value() -> u8 {{ {body} }}");
-        let parsed = crate::tests::parse_source_unwrap(&source);
+        let parsed = crate::tests::parse_source(&source);
         let machine = crate::tests::root_machine_unwrap(&parsed);
         let state = parsed
             .items
@@ -430,7 +427,7 @@ fn boolean_transition_targets_are_literals_without_parentheses() {
         ("(true)", true),
     ] {
         let source = format!("machine value() -> bool {{ transition {{ _ -> {spelling} }} }}");
-        let parsed = crate::tests::parse_source_unwrap(&source);
+        let parsed = crate::tests::parse_source(&source);
         let machine = crate::tests::root_machine_unwrap(&parsed);
         let state = parsed
             .items
@@ -450,10 +447,7 @@ fn boolean_transition_targets_are_literals_without_parentheses() {
 
 #[test]
 fn source_target_declarations_are_retired() {
-    let tokens = Lexer::new("target linux_x86_64 { }")
-        .tokenize()
-        .expect("tokenize retired target declaration");
-    let error = parse_syntax_trees(&tokens).expect_err("target declarations must not parse");
+    let error = crate::tests::parse_error("target linux_x86_64 { }");
     crate::tests::expect_error(&error, "`target` declarations are retired");
 }
 
@@ -470,18 +464,16 @@ fn atomic_spellings_are_ordinary_member_calls_through_parsing() {
         let input = format!(
             "data Operation = machine(key: u64, value: u64) -> u64 reaches none crashes none terminates; data Registry {{ {member}: Operation; }} machine call(registry: Registry) -> u64 {{ (registry.{member})(1u64, 42u64) }}"
         );
-        let trees = crate::tests::parse_source_unwrap(&input);
+        let trees = crate::tests::parse_source(&input);
         assert!(trees.expressions.iter_expressions().any(|(_, node)| matches!(node, ExpressionNode::Call(call) if call.target.as_str(&trees) == member && call.arguments.count() == 2)));
     }
 }
 
 #[test]
 fn old_remains_an_ordinary_parameter_and_local_identifier() {
-    let tokens =
-        Lexer::new("machine migrate(old: u64) -> u64 { let old_copy: u64 = old; old_copy }")
-            .tokenize()
-            .expect("tokenize ordinary old identifiers");
-    let parsed = parse_syntax_trees(&tokens).expect("old must not be a globally reserved word");
+    let parsed = crate::tests::parse_source(
+        "machine migrate(old: u64) -> u64 { let old_copy: u64 = old; old_copy }",
+    );
     let machine = crate::tests::root_machine(&parsed, "migration machine");
     let state = parsed.items.state(
         parsed
@@ -516,10 +508,7 @@ fn old_remains_an_ordinary_parameter_and_local_identifier() {
 
 #[test]
 fn entry_remains_an_ordinary_machine_name_with_a_generated_internal_entry() {
-    let tokens = Lexer::new("machine entry() {}")
-        .tokenize()
-        .expect("tokenize ordinary entry declaration");
-    let parsed = parse_syntax_trees(&tokens).expect("entry must remain a declaration name");
+    let parsed = crate::tests::parse_source("machine entry() {}");
     let machine = crate::tests::root_machine(&parsed, "ordinary entry machine");
     assert_eq!(machine.name.as_str(&parsed), "entry");
     let [state_handle] = parsed.items.state_handles(machine.states) else {
@@ -531,10 +520,7 @@ fn entry_remains_an_ordinary_machine_name_with_a_generated_internal_entry() {
 
 #[test]
 fn trait_machine_parameter_is_requirement_identity() {
-    let tokens = Lexer::new("trait PrivateCallbackSlot<machine Requirement> {}")
-        .tokenize()
-        .expect("tokenize trait machine requirement parameter");
-    let parsed = parse_syntax_trees(&tokens).expect("parse trait machine requirement parameter");
+    let parsed = crate::tests::parse_source("trait PrivateCallbackSlot<machine Requirement> {}");
     let trait_definition = crate::tests::root_trait(&parsed, "PrivateCallbackSlot trait");
     let [parameter] = parsed
         .items
@@ -558,11 +544,7 @@ fn provider_selection_retains_two_structural_type_paths() {
             Build::select_provider::<host::Console, application::ConsoleProvider>(builder);
         }
     "#;
-    let parsed = crate::tests::parse_source_verbose(
-        source,
-        "tokenize provider selection",
-        "parse provider selection",
-    );
+    let parsed = crate::tests::parse_source(source);
     let call = parsed
         .expressions
         .iter_expressions()
@@ -593,11 +575,7 @@ fn service_exclusion_retains_namespace_type_path_and_explicit_build_argument() {
             Build::exclude_service::<host::Console>(builder);
         }
     "#;
-    let parsed = crate::tests::parse_source_verbose(
-        source,
-        "tokenize service exclusion",
-        "parse service exclusion",
-    );
+    let parsed = crate::tests::parse_source(source);
     let call = parsed
         .expressions
         .iter_expressions()
@@ -658,11 +636,7 @@ fn provider_selection_retains_one_explicit_composition_mode_argument() {
             );
         }
     "#;
-    let parsed = crate::tests::parse_source_verbose(
-        source,
-        "tokenize independent provider selection",
-        "parse independent provider selection",
-    );
+    let parsed = crate::tests::parse_source(source);
     let call = parsed
         .expressions
         .iter_expressions()
@@ -712,11 +686,7 @@ fn a_build_operation_record_keeps_its_ordinary_statement_call() {
              Build::bind(a, b); Build::bind(a, b, c); }"
             .to_owned(),
     ] {
-        let parsed = crate::tests::parse_source_verbose(
-            &source,
-            "tokenize record call",
-            "parse record call",
-        );
+        let parsed = crate::tests::parse_source(&source);
         let statements = first_machine_statements(&parsed);
         assert_eq!(statements.len(), 2);
         for &statement in statements {
@@ -735,8 +705,7 @@ fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
             Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
         }
     "#;
-    let parsed =
-        crate::tests::parse_source_verbose(source, "tokenize root binding", "parse root binding");
+    let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "build machine");
     let state = parsed
         .items
@@ -808,11 +777,7 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
         let source = format!(
             "machine build(builder: @mutable Build) {{ Build::bind(builder, Slot, {operand}); }}"
         );
-        let parsed = crate::tests::parse_source_verbose(
-            &source,
-            "root binding tokens",
-            "description expression syntax",
-        );
+        let parsed = crate::tests::parse_source(&source);
         let machine = crate::tests::root_machine(&parsed, "build machine");
         let state = parsed
             .items
@@ -838,11 +803,7 @@ fn opaque_representation_selection_retains_data_and_conformance_paths() {
             Build::select_representation::<interrupt::Ack, platform\AckRepresentation>(builder);
         }
     "#;
-    let parsed = crate::tests::parse_source_verbose(
-        source,
-        "tokenize opaque representation selection",
-        "parse opaque representation selection",
-    );
+    let parsed = crate::tests::parse_source(source);
     let call = parsed
         .expressions
         .iter_expressions()
@@ -869,42 +830,33 @@ fn opaque_representation_selection_retains_data_and_conformance_paths() {
 
 #[test]
 fn rejects_pub_when_the_declaration_cannot_retain_visibility() {
-    let tokens = Lexer::new("public measure Counter::Zero(value: i32) -> i32 { 0 }")
-        .tokenize()
-        .expect("tokenize declaration");
-    let error = parse_syntax_trees(&tokens).expect_err("visibility loss must reject");
+    let error = crate::tests::parse_error("public measure Counter::Zero(value: i32) -> i32 { 0 }");
     crate::tests::expect_error(&error, "silently private API");
 }
 
 #[test]
 fn owns_non_utf8_string_literal_bytes_in_syntax_tree() {
-    let tokens = Lexer::new(
+    let parsed = crate::tests::parse_source(
         r#"
         machine emit() {
             Console::write_line("\x80A");
         }
         "#,
-    )
-    .tokenize()
-    .expect("tokenize raw-byte escape");
-    let parsed = parse_syntax_trees(&tokens).expect("raw bytes are syntax payload");
+    );
     let snapshot = parsed.snapshot_json().expect("snapshot");
     assert!(snapshot.contains("\"bytes\":[128,65]"), "{snapshot}");
 }
 
 #[test]
 fn parses_relevance_on_ordinary_numbered_fields() {
-    let tokens = Lexer::new(
+    let parsed = crate::tests::parse_source(
         r#"
         data Message {
             #0 value: u32;
             #1 proof [erased]: Evidence;
         }
         "#,
-    )
-    .tokenize()
-    .expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("numbered relevance should parse");
+    );
     let schema = crate::tests::root_data(&parsed, "ordinary numbered data");
     let fields = parsed
         .items
@@ -932,7 +884,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
 
         proposition reflexive(value: i32) = related(value, value);
     "#;
-    let parsed = crate::tests::parse_source(source, "all settled proposition forms should parse");
+    let parsed = crate::tests::parse_source(source);
     let propositions = crate::tests::root_propositions(&parsed);
 
     assert_eq!(propositions.len(), 3);
@@ -984,11 +936,7 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
 #[test]
 fn struct_literal_retains_its_complete_authored_source_span() {
     let source = "const ORIGIN: Point = Point { x: 1, y: 2 };";
-    let parsed = crate::tests::parse_source_verbose(
-        source,
-        "tokenize structured const declaration",
-        "parse structured const declaration",
-    );
+    let parsed = crate::tests::parse_source(source);
     let declaration = crate::tests::root_const(&parsed, "structured const declaration");
     let span = parsed.expressions.source_span(declaration.initializer).span;
     assert_eq!(&source[span.start..span.end], "Point { x: 1, y: 2 }");
@@ -1021,7 +969,7 @@ fn parses_type_and_integer_const_proposition_arguments() {
         proposition indexed<T, const N: i32>();
         proposition selected() = indexed::<i32, 7>();
     "#;
-    let parsed = crate::tests::parse_source(source, "static proposition arguments should parse");
+    let parsed = crate::tests::parse_source(source);
     let call = parsed
         .expressions
         .iter_expressions()
@@ -1053,19 +1001,13 @@ fn proposition_declarations_reject_runtime_or_ambiguous_body_shapes() {
         "proposition bad(value: i32) { Evidence; OtherEvidence; }",
         "proposition bad(value: i32) { value }",
     ] {
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        parse_syntax_trees(&tokens).expect_err("invalid proposition body must reject");
+        crate::tests::parse_error(source);
     }
 }
 
 #[test]
 fn proposition_declarations_reject_retired_brace_evidence_with_migration_guidance() {
-    let tokens = Lexer::new("proposition old(value: i32) { Evidence; }")
-        .tokenize()
-        .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("retired proposition evidence must reject");
+    let error = crate::tests::parse_error("proposition old(value: i32) { Evidence; }");
 
     assert!(
         error
@@ -1081,7 +1023,7 @@ fn parses_a_trait_relation_family_from_its_mathematical_type() {
         trait Reflexive<C, R: C -> C -> core\Type> {
         }
     "#;
-    let parsed = crate::tests::parse_source(source, "a relation family should parse");
+    let parsed = crate::tests::parse_source(source);
     let trait_definitions = crate::tests::root_traits(&parsed);
     let [trait_definition] = trait_definitions.as_slice() else {
         panic!("one trait expected");
@@ -1119,7 +1061,7 @@ fn the_former_proposition_parameter_spelling_is_refused() {
             "needs at least one domain",
         ),
     ] {
-        let error = crate::tests::parse_tokenized_error(source, "the spelling must reject");
+        let error = crate::tests::parse_error(source);
         crate::tests::expect_error(&error, message);
     }
 }
@@ -1133,8 +1075,5 @@ fn parses_stable_identities_through_the_full_u64_range() {
         }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    parse_syntax_trees(&tokens).expect("u64 stable identities should parse");
+    crate::tests::parse_source(source);
 }

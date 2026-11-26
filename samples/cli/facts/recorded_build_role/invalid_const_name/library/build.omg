@@ -1,6 +1,10 @@
-// An executed Build package name survives ordinary value transport, so the product imports that exact package and historical review reuses its recorded description at the verified source pin.
-const PACKAGE_NAME: [u8; 10] = [119, 121, 95, 108, 105, 98, 114, 97, 114, 121];
-machine build(builder: @mutable Build) {
-    let name: [u8; 10] = PACKAGE_NAME;
-    Build::package(builder, @name[..]);
+use {omega}/build/storage.omg;
+
+const PREFIX: u8 = 119u8;
+
+machine build(plan: @mutable BuildPlan) {
+    let mutable bytes: [u8; 10] = [0, 121, 95, 108, 105, 98, 114, 97, 114, 121];
+    bytes[0] = PREFIX;
+    let name: @[u8] = |storage|::copy(plan, @bytes[..]);
+    plan.product = BuildProduct::Package { name: name };
 }

@@ -2,28 +2,28 @@
 // sibling modules. `entry` moves both carriers through relay machines so
 // the representation admittance of each is exercised, not just declared.
 
-use token;
-use seal;
+use seal.omg;
+use token.omg;
 
 data Main {
-    held: Token;
-    sealed: Seal;
+    held: |token|::Token;
+    sealed: |seal|::Seal;
     hits: i32 in Wrapping;
 }
 
-machine Main::relay(input: Token) -> Token {
+machine Main::relay(input: |token|::Token) -> |token|::Token {
     input
 }
 
-machine Main::reseal(input: Seal) -> Seal {
+machine Main::reseal(input: |seal|::Seal) -> |seal|::Seal {
     input
 }
 
 machine Main::main(main: @mutable Main) {
     main.hits = 0;
-    let token_value: Token;
+    let token_value: |token|::Token;
     main.held = Main::relay(token_value);
-    let seal_value: Seal;
+    let seal_value: |seal|::Seal;
     main.sealed = Main::reseal(seal_value);
     main.hits = 1;
 }

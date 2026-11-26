@@ -1,10 +1,9 @@
 //! Resolve invoker selectors against reviewed data declarations before Build
 //! entry. An effect presents its checked call site and that declaration's
 //! coordinate; guest strings can never select an image.
-use build_program_launch::{ReviewedProgram, RunStatus};
-use package_compilation::build_execution::{
-    RestrictedBuildBounds, RestrictedBuildRequest, RestrictedProgramLaunch,
-};
+use build_program_launch::RunStatus;
+use package_compilation::build_execution::DelegatedProgram;
+use package_compilation::build_execution::{RestrictedBuildBounds, RestrictedBuildRequest};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, IntegerValue,
     StructuralCaseId, StructuralFieldId, StructuralTypeId,
@@ -17,11 +16,13 @@ use terminal_interpreter::{
 };
 
 mod admission;
+mod files;
+use package_compilation::ProgramOutputSink;
 
 struct ProgramBinding {
     source: SourceSpan,
-    image: ReviewedProgram,
-    meaning: RestrictedProgramLaunch,
+    grant: DelegatedProgram,
+    review_owner: package_compilation::ProgramDeclarationOwner,
 }
 
 #[derive(Default)]
@@ -32,19 +33,47 @@ pub(crate) struct ProgramInstallation {
 }
 
 impl ProgramInstallation {
+    pub(crate) fn demanded(&self) -> impl Iterator<Item = &DelegatedProgram> {
+        self.bindings.iter().map(|binding| &binding.grant)
+    }
+
     pub(crate) fn requests(
         &self,
         bounds: &RestrictedBuildBounds,
         profile: Option<target::TargetProfile>,
     ) -> impl Iterator<Item = RestrictedBuildRequest> {
         self.bindings.iter().map(move |binding| {
-            RestrictedBuildRequest::for_program(binding.meaning.clone(), bounds.clone(), profile)
+            let mut meaning = binding.grant.meaning.clone();
+            meaning.owner = binding.review_owner;
+            RestrictedBuildRequest::for_program(meaning, bounds.clone(), profile)
         })
+    }
+
+    pub(crate) fn delegated(
+        &self,
+        program: SourceSpan,
+        filesystem: &std::sync::Arc<super::filesystem::TerminalBuildFilesystemHost>,
+    ) -> Result<DelegatedProgram, String> {
+        let mut grant = self
+            .bindings
+            .iter()
+            .find(|binding| binding.source == program)
+            .ok_or("the forwarded program has no installed authority")?
+            .grant
+            .clone();
+        if grant.files.is_none()
+            && (!grant.meaning.readable.is_empty() || !grant.meaning.writable.is_empty())
+        {
+            grant.files = Some(filesystem.forward_program_files(&grant.meaning)?);
+        }
+        Ok(grant)
     }
 
     pub(crate) fn uses_files(&self) -> bool {
         self.bindings.iter().any(|binding| {
-            !binding.meaning.readable.is_empty() || !binding.meaning.writable.is_empty()
+            binding.grant.files.is_none()
+                && (!binding.grant.meaning.readable.is_empty()
+                    || !binding.grant.meaning.writable.is_empty())
         })
     }
 }
@@ -168,94 +197,31 @@ impl ProgramInstallation {
             bytes_left = remaining;
             arguments.push(bytes.to_vec());
         }
-        let mut files = bounded_process::PrivateFilesystemFiles {
-            initial: Default::default(),
-            outputs: binding.meaning.writable.clone(),
+        let grant = &binding.grant;
+        let initial = match &grant.files {
+            Some(files) => files.initial.clone(),
+            None => filesystem.initial_program_files(&grant.meaning.readable)?,
         };
-        if !binding.meaning.readable.is_empty() {
-            filesystem.with_program_files(|runtime| {
-                let mut remaining = 64 << 20;
-                for path in &binding.meaning.readable {
-                    let bytes = read_input(runtime, path, remaining)?;
-                    remaining -= bytes.len();
-                    files.initial.insert(path.clone(), bytes.into());
-                }
-                Ok(())
-            })?;
-        }
-        let timeout = Duration::from_millis(binding.meaning.timeout_ms);
+        let files = bounded_process::PrivateFilesystemFiles {
+            initial,
+            outputs: grant.meaning.writable.clone(),
+        };
+        let timeout = Duration::from_millis(binding.grant.meaning.timeout_ms);
         let output = binding
+            .grant
             .image
             .run(worker, &arguments, files, timeout)
             .map_err(|e| e.to_string())?;
         if !output.outputs.is_empty() {
-            if output.outputs.len() != binding.meaning.writable.len() {
-                return Err("lost program output grant coordinates".into());
+            match &grant.files {
+                Some(files) => files
+                    .output
+                    .as_ref()
+                    .ok_or("program returned outputs without a staging grant")?
+                    .write(output.outputs)?,
+                None => filesystem.write(&grant.meaning.writable, output.outputs)?,
             }
-            filesystem.with_program_files(|runtime| {
-                for (path, bytes) in binding.meaning.writable.iter().zip(output.outputs) {
-                    if let Some(bytes) = bytes {
-                        write_output(runtime, path, &bytes)?;
-                    }
-                }
-                Ok(())
-            })?;
         }
         shape.finish(output.status)
     }
-}
-
-fn read_input(
-    runtime: &mut package_compilation::build_execution::BuildFilesystemRuntime,
-    path: &[u8],
-    limit: usize,
-) -> Result<Vec<u8>, String> {
-    use package_compilation::build_execution::BUILD_SOURCE_ROOT_IDENTITY as ROOT;
-    let fd = runtime.open(ROOT, path, 0)?;
-    if fd < 0 {
-        return Err(format!(
-            "program cannot read logical input `{}`",
-            String::from_utf8_lossy(path)
-        ));
-    }
-    let captured = (|| {
-        let mut bytes = Vec::new();
-        let mut chunk = [0u8; 8192];
-        loop {
-            let count = runtime.read(ROOT, fd, &mut chunk, 8192)?;
-            let count = usize::try_from(count).map_err(|_| "program input read failed")?;
-            if count == 0 {
-                return Ok(bytes);
-            }
-            if count > limit - bytes.len() {
-                return Err("program inputs exceed their grant budget".into());
-            }
-            bytes.extend_from_slice(chunk.get(..count).ok_or("invalid program input count")?);
-        }
-    })();
-    if runtime.close(ROOT, fd)? < 0 {
-        return Err("program input close failed".into());
-    }
-    captured
-}
-
-fn write_output(
-    runtime: &mut package_compilation::build_execution::BuildFilesystemRuntime,
-    path: &[u8],
-    bytes: &[u8],
-) -> Result<(), String> {
-    use package_compilation::build_execution::BUILD_OUTPUT_ROOT_IDENTITY as ROOT;
-    let fd = runtime.create(path, 0o600)?;
-    if fd < 0 {
-        return Err(format!(
-            "program cannot create logical output `{}`",
-            String::from_utf8_lossy(path)
-        ));
-    }
-    let written = runtime.write(fd, bytes);
-    let closed = runtime.close(ROOT, fd)?;
-    if usize::try_from(written?).ok() != Some(bytes.len()) || closed < 0 {
-        return Err("program output could not be staged in full".into());
-    }
-    Ok(())
 }

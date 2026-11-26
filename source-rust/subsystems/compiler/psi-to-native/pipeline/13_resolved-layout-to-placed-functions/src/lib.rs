@@ -18,8 +18,7 @@ pub use exit_contract::{
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
 pub use fragment_emission::{
-    FunctionFragmentEmissionError, FunctionFragmentEmissionManifest,
-    FunctionFragmentEmissionManifestDecodeError, FunctionFragmentEmissionStage,
+    FunctionFragmentEmissionError, FunctionFragmentEmissionManifest, FunctionFragmentEmissionStage,
     FunctionFragmentEmissionStatistics, FunctionFragmentEmissionUnavailableData,
     StagedOptimizedFunctionFragmentEmissionSource,
 };
@@ -34,11 +33,10 @@ pub use function_realization::{
 };
 
 pub use text_placement::{
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
-    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
-    FunctionFragmentTextSectionUnavailableData, FunctionPlacement,
-    RelocationFreeTextSectionPlacementError, StagedOptimizedFixedFrameTextSection,
-    validate_optimized_fixed_frame_text_section,
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
+    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
+    FunctionPlacement, RelocationFreeTextSectionPlacementError,
+    StagedOptimizedFixedFrameTextSection, validate_optimized_fixed_frame_text_section,
 };
 
 /// Place the function-relative alternatives and their carried frame bytes into

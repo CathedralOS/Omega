@@ -1,3356 +1,138 @@
 /*
-We encode, structurally decode, and validate all AArch64 selected instruction
-forms (`encode_aarch64_selected_form` and
-`validate_aarch64_selected_form_encoding`), conditional and unconditional
-branches, fused compare-and-branch forms, scalar and dynamic call templates,
-normalized foreign-call templates, atomic operations, IEEE floating-point
-arithmetic, and hosted I/O leaves.
+We encode and validate all AArch64 selected instruction forms
+(`encode_aarch64_selected_form`, `validate_aarch64_selected_form_encoding`),
+conditional and unconditional branches, fused compare-and-branch forms, memory
+and frame forms, scalar/dynamic/table/system/normalized-foreign call templates,
+atomic operations, IEEE floating-point arithmetic, and hosted I/O leaves using
+declarative AArch64 word constructors and canonical byte validation.
 */
 
-pub(crate) mod atomic {
-    #[cfg(test)]
-    pub(crate) use selected_instructions::MachineAlternativeFamily;
-    #[cfg(test)]
-    pub(crate) use selected_instructions::MachineSemanticKind;
+mod enc {
+    use super::Aarch64SelectedFormEncodingError as Error;
 
-    pub(crate) use target_aarch64::form_effects::atomic::effects;
+    pub(super) const BRK_0: u32 = 0xd420_0000;
+    pub(super) const DMB_ISH: u32 = 0xd503_3fbf;
+    pub(super) const CLREX: u32 = 0xd503_3f5f;
+    pub(super) const BL_ZERO: u32 = 0x9400_0000;
+    pub(super) const SVC_0: u32 = 0xd400_0001;
+    pub(super) const SVC_80: u32 = 0xd400_1001;
+    pub(super) const ZR: u8 = 31;
 
-    mod compare_exchange {
-        use super::Aarch64SelectedFormEncodingError;
-        use selected_instructions::AtomicWidth;
+    pub(super) const EQ: u8 = 0x0;
+    pub(super) const NE: u8 = 0x1;
+    pub(super) const HS: u8 = 0x2;
+    pub(super) const LO: u8 = 0x3;
+    pub(super) const VS: u8 = 0x6;
+    pub(super) const VC: u8 = 0x7;
+    pub(super) const HI: u8 = 0x8;
+    pub(super) const LS: u8 = 0x9;
+    pub(super) const GE: u8 = 0xa;
+    pub(super) const LT: u8 = 0xb;
+    pub(super) const LE: u8 = 0xd;
 
-        pub(super) const REGISTERS: [u8; 4] = [9, 10, 11, 12];
-        const BARRIER: u32 = 0xd503_3fbf;
-        const CLEAR_EXCLUSIVE: u32 = 0xd503_3f5f;
-
-        pub(super) fn encode(width: AtomicWidth) -> Vec<u8> {
-            let size = u32::from(width.ordinal()) << 30;
-            let mut words = vec![BARRIER, size | 0x085f_fc00 | 9 << 5 | 12];
-            let expected = match width {
-                AtomicWidth::Bits8 => {
-                    words.push(0x5300_1c00 | 10 << 5 | 16);
-                    16
-                }
-                AtomicWidth::Bits16 => {
-                    words.push(0x5300_3c00 | 10 << 5 | 16);
-                    16
-                }
-                AtomicWidth::Bits32 | AtomicWidth::Bits64 => 10,
-            };
-            let comparison = if width == AtomicWidth::Bits64 {
-                0xeb00_001f
-            } else {
-                0x6b00_001f
-            };
-            let retry = if expected == 16 {
-                0x35ff_ff71
-            } else {
-                0x35ff_ff91
-            };
-            words.extend([
-                comparison | expected << 16 | 12 << 5,
-                0x5400_0081,
-                size | 0x0800_fc00 | 17 << 16 | 9 << 5 | 11,
-                retry,
-                0x1400_0002,
-                CLEAR_EXCLUSIVE,
-                BARRIER,
-            ]);
-            words.into_iter().flat_map(u32::to_le_bytes).collect()
-        }
-
-        pub(super) fn validate(
-            width: AtomicWidth,
-            bytes: &[u8],
-        ) -> Result<(), Aarch64SelectedFormEncodingError> {
-            let narrow = matches!(width, AtomicWidth::Bits8 | AtomicWidth::Bits16);
-            let (encoded, tail) = bytes.as_chunks::<4>();
-            if encoded.len() != 9 + usize::from(narrow) || !tail.is_empty() {
-                return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-            }
-            let words = encoded
-                .iter()
-                .copied()
-                .map(u32::from_le_bytes)
-                .collect::<Vec<_>>();
-            let register = |word: u32, shift: u32| (word >> shift) & 31;
-            let normalized = !narrow
-                || (words[2] & 0xffff_0000 == 0x5300_0000
-                    && (words[2] >> 10) & 63 == u32::from(width.bytes()) * 8 - 1
-                    && register(words[2], 5) == 10
-                    && register(words[2], 0) == 16);
-            let suffix = &words[2 + usize::from(narrow)..];
-            let comparison = if width == AtomicWidth::Bits64 {
-                0xeb00_001f
-            } else {
-                0x6b00_001f
-            };
-            let matches = normalized
-                && words[0] == BARRIER
-                && words[1] & !0xc000_03ff == 0x085f_fc00
-                && (words[1] >> 30) as u8 == width.ordinal()
-                && register(words[1], 5) == 9
-                && register(words[1], 0) == 12
-                && suffix[0] & !0x001f_03e0 == comparison
-                && register(suffix[0], 16) == if narrow { 16 } else { 10 }
-                && register(suffix[0], 5) == 12
-                && suffix[1] == 0x5400_0081
-                && suffix[2] & !0xc01f_03ff == 0x0800_fc00
-                && (suffix[2] >> 30) as u8 == width.ordinal()
-                && register(suffix[2], 16) == 17
-                && register(suffix[2], 5) == 9
-                && register(suffix[2], 0) == 11
-                && suffix[3] == if narrow { 0x35ff_ff71 } else { 0x35ff_ff91 }
-                && suffix[4] == 0x1400_0002
-                && suffix[5] == CLEAR_EXCLUSIVE
-                && suffix[6] == BARRIER;
-            if matches {
-                Ok(())
-            } else {
-                Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-            }
-        }
-    }
-    mod compare_exchange_once {
-        use super::Aarch64SelectedFormEncodingError;
-        use selected_instructions::AtomicWidth;
-
-        const FULL_SYSTEM_BARRIER: u32 = 0xd503_3fbf;
-        const CLEAR_EXCLUSIVE: u32 = 0xd503_3f5f;
-
-        pub(super) fn encode(
-            width: AtomicWidth,
-            registers: &[u8],
-        ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
-            let [address, expected, replacement, observed, outcome] = registers else {
-                return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
-            };
-            let address = u32::from(*address);
-            let expected = u32::from(*expected);
-            let replacement = u32::from(*replacement);
-            let observed = u32::from(*observed);
-            let outcome = u32::from(*outcome);
-            let size = u32::from(width.ordinal()) << 30;
-            let comparison = if width == AtomicWidth::Bits64 {
-                0xeb00_001f
-            } else {
-                0x6b00_001f
-            };
-            let mut words = vec![
-                FULL_SYSTEM_BARRIER,
-                size | 0x085f_fc00 | address << 5 | observed,
-            ];
-            let normalization = match width {
-                AtomicWidth::Bits8 => Some(0x5300_1c00),
-                AtomicWidth::Bits16 => Some(0x5300_3c00),
-                AtomicWidth::Bits32 | AtomicWidth::Bits64 => None,
-            };
-            let comparison_expected = if let Some(normalization) = normalization {
-                words.push(normalization | expected << 5 | outcome);
-                outcome
-            } else {
-                expected
-            };
-            words.extend([
-                comparison | comparison_expected << 16 | observed << 5,
-                0x5400_0081,
-                size | 0x0800_fc00 | outcome << 16 | address << 5 | replacement,
-                0x1100_0400 | outcome << 5 | outcome,
-                0x1400_0003,
-                CLEAR_EXCLUSIVE,
-                0x5280_0000 | outcome,
-                FULL_SYSTEM_BARRIER,
-            ]);
-            Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
-        }
-
-        pub(super) fn validate(
-            width: AtomicWidth,
-            registers: &[u8],
-            bytes: &[u8],
-        ) -> Result<(), Aarch64SelectedFormEncodingError> {
-            let [address, expected, replacement, observed, outcome] = registers else {
-                return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
-            };
-            let narrow = matches!(width, AtomicWidth::Bits8 | AtomicWidth::Bits16);
-            let (encoded, tail) = bytes.as_chunks::<4>();
-            if encoded.len() != 10 + usize::from(narrow) || !tail.is_empty() {
-                return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-            }
-            let words = encoded
-                .iter()
-                .copied()
-                .map(u32::from_le_bytes)
-                .collect::<Vec<_>>();
-            let register = |word: u32, shift: u32| ((word >> shift) & 31) as u8;
-            let comparison = if width == AtomicWidth::Bits64 {
-                0xeb00_001f
-            } else {
-                0x6b00_001f
-            };
-            let normalized = !narrow
-                || (words[2] & 0xffff_0000 == 0x5300_0000
-                    && (words[2] >> 10) & 63 == u32::from(width.bytes()) * 8 - 1
-                    && register(words[2], 5) == *expected
-                    && register(words[2], 0) == *outcome);
-            let completion = &words[2 + usize::from(narrow)..];
-            let comparison_expected = if narrow { *outcome } else { *expected };
-            let matched = normalized
-                && words[0] == FULL_SYSTEM_BARRIER
-                && words[1] & !0xc000_03ff == 0x085f_fc00
-                && (words[1] >> 30) as u8 == width.ordinal()
-                && register(words[1], 5) == *address
-                && register(words[1], 0) == *observed
-                && completion[0] & !0x001f_03e0 == comparison
-                && register(completion[0], 16) == comparison_expected
-                && register(completion[0], 5) == *observed
-                && completion[1] == 0x5400_0081
-                && completion[2] & !0xc01f_03ff == 0x0800_fc00
-                && (completion[2] >> 30) as u8 == width.ordinal()
-                && register(completion[2], 16) == *outcome
-                && register(completion[2], 5) == *address
-                && register(completion[2], 0) == *replacement
-                && completion[3] & !0x0000_03ff == 0x1100_0400
-                && register(completion[3], 5) == *outcome
-                && register(completion[3], 0) == *outcome
-                && completion[4] == 0x1400_0003
-                && completion[5] == CLEAR_EXCLUSIVE
-                && completion[6] & !0x0000_001f == 0x5280_0000
-                && register(completion[6], 0) == *outcome
-                && completion[7] == FULL_SYSTEM_BARRIER;
-            if matched {
-                Ok(())
-            } else {
-                Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-            }
-        }
-    }
-    mod retry_update {
-        use super::Aarch64SelectedFormEncodingError;
-        use selected_instructions::{AtomicForm, AtomicOperation, AtomicWidth};
-
-        pub(super) const REGISTERS: [u8; 3] = [9, 10, 11];
-        const BARRIER: u32 = 0xd503_3fbf;
-
-        pub(super) fn encode(
-            form: AtomicForm,
-        ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
-            let logical = match form.operation {
-                AtomicOperation::FetchAdd => 0x0b00_0000,
-                AtomicOperation::FetchSub => 0x4b00_0000,
-                AtomicOperation::Swap => 0x2a00_0000,
-                AtomicOperation::FetchAnd => 0x0a00_0000,
-                AtomicOperation::FetchOr => 0x2a00_0000,
-                AtomicOperation::FetchXor => 0x4a00_0000,
-                _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
-            };
-            let size = u32::from(form.width.ordinal()) << 30;
-            let wide = u32::from(form.width == AtomicWidth::Bits64) << 31;
-            let left = if form.operation == AtomicOperation::Swap {
-                31
-            } else {
-                11
-            };
-            let words = [
-                BARRIER,
-                size | 0x085f_fc00 | 9 << 5 | 11,
-                wide | logical | 10 << 16 | left << 5 | 16,
-                size | 0x0800_fc00 | 17 << 16 | 9 << 5 | 16,
-                0x35ff_ffb1,
-                BARRIER,
-            ];
-            Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
-        }
-
-        pub(super) fn validate(
-            form: AtomicForm,
-            bytes: &[u8],
-        ) -> Result<(), Aarch64SelectedFormEncodingError> {
-            let opcode = match form.operation {
-                AtomicOperation::FetchAdd => 0x0b00_0000,
-                AtomicOperation::FetchSub => 0x4b00_0000,
-                AtomicOperation::Swap => 0x2a00_0000,
-                AtomicOperation::FetchAnd => 0x0a00_0000,
-                AtomicOperation::FetchOr => 0x2a00_0000,
-                AtomicOperation::FetchXor => 0x4a00_0000,
-                _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
-            };
-            let (encoded, tail) = bytes.as_chunks::<4>();
-            if encoded.len() != 6 || !tail.is_empty() {
-                return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-            }
-            let words: [u32; 6] = std::array::from_fn(|index| u32::from_le_bytes(encoded[index]));
-            let register = |word: u32, shift: u32| (word >> shift) & 31;
-            let matches = words[0] == BARRIER
-                && words[1] & !0xc000_03ff == 0x085f_fc00
-                && (words[1] >> 30) as u8 == form.width.ordinal()
-                && register(words[1], 5) == 9
-                && register(words[1], 0) == 11
-                && words[2] & !0x801f_03ff == opcode
-                && (words[2] >> 31 != 0) == (form.width == AtomicWidth::Bits64)
-                && register(words[2], 16) == 10
-                && register(words[2], 5)
-                    == if form.operation == AtomicOperation::Swap {
-                        31
-                    } else {
-                        11
-                    }
-                && register(words[2], 0) == 16
-                && words[3] & !0xc01f_03ff == 0x0800_fc00
-                && (words[3] >> 30) as u8 == form.width.ordinal()
-                && register(words[3], 16) == 17
-                && register(words[3], 5) == 9
-                && register(words[3], 0) == 16
-                && words[4] == 0x35ff_ffb1
-                && words[5] == BARRIER;
-            if matches {
-                Ok(())
-            } else {
-                Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-            }
-        }
-
-        #[cfg(test)]
-        mod tests {
-            use super::*;
-
-            #[test]
-            fn exclusive_words_match_baseline_armv8_assembler_vectors() {
-                for (width, load, store) in [
-                    (AtomicWidth::Bits8, 0x085f_fd2b, 0x0811_fd30),
-                    (AtomicWidth::Bits16, 0x485f_fd2b, 0x4811_fd30),
-                    (AtomicWidth::Bits32, 0x885f_fd2b, 0x8811_fd30),
-                    (AtomicWidth::Bits64, 0xc85f_fd2b, 0xc811_fd30),
-                ] {
-                    for (operation, narrow, wide) in [
-                        (AtomicOperation::FetchAdd, 0x0b0a_0170, 0x8b0a_0170),
-                        (AtomicOperation::FetchSub, 0x4b0a_0170, 0xcb0a_0170),
-                        (AtomicOperation::Swap, 0x2a0a_03f0, 0xaa0a_03f0),
-                        (AtomicOperation::FetchAnd, 0x0a0a_0170, 0x8a0a_0170),
-                        (AtomicOperation::FetchOr, 0x2a0a_0170, 0xaa0a_0170),
-                        (AtomicOperation::FetchXor, 0x4a0a_0170, 0xca0a_0170),
-                    ] {
-                        let form = AtomicForm { operation, width };
-                        let logical = if width == AtomicWidth::Bits64 {
-                            wide
-                        } else {
-                            narrow
-                        };
-                        let expected = [BARRIER, load, logical, store, 0x35ff_ffb1, BARRIER]
-                            .into_iter()
-                            .flat_map(u32::to_le_bytes)
-                            .collect::<Vec<_>>();
-                        assert_eq!(encode(form).unwrap(), expected);
-                        validate(form, &expected).unwrap();
-                    }
-                }
-            }
-        }
-    }
-    use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
-    use register_model::RegisterViewId;
-    use selected_instructions::{AtomicForm, AtomicOperation};
-
-    pub(crate) fn footprint(
-        form: AtomicForm,
-        operands: &[RegisterViewId],
-    ) -> Aarch64SelectedFormFootprint {
-        Aarch64SelectedFormFootprint {
-            register_reads: operands[..usize::from(form.operation.input_count())].to_vec(),
-            register_writes: form
-                .output_operands()
-                .map(|output| operands[usize::from(output)])
-                .collect(),
-            writes_nzcv: matches!(
-                form.operation,
-                AtomicOperation::CompareExchange | AtomicOperation::CompareExchangeOnce
-            ),
-            encoded: effects(form),
-        }
+    pub(super) const fn rrr(op: u32, rd: u8, rn: u8, rm: u8) -> u32 {
+        op | ((rm as u32) << 16) | ((rn as u32) << 5) | rd as u32
     }
 
-    fn validate_registers(
-        form: AtomicForm,
-        registers: &[u8],
-    ) -> Result<(), Aarch64SelectedFormEncodingError> {
-        if registers.len() != usize::from(form.operand_count()) {
-            return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
+    pub(super) const fn rr(op: u32, rd: u8, rn: u8) -> u32 {
+        op | ((rn as u32) << 5) | rd as u32
+    }
+
+    pub(super) const fn rri12(op: u32, rd: u8, rn: u8, imm: u16) -> u32 {
+        op | ((imm as u32) << 10) | ((rn as u32) << 5) | rd as u32
+    }
+
+    pub(super) const fn mov(rd: u8, rm: u8) -> u32 {
+        0xaa00_03e0 | ((rm as u32) << 16) | rd as u32
+    }
+
+    pub(super) const fn movz(rd: u8, imm: u16, shift: u8) -> u32 {
+        0xd280_0000 | ((shift as u32) << 21) | ((imm as u32) << 5) | rd as u32
+    }
+
+    pub(super) const fn movk(rd: u8, imm: u16, shift: u8) -> u32 {
+        0xf280_0000 | ((shift as u32) << 21) | ((imm as u32) << 5) | rd as u32
+    }
+
+    pub(super) const fn cmp_reg(rn: u8, rm: u8) -> u32 {
+        0xeb00_001f | ((rm as u32) << 16) | ((rn as u32) << 5)
+    }
+
+    pub(super) const fn cmp_imm(wide: bool, rn: u8, imm: u16) -> u32 {
+        (if wide { 0xf100_001f } else { 0x7100_001f }) | ((imm as u32) << 10) | ((rn as u32) << 5)
+    }
+
+    pub(super) const fn msub(rd: u8, rn: u8, rm: u8, ra: u8) -> u32 {
+        0x9b00_8000 | ((rm as u32) << 16) | ((ra as u32) << 10) | ((rn as u32) << 5) | rd as u32
+    }
+
+    pub(super) const fn csel(rd: u8, rn: u8, rm: u8, cond: u8) -> u32 {
+        0x9a80_0000 | ((rm as u32) << 16) | ((cond as u32) << 12) | ((rn as u32) << 5) | rd as u32
+    }
+
+    pub(super) const fn b(words: i32) -> u32 {
+        0x1400_0000 | ((words as u32) & 0x03ff_ffff)
+    }
+
+    pub(super) const fn b_cond(cond: u8, words: i32) -> u32 {
+        0x5400_0000 | (((words as u32) & 0x7ffff) << 5) | cond as u32
+    }
+
+    pub(super) const fn cbz(rt: u8, words: i32) -> u32 {
+        0xb400_0000 | (((words as u32) & 0x7ffff) << 5) | rt as u32
+    }
+
+    pub(super) const fn cbnz(rt: u8, words: i32) -> u32 {
+        0xb500_0000 | (((words as u32) & 0x7ffff) << 5) | rt as u32
+    }
+
+    pub(super) const fn ubfm(wide: bool, rd: u8, rn: u8, immr: u8, imms: u8) -> u32 {
+        (if wide { 0xd340_0000 } else { 0x5300_0000 })
+            | ((immr as u32) << 16)
+            | ((imms as u32) << 10)
+            | ((rn as u32) << 5)
+            | rd as u32
+    }
+
+    pub(super) const fn sbfm(wide: bool, rd: u8, rn: u8, immr: u8, imms: u8) -> u32 {
+        (if wide { 0x9340_0000 } else { 0x1300_0000 })
+            | ((immr as u32) << 16)
+            | ((imms as u32) << 10)
+            | ((rn as u32) << 5)
+            | rd as u32
+    }
+
+    pub(super) const fn ldst_imm(op: u32, rt: u8, rn: u8, scaled_imm: u32) -> u32 {
+        op | (scaled_imm << 10) | ((rn as u32) << 5) | rt as u32
+    }
+
+    pub(super) const fn fmov_to_v(double: bool, vd: u8, rn: u8) -> u32 {
+        (if double { 0x9e67_0000 } else { 0x1e27_0000 }) | ((rn as u32) << 5) | vd as u32
+    }
+
+    pub(super) const fn fmov_to_g(double: bool, rd: u8, vn: u8) -> u32 {
+        (if double { 0x9e66_0000 } else { 0x1e26_0000 }) | ((vn as u32) << 5) | rd as u32
+    }
+
+    pub(super) fn to_bytes(words: &[u32]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(words.len() * 4);
+        for &word in words {
+            out.extend_from_slice(&word.to_le_bytes());
         }
-        let retry_registers: &[u8] = if form.operation == AtomicOperation::CompareExchange {
-            &compare_exchange::REGISTERS
-        } else {
-            &retry_update::REGISTERS
-        };
-        if form
-            .operation
-            .retries_until_commit(target::Architecture::Aarch64)
-            && registers != retry_registers
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        out
+    }
+
+    pub(super) fn check_bytes(actual: &[u8], expected: &[u8]) -> Result<(), Error> {
+        if actual.is_empty() || !actual.len().is_multiple_of(4) || actual.len() != expected.len() {
+            return Err(Error::MalformedEncoding);
         }
-        if registers.iter().any(|register| *register > 30)
-            || form.output_operands().any(|output| {
-                registers[..usize::from(output)].contains(&registers[usize::from(output)])
-            })
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        if actual != expected {
+            return Err(Error::EncodedFormMismatch);
         }
         Ok(())
     }
-
-    pub(crate) fn encode(
-        form: AtomicForm,
-        registers: &[u8],
-    ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
-        validate_registers(form, registers)?;
-        match form.operation {
-            AtomicOperation::CompareExchangeOnce => {
-                compare_exchange_once::encode(form.width, registers)
-            }
-            AtomicOperation::CompareExchange => Ok(compare_exchange::encode(form.width)),
-            AtomicOperation::Load | AtomicOperation::Store => {
-                let opcode = if form.operation == AtomicOperation::Load {
-                    0x08df_fc00
-                } else {
-                    0x089f_fc00
-                };
-                let word = u32::from(form.width.ordinal()) << 30
-                    | opcode
-                    | u32::from(registers[0]) << 5
-                    | u32::from(registers[1]);
-                Ok(word.to_le_bytes().to_vec())
-            }
-            _ => retry_update::encode(form),
-        }
-    }
-
-    pub(crate) fn validate(
-        form: AtomicForm,
-        registers: &[u8],
-        bytes: &[u8],
-    ) -> Result<(), Aarch64SelectedFormEncodingError> {
-        validate_registers(form, registers)?;
-        match form.operation {
-            AtomicOperation::CompareExchangeOnce => {
-                compare_exchange_once::validate(form.width, registers, bytes)
-            }
-            AtomicOperation::CompareExchange => compare_exchange::validate(form.width, bytes),
-            AtomicOperation::Load | AtomicOperation::Store => {
-                let encoded: [u8; 4] = bytes
-                    .try_into()
-                    .map_err(|_| Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-                let word = u32::from_le_bytes(encoded);
-                let opcode = if form.operation == AtomicOperation::Load {
-                    0x08df_fc00
-                } else {
-                    0x089f_fc00
-                };
-                if word & !0xc000_03ff == opcode
-                    && (word >> 30) as u8 == form.width.ordinal()
-                    && (word >> 5) & 31 == u32::from(registers[0])
-                    && word & 31 == u32::from(registers[1])
-                {
-                    Ok(())
-                } else {
-                    Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-                }
-            }
-            _ => retry_update::validate(form, bytes),
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use crate::test_support::reject_every_bit_flip;
-        use selected_instructions::{AtomicWidth, MachineAlternativeKey, SelectedInstructionKind};
-
-        #[test]
-        fn atomic_catalog_admits_baseline_exclusive_updates_on_both_hosts() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let constraints = crate::validate_aarch64_register_constraint_catalog(
-                crate::aarch64_register_constraint_catalog(&physical),
-                &physical,
-            )
-            .unwrap();
-            for target in [
-                target::NativeTarget::macos_arm64(),
-                target::NativeTarget::linux_arm64(),
-            ] {
-                let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
-                for form in AtomicForm::ALL {
-                    let available = true;
-                    let semantic = MachineSemanticKind::AtomicAccess(form);
-                    assert_eq!(
-                        catalog.selected_keys.for_semantic(semantic).is_some(),
-                        available
-                    );
-                    assert_eq!(
-                        catalog
-                            .declarations
-                            .iter()
-                            .any(|declaration| declaration.semantic == semantic),
-                        available
-                    );
-                }
-                crate::validate_aarch64_machine_effect_catalog(target, &constraints, catalog)
-                    .unwrap();
-            }
-        }
-
-        #[test]
-        fn atomic_words_pin_encoding_and_reject_every_changed_bit() {
-            for form in AtomicForm::ALL {
-                let ordinary = [2, 0, 1, 3, 4];
-                let registers = if form.operation == AtomicOperation::CompareExchange {
-                    &compare_exchange::REGISTERS[..]
-                } else if form
-                    .operation
-                    .retries_until_commit(target::Architecture::Aarch64)
-                {
-                    &retry_update::REGISTERS[..]
-                } else {
-                    &ordinary[..usize::from(form.operand_count())]
-                };
-                let bytes = encode(form, registers).unwrap();
-                validate(form, registers, &bytes).unwrap();
-                reject_every_bit_flip(&bytes, &format!("{form:?}"), |changed| {
-                    validate(form, registers, changed).is_err()
-                });
-                assert!(validate(form, registers, &bytes[..bytes.len() - 1]).is_err());
-            }
-            let swapped = encode(
-                AtomicForm {
-                    operation: AtomicOperation::Swap,
-                    width: AtomicWidth::Bits64,
-                },
-                &retry_update::REGISTERS,
-            )
-            .unwrap();
-            assert_eq!(&swapped[8..12], &0xaa0a_03f0_u32.to_le_bytes());
-        }
-
-        #[test]
-        fn single_attempt_words_match_baseline_armv8_assembler_vectors() {
-            for (width, load, normalization, comparison, store) in [
-                (
-                    AtomicWidth::Bits8,
-                    0x085f_fc03,
-                    Some(0x5300_1c24),
-                    0x6b04_007f,
-                    0x0804_fc02,
-                ),
-                (
-                    AtomicWidth::Bits16,
-                    0x485f_fc03,
-                    Some(0x5300_3c24),
-                    0x6b04_007f,
-                    0x4804_fc02,
-                ),
-                (
-                    AtomicWidth::Bits32,
-                    0x885f_fc03,
-                    None,
-                    0x6b01_007f,
-                    0x8804_fc02,
-                ),
-                (
-                    AtomicWidth::Bits64,
-                    0xc85f_fc03,
-                    None,
-                    0xeb01_007f,
-                    0xc804_fc02,
-                ),
-            ] {
-                let mut words: Vec<u32> = vec![0xd503_3fbf, load];
-                words.extend(normalization);
-                words.extend([
-                    comparison,
-                    0x5400_0081,
-                    store,
-                    0x1100_0484,
-                    0x1400_0003,
-                    0xd503_3f5f,
-                    0x5280_0004,
-                    0xd503_3fbf,
-                ]);
-                let expected = words
-                    .into_iter()
-                    .flat_map(u32::to_le_bytes)
-                    .collect::<Vec<_>>();
-                let form = AtomicForm {
-                    operation: AtomicOperation::CompareExchangeOnce,
-                    width,
-                };
-                assert_eq!(encode(form, &[0, 1, 2, 3, 4]).unwrap(), expected);
-            }
-        }
-
-        #[test]
-        fn atomic_public_encoder_binds_registers_effects_and_output_interference() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            for form in AtomicForm::ALL {
-                let views = if form.operation == AtomicOperation::CompareExchange {
-                    ["x9", "x10", "x11", "x12", "x4"]
-                } else if form
-                    .operation
-                    .retries_until_commit(target::Architecture::Aarch64)
-                {
-                    ["x9", "x10", "x11", "x3", "x4"]
-                } else {
-                    ["x2", "x0", "x1", "x3", "x4"]
-                }
-                .map(|name| physical.model().view_named(name).unwrap().id);
-                let operands = &views[..usize::from(form.operand_count())];
-                let kind = SelectedInstructionKind::AtomicAccess { form };
-                let alternative = MachineAlternativeKey {
-                    family: MachineAlternativeFamily::AtomicAccess(form),
-                    variant: 0,
-                };
-                let encoded =
-                    crate::encode_aarch64_selected_form(&physical, kind, alternative, operands)
-                        .unwrap();
-                assert_eq!(encoded.footprint(), &footprint(form, operands));
-                assert!(
-                    crate::encode_aarch64_selected_form(
-                        &physical,
-                        kind,
-                        MachineAlternativeKey {
-                            variant: 1,
-                            ..alternative
-                        },
-                        operands
-                    )
-                    .is_err()
-                );
-                for output in form.output_operands() {
-                    let mut aliased = operands.to_vec();
-                    aliased[usize::from(output)] = operands[0];
-                    assert!(
-                        crate::encode_aarch64_selected_form(&physical, kind, alternative, &aliased)
-                            .is_err()
-                    );
-                }
-            }
-        }
-    }
 }
-pub(crate) mod atomic_fence {
 
-    #[cfg(test)]
-    mod tests {
-        use crate::test_support::rejects_every_bit_flip;
-        use selected_instructions::{
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
-            SelectedInstructionKind,
-        };
-
-        #[test]
-        fn atomic_fence_pins_full_barrier_bytes_and_rejects_substitutions() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let kind = SelectedInstructionKind::AtomicFence;
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::AtomicFence,
-                variant: 0,
-            };
-            let encoded =
-                crate::encode_aarch64_selected_form(&physical, kind, alternative, &[]).unwrap();
-            assert_eq!(encoded.bytes(), &[0xbf, 0x3f, 0x03, 0xd5]);
-            assert_eq!(
-                encoded.footprint().encoded,
-                MachineEncodedEffects::atomic_fence_v1()
-            );
-            rejects_every_bit_flip(&physical, kind, alternative, &[], encoded.bytes());
-            let mut extended = encoded.bytes().to_vec();
-            extended.push(0);
-            for bytes in [&extended[..], &encoded.bytes()[..encoded.bytes().len() - 1]] {
-                assert!(
-                    crate::validate_aarch64_selected_form_encoding(
-                        &physical,
-                        kind,
-                        alternative,
-                        &[],
-                        bytes
-                    )
-                    .is_err()
-                );
-            }
-            let operand = physical.model().view_named("x0").unwrap().id;
-            assert!(
-                crate::encode_aarch64_selected_form(&physical, kind, alternative, &[operand])
-                    .is_err()
-            );
-            assert!(
-                crate::encode_aarch64_selected_form(
-                    &physical,
-                    kind,
-                    MachineAlternativeKey {
-                        variant: 1,
-                        ..alternative
-                    },
-                    &[]
-                )
-                .is_err()
-            );
-            assert!(
-                crate::encode_aarch64_selected_form(
-                    &physical,
-                    kind,
-                    MachineAlternativeKey {
-                        family: MachineAlternativeFamily::Crash,
-                        variant: 0
-                    },
-                    &[]
-                )
-                .is_err()
-            );
-        }
-    }
-}
-#[cfg(test)]
-mod boolean_materialization_tests {
-    use super::{encode_aarch64_selected_form, validate_aarch64_selected_form_encoding};
-    use crate::aarch64_physical_register_model;
-    use crate::test_support::rejects_every_bit_flip;
-    use register_model::validate_physical_register_model;
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
-        SelectedInstructionKind,
-    };
-
-    fn forms() -> [(SelectedInstructionKind, MachineAlternativeFamily); 5] {
-        [
-            (
-                SelectedInstructionKind::MaterializeBooleanEqual,
-                MachineAlternativeFamily::MaterializeBooleanEqual,
-            ),
-            (
-                SelectedInstructionKind::MaterializeBooleanU64LessThan,
-                MachineAlternativeFamily::MaterializeBooleanU64LessThan,
-            ),
-            (
-                SelectedInstructionKind::MaterializeBooleanI64LessThan,
-                MachineAlternativeFamily::MaterializeBooleanI64LessThan,
-            ),
-            (
-                SelectedInstructionKind::MaterializeBooleanU64LessOrEqual,
-                MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual,
-            ),
-            (
-                SelectedInstructionKind::MaterializeBooleanI64LessOrEqual,
-                MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual,
-            ),
-        ]
-    }
-
-    #[test]
-    fn conditions_bind_registers_full_width_and_preserved_flags() {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        for name in ["x0", "x1", "x9", "x16", "x29", "x30"] {
-            let destination = physical.model().view_named(name).unwrap().id;
-            for (kind, family) in forms() {
-                let key = MachineAlternativeKey { family, variant: 0 };
-                let encoded =
-                    encode_aarch64_selected_form(&physical, kind, key, &[destination]).unwrap();
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &[destination],
-                    encoded.bytes(),
-                )
-                .unwrap();
-                assert_eq!(encoded.bytes().len(), 4);
-                let footprint = encoded.footprint();
-                assert!(footprint.register_reads.is_empty());
-                assert_eq!(footprint.register_writes, vec![destination]);
-                assert!(!footprint.writes_nzcv);
-                let mut expected = MachineEncodedEffects::fallthrough_v1(vec![], vec![0]);
-                expected.implicit_unit_uses =
-                    physical.model().view_named("nzcv").unwrap().units.clone();
-                assert_eq!(footprint.encoded, expected);
-                for (other_kind, other_family) in forms() {
-                    if kind == other_kind {
-                        continue;
-                    }
-                    let other_key = MachineAlternativeKey {
-                        family: other_family,
-                        variant: 0,
-                    };
-                    assert!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical,
-                            other_kind,
-                            other_key,
-                            &[destination],
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
-                    assert!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical,
-                            kind,
-                            other_key,
-                            &[destination],
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
-                }
-                rejects_every_bit_flip(&physical, kind, key, &[destination], encoded.bytes());
-                for length in 0..encoded.bytes().len() {
-                    assert!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical,
-                            kind,
-                            key,
-                            &[destination],
-                            &encoded.bytes()[..length]
-                        )
-                        .is_err()
-                    );
-                }
-                let mut extra = encoded.bytes().to_vec();
-                extra.extend_from_slice(encoded.bytes());
-                assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical,
-                        kind,
-                        key,
-                        &[destination],
-                        &extra
-                    )
-                    .is_err()
-                );
-                for invalid in ["sp", "xzr", "w0", "nzcv"] {
-                    let view = physical.model().view_named(invalid).unwrap().id;
-                    assert!(
-                        encode_aarch64_selected_form(&physical, kind, key, &[view]).is_err(),
-                        "invalid destination {invalid}"
-                    );
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn cset_uses_inverse_condition_and_two_zero_register_inputs() {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let destination = physical.model().view_named("x0").unwrap().id;
-        for ((kind, family), word) in forms().into_iter().zip([
-            0x9a9f_17e0_u32,
-            0x9a9f_27e0,
-            0x9a9f_a7e0,
-            0x9a9f_87e0,
-            0x9a9f_c7e0,
-        ]) {
-            let key = MachineAlternativeKey { family, variant: 0 };
-            assert_eq!(
-                encode_aarch64_selected_form(&physical, kind, key, &[destination])
-                    .unwrap()
-                    .bytes(),
-                word.to_le_bytes()
-            );
-        }
-    }
-}
-mod branch_forms {
-    use crate::aarch64_physical_register_model;
-    use crate::selected_form_encoding::decoding::footprint;
-    use crate::selected_form_encoding::selected_forms::resolve_registers;
-    use crate::selected_form_encoding::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-        ValidatedAarch64SelectedFormEncoding,
-    };
-    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-        MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-        MachineEncodedTrapBehavior, SelectedInstructionKind,
-    };
-
-    pub const AARCH64_CONDITIONAL_BRANCH_BYTE_REACH: std::ops::Range<i64> = -(1 << 20)..(1 << 20);
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum Aarch64ConditionalBranchForm {
-        CanonicalWordV1,
-        WidenedPairV1,
-    }
-
-    struct Aarch64ConditionalBranchArm {
-        condition: u32,
-        inverted_condition: u32,
-        kind: SelectedInstructionKind,
-    }
-
-    fn conditional_branch_arm(
-        family: MachineAlternativeFamily,
-    ) -> Option<Aarch64ConditionalBranchArm> {
-        let (condition, inverted_condition, kind) = match family {
-            MachineAlternativeFamily::ConditionalBranchNonZero => {
-                (0x1, 0x0, SelectedInstructionKind::ConditionalBranchNonZero)
-            }
-            MachineAlternativeFamily::ConditionalBranchU64LessThan => (
-                0x3,
-                0x2,
-                SelectedInstructionKind::ConditionalBranchU64LessThan,
-            ),
-            MachineAlternativeFamily::ConditionalBranchI64LessThan => (
-                0xb,
-                0xa,
-                SelectedInstructionKind::ConditionalBranchI64LessThan,
-            ),
-            _ => return None,
-        };
-        Some(Aarch64ConditionalBranchArm {
-            condition,
-            inverted_condition,
-            kind,
-        })
-    }
-
-    pub fn encode_aarch64_selected_conditional_branch_form(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        family: MachineAlternativeFamily,
-        form: Aarch64ConditionalBranchForm,
-        byte_displacement_from_instruction: i64,
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let arm = conditional_branch_request(physical, alternative, family)?;
-        let bytes = match form {
-            Aarch64ConditionalBranchForm::CanonicalWordV1 => {
-                let word_displacement =
-                    branch_word_displacement(byte_displacement_from_instruction)?;
-                let word =
-                    0x5400_0000 | (((word_displacement as u32) & 0x7ffff) << 5) | arm.condition;
-                word.to_le_bytes().to_vec()
-            }
-            Aarch64ConditionalBranchForm::WidenedPairV1 => {
-                let word_displacement =
-                    widened_branch_word_displacement(byte_displacement_from_instruction)?;
-                let skip = 0x5400_0000 | (2 << 5) | arm.inverted_condition;
-                let target = 0x1400_0000 | ((word_displacement as u32) & 0x03ff_ffff);
-                let mut bytes = Vec::with_capacity(8);
-                crate::codec_bytes::push_encoded(&mut bytes, skip.to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, target.to_le_bytes());
-                bytes
-            }
-        };
-        validate_aarch64_selected_conditional_branch_form(
-            physical,
-            alternative,
-            family,
-            form,
-            byte_displacement_from_instruction,
-            &bytes,
-        )
-    }
-
-    pub fn validate_aarch64_selected_conditional_branch_form(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        family: MachineAlternativeFamily,
-        form: Aarch64ConditionalBranchForm,
-        byte_displacement_from_instruction: i64,
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let arm = conditional_branch_request(physical, alternative, family)?;
-        match form {
-            Aarch64ConditionalBranchForm::CanonicalWordV1 => {
-                branch_word_displacement(byte_displacement_from_instruction)?;
-                let word = bytes
-                    .try_into()
-                    .ok()
-                    .map(u32::from_le_bytes)
-                    .filter(|word| word & 0xff00_001f == 0x5400_0000 | arm.condition)
-                    .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-                let encoded_imm19 = ((word >> 5) & 0x7ffff) as i32;
-                let decoded_words = (encoded_imm19 << 13) >> 13;
-                if i64::from(decoded_words) * 4 != byte_displacement_from_instruction {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-                Ok(ValidatedAarch64SelectedFormEncoding {
-                    bytes: bytes.to_vec(),
-                    footprint: footprint(arm.kind, &[]),
-                })
-            }
-            Aarch64ConditionalBranchForm::WidenedPairV1 => {
-                widened_branch_word_displacement(byte_displacement_from_instruction)?;
-                let bytes: [u8; 8] = bytes
-                    .try_into()
-                    .map_err(|_| Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-                let first = u32::from_le_bytes(bytes[0..4].try_into().unwrap());
-                if first != (0x5400_0000 | (2 << 5) | arm.inverted_condition) {
-                    return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-                }
-                let second = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
-                if second & 0xfc00_0000 != 0x1400_0000 {
-                    return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-                }
-                let decoded = i64::from(((second & 0x03ff_ffff) << 6) as i32 >> 6) * 4;
-                if decoded != byte_displacement_from_instruction - 4 {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-                Ok(ValidatedAarch64SelectedFormEncoding {
-                    bytes: bytes.to_vec(),
-                    footprint: footprint(arm.kind, &[]),
-                })
-            }
-        }
-    }
-
-    fn conditional_branch_request(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        family: MachineAlternativeFamily,
-    ) -> Result<Aarch64ConditionalBranchArm, Aarch64SelectedFormEncodingError> {
-        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-            return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-        }
-        if alternative != (MachineAlternativeKey { family, variant: 0 }) {
-            return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-        }
-        conditional_branch_arm(family).ok_or(Aarch64SelectedFormEncodingError::AlternativeMismatch)
-    }
-
-    fn widened_branch_word_displacement(
-        byte_displacement: i64,
-    ) -> Result<i32, Aarch64SelectedFormEncodingError> {
-        if byte_displacement % 4 != 0 {
-            return Err(Aarch64SelectedFormEncodingError::BranchDisplacementMisaligned);
-        }
-        let words = byte_displacement / 4 - 1;
-        if !(-(1_i64 << 25)..(1_i64 << 25)).contains(&words) {
-            return Err(Aarch64SelectedFormEncodingError::BranchDisplacementOutsideImm26);
-        }
-        Ok(words as i32)
-    }
-
-    fn branch_word_displacement(
-        byte_displacement: i64,
-    ) -> Result<i32, Aarch64SelectedFormEncodingError> {
-        if byte_displacement % 4 != 0 {
-            return Err(Aarch64SelectedFormEncodingError::BranchDisplacementMisaligned);
-        }
-        if !AARCH64_CONDITIONAL_BRANCH_BYTE_REACH.contains(&byte_displacement) {
-            return Err(Aarch64SelectedFormEncodingError::BranchDisplacementOutsideImm19);
-        }
-        Ok((byte_displacement / 4) as i32)
-    }
-
-    pub fn encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
-        physical: &ValidatedPhysicalRegisterModel,
-        source: RegisterViewId,
-        byte_displacement_from_instruction: i64,
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let register = validate_cbnz_request(physical, source)?;
-        let word_displacement = branch_word_displacement(byte_displacement_from_instruction)?;
-        let word =
-            0xb500_0000 | (((word_displacement as u32) & 0x7ffff) << 5) | u32::from(register);
-        validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
-            physical,
-            source,
-            byte_displacement_from_instruction,
-            &word.to_le_bytes(),
-        )
-    }
-
-    pub fn validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
-        physical: &ValidatedPhysicalRegisterModel,
-        source: RegisterViewId,
-        byte_displacement_from_instruction: i64,
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let register = validate_cbnz_request(physical, source)?;
-        branch_word_displacement(byte_displacement_from_instruction)?;
-        let word = bytes
-            .try_into()
-            .ok()
-            .map(u32::from_le_bytes)
-            .filter(|word| word & 0xff00_0000 == 0xb500_0000)
-            .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-        if word & 0x1f != u32::from(register) {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        let encoded_imm19 = ((word >> 5) & 0x7ffff) as i32;
-        let decoded_words = (encoded_imm19 << 13) >> 13;
-        if i64::from(decoded_words) * 4 != byte_displacement_from_instruction {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(ValidatedAarch64SelectedFormEncoding {
-            bytes: bytes.to_vec(),
-            footprint: cbnz_footprint(source),
-        })
-    }
-
-    fn validate_cbnz_request(
-        physical: &ValidatedPhysicalRegisterModel,
-        source: RegisterViewId,
-    ) -> Result<u8, Aarch64SelectedFormEncodingError> {
-        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-            return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-        }
-        let registers = resolve_registers(physical, &[source])?;
-        registers
-            .first()
-            .copied()
-            .ok_or(Aarch64SelectedFormEncodingError::OperandCountMismatch)
-    }
-
-    fn cbnz_footprint(source: RegisterViewId) -> Aarch64SelectedFormFootprint {
-        let physical = aarch64_physical_register_model();
-        let pc = physical.view_named("pc").unwrap().units.clone();
-        Aarch64SelectedFormFootprint {
-            register_reads: vec![source],
-            register_writes: vec![],
-            writes_nzcv: false,
-            encoded: MachineEncodedEffects {
-                external_operand_reads: vec![],
-                external_operand_writes: vec![],
-                implicit_unit_uses: pc.clone(),
-                implicit_unit_defs: pc,
-                implicit_unit_clobbers: vec![],
-                memory: MachineEncodedMemoryEffect::NoneV1,
-                stack: MachineEncodedStackEffect::UnchangedV1,
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::ConditionalRelativeBranchV1,
-            },
-        }
-    }
-}
-#[cfg(test)]
-mod byte_literal_address_tests {
-    use super::{
-        AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
-        AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET, encode_aarch64_selected_form,
-        validate_aarch64_selected_form_encoding,
-    };
-    use crate::test_support::rejects_every_bit_flip;
-    use register_model::validate_physical_register_model;
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-        SelectedInstructionKind,
-    };
-    use semantic_vocabulary::{OperationId, PlaceId};
-
-    #[test]
-    fn byte_literal_address_is_an_unresolved_page_pair_into_its_destination() {
-        let physical =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
-        let views = ["x5", "x6"].map(|name| physical.model().view_named(name).unwrap().id);
-        let kind = SelectedInstructionKind::ImageAddress {
-            reference: selected_instructions::SelectedImageAddressReference::ByteLiteral {
-                operation: OperationId::new(7).unwrap(),
-                place: PlaceId::new(3).unwrap(),
-            },
-        };
-        let key = MachineAlternativeKey {
-            family: MachineAlternativeFamily::ImageAddress,
-            variant: 0,
-        };
-        let encoded = encode_aarch64_selected_form(&physical, kind, key, &views[..1]).unwrap();
-        let mut expected = 0x9000_0005_u32.to_le_bytes().to_vec();
-        crate::codec_bytes::push_encoded(&mut expected, 0x9100_00a5_u32.to_le_bytes());
-        assert_eq!(encoded.bytes(), expected);
-        assert_eq!(AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET, 0);
-        assert_eq!(AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET, 4);
-        validate_aarch64_selected_form_encoding(&physical, kind, key, &views[..1], encoded.bytes())
-            .unwrap();
-        assert!(
-            encoded
-                .footprint()
-                .encoded
-                .external_operand_reads
-                .is_empty()
-        );
-        assert_eq!(encoded.footprint().encoded.external_operand_writes, [0]);
-        assert_eq!(
-            encoded.footprint().encoded.memory,
-            MachineEncodedMemoryEffect::NoneV1
-        );
-        assert!(
-            validate_aarch64_selected_form_encoding(
-                &physical,
-                kind,
-                key,
-                &views[1..],
-                encoded.bytes()
-            )
-            .is_err()
-        );
-        rejects_every_bit_flip(&physical, kind, key, &views[..1], encoded.bytes());
-    }
-}
-#[cfg(test)]
-mod byte_view_address_tests {
-    use super::{encode_aarch64_selected_form, validate_aarch64_selected_form_encoding};
-    use crate::test_support::rejects_every_bit_flip;
-    use register_model::validate_physical_register_model;
-    use selected_instructions::MachineAlternativeFamily;
-    use selected_instructions::MachineAlternativeKey;
-    use selected_instructions::MachineEncodedMemoryEffect;
-    use selected_instructions::SelectedInstructionKind;
-
-    #[test]
-    fn byte_view_address_has_distinct_family_and_exact_register_bytes() {
-        let physical =
-            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
-        let views =
-            ["x9", "x10", "x11", "x12"].map(|name| physical.model().view_named(name).unwrap().id);
-        let operands = &views[..3];
-        let kind = SelectedInstructionKind::ByteViewAddress;
-        let key = MachineAlternativeKey {
-            family: MachineAlternativeFamily::ByteViewAddress,
-            variant: 0,
-        };
-        let encoded = encode_aarch64_selected_form(&physical, kind, key, operands).unwrap();
-        validate_aarch64_selected_form_encoding(&physical, kind, key, operands, encoded.bytes())
-            .unwrap();
-        assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
-        assert_eq!(encoded.footprint().encoded.external_operand_writes, [2]);
-        assert_eq!(
-            encoded.footprint().encoded.memory,
-            MachineEncodedMemoryEffect::NoneV1
-        );
-        assert!(encoded.footprint().encoded.implicit_unit_defs.is_empty());
-        assert!(
-            encoded
-                .footprint()
-                .encoded
-                .implicit_unit_clobbers
-                .is_empty()
-        );
-        let wrong_family = MachineAlternativeKey {
-            family: MachineAlternativeFamily::ExactAddI64,
-            variant: 0,
-        };
-        assert!(
-            validate_aarch64_selected_form_encoding(
-                &physical,
-                kind,
-                wrong_family,
-                operands,
-                encoded.bytes()
-            )
-            .is_err()
-        );
-        for position in 0..3 {
-            let mut changed = operands.to_vec();
-            changed[position] = views[3];
-            assert!(
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &changed,
-                    encoded.bytes()
-                )
-                .is_err()
-            );
-        }
-        rejects_every_bit_flip(&physical, kind, key, operands, encoded.bytes());
-    }
-
-    #[test]
-    fn byte_view_address_arithmetic_wraps_only_exclusive_bound_empty_carrier() {
-        let bound = 1_u128 << 64;
-        for (backing, root_length, offset, length) in [
-            (0_u64, 0_u64, 0_u64, 0_u64),
-            (16, 32, 7, 25),
-            (u64::MAX - 7, 8, 0, 8),
-            (u64::MAX - 7, 8, 7, 1),
-            (u64::MAX - 7, 8, 8, 0),
-            (u64::MAX, 1, 1, 0),
-        ] {
-            assert!(u128::from(backing) + u128::from(root_length) <= bound);
-            assert!(u128::from(offset) + u128::from(length) <= u128::from(root_length));
-            let mathematical = u128::from(backing) + u128::from(offset);
-            let address = backing.wrapping_add(offset);
-            if mathematical == bound {
-                assert_eq!(length, 0);
-                assert_eq!(address, 0);
-            } else {
-                assert_eq!(u128::from(address), mathematical);
-            }
-        }
-    }
-}
-mod compare_byte_sequences {
-    use super::plan_words::{self, COND_NE, Instruction};
-    use super::{
-        Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding, decode_all,
-    };
-    use crate::selected_form_encoding::selected_forms::request_registers;
-    use register_model::RegisterViewId;
-    use register_model::ValidatedPhysicalRegisterModel;
-    use selected_instructions::MachineAlternativeFamily;
-    use selected_instructions::MachineAlternativeKey;
-    use selected_instructions::MachineEncodedMemoryEffect;
-
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    enum Label {
-        Loop,
-        Equal,
-        Done,
-    }
-
-    fn layout(registers: [u8; 8]) -> Vec<(Option<Label>, Instruction<Label>)> {
-        let [
-            left_base,
-            left_count,
-            right_base,
-            right_count,
-            cursor,
-            left_byte,
-            right_byte,
-            result,
-        ] = registers;
-        vec![
-            (None, Instruction::Zero(cursor)),
-            (None, Instruction::Zero(left_byte)),
-            (None, Instruction::Zero(right_byte)),
-            (None, Instruction::Zero(result)),
-            (
-                None,
-                Instruction::CompareRegister {
-                    left: left_count,
-                    right: right_count,
-                },
-            ),
-            (
-                None,
-                Instruction::BranchConditional {
-                    condition: COND_NE,
-                    target: Label::Done,
-                },
-            ),
-            (None, Instruction::Cbz(left_count, Label::Equal)),
-            (
-                Some(Label::Loop),
-                Instruction::LdrbRegister {
-                    destination: left_byte,
-                    base: left_base,
-                    index: cursor,
-                },
-            ),
-            (
-                None,
-                Instruction::LdrbRegister {
-                    destination: right_byte,
-                    base: right_base,
-                    index: cursor,
-                },
-            ),
-            (
-                None,
-                Instruction::CompareRegister {
-                    left: left_byte,
-                    right: right_byte,
-                },
-            ),
-            (
-                None,
-                Instruction::BranchConditional {
-                    condition: COND_NE,
-                    target: Label::Done,
-                },
-            ),
-            (
-                None,
-                Instruction::AddImmediate {
-                    destination: cursor,
-                    source: cursor,
-                    immediate: 1,
-                },
-            ),
-            (
-                None,
-                Instruction::CompareRegister {
-                    left: cursor,
-                    right: left_count,
-                },
-            ),
-            (
-                None,
-                Instruction::BranchConditional {
-                    condition: COND_NE,
-                    target: Label::Loop,
-                },
-            ),
-            (Some(Label::Equal), Instruction::One(result)),
-            (Some(Label::Done), Instruction::Zero(cursor)),
-        ]
-    }
-
-    fn request(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<[u8; 8], Aarch64SelectedFormEncodingError> {
-        request_registers(
-            physical,
-            alternative,
-            MachineAlternativeFamily::CompareByteSequences,
-            operands,
-            4,
-        )
-    }
-
-    pub(super) fn encode(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let registers = request(physical, alternative, operands)?;
-        let bytes = plan_words::assemble(&layout(registers))?;
-        validate(physical, alternative, operands, &bytes)
-    }
-
-    pub(super) fn validate(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let registers = request(physical, alternative, operands)?;
-        if decode_all(bytes, plan_words::decode_word)?
-            != plan_words::expected_stream(&layout(registers))?
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        super::nzcv_effects_encoding(
-            physical,
-            operands,
-            bytes,
-            4,
-            MachineEncodedMemoryEffect::CompareByteSequencesV1 {
-                left_base_operand: 0,
-                left_count_operand: 1,
-                right_base_operand: 2,
-                right_count_operand: 3,
-            },
-        )
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{encode, validate};
-        use crate::aarch64_physical_register_model;
-        use crate::selected_form_encoding::selected_forms::{
-            encode_aarch64_selected_form, validate_aarch64_selected_form_encoding,
-        };
-        use crate::test_support::reject_every_bit_flip;
-        use selected_instructions::MachineAlternativeFamily;
-        use selected_instructions::MachineAlternativeKey;
-        use selected_instructions::SelectedInstructionKind;
-
-        fn kind() -> SelectedInstructionKind {
-            SelectedInstructionKind::CompareByteSequences
-        }
-
-        fn alternative() -> MachineAlternativeKey {
-            MachineAlternativeKey {
-                family: MachineAlternativeFamily::CompareByteSequences,
-                variant: 0,
-            }
-        }
-
-        #[test]
-        fn constraint_catalog_declares_the_compare_register_contract() {
-            let physical =
-                register_model::validate_physical_register_model(aarch64_physical_register_model())
-                    .unwrap();
-            let catalog = crate::aarch64_register_constraint_catalog(&physical);
-            let row = catalog
-                .constraint(crate::AARCH64_COMPARE_BYTE_SEQUENCES)
-                .expect("catalog declares the compare constraint");
-            assert_eq!(row.operands.len(), 8);
-            let (inputs, scratches) = row.operands.split_at(4);
-            for input in inputs {
-                assert!(input.access == register_model::RegisterOperandAccess::Use);
-            }
-            for scratch in scratches {
-                assert!(scratch.early_clobber);
-            }
-        }
-
-        #[test]
-        fn encode_and_validate_replay_every_compare_word_for_word() {
-            let physical =
-                register_model::validate_physical_register_model(aarch64_physical_register_model())
-                    .unwrap();
-            let operands = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
-                .map(|name| physical.model().view_named(name).unwrap().id);
-            let alternative = alternative();
-            let encoded = encode(&physical, alternative, &operands).unwrap();
-            let through_selected_form =
-                encode_aarch64_selected_form(&physical, kind(), alternative, &operands).unwrap();
-            assert_eq!(encoded.bytes, through_selected_form.bytes);
-            validate_aarch64_selected_form_encoding(
-                &physical,
-                kind(),
-                alternative,
-                &operands,
-                &encoded.bytes,
-            )
-            .unwrap();
-            reject_every_bit_flip(&encoded.bytes, "compare word stream", |changed| {
-                validate(&physical, alternative, &operands, changed).is_err()
-            });
-        }
-    }
-}
-mod copy_bytes {
-    use super::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding};
-    use crate::selected_form_encoding::selected_forms::request_registers;
-    use register_model::RegisterViewId;
-    use register_model::ValidatedPhysicalRegisterModel;
-    use selected_instructions::MachineAlternativeFamily;
-    use selected_instructions::MachineAlternativeKey;
-    use selected_instructions::MachineEncodedMemoryEffect;
-    fn request(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<[u8; 5], Aarch64SelectedFormEncodingError> {
-        request_registers(
-            physical,
-            alternative,
-            MachineAlternativeFamily::CopyBytes,
-            operands,
-            3,
-        )
-    }
-
-    pub(super) fn encode(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let [source, destination, count, cursor, byte] =
-            request(physical, alternative, operands)?.map(u32::from);
-        let words = [
-            0xd280_0000 | cursor,
-            0xb400_00c0 | count,
-            0x3860_6800 | (cursor << 16) | (source << 5) | byte,
-            0x3820_6800 | (cursor << 16) | (destination << 5) | byte,
-            0x9100_0400 | (cursor << 5) | cursor,
-            0xeb00_001f | (count << 16) | (cursor << 5),
-            0x54ff_ff81,
-        ];
-        let bytes = words
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect::<Vec<_>>();
-        validate(physical, alternative, operands, &bytes)
-    }
-
-    pub(super) fn validate(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let [source, destination, count, cursor, byte] =
-            request(physical, alternative, operands)?.map(u32::from);
-        let (word_bytes, tail) = bytes.as_chunks::<4>();
-        let word_bytes: &[[u8; 4]; 7] = word_bytes
-            .try_into()
-            .map_err(|_| Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-        if !tail.is_empty() {
-            return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-        }
-        let [initialize, skip, load, store, advance, compare, repeat] =
-            word_bytes.map(u32::from_le_bytes);
-        if initialize & !31 != 0xd280_0000
-            || initialize & 31 != cursor
-            || skip & 0xff00_0000 != 0xb400_0000
-            || skip & 31 != count
-            || (skip >> 5) & 0x7ffff != 6
-            || load & 0xffe0_fc00 != 0x3860_6800
-            || load & 31 != byte
-            || (load >> 5) & 31 != source
-            || (load >> 16) & 31 != cursor
-            || store & 0xffe0_fc00 != 0x3820_6800
-            || store & 31 != byte
-            || (store >> 5) & 31 != destination
-            || (store >> 16) & 31 != cursor
-            || advance & !0x3ff != 0x9100_0400
-            || advance & 31 != cursor
-            || (advance >> 5) & 31 != cursor
-            || compare & 0xffe0_fc1f != 0xeb00_001f
-            || (compare >> 5) & 31 != cursor
-            || (compare >> 16) & 31 != count
-            || repeat != 0x54ff_ff81
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        super::nzcv_effects_encoding(
-            physical,
-            operands,
-            bytes,
-            3,
-            MachineEncodedMemoryEffect::CopyBytesV1 {
-                source_pointer_operand: 0,
-                destination_pointer_operand: 1,
-                count_operand: 2,
-            },
-        )
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{encode, validate};
-        use crate::aarch64_physical_register_model;
-        use crate::test_support::reject_every_bit_flip;
-        use selected_instructions::MachineAlternativeFamily;
-        use selected_instructions::MachineAlternativeKey;
-
-        #[test]
-        fn copy_loop_replays_every_bit_and_rejects_scratch_aliases() {
-            let physical =
-                register_model::validate_physical_register_model(aarch64_physical_register_model())
-                    .unwrap();
-            let operands = ["x0", "x1", "x2", "x3", "x4"]
-                .map(|name| physical.model().view_named(name).unwrap().id);
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::CopyBytes,
-                variant: 0,
-            };
-            let encoded = encode(&physical, alternative, &operands).unwrap();
-            reject_every_bit_flip(&encoded.bytes, "copy word stream", |changed| {
-                validate(&physical, alternative, &operands, changed).is_err()
-            });
-            for scratch in 3..5 {
-                for input in 0..5 {
-                    if input == scratch {
-                        continue;
-                    }
-                    let mut changed = operands;
-                    changed[scratch] = changed[input];
-                    assert!(encode(&physical, alternative, &changed).is_err());
-                }
-            }
-        }
-    }
-}
-pub(crate) mod crash {
-
-    #[cfg(test)]
-    mod tests {
-        use crate::selected_form_encoding::ValidatedAarch64SelectedFormEncoding;
-        use selected_instructions::{
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, fixture,
-        };
-
-        impl fixture::EncodedWord for ValidatedAarch64SelectedFormEncoding {
-            fn encoded_bytes(&self) -> &[u8] {
-                self.bytes()
-            }
-
-            fn encoded_effects(&self) -> &MachineEncodedEffects {
-                &self.footprint().encoded
-            }
-        }
-
-        #[test]
-        fn crash_rejects_changed_bytes_operands_and_alternatives() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            fixture::assert_crash_refusals(
-                fixture::CrashWord {
-                    physical: &physical,
-                    bytes: &[0x00, 0x00, 0x20, 0xd4],
-                    program_counter: "pc",
-                    foreign_operand: "x0",
-                },
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::Crash,
-                    variant: 0,
-                },
-                |kind, alternative, operands| {
-                    crate::encode_aarch64_selected_form(&physical, kind, alternative, operands)
-                },
-                |kind, alternative, operands, bytes| {
-                    crate::validate_aarch64_selected_form_encoding(
-                        &physical,
-                        kind,
-                        alternative,
-                        operands,
-                        bytes,
-                    )
-                },
-            );
-        }
-    }
-}
-pub(crate) mod decoding {
-    use crate::aarch64_physical_register_model_ref;
-    use crate::saturating_forms::SaturatingRealization;
-    use crate::selected_form_encoding::selected_forms::BOUND_WORDS;
-    use crate::selected_form_encoding::selected_forms::{integer_bits, u12};
-    use crate::selected_form_encoding::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    };
-    use register_model::RegisterViewId;
-    use selected_instructions::{
-        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-        MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstructionKind,
-    };
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum DecodedWord {
-        RegisterAccess {
-            operation: selected_instructions::RegisterOperation,
-            operand: u8,
-        },
-        AtomicFence,
-        Crash,
-        BranchOverTrap {
-            condition: u8,
-        },
-        BranchNonZeroOverTrap {
-            register: u8,
-        },
-        CompareExtended {
-            left: u8,
-            right: u8,
-            extension: u8,
-        },
-        CompareNegativeOne {
-            source: u8,
-        },
-        ConditionalCompareOneOnEqual {
-            register: u8,
-        },
-        TestHighBits {
-            source: u8,
-            from_bit: u8,
-        },
-        SignedDivide {
-            dividend: u8,
-            divisor: u8,
-            destination: u8,
-        },
-        MultiplySubtract {
-            left: u8,
-            right: u8,
-            minuend: u8,
-            destination: u8,
-        },
-        Multiply {
-            left: u8,
-            right: u8,
-            destination: u8,
-        },
-        SignedMultiplyHigh {
-            left: u8,
-            right: u8,
-            destination: u8,
-        },
-        UnsignedMultiplyHigh {
-            left: u8,
-            right: u8,
-            destination: u8,
-        },
-        CompareWithSignOf {
-            high: u8,
-            low: u8,
-        },
-        SelectMaximumUnlessEqual {
-            source: u8,
-            destination: u8,
-        },
-        UnsignedDivide {
-            dividend: u8,
-            divisor: u8,
-            destination: u8,
-        },
-        ShiftLeftVariable {
-            value: u8,
-            count: u8,
-            destination: u8,
-        },
-        ShiftRightLogicalVariable {
-            value: u8,
-            count: u8,
-            destination: u8,
-        },
-        ShiftRightArithmeticVariable {
-            value: u8,
-            count: u8,
-            destination: u8,
-        },
-        AddWithFlags {
-            left: u8,
-            right: u8,
-            destination: u8,
-        },
-        SelectMaximumOnCarry {
-            source: u8,
-            destination: u8,
-        },
-        SubtractWithFlags {
-            left: u8,
-            right: u8,
-            destination: u8,
-        },
-        SelectZeroOnBorrow {
-            source: u8,
-            destination: u8,
-        },
-        MaterializeBound {
-            destination: u8,
-            value: u64,
-        },
-        SelectOnEqual {
-            source: u8,
-            destination: u8,
-        },
-        SelectOnOverflow {
-            source: u8,
-            destination: u8,
-        },
-        ArithmeticShiftRight63 {
-            source: u8,
-            destination: u8,
-        },
-        ExclusiveOrI64Maximum {
-            register: u8,
-        },
-        ConditionalCompareMinusOne {
-            register: u8,
-        },
-        SelectOnGreater {
-            source: u8,
-            destination: u8,
-        },
-        SelectOnLess {
-            source: u8,
-            destination: u8,
-        },
-        SelectOnNotEqual {
-            source: u8,
-            destination: u8,
-        },
-        SelectOnHigher {
-            source: u8,
-            destination: u8,
-        },
-        BitwiseXor {
-            left: u8,
-            right: u8,
-            destination: u8,
-        },
-        BitwiseOr {
-            left: u8,
-            right: u8,
-            destination: u8,
-        },
-        BitwiseNot {
-            source: u8,
-            destination: u8,
-        },
-        BitwiseAnd {
-            left: u8,
-            right: u8,
-            destination: u8,
-        },
-        SetBoolean {
-            condition: u8,
-            destination: u8,
-        },
-        ZeroExtendU16 {
-            source: u8,
-            destination: u8,
-        },
-        SignExtendI8 {
-            source: u8,
-            destination: u8,
-        },
-        SignExtendI16 {
-            source: u8,
-            destination: u8,
-        },
-        SignExtendI32 {
-            source: u8,
-            destination: u8,
-        },
-        ZeroExtendU8 {
-            source: u8,
-            destination: u8,
-        },
-        ZeroExtendU32 {
-            source: u8,
-            destination: u8,
-        },
-        MovN {
-            register: u8,
-            shift: u8,
-            immediate: u16,
-        },
-        MovZ {
-            register: u8,
-            shift: u8,
-            immediate: u16,
-        },
-        MovK {
-            register: u8,
-            shift: u8,
-            immediate: u16,
-        },
-        Copy {
-            source: u8,
-            destination: u8,
-        },
-        CompareZero {
-            source: u8,
-        },
-        CompareImmediate {
-            source: u8,
-            immediate: u16,
-        },
-        Compare {
-            left: u8,
-            right: u8,
-        },
-        Add {
-            left: u8,
-            right: u8,
-            destination: u8,
-        },
-        AddImmediate {
-            source: u8,
-            immediate: u16,
-            destination: u8,
-        },
-        Subtract {
-            left: u8,
-            right: u8,
-            destination: u8,
-        },
-        SubtractImmediate {
-            source: u8,
-            immediate: u16,
-            destination: u8,
-        },
-        Return,
-        UnresolvedPageAddress {
-            destination: u8,
-        },
-    }
-
-    pub(crate) fn decode_words(
-        bytes: &[u8],
-    ) -> Result<Vec<DecodedWord>, Aarch64SelectedFormEncodingError> {
-        if bytes.is_empty() || !bytes.len().is_multiple_of(4) {
-            return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-        }
-        bytes
-            .as_chunks::<4>()
-            .0
-            .iter()
-            .map(|bytes| decode_word(u32::from_le_bytes(*bytes)))
-            .collect()
-    }
-
-    const CONVERSION_MASK: u32 = 0xffff_fc00;
-
-    #[rustfmt::skip]
-const CONVERSIONS: [(u32, fn(u8, u8) -> DecodedWord); 6] = [
-    (0xd340_1c00, |source, destination| DecodedWord::ZeroExtendU8 { source, destination }),
-    (0xd340_3c00, |source, destination| DecodedWord::ZeroExtendU16 { source, destination }),
-    (0x9340_1c00, |source, destination| DecodedWord::SignExtendI8 { source, destination }),
-    (0x9340_3c00, |source, destination| DecodedWord::SignExtendI16 { source, destination }),
-    (0x9340_7c00, |source, destination| DecodedWord::SignExtendI32 { source, destination }),
-    (0xd340_7c00, |source, destination| DecodedWord::ZeroExtendU32 { source, destination }),
-];
-
-    fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
-        macro_rules! source_destination {
-            ($name:ident) => {
-                Ok(DecodedWord::$name {
-                    source: ((word >> 5) & 31) as u8,
-                    destination: (word & 31) as u8,
-                })
-            };
-        }
-
-        if let Some((operation, operand)) = super::register_access::decode(word) {
-            return Ok(DecodedWord::RegisterAccess { operation, operand });
-        }
-        if word == 0xd503_3fbf {
-            return Ok(DecodedWord::AtomicFence);
-        }
-        if word == 0xd420_0000 {
-            return Ok(DecodedWord::Crash);
-        }
-        if word & 0xffff_ffe0 == 0x9000_0000 {
-            return Ok(DecodedWord::UnresolvedPageAddress {
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffff_fff0 == 0x5400_0040 {
-            return Ok(DecodedWord::BranchOverTrap {
-                condition: (word & 15) as u8,
-            });
-        }
-        if word & 0xffff_ffe0 == 0xb500_0040 {
-            return Ok(DecodedWord::BranchNonZeroOverTrap {
-                register: (word & 31) as u8,
-            });
-        }
-        if word & 0xffe0_1c1f == 0xeb20_001f && matches!((word >> 13) & 7, 0 | 1 | 2 | 4 | 5 | 6) {
-            return Ok(DecodedWord::CompareExtended {
-                left: ((word >> 5) & 31) as u8,
-                right: ((word >> 16) & 31) as u8,
-                extension: ((word >> 13) & 7) as u8,
-            });
-        }
-        if word & 0xffff_fc1f == 0xb100_041f {
-            return Ok(DecodedWord::CompareNegativeOne {
-                source: ((word >> 5) & 31) as u8,
-            });
-        }
-        if word & 0xffff_fc1f == 0xfa41_0800 {
-            return Ok(DecodedWord::ConditionalCompareOneOnEqual {
-                register: ((word >> 5) & 31) as u8,
-            });
-        }
-        if word & 0xffc0_001f == 0xf240_001f {
-            let rotation = (word >> 16) & 63;
-            let ones = ((word >> 10) & 63) + 1;
-            if rotation != 0 && rotation == ones {
-                return Ok(DecodedWord::TestHighBits {
-                    source: ((word >> 5) & 31) as u8,
-                    from_bit: (64 - ones) as u8,
-                });
-            }
-        }
-        if word & 0xffe0_fc00 == 0x9ac0_0c00 {
-            return Ok(DecodedWord::SignedDivide {
-                dividend: ((word >> 5) & 31) as u8,
-                divisor: ((word >> 16) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffe0_8000 == 0x9b00_8000 {
-            return Ok(DecodedWord::MultiplySubtract {
-                left: ((word >> 5) & 31) as u8,
-                right: ((word >> 16) & 31) as u8,
-                minuend: ((word >> 10) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffe0_fc00 == 0x9b00_7c00 {
-            return Ok(DecodedWord::Multiply {
-                left: ((word >> 5) & 31) as u8,
-                right: ((word >> 16) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffe0_fc00 == 0x9b40_7c00 {
-            return Ok(DecodedWord::SignedMultiplyHigh {
-                left: ((word >> 5) & 31) as u8,
-                right: ((word >> 16) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffe0_fc00 == 0x9bc0_7c00 {
-            return Ok(DecodedWord::UnsignedMultiplyHigh {
-                left: ((word >> 5) & 31) as u8,
-                right: ((word >> 16) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffe0_fc1f == 0xeb80_fc1f {
-            return Ok(DecodedWord::CompareWithSignOf {
-                high: ((word >> 5) & 31) as u8,
-                low: ((word >> 16) & 31) as u8,
-            });
-        }
-        if word & 0xffff_fc00 == 0xda9f_0000 {
-            return source_destination!(SelectMaximumUnlessEqual);
-        }
-        if word & 0xffe0_fc00 == 0x9ac0_0800 {
-            return Ok(DecodedWord::UnsignedDivide {
-                dividend: ((word >> 5) & 31) as u8,
-                divisor: ((word >> 16) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffe0_fc00 == 0x9ac0_2000 {
-            return Ok(DecodedWord::ShiftLeftVariable {
-                value: ((word >> 5) & 31) as u8,
-                count: ((word >> 16) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffe0_fc00 == 0x9ac0_2400 {
-            return Ok(DecodedWord::ShiftRightLogicalVariable {
-                value: ((word >> 5) & 31) as u8,
-                count: ((word >> 16) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffe0_fc00 == 0x9ac0_2800 {
-            return Ok(DecodedWord::ShiftRightArithmeticVariable {
-                value: ((word >> 5) & 31) as u8,
-                count: ((word >> 16) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffe0_fc00 == 0xab00_0000 && word & 31 != 31 {
-            return Ok(DecodedWord::AddWithFlags {
-                left: ((word >> 5) & 31) as u8,
-                right: ((word >> 16) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffff_fc00 == 0xda9f_3000 {
-            return source_destination!(SelectMaximumOnCarry);
-        }
-        if word & 0xffe0_fc00 == 0xeb00_0000 && word & 31 != 31 {
-            return Ok(DecodedWord::SubtractWithFlags {
-                left: ((word >> 5) & 31) as u8,
-                right: ((word >> 16) & 31) as u8,
-                destination: (word & 31) as u8,
-            });
-        }
-        if word & 0xffff_fc00 == 0x9a9f_2000 {
-            return source_destination!(SelectZeroOnBorrow);
-        }
-        if let Some((value, _)) = BOUND_WORDS
-            .iter()
-            .find(|(_, bound_word)| word & 0xffff_ffe0 == *bound_word)
-        {
-            return Ok(DecodedWord::MaterializeBound {
-                destination: (word & 31) as u8,
-                value: *value,
-            });
-        }
-        if word & 0xffe0_fc00 == 0x9a80_0000 && (word >> 16) & 31 == word & 31 {
-            return source_destination!(SelectOnEqual);
-        }
-        if word & 0xffe0_fc00 == 0x9a80_6000 && (word >> 16) & 31 == word & 31 {
-            return source_destination!(SelectOnOverflow);
-        }
-        if word & 0xffff_fc00 == 0x937f_fc00 {
-            return source_destination!(ArithmeticShiftRight63);
-        }
-        if word & 0xffff_fc00 == 0xd240_f800 && (word >> 5) & 31 == word & 31 {
-            return Ok(DecodedWord::ExclusiveOrI64Maximum {
-                register: (word & 31) as u8,
-            });
-        }
-        if word & 0xffff_fc1f == 0xba41_0800 {
-            return Ok(DecodedWord::ConditionalCompareMinusOne {
-                register: ((word >> 5) & 31) as u8,
-            });
-        }
-        if word & 0xffe0_fc00 == 0x9a80_c000 && (word >> 16) & 31 == word & 31 {
-            return source_destination!(SelectOnGreater);
-        }
-        if word & 0xffe0_fc00 == 0x9a80_b000 && (word >> 16) & 31 == word & 31 {
-            return source_destination!(SelectOnLess);
-        }
-        if word & 0xffe0_fc00 == 0x9a80_1000 && (word >> 16) & 31 == word & 31 {
-            return source_destination!(SelectOnNotEqual);
-        }
-        if word & 0xffe0_fc00 == 0x9a80_8000 && (word >> 16) & 31 == word & 31 {
-            return source_destination!(SelectOnHigher);
-        }
-        if word & 0xffff_0fe0 == 0x9a9f_07e0 {
-            let condition = (((word >> 12) & 15) ^ 1) as u8;
-            if matches!(condition, 0 | 3 | 9 | 11 | 13) {
-                return Ok(DecodedWord::SetBoolean {
-                    condition,
-                    destination: (word & 31) as u8,
-                });
-            }
-        }
-
-        for &(value, build) in &CONVERSIONS {
-            if word & CONVERSION_MASK == value {
-                return Ok(build(((word >> 5) & 31) as u8, (word & 31) as u8));
-            }
-        }
-        let register = (word & 0x1f) as u8;
-        let shift = ((word >> 21) & 0x3) as u8;
-        let immediate = ((word >> 5) & 0xffff) as u16;
-        if word & 0xff80_0000 == 0x9280_0000 {
-            return Ok(DecodedWord::MovN {
-                register,
-                shift,
-                immediate,
-            });
-        }
-        if word & 0xffe0_0000 == 0xd280_0000 {
-            return Ok(DecodedWord::MovZ {
-                register,
-                shift,
-                immediate,
-            });
-        }
-        if word & 0xff80_0000 == 0xf280_0000 {
-            return Ok(DecodedWord::MovK {
-                register,
-                shift,
-                immediate,
-            });
-        }
-        if word & 0xffe0_ffe0 == 0xaa00_03e0 {
-            return Ok(DecodedWord::Copy {
-                source: ((word >> 16) & 0x1f) as u8,
-                destination: register,
-            });
-        }
-        if word & 0xffe0_fc00 == 0xaa00_0000 {
-            return Ok(DecodedWord::BitwiseOr {
-                left: ((word >> 5) & 0x1f) as u8,
-                right: ((word >> 16) & 0x1f) as u8,
-                destination: register,
-            });
-        }
-        if word & 0xffe0_ffe0 == 0xaa20_03e0 {
-            return Ok(DecodedWord::BitwiseNot {
-                source: ((word >> 16) & 0x1f) as u8,
-                destination: register,
-            });
-        }
-        if word & 0xffff_fc1f == 0xf100_001f {
-            return Ok(DecodedWord::CompareZero {
-                source: ((word >> 5) & 0x1f) as u8,
-            });
-        }
-        if word & 0xffc0_001f == 0xf100_001f {
-            return Ok(DecodedWord::CompareImmediate {
-                source: ((word >> 5) & 0x1f) as u8,
-                immediate: ((word >> 10) & 0xfff) as u16,
-            });
-        }
-        if word & 0xffe0_fc1f == 0xeb00_001f {
-            return Ok(DecodedWord::Compare {
-                left: ((word >> 5) & 0x1f) as u8,
-                right: ((word >> 16) & 0x1f) as u8,
-            });
-        }
-        if word & 0xffe0_fc00 == 0x8a00_0000 {
-            return Ok(DecodedWord::BitwiseAnd {
-                left: ((word >> 5) & 0x1f) as u8,
-                right: ((word >> 16) & 0x1f) as u8,
-                destination: register,
-            });
-        }
-        if word & 0xffe0_fc00 == 0xca00_0000 {
-            return Ok(DecodedWord::BitwiseXor {
-                left: ((word >> 5) & 0x1f) as u8,
-                right: ((word >> 16) & 0x1f) as u8,
-                destination: register,
-            });
-        }
-        if word & 0xffe0_fc00 == 0x8b00_0000 {
-            return Ok(DecodedWord::Add {
-                left: ((word >> 5) & 0x1f) as u8,
-                right: ((word >> 16) & 0x1f) as u8,
-                destination: register,
-            });
-        }
-        if word & 0xffc0_0000 == 0x9100_0000 {
-            return Ok(DecodedWord::AddImmediate {
-                source: ((word >> 5) & 0x1f) as u8,
-                immediate: ((word >> 10) & 0xfff) as u16,
-                destination: register,
-            });
-        }
-        if word & 0xffe0_fc00 == 0xcb00_0000 {
-            return Ok(DecodedWord::Subtract {
-                left: ((word >> 5) & 0x1f) as u8,
-                right: ((word >> 16) & 0x1f) as u8,
-                destination: register,
-            });
-        }
-        if word & 0xffc0_0000 == 0xd100_0000 {
-            return Ok(DecodedWord::SubtractImmediate {
-                source: ((word >> 5) & 0x1f) as u8,
-                immediate: ((word >> 10) & 0xfff) as u16,
-                destination: register,
-            });
-        }
-        if word == 0xd65f_03c0 {
-            return Ok(DecodedWord::Return);
-        }
-        Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
-    }
-
-    pub(crate) fn validate_decoded(
-        kind: SelectedInstructionKind,
-        registers: &[u8],
-        decoded: &[DecodedWord],
-    ) -> Result<(), Aarch64SelectedFormEncodingError> {
-        let valid = match kind {
-            SelectedInstructionKind::RegisterAccess { operation } => {
-                matches!((registers, decoded), ([operand], [DecodedWord::RegisterAccess { operation: actual, operand: actual_operand }])
-                if operation == *actual && operand == actual_operand)
-            }
-            SelectedInstructionKind::PrivilegedCrash
-            | SelectedInstructionKind::InstalledInterruptCpuCheck { .. }
-            | SelectedInstructionKind::InstalledInterruptTaskCommit { .. }
-            | SelectedInstructionKind::InstalledInterruptTablePublication { .. }
-            | SelectedInstructionKind::PortWrite { .. } => false,
-            SelectedInstructionKind::AccessorScalarAccess {
-                form, byte_offset, ..
-            } => {
-                let ordinary = form
-                    .ordinary_kind(byte_offset)
-                    .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-                return validate_decoded(ordinary, registers, decoded);
-            }
-            SelectedInstructionKind::AtomicAccess { .. } => false,
-            SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => false,
-            SelectedInstructionKind::FloatResultPolicy { .. } => false,
-            SelectedInstructionKind::AtomicFence => {
-                registers.is_empty() && decoded == [DecodedWord::AtomicFence]
-            }
-            SelectedInstructionKind::Crash => {
-                registers.is_empty() && decoded == [DecodedWord::Crash]
-            }
-            SelectedInstructionKind::TrappingInteger { form } => {
-                decoded == super::trapping_forms::realization(form, registers)
-            }
-            SelectedInstructionKind::ImageAddress { .. } => {
-                decoded
-                    == [
-                        DecodedWord::UnresolvedPageAddress {
-                            destination: registers[0],
-                        },
-                        DecodedWord::AddImmediate {
-                            source: registers[0],
-                            immediate: 0,
-                            destination: registers[0],
-                        },
-                    ]
-            }
-            SelectedInstructionKind::MaterializeBooleanEqual
-            | SelectedInstructionKind::MaterializeBooleanU64LessThan
-            | SelectedInstructionKind::MaterializeBooleanI64LessThan
-            | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-            | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
-                let condition = match kind {
-                    SelectedInstructionKind::MaterializeBooleanEqual => 0,
-                    SelectedInstructionKind::MaterializeBooleanU64LessThan => 3,
-                    SelectedInstructionKind::MaterializeBooleanI64LessThan => 11,
-                    SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => 9,
-                    SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => 13,
-                    _ => unreachable!("Boolean condition arm"),
-                };
-                decoded
-                    == [DecodedWord::SetBoolean {
-                        condition,
-                        destination: registers[0],
-                    }]
-            }
-            SelectedInstructionKind::ZeroExtendU8 => {
-                decoded
-                    == [DecodedWord::ZeroExtendU8 {
-                        source: registers[0],
-                        destination: registers[1],
-                    }]
-            }
-            SelectedInstructionKind::ZeroExtendU16 => {
-                decoded
-                    == [DecodedWord::ZeroExtendU16 {
-                        source: registers[0],
-                        destination: registers[1],
-                    }]
-            }
-            SelectedInstructionKind::SignExtendI8 => {
-                decoded
-                    == [DecodedWord::SignExtendI8 {
-                        source: registers[0],
-                        destination: registers[1],
-                    }]
-            }
-            SelectedInstructionKind::SignExtendI16 => {
-                decoded
-                    == [DecodedWord::SignExtendI16 {
-                        source: registers[0],
-                        destination: registers[1],
-                    }]
-            }
-            SelectedInstructionKind::SignExtendI32 => {
-                decoded
-                    == [DecodedWord::SignExtendI32 {
-                        source: registers[0],
-                        destination: registers[1],
-                    }]
-            }
-            SelectedInstructionKind::ZeroExtendU32 => {
-                decoded
-                    == [DecodedWord::ZeroExtendU32 {
-                        source: registers[0],
-                        destination: registers[1],
-                    }]
-            }
-            SelectedInstructionKind::MaterializeI64 { value } => {
-                decode_materialization(decoded, registers[0]) == integer_bits(value).ok()
-            }
-            SelectedInstructionKind::CopyI64 => {
-                decoded
-                    == [DecodedWord::Copy {
-                        source: registers[0],
-                        destination: registers[1],
-                    }]
-            }
-            SelectedInstructionKind::CompareI64Zero => {
-                decoded
-                    == [DecodedWord::CompareZero {
-                        source: registers[0],
-                    }]
-            }
-            SelectedInstructionKind::CompareI64Immediate { immediate } => {
-                let immediate = u12(immediate)?;
-                decoded
-                    == [if immediate == 0 {
-                        DecodedWord::CompareZero {
-                            source: registers[0],
-                        }
-                    } else {
-                        DecodedWord::CompareImmediate {
-                            source: registers[0],
-                            immediate,
-                        }
-                    }]
-            }
-            SelectedInstructionKind::CompareI64 => {
-                decoded
-                    == [DecodedWord::Compare {
-                        left: registers[0],
-                        right: registers[1],
-                    }]
-            }
-            SelectedInstructionKind::ByteViewAddress
-            | SelectedInstructionKind::WrappingAddI64
-            | SelectedInstructionKind::ExactAddI64 { .. } => {
-                decoded
-                    == [DecodedWord::Add {
-                        left: registers[0],
-                        right: registers[1],
-                        destination: registers[2],
-                    }]
-            }
-            SelectedInstructionKind::BitwiseAndI64 => {
-                decoded
-                    == [DecodedWord::BitwiseAnd {
-                        left: registers[0],
-                        right: registers[1],
-                        destination: registers[2],
-                    }]
-            }
-            SelectedInstructionKind::BitwiseOrI64 => {
-                decoded
-                    == [DecodedWord::BitwiseOr {
-                        left: registers[0],
-                        right: registers[1],
-                        destination: registers[2],
-                    }]
-            }
-            SelectedInstructionKind::BitwiseNotI64 => {
-                decoded
-                    == [DecodedWord::BitwiseNot {
-                        source: registers[0],
-                        destination: registers[1],
-                    }]
-            }
-            selected_instructions::saturating_add_or_subtract_pattern!()
-            | SelectedInstructionKind::SaturatingDivide { .. }
-            | SelectedInstructionKind::SaturatingMultiply { .. } => {
-                let realization = SaturatingRealization::of_kind(kind)
-                    .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-                let distinct_outputs = realization.operand_count() == 3
-                    || (!registers[..2].contains(&registers[2])
-                        && !registers[..3].contains(&registers[3]));
-                distinct_outputs && decoded == expected_saturating(realization, registers)
-            }
-            SelectedInstructionKind::SaturatingRemainder { .. } => {
-                let realization = SaturatingRealization::of_kind(kind)
-                    .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-                registers[2] != registers[0]
-                    && registers[2] != registers[1]
-                    && decoded == expected_saturating(realization, registers)
-            }
-            SelectedInstructionKind::ExactDivideU64 { .. } => {
-                decoded
-                    == [DecodedWord::UnsignedDivide {
-                        dividend: registers[0],
-                        divisor: registers[1],
-                        destination: registers[2],
-                    }]
-            }
-            SelectedInstructionKind::WrappingDivideI64 { .. }
-            | SelectedInstructionKind::ExactDivideI64 { .. } => {
-                decoded
-                    == [DecodedWord::SignedDivide {
-                        dividend: registers[0],
-                        divisor: registers[1],
-                        destination: registers[2],
-                    }]
-            }
-            SelectedInstructionKind::ExactRemainderU64 { .. } => {
-                registers[2] != registers[0]
-                    && registers[2] != registers[1]
-                    && decoded
-                        == [
-                            DecodedWord::UnsignedDivide {
-                                dividend: registers[0],
-                                divisor: registers[1],
-                                destination: registers[2],
-                            },
-                            DecodedWord::MultiplySubtract {
-                                left: registers[2],
-                                right: registers[1],
-                                minuend: registers[0],
-                                destination: registers[2],
-                            },
-                        ]
-            }
-            SelectedInstructionKind::WrappingRemainderI64 { .. }
-            | SelectedInstructionKind::ExactRemainderI64 { .. } => {
-                registers[2] != registers[0]
-                    && registers[2] != registers[1]
-                    && decoded
-                        == [
-                            DecodedWord::SignedDivide {
-                                dividend: registers[0],
-                                divisor: registers[1],
-                                destination: registers[2],
-                            },
-                            DecodedWord::MultiplySubtract {
-                                left: registers[2],
-                                right: registers[1],
-                                minuend: registers[0],
-                                destination: registers[2],
-                            },
-                        ]
-            }
-            SelectedInstructionKind::BitwiseXorI64 => {
-                decoded
-                    == [DecodedWord::BitwiseXor {
-                        left: registers[0],
-                        right: registers[1],
-                        destination: registers[2],
-                    }]
-            }
-            SelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
-                decoded
-                    == [DecodedWord::AddImmediate {
-                        source: registers[0],
-                        immediate: u12(immediate)?,
-                        destination: registers[1],
-                    }]
-            }
-            SelectedInstructionKind::ExactSubtractI64 { .. }
-            | SelectedInstructionKind::WrappingSubtractI64 => {
-                decoded
-                    == [DecodedWord::Subtract {
-                        left: registers[0],
-                        right: registers[1],
-                        destination: registers[2],
-                    }]
-            }
-            SelectedInstructionKind::ExactMultiplyI64 { .. }
-            | SelectedInstructionKind::WrappingMultiplyI64 => {
-                decoded
-                    == [DecodedWord::Multiply {
-                        left: registers[0],
-                        right: registers[1],
-                        destination: registers[2],
-                    }]
-            }
-            SelectedInstructionKind::WrappingShiftLeftI64
-            | SelectedInstructionKind::WrappingShiftRightI64
-            | SelectedInstructionKind::WrappingShiftRightU64
-            | selected_instructions::exact_shift_i64_pair_pattern!()
-            | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
-                let shift = match kind {
-                    SelectedInstructionKind::WrappingShiftLeftI64
-                    | SelectedInstructionKind::ExactShiftLeftI64 { .. } => {
-                        DecodedWord::ShiftLeftVariable {
-                            value: registers[0],
-                            count: registers[1],
-                            destination: registers[2],
-                        }
-                    }
-                    SelectedInstructionKind::WrappingShiftRightU64
-                    | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
-                        DecodedWord::ShiftRightLogicalVariable {
-                            value: registers[0],
-                            count: registers[1],
-                            destination: registers[2],
-                        }
-                    }
-                    _ => DecodedWord::ShiftRightArithmeticVariable {
-                        value: registers[0],
-                        count: registers[1],
-                        destination: registers[2],
-                    },
-                };
-                decoded == [shift]
-            }
-            SelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
-                decoded
-                    == [DecodedWord::SubtractImmediate {
-                        source: registers[0],
-                        immediate: u12(immediate)?,
-                        destination: registers[1],
-                    }]
-            }
-            SelectedInstructionKind::ReturnScalar
-            | SelectedInstructionKind::ReturnAggregate { .. }
-            | SelectedInstructionKind::ReturnUnit => decoded == [DecodedWord::Return],
-            selected_instructions::layout_dependent_selected_transfers!()
-            | selected_instructions::dedicated_selected_forms!() => false,
-        };
-        if valid {
-            Ok(())
-        } else {
-            Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-        }
-    }
-
-    fn decode_materialization(decoded: &[DecodedWord], register: u8) -> Option<u64> {
-        let (mut value, start) = match decoded.first()? {
-            DecodedWord::MovZ {
-                register: actual,
-                shift: 0,
-                immediate,
-            } if *actual == register => (u64::from(*immediate), 1),
-            _ => return None,
-        };
-        let mut previous_shift = 0;
-        for word in &decoded[start..] {
-            let DecodedWord::MovK {
-                register: actual,
-                shift,
-                immediate,
-            } = word
-            else {
-                return None;
-            };
-            if *actual != register || *shift <= previous_shift || *shift > 3 || *immediate == 0 {
-                return None;
-            }
-            previous_shift = *shift;
-            let shift = u64::from(*shift) * 16;
-            value = (value & !(0xffff_u64 << shift)) | (u64::from(*immediate) << shift);
-        }
-        Some(value)
-    }
-
-    pub(crate) fn footprint(
-        kind: SelectedInstructionKind,
-        operands: &[RegisterViewId],
-    ) -> Aarch64SelectedFormFootprint {
-        let (read_indices, write_indices, writes_nzcv) = match kind {
-            SelectedInstructionKind::AccessorScalarAccess { form, .. } => {
-                if form.write {
-                    (vec![0, 1], vec![], false)
-                } else {
-                    (vec![0], vec![1], false)
-                }
-            }
-            SelectedInstructionKind::AtomicAccess { form } => {
-                return super::atomic::footprint(form, operands);
-            }
-            SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
-                return super::ieee_float_arithmetic::footprint(form, operands);
-            }
-            SelectedInstructionKind::FloatResultPolicy { form } => {
-                return super::float_result_policy::footprint(form, operands);
-            }
-            SelectedInstructionKind::RegisterAccess {
-                operation: selected_instructions::RegisterOperation::MemoryFence(_),
-            } => (Vec::new(), Vec::new(), false),
-            SelectedInstructionKind::RegisterAccess { operation } => {
-                if operation.produces_value() {
-                    (vec![], vec![0], false)
-                } else {
-                    (vec![0], vec![], false)
-                }
-            }
-            SelectedInstructionKind::PrivilegedCrash
-            | SelectedInstructionKind::InstalledInterruptCpuCheck { .. }
-            | SelectedInstructionKind::InstalledInterruptTaskCommit { .. }
-            | SelectedInstructionKind::InstalledInterruptTablePublication { .. }
-            | SelectedInstructionKind::PortWrite { .. } => {
-                unreachable!("x86 port I/O cannot form an AArch64 request")
-            }
-            SelectedInstructionKind::AtomicFence | SelectedInstructionKind::Crash => {
-                (Vec::new(), Vec::new(), false)
-            }
-            SelectedInstructionKind::TrappingInteger { form } => (
-                (0..form.source_count() as u16).collect(),
-                (form.source_count() as u16..super::trapping_forms::operand_count(form) as u16)
-                    .collect(),
-                true,
-            ),
-            SelectedInstructionKind::MaterializeBooleanEqual
-            | SelectedInstructionKind::MaterializeBooleanU64LessThan
-            | SelectedInstructionKind::MaterializeBooleanI64LessThan
-            | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-            | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => (vec![], vec![0], false),
-            SelectedInstructionKind::MaterializeI64 { .. } => (vec![], vec![0], false),
-            SelectedInstructionKind::ImageAddress { .. } => (vec![], vec![0], false),
-            SelectedInstructionKind::CopyI64
-            | SelectedInstructionKind::ZeroExtendU8
-            | SelectedInstructionKind::ZeroExtendU16
-            | SelectedInstructionKind::SignExtendI8
-            | SelectedInstructionKind::SignExtendI16
-            | SelectedInstructionKind::SignExtendI32
-            | SelectedInstructionKind::ZeroExtendU32 => (vec![0], vec![1], false),
-            SelectedInstructionKind::CompareI64Zero
-            | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![0], vec![], true),
-            SelectedInstructionKind::ExactDivideU64 { .. }
-            | selected_instructions::exact_wrapping_divrem_set_pattern!(..) => {
-                (vec![0, 1], vec![2], false)
-            }
-            SelectedInstructionKind::CompareI64 => (vec![0, 1], vec![], true),
-            selected_instructions::saturating_add_or_subtract_pattern!()
-            | SelectedInstructionKind::SaturatingDivide { .. }
-            | SelectedInstructionKind::SaturatingRemainder { .. }
-            | SelectedInstructionKind::SaturatingMultiply { .. } => {
-                let realization = SaturatingRealization::of_kind(kind)
-                    .expect("saturating kinds have a realization");
-                (
-                    vec![0, 1],
-                    (2..realization.operand_count() as u16).collect(),
-                    realization.defines_nzcv(),
-                )
-            }
-            SelectedInstructionKind::BitwiseNotI64 => (vec![0], vec![1], false),
-            SelectedInstructionKind::ByteViewAddress
-            | SelectedInstructionKind::BitwiseAndI64
-            | SelectedInstructionKind::BitwiseOrI64
-            | SelectedInstructionKind::BitwiseXorI64
-            | SelectedInstructionKind::WrappingAddI64
-            | SelectedInstructionKind::WrappingSubtractI64
-            | SelectedInstructionKind::WrappingMultiplyI64
-            | SelectedInstructionKind::WrappingShiftLeftI64
-            | SelectedInstructionKind::WrappingShiftRightI64
-            | SelectedInstructionKind::WrappingShiftRightU64
-            | selected_instructions::exact_shift_i64_pair_pattern!()
-            | SelectedInstructionKind::ExactShiftRightU64 { .. }
-            | SelectedInstructionKind::ExactAddI64 { .. }
-            | SelectedInstructionKind::ExactMultiplyI64 { .. }
-            | SelectedInstructionKind::ExactSubtractI64 { .. } => (vec![0, 1], vec![2], false),
-            selected_instructions::exact_add_or_sub_pair_pattern!(..) => (vec![0], vec![1], false),
-            SelectedInstructionKind::ReturnScalar
-            | SelectedInstructionKind::ReturnAggregate { .. }
-            | SelectedInstructionKind::ReturnUnit
-            | SelectedInstructionKind::ConditionalBranchNonZero
-            | SelectedInstructionKind::ConditionalBranchU64LessThan
-            | SelectedInstructionKind::ConditionalBranchI64LessThan => (vec![], vec![], false),
-            SelectedInstructionKind::Jump | selected_instructions::dedicated_selected_forms!() => {
-                unreachable!("non-scalar forms have dedicated footprint decoders")
-            }
-        };
-        let reads = read_indices
-            .iter()
-            .map(|index| operands[usize::from(*index)])
-            .collect();
-        let writes = write_indices
-            .iter()
-            .map(|index| operands[usize::from(*index)])
-            .collect();
-        let physical = aarch64_physical_register_model_ref();
-        let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-        let encoded = if matches!(
-            kind,
-            SelectedInstructionKind::RegisterAccess {
-                operation: selected_instructions::RegisterOperation::MemoryFence(_)
-            }
-        ) {
-            MachineEncodedEffects::catalog_fence_v1()
-        } else if let SelectedInstructionKind::RegisterAccess { operation } = kind {
-            super::register_access::effects(operation.produces_value())
-        } else if kind == SelectedInstructionKind::AtomicFence {
-            MachineEncodedEffects::atomic_fence_v1()
-        } else if kind == SelectedInstructionKind::Crash {
-            selected_instructions::MachineEncodedEffects::crash_v1(&units("pc"))
-        } else if let SelectedInstructionKind::TrappingInteger { .. } = kind {
-            super::trapping_forms::effects(read_indices, write_indices)
-        } else if matches!(
-            kind,
-            SelectedInstructionKind::ReturnScalar
-                | SelectedInstructionKind::ReturnAggregate { .. }
-                | SelectedInstructionKind::ReturnUnit
-        ) {
-            MachineEncodedEffects {
-                external_operand_reads: vec![],
-                external_operand_writes: vec![],
-                implicit_unit_uses: units("x30"),
-                implicit_unit_defs: units("pc"),
-                implicit_unit_clobbers: vec![],
-                memory: MachineEncodedMemoryEffect::NoneV1,
-                stack: MachineEncodedStackEffect::UnchangedV1,
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
-                    target: physical.view_named("x30").unwrap().id,
-                },
-            }
-        } else if matches!(
-            kind,
-            SelectedInstructionKind::ConditionalBranchNonZero
-                | SelectedInstructionKind::ConditionalBranchU64LessThan
-                | SelectedInstructionKind::ConditionalBranchI64LessThan
-        ) {
-            let mut uses = units("nzcv");
-            uses.extend(units("pc"));
-            uses.sort_unstable();
-            uses.dedup();
-            MachineEncodedEffects {
-                external_operand_reads: vec![],
-                external_operand_writes: vec![],
-                implicit_unit_uses: uses,
-                implicit_unit_defs: units("pc"),
-                implicit_unit_clobbers: vec![],
-                memory: MachineEncodedMemoryEffect::NoneV1,
-                stack: MachineEncodedStackEffect::UnchangedV1,
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                control: MachineEncodedControlEffect::ConditionalRelativeBranchV1,
-            }
-        } else {
-            let mut effects = MachineEncodedEffects::fallthrough_v1(read_indices, write_indices);
-            if writes_nzcv {
-                effects.implicit_unit_defs = units("nzcv");
-            }
-            if matches!(
-                kind,
-                SelectedInstructionKind::MaterializeBooleanEqual
-                    | SelectedInstructionKind::MaterializeBooleanU64LessThan
-                    | SelectedInstructionKind::MaterializeBooleanI64LessThan
-                    | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-                    | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
-            ) {
-                effects.implicit_unit_uses = units("nzcv");
-            }
-            effects
-        };
-        Aarch64SelectedFormFootprint {
-            register_reads: reads,
-            register_writes: writes,
-            writes_nzcv,
-            encoded,
-        }
-    }
-
-    fn expected_saturating(
-        realization: SaturatingRealization,
-        registers: &[u8],
-    ) -> Vec<DecodedWord> {
-        let (left, right, value) = (registers[0], registers[1], registers[2]);
-        let compare = |scratch| DecodedWord::Compare {
-            left: value,
-            right: scratch,
-        };
-        match realization {
-            SaturatingRealization::AddU64 => vec![
-                DecodedWord::AddWithFlags {
-                    left,
-                    right,
-                    destination: value,
-                },
-                DecodedWord::SelectMaximumOnCarry {
-                    source: value,
-                    destination: value,
-                },
-            ],
-            SaturatingRealization::SubtractUnsigned => vec![
-                DecodedWord::SubtractWithFlags {
-                    left,
-                    right,
-                    destination: value,
-                },
-                DecodedWord::SelectZeroOnBorrow {
-                    source: value,
-                    destination: value,
-                },
-            ],
-            SaturatingRealization::DivideUnsigned => vec![DecodedWord::UnsignedDivide {
-                dividend: left,
-                divisor: right,
-                destination: value,
-            }],
-            SaturatingRealization::Remainder { signed } => vec![
-                if signed {
-                    DecodedWord::SignedDivide {
-                        dividend: left,
-                        divisor: right,
-                        destination: value,
-                    }
-                } else {
-                    DecodedWord::UnsignedDivide {
-                        dividend: left,
-                        divisor: right,
-                        destination: value,
-                    }
-                },
-                DecodedWord::MultiplySubtract {
-                    left: value,
-                    right,
-                    minuend: left,
-                    destination: value,
-                },
-            ],
-            SaturatingRealization::ClampNarrow { operation, .. } => {
-                let scratch = registers[3];
-                let mut expected = vec![match operation {
-                    selected_instructions::SaturatingOperation::Add => DecodedWord::Add {
-                        left,
-                        right,
-                        destination: value,
-                    },
-                    selected_instructions::SaturatingOperation::Subtract => DecodedWord::Subtract {
-                        left,
-                        right,
-                        destination: value,
-                    },
-                    selected_instructions::SaturatingOperation::Divide => {
-                        DecodedWord::SignedDivide {
-                            dividend: left,
-                            divisor: right,
-                            destination: value,
-                        }
-                    }
-                    selected_instructions::SaturatingOperation::Multiply => DecodedWord::Multiply {
-                        left,
-                        right,
-                        destination: value,
-                    },
-                    selected_instructions::SaturatingOperation::Remainder => {
-                        unreachable!("remainder is realized through the divide/MSUB pair")
-                    }
-                }];
-                for (index, bound) in realization.clamp_bounds().into_iter().enumerate() {
-                    expected.push(DecodedWord::MaterializeBound {
-                        destination: scratch,
-                        value: bound,
-                    });
-                    expected.push(compare(scratch));
-                    expected.push(if index == 0 && realization.upper_condition() == 0x8 {
-                        DecodedWord::SelectOnHigher {
-                            source: scratch,
-                            destination: value,
-                        }
-                    } else if index == 0 {
-                        DecodedWord::SelectOnGreater {
-                            source: scratch,
-                            destination: value,
-                        }
-                    } else {
-                        DecodedWord::SelectOnLess {
-                            source: scratch,
-                            destination: value,
-                        }
-                    });
-                }
-                expected
-            }
-            SaturatingRealization::OverflowI64 { subtract } => {
-                let scratch = registers[3];
-                vec![
-                    DecodedWord::ArithmeticShiftRight63 {
-                        source: left,
-                        destination: scratch,
-                    },
-                    DecodedWord::ExclusiveOrI64Maximum { register: scratch },
-                    if subtract {
-                        DecodedWord::SubtractWithFlags {
-                            left,
-                            right,
-                            destination: value,
-                        }
-                    } else {
-                        DecodedWord::AddWithFlags {
-                            left,
-                            right,
-                            destination: value,
-                        }
-                    },
-                    DecodedWord::SelectOnOverflow {
-                        source: scratch,
-                        destination: value,
-                    },
-                ]
-            }
-            SaturatingRealization::DivideI64 => {
-                let scratch = registers[3];
-                vec![
-                    DecodedWord::SignedDivide {
-                        dividend: left,
-                        divisor: right,
-                        destination: value,
-                    },
-                    DecodedWord::MaterializeBound {
-                        destination: scratch,
-                        value: i64::MIN as u64,
-                    },
-                    compare(scratch),
-                    DecodedWord::ConditionalCompareMinusOne { register: right },
-                    DecodedWord::MaterializeBound {
-                        destination: scratch,
-                        value: i64::MAX as u64,
-                    },
-                    DecodedWord::SelectOnEqual {
-                        source: scratch,
-                        destination: value,
-                    },
-                ]
-            }
-            SaturatingRealization::MultiplyI64 => {
-                let scratch = registers[3];
-                vec![
-                    DecodedWord::SignedMultiplyHigh {
-                        left,
-                        right,
-                        destination: scratch,
-                    },
-                    DecodedWord::Multiply {
-                        left,
-                        right,
-                        destination: value,
-                    },
-                    DecodedWord::CompareWithSignOf {
-                        high: scratch,
-                        low: value,
-                    },
-                    DecodedWord::ArithmeticShiftRight63 {
-                        source: scratch,
-                        destination: scratch,
-                    },
-                    DecodedWord::ExclusiveOrI64Maximum { register: scratch },
-                    DecodedWord::SelectOnNotEqual {
-                        source: scratch,
-                        destination: value,
-                    },
-                ]
-            }
-            SaturatingRealization::MultiplyU64 => {
-                let scratch = registers[3];
-                vec![
-                    DecodedWord::UnsignedMultiplyHigh {
-                        left,
-                        right,
-                        destination: scratch,
-                    },
-                    DecodedWord::Multiply {
-                        left,
-                        right,
-                        destination: value,
-                    },
-                    DecodedWord::CompareZero { source: scratch },
-                    DecodedWord::SelectMaximumUnlessEqual {
-                        source: value,
-                        destination: value,
-                    },
-                ]
-            }
-        }
-    }
-}
-mod encoded_scalar {
-    use super::selected_forms::request_registers;
-    use super::{Aarch64SelectedFormEncodingError as Error, ValidatedAarch64SelectedFormEncoding};
-    use encoded_scalar_plan::{Step, plan};
-    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-        SelectedInstructionKind,
-    };
-
-    fn codec_plan(load: bool, registers: [u8; 6]) -> Vec<Step> {
-        let [_, _, cursor, count, _, _] = registers;
-        plan(load, registers, Step::Compare(cursor, count))
-    }
-
-    fn encode_word(word: Step, position: usize) -> Result<u32, Error> {
-        let relative = |target: usize, bits: u32| -> Result<u32, Error> {
-            let displacement = target as i64 - position as i64;
-            let bound = 1i64 << (bits - 1);
-            if !(-bound..bound).contains(&displacement) {
-                return Err(Error::MalformedEncoding);
-            }
-            Ok((displacement as u32) & ((1 << bits) - 1))
-        };
-        Ok(match word {
-            Step::Zero(destination) => 0xd280_0000 | u32::from(destination),
-            Step::Copy(destination, source) => {
-                0xaa00_03e0 | (u32::from(source) << 16) | u32::from(destination)
-            }
-            Step::ByteCount(destination, source) => {
-                0xd340_1c00 | (u32::from(source) << 5) | u32::from(destination)
-            }
-            Step::SubOne(register) => {
-                0xd100_0400 | (u32::from(register) << 5) | u32::from(register)
-            }
-            Step::AddOne(register) => {
-                0x9100_0400 | (u32::from(register) << 5) | u32::from(register)
-            }
-            Step::LoadByte(destination, base, index) => {
-                0x3860_6800
-                    | (u32::from(index) << 16)
-                    | (u32::from(base) << 5)
-                    | u32::from(destination)
-            }
-            Step::StoreByte(source, base, index) => {
-                0x3820_6800 | (u32::from(index) << 16) | (u32::from(base) << 5) | u32::from(source)
-            }
-            Step::SignByte(register) => {
-                0x9340_1c00 | (u32::from(register) << 5) | u32::from(register)
-            }
-            Step::ShiftLeft8(register) => {
-                0xd378_dc00 | (u32::from(register) << 5) | u32::from(register)
-            }
-            Step::ShiftRight8(register) => {
-                0xd348_fc00 | (u32::from(register) << 5) | u32::from(register)
-            }
-            Step::Or(destination, source) => {
-                0xaa00_0000
-                    | (u32::from(source) << 16)
-                    | (u32::from(destination) << 5)
-                    | u32::from(destination)
-            }
-            Step::Compare(left, right) => {
-                0xeb00_001f | (u32::from(right) << 16) | (u32::from(left) << 5)
-            }
-            Step::TestSigned(register, target) => {
-                0x3640_0000 | (relative(target, 14)? << 5) | u32::from(register)
-            }
-            Step::ZeroBranch(register, target) => {
-                0xb400_0000 | (relative(target, 19)? << 5) | u32::from(register)
-            }
-            Step::LessBranch(target) => 0x5400_0003 | (relative(target, 19)? << 5),
-            Step::Branch(target) => 0x1400_0000 | relative(target, 26)?,
-        })
-    }
-
-    fn decode_word(encoded: u32, position: usize) -> Result<Step, Error> {
-        let destination = (encoded & 31) as u8;
-        let source = ((encoded >> 5) & 31) as u8;
-        let other = ((encoded >> 16) & 31) as u8;
-        let target = |value: u32, bits: u32| -> Result<usize, Error> {
-            let displacement = ((value << (32 - bits)) as i32) >> (32 - bits);
-            usize::try_from(position as i64 + i64::from(displacement))
-                .map_err(|_| Error::MalformedEncoding)
-        };
-        if encoded & 0xffff_ffe0 == 0xd280_0000 {
-            return Ok(Step::Zero(destination));
-        }
-        if encoded & 0xffe0_ffe0 == 0xaa00_03e0 {
-            return Ok(Step::Copy(destination, other));
-        }
-        if encoded & 0xffff_fc00 == 0xd340_1c00 {
-            return Ok(Step::ByteCount(destination, source));
-        }
-        if encoded & 0xffff_fc00 == 0xd100_0400 && destination == source {
-            return Ok(Step::SubOne(destination));
-        }
-        if encoded & 0xffff_fc00 == 0x9100_0400 && destination == source {
-            return Ok(Step::AddOne(destination));
-        }
-        if encoded & 0xffe0_fc00 == 0x3860_6800 {
-            return Ok(Step::LoadByte(destination, source, other));
-        }
-        if encoded & 0xffe0_fc00 == 0x3820_6800 {
-            return Ok(Step::StoreByte(destination, source, other));
-        }
-        if destination == source {
-            match encoded & 0xffff_fc00 {
-                0x9340_1c00 => return Ok(Step::SignByte(destination)),
-                0xd378_dc00 => return Ok(Step::ShiftLeft8(destination)),
-                0xd348_fc00 => return Ok(Step::ShiftRight8(destination)),
-                _ => {}
-            }
-        }
-        if encoded & 0xffe0_fc00 == 0xaa00_0000 && destination == source {
-            return Ok(Step::Or(destination, other));
-        }
-        if encoded & 0xffe0_fc1f == 0xeb00_001f {
-            return Ok(Step::Compare(source, other));
-        }
-        if encoded & 0xfff8_0000 == 0x3640_0000 {
-            return Ok(Step::TestSigned(
-                destination,
-                target((encoded >> 5) & 0x3fff, 14)?,
-            ));
-        }
-        if encoded & 0xff00_0000 == 0xb400_0000 {
-            return Ok(Step::ZeroBranch(
-                destination,
-                target((encoded >> 5) & 0x7ffff, 19)?,
-            ));
-        }
-        if encoded & 0xff00_001f == 0x5400_0003 {
-            return Ok(Step::LessBranch(target((encoded >> 5) & 0x7ffff, 19)?));
-        }
-        if encoded & 0xfc00_0000 == 0x1400_0000 {
-            return Ok(Step::Branch(target(encoded & 0x03ff_ffff, 26)?));
-        }
-        Err(Error::MalformedEncoding)
-    }
-
-    fn request(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<(bool, [u8; 6]), Error> {
-        let load = kind == SelectedInstructionKind::LoadEncodedScalar;
-        let family = if load {
-            MachineAlternativeFamily::LoadEncodedScalar
-        } else {
-            MachineAlternativeFamily::StoreEncodedScalar
-        };
-        if !matches!(
-            kind,
-            SelectedInstructionKind::LoadEncodedScalar
-                | SelectedInstructionKind::StoreEncodedScalar
-        ) {
-            return Err(Error::AlternativeMismatch);
-        }
-        let inputs = if load { 2 } else { 3 };
-        let registers: [u8; 6] =
-            request_registers(physical, alternative, family, operands, inputs)?;
-        Ok((load, registers))
-    }
-
-    pub(super) fn encode(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Error> {
-        let (load, registers) = request(physical, kind, alternative, operands)?;
-        let mut bytes = Vec::new();
-        for (position, word) in codec_plan(load, registers).into_iter().enumerate() {
-            bytes.extend(encode_word(word, position)?.to_le_bytes());
-        }
-        validate(physical, kind, alternative, operands, &bytes)
-    }
-
-    pub(super) fn validate(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Error> {
-        let (load, registers) = request(physical, kind, alternative, operands)?;
-        let (words, tail) = bytes.as_chunks::<4>();
-        if !tail.is_empty() {
-            return Err(Error::MalformedEncoding);
-        }
-        let decoded = words
-            .iter()
-            .enumerate()
-            .map(|(position, word)| decode_word(u32::from_le_bytes(*word), position))
-            .collect::<Result<Vec<_>, _>>()?;
-        if decoded != codec_plan(load, registers) {
-            return Err(Error::EncodedFormMismatch);
-        }
-        let inputs = if load { 2 } else { 3 };
-        super::nzcv_effects_encoding(
-            physical,
-            operands,
-            bytes,
-            inputs,
-            if load {
-                MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
-                    pointer_operand: 0,
-                    codec_operand: 1,
-                }
-            } else {
-                MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
-                    pointer_operand: 0,
-                    codec_operand: 1,
-                }
-            },
-        )
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use crate::selected_form_encoding::selected_forms::resolve_registers;
-        use encoded_scalar_plan::{harness, replay};
-
-        fn form() -> (ValidatedPhysicalRegisterModel, [RegisterViewId; 6]) {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let operands = ["x0", "x1", "x2", "x3", "x4", "x5"]
-                .map(|name| physical.model().view_named(name).unwrap().id);
-            (physical, operands)
-        }
-
-        fn execute(bytes: &[u8], state: &mut [u64; 32], memory: &mut [u8]) -> Vec<usize> {
-            replay::execute(
-                bytes,
-                bytes.len() / 4,
-                |bytes, position| {
-                    let word: [u8; 4] = bytes[position * 4..position * 4 + 4].try_into().unwrap();
-                    (decode_word(u32::from_le_bytes(word), position).unwrap(), 1)
-                },
-                state,
-                memory,
-            )
-        }
-
-        #[test]
-        fn encoded_scalar_access_has_exact_footprint_and_extension() {
-            let (physical, operands) = form();
-            let registers: [u8; 6] = resolve_registers(&physical, &operands)
-                .unwrap()
-                .try_into()
-                .unwrap();
-            harness::exact_footprint_and_extension(
-                registers,
-                operands,
-                |kind, alternative, operands| {
-                    encode(&physical, kind, alternative, operands).map(|encoded| encoded.bytes)
-                },
-                execute,
-            );
-        }
-
-        #[test]
-        fn encoded_scalar_stream_rejects_every_single_bit_mutation() {
-            let (physical, operands) = form();
-            harness::rejects_every_single_bit_mutation(
-                operands,
-                |kind, alternative, operands| {
-                    encode(&physical, kind, alternative, operands).map(|encoded| encoded.bytes)
-                },
-                |kind, alternative, operands, bytes| {
-                    validate(&physical, kind, alternative, operands, bytes).is_err()
-                },
-            );
-        }
-    }
-}
 mod encoding_types {
     use register_model::RegisterViewId;
     use selected_instructions::MachineEncodedEffects;
@@ -3407,27 +189,451 @@ mod encoding_types {
 
     impl std::error::Error for Aarch64SelectedFormEncodingError {}
 }
-mod float_bits {
-    use super::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-        ValidatedAarch64SelectedFormEncoding,
-    };
-    use crate::selected_form_encoding::selected_forms::resolve_registers;
-    use register_model::RegisterViewId;
-    use register_model::ValidatedPhysicalRegisterModel;
-    use selected_instructions::MachineAlternativeKey;
-    use selected_instructions::MachineEncodedEffects;
-    use selected_instructions::SelectedInstructionKind;
-    use selected_instructions::float_bit_transfer_properties;
-    type Error = Aarch64SelectedFormEncodingError;
-    type Encoding = ValidatedAarch64SelectedFormEncoding;
 
-    fn operands(
+pub(crate) mod movn_materialization {
+    use super::enc;
+
+    pub(crate) fn append_canonical_materialization(words: &mut Vec<u32>, register: u8, value: u64) {
+        words.push(enc::movz(register, value as u16, 0));
+        for shift in 1..4_u8 {
+            let chunk = ((value >> (u32::from(shift) * 16)) & 0xffff) as u16;
+            if chunk != 0 {
+                words.push(enc::movk(register, chunk, shift));
+            }
+        }
+    }
+}
+
+mod plan_words {
+    use super::{Aarch64SelectedFormEncodingError as Error, enc};
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub(super) enum Step<Label> {
+        Zero(u8),
+        One(u8),
+        Cbz(u8, Label),
+        Tbnz7(u8, Label),
+        LdrbReg(u8, u8, u8),
+        AddImm(u8, u8, u16),
+        CmpReg(u8, u8),
+        CmpImm(u8, u16),
+        BCond(u8, Label),
+        B(Label),
+    }
+
+    pub(super) fn assemble<Label: Copy + Eq>(
+        plan: &[(Option<Label>, Step<Label>)],
+    ) -> Result<Vec<u8>, Error> {
+        let labels: Vec<(Label, usize)> = plan
+            .iter()
+            .enumerate()
+            .filter_map(|(i, (lbl, _))| lbl.map(|l| (l, i)))
+            .collect();
+        let rel = |pos: usize, label: Label, bits: u32| -> Result<i32, Error> {
+            let target = labels
+                .iter()
+                .find(|(l, _)| *l == label)
+                .map(|(_, i)| *i)
+                .expect("plan defines every branch label");
+            let disp = target as i64 - pos as i64;
+            let limit = 1_i64 << (bits - 1);
+            if !(-limit..limit).contains(&disp) {
+                return Err(if bits == 26 {
+                    Error::BranchDisplacementOutsideImm26
+                } else {
+                    Error::BranchDisplacementOutsideImm19
+                });
+            }
+            Ok(disp as i32)
+        };
+        let mut bytes = Vec::with_capacity(plan.len() * 4);
+        for (pos, &(_, step)) in plan.iter().enumerate() {
+            let word = match step {
+                Step::Zero(rd) => enc::movz(rd, 0, 0),
+                Step::One(rd) => enc::movz(rd, 1, 0),
+                Step::Cbz(rt, lbl) => enc::cbz(rt, rel(pos, lbl, 19)?),
+                Step::Tbnz7(rt, lbl) => {
+                    0x3738_0000 | (((rel(pos, lbl, 14)? as u32) & 0x3fff) << 5) | u32::from(rt)
+                }
+                Step::LdrbReg(rd, rn, rm) => enc::rrr(0x3860_6800, rd, rn, rm),
+                Step::AddImm(rd, rn, imm) => enc::rri12(0x9100_0000, rd, rn, imm),
+                Step::CmpReg(rn, rm) => enc::cmp_reg(rn, rm),
+                Step::CmpImm(rn, imm) => enc::cmp_imm(true, rn, imm),
+                Step::BCond(cond, lbl) => enc::b_cond(cond, rel(pos, lbl, 19)?),
+                Step::B(lbl) => enc::b(rel(pos, lbl, 26)?),
+            };
+            bytes.extend_from_slice(&word.to_le_bytes());
+        }
+        Ok(bytes)
+    }
+}
+
+mod byte_sequences {
+    use super::plan_words::{self, Step};
+    use super::selected_forms::request_registers;
+    use super::{
+        Aarch64SelectedFormEncodingError as Error, ValidatedAarch64SelectedFormEncoding as Encoded,
+        enc, nzcv_effects_encoding,
+    };
+    use encoded_scalar_plan::{Step as CodecStep, plan as codec_plan};
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+    use selected_instructions::{
+        ByteSequencePredicate, MachineAlternativeFamily as Fam, MachineAlternativeKey,
+        MachineEncodedMemoryEffect as MemEff, SelectedInstructionKind as Kind,
+    };
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum CmpLabel {
+        Loop,
+        Equal,
+        Done,
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum ScanLabel {
+        Loop,
+        Done,
+        Fail,
+        Advance1,
+        Cont1,
+        Cont2Any,
+        Lead3,
+        E0,
+        Ed,
+        Cont3Any,
+        F0,
+        F4,
+    }
+
+    fn scan_layout(
+        predicate: ByteSequencePredicate,
+        regs: [u8; 5],
+    ) -> Vec<(Option<ScanLabel>, Step<ScanLabel>)> {
+        use ScanLabel as L;
+        let [base, count, cursor, byte, result] = regs;
+        let cmp_br = |lbl, imm, cond, target| {
+            [
+                (lbl, Step::CmpImm(byte, imm)),
+                (None, Step::BCond(cond, target)),
+            ]
+        };
+        let mut out = vec![
+            (None, Step::Zero(cursor)),
+            (None, Step::Zero(byte)),
+            (None, Step::Zero(result)),
+        ];
+        if predicate == ByteSequencePredicate::NonEmpty {
+            out.extend([
+                (None, Step::Cbz(count, L::Done)),
+                (None, Step::One(result)),
+                (Some(L::Done), Step::Zero(cursor)),
+            ]);
+            return out;
+        }
+        out.push((None, Step::One(result)));
+        if matches!(
+            predicate,
+            ByteSequencePredicate::NoNul | ByteSequencePredicate::AsciiOnly
+        ) {
+            out.extend([
+                (None, Step::Cbz(count, L::Done)),
+                (Some(L::Loop), Step::LdrbReg(byte, base, cursor)),
+                (
+                    None,
+                    if predicate == ByteSequencePredicate::NoNul {
+                        Step::Cbz(byte, L::Fail)
+                    } else {
+                        Step::Tbnz7(byte, L::Fail)
+                    },
+                ),
+                (None, Step::AddImm(cursor, cursor, 1)),
+                (None, Step::CmpReg(cursor, count)),
+                (None, Step::BCond(enc::LO, L::Loop)),
+                (None, Step::B(L::Done)),
+                (Some(L::Fail), Step::Zero(result)),
+                (Some(L::Done), Step::Zero(cursor)),
+            ]);
+            return out;
+        }
+        out.extend([
+            (None, Step::Cbz(count, L::Done)),
+            (Some(L::Loop), Step::CmpReg(cursor, count)),
+            (None, Step::BCond(enc::HS, L::Done)),
+            (None, Step::LdrbReg(byte, base, cursor)),
+        ]);
+        for (lbl, imm, cond, target) in [
+            (None, 0x80, enc::LO, L::Advance1),
+            (None, 0xC2, enc::LO, L::Fail),
+            (None, 0xE0, enc::LO, L::Cont1),
+            (None, 0xF0, enc::HS, L::Lead3),
+            (None, 0xE0, enc::EQ, L::E0),
+            (None, 0xED, enc::EQ, L::Ed),
+        ] {
+            out.extend(cmp_br(lbl, imm, cond, target));
+        }
+        out.push((None, Step::B(L::Cont2Any)));
+        out.extend(cmp_br(Some(L::Lead3), 0xF5, enc::HS, L::Fail));
+        out.extend(cmp_br(None, 0xF0, enc::EQ, L::F0));
+        out.extend(cmp_br(None, 0xF4, enc::EQ, L::F4));
+        out.push((None, Step::B(L::Cont3Any)));
+        for (label, width, low, high) in [
+            (L::Cont1, 1_u16, 0x80_u16, 0xBF_u16),
+            (L::Cont2Any, 2, 0x80, 0xBF),
+            (L::E0, 2, 0xA0, 0xBF),
+            (L::Ed, 2, 0x80, 0x9F),
+            (L::Cont3Any, 3, 0x80, 0xBF),
+            (L::F0, 3, 0x90, 0xBF),
+            (L::F4, 3, 0x80, 0x8F),
+        ] {
+            out.extend([
+                (Some(label), Step::AddImm(byte, cursor, width)),
+                (None, Step::CmpReg(byte, count)),
+                (None, Step::BCond(enc::HS, L::Fail)),
+            ]);
+            for off in 1..=width {
+                let (lo, hi) = if off == 1 { (low, high) } else { (0x80, 0xBF) };
+                out.extend([
+                    (None, Step::AddImm(byte, cursor, off)),
+                    (None, Step::LdrbReg(byte, base, byte)),
+                ]);
+                out.extend(cmp_br(None, lo, enc::LO, L::Fail));
+                out.extend(cmp_br(None, hi, enc::HI, L::Fail));
+            }
+            out.extend([
+                (None, Step::AddImm(cursor, cursor, width + 1)),
+                (None, Step::B(L::Loop)),
+            ]);
+        }
+        out.extend([
+            (Some(L::Advance1), Step::AddImm(cursor, cursor, 1)),
+            (None, Step::B(L::Loop)),
+            (Some(L::Fail), Step::Zero(result)),
+            (Some(L::Done), Step::Zero(cursor)),
+        ]);
+        out
+    }
+
+    fn encode_codec_word(step: CodecStep, pos: usize) -> Result<u32, Error> {
+        let rel = |target: usize, bits: u32| -> Result<u32, Error> {
+            let d = target as i64 - pos as i64;
+            let bound = 1_i64 << (bits - 1);
+            if !(-bound..bound).contains(&d) {
+                return Err(Error::MalformedEncoding);
+            }
+            Ok((d as u32) & ((1 << bits) - 1))
+        };
+        Ok(match step {
+            CodecStep::Zero(rd) => enc::movz(rd, 0, 0),
+            CodecStep::Copy(rd, rm) => enc::mov(rd, rm),
+            CodecStep::ByteCount(rd, rn) => enc::ubfm(true, rd, rn, 0, 7),
+            CodecStep::SubOne(r) => enc::rri12(0xd100_0000, r, r, 1),
+            CodecStep::AddOne(r) => enc::rri12(0x9100_0000, r, r, 1),
+            CodecStep::LoadByte(rd, rn, rm) => enc::rrr(0x3860_6800, rd, rn, rm),
+            CodecStep::StoreByte(rt, rn, rm) => enc::rrr(0x3820_6800, rt, rn, rm),
+            CodecStep::SignByte(r) => enc::sbfm(true, r, r, 0, 7),
+            CodecStep::ShiftLeft8(r) => enc::ubfm(true, r, r, 56, 55),
+            CodecStep::ShiftRight8(r) => enc::ubfm(true, r, r, 8, 63),
+            CodecStep::Or(rd, rm) => enc::rrr(0xaa00_0000, rd, rd, rm),
+            CodecStep::Compare(rn, rm) => enc::cmp_reg(rn, rm),
+            CodecStep::TestSigned(rt, t) => 0x3640_0000 | (rel(t, 14)? << 5) | u32::from(rt),
+            CodecStep::ZeroBranch(rt, t) => 0xb400_0000 | (rel(t, 19)? << 5) | u32::from(rt),
+            CodecStep::LessBranch(t) => 0x5400_0003 | (rel(t, 19)? << 5),
+            CodecStep::Branch(t) => 0x1400_0000 | rel(t, 26)?,
+        })
+    }
+
+    pub(super) fn try_encode(
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+    ) -> Option<Result<Encoded, Error>> {
+        let (bytes, reads, mem) = match kind {
+            Kind::CopyBytes => {
+                let [src, dst, count, cur, byte] = match request_registers::<5>(
+                    physical,
+                    alternative,
+                    Fam::CopyBytes,
+                    operands,
+                    3,
+                ) {
+                    Ok(r) => r,
+                    Err(e) => return Some(Err(e)),
+                };
+                let words = [
+                    enc::movz(cur, 0, 0),
+                    enc::cbz(count, 6),
+                    enc::rrr(0x3860_6800, byte, src, cur),
+                    enc::rrr(0x3820_6800, byte, dst, cur),
+                    enc::rri12(0x9100_0000, cur, cur, 1),
+                    enc::cmp_reg(cur, count),
+                    enc::b_cond(enc::NE, -4),
+                ];
+                (
+                    enc::to_bytes(&words),
+                    3,
+                    MemEff::CopyBytesV1 {
+                        source_pointer_operand: 0,
+                        destination_pointer_operand: 1,
+                        count_operand: 2,
+                    },
+                )
+            }
+            Kind::ZeroBytes => {
+                let [dst, count, cur] = match request_registers::<3>(
+                    physical,
+                    alternative,
+                    Fam::ZeroBytes,
+                    operands,
+                    2,
+                ) {
+                    Ok(r) => r,
+                    Err(e) => return Some(Err(e)),
+                };
+                let words = [
+                    enc::movz(cur, 0, 0),
+                    enc::cbz(count, 5),
+                    enc::rrr(0x3820_6800, enc::ZR, dst, cur),
+                    enc::rri12(0x9100_0000, cur, cur, 1),
+                    enc::cmp_reg(cur, count),
+                    enc::b_cond(enc::NE, -3),
+                ];
+                (
+                    enc::to_bytes(&words),
+                    2,
+                    MemEff::ZeroBytesV1 {
+                        destination_pointer_operand: 0,
+                        count_operand: 1,
+                    },
+                )
+            }
+            Kind::CompareByteSequences => {
+                let [lb, lc, rb, rc, cur, lbyte, rbyte, res] = match request_registers::<8>(
+                    physical,
+                    alternative,
+                    Fam::CompareByteSequences,
+                    operands,
+                    4,
+                ) {
+                    Ok(r) => r,
+                    Err(e) => return Some(Err(e)),
+                };
+                let plan = [
+                    (None, Step::Zero(cur)),
+                    (None, Step::Zero(lbyte)),
+                    (None, Step::Zero(rbyte)),
+                    (None, Step::Zero(res)),
+                    (None, Step::CmpReg(lc, rc)),
+                    (None, Step::BCond(enc::NE, CmpLabel::Done)),
+                    (None, Step::Cbz(lc, CmpLabel::Equal)),
+                    (Some(CmpLabel::Loop), Step::LdrbReg(lbyte, lb, cur)),
+                    (None, Step::LdrbReg(rbyte, rb, cur)),
+                    (None, Step::CmpReg(lbyte, rbyte)),
+                    (None, Step::BCond(enc::NE, CmpLabel::Done)),
+                    (None, Step::AddImm(cur, cur, 1)),
+                    (None, Step::CmpReg(cur, lc)),
+                    (None, Step::BCond(enc::NE, CmpLabel::Loop)),
+                    (Some(CmpLabel::Equal), Step::One(res)),
+                    (Some(CmpLabel::Done), Step::Zero(cur)),
+                ];
+                let bytes = match plan_words::assemble(&plan) {
+                    Ok(b) => b,
+                    Err(e) => return Some(Err(e)),
+                };
+                (
+                    bytes,
+                    4,
+                    MemEff::CompareByteSequencesV1 {
+                        left_base_operand: 0,
+                        left_count_operand: 1,
+                        right_base_operand: 2,
+                        right_count_operand: 3,
+                    },
+                )
+            }
+            Kind::ScanByteSequence { predicate } => {
+                let regs = match request_registers::<5>(
+                    physical,
+                    alternative,
+                    Fam::ScanByteSequence,
+                    operands,
+                    2,
+                ) {
+                    Ok(r) => r,
+                    Err(e) => return Some(Err(e)),
+                };
+                let bytes = match plan_words::assemble(&scan_layout(predicate, regs)) {
+                    Ok(b) => b,
+                    Err(e) => return Some(Err(e)),
+                };
+                (
+                    bytes,
+                    2,
+                    MemEff::ScanByteSequenceV1 {
+                        base_pointer_operand: 0,
+                        count_operand: 1,
+                    },
+                )
+            }
+            Kind::LoadEncodedScalar | Kind::StoreEncodedScalar => {
+                let load = kind == Kind::LoadEncodedScalar;
+                let (family, inputs) = if load {
+                    (Fam::LoadEncodedScalar, 2)
+                } else {
+                    (Fam::StoreEncodedScalar, 3)
+                };
+                let regs =
+                    match request_registers::<6>(physical, alternative, family, operands, inputs) {
+                        Ok(r) => r,
+                        Err(e) => return Some(Err(e)),
+                    };
+                let steps = codec_plan(load, regs, CodecStep::Compare(regs[2], regs[3]));
+                let mut bytes = Vec::with_capacity(steps.len() * 4);
+                for (pos, step) in steps.into_iter().enumerate() {
+                    match encode_codec_word(step, pos) {
+                        Ok(w) => bytes.extend_from_slice(&w.to_le_bytes()),
+                        Err(e) => return Some(Err(e)),
+                    }
+                }
+                let mem = if load {
+                    MemEff::ReadEncodedScalarV1 {
+                        pointer_operand: 0,
+                        codec_operand: 1,
+                    }
+                } else {
+                    MemEff::WriteEncodedScalarV1 {
+                        pointer_operand: 0,
+                        codec_operand: 1,
+                    }
+                };
+                (bytes, inputs, mem)
+            }
+            _ => return None,
+        };
+        Some(nzcv_effects_encoding(
+            physical, operands, &bytes, reads, mem,
+        ))
+    }
+}
+
+mod float_bits {
+    use super::selected_forms::resolve_registers;
+    use super::{
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded, enc,
+    };
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+    use selected_instructions::{
+        MachineAlternativeKey, MachineEncodedEffects, SelectedInstructionKind,
+        float_bit_transfer_properties,
+    };
+
+    pub(super) fn encode(
         physical: &ValidatedPhysicalRegisterModel,
         kind: SelectedInstructionKind,
         alternative: MachineAlternativeKey,
         values: &[RegisterViewId],
-    ) -> Result<(u8, u8, bool, bool), Error> {
+    ) -> Result<Encoded, Error> {
         if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
             return Err(Error::NonCanonicalPhysicalModel);
         }
@@ -3439,82 +645,31 @@ mod float_bits {
         let [source, destination] = values else {
             return Err(Error::OperandCountMismatch);
         };
-        let (float, bits) = if to_bits {
+        let (float_id, bits_id) = if to_bits {
             (*source, *destination)
         } else {
             (*destination, *source)
         };
         let float_view = physical
             .model()
-            .view(float)
-            .ok_or(Error::UnknownOrNonGpr64View(float))?;
-        let float_register = float_view
+            .view(float_id)
+            .ok_or(Error::UnknownOrNonGpr64View(float_id))?;
+        let float_reg = float_view
             .name
-            .strip_prefix("d")
-            .and_then(|suffix| suffix.parse::<u8>().ok())
-            .filter(|number| *number <= 31)
-            .ok_or(Error::UnknownOrNonGpr64View(float))?;
-        if float_view.bits != 64 || !float_view.allocatable {
-            return Err(Error::UnknownOrNonGpr64View(float));
-        }
-        let bits_register = resolve_registers(physical, &[bits])?[0];
-        Ok((float_register, bits_register, to_bits, wide))
-    }
-    pub(super) fn encode(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        values: &[RegisterViewId],
-    ) -> Result<Encoding, Error> {
-        let (float, bits, to_bits, wide) = operands(physical, kind, alternative, values)?;
-        let opcode = match (to_bits, wide) {
-            (true, false) => 0x1e26_0000_u32,
-            (true, true) => 0x9e66_0000,
-            (false, false) => 0x1e27_0000,
-            (false, true) => 0x9e67_0000,
-        };
-        let (source, destination) = if to_bits {
-            (float, bits)
+            .strip_prefix('d')
+            .and_then(|s| s.parse::<u8>().ok())
+            .filter(|n| *n <= 31)
+            .filter(|_| float_view.bits == 64 && float_view.allocatable)
+            .ok_or(Error::UnknownOrNonGpr64View(float_id))?;
+        let bits_reg = resolve_registers(physical, &[bits_id])?[0];
+        let word = if to_bits {
+            enc::fmov_to_g(wide, bits_reg, float_reg)
         } else {
-            (bits, float)
+            enc::fmov_to_v(wide, float_reg, bits_reg)
         };
-        let bytes = (opcode | (u32::from(source) << 5) | u32::from(destination))
-            .to_le_bytes()
-            .to_vec();
-        validate(physical, kind, alternative, values, &bytes)
-    }
-    pub(super) fn validate(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        values: &[RegisterViewId],
-        bytes: &[u8],
-    ) -> Result<Encoding, Error> {
-        let (float, bits, to_bits, wide) = operands(physical, kind, alternative, values)?;
-        let raw: [u8; 4] = bytes.try_into().map_err(|_| Error::MalformedEncoding)?;
-        let word = u32::from_le_bytes(raw);
-        let (decoded_to_bits, decoded_wide) = match word & 0xffff_fc00 {
-            0x1e26_0000 => (true, false),
-            0x9e66_0000 => (true, true),
-            0x1e27_0000 => (false, false),
-            0x9e67_0000 => (false, true),
-            _ => return Err(Error::MalformedEncoding),
-        };
-        let source = ((word >> 5) & 31) as u8;
-        let destination = (word & 31) as u8;
-        let (decoded_float, decoded_bits) = if decoded_to_bits {
-            (source, destination)
-        } else {
-            (destination, source)
-        };
-        if (decoded_float, decoded_bits, decoded_to_bits, decoded_wide)
-            != (float, bits, to_bits, wide)
-        {
-            return Err(Error::EncodedFormMismatch);
-        }
-        Ok(Encoding {
-            bytes: bytes.to_vec(),
-            footprint: Aarch64SelectedFormFootprint {
+        Ok(Encoded {
+            bytes: word.to_le_bytes().to_vec(),
+            footprint: Footprint {
                 register_reads: vec![values[0]],
                 register_writes: vec![values[1]],
                 writes_nzcv: false,
@@ -3522,836 +677,827 @@ mod float_bits {
             },
         })
     }
-    #[cfg(test)]
-    mod tests {
-        use super::{encode, float_bit_transfer_properties, validate};
-        use selected_instructions::MachineAlternativeFamily;
-        use selected_instructions::MachineAlternativeKey;
-        use selected_instructions::MachineEncodedEffects;
-        use selected_instructions::SelectedInstructionKind;
-        #[test]
-        fn raw_transfers_decode_exact_width_direction_and_registers() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            for (kind, family) in [
-                (
-                    SelectedInstructionKind::Float32ToBits,
-                    MachineAlternativeFamily::Float32ToBits,
-                ),
-                (
-                    SelectedInstructionKind::Float64ToBits,
-                    MachineAlternativeFamily::Float64ToBits,
-                ),
-                (
-                    SelectedInstructionKind::BitsToFloat32,
-                    MachineAlternativeFamily::BitsToFloat32,
-                ),
-                (
-                    SelectedInstructionKind::BitsToFloat64,
-                    MachineAlternativeFamily::BitsToFloat64,
-                ),
-            ] {
-                for float_name in ["d0", "d31"] {
-                    for bits_name in ["x0", "x28"] {
-                        let float = physical.model().view_named(float_name).unwrap().id;
-                        let bits = physical.model().view_named(bits_name).unwrap().id;
-                        let values = if float_bit_transfer_properties(kind).unwrap().1 {
-                            [float, bits]
-                        } else {
-                            [bits, float]
-                        };
-                        let alternative = MachineAlternativeKey { family, variant: 0 };
-                        let encoded = encode(&physical, kind, alternative, &values).unwrap();
-                        assert_eq!(
-                            encoded.footprint.encoded,
-                            MachineEncodedEffects::fallthrough_v1(vec![0], vec![1])
-                        );
-                        for byte_index in 0..encoded.bytes.len() {
-                            let mut changed = encoded.bytes.clone();
-                            changed[byte_index] ^= 1;
-                            assert!(
-                                validate(&physical, kind, alternative, &values, &changed).is_err()
-                            );
-                        }
-                        assert!(
-                            encode(&physical, kind, alternative, &[values[1], values[0]]).is_err()
-                        );
-                    }
-                }
-            }
+}
+
+pub(crate) mod atomic {
+    use super::{Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint, enc};
+    use register_model::RegisterViewId;
+    use selected_instructions::{AtomicForm, AtomicOperation as Op, AtomicWidth as W};
+    pub(crate) use target_aarch64::form_effects::atomic::effects;
+
+    pub(crate) fn footprint(
+        form: AtomicForm,
+        operands: &[RegisterViewId],
+    ) -> Aarch64SelectedFormFootprint {
+        Aarch64SelectedFormFootprint {
+            register_reads: operands[..usize::from(form.operation.input_count())].to_vec(),
+            register_writes: form
+                .output_operands()
+                .map(|o| operands[usize::from(o)])
+                .collect(),
+            writes_nzcv: matches!(
+                form.operation,
+                Op::CompareExchange | Op::CompareExchangeOnce
+            ),
+            encoded: effects(form),
         }
     }
+
+    pub(crate) fn encode(form: AtomicForm, regs: &[u8]) -> Result<Vec<u8>, Error> {
+        if regs.len() != usize::from(form.operand_count()) {
+            return Err(Error::OperandCountMismatch);
+        }
+        let expected_fixed: &[u8] = if form.operation == Op::CompareExchange {
+            &[9, 10, 11, 12]
+        } else {
+            &[9, 10, 11]
+        };
+        if (form
+            .operation
+            .retries_until_commit(target::Architecture::Aarch64)
+            && regs != expected_fixed)
+            || regs.iter().any(|r| *r > 30)
+            || form
+                .output_operands()
+                .any(|o| regs[..usize::from(o)].contains(&regs[usize::from(o)]))
+        {
+            return Err(Error::EncodedFormMismatch);
+        }
+        let size = u32::from(form.width.ordinal()) << 30;
+        let narrow_norm = match form.width {
+            W::Bits8 => Some(0x5300_1c00_u32),
+            W::Bits16 => Some(0x5300_3c00_u32),
+            W::Bits32 | W::Bits64 => None,
+        };
+        let cmp_op = if form.width == W::Bits64 {
+            0xeb00_001f_u32
+        } else {
+            0x6b00_001f_u32
+        };
+        let ldxr = |rt, rn| size | enc::rr(0x085f_fc00, rt, rn);
+        let stxr = |rs, rt, rn| size | enc::rrr(0x0800_fc00, rt, rn, rs);
+        let words: Vec<u32> = match form.operation {
+            Op::Load => vec![size | enc::rr(0x08df_fc00, regs[1], regs[0])],
+            Op::Store => vec![size | enc::rr(0x089f_fc00, regs[1], regs[0])],
+            Op::CompareExchange => {
+                let mut w = vec![enc::DMB_ISH, ldxr(12, 9)];
+                let exp: u8 = if let Some(norm) = narrow_norm {
+                    w.push(enc::rr(norm, 16, 10));
+                    16
+                } else {
+                    10
+                };
+                w.extend([
+                    cmp_op | (u32::from(exp) << 16) | (12 << 5),
+                    enc::b_cond(enc::NE, 4),
+                    stxr(17, 11, 9),
+                    if exp == 16 { 0x35ff_ff71 } else { 0x35ff_ff91 },
+                    enc::b(2),
+                    enc::CLREX,
+                    enc::DMB_ISH,
+                ]);
+                w
+            }
+            Op::CompareExchangeOnce => {
+                let [addr, exp, repl, obs, out] = [regs[0], regs[1], regs[2], regs[3], regs[4]];
+                let mut w = vec![enc::DMB_ISH, ldxr(obs, addr)];
+                let cmp_exp = if let Some(norm) = narrow_norm {
+                    w.push(enc::rr(norm, out, exp));
+                    out
+                } else {
+                    exp
+                };
+                w.extend([
+                    cmp_op | (u32::from(cmp_exp) << 16) | (u32::from(obs) << 5),
+                    enc::b_cond(enc::NE, 4),
+                    stxr(out, repl, addr),
+                    enc::rri12(0x1100_0000, out, out, 1),
+                    enc::b(3),
+                    enc::CLREX,
+                    0x5280_0000 | u32::from(out),
+                    enc::DMB_ISH,
+                ]);
+                w
+            }
+            op => {
+                let alu = match op {
+                    Op::FetchAdd => 0x0b00_0000_u32,
+                    Op::FetchSub => 0x4b00_0000,
+                    Op::Swap | Op::FetchOr => 0x2a00_0000,
+                    Op::FetchAnd => 0x0a00_0000,
+                    Op::FetchXor => 0x4a00_0000,
+                    _ => return Err(Error::EncodedFormMismatch),
+                };
+                let wide = u32::from(form.width == W::Bits64) << 31;
+                let left = if op == Op::Swap { 31 } else { 11 };
+                vec![
+                    enc::DMB_ISH,
+                    ldxr(11, 9),
+                    wide | enc::rrr(alu, 16, left, 10),
+                    stxr(17, 16, 9),
+                    0x35ff_ffb1,
+                    enc::DMB_ISH,
+                ]
+            }
+        };
+        Ok(enc::to_bytes(&words))
+    }
 }
+
 pub(crate) mod float_result_policy {
-    #[cfg(test)]
-    pub(crate) use selected_instructions::MachineBarrier;
-    #[cfg(test)]
-    pub(crate) use selected_instructions::MachineSizeKnowledge;
-    #[cfg(test)]
-    pub(crate) use selected_instructions::MachineTrapBehavior;
-    #[cfg(test)]
-    pub(crate) use target_aarch64::form_effects::float_result_policy::declaration;
-
-    pub(crate) use target_aarch64::form_effects::float_result_policy::effects;
-
-    use super::{Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint};
+    use super::{Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint, enc};
     use register_model::RegisterViewId;
     use selected_instructions::{FloatResultPolicyForm, FloatResultPolicyKind, IeeeFloatFormat};
+    pub(crate) use target_aarch64::form_effects::float_result_policy::effects;
 
     pub(crate) fn footprint(
         form: FloatResultPolicyForm,
         operands: &[RegisterViewId],
     ) -> Aarch64SelectedFormFootprint {
-        let inputs = form.operand_count();
+        let n = form.operand_count();
         Aarch64SelectedFormFootprint {
-            register_reads: operands[..inputs].to_vec(),
-            register_writes: operands[inputs..inputs + 1].to_vec(),
+            register_reads: operands[..n].to_vec(),
+            register_writes: operands[n..n + 1].to_vec(),
             writes_nzcv: true,
             encoded: effects(form),
         }
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    enum Word {
-        Save {
-            wide: bool,
-            general: u8,
-            vector: u8,
-        },
-        Restore {
-            wide: bool,
-            vector: u8,
-            general: u8,
-        },
-        Extract {
-            wide: bool,
-            source: u8,
-            result: u8,
-            first: u8,
-            count: u8,
-        },
-        Compare {
-            wide: bool,
-            source: u8,
-            immediate: u16,
-        },
-        Conditional {
-            equal: bool,
-            words: i32,
-        },
-        Jump {
-            words: i32,
-        },
-        SubtractOne {
-            wide: bool,
-            general: u8,
-        },
-        Crash,
-    }
-
-    fn program(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<Word> {
-        let wide = form.format == IeeeFloatFormat::Binary64;
-        let (fraction, exponent) = if wide { (52, 11) } else { (23, 8) };
-        let exponent_mask = (1_u16 << exponent) - 1;
+    pub(crate) fn encode(form: FloatResultPolicyForm, regs: &[u8]) -> Result<Vec<u8>, Error> {
         let inputs = form.operand_count();
-        let result = registers[inputs];
-        let mut words = Vec::new();
-        for (position, &general) in registers[..inputs].iter().enumerate() {
-            words.push(Word::Save {
-                wide,
-                general,
-                vector: 16 + position as u8,
-            });
+        if regs.len() != inputs + 1 || regs.iter().any(|r| *r > 30) {
+            return Err(Error::OperandCountMismatch);
         }
-        let restore = |vector| Word::Restore {
-            wide,
-            vector,
-            general: result,
-        };
-        let extract = |first, count| Word::Extract {
-            wide,
-            source: result,
-            result,
-            first,
-            count,
-        };
-        let compare = |immediate| Word::Compare {
-            wide,
-            source: result,
-            immediate,
-        };
+        let wide = form.format == IeeeFloatFormat::Binary64;
+        let (frac, exp) = if wide { (52_u8, 11_u8) } else { (23, 8) };
+        let exp_mask = (1_u16 << exp) - 1;
+        let res = regs[inputs];
+        let mut w = Vec::with_capacity(20);
+        for (i, &g) in regs[..inputs].iter().enumerate() {
+            w.push(enc::fmov_to_v(wide, 16 + i as u8, g));
+        }
         if form.policy == FloatResultPolicyKind::Trapping {
-            words.extend([
-                restore(16),
-                extract(fraction, exponent),
-                compare(exponent_mask),
-                Word::Conditional {
-                    equal: false,
-                    words: 2,
-                },
-                Word::Crash,
-                restore(16),
+            w.extend([
+                enc::fmov_to_g(wide, res, 16),
+                enc::ubfm(wide, res, res, frac, frac + exp - 1),
+                enc::cmp_imm(wide, res, exp_mask),
+                enc::b_cond(enc::NE, 2),
+                enc::BRK_0,
+                enc::fmov_to_g(wide, res, 16),
             ]);
-            return words;
+        } else {
+            let mut patches = Vec::with_capacity(3);
+            w.extend([
+                enc::fmov_to_g(wide, res, 16),
+                enc::ubfm(wide, res, res, 0, 7),
+                enc::cmp_imm(wide, res, 0),
+            ]);
+            patches.push((w.len(), enc::EQ));
+            w.push(0);
+            for (first, count, imm) in [(frac, exp, exp_mask), (0, frac, 0)] {
+                w.extend([
+                    enc::fmov_to_g(wide, res, 17),
+                    enc::ubfm(wide, res, res, first, first + count - 1),
+                    enc::cmp_imm(wide, res, imm),
+                ]);
+                patches.push((w.len(), enc::NE));
+                w.push(0);
+            }
+            w.extend([
+                enc::fmov_to_g(wide, res, 17),
+                enc::rri12(if wide { 0xd100_0000 } else { 0x5100_0000 }, res, res, 1),
+                enc::b(2),
+            ]);
+            let retain_raw = w.len();
+            w.push(enc::fmov_to_g(wide, res, 17));
+            for (pos, cond) in patches {
+                w[pos] = enc::b_cond(cond, (retain_raw - pos) as i32);
+            }
         }
-        let mut retain_raw_branches = Vec::new();
-        words.extend([restore(16), extract(0, 8), compare(0)]);
-        retain_raw_branches.push(words.len());
-        words.push(Word::Conditional {
-            equal: true,
-            words: 0,
-        });
-        for (first, count, immediate) in [(fraction, exponent, exponent_mask), (0, fraction, 0)] {
-            words.extend([restore(17), extract(first, count), compare(immediate)]);
-            retain_raw_branches.push(words.len());
-            words.push(Word::Conditional {
-                equal: false,
-                words: 0,
-            });
+        Ok(enc::to_bytes(&w))
+    }
+}
+
+pub(crate) mod ieee_float_arithmetic {
+    use super::{Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint, enc};
+    use register_model::RegisterViewId;
+    use selected_instructions::{
+        IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation as Op, IeeeFloatIntegerCarrier as C,
+        IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
+    };
+    use semantic_vocabulary::IeeeFloatComparisonOperation as Rel;
+    pub(crate) use target_aarch64::form_effects::ieee_float_arithmetic::effects;
+
+    const L: u8 = 16;
+    const R: u8 = 17;
+    const M: u8 = 18;
+
+    pub(crate) fn footprint(
+        form: IeeeFloatArithmeticForm,
+        operands: &[RegisterViewId],
+    ) -> Aarch64SelectedFormFootprint {
+        let n = form.operand_count();
+        Aarch64SelectedFormFootprint {
+            register_reads: operands[..n].to_vec(),
+            register_writes: operands[n..n + 1].to_vec(),
+            writes_nzcv: false,
+            encoded: effects(form),
         }
-        words.extend([
-            restore(17),
-            Word::SubtractOne {
-                wide,
-                general: result,
-            },
-            Word::Jump { words: 2 },
+    }
+
+    const fn f_two(double: bool, op: u32, vd: u8, vn: u8, vm: u8) -> u32 {
+        0x1e20_0800
+            | ((double as u32) << 22)
+            | ((vm as u32) << 16)
+            | (op << 12)
+            | ((vn as u32) << 5)
+            | vd as u32
+    }
+
+    const fn f_one(double: bool, op: u32, vd: u8, vn: u8) -> u32 {
+        0x1e20_4000 | ((double as u32) << 22) | (op << 15) | ((vn as u32) << 5) | vd as u32
+    }
+
+    const fn fmadd(double: bool, vd: u8, vn: u8, vm: u8, va: u8) -> u32 {
+        0x1f00_0000
+            | ((double as u32) << 22)
+            | ((vm as u32) << 16)
+            | ((va as u32) << 10)
+            | ((vn as u32) << 5)
+            | vd as u32
+    }
+
+    const fn f_cmp(equal: bool, double: bool, vd: u8, vn: u8, vm: u8) -> u32 {
+        (if equal { 0x5e20_e400 } else { 0x7ea0_e400 })
+            | ((double as u32) << 22)
+            | ((vm as u32) << 16)
+            | ((vn as u32) << 5)
+            | vd as u32
+    }
+
+    const fn i_to_f(wide: bool, double: bool, unsigned: bool, vd: u8, rn: u8) -> u32 {
+        0x1e22_0000
+            | ((wide as u32) << 31)
+            | ((double as u32) << 22)
+            | ((unsigned as u32) << 16)
+            | ((rn as u32) << 5)
+            | vd as u32
+    }
+
+    const fn f_to_i(wide: bool, double: bool, unsigned: bool, rd: u8, vn: u8) -> u32 {
+        0x1e38_0000
+            | ((wide as u32) << 31)
+            | ((double as u32) << 22)
+            | ((unsigned as u32) << 16)
+            | ((vn as u32) << 5)
+            | rd as u32
+    }
+
+    fn materialize_top_down(words: &mut Vec<u32>, bits: u64, rd: u8) {
+        words.push(enc::movz(rd, (bits >> 48) as u16, 3));
+        for shift in (0..3_u8).rev() {
+            let imm = (bits >> (16 * u32::from(shift))) as u16;
+            if imm != 0 {
+                words.push(enc::movk(rd, imm, shift));
+            }
+        }
+    }
+
+    fn trapping_truncation(double: bool, target: C, src: u8, res: u8) -> Vec<u32> {
+        let mut w = vec![enc::fmov_to_v(double, L, src)];
+        if !double {
+            w.push(f_one(false, 0b00_0101, L, L));
+        }
+        let mag = u32::from(target.bits()) - u32::from(target.is_signed());
+        let upper = u64::from(1023 + mag) << 52;
+        let lower = if target.is_signed() {
+            (1_u64 << 63) | upper | if mag <= 52 { 1_u64 << (52 - mag) } else { 1 }
+        } else {
+            (-1.0_f64).to_bits()
+        };
+        for (bound, left, right) in [(lower, L, R), (upper, R, L)] {
+            materialize_top_down(&mut w, bound, res);
+            w.extend([
+                enc::fmov_to_v(true, R, res),
+                f_cmp(false, true, M, left, right),
+                enc::fmov_to_g(true, res, M),
+                enc::cbnz(res, 2),
+                enc::BRK_0,
+            ]);
+        }
+        w.push(f_to_i(
+            target.bits() == 64,
+            true,
+            !target.is_signed(),
+            res,
+            L,
+        ));
+        if target.is_signed() && target.bits() <= 32 {
+            w.push(enc::sbfm(true, res, res, 0, 31));
+        }
+        w
+    }
+
+    fn narrow_truncation(double: bool, target: C, src: u8, res: u8) -> Vec<u32> {
+        let mut w = vec![enc::fmov_to_v(double, L, src)];
+        if !double {
+            w.push(f_one(false, 0b00_0101, L, L));
+        }
+        let (min_b, max_b) = match target {
+            C::I8 => (0xc060_0000_0000_0000_u64, 0x405f_c000_0000_0000_u64),
+            C::I16 => (0xc0e0_0000_0000_0000, 0x40df_ffc0_0000_0000),
+            C::U8 => (0, 0x406f_e000_0000_0000),
+            C::U16 => (0, 0x40ef_ffe0_0000_0000),
+            _ => (0, 0),
+        };
+        for (bound, op) in [(min_b, 0b0100), (max_b, 0b0101)] {
+            materialize_top_down(&mut w, bound, res);
+            w.extend([enc::fmov_to_v(true, R, res), f_two(true, op, L, L, R)]);
+        }
+        w.push(f_to_i(false, true, !target.is_signed(), res, L));
+        if target.is_signed() {
+            w.push(enc::sbfm(true, res, res, 0, 31));
+        }
+        w
+    }
+
+    fn classify_words(form: IeeeFloatArithmeticForm, regs: &[u8]) -> Vec<u32> {
+        let double = !form.is_binary32();
+        let res = regs[1];
+        let restore = enc::fmov_to_g(true, res, L);
+        let output = |cls: u16| {
+            let imm = match form.operation {
+                Op::Classify => cls,
+                Op::IsNan => u16::from(cls == 0),
+                Op::IsInfinite => u16::from(cls == 1),
+                Op::IsFinite => u16::from(cls >= 2),
+                Op::IsNormal => u16::from(cls == 2),
+                Op::IsSubnormal => u16::from(cls == 3),
+                _ => unreachable!("classification operation"),
+            };
+            enc::movz(res, imm, 0)
+        };
+        let (exp_first, exp_w, exp_max, mag_w, frac_w) = if double {
+            (52_u8, 11_u8, 2047_u16, 63_u8, 52_u8)
+        } else {
+            (23, 8, 255, 31, 23)
+        };
+        let mut w = vec![
+            enc::fmov_to_v(double, L, regs[0]),
+            enc::ubfm(true, res, regs[0], exp_first, exp_first + exp_w - 1),
+            0, // cbz -> subnormal
+            enc::rri12(0xd100_0000, res, res, exp_max),
+            0, // cbz -> nonfinite
+            output(2),
+            0, // b -> end
+        ];
+        let sub = w.len();
+        w.extend([
+            restore,
+            enc::ubfm(true, res, res, 0, mag_w - 1),
+            0, // cbz -> zero
+            output(3),
+            0, // b -> end
         ]);
-        let retain_raw = words.len();
-        words.push(restore(17));
-        for position in retain_raw_branches {
-            if let Word::Conditional { words: offset, .. } = &mut words[position] {
-                *offset = (retain_raw - position) as i32;
-            }
+        let zero = w.len();
+        w.extend([output(4), 0]); // b -> end
+        let nonfin = w.len();
+        w.extend([
+            restore,
+            enc::ubfm(true, res, res, 0, frac_w - 1),
+            0, // cbz -> inf
+            output(0),
+            0, // b -> end
+        ]);
+        let inf = w.len();
+        w.push(output(1));
+        let end = w.len();
+        if form.operation == Op::Classify {
+            w.extend([
+                0, // cbz -> done
+                enc::fmov_to_v(true, R, res),
+                restore,
+                enc::ubfm(true, res, res, if double { 63 } else { 31 }, 63),
+                enc::ubfm(true, res, res, 32, 31),
+                enc::fmov_to_v(true, L, res),
+                enc::rrr(0x0ea0_1c00, L, L, R),
+                restore,
+            ]);
         }
-        words
+        let patch_cbz = |w: &mut [u32], at: usize, dst: usize| {
+            w[at] = enc::cbz(res, (dst as i32) - (at as i32));
+        };
+        let patch_b = |w: &mut [u32], at: usize, dst: usize| {
+            w[at] = enc::b((dst as i32) - (at as i32));
+        };
+        patch_cbz(&mut w, 2, sub);
+        patch_cbz(&mut w, 4, nonfin);
+        patch_b(&mut w, 6, end);
+        patch_cbz(&mut w, sub + 2, zero);
+        patch_b(&mut w, sub + 4, end);
+        patch_b(&mut w, zero + 1, end);
+        patch_cbz(&mut w, nonfin + 2, inf);
+        patch_b(&mut w, nonfin + 4, end);
+        if form.operation == Op::Classify {
+            let done = w.len();
+            patch_cbz(&mut w, end, done);
+        }
+        w
     }
 
-    fn encode_word(word: Word) -> u32 {
-        match word {
-            Word::Save {
-                wide,
-                general,
-                vector,
-            } => {
-                (if wide { 0x9e67_0000 } else { 0x1e27_0000 })
-                    | u32::from(general) << 5
-                    | u32::from(vector)
-            }
-            Word::Restore {
-                wide,
-                vector,
-                general,
-            } => {
-                (if wide { 0x9e66_0000 } else { 0x1e26_0000 })
-                    | u32::from(vector) << 5
-                    | u32::from(general)
-            }
-            Word::Extract {
-                wide,
-                source,
-                result,
-                first,
-                count,
-            } => {
-                (if wide { 0xd340_0000 } else { 0x5300_0000 })
-                    | u32::from(first) << 16
-                    | u32::from(first + count - 1) << 10
-                    | u32::from(source) << 5
-                    | u32::from(result)
-            }
-            Word::Compare {
-                wide,
-                source,
-                immediate,
-            } => {
-                (if wide { 0xf100_001f } else { 0x7100_001f })
-                    | u32::from(immediate) << 10
-                    | u32::from(source) << 5
-            }
-            Word::Conditional { equal, words } => {
-                0x5400_0000 | ((words as u32 & 0x7ffff) << 5) | u32::from(!equal)
-            }
-            Word::Jump { words } => 0x1400_0000 | (words as u32 & 0x3ff_ffff),
-            Word::SubtractOne { wide, general } => {
-                (if wide { 0xd100_0400 } else { 0x5100_0400 })
-                    | u32::from(general) << 5
-                    | u32::from(general)
-            }
-            Word::Crash => 0xd420_0000,
-        }
+    fn directed_wrap(
+        rounding: IeeeFloatRoundingDirection,
+        double: bool,
+        res: u8,
+        mut w: Vec<u32>,
+        op_word: u32,
+    ) -> Vec<u32> {
+        let mode: u16 = match rounding.ordinal() {
+            0 => 3,
+            1 => 1,
+            2 => 2,
+            _ => unreachable!(),
+        };
+        w.extend([
+            0xd53b_4400 | u32::from(res),
+            enc::rr(0x9eaf_0000, M, res),
+            enc::movz(res, mode << 6, 1),
+            0xd51b_4400 | u32::from(res),
+            op_word,
+            enc::rr(0x9eae_0000, res, M),
+            0xd51b_4400 | u32::from(res),
+            enc::fmov_to_g(double, res, L),
+        ]);
+        w
     }
 
-    fn decode_word(word: u32) -> Option<Word> {
-        let register = |shift: u32| ((word >> shift) & 31_u32) as u8;
-        let wide = word >> 31 != 0;
-        match word & 0xffff_fc00 {
-            0x9e67_0000 | 0x1e27_0000 => {
-                return Some(Word::Save {
-                    wide,
-                    general: register(5),
-                    vector: register(0),
-                });
-            }
-            0x9e66_0000 | 0x1e26_0000 => {
-                return Some(Word::Restore {
-                    wide,
-                    vector: register(5),
-                    general: register(0),
-                });
-            }
-            0xd100_0400 | 0x5100_0400 if register(5) == register(0) => {
-                return Some(Word::SubtractOne {
-                    wide,
-                    general: register(0),
-                });
-            }
-            _ => {}
-        }
-        if matches!(word & 0xffc0_0000, 0xd340_0000 | 0x5300_0000) {
-            let first = ((word >> 16) & 63) as u8;
-            let last = ((word >> 10) & 63) as u8;
-            if first > last || last >= if wide { 64 } else { 32 } {
-                return None;
-            }
-            return Some(Word::Extract {
-                wide,
-                source: register(5),
-                result: register(0),
-                first,
-                count: last - first + 1,
-            });
-        }
-        if matches!(word & 0xffc0_001f, 0xf100_001f | 0x7100_001f) {
-            return Some(Word::Compare {
-                wide,
-                source: register(5),
-                immediate: ((word >> 10) & 4095) as u16,
-            });
-        }
-        if word & 0xff00_001e == 0x5400_0000 {
-            return Some(Word::Conditional {
-                equal: word & 1 == 0,
-                words: ((word as i32) << 8) >> 13,
-            });
-        }
-        if word & 0xfc00_0000 == 0x1400_0000 {
-            return Some(Word::Jump {
-                words: ((word as i32) << 6) >> 6,
-            });
-        }
-        (word == 0xd420_0000).then_some(Word::Crash)
-    }
-
-    pub(crate) fn encode(form: FloatResultPolicyForm, registers: &[u8]) -> Result<Vec<u8>, Error> {
-        if registers.len() != form.operand_count() + 1
-            || registers.iter().any(|register| *register > 30)
-        {
+    pub(crate) fn encode(form: IeeeFloatArithmeticForm, regs: &[u8]) -> Result<Vec<u8>, Error> {
+        let n = form.operand_count();
+        if regs.len() != n + 1 {
             return Err(Error::OperandCountMismatch);
         }
-        Ok(program(form, registers)
-            .into_iter()
-            .flat_map(|word| encode_word(word).to_le_bytes())
-            .collect())
-    }
-
-    pub(crate) fn validate(
-        form: FloatResultPolicyForm,
-        registers: &[u8],
-        bytes: &[u8],
-    ) -> Result<(), Error> {
-        if registers.len() != form.operand_count() + 1
-            || registers.iter().any(|register| *register > 30)
-        {
-            return Err(Error::OperandCountMismatch);
-        }
-        let decoded = super::word_stream(bytes)
-            .ok_or(Error::MalformedEncoding)?
-            .into_iter()
-            .map(decode_word)
-            .collect::<Option<Vec<_>>>()
-            .ok_or(Error::MalformedEncoding)?;
-        if decoded != program(form, registers) {
+        if regs.iter().any(|r| *r > 30) {
             return Err(Error::EncodedFormMismatch);
         }
-        Ok(())
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use isa_conformance::float_result_policy as policy;
-
-        fn encoded(form: FloatResultPolicyForm, registers: &[u8]) -> Vec<u8> {
-            encode(form, registers).expect("admitted registers must encode")
-        }
-
-        fn validated(form: FloatResultPolicyForm, registers: &[u8], bytes: &[u8]) -> bool {
-            validate(form, registers, bytes).is_ok()
-        }
-
-        fn roster(form: FloatResultPolicyForm) -> Vec<u8> {
-            if form.can_trap() {
-                vec![3, 4]
-            } else {
-                vec![1, 3, 4]
+        let double = !form.is_binary32();
+        let res = regs[n];
+        let w: Vec<u32> = match form.operation {
+            Op::DirectedBinary {
+                operation,
+                rounding,
+            } => {
+                let op = [2, 3, 0, 1][usize::from(operation.ordinal())];
+                directed_wrap(
+                    rounding,
+                    double,
+                    res,
+                    vec![
+                        enc::fmov_to_v(double, L, regs[0]),
+                        enc::fmov_to_v(double, R, regs[1]),
+                    ],
+                    f_two(double, op, L, L, R),
+                )
             }
-        }
-
-        fn replay(bytes: &[u8], registers: &[u8], payloads: &[u64]) -> Option<u64> {
-            let mut general = [0_u64; 31];
-            let mut vectors = [0_u64; 32];
-            for (&register, &payload) in registers.iter().zip(payloads) {
-                general[usize::from(register)] = payload;
-            }
-            let sized = |value, wide| if wide { value } else { value & 0xffff_ffff };
-            let (instructions, remainder) = bytes.as_chunks::<4>();
-            assert!(remainder.is_empty());
-            let mut position = 0_usize;
-            let mut equal = false;
-            let mut steps = 0;
-            while position < instructions.len() {
-                steps += 1;
-                assert!(steps <= instructions.len(), "policy must have no loop");
-                match decode_word(u32::from_le_bytes(instructions[position])).expect("decoded word")
-                {
-                    Word::Save {
-                        wide,
-                        general: source,
-                        vector,
-                    } => vectors[usize::from(vector)] = sized(general[usize::from(source)], wide),
-                    Word::Restore {
-                        wide,
-                        vector,
-                        general: result,
-                    } => general[usize::from(result)] = sized(vectors[usize::from(vector)], wide),
-                    Word::Extract {
-                        wide,
-                        source,
-                        result,
-                        first,
-                        count,
-                    } => {
-                        general[usize::from(result)] = (sized(general[usize::from(source)], wide)
-                            >> first)
-                            & ((1_u64 << count) - 1)
-                    }
-                    Word::Compare {
-                        wide,
-                        source,
-                        immediate,
-                    } => equal = sized(general[usize::from(source)], wide) == u64::from(immediate),
-                    Word::Conditional {
-                        equal: condition,
-                        words,
-                    } if equal == condition => {
-                        position = usize::try_from(position as i64 + i64::from(words)).unwrap();
-                        continue;
-                    }
-                    Word::Conditional { .. } => {}
-                    Word::Jump { words } => {
-                        position = usize::try_from(position as i64 + i64::from(words)).unwrap();
-                        continue;
-                    }
-                    Word::SubtractOne {
-                        wide,
-                        general: result,
-                    } => {
-                        general[usize::from(result)] =
-                            sized(general[usize::from(result)].wrapping_sub(1), wide)
-                    }
-                    Word::Crash => return None,
-                }
-                position += 1;
-            }
-            assert_eq!(position, instructions.len());
-            Some(general[usize::from(*registers.last().unwrap())])
-        }
-
-        #[test]
-        fn trapping_words_match_assembler_and_corrupted_policy_bytes_reject() {
-            let form = FloatResultPolicyForm {
-                format: IeeeFloatFormat::Binary64,
-                policy: FloatResultPolicyKind::Trapping,
-            };
-            let expected = [
-                0x9e67_0070_u32,
-                0x9e66_0204,
-                0xd374_f884,
-                0xf11f_fc9f,
-                0x5400_0041,
-                0xd420_0000,
-                0x9e66_0204,
-            ]
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect::<Vec<_>>();
-            policy::exact_stream(form, &[3, 4], &expected, encoded, validated);
-            policy::rejects_corrupted_and_substituted_streams(roster, encoded, validated);
-        }
-
-        #[test]
-        fn decoded_policy_matches_ieee_semantics_with_aliased_outputs() {
-            for form in FloatResultPolicyForm::ALL {
-                for case in policy::cases(form.format == IeeeFloatFormat::Binary64) {
-                    let expected = policy::expected(form, case);
-                    let inputs = policy::inputs(form, case);
-                    for output in 1..=inputs.len() as u8 + 1 {
-                        let mut registers = (1..=inputs.len() as u8).collect::<Vec<_>>();
-                        registers.push(output);
-                        let bytes = encoded(form, &registers);
-                        validate(form, &registers, &bytes).unwrap();
-                        assert_eq!(
-                            replay(&bytes, &registers, &inputs),
-                            expected,
-                            "{form:?} {inputs:x?} output {output}"
-                        );
+            Op::DirectedSquareRoot { rounding } => directed_wrap(
+                rounding,
+                double,
+                res,
+                vec![enc::fmov_to_v(double, L, regs[0])],
+                f_one(double, 0b00_0011, L, L),
+            ),
+            Op::IsNan
+            | Op::IsInfinite
+            | Op::IsFinite
+            | Op::IsNormal
+            | Op::IsSubnormal
+            | Op::Classify => classify_words(form, regs),
+            Op::Compare(cmp) => {
+                let mut w = vec![
+                    enc::fmov_to_v(double, L, regs[0]),
+                    enc::fmov_to_v(double, R, regs[1]),
+                ];
+                match cmp {
+                    Rel::Equal | Rel::NotEqual => w.push(f_cmp(true, double, M, L, R)),
+                    Rel::Less => w.push(f_cmp(false, double, M, R, L)),
+                    Rel::Greater => w.push(f_cmp(false, double, M, L, R)),
+                    Rel::LessOrEqual | Rel::GreaterOrEqual => {
+                        let (a, b) = if cmp == Rel::LessOrEqual {
+                            (R, L)
+                        } else {
+                            (L, R)
+                        };
+                        w.extend([
+                            f_cmp(true, double, M, L, R),
+                            f_cmp(false, double, L, a, b),
+                            enc::rrr(0x0ea0_1c00, M, M, L),
+                        ]);
                     }
                 }
+                w.extend([
+                    enc::fmov_to_g(double, res, M),
+                    enc::ubfm(true, res, res, 0, 0),
+                ]);
+                if cmp == Rel::NotEqual {
+                    w.extend([
+                        enc::rri12(0xd100_0000, res, res, 1),
+                        enc::ubfm(true, res, res, 0, 0),
+                    ]);
+                }
+                w
             }
-        }
-
-        #[test]
-        fn policy_constraints_and_effects_declare_only_actual_scratch_and_control() {
-            let physical = crate::aarch64_physical_register_model();
-            let model = register_model::validate_physical_register_model(physical.clone()).unwrap();
-            let constraints = crate::aarch64_register_constraint_catalog(&model);
-            for form in FloatResultPolicyForm::ALL {
-                let key = if form.can_trap() {
-                    crate::AARCH64_FLOAT_RESULT_TRAPPING
+            Op::FusedMultiplyAdd | Op::DirectedFusedMultiplyAdd { .. } => {
+                let mut w = vec![
+                    enc::fmov_to_v(double, L, regs[0]),
+                    enc::fmov_to_v(double, R, regs[1]),
+                    enc::fmov_to_v(double, M, regs[2]),
+                ];
+                let fused = fmadd(double, L, L, R, M);
+                if let Some(rounding) = form.operation.rounding_direction() {
+                    directed_wrap(rounding, double, res, w, fused)
                 } else {
-                    crate::AARCH64_FLOAT_RESULT_SATURATING
-                };
-                let constraint =
-                    register_model::find_register_constraint(&constraints.constraints, key)
-                        .unwrap();
-                let declaration = declaration(form, key);
-                let registers = (1..=form.operand_count() as u8 + 1).collect::<Vec<_>>();
-                let operands = registers
-                    .iter()
-                    .map(|register| physical.view_named(&format!("x{register}")).unwrap().id)
-                    .collect::<Vec<_>>();
-                let footprint = footprint(form, &operands);
-                assert!(constraint.implicit_uses.is_empty());
-                assert!(footprint.encoded.implicit_unit_uses.is_empty());
-                let expected_views: &[&str] = if form.can_trap() {
-                    &["q16", "nzcv"]
+                    w.extend([fused, enc::fmov_to_g(double, res, L)]);
+                    w
+                }
+            }
+            Op::MultiplyThenAdd => vec![
+                enc::fmov_to_v(double, L, regs[0]),
+                enc::fmov_to_v(double, R, regs[1]),
+                f_two(double, 0b0000, L, L, R),
+                enc::fmov_to_v(double, R, regs[2]),
+                f_two(double, 0b0010, L, L, R),
+                enc::fmov_to_g(double, res, L),
+            ],
+            Op::Minimum | Op::Maximum => {
+                let (a, b) = if form.operation == Op::Minimum {
+                    (R, L)
                 } else {
-                    &["q16", "q17", "nzcv"]
+                    (L, R)
                 };
-                let mut expected_units = expected_views
-                    .iter()
-                    .flat_map(|name| {
-                        physical
-                            .view_named(name)
-                            .expect("canonical scratch view")
-                            .units
-                            .iter()
-                            .copied()
-                    })
-                    .collect::<Vec<_>>();
-                expected_units.sort_unstable();
-                expected_units.dedup();
-                assert_eq!(constraint.clobbers, expected_units);
-                assert_eq!(footprint.encoded.implicit_unit_clobbers, expected_units);
-                assert_eq!(
-                    constraint.clobbers,
-                    footprint.encoded.implicit_unit_clobbers
-                );
-                assert_eq!(constraint.operands.len(), form.operand_count() + 1);
-                assert!(footprint.writes_nzcv);
-                assert_eq!(declaration.alternatives[0].encoded, footprint.encoded);
-                let size = MachineSizeKnowledge::ExactBytes(
-                    encode(form, &registers).unwrap().len() as u16,
-                );
-                assert_eq!(declaration.alternatives[0].size, size);
-                assert_eq!(
-                    declaration.trap,
-                    if form.can_trap() {
-                        MachineTrapBehavior::TrappingIntegerV1
+                vec![
+                    enc::fmov_to_v(double, L, regs[0]),
+                    enc::fmov_to_v(double, R, regs[1]),
+                    f_cmp(false, double, M, a, b),
+                    enc::rrr(0x2e60_1c00, M, L, R),
+                    enc::fmov_to_g(double, res, M),
+                ]
+            }
+            Op::Negate | Op::SquareRoot => vec![
+                enc::fmov_to_v(double, L, regs[0]),
+                f_one(
+                    double,
+                    if form.operation == Op::Negate {
+                        0b00_0010
                     } else {
-                        MachineTrapBehavior::NeverV1
-                    }
-                );
-                assert_eq!(
-                    declaration.barrier,
-                    if form.can_trap() {
-                        MachineBarrier::ExternalEffect
-                    } else {
-                        MachineBarrier::None
-                    }
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn declared_lengths_match_encoded_forms() {
-        use selected_instructions::MachineSizeKnowledge;
-        for form in FloatResultPolicyForm::ALL {
-            let lengths = [0, 8].map(|register| {
-                let registers = [register; 4];
-                (program(form, &registers)
-                    .into_iter()
-                    .flat_map(|word| encode_word(word).to_le_bytes())
-                    .count()) as u16
-            });
-            match target_aarch64::float_sizes::float_result_policy_size(form) {
-                MachineSizeKnowledge::ExactBytes(bytes) => {
-                    assert_eq!(lengths, [bytes; 2], "{form:?}")
-                }
-                MachineSizeKnowledge::EncoderResolved {
-                    minimum_bytes,
-                    maximum_bytes,
-                } => {
-                    assert_eq!(
-                        (lengths[0], Some(lengths[1])),
-                        (minimum_bytes, maximum_bytes),
-                        "{form:?}"
-                    );
-                }
-            }
-        }
-    }
-}
-pub(crate) mod floating_control {
-    pub(crate) use target_aarch64::form_effects::floating_control::effects;
-
-    use super::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-        ValidatedAarch64SelectedFormEncoding,
-    };
-    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
-    use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeKey, MachineSemanticKind, SelectedInstructionKind,
-    };
-
-    fn request(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        displacement: i64,
-    ) -> Result<bool, Aarch64SelectedFormEncodingError> {
-        let semantic = match kind {
-            SelectedInstructionKind::SaveFloatingControl {
-                slot: LocalStorageSlotId::Boundary { .. },
-            } => MachineSemanticKind::SaveFloatingControl,
-            SelectedInstructionKind::RestoreFloatingControl {
-                slot: LocalStorageSlotId::Boundary { .. },
-            } => MachineSemanticKind::RestoreFloatingControl,
-            _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
-        };
-        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-            || !operands.is_empty()
-            || alternative
-                != (MachineAlternativeKey {
-                    family: semantic.into(),
-                    variant: 0,
-                })
-            || u32::try_from(displacement).is_err()
-            || displacement % 8 != 0
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(semantic == MachineSemanticKind::RestoreFloatingControl)
-    }
-
-    pub fn encode_aarch64_selected_floating_control_form(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        displacement: i64,
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let restore = request(physical, kind, alternative, operands, displacement)?;
-        let offset = u32::try_from(displacement)
-            .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let bytes = if restore {
-            crate::encode_restore_fpcr_from_sp_displacement(offset)
-        } else {
-            crate::encode_save_fpcr_to_sp_displacement(offset)
-        }
-        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        validate_aarch64_selected_floating_control_form(
-            physical,
-            kind,
-            alternative,
-            operands,
-            displacement,
-            &bytes,
-        )
-    }
-
-    pub(crate) fn validate_aarch64_selected_floating_control_form(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        displacement: i64,
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let restore = request(physical, kind, alternative, operands, displacement)?;
-        if decode(bytes) != Some((restore, displacement)) {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(ValidatedAarch64SelectedFormEncoding {
-            bytes: bytes.to_vec(),
-            footprint: Aarch64SelectedFormFootprint {
-                register_reads: Vec::new(),
-                register_writes: Vec::new(),
-                writes_nzcv: false,
-                encoded: effects(restore),
-            },
-        })
-    }
-
-    fn decode(bytes: &[u8]) -> Option<(bool, i64)> {
-        let words = super::word_stream(bytes)?;
-        let (restore, steps, access, address) = match words.as_slice() {
-            [steps @ .., access, 0xd51b_4409] => (true, steps, *access, 9),
-            [0xd53b_4409, steps @ .., access] => (false, steps, *access, 16),
-            _ => return None,
-        };
-        let pages = if steps.is_empty() {
-            0
-        } else {
-            crate::immediate_offset::decode_address_words(steps, address, 31)?
-        };
-        let offset = u32::try_from(pages + u64::from((access >> 10) & 0xfff) * 8).ok()?;
-        let expected = if restore {
-            crate::encode_restore_fpcr_from_sp_displacement(offset)
-        } else {
-            crate::encode_save_fpcr_to_sp_displacement(offset)
-        }
-        .ok()?;
-        (expected == bytes).then_some((restore, i64::from(offset)))
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{
-            effects, encode_aarch64_selected_floating_control_form,
-            validate_aarch64_selected_floating_control_form,
-        };
-        use crate::test_support::reject_every_bit_flip;
-        use selected_instructions::{
-            LocalStorageSlotId, MachineAlternativeKey, MachineSemanticKind, SelectedInstructionKind,
-        };
-        #[test]
-        fn floating_controls_bind_direction_slot_displacement_and_every_encoded_bit() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let slot = LocalStorageSlotId::Boundary {
-                operation: semantic_vocabulary::OperationId::new(7).unwrap(),
-            };
-            for restore in [false, true] {
-                let kind = if restore {
-                    SelectedInstructionKind::RestoreFloatingControl { slot }
-                } else {
-                    SelectedInstructionKind::SaveFloatingControl { slot }
-                };
-                let semantic = if restore {
-                    MachineSemanticKind::RestoreFloatingControl
-                } else {
-                    MachineSemanticKind::SaveFloatingControl
-                };
-                let alternative = MachineAlternativeKey {
-                    family: semantic.into(),
-                    variant: 0,
-                };
-                for displacement in [0, 24, 32760, 32768, 65_544, 33_554_440] {
-                    let encoded = encode_aarch64_selected_floating_control_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &[],
-                        displacement,
-                    )
-                    .unwrap();
-                    assert_eq!(encoded.footprint().encoded, effects(restore));
-                    reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
-                        validate_aarch64_selected_floating_control_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            displacement,
-                            changed,
-                        )
-                        .is_err()
-                    });
-                    assert!(
-                        validate_aarch64_selected_floating_control_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            displacement + 8,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
-                    let mut extra = encoded.bytes().to_vec();
-                    extra.push(0);
-                    assert!(
-                        validate_aarch64_selected_floating_control_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            displacement,
-                            &extra
-                        )
-                        .is_err()
-                    );
-                }
-                for displacement in [-8, 4, i64::from(u32::MAX) + 1] {
-                    assert!(
-                        encode_aarch64_selected_floating_control_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &[],
-                            displacement
-                        )
-                        .is_err()
-                    );
-                }
-                let wrong = SelectedInstructionKind::SaveFloatingControl {
-                    slot: LocalStorageSlotId::Structural {
-                        operation: semantic_vocabulary::OperationId::new(7).unwrap(),
-                        place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+                        0b00_0011
                     },
-                };
-                assert!(
-                    encode_aarch64_selected_floating_control_form(
-                        &physical,
-                        wrong,
-                        alternative,
-                        &[],
-                        0
-                    )
-                    .is_err()
-                );
+                    L,
+                    L,
+                ),
+                enc::fmov_to_g(double, res, L),
+            ],
+            Op::ConvertFormat => vec![
+                enc::fmov_to_v(!double, L, regs[0]),
+                f_one(!double, if double { 0b00_0101 } else { 0b00_0100 }, L, L),
+                enc::fmov_to_g(double, res, L),
+            ],
+            Op::TruncateToInteger {
+                target,
+                domain: IeeeFloatToIntegerDomain::Trapping,
+            } => trapping_truncation(double, target, regs[0], res),
+            Op::TruncateToInteger { target, .. } if target.bits() < 32 => {
+                narrow_truncation(double, target, regs[0], res)
             }
+            Op::FromInteger(src) if src.bits() < 32 => vec![
+                if src.is_signed() {
+                    enc::sbfm(
+                        false,
+                        res,
+                        regs[0],
+                        0,
+                        if src.bits() == 16 { 15 } else { 7 },
+                    )
+                } else {
+                    enc::ubfm(
+                        false,
+                        res,
+                        regs[0],
+                        0,
+                        if src.bits() == 16 { 15 } else { 7 },
+                    )
+                },
+                i_to_f(false, double, !src.is_signed(), L, res),
+                enc::fmov_to_g(double, res, L),
+            ],
+            Op::TruncateToInteger { target, .. } => {
+                let mut w = vec![
+                    enc::fmov_to_v(double, L, regs[0]),
+                    f_to_i(target.bits() == 64, double, !target.is_signed(), res, L),
+                ];
+                if target.is_signed() && target.bits() == 32 {
+                    w.push(enc::sbfm(true, res, res, 0, 31));
+                }
+                w
+            }
+            Op::FromInteger(src) => vec![
+                i_to_f(src.bits() == 64, double, !src.is_signed(), L, regs[0]),
+                enc::fmov_to_g(double, res, L),
+            ],
+            op => {
+                let code = match op {
+                    Op::Multiply => 0b0000,
+                    Op::Divide => 0b0001,
+                    Op::Add => 0b0010,
+                    Op::Subtract => 0b0011,
+                    _ => unreachable!("two-source float arithmetic"),
+                };
+                vec![
+                    enc::fmov_to_v(double, L, regs[0]),
+                    enc::fmov_to_v(double, R, regs[1]),
+                    f_two(double, code, L, L, R),
+                    enc::fmov_to_g(double, res, L),
+                ]
+            }
+        };
+        Ok(enc::to_bytes(&w))
+    }
+}
+
+pub(crate) mod trapping_forms {
+    use super::enc;
+    use selected_instructions::{SaturatingCarrier as C, TrappingForm, TrappingOperation as Op};
+    use semantic_vocabulary::IntegerSign;
+    pub(crate) use target_aarch64::form_effects::trapping_forms::{
+        conversion_high_bit, effects, operand_count,
+    };
+
+    const fn ext_code(carrier: C) -> u32 {
+        match carrier {
+            C::U8 => 0,
+            C::U16 => 1,
+            C::U32 => 2,
+            C::I8 => 4,
+            C::I16 => 5,
+            C::I32 => 6,
+            C::I64 | C::U64 => panic!("64-bit carriers have no narrow extension check"),
+        }
+    }
+
+    pub(crate) fn append_words(w: &mut Vec<u32>, form: TrappingForm, regs: &[u8]) {
+        let c = form.carrier;
+        let skip_trap = |w: &mut Vec<u32>, cond: u8| w.extend([enc::b_cond(cond, 2), enc::BRK_0]);
+        let narrow_check = |w: &mut Vec<u32>, v: u8| {
+            w.push(0xeb20_001f | (u32::from(v) << 16) | (ext_code(c) << 13) | (u32::from(v) << 5));
+            skip_trap(w, enc::EQ);
+        };
+        if let Op::Convert { source } = form.operation {
+            let (src, dst) = (regs[0], regs[1]);
+            if let Some(bit) = conversion_high_bit(source, c) {
+                w.push(
+                    0xf240_001f
+                        | ((64 - u32::from(bit)) << 16)
+                        | ((63 - u32::from(bit)) << 10)
+                        | (u32::from(src) << 5),
+                );
+                skip_trap(w, enc::EQ);
+            } else if source == IntegerSign::Signed && c != C::I64 {
+                narrow_check(w, src);
+            }
+            w.push(enc::mov(dst, src));
+            return;
+        }
+        let (left, right, val, scratch) = (regs[0], regs[1], regs[2], regs[3]);
+        match form.operation {
+            Op::Add | Op::Subtract if !c.is_narrow() => {
+                let op = if form.operation == Op::Add {
+                    0xab00_0000
+                } else {
+                    0xeb00_0000
+                };
+                w.push(enc::rrr(op, val, left, right));
+                let cond = match (form.operation, c.is_signed()) {
+                    (_, true) => enc::VC,
+                    (Op::Add, false) => enc::LO,
+                    _ => enc::HS,
+                };
+                skip_trap(w, cond);
+            }
+            Op::Add | Op::Subtract | Op::Multiply if c.is_narrow() => {
+                let op = match form.operation {
+                    Op::Add => 0x8b00_0000,
+                    Op::Subtract => 0xcb00_0000,
+                    _ => 0x9b00_7c00,
+                };
+                w.push(enc::rrr(op, val, left, right));
+                narrow_check(w, val);
+            }
+            Op::Multiply => {
+                let hi_op = if c.is_signed() {
+                    0x9b40_7c00
+                } else {
+                    0x9bc0_7c00
+                };
+                w.extend([
+                    enc::rrr(hi_op, scratch, left, right),
+                    enc::rrr(0x9b00_7c00, val, left, right),
+                    if c.is_signed() {
+                        0xeb80_fc1f | (u32::from(val) << 16) | (u32::from(scratch) << 5)
+                    } else {
+                        enc::cmp_imm(true, scratch, 0)
+                    },
+                ]);
+                skip_trap(w, enc::EQ);
+            }
+            Op::Divide | Op::Remainder => {
+                w.extend([enc::cbnz(right, 2), enc::BRK_0]);
+                if c == C::I64 {
+                    w.extend([
+                        0xb100_041f | (u32::from(right) << 5),
+                        0xfa41_0800 | (u32::from(left) << 5),
+                    ]);
+                    skip_trap(w, enc::VC);
+                }
+                let q = if form.operation == Op::Divide {
+                    val
+                } else {
+                    scratch
+                };
+                w.push(enc::rrr(
+                    if c.is_signed() {
+                        0x9ac0_0c00
+                    } else {
+                        0x9ac0_0800
+                    },
+                    q,
+                    left,
+                    right,
+                ));
+                if c.is_signed() && c.is_narrow() {
+                    narrow_check(w, q);
+                }
+                if form.operation == Op::Remainder {
+                    w.push(enc::msub(val, scratch, right, left));
+                }
+            }
+            Op::ShiftLeft | Op::ShiftRight => {
+                w.push(enc::cmp_imm(true, right, c.bits()));
+                skip_trap(w, enc::LO);
+                if form.operation == Op::ShiftRight {
+                    w.push(enc::rrr(
+                        if c.is_signed() {
+                            0x9ac0_2800
+                        } else {
+                            0x9ac0_2400
+                        },
+                        val,
+                        left,
+                        right,
+                    ));
+                    return;
+                }
+                w.push(enc::rrr(0x9ac0_2000, val, left, right));
+                if c.is_narrow() {
+                    narrow_check(w, val);
+                } else {
+                    w.extend([
+                        enc::rrr(
+                            if c.is_signed() {
+                                0x9ac0_2800
+                            } else {
+                                0x9ac0_2400
+                            },
+                            scratch,
+                            val,
+                            right,
+                        ),
+                        enc::cmp_reg(scratch, left),
+                    ]);
+                    skip_trap(w, enc::EQ);
+                }
+            }
+            Op::Add | Op::Subtract | Op::Convert { .. } => unreachable!(),
         }
     }
 }
-pub(crate) mod memory_fence {
-    #[cfg(test)]
-    pub(crate) use selected_instructions::MachineAlternativeFamily;
-    #[cfg(test)]
-    pub(crate) use selected_instructions::MachineEncodedEffects;
 
-    use selected_instructions::MemoryFenceKind;
+pub(crate) mod register_access {
+    use super::Aarch64SelectedFormEncodingError as Error;
+    use selected_instructions::{MemoryFenceKind, RegisterOperation, SystemRegister};
+    pub(crate) use target_aarch64::form_effects::register_access::effects;
 
-    pub(crate) fn encode(kind: MemoryFenceKind) -> Option<Vec<u8>> {
-        let option = match kind {
+    const SYSREG_TABLE: [(SystemRegister, u16); 9] = [
+        (SystemRegister::SctlrEl1, 0xc080),
+        (SystemRegister::TcrEl1, 0xc102),
+        (SystemRegister::Ttbr0El1, 0xc100),
+        (SystemRegister::Ttbr1El1, 0xc101),
+        (SystemRegister::MairEl1, 0xc510),
+        (SystemRegister::VbarEl1, 0xc600),
+        (SystemRegister::TpidrEl1, 0xc684),
+        (SystemRegister::EsrEl1, 0xc290),
+        (SystemRegister::FarEl1, 0xc300),
+    ];
+
+    pub(crate) fn encode_fence(kind: MemoryFenceKind) -> Option<Vec<u8>> {
+        let option: u32 = match kind {
             MemoryFenceKind::Aarch64Load => 0xd,
             MemoryFenceKind::Aarch64Store => 0xe,
             MemoryFenceKind::Aarch64Full => 0xf,
@@ -4360,5578 +1506,860 @@ pub(crate) mod memory_fence {
         Some((0xd503_30bf_u32 | (option << 8)).to_le_bytes().to_vec())
     }
 
-    pub(crate) fn decode(bytes: &[u8]) -> Option<MemoryFenceKind> {
-        let word = u32::from_le_bytes(bytes.try_into().ok()?);
-        if word & !0x0000_0f00 != 0xd503_30bf {
-            return None;
-        }
-        match (word >> 8) & 0xf {
-            0xd => Some(MemoryFenceKind::Aarch64Load),
-            0xe => Some(MemoryFenceKind::Aarch64Store),
-            0xf => Some(MemoryFenceKind::Aarch64Full),
-            _ => None,
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use crate::test_support::rejects_every_bit_flip;
-        use selected_instructions::{
-            MachineAlternativeKey, RegisterOperation, SelectedInstructionKind,
+    pub(crate) fn encode(operation: RegisterOperation, regs: &[u8]) -> Result<Vec<u8>, Error> {
+        let [operand] = regs else {
+            return Err(Error::OperandCountMismatch);
         };
-        #[test]
-        fn catalog_fences_keep_exact_bytes_and_reject_other_effects() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::MemoryFence,
-                variant: 0,
-            };
-            for (kind, expected) in [
-                (MemoryFenceKind::Aarch64Load, &[0xbf, 0x3d, 0x03, 0xd5][..]),
-                (MemoryFenceKind::Aarch64Store, &[0xbf, 0x3e, 0x03, 0xd5][..]),
-                (MemoryFenceKind::Aarch64Full, &[0xbf, 0x3f, 0x03, 0xd5][..]),
-            ] {
-                let instruction = SelectedInstructionKind::RegisterAccess {
-                    operation: RegisterOperation::MemoryFence(kind),
-                };
-                let realized =
-                    crate::encode_aarch64_selected_form(&physical, instruction, alternative, &[])
-                        .unwrap();
-                assert_eq!(realized.bytes(), expected);
-                assert_eq!(
-                    realized.footprint().encoded,
-                    MachineEncodedEffects::catalog_fence_v1()
-                );
-                assert!(
-                    realized.footprint().register_reads.is_empty()
-                        && realized.footprint().register_writes.is_empty()
-                );
-                assert!(!realized.footprint().writes_nzcv);
-                rejects_every_bit_flip(&physical, instruction, alternative, &[], expected);
-                let mut doubled = expected.to_vec();
-                doubled.extend(expected);
-                for changed in [&doubled[..], &expected[..expected.len() - 1], &[]] {
-                    assert!(
-                        crate::validate_aarch64_selected_form_encoding(
-                            &physical,
-                            instruction,
-                            alternative,
-                            &[],
-                            changed
-                        )
-                        .is_err()
-                    );
-                }
-                let wrong_kind = SelectedInstructionKind::RegisterAccess {
-                    operation: RegisterOperation::MemoryFence(MemoryFenceKind::Full),
-                };
-                assert!(
-                    crate::encode_aarch64_selected_form(&physical, wrong_kind, alternative, &[])
-                        .is_err()
-                );
-                assert!(
-                    crate::encode_aarch64_selected_form(
-                        &physical,
-                        instruction,
-                        MachineAlternativeKey {
-                            family: MachineAlternativeFamily::AtomicFence,
-                            variant: 0
-                        },
-                        &[]
-                    )
-                    .is_err()
-                );
-                let operand = physical.model().view_named("x0").unwrap().id;
-                assert!(
-                    crate::encode_aarch64_selected_form(
-                        &physical,
-                        instruction,
-                        alternative,
-                        &[operand]
-                    )
-                    .is_err()
-                );
-            }
+        if *operand > 30 || !operation.is_admitted() {
+            return Err(Error::AlternativeMismatch);
         }
+        let (base, reg) = match operation {
+            RegisterOperation::SystemRead(r) => (0xd520_0000_u32, r),
+            RegisterOperation::SystemWrite(r) => (0xd500_0000_u32, r),
+            _ => return Err(Error::AlternativeMismatch),
+        };
+        let sel = SYSREG_TABLE
+            .iter()
+            .find(|(r, _)| *r == reg)
+            .map(|(_, s)| *s)
+            .ok_or(Error::AlternativeMismatch)?;
+        Ok((base | (u32::from(sel) << 5) | u32::from(*operand))
+            .to_le_bytes()
+            .to_vec())
     }
 }
-mod plan_words {
-    use super::Aarch64SelectedFormEncodingError;
 
-    pub(super) const COND_EQ: u8 = 0x0;
-    pub(super) const COND_NE: u8 = 0x1;
-    pub(super) const COND_HS: u8 = 0x2;
-    pub(super) const COND_LO: u8 = 0x3;
-    pub(super) const COND_HI: u8 = 0x8;
+mod selected_forms {
+    use super::movn_materialization::append_canonical_materialization;
+    use super::{
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded, byte_sequences, enc, float_bits,
+    };
+    use crate::aarch64_physical_register_model_ref;
+    use crate::saturating_forms::SaturatingRealization;
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+    use selected_instructions::{
+        MachineAlternativeFamily as Fam, MachineAlternativeKey, MachineEncodedControlEffect,
+        MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+        MachineEncodedTrapBehavior, RegisterOperation, SelectedInstructionKind as Kind,
+        is_float_bit_transfer,
+    };
+    use semantic_vocabulary::IntegerValue;
 
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub(super) enum Instruction<Label> {
-        Zero(u8),
-        One(u8),
-        Cbz(u8, Label),
-        Tbnz7(u8, Label),
-        LdrbRegister {
-            destination: u8,
-            base: u8,
-            index: u8,
-        },
-        AddImmediate {
-            destination: u8,
-            source: u8,
-            immediate: u16,
-        },
-        CompareRegister {
-            left: u8,
-            right: u8,
-        },
-        CompareImmediate {
-            register: u8,
-            immediate: u16,
-        },
-        BranchConditional {
-            condition: u8,
-            target: Label,
-        },
-        Branch(Label),
-    }
+    pub const AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET: u16 = 0;
+    pub const AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET: u16 = 4;
 
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub(super) enum Decoded {
-        Zero(u8),
-        One(u8),
-        Cbz(u8, i32),
-        Tbnz7(u8, i32),
-        LdrbRegister {
-            destination: u8,
-            base: u8,
-            index: u8,
-        },
-        AddImmediate {
-            destination: u8,
-            source: u8,
-            immediate: u16,
-        },
-        CompareRegister {
-            left: u8,
-            right: u8,
-        },
-        CompareImmediate {
-            register: u8,
-            immediate: u16,
-        },
-        BranchConditional {
-            condition: u8,
-            target: i32,
-        },
-        Branch(i32),
-    }
+    const BOUND_WORDS: [(u64, u32); 11] = [
+        (i8::MAX as u64, 0xb240_1be0),
+        (i8::MIN as i64 as u64, 0xb279_e3e0),
+        (i16::MAX as u64, 0xb240_3be0),
+        (i16::MIN as i64 as u64, 0xb271_c3e0),
+        (i32::MAX as u64, 0xb240_7be0),
+        (i32::MIN as i64 as u64, 0xb261_83e0),
+        (i64::MAX as u64, 0xb240_fbe0),
+        (i64::MIN as u64, 0xb241_03e0),
+        (u8::MAX as u64, 0xb240_1fe0),
+        (u16::MAX as u64, 0xb240_3fe0),
+        (u32::MAX as u64, 0xb240_7fe0),
+    ];
 
-    pub(super) fn sign_extend(value: u32, bits: u32) -> i32 {
-        let shift = 32 - bits;
-        ((value << shift) as i32) >> shift
-    }
-
-    pub(super) fn words<Label: Copy + Eq>(
-        plan: &[(Option<Label>, Instruction<Label>)],
-    ) -> Result<Vec<u32>, Aarch64SelectedFormEncodingError> {
-        let labels = plan
-            .iter()
-            .enumerate()
-            .filter_map(|(index, (label, _))| label.map(|label| (label, index)))
-            .collect::<Vec<_>>();
-        plan.iter()
-            .enumerate()
-            .map(|(position, (_, instruction))| emit_word(*instruction, position, &labels))
-            .collect()
-    }
-
-    pub(super) fn assemble<Label: Copy + Eq>(
-        plan: &[(Option<Label>, Instruction<Label>)],
-    ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
-        Ok(words(plan)?
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect())
-    }
-
-    pub(super) fn expected_stream<Label: Copy + Eq>(
-        plan: &[(Option<Label>, Instruction<Label>)],
-    ) -> Result<Vec<Decoded>, Aarch64SelectedFormEncodingError> {
-        words(plan)?
-            .into_iter()
-            .enumerate()
-            .map(|(position, word)| decode_word(word, position))
-            .collect()
-    }
-
-    fn emit_word<Label: Copy + Eq>(
-        instruction: Instruction<Label>,
-        position: usize,
-        labels: &[(Label, usize)],
-    ) -> Result<u32, Aarch64SelectedFormEncodingError> {
-        let target_word = |label: Label| -> usize {
-            labels
-                .iter()
-                .find(|(candidate, _)| *candidate == label)
-                .map(|(_, index)| *index)
-                .expect("the plan defines every branch label")
-        };
-        let relative = |label: Label, bits: u32| -> Result<u32, Aarch64SelectedFormEncodingError> {
-            let displacement = target_word(label) as i64 - position as i64;
-            let limit = 1i64 << (bits - 1);
-            if !(-limit..limit).contains(&displacement) {
-                return Err(match bits {
-                    14 | 19 => Aarch64SelectedFormEncodingError::BranchDisplacementOutsideImm19,
-                    _ => Aarch64SelectedFormEncodingError::BranchDisplacementOutsideImm26,
-                });
-            }
-            Ok((displacement as i32) as u32 & ((1u32 << bits) - 1))
-        };
-        Ok(match instruction {
-            Instruction::Zero(register) => 0xd280_0000 | register as u32,
-            Instruction::One(register) => 0xd280_0020 | register as u32,
-            Instruction::Cbz(register, target) => {
-                0xb400_0000 | (relative(target, 19)? << 5) | register as u32
-            }
-            Instruction::Tbnz7(register, target) => {
-                0x3738_0000 | (relative(target, 14)? << 5) | register as u32
-            }
-            Instruction::LdrbRegister {
-                destination,
-                base,
-                index,
-            } => 0x3860_6800 | ((index as u32) << 16) | ((base as u32) << 5) | destination as u32,
-            Instruction::AddImmediate {
-                destination,
-                source,
-                immediate,
-            } => {
-                0x9100_0000
-                    | ((immediate as u32) << 10)
-                    | ((source as u32) << 5)
-                    | destination as u32
-            }
-            Instruction::CompareRegister { left, right } => {
-                0xeb00_001f | ((right as u32) << 16) | ((left as u32) << 5)
-            }
-            Instruction::CompareImmediate {
-                register,
-                immediate,
-            } => 0xf100_0000 | ((immediate as u32) << 10) | ((register as u32) << 5) | 0x1f,
-            Instruction::BranchConditional { condition, target } => {
-                0x5400_0000 | (relative(target, 19)? << 5) | condition as u32
-            }
-            Instruction::Branch(target) => 0x1400_0000 | relative(target, 26)?,
+    pub fn encode_aarch64_selected_form(
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+    ) -> Result<Encoded, Error> {
+        if let Some(res) = byte_sequences::try_encode(physical, kind, alternative, operands) {
+            return res;
+        }
+        if is_float_bit_transfer(kind) {
+            return float_bits::encode(physical, kind, alternative, operands);
+        }
+        validate_request(physical, kind, alternative, operands)?;
+        let regs = resolve_scalar_registers(physical, kind, operands)?;
+        validate_return_home(kind, &regs)?;
+        let bytes = encode_words(kind, &regs)?;
+        Ok(Encoded {
+            bytes,
+            footprint: footprint(kind, operands),
         })
     }
 
-    pub(super) fn decode_word(
-        word: u32,
-        position: usize,
-    ) -> Result<Decoded, Aarch64SelectedFormEncodingError> {
-        let register = (word & 31) as u8;
-        if word & 0xffe0_0000 == 0xd280_0000 {
-            return Ok(match (word >> 5) & 0xffff {
-                0 => Decoded::Zero(register),
-                1 => Decoded::One(register),
-                _ => return Err(Aarch64SelectedFormEncodingError::MalformedEncoding),
-            });
-        }
-        if word & 0xff00_0000 == 0xb400_0000 {
-            let displacement = sign_extend((word >> 5) & 0x7ffff, 19);
-            return Ok(Decoded::Cbz(register, position as i32 + displacement));
-        }
-        if word & 0xfff8_0000 == 0x3738_0000 {
-            let displacement = sign_extend((word >> 5) & 0x3fff, 14);
-            return Ok(Decoded::Tbnz7(register, position as i32 + displacement));
-        }
-        if word & 0xffe0_fc00 == 0x3860_6800 {
-            return Ok(Decoded::LdrbRegister {
-                destination: register,
-                base: ((word >> 5) & 31) as u8,
-                index: ((word >> 16) & 31) as u8,
-            });
-        }
-        if word & 0xffc0_0000 == 0x9100_0000 {
-            return Ok(Decoded::AddImmediate {
-                destination: register,
-                source: ((word >> 5) & 31) as u8,
-                immediate: ((word >> 10) & 0xfff) as u16,
-            });
-        }
-        if word & 0xffe0_fc1f == 0xeb00_001f {
-            return Ok(Decoded::CompareRegister {
-                left: ((word >> 5) & 31) as u8,
-                right: ((word >> 16) & 31) as u8,
-            });
-        }
-        if word & 0xffc0_0000 == 0xf100_0000 && register == 0x1f {
-            return Ok(Decoded::CompareImmediate {
-                register: ((word >> 5) & 31) as u8,
-                immediate: ((word >> 10) & 0xfff) as u16,
-            });
-        }
-        if word & 0xff00_0010 == 0x5400_0000 {
-            let displacement = sign_extend((word >> 5) & 0x7ffff, 19);
-            return Ok(Decoded::BranchConditional {
-                condition: register & 15,
-                target: position as i32 + displacement,
-            });
-        }
-        if word & 0xfc00_0000 == 0x1400_0000 {
-            let displacement = sign_extend(word & 0x03ff_ffff, 26);
-            return Ok(Decoded::Branch(position as i32 + displacement));
-        }
-        Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
+    pub fn validate_aarch64_selected_form_encoding(
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+        bytes: &[u8],
+    ) -> Result<Encoded, Error> {
+        let canonical = encode_aarch64_selected_form(physical, kind, alternative, operands)?;
+        enc::check_bytes(bytes, &canonical.bytes)?;
+        Ok(canonical)
     }
-}
-pub(crate) mod register_access {
-    #[cfg(test)]
-    pub(crate) use selected_instructions::MachineAlternativeFamily;
 
-    pub(crate) use target_aarch64::form_effects::register_access::effects;
-
-    use super::Aarch64SelectedFormEncodingError;
-
-    use selected_instructions::{RegisterOperation, SystemRegister};
-
-    pub(crate) fn encode(
-        operation: RegisterOperation,
-        registers: &[u8],
-    ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
-        let [operand] = registers else {
-            return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
-        };
-        if *operand > 30 || !operation.is_admitted() {
-            return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
+    fn validate_request(
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+    ) -> Result<(), Error> {
+        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+            return Err(Error::NonCanonicalPhysicalModel);
         }
-        let (base, register) = match operation {
-            RegisterOperation::SystemRead(register) => (0xd520_0000, register),
-            RegisterOperation::SystemWrite(register) => (0xd500_0000, register),
-            _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
-        };
-        let selector: u16 = match register {
-            SystemRegister::SctlrEl1 => 0xc080,
-            SystemRegister::TcrEl1 => 0xc102,
-            SystemRegister::Ttbr0El1 => 0xc100,
-            SystemRegister::Ttbr1El1 => 0xc101,
-            SystemRegister::MairEl1 => 0xc510,
-            SystemRegister::VbarEl1 => 0xc600,
-            SystemRegister::TpidrEl1 => 0xc684,
-            SystemRegister::EsrEl1 => 0xc290,
-            SystemRegister::FarEl1 => 0xc300,
-            SystemRegister::Rflags | SystemRegister::Control(_) => {
-                return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
+        let (family, count) = family_and_operand_count(kind)?;
+        if alternative != (MachineAlternativeKey { family, variant: 0 }) {
+            return Err(Error::AlternativeMismatch);
+        }
+        if operands.len() != count {
+            return Err(Error::OperandCountMismatch);
+        }
+        Ok(())
+    }
+
+    #[derive(Clone, Copy)]
+    enum SimpleForm {
+        Fixed(u32),
+        Cset(u8),
+        Rr(u32),
+        RmRd(u32),
+        Cmp0,
+        CmpImm(IntegerValue),
+        CmpReg,
+        Rri12(u32, IntegerValue),
+        Rrr(u32),
+        Rem(u32),
+    }
+
+    impl SimpleForm {
+        const fn operands(self) -> usize {
+            match self {
+                Self::Fixed(_) => 0,
+                Self::Cset(_) | Self::Cmp0 | Self::CmpImm(_) => 1,
+                Self::Rr(_) | Self::RmRd(_) | Self::CmpReg | Self::Rri12(_, _) => 2,
+                Self::Rrr(_) | Self::Rem(_) => 3,
             }
-        };
-        let word = base | (u32::from(selector) << 5) | u32::from(*operand);
-        Ok(word.to_le_bytes().to_vec())
-    }
+        }
 
-    pub(crate) fn decode(word: u32) -> Option<(RegisterOperation, u8)> {
-        let read = match word & 0xffe0_0000 {
-            0xd520_0000 => true,
-            0xd500_0000 => false,
-            _ => return None,
-        };
-        let register = match (word >> 5) & 0xffff {
-            0xc080 => SystemRegister::SctlrEl1,
-            0xc102 => SystemRegister::TcrEl1,
-            0xc100 => SystemRegister::Ttbr0El1,
-            0xc101 => SystemRegister::Ttbr1El1,
-            0xc510 => SystemRegister::MairEl1,
-            0xc600 => SystemRegister::VbarEl1,
-            0xc684 => SystemRegister::TpidrEl1,
-            0xc290 => SystemRegister::EsrEl1,
-            0xc300 => SystemRegister::FarEl1,
-            _ => return None,
-        };
-        let operation = if read {
-            RegisterOperation::SystemRead(register)
-        } else {
-            RegisterOperation::SystemWrite(register)
-        };
-        operation
-            .is_admitted()
-            .then_some((operation, (word & 31) as u8))
-    }
+        fn io(self) -> (Vec<u16>, Vec<u16>, bool, bool) {
+            match self {
+                Self::Fixed(_) => (vec![], vec![], false, false),
+                Self::Cset(_) => (vec![], vec![0], false, true),
+                Self::Rr(_) | Self::RmRd(_) | Self::Rri12(_, _) => (vec![0], vec![1], false, false),
+                Self::Cmp0 | Self::CmpImm(_) => (vec![0], vec![], true, false),
+                Self::CmpReg => (vec![0, 1], vec![], true, false),
+                Self::Rrr(_) | Self::Rem(_) => (vec![0, 1], vec![2], false, false),
+            }
+        }
 
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use selected_instructions::{MachineAlternativeKey, SelectedInstructionKind};
-
-        #[test]
-        fn system_register_transfers_match_llvm_and_reject_changed_instruction_fields() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let vectors = [
-                (
-                    SystemRegister::SctlrEl1,
-                    0xd5381013_u32,
-                    Some(0xd5181014_u32),
-                ),
-                (SystemRegister::TcrEl1, 0xd5382053, Some(0xd5182054)),
-                (SystemRegister::Ttbr0El1, 0xd5382013, Some(0xd5182014)),
-                (SystemRegister::Ttbr1El1, 0xd5382033, Some(0xd5182034)),
-                (SystemRegister::MairEl1, 0xd538a213, Some(0xd518a214)),
-                (SystemRegister::VbarEl1, 0xd538c013, Some(0xd518c014)),
-                (SystemRegister::TpidrEl1, 0xd538d093, Some(0xd518d094)),
-                (SystemRegister::EsrEl1, 0xd5385213, None),
-                (SystemRegister::FarEl1, 0xd5386013, None),
-            ];
-            for (register, read_word, write_word) in vectors {
-                for (read, word) in [(true, Some(read_word)), (false, write_word)] {
-                    let Some(word) = word else {
-                        continue;
-                    };
-                    let operation = if read {
-                        RegisterOperation::SystemRead(register)
-                    } else {
-                        RegisterOperation::SystemWrite(register)
-                    };
-                    let operand = physical
-                        .model()
-                        .view_named(if read { "x19" } else { "x20" })
-                        .unwrap()
-                        .id;
-                    let kind = SelectedInstructionKind::RegisterAccess { operation };
-                    let alternative = MachineAlternativeKey {
-                        family: if read {
-                            MachineAlternativeFamily::SystemRegisterRead
-                        } else {
-                            MachineAlternativeFamily::SystemRegisterWrite
-                        },
-                        variant: 0,
-                    };
-                    let encoded = crate::encode_aarch64_selected_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &[operand],
-                    )
-                    .unwrap();
-                    assert_eq!(encoded.bytes(), &word.to_le_bytes());
-                    assert_eq!(encoded.footprint().encoded, effects(read));
-                    assert_eq!(
-                        encoded.footprint().register_reads,
-                        if read { vec![] } else { vec![operand] }
-                    );
-                    assert_eq!(
-                        encoded.footprint().register_writes,
-                        if read { vec![operand] } else { vec![] }
-                    );
-                    for bit in 0..32 {
-                        let changed = (word ^ (1 << bit)).to_le_bytes();
-                        assert!(
-                            crate::validate_aarch64_selected_form_encoding(
-                                &physical,
-                                kind,
-                                alternative,
-                                &[operand],
-                                &changed
-                            )
-                            .is_err(),
-                            "{operation:?}, bit {bit}"
-                        );
+        fn emit(self, w: &mut Vec<u32>, r: &[u8]) -> Result<(), Error> {
+            match self {
+                Self::Fixed(word) => w.push(word),
+                Self::Cset(cond) => {
+                    w.push(0x9a9f_07e0 | ((u32::from(cond) ^ 1) << 12) | u32::from(r[0]));
+                }
+                Self::Rr(op) => w.push(enc::rr(op, r[1], r[0])),
+                Self::RmRd(op) => w.push(op | (u32::from(r[0]) << 16) | u32::from(r[1])),
+                Self::Cmp0 => w.push(enc::cmp_imm(true, r[0], 0)),
+                Self::CmpImm(imm) => w.push(enc::cmp_imm(true, r[0], u12(imm)?)),
+                Self::CmpReg => w.push(enc::cmp_reg(r[0], r[1])),
+                Self::Rri12(op, imm) => w.push(enc::rri12(op, r[1], r[0], u12(imm)?)),
+                Self::Rrr(op) => w.push(enc::rrr(op, r[2], r[0], r[1])),
+                Self::Rem(div_op) => {
+                    if r[2] == r[0] || r[2] == r[1] {
+                        return Err(Error::EncodedFormMismatch);
                     }
-                    let mut extended = encoded.bytes().to_vec();
-                    extended.push(0);
-                    for bytes in [&extended[..], &encoded.bytes()[..3]] {
-                        assert!(
-                            crate::validate_aarch64_selected_form_encoding(
-                                &physical,
-                                kind,
-                                alternative,
-                                &[operand],
-                                bytes
-                            )
-                            .is_err()
-                        );
-                    }
-                    let narrow = physical.model().view_named("w19").unwrap().id;
-                    assert!(
-                        crate::encode_aarch64_selected_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &[narrow]
-                        )
-                        .is_err()
-                    );
-                    assert!(
-                        crate::encode_aarch64_selected_form(&physical, kind, alternative, &[])
-                            .is_err()
-                    );
-                    assert!(
-                        crate::encode_aarch64_selected_form(
-                            &physical,
-                            kind,
-                            MachineAlternativeKey {
-                                variant: 1,
-                                ..alternative
-                            },
-                            &[operand]
-                        )
-                        .is_err()
-                    );
+                    w.extend([
+                        enc::rrr(div_op, r[2], r[0], r[1]),
+                        enc::msub(r[2], r[2], r[1], r[0]),
+                    ]);
                 }
             }
-            for register in [SystemRegister::EsrEl1, SystemRegister::FarEl1] {
-                assert!(encode(RegisterOperation::SystemWrite(register), &[20]).is_err());
+            Ok(())
+        }
+    }
+
+    #[rustfmt::skip]
+    fn simple_form(kind: Kind) -> Option<(Fam, SimpleForm)> {
+        use SimpleForm as S;
+        Some(match kind {
+            Kind::AtomicFence => (Fam::AtomicFence, S::Fixed(enc::DMB_ISH)),
+            Kind::Crash => (Fam::Crash, S::Fixed(enc::BRK_0)),
+            Kind::MaterializeBooleanEqual => (Fam::MaterializeBooleanEqual, S::Cset(enc::EQ)),
+            Kind::MaterializeBooleanU64LessThan => (Fam::MaterializeBooleanU64LessThan, S::Cset(enc::LO)),
+            Kind::MaterializeBooleanI64LessThan => (Fam::MaterializeBooleanI64LessThan, S::Cset(enc::LT)),
+            Kind::MaterializeBooleanU64LessOrEqual => (Fam::MaterializeBooleanU64LessOrEqual, S::Cset(enc::LS)),
+            Kind::MaterializeBooleanI64LessOrEqual => (Fam::MaterializeBooleanI64LessOrEqual, S::Cset(enc::LE)),
+            Kind::ZeroExtendU8 => (Fam::ZeroExtendU8, S::Rr(0xd340_1c00)),
+            Kind::ZeroExtendU16 => (Fam::ZeroExtendU16, S::Rr(0xd340_3c00)),
+            Kind::ZeroExtendU32 => (Fam::ZeroExtendU32, S::Rr(0xd340_7c00)),
+            Kind::SignExtendI8 => (Fam::SignExtendI8, S::Rr(0x9340_1c00)),
+            Kind::SignExtendI16 => (Fam::SignExtendI16, S::Rr(0x9340_3c00)),
+            Kind::SignExtendI32 => (Fam::SignExtendI32, S::Rr(0x9340_7c00)),
+            Kind::CopyI64 => (Fam::CopyI64, S::RmRd(0xaa00_03e0)),
+            Kind::BitwiseNotI64 => (Fam::BitwiseNotI64, S::RmRd(0xaa20_03e0)),
+            Kind::CompareI64Zero => (Fam::CompareI64Zero, S::Cmp0),
+            Kind::CompareI64Immediate { immediate } => (Fam::CompareI64Immediate, S::CmpImm(immediate)),
+            Kind::CompareI64 => (Fam::CompareI64, S::CmpReg),
+            Kind::ExactAddI64Immediate { immediate, .. } => (Fam::ExactAddI64Immediate, S::Rri12(0x9100_0000, immediate)),
+            Kind::ExactSubtractI64Immediate { immediate, .. } => (Fam::ExactSubtractI64Immediate, S::Rri12(0xd100_0000, immediate)),
+            Kind::ByteViewAddress => (Fam::ByteViewAddress, S::Rrr(0x8b00_0000)),
+            Kind::WrappingAddI64 => (Fam::WrappingAddI64, S::Rrr(0x8b00_0000)),
+            Kind::ExactAddI64 { .. } => (Fam::ExactAddI64, S::Rrr(0x8b00_0000)),
+            Kind::WrappingSubtractI64 => (Fam::WrappingSubtractI64, S::Rrr(0xcb00_0000)),
+            Kind::ExactSubtractI64 { .. } => (Fam::ExactSubtractI64, S::Rrr(0xcb00_0000)),
+            Kind::WrappingMultiplyI64 => (Fam::WrappingMultiplyI64, S::Rrr(0x9b00_7c00)),
+            Kind::ExactMultiplyI64 { .. } => (Fam::ExactMultiplyI64, S::Rrr(0x9b00_7c00)),
+            Kind::BitwiseAndI64 => (Fam::BitwiseAndI64, S::Rrr(0x8a00_0000)),
+            Kind::BitwiseOrI64 => (Fam::BitwiseOrI64, S::Rrr(0xaa00_0000)),
+            Kind::BitwiseXorI64 => (Fam::BitwiseXorI64, S::Rrr(0xca00_0000)),
+            Kind::ExactDivideU64 { .. } => (Fam::ExactDivideU64, S::Rrr(0x9ac0_0800)),
+            Kind::WrappingDivideI64 { .. } => (Fam::WrappingDivideI64, S::Rrr(0x9ac0_0c00)),
+            Kind::ExactDivideI64 { .. } => (Fam::ExactDivideI64, S::Rrr(0x9ac0_0c00)),
+            Kind::ExactRemainderU64 { .. } => (Fam::ExactRemainderU64, S::Rem(0x9ac0_0800)),
+            Kind::WrappingRemainderI64 { .. } => (Fam::WrappingRemainderI64, S::Rem(0x9ac0_0c00)),
+            Kind::ExactRemainderI64 { .. } => (Fam::ExactRemainderI64, S::Rem(0x9ac0_0c00)),
+            Kind::WrappingShiftLeftI64 => (Fam::WrappingShiftLeftI64, S::Rrr(0x9ac0_2000)),
+            Kind::ExactShiftLeftI64 { .. } => (Fam::ExactShiftLeftI64, S::Rrr(0x9ac0_2000)),
+            Kind::WrappingShiftRightU64 => (Fam::WrappingShiftRightU64, S::Rrr(0x9ac0_2400)),
+            Kind::ExactShiftRightU64 { .. } => (Fam::ExactShiftRightU64, S::Rrr(0x9ac0_2400)),
+            Kind::WrappingShiftRightI64 => (Fam::WrappingShiftRightI64, S::Rrr(0x9ac0_2800)),
+            Kind::ExactShiftRightI64 { .. } => (Fam::ExactShiftRightI64, S::Rrr(0x9ac0_2800)),
+            _ => return None,
+        })
+    }
+
+    fn family_and_operand_count(kind: Kind) -> Result<(Fam, usize), Error> {
+        if let Some((family, form)) = simple_form(kind) {
+            return Ok((family, form.operands()));
+        }
+        Ok(match kind {
+            Kind::PackedAddI16x8
+            | Kind::PackedSubI16x8
+            | Kind::PackedShuffleI16x8 { .. }
+            | Kind::PackedShuffleGeneralI16x8 { .. }
+            | Kind::PackedShiftRightArithmeticI16x8 { .. }
+            | Kind::PackedWidenU8x8ToI16x8
+            | Kind::PackedNarrowI16x8ToU8x8Saturating
+            | Kind::PackedLoadI16x4ZeroExtend
+            | Kind::PackedWidenU8x4ToI16x8
+            | Kind::PackedNarrowI16x8ToU8x4Saturating
+            | Kind::PackedLoad128 { .. }
+            | Kind::PackedStore128 { .. }
+            | Kind::PackedLoad64ZeroExtend { .. }
+            | Kind::PackedStore64 { .. }
+            | Kind::PackedLoad32ZeroExtend { .. }
+            | Kind::PackedStore32 { .. }
+            | Kind::PackedMaterializeZero
+            | Kind::PackedFromGpr64ZeroExtend
+            | Kind::PackedFromGpr64Pair
+            | Kind::PackedAddI16x8Reg
+            | Kind::PackedSubI16x8Reg
+            | Kind::PackedShiftRightArithmeticI16x8Reg { .. }
+            | Kind::PackedShuffleI16x8Reg { .. }
+            | Kind::PackedWidenU8x8ToI16x8Reg
+            | Kind::PackedNarrowI16x8ToU8x8SaturatingReg
+            | Kind::PackedAddU8x16
+            | Kind::PackedMinI16x8
+            | Kind::PackedCmpGtI16x8
+            | Kind::PackedBitAndI16x8
+            | Kind::PackedBitAndNotI16x8
+            | Kind::PackedAbsI16x8
+            | Kind::PackedAddU8x16Reg
+            | Kind::PackedMinI16x8Reg
+            | Kind::PackedCmpGtI16x8Reg
+            | Kind::PackedBitAndI16x8Reg
+            | Kind::PackedBitAndNotI16x8Reg
+            | Kind::PackedAbsI16x8Reg
+            | Kind::PrivilegedCrash
+            | Kind::InstalledInterruptCpuCheck { .. }
+            | Kind::InstalledInterruptTaskCommit { .. }
+            | Kind::InstalledInterruptTablePublication { .. }
+            | Kind::PortWrite { .. } => return Err(Error::AlternativeMismatch),
+            Kind::AccessorScalarAccess { form, .. } => (Fam::AccessorScalarAccess(form), 2),
+            Kind::AtomicAccess { form } => {
+                (Fam::AtomicAccess(form), usize::from(form.operand_count()))
             }
-            assert!(decode(0xd518_5214).is_none());
-            assert!(decode(0xd518_6014).is_none());
-            assert!(decode(0xd538_0000).is_none());
-        }
-    }
-}
-mod scan_byte_sequence {
-    use super::plan_words::{self, COND_EQ, COND_HI, COND_HS, COND_LO, Instruction};
-    use super::{
-        Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding, decode_all,
-    };
-    use crate::selected_form_encoding::selected_forms::request_registers;
-    use register_model::RegisterViewId;
-    use register_model::ValidatedPhysicalRegisterModel;
-    use selected_instructions::ByteSequencePredicate;
-    use selected_instructions::MachineAlternativeFamily;
-    use selected_instructions::MachineAlternativeKey;
-    use selected_instructions::MachineEncodedMemoryEffect;
-
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    enum Label {
-        Loop,
-        Done,
-        Fail,
-        Advance1,
-        Cont1,
-        Cont2Any,
-        Lead3,
-        E0Path,
-        EdPath,
-        Cont3Any,
-        F0Path,
-        F4Path,
-    }
-
-    fn compare_immediate_branch(
-        label: Option<Label>,
-        register: u8,
-        immediate: u16,
-        condition: u8,
-        target: Label,
-    ) -> [(Option<Label>, Instruction<Label>); 2] {
-        [
-            (
-                label,
-                Instruction::CompareImmediate {
-                    register,
-                    immediate,
-                },
+            Kind::NearestIeeeFloatArithmetic { form } => (
+                Fam::NearestIeeeFloatArithmetic(form),
+                form.operand_count() + 1,
             ),
-            (None, Instruction::BranchConditional { condition, target }),
-        ]
+            Kind::FloatResultPolicy { form } => {
+                (Fam::FloatResultPolicy(form), form.operand_count() + 1)
+            }
+            Kind::RegisterAccess {
+                operation: RegisterOperation::MemoryFence(fence),
+            } => {
+                if fence.target() != selected_instructions::RegisterTargetApplicability::Aarch64 {
+                    return Err(Error::AlternativeMismatch);
+                }
+                (Fam::MemoryFence, 0)
+            }
+            Kind::RegisterAccess { operation } => (
+                if operation.produces_value() {
+                    Fam::SystemRegisterRead
+                } else {
+                    Fam::SystemRegisterWrite
+                },
+                1,
+            ),
+            Kind::TrappingInteger { form } => (
+                Fam::TrappingInteger(form),
+                super::trapping_forms::operand_count(form),
+            ),
+            Kind::MaterializeI64 { .. } => (Fam::MaterializeI64, 1),
+            Kind::ImageAddress { .. } => (Fam::ImageAddress, 1),
+            Kind::SaturatingAdd { carrier }
+            | Kind::SaturatingSubtract { carrier }
+            | Kind::SaturatingDivide { carrier, .. }
+            | Kind::SaturatingRemainder { carrier, .. }
+            | Kind::SaturatingMultiply { carrier } => {
+                let family = match kind {
+                    Kind::SaturatingAdd { .. } => Fam::SaturatingAdd(carrier),
+                    Kind::SaturatingSubtract { .. } => Fam::SaturatingSubtract(carrier),
+                    Kind::SaturatingDivide { .. } => Fam::SaturatingDivide(carrier),
+                    Kind::SaturatingRemainder { .. } => Fam::SaturatingRemainder(carrier),
+                    _ => Fam::SaturatingMultiply(carrier),
+                };
+                let count = SaturatingRealization::of_kind(kind)
+                    .ok_or(Error::EncodedFormMismatch)?
+                    .operand_count();
+                (family, count)
+            }
+            Kind::ReturnScalar => (Fam::ReturnScalar, 1),
+            Kind::ReturnAggregate { fragment_count } => {
+                if !(1..=2).contains(&fragment_count) {
+                    return Err(Error::EncodedFormMismatch);
+                }
+                (Fam::ReturnAggregate, usize::from(fragment_count))
+            }
+            Kind::ReturnUnit => (Fam::ReturnUnit, 0),
+            _ => return Err(Error::LayoutDependentForm),
+        })
     }
 
-    macro_rules! branch {
-        ($a:expr => $b:expr => $c:expr => $d:expr => $e:expr) => {
-            compare_immediate_branch($a, $b, $c, $d, $e)
-        };
-    }
-
-    fn layout(
-        predicate: ByteSequencePredicate,
-        registers: [u8; 5],
-    ) -> Vec<(Option<Label>, Instruction<Label>)> {
-        let [base, count, cursor, byte, result] = registers;
-        let mut out: Vec<(Option<Label>, Instruction<Label>)> = Vec::new();
-        out.extend([
-            (None, Instruction::Zero(cursor)),
-            (None, Instruction::Zero(byte)),
-            (None, Instruction::Zero(result)),
-        ]);
-        if predicate == ByteSequencePredicate::NonEmpty {
-            out.extend([
-                (None, Instruction::Cbz(count, Label::Done)),
-                (None, Instruction::One(result)),
-                (Some(Label::Done), Instruction::Zero(cursor)),
-            ]);
-            return out;
+    fn validate_return_home(kind: Kind, regs: &[u8]) -> Result<(), Error> {
+        if matches!(kind, Kind::ReturnScalar) && regs != [0] {
+            return Err(Error::EncodedFormMismatch);
         }
-        out.push((None, Instruction::One(result)));
-        match predicate {
-            ByteSequencePredicate::NoNul | ByteSequencePredicate::AsciiOnly => {
-                out.push((None, Instruction::Cbz(count, Label::Done)));
-                out.push((
-                    Some(Label::Loop),
-                    Instruction::LdrbRegister {
-                        destination: byte,
-                        base,
-                        index: cursor,
-                    },
-                ));
-                out.push((
-                    None,
-                    if predicate == ByteSequencePredicate::NoNul {
-                        Instruction::Cbz(byte, Label::Fail)
-                    } else {
-                        Instruction::Tbnz7(byte, Label::Fail)
-                    },
-                ));
-                out.extend([
-                    (
-                        None,
-                        Instruction::AddImmediate {
-                            destination: cursor,
-                            source: cursor,
-                            immediate: 1,
-                        },
-                    ),
-                    (
-                        None,
-                        Instruction::CompareRegister {
-                            left: cursor,
-                            right: count,
-                        },
-                    ),
-                    (
-                        None,
-                        Instruction::BranchConditional {
-                            condition: COND_LO,
-                            target: Label::Loop,
-                        },
-                    ),
-                    (None, Instruction::Branch(Label::Done)),
-                    (Some(Label::Fail), Instruction::Zero(result)),
-                    (Some(Label::Done), Instruction::Zero(cursor)),
+        if let Kind::ReturnAggregate { fragment_count } = kind
+            && (!(1..=2).contains(&fragment_count)
+                || regs != &([0, 1][..usize::from(fragment_count)]))
+        {
+            return Err(Error::EncodedFormMismatch);
+        }
+        Ok(())
+    }
+
+    fn resolve_scalar_registers(
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        operands: &[RegisterViewId],
+    ) -> Result<Vec<u8>, Error> {
+        if kind == Kind::ReturnScalar
+            && physical
+                .model()
+                .view_named("d0")
+                .is_some_and(|v| operands == [v.id])
+        {
+            return Ok(vec![0]);
+        }
+        resolve_registers(physical, operands)
+    }
+
+    pub(super) fn request_registers<const COUNT: usize>(
+        physical: &ValidatedPhysicalRegisterModel,
+        alternative: MachineAlternativeKey,
+        family: Fam,
+        operands: &[RegisterViewId],
+        first_early: usize,
+    ) -> Result<[u8; COUNT], Error> {
+        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+            return Err(Error::NonCanonicalPhysicalModel);
+        }
+        if alternative != (MachineAlternativeKey { family, variant: 0 }) {
+            return Err(Error::AlternativeMismatch);
+        }
+        let regs: [u8; COUNT] = resolve_registers(physical, operands)?
+            .try_into()
+            .map_err(|_| Error::OperandCountMismatch)?;
+        if (first_early..COUNT).any(|slot| regs[..slot].contains(&regs[slot])) {
+            return Err(Error::EncodedFormMismatch);
+        }
+        Ok(regs)
+    }
+
+    pub(crate) fn resolve_registers(
+        physical: &ValidatedPhysicalRegisterModel,
+        operands: &[RegisterViewId],
+    ) -> Result<Vec<u8>, Error> {
+        operands
+            .iter()
+            .map(|&id| {
+                let view = physical
+                    .model()
+                    .view(id)
+                    .ok_or(Error::UnknownOrNonGpr64View(id))?;
+                view.name
+                    .strip_prefix('x')
+                    .and_then(|s| s.parse::<u8>().ok())
+                    .filter(|&i| i <= 30 && view.bits == 64 && view.allocatable)
+                    .ok_or(Error::UnknownOrNonGpr64View(id))
+            })
+            .collect()
+    }
+
+    fn integer_bits(value: IntegerValue) -> Result<u64, Error> {
+        match value {
+            IntegerValue::Signed(v) => i64::try_from(v)
+                .map(|v| v as u64)
+                .map_err(|_| Error::IntegerOutsideI64Bits),
+            IntegerValue::Unsigned(v) => u64::try_from(v).map_err(|_| Error::IntegerOutsideI64Bits),
+        }
+    }
+
+    fn u12(value: IntegerValue) -> Result<u16, Error> {
+        match value {
+            IntegerValue::Unsigned(v) if v <= 4095 => Ok(v as u16),
+            _ => Err(Error::ImmediateOutsideU12),
+        }
+    }
+
+    fn encode_words(kind: Kind, r: &[u8]) -> Result<Vec<u8>, Error> {
+        let mut w = Vec::with_capacity(8);
+        if let Some((_, form)) = simple_form(kind) {
+            form.emit(&mut w, r)?;
+            return Ok(enc::to_bytes(&w));
+        }
+        match kind {
+            Kind::AccessorScalarAccess { .. } => return Err(Error::EncodedFormMismatch),
+            Kind::AtomicAccess { form } => return super::atomic::encode(form, r),
+            Kind::NearestIeeeFloatArithmetic { form } => {
+                return super::ieee_float_arithmetic::encode(form, r);
+            }
+            Kind::FloatResultPolicy { form } => return super::float_result_policy::encode(form, r),
+            Kind::RegisterAccess {
+                operation: RegisterOperation::MemoryFence(fence),
+            } => {
+                if !r.is_empty() {
+                    return Err(Error::OperandCountMismatch);
+                }
+                return super::register_access::encode_fence(fence)
+                    .ok_or(Error::AlternativeMismatch);
+            }
+            Kind::RegisterAccess { operation } => {
+                return super::register_access::encode(operation, r);
+            }
+            Kind::TrappingInteger { form } => {
+                let s = form.source_count();
+                if r[s..]
+                    .iter()
+                    .enumerate()
+                    .any(|(i, late)| r[..s].contains(late) || r[s + i + 1..].contains(late))
+                {
+                    return Err(Error::EncodedFormMismatch);
+                }
+                super::trapping_forms::append_words(&mut w, form, r);
+            }
+            Kind::MaterializeI64 { value } => {
+                append_canonical_materialization(&mut w, r[0], integer_bits(value)?);
+            }
+            Kind::ImageAddress { .. } => {
+                w.extend([
+                    0x9000_0000 | u32::from(r[0]),
+                    enc::rri12(0x9100_0000, r[0], r[0], 0),
                 ]);
-                return out;
+            }
+            selected_instructions::saturating_add_or_subtract_pattern!()
+            | Kind::SaturatingDivide { .. }
+            | Kind::SaturatingRemainder { .. }
+            | Kind::SaturatingMultiply { .. } => append_saturating(&mut w, kind, r)?,
+            Kind::ReturnScalar | Kind::ReturnAggregate { .. } | Kind::ReturnUnit => {
+                w.push(u32::from_le_bytes(crate::ORDINARY_RETURN_BYTES));
+            }
+            _ => return Err(Error::LayoutDependentForm),
+        }
+        Ok(enc::to_bytes(&w))
+    }
+
+    fn bound_word(bound: u64, rd: u8) -> Result<u32, Error> {
+        BOUND_WORDS
+            .iter()
+            .find(|(v, _)| *v == bound)
+            .map(|(_, word)| word | u32::from(rd))
+            .ok_or(Error::EncodedFormMismatch)
+    }
+
+    fn append_saturating(w: &mut Vec<u32>, kind: Kind, r: &[u8]) -> Result<(), Error> {
+        let real = SaturatingRealization::of_kind(kind).ok_or(Error::EncodedFormMismatch)?;
+        let (left, right, val) = (r[0], r[1], r[2]);
+        if real.operand_count() == 4
+            && (r[2..].iter().any(|late| r[..2].contains(late)) || r[2] == r[3])
+        {
+            return Err(Error::EncodedFormMismatch);
+        }
+        match real {
+            SaturatingRealization::AddU64 => w.extend([
+                enc::rrr(0xab00_0000, val, left, right),
+                enc::rr(0xda9f_3000, val, val),
+            ]),
+            SaturatingRealization::SubtractUnsigned => w.extend([
+                enc::rrr(0xeb00_0000, val, left, right),
+                enc::rr(0x9a9f_2000, val, val),
+            ]),
+            SaturatingRealization::DivideUnsigned => {
+                w.push(enc::rrr(0x9ac0_0800, val, left, right));
+            }
+            SaturatingRealization::Remainder { signed } => {
+                if val == left || val == right {
+                    return Err(Error::EncodedFormMismatch);
+                }
+                w.extend([
+                    enc::rrr(
+                        if signed { 0x9ac0_0c00 } else { 0x9ac0_0800 },
+                        val,
+                        left,
+                        right,
+                    ),
+                    enc::msub(val, val, right, left),
+                ]);
+            }
+            SaturatingRealization::ClampNarrow { operation, .. } => {
+                let s = r[3];
+                let op = match operation {
+                    selected_instructions::SaturatingOperation::Add => 0x8b00_0000,
+                    selected_instructions::SaturatingOperation::Subtract => 0xcb00_0000,
+                    selected_instructions::SaturatingOperation::Divide => 0x9ac0_0c00,
+                    selected_instructions::SaturatingOperation::Multiply => 0x9b00_7c00,
+                    selected_instructions::SaturatingOperation::Remainder => unreachable!(),
+                };
+                w.push(enc::rrr(op, val, left, right));
+                for (i, bound) in real.clamp_bounds().into_iter().enumerate() {
+                    let cond = if i == 0 {
+                        real.upper_condition() as u8
+                    } else {
+                        enc::LT
+                    };
+                    w.extend([
+                        bound_word(bound, s)?,
+                        enc::cmp_reg(val, s),
+                        enc::csel(val, s, val, cond),
+                    ]);
+                }
+            }
+            SaturatingRealization::MultiplyI64 => {
+                let s = r[3];
+                w.extend([
+                    enc::rrr(0x9b40_7c00, s, left, right),
+                    enc::rrr(0x9b00_7c00, val, left, right),
+                    0xeb80_fc1f | (u32::from(val) << 16) | (u32::from(s) << 5),
+                    enc::rr(0x937f_fc00, s, s),
+                    enc::rr(0xd240_f800, s, s),
+                    enc::csel(val, s, val, enc::NE),
+                ]);
+            }
+            SaturatingRealization::MultiplyU64 => {
+                let s = r[3];
+                w.extend([
+                    enc::rrr(0x9bc0_7c00, s, left, right),
+                    enc::rrr(0x9b00_7c00, val, left, right),
+                    enc::cmp_imm(true, s, 0),
+                    enc::rr(0xda9f_0000, val, val),
+                ]);
+            }
+            SaturatingRealization::OverflowI64 { subtract } => {
+                let s = r[3];
+                w.extend([
+                    enc::rr(0x937f_fc00, s, left),
+                    enc::rr(0xd240_f800, s, s),
+                    enc::rrr(
+                        if subtract { 0xeb00_0000 } else { 0xab00_0000 },
+                        val,
+                        left,
+                        right,
+                    ),
+                    enc::csel(val, s, val, enc::VS),
+                ]);
+            }
+            SaturatingRealization::DivideI64 => {
+                let s = r[3];
+                w.extend([
+                    enc::rrr(0x9ac0_0c00, val, left, right),
+                    bound_word(i64::MIN as u64, s)?,
+                    enc::cmp_reg(val, s),
+                    0xba41_0800 | (u32::from(right) << 5),
+                    bound_word(i64::MAX as u64, s)?,
+                    enc::csel(val, s, val, enc::EQ),
+                ]);
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn footprint(kind: Kind, operands: &[RegisterViewId]) -> Footprint {
+        match kind {
+            Kind::AtomicAccess { form } => return super::atomic::footprint(form, operands),
+            Kind::NearestIeeeFloatArithmetic { form } => {
+                return super::ieee_float_arithmetic::footprint(form, operands);
+            }
+            Kind::FloatResultPolicy { form } => {
+                return super::float_result_policy::footprint(form, operands);
             }
             _ => {}
         }
-        out.extend([
-            (None, Instruction::Cbz(count, Label::Done)),
-            (
-                Some(Label::Loop),
-                Instruction::CompareRegister {
-                    left: cursor,
-                    right: count,
-                },
-            ),
-            (
-                None,
-                Instruction::BranchConditional {
-                    condition: COND_HS,
-                    target: Label::Done,
-                },
-            ),
-            (
-                None,
-                Instruction::LdrbRegister {
-                    destination: byte,
-                    base,
-                    index: cursor,
-                },
-            ),
-        ]);
-        out.extend(branch!(None => byte => 0x80 => COND_LO => Label::Advance1));
-        out.extend(branch!(None => byte => 0xC2 => COND_LO => Label::Fail));
-        out.extend(branch!(None => byte => 0xE0 => COND_LO => Label::Cont1));
-        out.extend(branch!(None => byte => 0xF0 => COND_HS => Label::Lead3));
-        out.extend(branch!(None => byte => 0xE0 => COND_EQ => Label::E0Path));
-        out.extend(branch!(None => byte => 0xED => COND_EQ => Label::EdPath));
-        out.push((None, Instruction::Branch(Label::Cont2Any)));
-        out.extend(branch!(Some(Label::Lead3) => byte => 0xF5 => COND_HS => Label::Fail));
-        out.extend(branch!(None => byte => 0xF0 => COND_EQ => Label::F0Path));
-        out.extend(branch!(None => byte => 0xF4 => COND_EQ => Label::F4Path));
-        out.push((None, Instruction::Branch(Label::Cont3Any)));
-        for (label, width, low, high) in [
-            (Label::Cont1, 1u16, 0x80u16, 0xBFu16),
-            (Label::Cont2Any, 2, 0x80, 0xBF),
-            (Label::E0Path, 2, 0xA0, 0xBF),
-            (Label::EdPath, 2, 0x80, 0x9F),
-            (Label::Cont3Any, 3, 0x80, 0xBF),
-            (Label::F0Path, 3, 0x90, 0xBF),
-            (Label::F4Path, 3, 0x80, 0x8F),
-        ] {
-            emit_continuation_tail(&mut out, label, width, low, high, registers);
-        }
-        out.extend([
-            (
-                Some(Label::Advance1),
-                Instruction::AddImmediate {
-                    destination: cursor,
-                    source: cursor,
-                    immediate: 1,
-                },
-            ),
-            (None, Instruction::Branch(Label::Loop)),
-            (Some(Label::Fail), Instruction::Zero(result)),
-            (Some(Label::Done), Instruction::Zero(cursor)),
-        ]);
-        out
-    }
-
-    fn emit_continuation_tail(
-        out: &mut Vec<(Option<Label>, Instruction<Label>)>,
-        label: Label,
-        width: u16,
-        low: u16,
-        high: u16,
-        registers: [u8; 5],
-    ) {
-        let [base, count, cursor, byte, _result] = registers;
-        out.push((
-            Some(label),
-            Instruction::AddImmediate {
-                destination: byte,
-                source: cursor,
-                immediate: width,
-            },
-        ));
-        out.extend([
-            (
-                None,
-                Instruction::CompareRegister {
-                    left: byte,
-                    right: count,
-                },
-            ),
-            (
-                None,
-                Instruction::BranchConditional {
-                    condition: COND_HS,
-                    target: Label::Fail,
-                },
-            ),
-        ]);
-        for offset in 1..=width {
-            out.extend([
-                (
-                    None,
-                    Instruction::AddImmediate {
-                        destination: byte,
-                        source: cursor,
-                        immediate: offset,
-                    },
-                ),
-                (
-                    None,
-                    Instruction::LdrbRegister {
-                        destination: byte,
-                        base,
-                        index: byte,
-                    },
-                ),
-            ]);
-            let (floor, ceiling) = if offset == 1 {
-                (low, high)
-            } else {
-                (0x80, 0xBF)
-            };
-            out.extend(branch!(None => byte => floor => COND_LO => Label::Fail));
-            out.extend(branch!(None => byte => ceiling => COND_HI => Label::Fail));
-        }
-        out.extend([
-            (
-                None,
-                Instruction::AddImmediate {
-                    destination: cursor,
-                    source: cursor,
-                    immediate: width + 1,
-                },
-            ),
-            (None, Instruction::Branch(Label::Loop)),
-        ]);
-    }
-
-    fn request(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<[u8; 5], Aarch64SelectedFormEncodingError> {
-        request_registers(
-            physical,
-            alternative,
-            MachineAlternativeFamily::ScanByteSequence,
-            operands,
-            2,
-        )
-    }
-
-    pub(super) fn encode(
-        physical: &ValidatedPhysicalRegisterModel,
-        predicate: ByteSequencePredicate,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let registers = request(physical, alternative, operands)?;
-        let bytes = plan_words::assemble(&layout(predicate, registers))?;
-        validate(physical, predicate, alternative, operands, &bytes)
-    }
-
-    pub(super) fn validate(
-        physical: &ValidatedPhysicalRegisterModel,
-        predicate: ByteSequencePredicate,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let registers = request(physical, alternative, operands)?;
-        if decode_all(bytes, plan_words::decode_word)?
-            != plan_words::expected_stream(&layout(predicate, registers))?
+        let (read_idx, write_idx, writes_nzcv, reads_nzcv) = if let Some((_, form)) =
+            simple_form(kind)
         {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        super::nzcv_effects_encoding(
-            physical,
-            operands,
-            bytes,
-            2,
-            MachineEncodedMemoryEffect::ScanByteSequenceV1 {
-                base_pointer_operand: 0,
-                count_operand: 1,
-            },
-        )
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{encode, validate};
-        use crate::aarch64_physical_register_model;
-        use crate::selected_form_encoding::selected_forms::{
-            encode_aarch64_selected_form, validate_aarch64_selected_form_encoding,
-        };
-        use crate::test_support::reject_every_bit_flip;
-        use selected_instructions::ByteSequencePredicate;
-        use selected_instructions::MachineAlternativeFamily;
-        use selected_instructions::MachineAlternativeKey;
-        use selected_instructions::SelectedInstructionKind;
-
-        fn kind(predicate: ByteSequencePredicate) -> SelectedInstructionKind {
-            SelectedInstructionKind::ScanByteSequence { predicate }
-        }
-
-        #[test]
-        fn constraint_catalog_declares_the_scan_register_contract() {
-            let physical =
-                register_model::validate_physical_register_model(aarch64_physical_register_model())
-                    .unwrap();
-            let catalog = crate::aarch64_register_constraint_catalog(&physical);
-            let row = catalog
-                .constraint(crate::AARCH64_SCAN_BYTE_SEQUENCE)
-                .expect("catalog declares the scan constraint");
-            assert_eq!(row.operands.len(), 5);
-            assert!(row.operands[0].access == register_model::RegisterOperandAccess::Use);
-            assert!(row.operands[1].access == register_model::RegisterOperandAccess::Use);
-            for scratch in &row.operands[2..] {
-                assert!(scratch.early_clobber);
-            }
-        }
-
-        #[test]
-        fn encode_and_validate_replay_every_predicate_word_for_word() {
-            let physical =
-                register_model::validate_physical_register_model(aarch64_physical_register_model())
-                    .unwrap();
-            let operands = ["x0", "x1", "x2", "x3", "x4"]
-                .map(|name| physical.model().view_named(name).unwrap().id);
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::ScanByteSequence,
-                variant: 0,
-            };
-            for predicate in ByteSequencePredicate::ALL {
-                let encoded = encode(&physical, predicate, alternative, &operands).unwrap();
-                let through_selected_form = encode_aarch64_selected_form(
-                    &physical,
-                    kind(predicate),
-                    alternative,
-                    &operands,
-                )
-                .unwrap();
-                assert_eq!(encoded.bytes, through_selected_form.bytes);
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind(predicate),
-                    alternative,
-                    &operands,
-                    &encoded.bytes,
-                )
-                .unwrap();
-                reject_every_bit_flip(&encoded.bytes, &format!("{predicate:?}"), |changed| {
-                    validate(&physical, predicate, alternative, &operands, changed).is_err()
-                });
-            }
-        }
-    }
-}
-pub(crate) mod trapping_forms {
-    #[cfg(test)]
-    pub(crate) use target_aarch64::form_effects::trapping_forms::byte_size;
-
-    pub(crate) use target_aarch64::form_effects::trapping_forms::{
-        conversion_high_bit, effects, operand_count,
-    };
-
-    use super::decoding::DecodedWord;
-
-    use selected_instructions::{SaturatingCarrier, TrappingForm, TrappingOperation};
-    use semantic_vocabulary::IntegerSign;
-
-    const EQUAL: u8 = 0;
-    const CARRY_SET: u8 = 2;
-    const CARRY_CLEAR: u8 = 3;
-    const OVERFLOW_CLEAR: u8 = 7;
-
-    const fn extension(carrier: SaturatingCarrier) -> u8 {
-        match carrier {
-            SaturatingCarrier::U8 => 0,
-            SaturatingCarrier::U16 => 1,
-            SaturatingCarrier::U32 => 2,
-            SaturatingCarrier::I8 => 4,
-            SaturatingCarrier::I16 => 5,
-            SaturatingCarrier::I32 => 6,
-            SaturatingCarrier::I64 | SaturatingCarrier::U64 => {
-                panic!("64-bit carriers have no narrow extension check")
-            }
-        }
-    }
-
-    pub(crate) fn realization(form: TrappingForm, registers: &[u8]) -> Vec<DecodedWord> {
-        let carrier = form.carrier;
-        let skip = |condition: u8| DecodedWord::BranchOverTrap { condition };
-        let narrow_check = |value: u8| {
-            [
-                DecodedWord::CompareExtended {
-                    left: value,
-                    right: value,
-                    extension: extension(carrier),
-                },
-                skip(EQUAL),
-                DecodedWord::Crash,
-            ]
-        };
-        let mut words = Vec::new();
-        if let TrappingOperation::Convert { source } = form.operation {
-            let (operand, result) = (registers[0], registers[1]);
-            match (source, conversion_high_bit(source, carrier)) {
-                (_, Some(bit)) => words.extend([
-                    DecodedWord::TestHighBits {
-                        source: operand,
-                        from_bit: bit,
-                    },
-                    skip(EQUAL),
-                    DecodedWord::Crash,
-                ]),
-                (IntegerSign::Signed, None) if carrier != SaturatingCarrier::I64 => {
-                    words.extend(narrow_check(operand));
-                }
-                (_, None) => {}
-            }
-            words.push(DecodedWord::Copy {
-                source: operand,
-                destination: result,
-            });
-            return words;
-        }
-        let (left, right, value, scratch) =
-            (registers[0], registers[1], registers[2], registers[3]);
-        match form.operation {
-            TrappingOperation::Add | TrappingOperation::Subtract if !carrier.is_narrow() => {
-                let destination = value;
-                words.push(if form.operation == TrappingOperation::Add {
-                    DecodedWord::AddWithFlags {
-                        left,
-                        right,
-                        destination,
-                    }
-                } else {
-                    DecodedWord::SubtractWithFlags {
-                        left,
-                        right,
-                        destination,
-                    }
-                });
-                words.push(skip(match (form.operation, carrier.is_signed()) {
-                    (_, true) => OVERFLOW_CLEAR,
-                    (TrappingOperation::Add, false) => CARRY_CLEAR,
-                    _ => CARRY_SET,
-                }));
-                words.push(DecodedWord::Crash);
-            }
-            TrappingOperation::Add | TrappingOperation::Subtract | TrappingOperation::Multiply
-                if carrier.is_narrow() =>
-            {
-                let destination = value;
-                words.push(match form.operation {
-                    TrappingOperation::Add => DecodedWord::Add {
-                        left,
-                        right,
-                        destination,
-                    },
-                    TrappingOperation::Subtract => DecodedWord::Subtract {
-                        left,
-                        right,
-                        destination,
-                    },
-                    _ => DecodedWord::Multiply {
-                        left,
-                        right,
-                        destination,
-                    },
-                });
-                words.extend(narrow_check(value));
-            }
-            TrappingOperation::Multiply => {
-                words.push(if carrier.is_signed() {
-                    DecodedWord::SignedMultiplyHigh {
-                        left,
-                        right,
-                        destination: scratch,
-                    }
-                } else {
-                    DecodedWord::UnsignedMultiplyHigh {
-                        left,
-                        right,
-                        destination: scratch,
-                    }
-                });
-                words.push(DecodedWord::Multiply {
-                    left,
-                    right,
-                    destination: value,
-                });
-                words.push(if carrier.is_signed() {
-                    DecodedWord::CompareWithSignOf {
-                        high: scratch,
-                        low: value,
-                    }
-                } else {
-                    DecodedWord::CompareZero { source: scratch }
-                });
-                words.push(skip(EQUAL));
-                words.push(DecodedWord::Crash);
-            }
-            TrappingOperation::Divide | TrappingOperation::Remainder => {
-                words.push(DecodedWord::BranchNonZeroOverTrap { register: right });
-                words.push(DecodedWord::Crash);
-                if carrier == SaturatingCarrier::I64 {
-                    words.push(DecodedWord::CompareNegativeOne { source: right });
-                    words.push(DecodedWord::ConditionalCompareOneOnEqual { register: left });
-                    words.push(skip(OVERFLOW_CLEAR));
-                    words.push(DecodedWord::Crash);
-                }
-                let quotient = if form.operation == TrappingOperation::Divide {
-                    value
-                } else {
-                    scratch
-                };
-                words.push(if carrier.is_signed() {
-                    DecodedWord::SignedDivide {
-                        dividend: left,
-                        divisor: right,
-                        destination: quotient,
-                    }
-                } else {
-                    DecodedWord::UnsignedDivide {
-                        dividend: left,
-                        divisor: right,
-                        destination: quotient,
-                    }
-                });
-                if carrier.is_signed() && carrier.is_narrow() {
-                    words.extend(narrow_check(quotient));
-                }
-                if form.operation == TrappingOperation::Remainder {
-                    words.push(DecodedWord::MultiplySubtract {
-                        left: scratch,
-                        right,
-                        minuend: left,
-                        destination: value,
-                    });
-                }
-            }
-            TrappingOperation::ShiftLeft | TrappingOperation::ShiftRight => {
-                let (shifted, count) = (left, right);
-                words.push(DecodedWord::CompareImmediate {
-                    source: count,
-                    immediate: carrier.bits(),
-                });
-                words.push(skip(CARRY_CLEAR));
-                words.push(DecodedWord::Crash);
-                if form.operation == TrappingOperation::ShiftRight {
-                    words.push(if carrier.is_signed() {
-                        DecodedWord::ShiftRightArithmeticVariable {
-                            value: shifted,
-                            count,
-                            destination: value,
-                        }
-                    } else {
-                        DecodedWord::ShiftRightLogicalVariable {
-                            value: shifted,
-                            count,
-                            destination: value,
-                        }
-                    });
-                    return words;
-                }
-                words.push(DecodedWord::ShiftLeftVariable {
-                    value: shifted,
-                    count,
-                    destination: value,
-                });
-                if carrier.is_narrow() {
-                    words.extend(narrow_check(value));
-                } else {
-                    words.push(if carrier.is_signed() {
-                        DecodedWord::ShiftRightArithmeticVariable {
-                            value,
-                            count,
-                            destination: scratch,
-                        }
-                    } else {
-                        DecodedWord::ShiftRightLogicalVariable {
-                            value,
-                            count,
-                            destination: scratch,
-                        }
-                    });
-                    words.push(DecodedWord::Compare {
-                        left: scratch,
-                        right: shifted,
-                    });
-                    words.push(skip(EQUAL));
-                    words.push(DecodedWord::Crash);
-                }
-            }
-            TrappingOperation::Add | TrappingOperation::Subtract => {
-                unreachable!("narrow and 64-bit add/subtract are both matched above")
-            }
-            TrappingOperation::Convert { .. } => unreachable!("conversions return above"),
-        }
-        words
-    }
-
-    pub(crate) fn encode_word(word: DecodedWord) -> u32 {
-        let three = |opcode: u32, left: u8, right: u8, destination: u8| {
-            opcode | (u32::from(right) << 16) | (u32::from(left) << 5) | u32::from(destination)
-        };
-        match word {
-            DecodedWord::Crash => 0xd420_0000,
-            DecodedWord::BranchOverTrap { condition } => 0x5400_0040 | u32::from(condition),
-            DecodedWord::BranchNonZeroOverTrap { register } => 0xb500_0040 | u32::from(register),
-            DecodedWord::CompareExtended {
-                left,
-                right,
-                extension,
-            } => {
-                0xeb20_001f
-                    | (u32::from(right) << 16)
-                    | (u32::from(extension) << 13)
-                    | (u32::from(left) << 5)
-            }
-            DecodedWord::CompareNegativeOne { source } => 0xb100_041f | (u32::from(source) << 5),
-            DecodedWord::ConditionalCompareOneOnEqual { register } => {
-                0xfa41_0800 | (u32::from(register) << 5)
-            }
-            DecodedWord::TestHighBits { source, from_bit } => {
-                0xf240_001f
-                    | ((64 - u32::from(from_bit)) << 16)
-                    | ((63 - u32::from(from_bit)) << 10)
-                    | (u32::from(source) << 5)
-            }
-            DecodedWord::AddWithFlags {
-                left,
-                right,
-                destination,
-            } => three(0xab00_0000, left, right, destination),
-            DecodedWord::SubtractWithFlags {
-                left,
-                right,
-                destination,
-            } => three(0xeb00_0000, left, right, destination),
-            DecodedWord::Add {
-                left,
-                right,
-                destination,
-            } => three(0x8b00_0000, left, right, destination),
-            DecodedWord::Subtract {
-                left,
-                right,
-                destination,
-            } => three(0xcb00_0000, left, right, destination),
-            DecodedWord::Multiply {
-                left,
-                right,
-                destination,
-            } => three(0x9b00_7c00, left, right, destination),
-            DecodedWord::SignedMultiplyHigh {
-                left,
-                right,
-                destination,
-            } => three(0x9b40_7c00, left, right, destination),
-            DecodedWord::UnsignedMultiplyHigh {
-                left,
-                right,
-                destination,
-            } => three(0x9bc0_7c00, left, right, destination),
-            DecodedWord::CompareWithSignOf { high, low } => {
-                0xeb80_fc1f | (u32::from(low) << 16) | (u32::from(high) << 5)
-            }
-            DecodedWord::CompareZero { source } => 0xf100_001f | (u32::from(source) << 5),
-            DecodedWord::CompareImmediate { source, immediate } => {
-                0xf100_001f | (u32::from(immediate) << 10) | (u32::from(source) << 5)
-            }
-            DecodedWord::Compare { left, right } => {
-                0xeb00_001f | (u32::from(right) << 16) | (u32::from(left) << 5)
-            }
-            DecodedWord::SignedDivide {
-                dividend,
-                divisor,
-                destination,
-            } => three(0x9ac0_0c00, dividend, divisor, destination),
-            DecodedWord::UnsignedDivide {
-                dividend,
-                divisor,
-                destination,
-            } => three(0x9ac0_0800, dividend, divisor, destination),
-            DecodedWord::MultiplySubtract {
-                left,
-                right,
-                minuend,
-                destination,
-            } => {
-                0x9b00_8000
-                    | (u32::from(right) << 16)
-                    | (u32::from(minuend) << 10)
-                    | (u32::from(left) << 5)
-                    | u32::from(destination)
-            }
-            DecodedWord::ShiftLeftVariable {
-                value,
-                count,
-                destination,
-            } => three(0x9ac0_2000, value, count, destination),
-            DecodedWord::ShiftRightLogicalVariable {
-                value,
-                count,
-                destination,
-            } => three(0x9ac0_2400, value, count, destination),
-            DecodedWord::ShiftRightArithmeticVariable {
-                value,
-                count,
-                destination,
-            } => three(0x9ac0_2800, value, count, destination),
-            DecodedWord::Copy {
-                source,
-                destination,
-            } => 0xaa00_03e0 | (u32::from(source) << 16) | u32::from(destination),
-            other => unreachable!("{other:?} is not a Trapping realization word"),
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{byte_size, realization};
-        use crate::aarch64_physical_register_model;
-        use crate::selected_form_encoding::decoding::{DecodedWord, decode_words};
-        use crate::selected_form_encoding::{
-            encode_aarch64_selected_form, validate_aarch64_selected_form_encoding,
-        };
-        use crate::test_support::rejects_every_bit_flip;
-        use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
-        use selected_instructions::{
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-            MachineEncodedTrapBehavior, SaturatingCarrier, SelectedInstructionKind, TrappingForm,
-            TrappingOperation,
-        };
-        use semantic_vocabulary::IntegerSign;
-
-        macro_rules! r {
-            ($op:ident => $carrier:ident => $words:expr) => {
-                (TrappingOperation::$op, SaturatingCarrier::$carrier, $words)
-            };
-        }
-
-        const fn convert_words(
-            source: IntegerSign,
-            carrier: SaturatingCarrier,
-            words: &'static [u32],
-        ) -> (TrappingOperation, SaturatingCarrier, &'static [u32]) {
-            (TrappingOperation::Convert { source }, carrier, words)
-        }
-
-        const CLANG_TRAPPING_WORDS: [(TrappingOperation, SaturatingCarrier, &[u32]); 72] = [
-            r!(Add => I8 => &[0x8b02_0023, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
-            r!(Add => I16 => &[0x8b02_0023, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
-            r!(Add => I32 => &[0x8b02_0023, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
-            r!(Add => I64 => &[0xab02_0023, 0x5400_0047, 0xd420_0000]),
-            r!(Add => U8 => &[0x8b02_0023, 0xeb23_007f, 0x5400_0040, 0xd420_0000]),
-            r!(Add => U16 => &[0x8b02_0023, 0xeb23_207f, 0x5400_0040, 0xd420_0000]),
-            r!(Add => U32 => &[0x8b02_0023, 0xeb23_407f, 0x5400_0040, 0xd420_0000]),
-            r!(Add => U64 => &[0xab02_0023, 0x5400_0043, 0xd420_0000]),
-            r!(Subtract => I8 => &[0xcb02_0023, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
-            r!(Subtract => I16 => &[0xcb02_0023, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
-            r!(Subtract => I32 => &[0xcb02_0023, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
-            r!(Subtract => I64 => &[0xeb02_0023, 0x5400_0047, 0xd420_0000]),
-            r!(Subtract => U8 => &[0xcb02_0023, 0xeb23_007f, 0x5400_0040, 0xd420_0000]),
-            r!(Subtract => U16 => &[0xcb02_0023, 0xeb23_207f, 0x5400_0040, 0xd420_0000]),
-            r!(Subtract => U32 => &[0xcb02_0023, 0xeb23_407f, 0x5400_0040, 0xd420_0000]),
-            r!(Subtract => U64 => &[0xeb02_0023, 0x5400_0042, 0xd420_0000]),
-            r!(Multiply => I8 => &[0x9b02_7c23, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
-            r!(Multiply => I16 => &[0x9b02_7c23, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
-            r!(Multiply => I32 => &[0x9b02_7c23, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
-            (
-                TrappingOperation::Multiply,
-                SaturatingCarrier::I64,
-                &[
-                    0x9b42_7c24,
-                    0x9b02_7c23,
-                    0xeb83_fc9f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            r!(Multiply => U8 => &[0x9b02_7c23, 0xeb23_007f, 0x5400_0040, 0xd420_0000]),
-            r!(Multiply => U16 => &[0x9b02_7c23, 0xeb23_207f, 0x5400_0040, 0xd420_0000]),
-            r!(Multiply => U32 => &[0x9b02_7c23, 0xeb23_407f, 0x5400_0040, 0xd420_0000]),
-            (
-                TrappingOperation::Multiply,
-                SaturatingCarrier::U64,
-                &[
-                    0x9bc2_7c24,
-                    0x9b02_7c23,
-                    0xf100_009f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::Divide,
-                SaturatingCarrier::I8,
-                &[
-                    0xb500_0042,
-                    0xd420_0000,
-                    0x9ac2_0c23,
-                    0xeb23_807f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::Divide,
-                SaturatingCarrier::I16,
-                &[
-                    0xb500_0042,
-                    0xd420_0000,
-                    0x9ac2_0c23,
-                    0xeb23_a07f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::Divide,
-                SaturatingCarrier::I32,
-                &[
-                    0xb500_0042,
-                    0xd420_0000,
-                    0x9ac2_0c23,
-                    0xeb23_c07f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::Divide,
-                SaturatingCarrier::I64,
-                &[
-                    0xb500_0042,
-                    0xd420_0000,
-                    0xb100_045f,
-                    0xfa41_0820,
-                    0x5400_0047,
-                    0xd420_0000,
-                    0x9ac2_0c23,
-                ],
-            ),
-            r!(Divide => U8 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
-            r!(Divide => U16 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
-            r!(Divide => U32 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
-            r!(Divide => U64 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
-            (
-                TrappingOperation::Remainder,
-                SaturatingCarrier::I8,
-                &[
-                    0xb500_0042,
-                    0xd420_0000,
-                    0x9ac2_0c24,
-                    0xeb24_809f,
-                    0x5400_0040,
-                    0xd420_0000,
-                    0x9b02_8483,
-                ],
-            ),
-            (
-                TrappingOperation::Remainder,
-                SaturatingCarrier::I16,
-                &[
-                    0xb500_0042,
-                    0xd420_0000,
-                    0x9ac2_0c24,
-                    0xeb24_a09f,
-                    0x5400_0040,
-                    0xd420_0000,
-                    0x9b02_8483,
-                ],
-            ),
-            (
-                TrappingOperation::Remainder,
-                SaturatingCarrier::I32,
-                &[
-                    0xb500_0042,
-                    0xd420_0000,
-                    0x9ac2_0c24,
-                    0xeb24_c09f,
-                    0x5400_0040,
-                    0xd420_0000,
-                    0x9b02_8483,
-                ],
-            ),
-            (
-                TrappingOperation::Remainder,
-                SaturatingCarrier::I64,
-                &[
-                    0xb500_0042,
-                    0xd420_0000,
-                    0xb100_045f,
-                    0xfa41_0820,
-                    0x5400_0047,
-                    0xd420_0000,
-                    0x9ac2_0c24,
-                    0x9b02_8483,
-                ],
-            ),
-            r!(Remainder => U8 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
-            r!(Remainder => U16 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
-            r!(Remainder => U32 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
-            r!(Remainder => U64 => &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
-            (
-                TrappingOperation::ShiftLeft,
-                SaturatingCarrier::I8,
-                &[
-                    0xf100_205f,
-                    0x5400_0043,
-                    0xd420_0000,
-                    0x9ac2_2023,
-                    0xeb23_807f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::ShiftLeft,
-                SaturatingCarrier::I16,
-                &[
-                    0xf100_405f,
-                    0x5400_0043,
-                    0xd420_0000,
-                    0x9ac2_2023,
-                    0xeb23_a07f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::ShiftLeft,
-                SaturatingCarrier::I32,
-                &[
-                    0xf100_805f,
-                    0x5400_0043,
-                    0xd420_0000,
-                    0x9ac2_2023,
-                    0xeb23_c07f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::ShiftLeft,
-                SaturatingCarrier::I64,
-                &[
-                    0xf101_005f,
-                    0x5400_0043,
-                    0xd420_0000,
-                    0x9ac2_2023,
-                    0x9ac2_2864,
-                    0xeb01_009f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::ShiftLeft,
-                SaturatingCarrier::U8,
-                &[
-                    0xf100_205f,
-                    0x5400_0043,
-                    0xd420_0000,
-                    0x9ac2_2023,
-                    0xeb23_007f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::ShiftLeft,
-                SaturatingCarrier::U16,
-                &[
-                    0xf100_405f,
-                    0x5400_0043,
-                    0xd420_0000,
-                    0x9ac2_2023,
-                    0xeb23_207f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::ShiftLeft,
-                SaturatingCarrier::U32,
-                &[
-                    0xf100_805f,
-                    0x5400_0043,
-                    0xd420_0000,
-                    0x9ac2_2023,
-                    0xeb23_407f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            (
-                TrappingOperation::ShiftLeft,
-                SaturatingCarrier::U64,
-                &[
-                    0xf101_005f,
-                    0x5400_0043,
-                    0xd420_0000,
-                    0x9ac2_2023,
-                    0x9ac2_2464,
-                    0xeb01_009f,
-                    0x5400_0040,
-                    0xd420_0000,
-                ],
-            ),
-            r!(ShiftRight => I8 => &[0xf100_205f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
-            r!(ShiftRight => I16 => &[0xf100_405f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
-            r!(ShiftRight => I32 => &[0xf100_805f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
-            r!(ShiftRight => I64 => &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
-            r!(ShiftRight => U8 => &[0xf100_205f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
-            r!(ShiftRight => U16 => &[0xf100_405f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
-            r!(ShiftRight => U32 => &[0xf100_805f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
-            r!(ShiftRight => U64 => &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
-            (
-                TrappingOperation::Convert {
-                    source: IntegerSign::Signed,
-                },
-                SaturatingCarrier::I8,
-                &[0xeb21_803f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Signed,
-                SaturatingCarrier::I16,
-                &[0xeb21_a03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Signed,
-                SaturatingCarrier::I32,
-                &[0xeb21_c03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(IntegerSign::Signed, SaturatingCarrier::I64, &[0xaa01_03e3]),
-            convert_words(
-                IntegerSign::Signed,
-                SaturatingCarrier::U8,
-                &[0xf278_dc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Signed,
-                SaturatingCarrier::U16,
-                &[0xf270_bc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Signed,
-                SaturatingCarrier::U32,
-                &[0xf260_7c3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Signed,
-                SaturatingCarrier::U64,
-                &[0xf241_003f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Unsigned,
-                SaturatingCarrier::I8,
-                &[0xf279_e03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Unsigned,
-                SaturatingCarrier::I16,
-                &[0xf271_c03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Unsigned,
-                SaturatingCarrier::I32,
-                &[0xf261_803f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Unsigned,
-                SaturatingCarrier::I64,
-                &[0xf241_003f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Unsigned,
-                SaturatingCarrier::U8,
-                &[0xf278_dc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Unsigned,
-                SaturatingCarrier::U16,
-                &[0xf270_bc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Unsigned,
-                SaturatingCarrier::U32,
-                &[0xf260_7c3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3],
-            ),
-            convert_words(
-                IntegerSign::Unsigned,
-                SaturatingCarrier::U64,
-                &[0xaa01_03e3],
-            ),
-        ];
-
-        fn physical() -> ValidatedPhysicalRegisterModel {
-            register_model::validate_physical_register_model(aarch64_physical_register_model())
-                .unwrap()
-        }
-
-        fn view(physical: &ValidatedPhysicalRegisterModel, name: &str) -> RegisterViewId {
-            physical.model().view_named(name).unwrap().id
-        }
-
-        fn canonical_operands(
-            physical: &ValidatedPhysicalRegisterModel,
-            form: TrappingForm,
-        ) -> Vec<RegisterViewId> {
-            let names: &[&str] = if form.source_count() == 1 {
-                &["x1", "x3", "x4"]
-            } else {
-                &["x1", "x2", "x3", "x4"]
-            };
-            names.iter().map(|name| view(physical, name)).collect()
-        }
-
-        fn key(form: TrappingForm) -> MachineAlternativeKey {
-            MachineAlternativeKey {
-                family: MachineAlternativeFamily::TrappingInteger(form),
-                variant: 0,
-            }
-        }
-
-        fn little_endian(words: &[u32]) -> Vec<u8> {
-            words.iter().flat_map(|word| word.to_le_bytes()).collect()
-        }
-
-        #[test]
-        fn every_trapping_form_matches_clang_and_declares_its_trap() {
-            let physical = physical();
-            assert_eq!(TrappingForm::ALL.len(), CLANG_TRAPPING_WORDS.len());
-            for (operation, carrier, words) in CLANG_TRAPPING_WORDS {
-                let form = TrappingForm { operation, carrier };
-                let kind = SelectedInstructionKind::TrappingInteger { form };
-                let operands = canonical_operands(&physical, form);
-                let encoded = encode_aarch64_selected_form(&physical, kind, key(form), &operands)
-                    .unwrap_or_else(|error| panic!("{form:?} encodes: {error:?}"));
-                assert_eq!(encoded.bytes(), little_endian(words), "{form:?}");
-                assert_eq!(usize::from(byte_size(form)), 4 * words.len(), "{form:?}");
-                let footprint = encoded.footprint();
-                let sources = form.source_count();
-                assert_eq!(footprint.register_reads, operands[..sources]);
-                assert_eq!(footprint.register_writes, operands[sources..]);
-                assert_eq!(
-                    footprint.encoded.implicit_unit_clobbers,
-                    physical.model().view_named("nzcv").unwrap().units
-                );
-                assert!(footprint.encoded.implicit_unit_defs.is_empty());
-                assert_eq!(
-                    footprint.encoded.trap,
-                    MachineEncodedTrapBehavior::TrappingIntegerV1
-                );
-                assert_eq!(
-                    footprint.encoded.control,
-                    MachineEncodedControlEffect::FallThroughOrTrapV1
-                );
-                let decoded = decode_words(encoded.bytes()).unwrap();
-                for (index, word) in decoded.iter().enumerate() {
-                    if *word == DecodedWord::Crash {
-                        assert!(matches!(
-                            decoded[index - 1],
-                            DecodedWord::BranchOverTrap { .. }
-                                | DecodedWord::BranchNonZeroOverTrap { .. }
-                        ));
-                    }
-                }
-            }
-        }
-
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        enum Outcome {
-            Value(u64),
-            Trap,
-        }
-
-        #[derive(Default)]
-        struct Flags {
-            zero: bool,
-            carry: bool,
-            overflow: bool,
-        }
-
-        impl Flags {
-            fn subtract(left: u64, right: u64) -> Self {
-                let result = left.wrapping_sub(right);
-                Self {
-                    zero: result == 0,
-                    carry: left >= right,
-                    overflow: (left as i64).checked_sub(right as i64).is_none(),
-                }
-            }
-
-            fn add(left: u64, right: u64) -> Self {
-                let result = left.wrapping_add(right);
-                Self {
-                    zero: result == 0,
-                    carry: left.checked_add(right).is_none(),
-                    overflow: (left as i64).checked_add(right as i64).is_none(),
-                }
-            }
-
-            fn holds(&self, condition: u8) -> bool {
-                match condition {
-                    0 => self.zero,
-                    1 => !self.zero,
-                    2 => self.carry,
-                    3 => !self.carry,
-                    6 => self.overflow,
-                    7 => !self.overflow,
-                    _ => panic!("condition {condition} is not a Trapping skip condition"),
-                }
-            }
-        }
-
-        fn extend(value: u64, extension: u8) -> u64 {
-            match extension {
-                0 => value as u8 as u64,
-                1 => value as u16 as u64,
-                2 => value as u32 as u64,
-                4 => value as i8 as i64 as u64,
-                5 => value as i16 as i64 as u64,
-                6 => value as i32 as i64 as u64,
-                _ => panic!("extension {extension} is not a narrow carrier's"),
-            }
-        }
-
-        fn execute(decoded: &[DecodedWord], inputs: &[(u8, u64)], result: u8) -> Outcome {
-            let mut registers = [0_u64; 32];
-            for (register, value) in inputs {
-                registers[usize::from(*register)] = *value;
-            }
-            let mut flags = Flags::default();
-            let mut index = 0;
-            while index < decoded.len() {
-                let mut next = index + 1;
-                let read = |register: u8| registers[usize::from(register)];
-                match decoded[index] {
-                    DecodedWord::Crash => return Outcome::Trap,
-                    DecodedWord::BranchOverTrap { condition } => {
-                        if flags.holds(condition) {
-                            next += 1;
-                        }
-                    }
-                    DecodedWord::BranchNonZeroOverTrap { register } => {
-                        if read(register) != 0 {
-                            next += 1;
-                        }
-                    }
-                    DecodedWord::AddWithFlags {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        flags = Flags::add(read(left), read(right));
-                        registers[usize::from(destination)] = read(left).wrapping_add(read(right));
-                    }
-                    DecodedWord::SubtractWithFlags {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        flags = Flags::subtract(read(left), read(right));
-                        registers[usize::from(destination)] = read(left).wrapping_sub(read(right));
-                    }
-                    DecodedWord::Add {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        registers[usize::from(destination)] = read(left).wrapping_add(read(right));
-                    }
-                    DecodedWord::Subtract {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        registers[usize::from(destination)] = read(left).wrapping_sub(read(right));
-                    }
-                    DecodedWord::Multiply {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        registers[usize::from(destination)] = read(left).wrapping_mul(read(right));
-                    }
-                    DecodedWord::SignedMultiplyHigh {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        let product =
-                            i128::from(read(left) as i64) * i128::from(read(right) as i64);
-                        registers[usize::from(destination)] = (product >> 64) as u64;
-                    }
-                    DecodedWord::UnsignedMultiplyHigh {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        let product = u128::from(read(left)) * u128::from(read(right));
-                        registers[usize::from(destination)] = (product >> 64) as u64;
-                    }
-                    DecodedWord::CompareWithSignOf { high, low } => {
-                        flags = Flags::subtract(read(high), ((read(low) as i64) >> 63) as u64);
-                    }
-                    DecodedWord::CompareZero { source } => flags = Flags::subtract(read(source), 0),
-                    DecodedWord::CompareImmediate { source, immediate } => {
-                        flags = Flags::subtract(read(source), u64::from(immediate));
-                    }
-                    DecodedWord::Compare { left, right } => {
-                        flags = Flags::subtract(read(left), read(right));
-                    }
-                    DecodedWord::CompareExtended {
-                        left,
-                        right,
-                        extension,
-                    } => {
-                        flags = Flags::subtract(read(left), extend(read(right), extension));
-                    }
-                    DecodedWord::CompareNegativeOne { source } => {
-                        flags = Flags::add(read(source), 1)
-                    }
-                    DecodedWord::ConditionalCompareOneOnEqual { register } => {
-                        flags = if flags.zero {
-                            Flags::subtract(read(register), 1)
-                        } else {
-                            Flags::default()
-                        };
-                    }
-                    DecodedWord::TestHighBits { source, from_bit } => {
-                        let masked = read(source) & (u64::MAX << from_bit);
-                        flags = Flags {
-                            zero: masked == 0,
-                            carry: false,
-                            overflow: false,
-                        };
-                    }
-                    DecodedWord::SignedDivide {
-                        dividend,
-                        divisor,
-                        destination,
-                    } => {
-                        let (dividend, divisor) = (read(dividend) as i64, read(divisor) as i64);
-                        registers[usize::from(destination)] = if divisor == 0 {
-                            0
-                        } else {
-                            dividend.wrapping_div(divisor) as u64
-                        };
-                    }
-                    DecodedWord::UnsignedDivide {
-                        dividend,
-                        divisor,
-                        destination,
-                    } => {
-                        registers[usize::from(destination)] =
-                            read(dividend).checked_div(read(divisor)).unwrap_or(0);
-                    }
-                    DecodedWord::MultiplySubtract {
-                        left,
-                        right,
-                        minuend,
-                        destination,
-                    } => {
-                        registers[usize::from(destination)] =
-                            read(minuend).wrapping_sub(read(left).wrapping_mul(read(right)));
-                    }
-                    DecodedWord::ShiftLeftVariable {
-                        value,
-                        count,
-                        destination,
-                    } => {
-                        registers[usize::from(destination)] = read(value) << (read(count) & 63);
-                    }
-                    DecodedWord::ShiftRightLogicalVariable {
-                        value,
-                        count,
-                        destination,
-                    } => {
-                        registers[usize::from(destination)] = read(value) >> (read(count) & 63);
-                    }
-                    DecodedWord::ShiftRightArithmeticVariable {
-                        value,
-                        count,
-                        destination,
-                    } => {
-                        registers[usize::from(destination)] =
-                            ((read(value) as i64) >> (read(count) & 63)) as u64;
-                    }
-                    DecodedWord::Copy {
-                        source,
-                        destination,
-                    } => {
-                        registers[usize::from(destination)] = read(source);
-                    }
-                    other => panic!("{other:?} is not a Trapping realization word"),
-                }
-                index = next;
-            }
-            Outcome::Value(registers[usize::from(result)])
-        }
-
-        fn bounds(carrier: SaturatingCarrier) -> (i128, i128) {
-            let bits = u32::from(carrier.bits());
-            if carrier.is_signed() {
-                (-(1_i128 << (bits - 1)), (1_i128 << (bits - 1)) - 1)
-            } else {
-                (0, (1_i128 << bits) - 1)
-            }
-        }
-
-        fn reference(form: TrappingForm, left: i128, right: i128) -> Outcome {
-            let (minimum, maximum) = bounds(form.carrier);
-            let width = i128::from(form.carrier.bits());
-            let exact = match form.operation {
-                TrappingOperation::Add => Some(left + right),
-                TrappingOperation::Subtract => Some(left - right),
-                TrappingOperation::Multiply => left.checked_mul(right),
-                TrappingOperation::Divide => (right != 0).then(|| left / right),
-                TrappingOperation::Remainder => (right != 0)
-                    .then(|| left / right)
-                    .filter(|quotient| (minimum..=maximum).contains(quotient))
-                    .map(|_| left % right),
-                TrappingOperation::ShiftLeft => (0..width).contains(&right).then(|| left << right),
-                TrappingOperation::ShiftRight => (0..width).contains(&right).then(|| left >> right),
-                TrappingOperation::Convert { .. } => Some(left),
-            };
-            match exact {
-                Some(value) if (minimum..=maximum).contains(&value) => {
-                    Outcome::Value(value as i64 as u64)
-                }
-                _ => Outcome::Trap,
-            }
-        }
-
-        fn register(value: i128) -> u64 {
-            value as i64 as u64
-        }
-
-        fn edges(carrier: SaturatingCarrier) -> Vec<i128> {
-            let (minimum, maximum) = bounds(carrier);
-            let mut values = vec![
-                minimum,
-                minimum + 1,
-                -2,
-                -1,
-                0,
-                1,
-                2,
-                3,
-                7,
-                maximum - 1,
-                maximum,
-            ];
-            values.extend([maximum / 2, maximum / 2 + 1, minimum / 2, minimum / 2 - 1]);
-            values.retain(|value| (minimum..=maximum).contains(value));
-            values.sort_unstable();
-            values.dedup();
-            values
-        }
-
-        fn counts(width: i128) -> Vec<(i128, u64)> {
-            [-129, -1, 0, 1, width - 1, width, width + 1, 63, 64, 65, 200]
-                .into_iter()
-                .map(|count| (count, register(count)))
-                .collect()
-        }
-
-        #[test]
-        fn every_trapping_form_executes_the_policy_answer_at_its_carriers_edges() {
-            let mut checked = 0;
-            for form in TrappingForm::ALL {
-                let registers: &[u8] = if form.source_count() == 1 {
-                    &[1, 3, 4]
-                } else {
-                    &[1, 2, 3, 4]
-                };
-                let decoded = realization(form, registers);
-                let result = registers[form.source_count()];
-                match form.operation {
-                    TrappingOperation::Convert { source } => {
-                        for source_carrier in SaturatingCarrier::ALL
-                            .into_iter()
-                            .filter(|carrier| carrier.sign() == source)
-                        {
-                            for value in edges(source_carrier) {
-                                let actual = execute(&decoded, &[(1, register(value))], result);
-                                assert_eq!(actual, reference(form, value, 0), "{form:?} {value}");
-                                checked += 1;
-                            }
-                        }
-                    }
-                    TrappingOperation::ShiftLeft | TrappingOperation::ShiftRight => {
-                        for value in edges(form.carrier) {
-                            for (count, count_register) in counts(i128::from(form.carrier.bits())) {
-                                let actual = execute(
-                                    &decoded,
-                                    &[(1, register(value)), (2, count_register)],
-                                    result,
-                                );
-                                assert_eq!(
-                                    actual,
-                                    reference(form, value, count),
-                                    "{form:?} {value} << {count}"
-                                );
-                                checked += 1;
-                            }
-                        }
-                    }
-                    _ => {
-                        for left in edges(form.carrier) {
-                            for right in edges(form.carrier) {
-                                let actual = execute(
-                                    &decoded,
-                                    &[(1, register(left)), (2, register(right))],
-                                    result,
-                                );
-                                assert_eq!(
-                                    actual,
-                                    reference(form, left, right),
-                                    "{form:?} {left} {right}"
-                                );
-                                checked += 1;
-                            }
-                        }
-                    }
-                }
-            }
-            assert!(checked > 5_000, "{checked}");
-        }
-
-        #[test]
-        fn named_trapping_boundaries_trap_or_return_exactly() {
-            let form = |operation, carrier| TrappingForm { operation, carrier };
-            let run = |form: TrappingForm, left: i128, right: i128| {
-                execute(
-                    &realization(form, &[1, 2, 3, 4]),
-                    &[(1, register(left)), (2, register(right))],
-                    3,
-                )
-            };
-            let convert = |source, carrier, value: i128| {
-                execute(
-                    &realization(
-                        TrappingForm {
-                            operation: TrappingOperation::Convert { source },
-                            carrier,
-                        },
-                        &[1, 3, 4],
-                    ),
-                    &[(1, register(value))],
-                    3,
-                )
-            };
-            use SaturatingCarrier::{I8, I32, I64, U8, U32, U64};
-            use TrappingOperation::{
-                Add, Divide, Multiply, Remainder, ShiftLeft, ShiftRight, Subtract,
-            };
-            assert_eq!(run(form(Add, U8), 200, 100), Outcome::Trap);
-            assert_eq!(run(form(Add, U8), 200, 55), Outcome::Value(255));
-            assert_eq!(run(form(Add, I32), i128::from(i32::MAX), 1), Outcome::Trap);
-            assert_eq!(run(form(Add, I64), i128::from(i64::MAX), 1), Outcome::Trap);
-            assert_eq!(run(form(Add, U64), i128::from(u64::MAX), 1), Outcome::Trap);
-            assert_eq!(run(form(Subtract, U32), 0, 1), Outcome::Trap);
-            assert_eq!(
-                run(form(Subtract, I64), i128::from(i64::MIN), 1),
-                Outcome::Trap
-            );
-            assert_eq!(
-                run(form(Multiply, U32), i128::from(u32::MAX), 2),
-                Outcome::Trap
-            );
-            assert_eq!(run(form(Multiply, I64), 1 << 32, 1 << 31), Outcome::Trap);
-            assert_eq!(
-                run(form(Multiply, I64), -(1 << 32), 1 << 31),
-                Outcome::Value(i64::MIN as u64)
-            );
-            assert_eq!(run(form(Multiply, U64), 1 << 32, 1 << 32), Outcome::Trap);
-            for carrier in [I8, I32, I64] {
-                let (minimum, _) = bounds(carrier);
-                assert_eq!(run(form(Divide, carrier), minimum, -1), Outcome::Trap);
-                assert_eq!(run(form(Remainder, carrier), minimum, -1), Outcome::Trap);
-                assert_eq!(
-                    run(form(Divide, carrier), minimum, 1),
-                    Outcome::Value(register(minimum))
-                );
-                assert_eq!(run(form(Divide, carrier), -1, -1), Outcome::Value(1));
-                assert_eq!(run(form(Divide, carrier), 7, 0), Outcome::Trap);
-                assert_eq!(
-                    run(form(Remainder, carrier), -7, 2),
-                    Outcome::Value(register(-1))
-                );
-            }
-            assert_eq!(run(form(Divide, U64), 7, 0), Outcome::Trap);
-            assert_eq!(
-                run(form(Remainder, U64), i128::from(u64::MAX), 10),
-                Outcome::Value(5)
-            );
-            assert_eq!(run(form(ShiftLeft, U32), 1, 32), Outcome::Trap);
-            assert_eq!(run(form(ShiftLeft, U32), 1, 31), Outcome::Value(1 << 31));
-            assert_eq!(run(form(ShiftLeft, I32), 1, 31), Outcome::Trap);
-            assert_eq!(
-                run(form(ShiftLeft, I64), -1, 63),
-                Outcome::Value(i64::MIN as u64)
-            );
-            assert_eq!(run(form(ShiftLeft, U64), 3, 63), Outcome::Trap);
-            assert_eq!(
-                run(form(ShiftRight, I8), -128, 7),
-                Outcome::Value(register(-1))
-            );
-            assert_eq!(run(form(ShiftRight, I8), -128, -1), Outcome::Trap);
-            assert_eq!(run(form(ShiftRight, U64), 1, 64), Outcome::Trap);
-            assert_eq!(
-                convert(IntegerSign::Unsigned, I8, i128::from(u64::MAX)),
-                Outcome::Trap
-            );
-            assert_eq!(convert(IntegerSign::Signed, U64, -1), Outcome::Trap);
-            assert_eq!(convert(IntegerSign::Signed, U8, 255), Outcome::Value(255));
-            assert_eq!(convert(IntegerSign::Signed, I8, -129), Outcome::Trap);
-            assert_eq!(
-                convert(IntegerSign::Unsigned, I64, i128::from(i64::MAX) + 1),
-                Outcome::Trap
-            );
-            assert_eq!(
-                convert(IntegerSign::Signed, I64, -1),
-                Outcome::Value(u64::MAX)
-            );
-        }
-
-        #[test]
-        fn corrupted_trapping_encodings_are_rejected() {
-            let physical = physical();
-            for form in TrappingForm::ALL {
-                let kind = SelectedInstructionKind::TrappingInteger { form };
-                let operands = canonical_operands(&physical, form);
-                let bytes = encode_aarch64_selected_form(&physical, kind, key(form), &operands)
-                    .unwrap()
-                    .bytes()
-                    .to_vec();
-                rejects_every_bit_flip(&physical, kind, key(form), &operands, &bytes);
-                assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical,
-                        kind,
-                        key(form),
-                        &operands,
-                        &bytes[4..]
-                    )
-                    .is_err()
-                );
-                assert!(
-                    encode_aarch64_selected_form(&physical, kind, key(form), &operands[1..])
-                        .is_err()
-                );
-                assert!(
-                    encode_aarch64_selected_form(
-                        &physical,
-                        kind,
-                        MachineAlternativeKey {
-                            variant: 1,
-                            ..key(form)
-                        },
-                        &operands
-                    )
-                    .is_err()
-                );
-                let sources = form.source_count();
-                for aliased in [0, sources + 1] {
-                    let mut shared = operands.clone();
-                    shared[sources] = operands[aliased];
-                    assert!(
-                        encode_aarch64_selected_form(&physical, kind, key(form), &shared).is_err()
-                    );
-                }
-            }
-            let form = TrappingForm {
-                operation: TrappingOperation::Add,
-                carrier: SaturatingCarrier::I32,
-            };
-            let other = TrappingForm {
-                carrier: SaturatingCarrier::I16,
-                ..form
-            };
-            let operands = canonical_operands(&physical, form);
-            let bytes = encode_aarch64_selected_form(
-                &physical,
-                SelectedInstructionKind::TrappingInteger { form },
-                key(form),
-                &operands,
-            )
-            .unwrap()
-            .bytes()
-            .to_vec();
-            assert!(
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    SelectedInstructionKind::TrappingInteger { form: other },
-                    key(other),
-                    &operands,
-                    &bytes
-                )
-                .is_err()
-            );
-        }
-    }
-
-    #[test]
-    fn trapping_lengths_match_instruction_words() {
-        for form in TrappingForm::ALL {
-            assert_eq!(
-                usize::from(byte_size(form)),
-                4 * realization(form, &[1, 2, 3, 4]).len(),
-                "{form:?}"
-            );
-        }
-    }
-}
-mod zero_bytes {
-    use super::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding};
-    use crate::selected_form_encoding::selected_forms::request_registers;
-    use register_model::RegisterViewId;
-    use register_model::ValidatedPhysicalRegisterModel;
-    use selected_instructions::MachineAlternativeFamily;
-    use selected_instructions::MachineAlternativeKey;
-    use selected_instructions::MachineEncodedMemoryEffect;
-
-    const ZERO_REGISTER: u32 = 31;
-
-    fn request(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<[u8; 3], Aarch64SelectedFormEncodingError> {
-        request_registers(
-            physical,
-            alternative,
-            MachineAlternativeFamily::ZeroBytes,
-            operands,
-            2,
-        )
-    }
-
-    pub(super) fn encode(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let [destination, count, cursor] = request(physical, alternative, operands)?.map(u32::from);
-        let words = [
-            0xd280_0000 | cursor,
-            0xb400_00a0 | count,
-            0x3820_6800 | (cursor << 16) | (destination << 5) | ZERO_REGISTER,
-            0x9100_0400 | (cursor << 5) | cursor,
-            0xeb00_001f | (count << 16) | (cursor << 5),
-            0x54ff_ffa1,
-        ];
-        let bytes = words
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect::<Vec<_>>();
-        validate(physical, alternative, operands, &bytes)
-    }
-
-    pub(super) fn validate(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let [destination, count, cursor] = request(physical, alternative, operands)?.map(u32::from);
-        let (word_bytes, tail) = bytes.as_chunks::<4>();
-        let word_bytes: &[[u8; 4]; 6] = word_bytes
-            .try_into()
-            .map_err(|_| Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-        if !tail.is_empty() {
-            return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-        }
-        let [initialize, skip, store, advance, compare, repeat] =
-            word_bytes.map(u32::from_le_bytes);
-        if initialize & !31 != 0xd280_0000
-            || initialize & 31 != cursor
-            || skip & 0xff00_0000 != 0xb400_0000
-            || skip & 31 != count
-            || (skip >> 5) & 0x7ffff != 5
-            || store & 0xffe0_fc00 != 0x3820_6800
-            || store & 31 != ZERO_REGISTER
-            || (store >> 5) & 31 != destination
-            || (store >> 16) & 31 != cursor
-            || advance & !0x3ff != 0x9100_0400
-            || advance & 31 != cursor
-            || (advance >> 5) & 31 != cursor
-            || compare & 0xffe0_fc1f != 0xeb00_001f
-            || (compare >> 5) & 31 != cursor
-            || (compare >> 16) & 31 != count
-            || repeat != 0x54ff_ffa1
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        super::nzcv_effects_encoding(
-            physical,
-            operands,
-            bytes,
-            2,
-            MachineEncodedMemoryEffect::ZeroBytesV1 {
-                destination_pointer_operand: 0,
-                count_operand: 1,
-            },
-        )
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{encode, validate};
-        use crate::aarch64_physical_register_model;
-        use crate::test_support::reject_every_bit_flip;
-        use selected_instructions::MachineAlternativeFamily;
-        use selected_instructions::MachineAlternativeKey;
-
-        #[test]
-        fn zero_loop_replays_every_bit_and_rejects_cursor_aliases() {
-            let physical =
-                register_model::validate_physical_register_model(aarch64_physical_register_model())
-                    .unwrap();
-            let operands =
-                ["x0", "x1", "x2"].map(|name| physical.model().view_named(name).unwrap().id);
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::ZeroBytes,
-                variant: 0,
-            };
-            let encoded = encode(&physical, alternative, &operands).unwrap();
-            assert_eq!(
-                encoded.bytes,
-                [
-                    0xd280_0002_u32,
-                    0xb400_00a1,
-                    0x3822_681f,
-                    0x9100_0442,
-                    0xeb01_005f,
-                    0x54ff_ffa1,
-                ]
-                .into_iter()
-                .flat_map(u32::to_le_bytes)
-                .collect::<Vec<_>>()
-            );
-            assert_eq!(encoded.footprint.register_reads, operands[..2]);
-            assert_eq!(encoded.footprint.register_writes, operands[2..]);
-            reject_every_bit_flip(&encoded.bytes, "zero word stream", |changed| {
-                validate(&physical, alternative, &operands, changed).is_err()
-            });
-            for length in 0..encoded.bytes.len() {
-                assert!(
-                    validate(&physical, alternative, &operands, &encoded.bytes[..length]).is_err()
-                );
-            }
-            for input in 0..2 {
-                let mut changed = operands;
-                changed[2] = changed[input];
-                assert!(encode(&physical, alternative, &changed).is_err());
-            }
-            let copy = MachineAlternativeKey {
-                family: MachineAlternativeFamily::CopyBytes,
-                variant: 0,
-            };
-            assert!(encode(&physical, copy, &operands).is_err());
-        }
-    }
-}
-pub use floating_control::encode_aarch64_selected_floating_control_form;
-pub(crate) mod hosted_exit_process {
-    use super::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-        ValidatedAarch64SelectedFormEncoding,
-    };
-    use crate::selected_form_encoding::selected_forms::resolve_registers;
-    use register_model::RegisterViewId;
-    use register_model::ValidatedPhysicalRegisterModel;
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
-        SelectedInstructionKind,
-    };
-    use target::NativeTarget;
-
-    pub(crate) fn effects(
-        target: NativeTarget,
-    ) -> Result<MachineEncodedEffects, Aarch64SelectedFormEncodingError> {
-        target_aarch64::form_effects::hosted_exit_process::effects(target)
-            .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-    }
-
-    fn request(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<u8, Aarch64SelectedFormEncodingError> {
-        if ![NativeTarget::linux_arm64(), NativeTarget::macos_arm64()].contains(&target)
-            || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-            || kind != SelectedInstructionKind::HostedExitProcessI32
-            || alternative
-                != (MachineAlternativeKey {
-                    family: MachineAlternativeFamily::HostedExitProcessI32,
-                    variant: 0,
-                })
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        let registers = resolve_registers(physical, operands)?;
-        let [register] = registers.as_slice() else {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        };
-        Ok(*register)
-    }
-
-    pub fn encode_aarch64_selected_hosted_exit_process_form(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let register = request(target, physical, kind, alternative, operands)?;
-        let words = [
-            0x2a00_03e0 | (u32::from(register) << 16),
-            if target == NativeTarget::macos_arm64() {
-                0xd280_0030
-            } else {
-                0xd280_0bc8
-            },
-            if target == NativeTarget::macos_arm64() {
-                0xd400_1001
-            } else {
-                0xd400_0001
-            },
-            0xd420_0000,
-        ];
-        let bytes = words
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect::<Vec<_>>();
-        validate_aarch64_selected_hosted_exit_process_form(
-            target,
-            physical,
-            kind,
-            alternative,
-            operands,
-            &bytes,
-        )
-    }
-
-    pub fn validate_aarch64_selected_hosted_exit_process_form(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let register = request(target, physical, kind, alternative, operands)?;
-        if decode(target, bytes) != Some(register) {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(ValidatedAarch64SelectedFormEncoding {
-            bytes: bytes.to_vec(),
-            footprint: Aarch64SelectedFormFootprint {
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                writes_nzcv: true,
-                encoded: effects(target)?,
-            },
-        })
-    }
-
-    use target_aarch64::inspection::decode_hosted_exit_process_register as decode;
-
-    pub use target_aarch64::inspection::decode_aarch64_selected_hosted_exit_process_i32;
-
-    #[cfg(test)]
-    mod tests {
-        use super::{
-            NativeTarget, decode_aarch64_selected_hosted_exit_process_i32, effects,
-            encode_aarch64_selected_hosted_exit_process_form,
-            validate_aarch64_selected_hosted_exit_process_form,
-        };
-        use crate::test_support::reject_every_bit_flip;
-        use register_model::RegisterViewId;
-        use selected_instructions::{
-            MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
-        };
-        #[test]
-        fn hosted_exit_replays_target_input_and_every_encoded_bit() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let kind = SelectedInstructionKind::HostedExitProcessI32;
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedExitProcessI32,
-                variant: 0,
-            };
-            let encode = |target, kind, operands: &[RegisterViewId]| {
-                encode_aarch64_selected_hosted_exit_process_form(
-                    target,
-                    &physical,
-                    kind,
-                    alternative,
-                    operands,
-                )
-            };
-            let validate = |target, operands: &[RegisterViewId], bytes: &[u8]| {
-                validate_aarch64_selected_hosted_exit_process_form(
-                    target,
-                    &physical,
-                    kind,
-                    alternative,
-                    operands,
-                    bytes,
-                )
-            };
-            for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
-                for name in ["x0", "x1", "x8", "x16", "x18", "x30"] {
-                    let operands = [physical.model().view_named(name).unwrap().id];
-                    let encoded = encode(target, kind, &operands).unwrap();
-                    assert_eq!(encoded.footprint().encoded, effects(target).unwrap());
-                    reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupted| {
-                        validate(target, &operands, corrupted).is_err()
-                    });
-                    let different = [physical
-                        .model()
-                        .view_named(if name == "x0" { "x1" } else { "x0" })
-                        .unwrap()
-                        .id];
-                    assert!(validate(target, &different, encoded.bytes()).is_err());
-                    assert!(encode(target, kind, &[]).is_err());
-                    assert!(encode(target, kind, &[operands[0], operands[0]]).is_err());
-                    assert!(
-                        encode(target, SelectedInstructionKind::ReturnUnit, &operands).is_err()
-                    );
-                    for wrong_target in [
-                        NativeTarget::windows_x64(),
-                        NativeTarget {
-                            pointer_size: 4,
-                            ..target
-                        },
-                        if target == NativeTarget::linux_arm64() {
-                            NativeTarget::macos_arm64()
-                        } else {
-                            NativeTarget::linux_arm64()
-                        },
-                    ] {
-                        assert!(validate(wrong_target, &operands, encoded.bytes()).is_err());
-                    }
-                    let mut extra = encoded.bytes().to_vec();
-                    extra.push(0);
-                    assert!(
-                        decode_aarch64_selected_hosted_exit_process_i32(target, &extra).is_none()
-                    );
-                }
-            }
-        }
-    }
-}
-pub(crate) mod hosted_read_byte {
-    pub(crate) use target_aarch64::form_effects::hosted_read_byte::effects;
-
-    use super::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-        ValidatedAarch64SelectedFormEncoding,
-    };
-
-    use register_model::RegisterViewId;
-    use register_model::ValidatedPhysicalRegisterModel;
-    use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
-        SelectedInstructionKind,
-    };
-    use target::NativeTarget;
-
-    fn request(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        displacement: i64,
-    ) -> Result<(), Aarch64SelectedFormEncodingError> {
-        if (target != NativeTarget::linux_arm64() && target != NativeTarget::macos_arm64())
-            || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-            || !matches!(
-                kind,
-                SelectedInstructionKind::HostedReadByte {
-                    slot: LocalStorageSlotId::Structural { .. }
-                }
-            )
-            || alternative
-                != (MachineAlternativeKey {
-                    family: MachineAlternativeFamily::HostedReadByte,
-                    variant: 0,
-                })
-            || !operands.is_empty()
-            || displacement < 0
-            || displacement % 4 != 0
-            || displacement
-                .checked_add(4)
-                .is_none_or(|payload| u32::try_from(payload).is_err())
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(())
-    }
-
-    pub fn encode_aarch64_selected_hosted_read_byte_form(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        displacement: i64,
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        request(target, physical, kind, alternative, operands, displacement)?;
-        let displacement = u32::try_from(displacement)
-            .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let bytes = if target == NativeTarget::macos_arm64() {
-            crate::encode_macos_read_byte_to_stack(displacement, displacement + 4)
+            form.io()
         } else {
-            crate::encode_linux_read_byte_to_stack(displacement, displacement + 4)
-        }
-        .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        validate_aarch64_selected_hosted_read_byte_form(
-            target,
-            physical,
-            kind,
-            alternative,
-            operands,
-            i64::from(displacement),
-            &bytes,
-        )
-    }
-
-    pub fn validate_aarch64_selected_hosted_read_byte_form(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        displacement: i64,
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        request(target, physical, kind, alternative, operands, displacement)?;
-        if decode_aarch64_selected_hosted_read_byte(target, bytes).map(i64::from)
-            != Some(displacement)
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(ValidatedAarch64SelectedFormEncoding {
-            bytes: bytes.to_vec(),
-            footprint: Aarch64SelectedFormFootprint {
-                register_reads: Vec::new(),
-                register_writes: Vec::new(),
-                writes_nzcv: true,
-                encoded: effects(target),
-            },
-        })
-    }
-
-    pub use target_aarch64::inspection::decode_aarch64_selected_hosted_read_byte;
-
-    #[cfg(test)]
-    mod tests {
-        use super::{
-            NativeTarget, decode_aarch64_selected_hosted_read_byte, effects,
-            encode_aarch64_selected_hosted_read_byte_form,
-            validate_aarch64_selected_hosted_read_byte_form,
-        };
-        use crate::test_support::reject_every_bit_flip;
-        use register_model::RegisterViewId;
-        use selected_instructions::{
-            LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
-            MachineEncodedStackEffect, MachineSemanticKind, MachineSizeKnowledge,
-            SelectedInstructionKind,
-        };
-        use semantic_vocabulary::{OperationId, PlaceId};
-
-        #[test]
-        fn read_byte_replays_every_bit_and_rejects_wrong_home_source_slot_and_alternative() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let operation = OperationId::new(7).unwrap();
-            let kind = SelectedInstructionKind::HostedReadByte {
-                slot: LocalStorageSlotId::Structural {
-                    operation,
-                    place: PlaceId::new(1).unwrap(),
-                },
-            };
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedReadByte,
-                variant: 0,
-            };
-            let encode =
-                |target, kind, alternative, source: &[RegisterViewId], displacement: u32| {
-                    encode_aarch64_selected_hosted_read_byte_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        source,
-                        i64::from(displacement),
-                    )
-                };
-            let validate = |target, displacement: u32, bytes: &[u8]| {
-                validate_aarch64_selected_hosted_read_byte_form(
-                    target,
-                    &physical,
-                    kind,
-                    alternative,
-                    &[],
-                    i64::from(displacement),
-                    bytes,
-                )
-            };
-            for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
-                for displacement in [
-                    0,
-                    32,
-                    4088,
-                    4092,
-                    4096,
-                    1_048_572,
-                    900_000,
-                    16_777_208,
-                    16_777_212,
-                    33_554_428,
-                    u32::MAX - 7,
-                ] {
-                    let encoded = encode(target, kind, alternative, &[], displacement).unwrap();
-                    assert_eq!(
-                        decode_aarch64_selected_hosted_read_byte(target, encoded.bytes()),
-                        Some(displacement)
-                    );
-                    assert_eq!(encoded.footprint().encoded, effects(target));
-                    assert!(encoded.footprint().register_reads.is_empty());
-                    assert!(encoded.footprint().register_writes.is_empty());
-                    assert_eq!(
-                        encoded.footprint().encoded.stack,
-                        MachineEncodedStackEffect::UnchangedV1
-                    );
-                    reject_every_bit_flip(encoded.bytes(), "hosted read byte", |changed| {
-                        assert_ne!(
-                            decode_aarch64_selected_hosted_read_byte(target, changed),
-                            Some(displacement),
-                            "decoder bit"
-                        );
-                        validate(target, displacement, changed).is_err()
-                    });
-                    for invalid_offset in [1, 3, u32::MAX - 3, u32::MAX] {
-                        assert!(encode(target, kind, alternative, &[], invalid_offset).is_err());
-                    }
-                    assert!(validate(target, displacement ^ 4, encoded.bytes()).is_err());
-                    let boundary = SelectedInstructionKind::HostedReadByte {
-                        slot: LocalStorageSlotId::Boundary { operation },
-                    };
-                    assert!(encode(target, boundary, alternative, &[], displacement).is_err());
-                    let source = [physical.model().view_named("x0").unwrap().id];
-                    assert!(encode(target, kind, alternative, &source, displacement).is_err());
-                    let wrong = MachineAlternativeKey {
-                        variant: 1,
-                        ..alternative
-                    };
-                    assert!(encode(target, kind, wrong, &[], displacement).is_err());
-                    assert!(validate(target, displacement, &encoded.bytes()[1..]).is_err());
-                    let mut padded = encoded.bytes().to_vec();
-                    padded.push(0);
-                    assert_eq!(
-                        decode_aarch64_selected_hosted_read_byte(target, &padded),
-                        None
-                    );
-                    let other_target = if target == NativeTarget::linux_arm64() {
-                        NativeTarget::macos_arm64()
+            let (r, w, z) = match kind {
+                Kind::AccessorScalarAccess { form, .. } => {
+                    if form.write {
+                        (vec![0, 1], vec![], false)
                     } else {
-                        NativeTarget::linux_arm64()
-                    };
-                    assert!(validate(other_target, displacement, encoded.bytes()).is_err());
-                    assert_eq!(
-                        decode_aarch64_selected_hosted_read_byte(other_target, encoded.bytes()),
-                        None
-                    );
+                        (vec![0], vec![1], false)
+                    }
                 }
-            }
-        }
-
-        #[test]
-        fn read_byte_linux_golden_and_darwin_return_paths() {
-            let linux = crate::encode_linux_read_byte_to_stack(16, 20).unwrap();
-            let golden: [u32; 14] = [
-                0x9100_53e1,
-                0xb81f_c03f,
-                0xb900_003f,
-                0xd280_0000,
-                0xd280_0022,
-                0xd280_07e8,
-                0xd400_0001,
-                0xb400_00e0,
-                0xf100_041f,
-                0x5400_0081,
-                0x5280_0029,
-                0xb81f_c029,
-                0x1400_0002,
-                0xd420_0000,
-            ];
-            assert_eq!(
-                linux,
-                golden
-                    .into_iter()
-                    .flat_map(u32::to_le_bytes)
-                    .collect::<Vec<_>>()
-            );
-            let darwin_words = |home: u32| {
-                crate::encode_macos_read_byte_to_stack(home, home + 4)
-                    .unwrap()
-                    .as_chunks::<4>()
-                    .0
-                    .iter()
-                    .map(|word| u32::from_le_bytes(*word))
-                    .collect::<Vec<_>>()
+                Kind::RegisterAccess {
+                    operation: RegisterOperation::MemoryFence(_),
+                }
+                | Kind::ReturnScalar
+                | Kind::ReturnAggregate { .. }
+                | Kind::ReturnUnit
+                | Kind::ConditionalBranchNonZero
+                | Kind::ConditionalBranchU64LessThan
+                | Kind::ConditionalBranchI64LessThan => (vec![], vec![], false),
+                Kind::RegisterAccess { operation } => {
+                    if operation.produces_value() {
+                        (vec![], vec![0], false)
+                    } else {
+                        (vec![0], vec![], false)
+                    }
+                }
+                Kind::TrappingInteger { form } => (
+                    (0..form.source_count() as u16).collect(),
+                    (form.source_count() as u16..super::trapping_forms::operand_count(form) as u16)
+                        .collect(),
+                    true,
+                ),
+                Kind::MaterializeI64 { .. } | Kind::ImageAddress { .. } => (vec![], vec![0], false),
+                selected_instructions::saturating_add_or_subtract_pattern!()
+                | Kind::SaturatingDivide { .. }
+                | Kind::SaturatingRemainder { .. }
+                | Kind::SaturatingMultiply { .. } => {
+                    let r = SaturatingRealization::of_kind(kind).expect("saturating realization");
+                    (
+                        vec![0, 1],
+                        (2..r.operand_count() as u16).collect(),
+                        r.defines_nzcv(),
+                    )
+                }
+                _ => unreachable!("non-scalar forms have dedicated footprints"),
             };
-            let words = darwin_words(16);
-            assert_eq!(&words[..3], &golden[..3]);
-            assert_eq!(
-                &words[3..13],
-                &[
-                    0xd280_0000,
-                    0xd280_0022,
-                    0xd280_0070,
-                    0xd400_1001,
-                    0x5400_0102,
-                    0xb400_0100,
-                    0xf100_041f,
-                    0x5400_00a1,
-                    0x5280_0029,
-                    0x9100_53e1,
-                ]
-            );
-            assert_eq!(&words[13..], &golden[11..]);
-            assert_eq!(&darwin_words(900_000)[..2], &[0x9143_6fe1, 0x912e_9021]);
-            assert_eq!(&darwin_words(33_554_428)[..2], &[0x917f_ffe1, 0x917f_fc21]);
-            for (home, payload) in [(0, 0), (0, 8), (2, 6), (u32::MAX, 3)] {
-                assert!(crate::encode_macos_read_byte_to_stack(home, payload).is_err());
-                assert!(crate::encode_linux_read_byte_to_stack(home, payload).is_err());
+            (r, w, z, false)
+        };
+        let register_reads = read_idx.iter().map(|&i| operands[usize::from(i)]).collect();
+        let register_writes = write_idx
+            .iter()
+            .map(|&i| operands[usize::from(i)])
+            .collect();
+        let physical = aarch64_physical_register_model_ref();
+        let units = |name: &str| physical.view_named(name).unwrap().units.clone();
+        let encoded = match kind {
+            Kind::RegisterAccess {
+                operation: RegisterOperation::MemoryFence(_),
+            } => MachineEncodedEffects::catalog_fence_v1(),
+            Kind::RegisterAccess { operation } => {
+                super::register_access::effects(operation.produces_value())
             }
-            for home in [16, 900_000] {
-                let words = darwin_words(home);
-                let address = &words[..if home < 4092 { 1 } else { 2 }];
-                for carry in [false, true] {
-                    for count in [0, 1, 2, 4, u64::MAX] {
-                        let mut position = address.len() + 6;
-                        let mut zero = false;
-                        let mut tag = 0;
-                        let mut readdressed = false;
-                        let mut trapped = false;
-                        for _ in 0..10 {
-                            if position == words.len() {
-                                break;
-                            }
-                            let word = words[position];
-                            if word & 0xff00_0010 == 0x5400_0000 {
-                                let condition = word & 15;
-                                let taken = match condition {
-                                    1 => !zero,
-                                    2 => carry,
-                                    _ => panic!("unexpected condition"),
-                                };
-                                position += if taken {
-                                    ((word >> 5) & 0x7ffff) as usize
-                                } else {
-                                    1
-                                };
-                            } else if word & 0xff00_001f == 0xb400_0000 {
-                                position += if count == 0 {
-                                    ((word >> 5) & 0x7ffff) as usize
-                                } else {
-                                    1
-                                };
-                            } else if words[position..].starts_with(address) {
-                                readdressed = true;
-                                position += address.len();
-                            } else {
-                                match word {
-                                    0xf100_041f => {
-                                        zero = count == 1;
-                                        position += 1;
-                                    }
-                                    0x5280_0029 => {
-                                        position += 1;
-                                    }
-                                    0xb81f_c029 => {
-                                        assert!(readdressed, "tag stored before the address");
-                                        tag = 1;
-                                        position += 1;
-                                    }
-                                    0x1400_0002 => {
-                                        position += (word & 0x03ff_ffff) as usize;
-                                    }
-                                    0xd420_0000 => {
-                                        trapped = true;
-                                        break;
-                                    }
-                                    _ => panic!("unexpected instruction"),
-                                }
-                            }
-                        }
-                        assert_eq!(trapped, carry || count > 1, "carry {carry}, count {count}");
-                        if !trapped {
-                            assert_eq!(position, words.len());
-                            assert_eq!(tag, u32::from(count == 1));
-                        }
-                    }
+            Kind::AtomicFence => MachineEncodedEffects::atomic_fence_v1(),
+            Kind::Crash => MachineEncodedEffects::crash_v1(&units("pc")),
+            Kind::TrappingInteger { .. } => super::trapping_forms::effects(read_idx, write_idx),
+            Kind::ReturnScalar | Kind::ReturnAggregate { .. } | Kind::ReturnUnit => {
+                MachineEncodedEffects {
+                    external_operand_reads: vec![],
+                    external_operand_writes: vec![],
+                    implicit_unit_uses: units("x30"),
+                    implicit_unit_defs: units("pc"),
+                    implicit_unit_clobbers: vec![],
+                    memory: MachineEncodedMemoryEffect::NoneV1,
+                    stack: MachineEncodedStackEffect::UnchangedV1,
+                    trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                    control: MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+                        target: physical.view_named("x30").unwrap().id,
+                    },
                 }
             }
-        }
-
-        #[test]
-        fn read_catalog_retains_complete_zero_operand_constraint_and_effect_clobbers() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let constraints = crate::validate_aarch64_register_constraint_catalog(
-                crate::aarch64_register_constraint_catalog(&physical),
-                &physical,
-            )
-            .unwrap();
-            for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
-                let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
-                let validated = crate::validate_aarch64_machine_effect_catalog(
-                    target,
-                    &constraints,
-                    catalog.clone(),
-                )
-                .unwrap();
-                let declaration = validated
-                    .catalog()
-                    .declaration_by_semantic(MachineSemanticKind::HostedReadByte)
-                    .unwrap();
-                let expected_key = if target == NativeTarget::linux_arm64() {
-                    crate::AARCH64_HOSTED_READ_BYTE
-                } else {
-                    crate::AARCH64_DARWIN_HOSTED_READ_BYTE
-                };
-                assert_eq!(declaration.constraint, expected_key);
-                assert_eq!(
-                    declaration.alternatives[0].size,
-                    MachineSizeKnowledge::EncoderResolved {
-                        minimum_bytes: if target == NativeTarget::linux_arm64() {
-                            56
-                        } else {
-                            64
-                        },
-                        maximum_bytes: Some(if target == NativeTarget::linux_arm64() {
-                            52 + 1_032
-                        } else {
-                            56 + 2 * 1_032
-                        }),
-                    }
-                );
-                assert_eq!(declaration.alternatives[0].encoded, effects(target));
-                let mut damaged = catalog;
-                let row = damaged
-                    .declaration_by_semantic_mut(MachineSemanticKind::HostedReadByte)
-                    .unwrap();
-                row.alternatives[0].encoded.implicit_unit_clobbers.pop();
-                assert!(
-                    crate::validate_aarch64_machine_effect_catalog(target, &constraints, damaged)
-                        .is_err()
-                );
+            Kind::ConditionalBranchNonZero
+            | Kind::ConditionalBranchU64LessThan
+            | Kind::ConditionalBranchI64LessThan => {
+                let mut uses = units("nzcv");
+                uses.extend(units("pc"));
+                uses.sort_unstable();
+                uses.dedup();
+                MachineEncodedEffects {
+                    external_operand_reads: vec![],
+                    external_operand_writes: vec![],
+                    implicit_unit_uses: uses,
+                    implicit_unit_defs: units("pc"),
+                    implicit_unit_clobbers: vec![],
+                    memory: MachineEncodedMemoryEffect::NoneV1,
+                    stack: MachineEncodedStackEffect::UnchangedV1,
+                    trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                    control: MachineEncodedControlEffect::ConditionalRelativeBranchV1,
+                }
             }
+            _ => {
+                let mut eff = MachineEncodedEffects::fallthrough_v1(read_idx, write_idx);
+                if writes_nzcv {
+                    eff.implicit_unit_defs = units("nzcv");
+                }
+                if reads_nzcv {
+                    eff.implicit_unit_uses = units("nzcv");
+                }
+                eff
+            }
+        };
+        Footprint {
+            register_reads,
+            register_writes,
+            writes_nzcv,
+            encoded,
         }
     }
 }
-pub(crate) mod hosted_write_byte {
-    pub(crate) use target_aarch64::form_effects::hosted_write_byte::effects;
 
+mod branch_forms {
+    use super::selected_forms::{footprint, resolve_registers};
     use super::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-        ValidatedAarch64SelectedFormEncoding,
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded, enc,
     };
-    use crate::immediate_offset::address_words;
-    use crate::selected_form_encoding::selected_forms::resolve_registers;
-
-    use register_model::RegisterViewId;
-    use register_model::ValidatedPhysicalRegisterModel;
+    use crate::aarch64_physical_register_model_ref;
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
-        LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
-        SelectedInstructionKind,
-    };
-    use target::NativeTarget;
-
-    fn request(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        displacement: i64,
-    ) -> Result<u8, Aarch64SelectedFormEncodingError> {
-        if ![NativeTarget::linux_arm64(), NativeTarget::macos_arm64()].contains(&target)
-            || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-            || !matches!(
-                kind,
-                SelectedInstructionKind::HostedWriteByteI32 {
-                    slot: LocalStorageSlotId::Boundary { .. }
-                }
-            )
-            || alternative
-                != (MachineAlternativeKey {
-                    family: MachineAlternativeFamily::HostedWriteByteI32,
-                    variant: 0,
-                })
-            || u32::try_from(displacement).is_err()
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        let registers = resolve_registers(physical, operands)?;
-        let [register] = registers.as_slice() else {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        };
-        Ok(*register)
-    }
-
-    pub fn encode_aarch64_selected_hosted_write_byte_form(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        displacement: i64,
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let register = request(target, physical, kind, alternative, operands, displacement)?;
-        let displacement = u32::try_from(displacement)
-            .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let mut words = store_and_buffer_words(register, displacement);
-        words.extend_from_slice(
-            system_call_words(target)
-                .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?,
-        );
-        let bytes = words
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect::<Vec<_>>();
-        validate_aarch64_selected_hosted_write_byte_form(
-            target,
-            physical,
-            kind,
-            alternative,
-            operands,
-            i64::from(displacement),
-            &bytes,
-        )
-    }
-
-    pub fn validate_aarch64_selected_hosted_write_byte_form(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        displacement: i64,
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let register = request(target, physical, kind, alternative, operands, displacement)?;
-        if decode(target, bytes).map(|(register, offset)| (register, i64::from(offset)))
-            != Some((register, displacement))
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(ValidatedAarch64SelectedFormEncoding {
-            bytes: bytes.to_vec(),
-            footprint: Aarch64SelectedFormFootprint {
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                writes_nzcv: true,
-                encoded: effects(target),
-            },
-        })
-    }
-
-    fn store_and_buffer_words(register: u8, displacement: u32) -> Vec<u32> {
-        let register = u32::from(register);
-        if displacement <= 4095 {
-            return vec![
-                0x3900_03e0 | (displacement << 10) | register,
-                0xd280_0020,
-                0x9100_03e1 | (displacement << 10),
-                0xd280_0022,
-            ];
-        }
-        let mut words = vec![0x2a00_03e2 | (register << 16)];
-        words.extend(address_words(1, 31, u64::from(displacement)));
-        words.extend([0x3900_0022, 0xd280_0020, 0xd280_0022]);
-        words
-    }
-
-    fn system_call_words(target: NativeTarget) -> Option<&'static [u32]> {
-        if target == NativeTarget::linux_arm64() {
-            Some(&[
-                0xd280_0808,
-                0xd400_0001,
-                0xf100_001f,
-                0x5400_004c,
-                0xd420_0000,
-            ])
-        } else if target == NativeTarget::macos_arm64() {
-            Some(&[
-                0xd280_0090,
-                0xd400_1001,
-                0x5400_0062,
-                0xf100_041f,
-                0x5400_0040,
-                0xd420_0000,
-            ])
-        } else {
-            None
-        }
-    }
-
-    pub use target_aarch64::inspection::aarch64_hosted_write_byte_i32_byte_count;
-
-    use target_aarch64::inspection::decode_hosted_write_byte_register as decode;
-
-    pub use target_aarch64::inspection::decode_aarch64_selected_hosted_write_byte_i32;
-
-    #[cfg(test)]
-    mod tests {
-        use super::{
-            NativeTarget, decode, effects, encode_aarch64_selected_hosted_write_byte_form,
-            validate_aarch64_selected_hosted_write_byte_form,
-        };
-        use crate::test_support::reject_every_bit_flip;
-        use register_model::RegisterViewId;
-        use selected_instructions::{
-            LocalStorageSlotId, MachineAlternativeFamily, MachineAlternativeKey,
-            MachineEncodedStackEffect, SelectedInstructionKind,
-        };
-        use semantic_vocabulary::{OperationId, PlaceId};
-
-        #[test]
-        fn hosted_write_byte_replays_source_frame_offset_syscall_failure_branch_and_every_bit() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let kind = SelectedInstructionKind::HostedWriteByteI32 {
-                slot: LocalStorageSlotId::Boundary {
-                    operation: OperationId::new(7).unwrap(),
-                },
-            };
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::HostedWriteByteI32,
-                variant: 0,
-            };
-            let encode = |target, operands: &[RegisterViewId], displacement| {
-                encode_aarch64_selected_hosted_write_byte_form(
-                    target,
-                    &physical,
-                    kind,
-                    alternative,
-                    operands,
-                    displacement,
-                )
-            };
-            let validate =
-                |target, kind, operands: &[RegisterViewId], displacement, bytes: &[u8]| {
-                    validate_aarch64_selected_hosted_write_byte_form(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        operands,
-                        displacement,
-                        bytes,
-                    )
-                };
-            for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
-                for name in ["x0", "x1", "x2", "x8", "x9", "x16", "x28"] {
-                    let operands = [physical.model().view_named(name).unwrap().id];
-                    for displacement in [0, 31, 4095, 4096, 16_777_223, 33_554_448] {
-                        let encoded = encode(target, &operands, displacement).unwrap();
-                        assert_eq!(encoded.footprint().encoded, effects(target));
-                        let other_target = if target == NativeTarget::linux_arm64() {
-                            NativeTarget::macos_arm64()
-                        } else {
-                            NativeTarget::linux_arm64()
-                        };
-                        assert!(decode(other_target, encoded.bytes()).is_none());
-                        assert!(decode(NativeTarget::linux_x64(), encoded.bytes()).is_none());
-                        assert!(
-                            encode(NativeTarget::linux_x64(), &operands, displacement).is_err()
-                        );
-                        assert!(encoded.footprint().register_writes.is_empty());
-                        assert_eq!(
-                            encoded.footprint().encoded.stack,
-                            MachineEncodedStackEffect::UnchangedV1
-                        );
-                        reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
-                            validate(target, kind, &operands, displacement, changed).is_err()
-                        });
-                        let rejects = |kind, displacement, bytes: &[u8]| {
-                            validate(target, kind, &operands, displacement, bytes).is_err()
-                        };
-                        assert!(rejects(kind, displacement ^ 1, encoded.bytes()));
-                        assert!(rejects(kind, displacement, &encoded.bytes()[1..]));
-                        let mut trailing = encoded.bytes().to_vec();
-                        trailing.push(0);
-                        assert!(rejects(kind, displacement, &trailing));
-                        let wrong_slot = SelectedInstructionKind::HostedWriteByteI32 {
-                            slot: LocalStorageSlotId::Structural {
-                                operation: OperationId::new(7).unwrap(),
-                                place: PlaceId::new(1).unwrap(),
-                            },
-                        };
-                        assert!(rejects(wrong_slot, displacement, encoded.bytes()));
-                        assert_eq!(
-                            super::aarch64_hosted_write_byte_i32_byte_count(
-                                target,
-                                displacement as u32
-                            ),
-                            Some(encoded.bytes().len())
-                        );
-                        assert!(encode(target, &operands, i64::from(u32::MAX) + 1).is_err());
-                        assert!(encode(target, &[], displacement).is_err());
-                    }
-                }
-            }
-        }
-
-        #[test]
-        fn darwin_success_requires_clear_carry_and_exactly_one_byte() {
-            let words = [
-                0x3900_03e9_u32,
-                0xd280_0020,
-                0x9100_03e1,
-                0xd280_0022,
-                0xd280_0090,
-                0xd400_1001,
-                0x5400_0062,
-                0xf100_041f,
-                0x5400_0040,
-                0xd420_0000,
-            ];
-            let bytes = words
-                .into_iter()
-                .flat_map(u32::to_le_bytes)
-                .collect::<Vec<_>>();
-            assert_eq!(decode(NativeTarget::macos_arm64(), &bytes), Some((9, 0)));
-            for (word, replacement) in [(6, 0xd503_201f_u32), (7, 0xf100_001f), (8, 0x5400_004c)] {
-                let mut changed = bytes.clone();
-                crate::codec_bytes::patch_encoded(
-                    &mut changed,
-                    word * 4,
-                    replacement.to_le_bytes(),
-                );
-                assert!(decode(NativeTarget::macos_arm64(), &changed).is_none());
-            }
-        }
-
-        #[test]
-        fn target_effects_bind_the_exact_syscall_register() {
-            let physical = crate::aarch64_physical_register_model();
-            for (target, used, preserved) in [
-                (NativeTarget::linux_arm64(), "x8", "x16"),
-                (NativeTarget::macos_arm64(), "x16", "x8"),
-            ] {
-                let effects = effects(target);
-                assert!(
-                    physical
-                        .view_named(used)
-                        .unwrap()
-                        .units
-                        .iter()
-                        .all(|unit| effects.implicit_unit_clobbers.contains(unit))
-                );
-                assert!(
-                    physical
-                        .view_named(preserved)
-                        .unwrap()
-                        .units
-                        .iter()
-                        .all(|unit| !effects.implicit_unit_clobbers.contains(unit))
-                );
-            }
-        }
-    }
-}
-pub(crate) mod ieee_float_arithmetic {
-    #[cfg(test)]
-    pub(crate) use target_aarch64::form_effects::ieee_float_arithmetic::clobbers;
-    #[cfg(test)]
-    pub(crate) use target_aarch64::form_effects::ieee_float_arithmetic::declaration;
-
-    pub(crate) use target_aarch64::form_effects::ieee_float_arithmetic::effects;
-
-    use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
-    use register_model::RegisterViewId;
-    use selected_instructions::IeeeFloatArithmeticForm;
-    use selected_instructions::{
-        IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
-        IeeeFloatToIntegerDomain,
+        MachineAlternativeFamily as Fam, MachineAlternativeKey, MachineEncodedControlEffect,
+        MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+        MachineEncodedTrapBehavior, SelectedInstructionKind as Kind,
     };
 
-    mod conversions {
-        use super::{
-            IeeeFloatIntegerCarrier, LEFT_SCRATCH, MASK_SCRATCH, RIGHT_SCRATCH, Word, materialize,
-        };
-
-        fn bounds(target: IeeeFloatIntegerCarrier) -> (u64, u64) {
-            let magnitude_bits = u32::from(target.bits()) - u32::from(target.is_signed());
-            let upper = u64::from(1023 + magnitude_bits) << 52;
-            let lower = if target.is_signed() {
-                (1_u64 << 63)
-                    | upper
-                    | if magnitude_bits <= 52 {
-                        1_u64 << (52 - magnitude_bits)
-                    } else {
-                        1
-                    }
-            } else {
-                (-1.0_f64).to_bits()
-            };
-            (lower, upper)
-        }
-
-        pub(super) fn trapping_truncation(
-            double: bool,
-            target: IeeeFloatIntegerCarrier,
-            source: u8,
-            result: u8,
-        ) -> Vec<Word> {
-            let mut words = vec![Word::ToFloat {
-                double,
-                general: source,
-                vector: LEFT_SCRATCH,
-            }];
-            if !double {
-                words.push(Word::OneSource {
-                    double: false,
-                    opcode: 0b00_0101,
-                    source: LEFT_SCRATCH,
-                    result: LEFT_SCRATCH,
-                });
-            }
-            let (lower, upper) = bounds(target);
-            for (bound, left, right) in [
-                (lower, LEFT_SCRATCH, RIGHT_SCRATCH),
-                (upper, RIGHT_SCRATCH, LEFT_SCRATCH),
-            ] {
-                words.extend(materialize(bound, result));
-                words.extend([
-                    Word::ToFloat {
-                        double: true,
-                        general: result,
-                        vector: RIGHT_SCRATCH,
-                    },
-                    Word::Compare {
-                        equal: false,
-                        double: true,
-                        left,
-                        right,
-                        result: MASK_SCRATCH,
-                    },
-                    Word::ToGeneral {
-                        double: true,
-                        vector: MASK_SCRATCH,
-                        general: result,
-                    },
-                    Word::BranchNonzeroOverCrash { general: result },
-                    Word::Crash,
-                ]);
-            }
-            words.push(Word::FloatToInteger {
-                wide: target.bits() == 64,
-                double: true,
-                unsigned: !target.is_signed(),
-                vector: LEFT_SCRATCH,
-                general: result,
-            });
-            if target.is_signed() && target.bits() <= 32 {
-                words.push(Word::SignExtend32 {
-                    source: result,
-                    result,
-                });
-            }
-            words
-        }
-
-        #[cfg(test)]
-        mod tests {
-            use super::super::{declaration, decode_word, encode, footprint, validate};
-            use super::*;
-            use selected_instructions::{
-                IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
-                IeeeFloatToIntegerDomain, MachineBarrier, MachineEncodedControlEffect,
-                MachineEncodedTrapBehavior, MachineSizeKnowledge, MachineTrapBehavior,
-            };
-
-            fn form(
-                target: IeeeFloatIntegerCarrier,
-                format: IeeeFloatFormat,
-            ) -> IeeeFloatArithmeticForm {
-                IeeeFloatArithmeticForm {
-                    operation: IeeeFloatArithmeticOperation::TruncateToInteger {
-                        target,
-                        domain: IeeeFloatToIntegerDomain::Trapping,
-                    },
-                    format,
-                }
-            }
-
-            #[test]
-            fn trapping_words_pin_the_bounds_branches_and_conversion() {
-                let selected = form(IeeeFloatIntegerCarrier::I32, IeeeFloatFormat::Binary64);
-                let expected = [
-                    0x9e67_0070_u32,
-                    0xd2f8_3c04,
-                    0xf2a0_0404,
-                    0x9e67_0091,
-                    0x7ef1_e612,
-                    0x9e66_0244,
-                    0xb500_0044,
-                    0xd420_0000,
-                    0xd2e8_3c04,
-                    0x9e67_0091,
-                    0x7ef0_e632,
-                    0x9e66_0244,
-                    0xb500_0044,
-                    0xd420_0000,
-                    0x1e78_0204,
-                    0x9340_7c84,
-                ]
-                .into_iter()
-                .flat_map(u32::to_le_bytes)
-                .collect::<Vec<_>>();
-                assert_eq!(encode(selected, &[3, 4]).unwrap(), expected);
-                validate(selected, &[3, 4], &expected).unwrap();
-                let mut changed = expected.clone();
-                crate::codec_bytes::patch_encoded(
-                    &mut changed,
-                    6 * 4,
-                    0xb500_0084_u32.to_le_bytes(),
-                );
-                assert!(validate(selected, &[3, 4], &changed).is_err());
-                changed = expected;
-                crate::codec_bytes::patch_encoded(
-                    &mut changed,
-                    7 * 4,
-                    0xd503_201f_u32.to_le_bytes(),
-                );
-                assert!(validate(selected, &[3, 4], &changed).is_err());
-            }
-
-            #[test]
-            fn unsigned_64_conversion_words_select_the_unsigned_wide_carrier() {
-                for (format, to_float, from_float, move_in, move_out) in [
-                    (
-                        IeeeFloatFormat::Binary32,
-                        0x9e23_0070_u32,
-                        0x9e39_0204_u32,
-                        0x1e27_0070_u32,
-                        0x1e26_0204_u32,
-                    ),
-                    (
-                        IeeeFloatFormat::Binary64,
-                        0x9e63_0070,
-                        0x9e79_0204,
-                        0x9e67_0070,
-                        0x9e66_0204,
-                    ),
-                ] {
-                    let selected = IeeeFloatArithmeticForm {
-                        operation: IeeeFloatArithmeticOperation::FromInteger(
-                            IeeeFloatIntegerCarrier::U64,
-                        ),
-                        format,
-                    };
-                    assert_eq!(
-                        encode(selected, &[3, 4]).unwrap(),
-                        [to_float, move_out]
-                            .into_iter()
-                            .flat_map(u32::to_le_bytes)
-                            .collect::<Vec<_>>()
-                    );
-                    for domain in [
-                        IeeeFloatToIntegerDomain::Exact,
-                        IeeeFloatToIntegerDomain::Saturating,
-                    ] {
-                        let selected = IeeeFloatArithmeticForm {
-                            operation: IeeeFloatArithmeticOperation::TruncateToInteger {
-                                target: IeeeFloatIntegerCarrier::U64,
-                                domain,
-                            },
-                            format,
-                        };
-                        assert_eq!(
-                            encode(selected, &[3, 4]).unwrap(),
-                            [move_in, from_float]
-                                .into_iter()
-                                .flat_map(u32::to_le_bytes)
-                                .collect::<Vec<_>>()
-                        );
-                    }
-                }
-            }
-
-            #[test]
-            fn trapping_footprint_declares_crash_without_flags_or_extra_scratch() {
-                let model = crate::aarch64_physical_register_model();
-                let operands = [
-                    model.view_named("x3").unwrap().id,
-                    model.view_named("x4").unwrap().id,
-                ];
-                for target in IeeeFloatIntegerCarrier::ALL {
-                    for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
-                        let selected = form(target, format);
-                        let declaration = declaration(selected, crate::AARCH64_IEEE_FLOAT_UNARY);
-                        let footprint = footprint(selected, &operands);
-                        assert_eq!(declaration.trap, MachineTrapBehavior::TrappingIntegerV1);
-                        assert_eq!(declaration.barrier, MachineBarrier::ExternalEffect);
-                        assert_eq!(
-                            footprint.encoded.trap,
-                            MachineEncodedTrapBehavior::TrappingIntegerV1
-                        );
-                        assert_eq!(
-                            footprint.encoded.control,
-                            MachineEncodedControlEffect::FallThroughOrTrapV1
-                        );
-                        assert_eq!(footprint.register_reads, operands[..1]);
-                        assert_eq!(footprint.register_writes, operands[1..]);
-                        assert!(!footprint.writes_nzcv);
-                        assert_eq!(
-                            footprint.encoded.implicit_unit_clobbers,
-                            super::super::clobbers()
-                        );
-                        assert_eq!(declaration.alternatives[0].encoded, footprint.encoded);
-                        assert_eq!(
-                            declaration.alternatives[0].size,
-                            MachineSizeKnowledge::ExactBytes(
-                                encode(selected, &[3, 4]).unwrap().len() as u16
-                            )
-                        );
-                    }
-                }
-            }
-
-            fn replay(bytes: &[u8], source: u64, input: usize, output: usize) -> Option<u64> {
-                let mut general = [0_u64; 31];
-                let mut vector = [0_u64; 32];
-                general[input] = source;
-                let words = bytes.as_chunks::<4>().0;
-                let mut position = 0;
-                while position < words.len() {
-                    match decode_word(u32::from_le_bytes(words[position])).unwrap() {
-                        Word::ToFloat {
-                            double,
-                            general: source,
-                            vector: destination,
-                        } => {
-                            vector[usize::from(destination)] = if double {
-                                general[usize::from(source)]
-                            } else {
-                                u64::from(general[usize::from(source)] as u32)
-                            };
-                        }
-                        Word::ToGeneral {
-                            double: true,
-                            vector: source,
-                            general: destination,
-                        } => general[usize::from(destination)] = vector[usize::from(source)],
-                        Word::OneSource {
-                            double: false,
-                            opcode: 0b00_0101,
-                            source,
-                            result,
-                        } => {
-                            vector[usize::from(result)] =
-                                f64::from(f32::from_bits(vector[usize::from(source)] as u32))
-                                    .to_bits()
-                        }
-                        Word::MoveWide {
-                            keep,
-                            shift,
-                            immediate,
-                            general: destination,
-                        } => {
-                            let shift = u32::from(shift) * 16;
-                            let preserved = if keep {
-                                general[usize::from(destination)] & !(0xffff_u64 << shift)
-                            } else {
-                                0
-                            };
-                            general[usize::from(destination)] =
-                                preserved | (u64::from(immediate) << shift);
-                        }
-                        Word::Compare {
-                            equal: false,
-                            double: true,
-                            left,
-                            right,
-                            result,
-                        } => {
-                            vector[usize::from(result)] =
-                                if f64::from_bits(vector[usize::from(left)])
-                                    > f64::from_bits(vector[usize::from(right)])
-                                {
-                                    u64::MAX
-                                } else {
-                                    0
-                                }
-                        }
-                        Word::BranchNonzeroOverCrash { general: source } => {
-                            if general[usize::from(source)] != 0 {
-                                position += 1;
-                            }
-                        }
-                        Word::Crash => return None,
-                        Word::FloatToInteger {
-                            wide,
-                            double: true,
-                            unsigned,
-                            vector: source,
-                            general: destination,
-                        } => {
-                            let source = f64::from_bits(vector[usize::from(source)]);
-                            general[usize::from(destination)] = match (wide, unsigned) {
-                                (true, true) => source as u64,
-                                (true, false) => source as i64 as u64,
-                                (false, true) => u64::from(source as u32),
-                                (false, false) => u64::from(source as i32 as u32),
-                            };
-                        }
-                        Word::SignExtend32 { source, result } => {
-                            general[usize::from(result)] =
-                                general[usize::from(source)] as i32 as i64 as u64
-                        }
-                        other => panic!("unexpected trapping conversion instruction {other:?}"),
-                    }
-                    position += 1;
-                }
-                Some(general[output])
-            }
-
-            #[test]
-            fn trapping_replay_matches_integer_bounds_at_fractional_edges_and_nonfinite_values() {
-                for target in IeeeFloatIntegerCarrier::ALL {
-                    let magnitude_bits = target.bits() - u16::from(target.is_signed());
-                    let maximum = (1_i128 << magnitude_bits) - 1;
-                    let minimum = if target.is_signed() {
-                        -(1_i128 << magnitude_bits)
-                    } else {
-                        0
-                    };
-                    let mut sources = vec![
-                        f64::NAN,
-                        f64::NEG_INFINITY,
-                        f64::INFINITY,
-                        -0.0,
-                        0.0,
-                        -0.75,
-                        0.75,
-                        -1.0,
-                        -1.5,
-                        1.5,
-                    ];
-                    for edge in [
-                        minimum as f64,
-                        maximum as f64,
-                        (minimum - 1) as f64,
-                        (maximum + 1) as f64,
-                    ] {
-                        sources.extend([
-                            edge,
-                            edge.next_down(),
-                            edge.next_up(),
-                            f64::from((edge as f32).next_down()),
-                            f64::from((edge as f32).next_up()),
-                            edge - 0.5,
-                            edge + 0.5,
-                        ]);
-                    }
-                    for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
-                        for &source in &sources {
-                            let (source, payload) = match format {
-                                IeeeFloatFormat::Binary32 => (
-                                    f64::from(source as f32),
-                                    u64::from((source as f32).to_bits()),
-                                ),
-                                IeeeFloatFormat::Binary64 => (source, source.to_bits()),
-                            };
-                            let integer = source.trunc() as i128;
-                            let expected = (source.is_finite()
-                                && (minimum..=maximum).contains(&integer))
-                            .then_some(integer as u64);
-                            for registers in [[3, 4], [3, 3]] {
-                                let bytes = encode(form(target, format), &registers).unwrap();
-                                assert_eq!(
-                                    replay(
-                                        &bytes,
-                                        payload,
-                                        usize::from(registers[0]),
-                                        usize::from(registers[1])
-                                    ),
-                                    expected,
-                                    "{target:?} {format:?} {source} {registers:?}"
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    const LEFT_SCRATCH: u8 = 16;
-    const RIGHT_SCRATCH: u8 = 17;
-    const MASK_SCRATCH: u8 = 18;
-
-    pub(crate) fn footprint(
-        form: IeeeFloatArithmeticForm,
-        operands: &[RegisterViewId],
-    ) -> Aarch64SelectedFormFootprint {
-        let inputs = form.operand_count();
-        Aarch64SelectedFormFootprint {
-            register_reads: operands[..inputs].to_vec(),
-            register_writes: operands[inputs..inputs + 1].to_vec(),
-            writes_nzcv: false,
-            encoded: effects(form),
-        }
-    }
+    pub const AARCH64_CONDITIONAL_BRANCH_BYTE_REACH: std::ops::Range<i64> = -(1 << 20)..(1 << 20);
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    enum Word {
-        ExtractUnsigned {
-            first: u8,
-            width: u8,
-            source: u8,
-            result: u8,
-        },
-        ShiftLeft32 {
-            source: u8,
-            result: u8,
-        },
-        SubtractImmediate {
-            immediate: u16,
-            source: u8,
-            result: u8,
-        },
-        BranchZero {
-            general: u8,
-            displacement: i32,
-        },
-        Jump {
-            displacement: i32,
-        },
-        BitwiseOr {
-            left: u8,
-            right: u8,
-            result: u8,
-        },
-        FloatingControl {
-            read: bool,
-            general: u8,
-        },
-        ToUpperLane {
-            general: u8,
-            vector: u8,
-        },
-        FromUpperLane {
-            vector: u8,
-            general: u8,
-        },
-        BranchNonzeroOverCrash {
-            general: u8,
-        },
-        Crash,
-        ToFloat {
-            double: bool,
-            general: u8,
-            vector: u8,
-        },
-        ToGeneral {
-            double: bool,
-            vector: u8,
-            general: u8,
-        },
-        TwoSource {
-            double: bool,
-            opcode: u32,
-            left: u8,
-            right: u8,
-            result: u8,
-        },
-        FusedMultiplyAdd {
-            double: bool,
-            left: u8,
-            right: u8,
-            addend: u8,
-            result: u8,
-        },
-        OneSource {
-            double: bool,
-            opcode: u32,
-            source: u8,
-            result: u8,
-        },
-        IntegerToFloat {
-            wide: bool,
-            double: bool,
-            unsigned: bool,
-            general: u8,
-            vector: u8,
-        },
-        FloatToInteger {
-            wide: bool,
-            double: bool,
-            unsigned: bool,
-            vector: u8,
-            general: u8,
-        },
-        SignExtend32 {
-            source: u8,
-            result: u8,
-        },
-        ExtendNarrow {
-            signed: bool,
-            halfword: bool,
-            source: u8,
-            result: u8,
-        },
-        MoveWide {
-            keep: bool,
-            shift: u8,
-            immediate: u16,
-            general: u8,
-        },
-        Compare {
-            equal: bool,
-            double: bool,
-            left: u8,
-            right: u8,
-            result: u8,
-        },
-        BitwiseSelect {
-            mask: u8,
-            if_set: u8,
-            if_clear: u8,
-        },
-        AddImmediate {
-            wide: bool,
-            immediate: u16,
-            source: u8,
-            result: u8,
-        },
-        LogicalShiftRight {
-            wide: bool,
-            count: u8,
-            source: u8,
-            result: u8,
-        },
+    pub enum Aarch64ConditionalBranchForm {
+        CanonicalWordV1,
+        WidenedPairV1,
     }
 
-    fn encode_word(word: Word) -> u32 {
-        let reg = |register: u8| u32::from(register);
-        let width = |double: bool| u32::from(double);
-        match word {
-            Word::ExtractUnsigned {
-                first,
-                width,
-                source,
-                result,
-            } => {
-                0xd340_0000
-                    | u32::from(first) << 16
-                    | u32::from(first + width - 1) << 10
-                    | reg(source) << 5
-                    | reg(result)
+    fn arm(
+        physical: &ValidatedPhysicalRegisterModel,
+        alternative: MachineAlternativeKey,
+        family: Fam,
+    ) -> Result<(u8, u8, Kind), Error> {
+        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+            return Err(Error::NonCanonicalPhysicalModel);
+        }
+        if alternative != (MachineAlternativeKey { family, variant: 0 }) {
+            return Err(Error::AlternativeMismatch);
+        }
+        match family {
+            Fam::ConditionalBranchNonZero => Ok((enc::NE, enc::EQ, Kind::ConditionalBranchNonZero)),
+            Fam::ConditionalBranchU64LessThan => {
+                Ok((enc::LO, enc::HS, Kind::ConditionalBranchU64LessThan))
             }
-            Word::ShiftLeft32 { source, result } => 0xd360_7c00 | reg(source) << 5 | reg(result),
-            Word::SubtractImmediate {
-                immediate,
-                source,
-                result,
-            } => 0xd100_0000 | u32::from(immediate) << 10 | reg(source) << 5 | reg(result),
-            Word::BranchZero {
-                general,
-                displacement,
-            } => 0xb400_0000 | (((displacement / 4) as u32 & 0x7ffff) << 5) | reg(general),
-            Word::Jump { displacement } => 0x1400_0000 | ((displacement / 4) as u32 & 0x03ff_ffff),
-            Word::BitwiseOr {
-                left,
-                right,
-                result,
-            } => 0x0ea0_1c00 | reg(right) << 16 | reg(left) << 5 | reg(result),
-            Word::FloatingControl { read, general } => {
-                (if read { 0xd53b_4400 } else { 0xd51b_4400 }) | reg(general)
+            Fam::ConditionalBranchI64LessThan => {
+                Ok((enc::LT, enc::GE, Kind::ConditionalBranchI64LessThan))
             }
-            Word::BranchNonzeroOverCrash { general } => 0xb500_0040 | reg(general),
-            Word::Crash => 0xd420_0000,
-            Word::ToUpperLane { general, vector } => 0x9eaf_0000 | reg(general) << 5 | reg(vector),
-            Word::FromUpperLane { vector, general } => {
-                0x9eae_0000 | reg(vector) << 5 | reg(general)
-            }
-            Word::ToFloat {
-                double,
-                general,
-                vector,
-            } => (if double { 0x9e67_0000 } else { 0x1e27_0000 }) | reg(general) << 5 | reg(vector),
-            Word::ToGeneral {
-                double,
-                vector,
-                general,
-            } => (if double { 0x9e66_0000 } else { 0x1e26_0000 }) | reg(vector) << 5 | reg(general),
-            Word::TwoSource {
-                double,
-                opcode,
-                left,
-                right,
-                result,
-            } => {
-                0x1e20_0800
-                    | width(double) << 22
-                    | reg(right) << 16
-                    | opcode << 12
-                    | reg(left) << 5
-                    | reg(result)
-            }
-            Word::FusedMultiplyAdd {
-                double,
-                left,
-                right,
-                addend,
-                result,
-            } => {
-                0x1f00_0000
-                    | width(double) << 22
-                    | reg(right) << 16
-                    | reg(addend) << 10
-                    | reg(left) << 5
-                    | reg(result)
-            }
-            Word::OneSource {
-                double,
-                opcode,
-                source,
-                result,
-            } => 0x1e20_4000 | width(double) << 22 | opcode << 15 | reg(source) << 5 | reg(result),
-            Word::IntegerToFloat {
-                wide,
-                double,
-                unsigned,
-                general,
-                vector,
-            } => {
-                0x1e22_0000
-                    | width(wide) << 31
-                    | width(double) << 22
-                    | u32::from(unsigned) << 16
-                    | reg(general) << 5
-                    | reg(vector)
-            }
-            Word::FloatToInteger {
-                wide,
-                double,
-                unsigned,
-                vector,
-                general,
-            } => {
-                0x1e38_0000
-                    | width(wide) << 31
-                    | width(double) << 22
-                    | u32::from(unsigned) << 16
-                    | reg(vector) << 5
-                    | reg(general)
-            }
-            Word::SignExtend32 { source, result } => 0x9340_7c00 | reg(source) << 5 | reg(result),
-            Word::ExtendNarrow {
-                signed,
-                halfword,
-                source,
-                result,
-            } => {
-                (if signed { 0x1300_0000 } else { 0x5300_0000 })
-                    | (if halfword { 15 } else { 7 }) << 10
-                    | reg(source) << 5
-                    | reg(result)
-            }
-            Word::MoveWide {
-                keep,
-                shift,
-                immediate,
-                general,
-            } => {
-                (if keep { 0xf280_0000 } else { 0xd280_0000 })
-                    | u32::from(shift) << 21
-                    | u32::from(immediate) << 5
-                    | reg(general)
-            }
-            Word::Compare {
-                equal,
-                double,
-                left,
-                right,
-                result,
-            } => {
-                (if equal { 0x5e20_e400 } else { 0x7ea0_e400 })
-                    | width(double) << 22
-                    | reg(right) << 16
-                    | reg(left) << 5
-                    | reg(result)
-            }
-            Word::AddImmediate {
-                wide,
-                immediate,
-                source,
-                result,
-            } => {
-                0x1100_0000
-                    | width(wide) << 31
-                    | u32::from(immediate) << 10
-                    | reg(source) << 5
-                    | reg(result)
-            }
-            Word::LogicalShiftRight {
-                wide,
-                count,
-                source,
-                result,
-            } => {
-                (if wide { 0xd340_fc00 } else { 0x5300_7c00 })
-                    | u32::from(count) << 16
-                    | reg(source) << 5
-                    | reg(result)
-            }
-            Word::BitwiseSelect {
-                mask,
-                if_set,
-                if_clear,
-            } => 0x2e60_1c00 | reg(if_clear) << 16 | reg(if_set) << 5 | reg(mask),
+            _ => Err(Error::AlternativeMismatch),
         }
     }
 
-    fn decode_word(word: u32) -> Option<Word> {
-        if word & !31 == 0xd53b_4400 || word & !31 == 0xd51b_4400 {
-            return Some(Word::FloatingControl {
-                read: word & !31 == 0xd53b_4400,
-                general: (word & 31) as u8,
-            });
+    fn imm19_words(disp: i64) -> Result<i32, Error> {
+        if disp % 4 != 0 {
+            return Err(Error::BranchDisplacementMisaligned);
         }
-        let field = |shift: u32| ((word >> shift) & 31) as u8;
-        let bit = |shift: u32| (word >> shift) & 1 == 1;
-        let float_type = |shift: u32| match (word >> shift) & 3 {
-            0 => Some(false),
-            1 => Some(true),
-            _ => None,
+        if !AARCH64_CONDITIONAL_BRANCH_BYTE_REACH.contains(&disp) {
+            return Err(Error::BranchDisplacementOutsideImm19);
+        }
+        Ok((disp / 4) as i32)
+    }
+
+    fn widened_imm26_words(disp: i64) -> Result<i32, Error> {
+        if disp % 4 != 0 {
+            return Err(Error::BranchDisplacementMisaligned);
+        }
+        let words = disp / 4 - 1;
+        if !(-(1_i64 << 25)..(1_i64 << 25)).contains(&words) {
+            return Err(Error::BranchDisplacementOutsideImm26);
+        }
+        Ok(words as i32)
+    }
+
+    pub fn encode_aarch64_selected_conditional_branch_form(
+        physical: &ValidatedPhysicalRegisterModel,
+        alternative: MachineAlternativeKey,
+        family: Fam,
+        form: Aarch64ConditionalBranchForm,
+        byte_displacement_from_instruction: i64,
+    ) -> Result<Encoded, Error> {
+        let (cond, inv, kind) = arm(physical, alternative, family)?;
+        let bytes = match form {
+            Aarch64ConditionalBranchForm::CanonicalWordV1 => {
+                enc::b_cond(cond, imm19_words(byte_displacement_from_instruction)?)
+                    .to_le_bytes()
+                    .to_vec()
+            }
+            Aarch64ConditionalBranchForm::WidenedPairV1 => {
+                let words = [
+                    enc::b_cond(inv, 2),
+                    enc::b(widened_imm26_words(byte_displacement_from_instruction)?),
+                ];
+                enc::to_bytes(&words)
+            }
         };
-        Some(match word & 0xffff_fc00 {
-            _ if word & 0xffff_fc00 == 0xd360_7c00 => Word::ShiftLeft32 {
-                source: field(5),
-                result: field(0),
-            },
-            _ if word & 0xffc0_0000 == 0xd340_0000
-                && (word >> 10 & 63) >= (word >> 16 & 63)
-                && (word >> 10 & 63) != 63 =>
-            {
-                Word::ExtractUnsigned {
-                    first: (word >> 16 & 63) as u8,
-                    width: ((word >> 10 & 63) - (word >> 16 & 63) + 1) as u8,
-                    source: field(5),
-                    result: field(0),
-                }
-            }
-            _ if word & 0xffc0_0000 == 0xd100_0000 => Word::SubtractImmediate {
-                immediate: (word >> 10 & 0xfff) as u16,
-                source: field(5),
-                result: field(0),
-            },
-            _ if word & 0xff00_0000 == 0xb400_0000 => Word::BranchZero {
-                general: field(0),
-                displacement: (((word << 8) as i32) >> 13) * 4,
-            },
-            _ if word & 0xfc00_0000 == 0x1400_0000 => Word::Jump {
-                displacement: (((word << 6) as i32) >> 6) * 4,
-            },
-            _ if word & 0xffe0_fc00 == 0x0ea0_1c00 => Word::BitwiseOr {
-                left: field(5),
-                right: field(16),
-                result: field(0),
-            },
-
-            _ if word == 0xd420_0000 => Word::Crash,
-            _ if word & 0xffff_ffe0 == 0xb500_0040 => {
-                Word::BranchNonzeroOverCrash { general: field(0) }
-            }
-            0x9eaf_0000 => Word::ToUpperLane {
-                general: field(5),
-                vector: field(0),
-            },
-            0x9eae_0000 => Word::FromUpperLane {
-                vector: field(5),
-                general: field(0),
-            },
-            0x1e27_0000 | 0x9e67_0000 if bit(31) == bit(22) => Word::ToFloat {
-                double: bit(31),
-                general: field(5),
-                vector: field(0),
-            },
-            0x1e26_0000 | 0x9e66_0000 if bit(31) == bit(22) => Word::ToGeneral {
-                double: bit(31),
-                vector: field(5),
-                general: field(0),
-            },
-            _ if word & 0xff20_0c00 == 0x1e20_0800 => Word::TwoSource {
-                double: float_type(22)?,
-                opcode: (word >> 12) & 15,
-                left: field(5),
-                right: field(16),
-                result: field(0),
-            },
-            _ if word & 0xff20_8000 == 0x1f00_0000 => Word::FusedMultiplyAdd {
-                double: float_type(22)?,
-                left: field(5),
-                right: field(16),
-                addend: field(10),
-                result: field(0),
-            },
-            _ if word & 0xff20_7c00 == 0x1e20_4000 => Word::OneSource {
-                double: float_type(22)?,
-                opcode: (word >> 15) & 63,
-                source: field(5),
-                result: field(0),
-            },
-            _ if word & 0x7f3e_fc00 == 0x1e22_0000 => Word::IntegerToFloat {
-                wide: bit(31),
-                double: float_type(22)?,
-                unsigned: bit(16),
-                general: field(5),
-                vector: field(0),
-            },
-            _ if word & 0x7f3e_fc00 == 0x1e38_0000 => Word::FloatToInteger {
-                wide: bit(31),
-                double: float_type(22)?,
-                unsigned: bit(16),
-                vector: field(5),
-                general: field(0),
-            },
-            0x9340_7c00 => Word::SignExtend32 {
-                source: field(5),
-                result: field(0),
-            },
-            base @ (0x1300_1c00 | 0x1300_3c00 | 0x5300_1c00 | 0x5300_3c00) => Word::ExtendNarrow {
-                signed: base & 0x4000_0000 == 0,
-                halfword: base & 0x2000 != 0,
-                source: field(5),
-                result: field(0),
-            },
-            _ if word & 0xdf80_0000 == 0xd280_0000 => Word::MoveWide {
-                keep: bit(29),
-                shift: ((word >> 21) & 3) as u8,
-                immediate: ((word >> 5) & 0xffff) as u16,
-                general: field(0),
-            },
-            _ if matches!(word & 0xffa0_fc00, 0x7ea0_e400 | 0x5e20_e400) => Word::Compare {
-                equal: word & 0xffa0_fc00 == 0x5e20_e400,
-                double: bit(22),
-                left: field(5),
-                right: field(16),
-                result: field(0),
-            },
-            _ if word & 0x7fc0_0000 == 0x1100_0000 => Word::AddImmediate {
-                wide: bit(31),
-                immediate: ((word >> 10) & 0xfff) as u16,
-                source: field(5),
-                result: field(0),
-            },
-            _ if matches!(word & 0xffc0_fc00, 0x5300_7c00 | 0xd340_fc00) => {
-                let count = ((word >> 16) & 63) as u8;
-                if !bit(31) && count >= 32 {
-                    return None;
-                }
-                Word::LogicalShiftRight {
-                    wide: bit(31),
-                    count,
-                    source: field(5),
-                    result: field(0),
-                }
-            }
-            _ if word & 0xffe0_fc00 == 0x2e60_1c00 => Word::BitwiseSelect {
-                mask: field(0),
-                if_set: field(5),
-                if_clear: field(16),
-            },
-            _ => return None,
+        Ok(Encoded {
+            bytes,
+            footprint: footprint(kind, &[]),
         })
     }
 
-    fn classification_program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
-        let double = !form.is_binary32();
-        let result = registers[1];
-        let restore = Word::ToGeneral {
-            double: true,
-            vector: LEFT_SCRATCH,
-            general: result,
-        };
-        let output = |class| Word::MoveWide {
-            keep: false,
-            shift: 0,
-            immediate: match form.operation {
-                IeeeFloatArithmeticOperation::Classify => class,
-                IeeeFloatArithmeticOperation::IsNan => u16::from(class == 0),
-                IeeeFloatArithmeticOperation::IsInfinite => u16::from(class == 1),
-                IeeeFloatArithmeticOperation::IsFinite => u16::from(class >= 2),
-                IeeeFloatArithmeticOperation::IsNormal => u16::from(class == 2),
-                IeeeFloatArithmeticOperation::IsSubnormal => u16::from(class == 3),
-                _ => unreachable!("classification operation"),
-            },
-            general: result,
-        };
-        let branch = Word::BranchZero {
-            general: result,
-            displacement: 0,
-        };
-        let jump = Word::Jump { displacement: 0 };
-        let mut instructions = vec![
-            Word::ToFloat {
-                double,
-                general: registers[0],
-                vector: LEFT_SCRATCH,
-            },
-            Word::ExtractUnsigned {
-                first: if double { 52 } else { 23 },
-                width: if double { 11 } else { 8 },
-                source: registers[0],
-                result,
-            },
-            branch,
-            Word::SubtractImmediate {
-                immediate: if double { 2047 } else { 255 },
-                source: result,
-                result,
-            },
-            branch,
-            output(2),
-            jump,
-        ];
-        let subnormal = instructions.len();
-        instructions.extend([
-            restore,
-            Word::ExtractUnsigned {
-                first: 0,
-                width: if double { 63 } else { 31 },
-                source: result,
-                result,
-            },
-            branch,
-            output(3),
-            jump,
-        ]);
-        let zero = instructions.len();
-        instructions.extend([output(4), jump]);
-        let nonfinite = instructions.len();
-        instructions.extend([
-            restore,
-            Word::ExtractUnsigned {
-                first: 0,
-                width: if double { 52 } else { 23 },
-                source: result,
-                result,
-            },
-            branch,
-            output(0),
-            jump,
-        ]);
-        let infinity = instructions.len();
-        instructions.push(output(1));
-        let end = instructions.len();
-        if form.operation == IeeeFloatArithmeticOperation::Classify {
-            instructions.extend([
-                branch,
-                Word::ToFloat {
-                    double: true,
-                    general: result,
-                    vector: RIGHT_SCRATCH,
-                },
-                restore,
-                Word::LogicalShiftRight {
-                    wide: true,
-                    count: if double { 63 } else { 31 },
-                    source: result,
-                    result,
-                },
-                Word::ShiftLeft32 {
-                    source: result,
-                    result,
-                },
-                Word::ToFloat {
-                    double: true,
-                    general: result,
-                    vector: LEFT_SCRATCH,
-                },
-                Word::BitwiseOr {
-                    left: LEFT_SCRATCH,
-                    right: RIGHT_SCRATCH,
-                    result: LEFT_SCRATCH,
-                },
-                restore,
-            ]);
-        }
-        let mut branches = vec![
-            (2, subnormal),
-            (4, nonfinite),
-            (6, end),
-            (subnormal + 2, zero),
-            (subnormal + 4, end),
-            (zero + 1, end),
-            (nonfinite + 2, infinity),
-            (nonfinite + 4, end),
-        ];
-        if form.operation == IeeeFloatArithmeticOperation::Classify {
-            branches.push((end, instructions.len()));
-        }
-        for (index, destination) in branches {
-            let displacement = (destination as i32 - index as i32) * 4;
-            match &mut instructions[index] {
-                Word::BranchZero {
-                    displacement: field,
-                    ..
-                }
-                | Word::Jump {
-                    displacement: field,
-                } => *field = displacement,
-                _ => unreachable!("classification branch"),
-            }
-        }
-        instructions
-    }
-
-    const fn two_source_opcode(operation: IeeeFloatArithmeticOperation) -> Option<u32> {
-        match operation {
-            IeeeFloatArithmeticOperation::Multiply => Some(0b0000),
-            IeeeFloatArithmeticOperation::Divide => Some(0b0001),
-            IeeeFloatArithmeticOperation::Add => Some(0b0010),
-            IeeeFloatArithmeticOperation::Subtract => Some(0b0011),
-            _ => None,
-        }
-    }
-
-    const fn directed_mode(rounding: IeeeFloatRoundingDirection) -> u16 {
-        match rounding.ordinal() {
-            0 => 3,
-            1 => 1,
-            2 => 2,
-            _ => unreachable!(),
-        }
-    }
-
-    fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
-        let double = !form.is_binary32();
-        let result = registers[form.operand_count()];
-        let move_in = |general: u8, vector: u8, double: bool| Word::ToFloat {
-            double,
-            general,
-            vector,
-        };
-        let move_out = |vector: u8| Word::ToGeneral {
-            double,
-            vector,
-            general: result,
-        };
-        let (first, second, mask) = (LEFT_SCRATCH, RIGHT_SCRATCH, MASK_SCRATCH);
-        let directed = |rounding, mut words: Vec<Word>, operation: Word| {
-            words.extend([
-                Word::FloatingControl {
-                    read: true,
-                    general: result,
-                },
-                // The low lane may hold the third scalar operand of FMADD.
-                Word::ToUpperLane {
-                    general: result,
-                    vector: mask,
-                },
-                Word::MoveWide {
-                    keep: false,
-                    shift: 1,
-                    immediate: directed_mode(rounding) << 6,
-                    general: result,
-                },
-                Word::FloatingControl {
-                    read: false,
-                    general: result,
-                },
-                operation,
-                Word::FromUpperLane {
-                    vector: mask,
-                    general: result,
-                },
-                Word::FloatingControl {
-                    read: false,
-                    general: result,
-                },
-                move_out(first),
-            ]);
-            words
-        };
-        match form.operation {
-            IeeeFloatArithmeticOperation::DirectedBinary {
-                operation,
-                rounding,
-            } => {
-                let opcode = match operation.ordinal() {
-                    0 => 2,
-                    1 => 3,
-                    2 => 0,
-                    3 => 1,
-                    _ => unreachable!(),
-                };
-                directed(
-                    rounding,
-                    vec![
-                        move_in(registers[0], first, double),
-                        move_in(registers[1], second, double),
-                    ],
-                    Word::TwoSource {
-                        double,
-                        opcode,
-                        left: first,
-                        right: second,
-                        result: first,
-                    },
-                )
-            }
-            IeeeFloatArithmeticOperation::DirectedSquareRoot { rounding } => directed(
-                rounding,
-                vec![move_in(registers[0], first, double)],
-                Word::OneSource {
-                    double,
-                    opcode: 0b00_0011,
-                    source: first,
-                    result: first,
-                },
-            ),
-            IeeeFloatArithmeticOperation::IsNan
-            | IeeeFloatArithmeticOperation::IsInfinite
-            | IeeeFloatArithmeticOperation::IsFinite
-            | IeeeFloatArithmeticOperation::IsNormal
-            | IeeeFloatArithmeticOperation::IsSubnormal
-            | IeeeFloatArithmeticOperation::Classify => classification_program(form, registers),
-            IeeeFloatArithmeticOperation::Compare(comparison) => {
-                use semantic_vocabulary::IeeeFloatComparisonOperation as Relation;
-                let compare = |equal, left, right, result| Word::Compare {
-                    equal,
-                    double,
-                    left,
-                    right,
-                    result,
-                };
-                let mut words = vec![
-                    move_in(registers[0], first, double),
-                    move_in(registers[1], second, double),
-                ];
-                match comparison {
-                    Relation::Equal | Relation::NotEqual => {
-                        words.push(compare(true, first, second, mask));
-                    }
-                    Relation::Less | Relation::Greater => {
-                        let (left, right) = if comparison == Relation::Less {
-                            (second, first)
-                        } else {
-                            (first, second)
-                        };
-                        words.push(compare(false, left, right, mask));
-                    }
-                    Relation::LessOrEqual | Relation::GreaterOrEqual => {
-                        let (left, right) = if comparison == Relation::LessOrEqual {
-                            (second, first)
-                        } else {
-                            (first, second)
-                        };
-                        words.extend([
-                            compare(true, first, second, mask),
-                            compare(false, left, right, first),
-                            Word::BitwiseOr {
-                                left: mask,
-                                right: first,
-                                result: mask,
-                            },
-                        ]);
-                    }
-                }
-                words.extend([
-                    move_out(mask),
-                    Word::ExtractUnsigned {
-                        first: 0,
-                        width: 1,
-                        source: result,
-                        result,
-                    },
-                ]);
-                if comparison == Relation::NotEqual {
-                    words.extend([
-                        Word::SubtractImmediate {
-                            immediate: 1,
-                            source: result,
-                            result,
-                        },
-                        Word::ExtractUnsigned {
-                            first: 0,
-                            width: 1,
-                            source: result,
-                            result,
-                        },
-                    ]);
-                }
-                words
-            }
-            IeeeFloatArithmeticOperation::FusedMultiplyAdd
-            | IeeeFloatArithmeticOperation::DirectedFusedMultiplyAdd { .. } => {
-                let mut inputs = vec![
-                    move_in(registers[0], first, double),
-                    move_in(registers[1], second, double),
-                    move_in(registers[2], mask, double),
-                ];
-                let fused = Word::FusedMultiplyAdd {
-                    double,
-                    left: first,
-                    right: second,
-                    addend: mask,
-                    result: first,
-                };
-                if let Some(rounding) = form.operation.rounding_direction() {
-                    directed(rounding, inputs, fused)
-                } else {
-                    inputs.extend([fused, move_out(first)]);
-                    inputs
-                }
-            }
-            IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
-                move_in(registers[0], first, double),
-                move_in(registers[1], second, double),
-                Word::TwoSource {
-                    double,
-                    opcode: 0b0000,
-                    left: first,
-                    right: second,
-                    result: first,
-                },
-                move_in(registers[2], second, double),
-                Word::TwoSource {
-                    double,
-                    opcode: 0b0010,
-                    left: first,
-                    right: second,
-                    result: first,
-                },
-                move_out(first),
-            ],
-            IeeeFloatArithmeticOperation::Minimum | IeeeFloatArithmeticOperation::Maximum => {
-                let (left, right) = if form.operation == IeeeFloatArithmeticOperation::Minimum {
-                    (second, first)
-                } else {
-                    (first, second)
-                };
-                vec![
-                    move_in(registers[0], first, double),
-                    move_in(registers[1], second, double),
-                    Word::Compare {
-                        equal: false,
-                        double,
-                        left,
-                        right,
-                        result: mask,
-                    },
-                    Word::BitwiseSelect {
-                        mask,
-                        if_set: first,
-                        if_clear: second,
-                    },
-                    move_out(mask),
-                ]
-            }
-            IeeeFloatArithmeticOperation::Negate | IeeeFloatArithmeticOperation::SquareRoot => {
-                let opcode = if form.operation == IeeeFloatArithmeticOperation::Negate {
-                    0b00_0010
-                } else {
-                    0b00_0011
-                };
-                vec![
-                    move_in(registers[0], first, double),
-                    Word::OneSource {
-                        double,
-                        opcode,
-                        source: first,
-                        result: first,
-                    },
-                    move_out(first),
-                ]
-            }
-            IeeeFloatArithmeticOperation::ConvertFormat => vec![
-                move_in(registers[0], first, !double),
-                Word::OneSource {
-                    double: !double,
-                    opcode: if double { 0b00_0101 } else { 0b00_0100 },
-                    source: first,
-                    result: first,
-                },
-                move_out(first),
-            ],
-            IeeeFloatArithmeticOperation::TruncateToInteger {
-                target,
-                domain: IeeeFloatToIntegerDomain::Trapping,
-            } => conversions::trapping_truncation(double, target, registers[0], result),
-            IeeeFloatArithmeticOperation::TruncateToInteger { target, .. }
-                if target.bits() < 32 =>
-            {
-                narrow_truncation(double, target, registers[0], result)
-            }
-            IeeeFloatArithmeticOperation::FromInteger(source) if source.bits() < 32 => vec![
-                Word::ExtendNarrow {
-                    signed: source.is_signed(),
-                    halfword: source.bits() == 16,
-                    source: registers[0],
-                    result,
-                },
-                Word::IntegerToFloat {
-                    wide: false,
-                    double,
-                    unsigned: !source.is_signed(),
-                    general: result,
-                    vector: first,
-                },
-                move_out(first),
-            ],
-            IeeeFloatArithmeticOperation::TruncateToInteger { target, .. } => {
-                let mut words = vec![
-                    move_in(registers[0], first, double),
-                    Word::FloatToInteger {
-                        wide: target.bits() == 64,
-                        double,
-                        unsigned: !target.is_signed(),
-                        vector: first,
-                        general: result,
-                    },
-                ];
-                if target.is_signed() && target.bits() == 32 {
-                    words.push(Word::SignExtend32 {
-                        source: result,
-                        result,
-                    });
-                }
-                words
-            }
-            IeeeFloatArithmeticOperation::FromInteger(source) => vec![
-                Word::IntegerToFloat {
-                    wide: source.bits() == 64,
-                    double,
-                    unsigned: !source.is_signed(),
-                    general: registers[0],
-                    vector: first,
-                },
-                move_out(first),
-            ],
-            arithmetic => {
-                let opcode = two_source_opcode(arithmetic)
-                    .expect("every remaining operation is two-source arithmetic");
-                vec![
-                    move_in(registers[0], first, double),
-                    move_in(registers[1], second, double),
-                    Word::TwoSource {
-                        double,
-                        opcode,
-                        left: first,
-                        right: second,
-                        result: first,
-                    },
-                    move_out(first),
-                ]
-            }
-        }
-    }
-
-    const fn narrow_bounds(target: IeeeFloatIntegerCarrier) -> (u64, u64) {
-        match target {
-            IeeeFloatIntegerCarrier::I8 => (0xc060_0000_0000_0000, 0x405f_c000_0000_0000),
-            IeeeFloatIntegerCarrier::I16 => (0xc0e0_0000_0000_0000, 0x40df_ffc0_0000_0000),
-            IeeeFloatIntegerCarrier::U8 => (0, 0x406f_e000_0000_0000),
-            IeeeFloatIntegerCarrier::U16 => (0, 0x40ef_ffe0_0000_0000),
-            _ => (0, 0),
-        }
-    }
-
-    fn materialize(bits: u64, general: u8) -> Vec<Word> {
-        let mut words = vec![Word::MoveWide {
-            keep: false,
-            shift: 3,
-            immediate: (bits >> 48) as u16,
-            general,
-        }];
-        for shift in (0..3).rev() {
-            let immediate = (bits >> (16 * shift)) as u16;
-            if immediate != 0 {
-                words.push(Word::MoveWide {
-                    keep: true,
-                    shift,
-                    immediate,
-                    general,
-                });
-            }
-        }
-        words
-    }
-
-    fn narrow_truncation(
-        double: bool,
-        target: IeeeFloatIntegerCarrier,
-        source: u8,
-        result: u8,
-    ) -> Vec<Word> {
-        let (first, second) = (LEFT_SCRATCH, RIGHT_SCRATCH);
-        let mut words = vec![Word::ToFloat {
-            double,
-            general: source,
-            vector: first,
-        }];
-        if !double {
-            words.push(Word::OneSource {
-                double: false,
-                opcode: 0b00_0101,
-                source: first,
-                result: first,
-            });
-        }
-        let (minimum, maximum) = narrow_bounds(target);
-        for (bound, opcode) in [(minimum, 0b0100), (maximum, 0b0101)] {
-            words.extend(materialize(bound, result));
-            words.push(Word::ToFloat {
-                double: true,
-                general: result,
-                vector: second,
-            });
-            words.push(Word::TwoSource {
-                double: true,
-                opcode,
-                left: first,
-                right: second,
-                result: first,
-            });
-        }
-        words.push(Word::FloatToInteger {
-            wide: false,
-            double: true,
-            unsigned: !target.is_signed(),
-            vector: first,
-            general: result,
-        });
-        if target.is_signed() {
-            words.push(Word::SignExtend32 {
-                source: result,
-                result,
-            });
-        }
-        words
-    }
-
-    fn validate_registers(
-        form: IeeeFloatArithmeticForm,
-        registers: &[u8],
-    ) -> Result<(), Aarch64SelectedFormEncodingError> {
-        if registers.len() != form.operand_count() + 1 {
-            return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
-        }
-        if registers.iter().any(|register| *register > 30) {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(())
-    }
-
-    pub(crate) fn encode(
-        form: IeeeFloatArithmeticForm,
-        registers: &[u8],
-    ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
-        validate_registers(form, registers)?;
-        Ok(program(form, registers)
-            .into_iter()
-            .flat_map(|word| encode_word(word).to_le_bytes())
-            .collect())
-    }
-
-    pub(crate) fn validate(
-        form: IeeeFloatArithmeticForm,
-        registers: &[u8],
-        bytes: &[u8],
-    ) -> Result<(), Aarch64SelectedFormEncodingError> {
-        validate_registers(form, registers)?;
-        let (words, rest) = bytes.as_chunks::<4>();
-        if !rest.is_empty() {
-            return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-        }
-        let decoded = words
-            .iter()
-            .map(|word| decode_word(u32::from_le_bytes(*word)))
-            .collect::<Option<Vec<_>>>()
-            .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-        if decoded != program(form, registers) {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(())
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{encode, validate};
-        use selected_instructions::{
-            IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
-            IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
-        };
-
-        fn form(
-            operation: IeeeFloatArithmeticOperation,
-            format: IeeeFloatFormat,
-        ) -> IeeeFloatArithmeticForm {
-            IeeeFloatArithmeticForm { operation, format }
-        }
-
-        fn words(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<u32> {
-            encode(form, registers)
-                .unwrap()
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|word| u32::from_le_bytes(*word))
-                .collect()
-        }
-
-        #[test]
-        fn directed_division_uses_output_after_capturing_inputs_and_restores_fpcr() {
-            for (operation, expected_mode) in [(54, 3), (55, 1), (56, 2)] {
-                for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
-                    let form = form(IeeeFloatArithmeticOperation::ALL[operation], format);
-                    for registers in [[1, 2, 1], [1, 2, 2], [0, 0, 0], [28, 29, 30]] {
-                        let program = super::program(form, &registers);
-                        assert_eq!(
-                            program[2],
-                            super::Word::FloatingControl {
-                                read: true,
-                                general: registers[2]
-                            }
-                        );
-                        assert_eq!(
-                            program[4],
-                            super::Word::MoveWide {
-                                keep: false,
-                                shift: 1,
-                                immediate: expected_mode << 6,
-                                general: registers[2]
-                            }
-                        );
-                        assert_eq!(
-                            program[8],
-                            super::Word::FloatingControl {
-                                read: false,
-                                general: registers[2]
-                            }
-                        );
-                        let bytes = super::encode(form, &registers).unwrap();
-                        super::validate(form, &registers, &bytes).unwrap();
-                        assert_eq!(
-                            super::effects(form).stack,
-                            selected_instructions::MachineEncodedStackEffect::UnchangedV1
-                        );
-                    }
-                }
-            }
-        }
-
-        #[test]
-        fn directed_square_root_restores_fpcr_after_one_source_fsqrt() {
-            for (operation, expected_mode) in [(67, 3), (68, 1), (69, 2)] {
-                for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
-                    let form = form(IeeeFloatArithmeticOperation::ALL[operation], format);
-                    for registers in [[1, 1], [1, 2], [0, 0], [28, 30]] {
-                        let program = super::program(form, &registers);
-                        assert_eq!(
-                            program[1],
-                            super::Word::FloatingControl {
-                                read: true,
-                                general: registers[1]
-                            }
-                        );
-                        assert_eq!(
-                            program[3],
-                            super::Word::MoveWide {
-                                keep: false,
-                                shift: 1,
-                                immediate: expected_mode << 6,
-                                general: registers[1]
-                            }
-                        );
-                        assert_eq!(
-                            program[5],
-                            super::Word::OneSource {
-                                double: !form.is_binary32(),
-                                opcode: 0b00_0011,
-                                source: super::LEFT_SCRATCH,
-                                result: super::LEFT_SCRATCH,
-                            }
-                        );
-                        assert_eq!(
-                            program[7],
-                            super::Word::FloatingControl {
-                                read: false,
-                                general: registers[1]
-                            }
-                        );
-                        let bytes = super::encode(form, &registers).unwrap();
-                        super::validate(form, &registers, &bytes).unwrap();
-                    }
-                }
-            }
-        }
-
-        #[test]
-        fn directed_fma_keeps_the_control_word_out_of_the_addend_lane() {
-            use super::IeeeFloatRoundingDirection as Mode;
-            use IeeeFloatArithmeticOperation::DirectedFusedMultiplyAdd;
-            for (rounding, fpcr_mode) in [
-                (Mode::TowardZero, 3u32),
-                (Mode::TowardPositive, 1),
-                (Mode::TowardNegative, 2),
-            ] {
-                for (format, fmadd) in [
-                    (IeeeFloatFormat::Binary32, 0x1f11_4a10),
-                    (IeeeFloatFormat::Binary64, 0x1f51_4a10),
-                ] {
-                    let form = form(DirectedFusedMultiplyAdd { rounding }, format);
-                    for registers in [[1, 2, 3, 1], [1, 2, 3, 2], [1, 2, 3, 3], [0, 0, 0, 0]] {
-                        let out = u32::from(registers[3]);
-                        let words = words(form, &registers);
-                        // Inputs are captured first. MRS saves FPCR in the high
-                        // lane of v18; FMADD reads the addend from its low lane.
-                        assert_eq!(
-                            &words[3..10],
-                            &[
-                                0xd53b_4400 | out,
-                                0x9eaf_0012 | (out << 5),
-                                0xd2a0_0000 | (fpcr_mode << 11) | out,
-                                0xd51b_4400 | out,
-                                fmadd,
-                                0x9eae_0240 | out,
-                                0xd51b_4400 | out,
-                            ]
-                        );
-                        let mut bytes = encode(form, &registers).unwrap();
-                        validate(form, &registers, &bytes).unwrap();
-                        // Ordinary FMOV to the low lane would destroy the addend.
-                        bytes[16..20].copy_from_slice(&(0x9e67_0012 | (out << 5)).to_le_bytes());
-                        assert!(validate(form, &registers, &bytes).is_err());
-                    }
-                }
-            }
-        }
-
-        #[test]
-        fn fused_multiply_add_preserves_three_sources_and_one_rounding_instruction() {
-            use IeeeFloatArithmeticOperation::{FusedMultiplyAdd, MultiplyThenAdd};
-            use IeeeFloatFormat::{Binary32, Binary64};
-            for (format, expected) in [
-                (
-                    Binary32,
-                    [
-                        0x1e27_0030,
-                        0x1e27_0051,
-                        0x1e27_0072,
-                        0x1f11_4a10,
-                        0x1e26_0200,
-                    ],
-                ),
-                (
-                    Binary64,
-                    [
-                        0x9e67_0030,
-                        0x9e67_0051,
-                        0x9e67_0072,
-                        0x1f51_4a10,
-                        0x9e66_0200,
-                    ],
-                ),
-            ] {
-                let fused = form(FusedMultiplyAdd, format);
-                assert_eq!(words(fused, &[1, 2, 3, 0]), expected);
-                for registers in [[1, 2, 3, 1], [1, 2, 3, 2], [1, 2, 3, 3], [0, 0, 0, 0]] {
-                    let bytes = encode(fused, &registers).unwrap();
-                    validate(fused, &registers, &bytes).unwrap();
-                    let unfused = encode(form(MultiplyThenAdd, format), &registers).unwrap();
-                    assert!(validate(fused, &registers, &unfused).is_err());
-                    assert!(validate(form(MultiplyThenAdd, format), &registers, &bytes).is_err());
-                }
-            }
-        }
-
-        #[test]
-        fn encodings_match_the_architectural_words() {
-            use IeeeFloatArithmeticOperation as Operation;
-            use IeeeFloatFormat::{Binary32, Binary64};
-            assert_eq!(
-                words(form(Operation::Classify, Binary64), &[0, 0]),
-                [
-                    0x9e67_0010,
-                    0xd374_f800,
-                    0xb400_00a0,
-                    0xd11f_fc00,
-                    0xb400_0140,
-                    0xd280_0040,
-                    0x1400_000e,
-                    0x9e66_0200,
-                    0xd340_f800,
-                    0xb400_0060,
-                    0xd280_0060,
-                    0x1400_0009,
-                    0xd280_0080,
-                    0x1400_0007,
-                    0x9e66_0200,
-                    0xd340_cc00,
-                    0xb400_0060,
-                    0xd280_0000,
-                    0x1400_0002,
-                    0xd280_0020,
-                    0xb400_0100,
-                    0x9e67_0011,
-                    0x9e66_0200,
-                    0xd37f_fc00,
-                    0xd360_7c00,
-                    0x9e67_0010,
-                    0x0eb1_1e10,
-                    0x9e66_0200,
-                ]
-            );
-            assert_eq!(
-                words(form(Operation::MultiplyThenAdd, Binary64), &[1, 2, 3, 0]),
-                [
-                    0x9e67_0030,
-                    0x9e67_0051,
-                    0x1e71_0a10,
-                    0x9e67_0071,
-                    0x1e71_2a10,
-                    0x9e66_0200
-                ]
-            );
-            assert_eq!(
-                words(form(Operation::Add, Binary64), &[1, 2, 0]),
-                [0x9e67_0030, 0x9e67_0051, 0x1e71_2a10, 0x9e66_0200]
-            );
-            assert_eq!(
-                words(form(Operation::Divide, Binary32), &[3, 4, 5]),
-                [0x1e27_0070, 0x1e27_0091, 0x1e31_1a10, 0x1e26_0205]
-            );
-            assert_eq!(
-                words(form(Operation::Subtract, Binary64), &[0, 0, 0])[2],
-                0x1e71_3a10
-            );
-            assert_eq!(
-                words(form(Operation::Multiply, Binary32), &[0, 0, 0])[2],
-                0x1e31_0a10
-            );
-            assert_eq!(
-                words(form(Operation::Minimum, Binary64), &[1, 2, 0]),
-                [
-                    0x9e67_0030,
-                    0x9e67_0051,
-                    0x7ef0_e632,
-                    0x2e71_1e12,
-                    0x9e66_0240
-                ]
-            );
-            assert_eq!(
-                words(form(Operation::Maximum, Binary32), &[1, 2, 0])[2],
-                0x7eb1_e612
-            );
-            assert_eq!(
-                words(form(Operation::Negate, Binary64), &[3, 4]),
-                [0x9e67_0070, 0x1e61_4210, 0x9e66_0204]
-            );
-            assert_eq!(
-                words(form(Operation::SquareRoot, Binary32), &[3, 4]),
-                [0x1e27_0070, 0x1e21_c210, 0x1e26_0204]
-            );
-            assert_eq!(
-                words(form(Operation::ConvertFormat, Binary64), &[3, 4]),
-                [0x1e27_0070, 0x1e22_c210, 0x9e66_0204]
-            );
-            assert_eq!(
-                words(form(Operation::ConvertFormat, Binary32), &[3, 4]),
-                [0x9e67_0070, 0x1e62_4210, 0x1e26_0204]
-            );
-            assert_eq!(
-                words(
-                    form(
-                        Operation::FromInteger(IeeeFloatIntegerCarrier::I32),
-                        Binary64
-                    ),
-                    &[3, 4]
-                ),
-                [0x1e62_0070, 0x9e66_0204]
-            );
-            assert_eq!(
-                words(
-                    form(
-                        Operation::FromInteger(IeeeFloatIntegerCarrier::I64),
-                        Binary32
-                    ),
-                    &[3, 4]
-                ),
-                [0x9e22_0070, 0x1e26_0204]
-            );
-            assert_eq!(
-                words(
-                    form(
-                        Operation::FromInteger(IeeeFloatIntegerCarrier::U32),
-                        Binary64
-                    ),
-                    &[3, 4]
-                ),
-                [0x1e63_0070, 0x9e66_0204]
-            );
-        }
-
-        fn shares_realization(
-            left: IeeeFloatArithmeticForm,
-            right: IeeeFloatArithmeticForm,
-        ) -> bool {
-            use IeeeFloatArithmeticOperation::TruncateToInteger;
-            left == right
-                || matches!(
-                    (left.operation, right.operation),
-                    (
-                        TruncateToInteger { target: left_target, domain: IeeeFloatToIntegerDomain::Exact | IeeeFloatToIntegerDomain::Saturating },
-                        TruncateToInteger { target: right_target, domain: IeeeFloatToIntegerDomain::Exact | IeeeFloatToIntegerDomain::Saturating },
-                    ) if left_target == right_target && left.format == right.format
-                )
-        }
-
-        #[test]
-        fn truncation_encodings_match_the_architectural_words() {
-            use IeeeFloatArithmeticOperation::TruncateToInteger;
-            use selected_instructions::IeeeFloatToIntegerDomain::{Exact, Saturating};
-            assert_eq!(
-                words(
-                    form(
-                        TruncateToInteger {
-                            target: IeeeFloatIntegerCarrier::I32,
-                            domain: Saturating,
-                        },
-                        IeeeFloatFormat::Binary64,
-                    ),
-                    &[3, 4]
-                ),
-                [0x9e67_0070, 0x1e78_0204, 0x9340_7c84]
-            );
-            assert_eq!(
-                words(
-                    form(
-                        TruncateToInteger {
-                            target: IeeeFloatIntegerCarrier::I64,
-                            domain: Exact,
-                        },
-                        IeeeFloatFormat::Binary32,
-                    ),
-                    &[3, 4]
-                ),
-                [0x1e27_0070, 0x9e38_0204]
-            );
-            assert_eq!(
-                words(
-                    form(
-                        TruncateToInteger {
-                            target: IeeeFloatIntegerCarrier::U32,
-                            domain: Saturating,
-                        },
-                        IeeeFloatFormat::Binary64,
-                    ),
-                    &[3, 4]
-                ),
-                [0x9e67_0070, 0x1e79_0204]
-            );
-        }
-
-        #[test]
-        fn narrow_carrier_encodings_match_the_architectural_words() {
-            use IeeeFloatArithmeticOperation::{FromInteger, TruncateToInteger};
-            use selected_instructions::IeeeFloatToIntegerDomain::Saturating;
-            assert_eq!(
-                words(
-                    form(
-                        FromInteger(IeeeFloatIntegerCarrier::I8),
-                        IeeeFloatFormat::Binary64
-                    ),
-                    &[3, 4]
-                ),
-                [0x1300_1c64, 0x1e62_0090, 0x9e66_0204]
-            );
-            assert_eq!(
-                words(
-                    form(
-                        FromInteger(IeeeFloatIntegerCarrier::U16),
-                        IeeeFloatFormat::Binary32
-                    ),
-                    &[3, 4]
-                ),
-                [0x5300_3c64, 0x1e23_0090, 0x1e26_0204]
-            );
-            assert_eq!(
-                words(
-                    form(
-                        TruncateToInteger {
-                            target: IeeeFloatIntegerCarrier::I8,
-                            domain: Saturating,
-                        },
-                        IeeeFloatFormat::Binary64,
-                    ),
-                    &[3, 4]
-                ),
-                [
-                    0x9e67_0070,
-                    0xd2f8_0c04,
-                    0x9e67_0091,
-                    0x1e71_4a10,
-                    0xd2e8_0be4,
-                    0xf2d8_0004,
-                    0x9e67_0091,
-                    0x1e71_5a10,
-                    0x1e78_0204,
-                    0x9340_7c84
-                ]
-            );
-        }
-
-        #[test]
-        fn validation_binds_every_bit_operation_format_and_register() {
-            for form in IeeeFloatArithmeticForm::ALL {
-                let registers = &[6, 7, 30, 12][4 - form.operand_count() - 1..];
-                let bytes = encode(form, registers).unwrap();
-                validate(form, registers, &bytes).unwrap();
-                for byte_index in 0..bytes.len() {
-                    for bit in 0..8 {
-                        let mut changed = bytes.clone();
-                        changed[byte_index] ^= 1 << bit;
-                        assert!(
-                            validate(form, registers, &changed).is_err(),
-                            "{form:?} accepted byte {byte_index} bit {bit}"
-                        );
-                    }
-                }
-                for other in IeeeFloatArithmeticForm::ALL {
-                    if other.operand_count() == form.operand_count()
-                        && !shares_realization(other, form)
-                    {
-                        assert!(
-                            validate(other, registers, &bytes).is_err(),
-                            "{other:?} as {form:?}"
-                        );
-                    }
-                }
-                let mut result_changed = registers.to_vec();
-                *result_changed.last_mut().unwrap() += 1;
-                assert!(validate(form, &result_changed, &bytes).is_err());
-                let mut operands_swapped = registers.to_vec();
-                operands_swapped.swap(0, registers.len() - 1);
-                assert!(validate(form, &operands_swapped, &bytes).is_err());
-                let mut wide = vec![31];
-                wide.extend_from_slice(&registers[1..]);
-                assert!(encode(form, &wide).is_err());
-                assert!(encode(form, &[1, 2, 3, 4, 5]).is_err());
-                assert!(validate(form, registers, &bytes[..bytes.len() - 4]).is_err());
-            }
-        }
-    }
-
-    #[test]
-    fn declared_lengths_match_encoded_forms() {
-        use selected_instructions::MachineSizeKnowledge;
-        for form in IeeeFloatArithmeticForm::ALL {
-            let lengths = [0, 8].map(|register| {
-                let registers = [register; 4];
-                (program(form, &registers)
-                    .into_iter()
-                    .flat_map(|word| encode_word(word).to_le_bytes())
-                    .count()) as u16
-            });
-            match target_aarch64::float_sizes::ieee_float_arithmetic_size(form) {
-                MachineSizeKnowledge::ExactBytes(bytes) => {
-                    assert_eq!(lengths, [bytes; 2], "{form:?}")
-                }
-                MachineSizeKnowledge::EncoderResolved {
-                    minimum_bytes,
-                    maximum_bytes,
-                } => {
-                    assert_eq!(
-                        (lengths[0], Some(lengths[1])),
-                        (minimum_bytes, maximum_bytes),
-                        "{form:?}"
-                    );
-                }
-            }
-        }
-    }
-}
-#[cfg(test)]
-mod integer_normalization_tests {
-    use crate::test_support::rejects_every_bit_flip;
-    use register_model::validate_physical_register_model;
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects,
-        SelectedInstructionKind,
-    };
-
-    use super::{encode_aarch64_selected_form, validate_aarch64_selected_form_encoding};
-    use crate::aarch64_physical_register_model;
-
-    type Kind = SelectedInstructionKind;
-    type Family = MachineAlternativeFamily;
-
-    macro_rules! r {
-        ($a:ident => $b:ident) => {
-            (Kind::$a, Family::$b)
-        };
-        ($a:ident => $b:ident => $c:expr => $d:expr => $e:expr) => {
-            (Kind::$a, Family::$b, $c, $d, $e)
-        };
-    }
-
-    fn forms() -> [(SelectedInstructionKind, MachineAlternativeFamily); 6] {
-        [
-            r!(ZeroExtendU8 => ZeroExtendU8),
-            r!(ZeroExtendU16 => ZeroExtendU16),
-            r!(ZeroExtendU32 => ZeroExtendU32),
-            r!(SignExtendI8 => SignExtendI8),
-            r!(SignExtendI16 => SignExtendI16),
-            r!(SignExtendI32 => SignExtendI32),
-        ]
-    }
-
-    #[test]
-    fn normalization_binds_signedness_width_registers_and_full_destination_effects() {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        for (source, destination) in [
-            ("x0", "x0"),
-            ("x0", "x1"),
-            ("x1", "x9"),
-            ("x9", "x16"),
-            ("x16", "x29"),
-            ("x29", "x30"),
-            ("x30", "x0"),
-            ("x30", "x30"),
-        ] {
-            let operands = [
-                physical.model().view_named(source).unwrap().id,
-                physical.model().view_named(destination).unwrap().id,
-            ];
-            for (kind, family) in forms() {
-                let key = MachineAlternativeKey { family, variant: 0 };
-                let encoded =
-                    encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
-                let footprint = encoded.footprint();
-                assert_eq!(footprint.register_reads, vec![operands[0]]);
-                assert_eq!(footprint.register_writes, vec![operands[1]]);
-                assert!(!footprint.writes_nzcv);
-                assert_eq!(
-                    footprint.encoded,
-                    MachineEncodedEffects::fallthrough_v1(vec![0], vec![1])
-                );
-                for (other_kind, other_family) in forms() {
-                    if other_kind == kind {
-                        continue;
-                    }
-                    let other_key = MachineAlternativeKey {
-                        family: other_family,
-                        variant: 0,
-                    };
-                    assert!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical,
-                            other_kind,
-                            other_key,
-                            &operands,
-                            encoded.bytes()
-                        )
-                        .is_err(),
-                        "{kind:?} must not replay as {other_kind:?}"
-                    );
-                    assert!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical,
-                            kind,
-                            other_key,
-                            &operands,
-                            encoded.bytes()
-                        )
-                        .is_err()
-                    );
-                }
-                rejects_every_bit_flip(&physical, kind, key, &operands, encoded.bytes());
-            }
-        }
-    }
-
-    #[test]
-    fn normalization_matches_clang_assembler_oracle() {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let fixtures: [(
-            SelectedInstructionKind,
-            MachineAlternativeFamily,
-            &str,
-            &str,
-            &[u8],
-        ); 4] = [
-            r!(ZeroExtendU16 => ZeroExtendU16 => "x16" => "x9" => &[0x09, 0x3e, 0x40, 0xd3]),
-            r!(SignExtendI8 => SignExtendI8 => "x16" => "x9" => &[0x09, 0x1e, 0x40, 0x93]),
-            r!(SignExtendI16 => SignExtendI16 => "x16" => "x9" => &[0x09, 0x3e, 0x40, 0x93]),
-            r!(SignExtendI32 => SignExtendI32 => "x16" => "x9" => &[0x09, 0x7e, 0x40, 0x93]),
-        ];
-        for (kind, family, source, destination, expected) in fixtures {
-            let operands = [
-                physical.model().view_named(source).unwrap().id,
-                physical.model().view_named(destination).unwrap().id,
-            ];
-            let key = MachineAlternativeKey { family, variant: 0 };
-            assert_eq!(
-                encode_aarch64_selected_form(&physical, kind, key, &operands)
-                    .unwrap()
-                    .bytes(),
-                expected
-            );
-            validate_aarch64_selected_form_encoding(&physical, kind, key, &operands, expected)
-                .unwrap();
-        }
-    }
-}
-mod jump {
-    use super::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-        ValidatedAarch64SelectedFormEncoding,
-    };
-    use register_model::ValidatedPhysicalRegisterModel;
-    use selected_instructions::MachineAlternativeFamily;
-    use selected_instructions::MachineAlternativeKey;
-    use selected_instructions::MachineEncodedControlEffect;
-    use selected_instructions::MachineEncodedEffects;
-    use selected_instructions::MachineEncodedMemoryEffect;
-    use selected_instructions::MachineEncodedStackEffect;
-    use selected_instructions::MachineEncodedTrapBehavior;
-    pub fn encode_aarch64_selected_jump_form(
+    pub fn validate_aarch64_selected_conditional_branch_form(
         physical: &ValidatedPhysicalRegisterModel,
         alternative: MachineAlternativeKey,
-        displacement: i64,
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        if displacement % 4 != 0 {
-            return Err(Aarch64SelectedFormEncodingError::BranchDisplacementMisaligned);
-        }
-        let words = displacement / 4;
-        if !(-(1_i64 << 25)..(1_i64 << 25)).contains(&words) {
-            return Err(Aarch64SelectedFormEncodingError::BranchDisplacementOutsideImm26);
-        }
-        let word = 0x1400_0000 | ((words as u32) & 0x03ff_ffff);
-        validate_aarch64_selected_jump_form(
+        family: Fam,
+        form: Aarch64ConditionalBranchForm,
+        byte_displacement_from_instruction: i64,
+        bytes: &[u8],
+    ) -> Result<Encoded, Error> {
+        let expected = encode_aarch64_selected_conditional_branch_form(
             physical,
             alternative,
-            displacement,
-            &word.to_le_bytes(),
-        )
+            family,
+            form,
+            byte_displacement_from_instruction,
+        )?;
+        enc::check_bytes(bytes, &expected.bytes)?;
+        Ok(expected)
     }
 
-    pub fn validate_aarch64_selected_jump_form(
+    pub fn encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
         physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        displacement: i64,
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+        source: RegisterViewId,
+        byte_displacement_from_instruction: i64,
+    ) -> Result<Encoded, Error> {
         if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-            return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
+            return Err(Error::NonCanonicalPhysicalModel);
         }
-        if alternative
-            != (MachineAlternativeKey {
-                family: MachineAlternativeFamily::Jump,
-                variant: 0,
-            })
-        {
-            return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-        }
-        let bytes: [u8; 4] = bytes
-            .try_into()
-            .map_err(|_| Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-        let word = u32::from_le_bytes(bytes);
-        let actual = i64::from(((word & 0x03ff_ffff) << 6) as i32 >> 6) * 4;
-        if word & 0xfc00_0000 != 0x1400_0000 || actual != displacement {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        let pc = physical
-            .model()
+        let reg = resolve_registers(physical, &[source])?[0];
+        let words = imm19_words(byte_displacement_from_instruction)?;
+        let pc = aarch64_physical_register_model_ref()
             .view_named("pc")
-            .expect("canonical model has PC")
+            .unwrap()
             .units
             .clone();
-        Ok(ValidatedAarch64SelectedFormEncoding {
-            bytes: bytes.to_vec(),
-            footprint: Aarch64SelectedFormFootprint {
-                register_reads: vec![],
+        Ok(Encoded {
+            bytes: enc::cbnz(reg, words).to_le_bytes().to_vec(),
+            footprint: Footprint {
+                register_reads: vec![source],
                 register_writes: vec![],
                 writes_nzcv: false,
                 encoded: MachineEncodedEffects {
@@ -9943,2394 +2371,383 @@ mod jump {
                     memory: MachineEncodedMemoryEffect::NoneV1,
                     stack: MachineEncodedStackEffect::UnchangedV1,
                     trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                    control: MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
+                    control: MachineEncodedControlEffect::ConditionalRelativeBranchV1,
                 },
             },
         })
     }
 
-    #[cfg(test)]
-    mod tests {
-        use super::{encode_aarch64_selected_jump_form, validate_aarch64_selected_jump_form};
-        use crate::aarch64_physical_register_model;
-        use selected_instructions::MachineAlternativeFamily;
-        use selected_instructions::MachineAlternativeKey;
-        use selected_instructions::MachineEncodedControlEffect;
-        #[test]
-        fn jump_round_trip_rejects_wrong_target_and_opcode() {
-            let physical =
-                register_model::validate_physical_register_model(aarch64_physical_register_model())
-                    .unwrap();
-            let key = MachineAlternativeKey {
-                family: MachineAlternativeFamily::Jump,
-                variant: 0,
-            };
-            for displacement in [-134217728, -4, 0, 8, 134217724] {
-                let encoded =
-                    encode_aarch64_selected_jump_form(&physical, key, displacement).unwrap();
-                assert_eq!(encoded.bytes().len(), 4);
-                assert!(
-                    validate_aarch64_selected_jump_form(
-                        &physical,
-                        key,
-                        displacement + 4,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                let mut corrupt = encoded.bytes().to_vec();
-                corrupt[3] ^= 0x80;
-                assert!(
-                    validate_aarch64_selected_jump_form(&physical, key, displacement, &corrupt)
-                        .is_err()
-                );
-                assert_eq!(
-                    encoded.footprint().encoded.control,
-                    MachineEncodedControlEffect::UnconditionalRelativeBranchV1
-                );
-            }
-            assert!(encode_aarch64_selected_jump_form(&physical, key, 134217728).is_err());
-            assert!(encode_aarch64_selected_jump_form(&physical, key, 1).is_err());
-        }
+    pub fn validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+        physical: &ValidatedPhysicalRegisterModel,
+        source: RegisterViewId,
+        byte_displacement_from_instruction: i64,
+        bytes: &[u8],
+    ) -> Result<Encoded, Error> {
+        let expected = encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+            physical,
+            source,
+            byte_displacement_from_instruction,
+        )?;
+        enc::check_bytes(bytes, &expected.bytes)?;
+        Ok(expected)
     }
 }
-mod memory {
+
+mod jump {
     use super::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-        ValidatedAarch64SelectedFormEncoding, word_stream,
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded, enc,
     };
-    use crate::selected_form_encoding::selected_forms::{request_registers, resolve_registers};
-    use register_model::RegisterViewId;
     use register_model::ValidatedPhysicalRegisterModel;
-    use selected_instructions::MachineAlternativeFamily;
-    use selected_instructions::MachineAlternativeKey;
-    use selected_instructions::MachineEncodedControlEffect;
-    use selected_instructions::MachineEncodedEffects;
-    use selected_instructions::MachineEncodedMemoryEffect;
-    use selected_instructions::MachineEncodedStackEffect;
-    use selected_instructions::MachineEncodedTrapBehavior;
-    use selected_instructions::SelectedInstructionKind;
-    mod frame {
-        use super::{
-            Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-            MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-            MachineEncodedTrapBehavior, RegisterViewId, SelectedInstructionKind,
-            ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
-            resolve_registers, word_stream,
-        };
-        use crate::immediate_offset::{
-            ADD_IMMEDIATE, address_words, append_page_steps, decode_address_words,
-        };
-
-        fn store_address_words(scratch: u8, displacement: u32) -> Vec<u32> {
-            let pages = u64::from(displacement >> 12);
-            if pages == 0 {
-                return vec![ADD_IMMEDIATE | (1 << 22) | (31 << 5) | u32::from(scratch)];
-            }
-            let mut words = Vec::new();
-            append_page_steps(&mut words, ADD_IMMEDIATE, scratch, 31, pages);
-            words
-        }
-
-        const fn store_word(register: u8, scratch: u8, displacement: u32) -> u32 {
-            0xf900_0000
-                | (((displacement & 4095) / 8) << 10)
-                | ((scratch as u32) << 5)
-                | register as u32
-        }
-
-        fn request(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-        ) -> Result<(u8, Option<u8>), Aarch64SelectedFormEncodingError> {
-            let store = matches!(kind, SelectedInstructionKind::Store64 { .. });
-            let family = if store {
-                MachineAlternativeFamily::Store64
-            } else {
-                MachineAlternativeFamily::FrameAddress
-            };
-            if matches!(
-                kind,
-                SelectedInstructionKind::Store64 {
-                    slot: selected_instructions::FrameStorageSlotId::ActivationBase,
-                    ..
-                }
-            ) || matches!(kind, SelectedInstructionKind::FrameAddress { slot: selected_instructions::FrameStorageSlotId::ActivationBase, byte_offset } if byte_offset != 0)
-            {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            if matches!(
-                kind,
-                SelectedInstructionKind::Store64 {
-                    slot: selected_instructions::FrameStorageSlotId::Incoming { .. },
-                    ..
-                }
-            ) {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-                || !matches!(
-                    kind,
-                    SelectedInstructionKind::Store64 { .. }
-                        | SelectedInstructionKind::FrameAddress { .. }
-                )
-                || alternative != (MachineAlternativeKey { family, variant: 0 })
-                || (store && !displacement.is_multiple_of(8))
-            {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            let registers = resolve_registers(physical, operands)?;
-            match registers.as_slice() {
-                [value, scratch] if store && value != scratch => Ok((*value, Some(*scratch))),
-                [register] if !store => Ok((*register, None)),
-                _ => Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
-            }
-        }
-
-        pub fn encode(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-            alignment_bytes: u16,
-        ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError>
-        {
-            if matches!(
-                kind,
-                SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::ActivationBase,
-                    ..
-                }
-            ) && (displacement != 0 || alignment_bytes != 1)
-            {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            let (register, scratch) = request(physical, kind, alternative, operands, displacement)?;
-            let words = if alignment_bytes != 1 {
-                let member = match kind {
-                    SelectedInstructionKind::FrameAddress { byte_offset, .. }
-                    | SelectedInstructionKind::Store64 { byte_offset, .. } => byte_offset,
-                    _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
-                };
-                if scratch.is_some() && !member.is_multiple_of(8) {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-                let address = scratch.unwrap_or(register);
-                let mut words = crate::immediate_offset::aligned_frame_address_words(
-                    address,
-                    displacement,
-                    alignment_bytes,
-                    member,
-                )
-                .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-                if scratch.is_some() {
-                    words.push(store_word(register, address, 0));
-                }
-                words
-            } else if let Some(scratch) = scratch {
-                let mut words = store_address_words(scratch, displacement);
-                words.push(store_word(register, scratch, displacement));
-                words
-            } else {
-                address_words(register, 31, u64::from(displacement))
-            };
-            let bytes = words
-                .into_iter()
-                .flat_map(u32::to_le_bytes)
-                .collect::<Vec<u8>>();
-            validate(
-                physical,
-                kind,
-                alternative,
-                operands,
-                displacement,
-                alignment_bytes,
-                &bytes,
-            )
-        }
-
-        pub fn validate(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-            alignment_bytes: u16,
-            bytes: &[u8],
-        ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError>
-        {
-            if matches!(
-                kind,
-                SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::ActivationBase,
-                    ..
-                }
-            ) && (displacement != 0 || alignment_bytes != 1)
-            {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            let (register, scratch) = request(physical, kind, alternative, operands, displacement)?;
-            let words =
-                word_stream(bytes).ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-            if alignment_bytes != 1 {
-                let member = match kind {
-                    SelectedInstructionKind::FrameAddress { byte_offset, .. }
-                    | SelectedInstructionKind::Store64 { byte_offset, .. } => byte_offset,
-                    _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
-                };
-                let address = scratch.unwrap_or(register);
-                let prefix = if scratch.is_some() {
-                    if !member.is_multiple_of(8)
-                        || words.last() != Some(&store_word(register, address, 0))
-                    {
-                        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                    }
-                    &words[..words.len() - 1]
-                } else {
-                    words.as_slice()
-                };
-                if !crate::immediate_offset::validate_aligned_frame_address_words(
-                    prefix,
-                    address,
-                    displacement,
-                    alignment_bytes,
-                    member,
-                ) {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-            } else if let Some(scratch) = scratch {
-                let address = store_address_words(scratch, displacement);
-                let [prefix @ .., store] = words.as_slice() else {
-                    return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-                };
-                if prefix.len() != address.len() {
-                    return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-                }
-                let pages = if displacement >> 12 == 0 {
-                    (prefix == address.as_slice()).then_some(0)
-                } else {
-                    decode_address_words(prefix, scratch, 31)
-                };
-                if pages != Some(u64::from(displacement & !4095))
-                    || store & 0xffc0_0000 != 0xf900_0000
-                    || store & 31 != u32::from(register)
-                    || (store >> 5) & 31 != u32::from(scratch)
-                    || ((store >> 10) & 4095) * 8 != (displacement & 4095)
-                {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-            } else {
-                let expected = address_words(register, 31, u64::from(displacement));
-                if words.len() != expected.len() {
-                    return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-                }
-                if decode_address_words(&words, register, 31) != Some(u64::from(displacement)) {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-            }
-            let store = scratch.is_some();
-            let stack_pointer = physical
-                .model()
-                .view_named("sp")
-                .expect("canonical stack pointer");
-            Ok(ValidatedAarch64SelectedFormEncoding {
-                bytes: bytes.to_vec(),
-                footprint: Aarch64SelectedFormFootprint {
-                    register_reads: if store { vec![operands[0]] } else { Vec::new() },
-                    register_writes: vec![operands[usize::from(store)]],
-                    writes_nzcv: false,
-                    encoded: MachineEncodedEffects {
-                        external_operand_reads: if store { vec![0] } else { Vec::new() },
-                        external_operand_writes: vec![u16::from(store)],
-                        implicit_unit_uses: stack_pointer.units.clone(),
-                        implicit_unit_defs: Vec::new(),
-                        implicit_unit_clobbers: Vec::new(),
-                        memory: if store {
-                            MachineEncodedMemoryEffect::WriteFrameStorageV1 {
-                                stack_pointer: stack_pointer.id,
-                                byte_count: 8,
-                            }
-                        } else {
-                            MachineEncodedMemoryEffect::NoneV1
-                        },
-                        stack: MachineEncodedStackEffect::UnchangedV1,
-                        trap: if store {
-                            MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-                        } else {
-                            MachineEncodedTrapBehavior::NeverV1
-                        },
-                        control: MachineEncodedControlEffect::FallThroughV1,
-                    },
-                },
-            })
-        }
-
-        #[cfg(test)]
-        mod tests {
-            use super::{
-                MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind, encode,
-                validate,
-            };
-            use crate::aarch64_physical_register_model;
-            use crate::test_support::reject_every_bit_flip;
-            use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
-            use semantic_vocabulary::{OperationId, PlaceId};
-
-            #[test]
-            fn aligned_frame_forms_keep_sp_fixed_and_members_after_alignment() {
-                let physical = register_model::validate_physical_register_model(
-                    aarch64_physical_register_model(),
-                )
-                .unwrap();
-                let slot = FrameStorageSlotId::Local(LocalStorageSlotId::Structural {
-                    operation: OperationId::new(104).unwrap(),
-                    place: PlaceId::new(102).unwrap(),
-                });
-                let value = physical.model().view_named("x9").unwrap().id;
-                let scratch = physical.model().view_named("x10").unwrap().id;
-                for alignment in [32_u16, 64, 4096, 32768] {
-                    for frame_offset in [0_u32, 16, 4096, 16_777_216] {
-                        for member in [0, 8, 24] {
-                            let kind = SelectedInstructionKind::FrameAddress {
-                                slot,
-                                byte_offset: member,
-                            };
-                            let alternative = MachineAlternativeKey {
-                                family: MachineAlternativeFamily::FrameAddress,
-                                variant: 0,
-                            };
-                            let encoded = encode(
-                                &physical,
-                                kind,
-                                alternative,
-                                &[value],
-                                frame_offset,
-                                alignment,
-                            )
-                            .unwrap();
-                            assert!(!encoded.footprint.writes_nzcv);
-                            for residue in (0..u64::from(alignment)).step_by(16) {
-                                let stack = 0x10_0000 + residue;
-                                let mut address = stack;
-                                for word in encoded
-                                    .bytes()
-                                    .as_chunks::<4>()
-                                    .0
-                                    .iter()
-                                    .map(|bytes| u32::from_le_bytes(*bytes))
-                                {
-                                    if word & 0xffc0_0000 == 0x9240_0000 {
-                                        let mask = (u64::MAX >> (63 - ((word >> 10) & 63)))
-                                            .rotate_right((word >> 16) & 63);
-                                        address &= mask;
-                                    } else {
-                                        assert_eq!(
-                                            word & 0xff80_0000,
-                                            crate::immediate_offset::ADD_IMMEDIATE
-                                        );
-                                        let base = if (word >> 5) & 31 == 31 {
-                                            stack
-                                        } else {
-                                            address
-                                        };
-                                        let immediate = u64::from((word >> 10) & 4095)
-                                            << if word & (1 << 22) != 0 { 12 } else { 0 };
-                                        address = base + immediate;
-                                    }
-                                }
-                                let home = address - u64::from(member);
-                                assert!(home.is_multiple_of(u64::from(alignment)));
-                                let reserved_start = stack + u64::from(frame_offset);
-                                assert!(home >= reserved_start);
-                                assert!(home - reserved_start <= u64::from(alignment - 16));
-                            }
-                            reject_every_bit_flip(encoded.bytes(), "frame form", |corrupt| {
-                                validate(
-                                    &physical,
-                                    kind,
-                                    alternative,
-                                    &[value],
-                                    frame_offset,
-                                    alignment,
-                                    corrupt,
-                                )
-                                .is_err()
-                            });
-                            let store = SelectedInstructionKind::Store64 {
-                                slot,
-                                byte_offset: member,
-                            };
-                            let store_alternative = MachineAlternativeKey {
-                                family: MachineAlternativeFamily::Store64,
-                                variant: 0,
-                            };
-                            let stored = encode(
-                                &physical,
-                                store,
-                                store_alternative,
-                                &[value, scratch],
-                                frame_offset,
-                                alignment,
-                            )
-                            .unwrap();
-                            assert_eq!(stored.footprint.register_writes, vec![scratch]);
-                            assert!(
-                                validate(
-                                    &physical,
-                                    store,
-                                    store_alternative,
-                                    &[value, scratch],
-                                    frame_offset,
-                                    alignment,
-                                    stored.bytes()
-                                )
-                                .is_ok()
-                            );
-                        }
-                    }
-                }
-            }
-
-            #[test]
-            fn local_frame_forms_replay_sp_offset_register_and_all_opcode_bits() {
-                let physical = register_model::validate_physical_register_model(
-                    aarch64_physical_register_model(),
-                )
-                .unwrap();
-                let slot = FrameStorageSlotId::Local(LocalStorageSlotId::Structural {
-                    operation: OperationId::new(104).unwrap(),
-                    place: PlaceId::new(102).unwrap(),
-                });
-                for store in [false, true] {
-                    let kind = if store {
-                        SelectedInstructionKind::Store64 {
-                            slot,
-                            byte_offset: 0,
-                        }
-                    } else {
-                        SelectedInstructionKind::FrameAddress {
-                            slot,
-                            byte_offset: 0,
-                        }
-                    };
-                    let alternative = MachineAlternativeKey {
-                        family: if store {
-                            MachineAlternativeFamily::Store64
-                        } else {
-                            MachineAlternativeFamily::FrameAddress
-                        },
-                        variant: 0,
-                    };
-                    let displacements: &[u32] = if store {
-                        &[
-                            0,
-                            8,
-                            32760,
-                            32768,
-                            35040,
-                            65_536,
-                            16_777_208,
-                            16_777_216,
-                            33_558_536,
-                            u32::MAX - 7,
-                        ]
-                    } else {
-                        &[
-                            0,
-                            17,
-                            4095,
-                            4096,
-                            4192,
-                            16_777_215,
-                            16_773_120,
-                            33_554_431,
-                            u32::MAX,
-                        ]
-                    };
-                    for displacement in displacements.iter().copied() {
-                        let mut operands = vec![physical.model().view_named("x9").unwrap().id];
-                        if store {
-                            operands.push(physical.model().view_named("x10").unwrap().id);
-                        }
-                        let encoded =
-                            encode(&physical, kind, alternative, &operands, displacement, 1)
-                                .unwrap();
-                        assert_eq!(
-                            encoded.footprint.encoded.implicit_unit_uses,
-                            physical.model().view_named("sp").unwrap().units
-                        );
-                        if store {
-                            let pages = u64::from(displacement >> 12).div_ceil(4095).max(1);
-                            assert_eq!(encoded.bytes().len() as u64, (pages + 1) * 4);
-                            assert_eq!(encoded.footprint.register_writes, vec![operands[1]]);
-                            assert!(
-                                encode(
-                                    &physical,
-                                    kind,
-                                    alternative,
-                                    &[operands[0], operands[0]],
-                                    displacement,
-                                    1
-                                )
-                                .is_err()
-                            );
-                        } else {
-                            assert_eq!(
-                                encoded.bytes().len() as u64,
-                                crate::immediate_offset::address_word_count(u64::from(
-                                    displacement
-                                )) * 4
-                            );
-                        }
-                        assert!(!encoded.footprint.writes_nzcv);
-                        reject_every_bit_flip(encoded.bytes(), "frame round trip", |corrupt| {
-                            validate(
-                                &physical,
-                                kind,
-                                alternative,
-                                &operands,
-                                displacement,
-                                1,
-                                corrupt,
-                            )
-                            .is_err()
-                        });
-                        assert!(
-                            validate(
-                                &physical,
-                                kind,
-                                alternative,
-                                &[physical.model().view_named("x10").unwrap().id],
-                                displacement,
-                                1,
-                                encoded.bytes()
-                            )
-                            .is_err()
-                        );
-                        assert!(
-                            validate(
-                                &physical,
-                                kind,
-                                alternative,
-                                &operands,
-                                displacement ^ 8,
-                                1,
-                                encoded.bytes()
-                            )
-                            .is_err()
-                        );
-                        assert!(
-                            encode(
-                                &physical,
-                                kind,
-                                alternative,
-                                &[physical.model().view_named("sp").unwrap().id],
-                                displacement,
-                                1
-                            )
-                            .is_err()
-                        );
-                        assert!(
-                            encode(&physical, kind, alternative, &[], displacement, 1).is_err()
-                        );
-                    }
-                    if store {
-                        assert!(
-                            encode(
-                                &physical,
-                                kind,
-                                alternative,
-                                &[physical.model().view_named("x9").unwrap().id],
-                                1,
-                                1
-                            )
-                            .is_err()
-                        );
-                    }
-                }
-            }
-        }
-    }
-    pub use frame::{
-        encode as encode_aarch64_selected_frame_form,
-        validate as validate_aarch64_selected_frame_form,
+    use selected_instructions::{
+        MachineAlternativeFamily as Fam, MachineAlternativeKey, MachineEncodedControlEffect,
+        MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+        MachineEncodedTrapBehavior,
     };
-    mod indexed {
-        use super::{
-            Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-            MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-            MachineEncodedTrapBehavior, RegisterViewId, ValidatedAarch64SelectedFormEncoding,
-            ValidatedPhysicalRegisterModel, request_registers,
-        };
-        pub(super) fn encode(
-            physical: &ValidatedPhysicalRegisterModel,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-        ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError>
-        {
-            let [base, index, destination] =
-                request(physical, alternative, operands, displacement)?;
-            let word = 0x3860_6800
-                | (u32::from(index) << 16)
-                | (u32::from(base) << 5)
-                | u32::from(destination);
-            validate(
-                physical,
-                alternative,
-                operands,
-                displacement,
-                &word.to_le_bytes(),
-            )
-        }
 
-        pub(super) fn validate(
-            physical: &ValidatedPhysicalRegisterModel,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-            bytes: &[u8],
-        ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError>
-        {
-            let [base, index, destination] =
-                request(physical, alternative, operands, displacement)?;
-            let word = bytes
-                .try_into()
-                .ok()
-                .map(u32::from_le_bytes)
-                .filter(|word| word & 0xffe0_fc00 == 0x3860_6800)
-                .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-            if (word & 31) != u32::from(destination)
-                || ((word >> 5) & 31) != u32::from(base)
-                || ((word >> 16) & 31) != u32::from(index)
-            {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            Ok(ValidatedAarch64SelectedFormEncoding {
-                bytes: bytes.to_vec(),
-                footprint: Aarch64SelectedFormFootprint {
-                    register_reads: vec![operands[0], operands[1]],
-                    register_writes: vec![operands[2]],
-                    writes_nzcv: false,
-                    encoded: MachineEncodedEffects {
-                        external_operand_reads: vec![0, 1],
-                        external_operand_writes: vec![2],
-                        implicit_unit_uses: Vec::new(),
-                        implicit_unit_defs: Vec::new(),
-                        implicit_unit_clobbers: Vec::new(),
-                        memory: MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
-                            pointer_operand: 0,
-                            index_operand: 1,
-                            byte_count: 1,
-                        },
-                        stack: MachineEncodedStackEffect::UnchangedV1,
-                        trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                        control: MachineEncodedControlEffect::FallThroughV1,
-                    },
-                },
-            })
-        }
-
-        fn request(
-            physical: &ValidatedPhysicalRegisterModel,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-        ) -> Result<[u8; 3], Aarch64SelectedFormEncodingError> {
-            if displacement != 0 {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            request_registers(
-                physical,
-                alternative,
-                MachineAlternativeFamily::Load8Indexed,
-                operands,
-                3,
-            )
-        }
-
-        #[cfg(test)]
-        mod tests {
-            use super::super::{
-                SelectedInstructionKind, check_memory, encode_aarch64_selected_memory_form,
-            };
-            use super::{
-                MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-            };
-            use crate::test_support::reject_every_bit_flip;
-
-            #[test]
-            fn indexed_byte_load_decodes_every_bit_and_operand_role() {
-                let physical = register_model::validate_physical_register_model(
-                    crate::aarch64_physical_register_model(),
-                )
-                .unwrap();
-                let operands =
-                    ["x1", "x2", "x3"].map(|name| physical.model().view_named(name).unwrap().id);
-                let kind = SelectedInstructionKind::Load8Indexed;
-                let alternative = MachineAlternativeKey {
-                    family: MachineAlternativeFamily::Load8Indexed,
-                    variant: 0,
-                };
-                let encoded =
-                    encode_aarch64_selected_memory_form(&physical, kind, alternative, &operands, 0)
-                        .unwrap();
-                assert_eq!(encoded.bytes(), &0x3862_6823u32.to_le_bytes());
-                assert_eq!(encoded.footprint().register_reads, operands[..2]);
-                assert_eq!(encoded.footprint().register_writes, operands[2..]);
-                assert_eq!(
-                    encoded.footprint().encoded.memory,
-                    MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
-                        pointer_operand: 0,
-                        index_operand: 1,
-                        byte_count: 1,
-                    }
-                );
-                reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupt| {
-                    check_memory(&physical, kind, alternative, &operands, 0, corrupt).is_err()
-                });
-                for role in 0..3 {
-                    let mut corrupt = operands;
-                    corrupt[role] = operands[(role + 1) % 3];
-                    assert!(
-                        check_memory(&physical, kind, alternative, &corrupt, 0, encoded.bytes(),)
-                            .is_err()
-                    );
-                }
-                assert!(
-                    check_memory(&physical, kind, alternative, &operands, 1, encoded.bytes(),)
-                        .is_err()
-                );
-                assert!(
-                    check_memory(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands[..2],
-                        0,
-                        encoded.bytes(),
-                    )
-                    .is_err()
-                );
-                assert!(
-                    check_memory(
-                        &physical,
-                        kind,
-                        MachineAlternativeKey {
-                            family: MachineAlternativeFamily::Load64,
-                            variant: 0,
-                        },
-                        &operands,
-                        0,
-                        encoded.bytes(),
-                    )
-                    .is_err()
-                );
-                for length in 0..encoded.bytes().len() {
-                    assert!(
-                        check_memory(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            0,
-                            &encoded.bytes()[..length],
-                        )
-                        .is_err()
-                    );
-                }
-                let mut trailing = encoded.bytes().to_vec();
-                trailing.push(0);
-                assert!(
-                    check_memory(&physical, kind, alternative, &operands, 0, &trailing,).is_err()
-                );
-                let stack = physical.model().view_named("sp").unwrap().id;
-                for role in 0..3 {
-                    let mut invalid = operands;
-                    invalid[role] = stack;
-                    assert!(
-                        encode_aarch64_selected_memory_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &invalid,
-                            0,
-                        )
-                        .is_err()
-                    );
-                }
-                for result in operands[..2].iter().copied() {
-                    assert!(
-                        encode_aarch64_selected_memory_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &[operands[0], operands[1], result],
-                            0,
-                        )
-                        .is_ok()
-                    );
-                }
-            }
+    fn jump_footprint(physical: &ValidatedPhysicalRegisterModel) -> Footprint {
+        let pc = physical
+            .model()
+            .view_named("pc")
+            .expect("canonical model has PC")
+            .units
+            .clone();
+        Footprint {
+            register_reads: vec![],
+            register_writes: vec![],
+            writes_nzcv: false,
+            encoded: MachineEncodedEffects {
+                external_operand_reads: vec![],
+                external_operand_writes: vec![],
+                implicit_unit_uses: pc.clone(),
+                implicit_unit_defs: pc,
+                implicit_unit_clobbers: vec![],
+                memory: MachineEncodedMemoryEffect::NoneV1,
+                stack: MachineEncodedStackEffect::UnchangedV1,
+                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                control: MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
+            },
         }
     }
-    #[cfg(test)]
-    mod load32_tests {
-        use super::{
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-            SelectedInstructionKind, check_memory, encode_aarch64_selected_memory_form,
-        };
-        #[test]
-        fn load32_preserves_exact_four_byte_extent_and_rejects_a_widened_load() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let operands = [
-                physical.model().view_named("x1").unwrap().id,
-                physical.model().view_named("x2").unwrap().id,
-            ];
-            let kind = SelectedInstructionKind::Load32 { byte_offset: 4 };
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::Load32,
-                variant: 0,
-            };
-            let encoded =
-                encode_aarch64_selected_memory_form(&physical, kind, alternative, &operands, 4)
-                    .unwrap();
-            assert_eq!(encoded.bytes(), &[0x22, 0x04, 0x40, 0xb9]);
-            assert_eq!(
-                encoded.footprint().encoded.memory,
-                MachineEncodedMemoryEffect::ReadPointerV1 {
-                    pointer_operand: 0,
-                    byte_count: 4
-                }
-            );
-            let mut widened = encoded.bytes().to_vec();
-            widened[3] |= 0x40;
-            assert!(check_memory(&physical, kind, alternative, &operands, 4, &widened).is_err());
-            assert!(
-                check_memory(&physical, kind, alternative, &operands, 8, encoded.bytes()).is_err()
-            );
-            assert!(
-                check_memory(
-                    &physical,
-                    kind,
-                    alternative,
-                    &[operands[1], operands[0]],
-                    4,
-                    encoded.bytes()
-                )
-                .is_err()
-            );
-        }
-    }
-    #[cfg(test)]
-    mod narrow_load_tests {
-        use super::{encode_aarch64_selected_memory_form, validate_aarch64_selected_memory_form};
-        use crate::selected_form_encoding::ValidatedAarch64SelectedFormEncoding;
-        use isa_conformance::narrow_load::{self, Exact, Footprint, Roster};
 
-        fn observed(encoded: &ValidatedAarch64SelectedFormEncoding) -> Footprint {
-            Footprint {
-                bytes: encoded.bytes().to_vec(),
-                register_reads: encoded.footprint().register_reads.clone(),
-                register_writes: encoded.footprint().register_writes.clone(),
-                memory: encoded.footprint().encoded.memory,
-                stack: encoded.footprint().encoded.stack,
-                trap: encoded.footprint().encoded.trap,
-                flags_untouched: !encoded.footprint().writes_nzcv,
-            }
-        }
-
-        #[test]
-        fn narrow_loads_bind_widths_footprints_opcodes_and_refuse_substituted_requests() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            narrow_load::conformance(
-                &physical,
-                &Roster {
-                    bases: &["x0", "x1", "x15", "x28"],
-                    destination: "x2",
-                    offsets: |width| vec![0, u32::from(width), 4095 * u32::from(width)],
-                },
-                &Exact {
-                    operands: ["x1", "x2"],
-                    expected: [(1, &[0x22, 0, 0x40, 0x39]), (2, &[0x22, 0, 0x40, 0x79])],
-                    signed_opcode: (2, [0x80, 0x80]),
-                    invalid_views: &["sp", "w1", "d0"],
-                    invalid_offsets: &[(2, 1), (2, 8192), (1, 4096)],
-                },
-                |kind, alternative, operands, displacement| {
-                    encode_aarch64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        operands,
-                        displacement,
-                    )
-                    .map(|encoded| observed(&encoded))
-                },
-                |kind, alternative, operands, displacement, bytes| {
-                    validate_aarch64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        operands,
-                        displacement,
-                        bytes,
-                    )
-                    .map(|encoded| observed(&encoded))
-                },
-            );
-        }
-    }
-    mod packed {
-        use super::{
-            Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-            MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-            MachineEncodedTrapBehavior, RegisterViewId, SelectedInstructionKind,
-            ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
-            request_registers,
-        };
-        use selected_instructions::PackedByteWidth;
-
-        fn request(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-        ) -> Result<(bool, u8, [u8; 3]), Aarch64SelectedFormEncodingError> {
-            let (load, byte_offset, width, family) = match kind {
-                SelectedInstructionKind::LoadPacked { byte_offset, width } => (
-                    true,
-                    byte_offset,
-                    width,
-                    match width {
-                        PackedByteWidth::Three => MachineAlternativeFamily::LoadPacked3,
-                        PackedByteWidth::Five => MachineAlternativeFamily::LoadPacked5,
-                        PackedByteWidth::Six => MachineAlternativeFamily::LoadPacked6,
-                        PackedByteWidth::Seven => MachineAlternativeFamily::LoadPacked7,
-                    },
-                ),
-                SelectedInstructionKind::StorePacked { byte_offset, width } => (
-                    false,
-                    byte_offset,
-                    width,
-                    MachineAlternativeFamily::StorePacked,
-                ),
-                _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
-            };
-            let width = width.byte_size();
-            let registers: [u8; 3] = request_registers(physical, alternative, family, operands, 2)?;
-            let [base, value, _] = registers;
-            if load && base == value {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            if byte_offset != displacement
-                || displacement
-                    .checked_add(u32::from(width) - 1)
-                    .is_none_or(|last| last > 4095)
-            {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            Ok((load, width, registers))
-        }
-
-        pub(super) fn encode(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-        ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError>
-        {
-            let (load, width, [base, value, scratch]) =
-                request(physical, kind, alternative, operands, displacement)?;
-            let (base, value, scratch) = (u32::from(base), u32::from(value), u32::from(scratch));
-            let mut bytes = Vec::with_capacity(usize::from(width) * 8);
-            if !load {
-                crate::codec_bytes::push_encoded(
-                    &mut bytes,
-                    (0xaa00_03e0 | (value << 16) | scratch).to_le_bytes(),
-                );
-            }
-            for byte in 0..u32::from(width) {
-                let offset = displacement + byte;
-                if load {
-                    let destination = if byte == 0 { value } else { scratch };
-                    bytes.extend_from_slice(
-                        &(0x3940_0000 | (offset << 10) | (base << 5) | destination).to_le_bytes(),
-                    );
-                    if byte != 0 {
-                        bytes.extend_from_slice(
-                            &(0xaa00_0000
-                                | (scratch << 16)
-                                | ((byte * 8) << 10)
-                                | (value << 5)
-                                | value)
-                                .to_le_bytes(),
-                        );
-                    }
-                } else {
-                    bytes.extend_from_slice(
-                        &(0x3900_0000 | (offset << 10) | (base << 5) | scratch).to_le_bytes(),
-                    );
-                    if byte + 1 != u32::from(width) {
-                        crate::codec_bytes::push_encoded(
-                            &mut bytes,
-                            (0xd348_fc00 | (scratch << 5) | scratch).to_le_bytes(),
-                        );
-                    }
-                }
-            }
-            validate(physical, kind, alternative, operands, displacement, &bytes)
-        }
-
-        pub(super) fn validate(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-            bytes: &[u8],
-        ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError>
-        {
-            let (load, width, [base, value, scratch]) =
-                request(physical, kind, alternative, operands, displacement)?;
-            let instruction_count = usize::from(width) * 2 - usize::from(load);
-            if bytes.len() != instruction_count * 4 {
-                return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-            }
-            let (base, value, scratch) = (u32::from(base), u32::from(value), u32::from(scratch));
-            let mut words = bytes
-                .as_chunks::<4>()
-                .0
-                .iter()
-                .map(|bytes| u32::from_le_bytes(*bytes));
-            let invalid = || Aarch64SelectedFormEncodingError::EncodedFormMismatch;
-            if !load {
-                let copy = words.next().ok_or_else(invalid)?;
-                if copy & !((31 << 16) | 31) != 0xaa00_03e0
-                    || (copy >> 16) & 31 != value
-                    || copy & 31 != scratch
-                {
-                    return Err(invalid());
-                }
-            }
-            for byte in 0..u32::from(width) {
-                let memory = words.next().ok_or_else(invalid)?;
-                let register = if load && byte == 0 { value } else { scratch };
-                if memory & 0xffc0_0000 != if load { 0x3940_0000 } else { 0x3900_0000 }
-                    || memory & 31 != register
-                    || (memory >> 5) & 31 != base
-                    || (memory >> 10) & 4095 != displacement + byte
-                {
-                    return Err(invalid());
-                }
-                if load && byte != 0 {
-                    let combine = words.next().ok_or_else(invalid)?;
-                    if combine & 0xffe0_0000 != 0xaa00_0000
-                        || (combine >> 16) & 31 != scratch
-                        || (combine >> 10) & 63 != byte * 8
-                        || (combine >> 5) & 31 != value
-                        || combine & 31 != value
-                    {
-                        return Err(invalid());
-                    }
-                } else if !load && byte + 1 != u32::from(width) {
-                    let shift = words.next().ok_or_else(invalid)?;
-                    if shift & !((31 << 5) | 31) != 0xd348_fc00
-                        || (shift >> 5) & 31 != scratch
-                        || shift & 31 != scratch
-                    {
-                        return Err(invalid());
-                    }
-                }
-            }
-            if words.next().is_some() {
-                return Err(invalid());
-            }
-            Ok(ValidatedAarch64SelectedFormEncoding {
-                bytes: bytes.to_vec(),
-                footprint: Aarch64SelectedFormFootprint {
-                    register_reads: if load {
-                        vec![operands[0]]
-                    } else {
-                        vec![operands[0], operands[1]]
-                    },
-                    register_writes: if load {
-                        vec![operands[1], operands[2]]
-                    } else {
-                        vec![operands[2]]
-                    },
-                    writes_nzcv: false,
-                    encoded: MachineEncodedEffects {
-                        external_operand_reads: if load { vec![0] } else { vec![0, 1] },
-                        external_operand_writes: if load { vec![1, 2] } else { vec![2] },
-                        implicit_unit_uses: Vec::new(),
-                        implicit_unit_defs: Vec::new(),
-                        implicit_unit_clobbers: Vec::new(),
-                        memory: if load {
-                            MachineEncodedMemoryEffect::ReadPointerV1 {
-                                pointer_operand: 0,
-                                byte_count: u16::from(width),
-                            }
-                        } else {
-                            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
-                        },
-                        stack: MachineEncodedStackEffect::UnchangedV1,
-                        trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                        control: MachineEncodedControlEffect::FallThroughV1,
-                    },
-                },
-            })
-        }
-
-        #[cfg(test)]
-        mod tests {
-            use super::super::{check_memory, encode_aarch64_selected_memory_form};
-            use super::{MachineAlternativeKey, PackedByteWidth, SelectedInstructionKind};
-            use crate::aarch64_physical_register_model;
-            use crate::test_support::reject_every_bit_flip;
-            use selected_instructions::{MachineSemanticKind, MachineSizeKnowledge};
-
-            fn case(
-                load: bool,
-                width: PackedByteWidth,
-                byte_offset: u32,
-            ) -> (
-                SelectedInstructionKind,
-                MachineAlternativeKey,
-                MachineSemanticKind,
-            ) {
-                let semantic = if load {
-                    match width {
-                        PackedByteWidth::Three => MachineSemanticKind::LoadPacked3,
-                        PackedByteWidth::Five => MachineSemanticKind::LoadPacked5,
-                        PackedByteWidth::Six => MachineSemanticKind::LoadPacked6,
-                        PackedByteWidth::Seven => MachineSemanticKind::LoadPacked7,
-                    }
-                } else {
-                    MachineSemanticKind::StorePacked
-                };
-                (
-                    if load {
-                        SelectedInstructionKind::LoadPacked { byte_offset, width }
-                    } else {
-                        SelectedInstructionKind::StorePacked { byte_offset, width }
-                    },
-                    MachineAlternativeKey {
-                        family: semantic.into(),
-                        variant: 0,
-                    },
-                    semantic,
-                )
-            }
-
-            #[test]
-            fn packed_forms_access_exact_bytes_and_declare_all_scratch_writes() {
-                let physical = register_model::validate_physical_register_model(
-                    aarch64_physical_register_model(),
-                )
-                .unwrap();
-                let constraints = crate::validate_aarch64_register_constraint_catalog(
-                    crate::aarch64_register_constraint_catalog(&physical),
-                    &physical,
-                )
-                .unwrap();
-                let operands =
-                    ["x3", "x7", "x12"].map(|name| physical.model().view_named(name).unwrap().id);
-                for target in [
-                    target::NativeTarget::linux_arm64(),
-                    target::NativeTarget::macos_arm64(),
-                ] {
-                    let catalog =
-                        crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
-                    for width in [
-                        PackedByteWidth::Three,
-                        PackedByteWidth::Five,
-                        PackedByteWidth::Six,
-                        PackedByteWidth::Seven,
-                    ] {
-                        for load in [true, false] {
-                            for offset in [0, 4096 - u32::from(width.byte_size())] {
-                                let (kind, alternative, semantic) = case(load, width, offset);
-                                let encoded = encode_aarch64_selected_memory_form(
-                                    &physical,
-                                    kind,
-                                    alternative,
-                                    &operands,
-                                    i64::from(offset),
-                                )
-                                .unwrap();
-                                let effects = &encoded.footprint().encoded;
-                                let row = catalog.declaration_by_semantic(semantic).unwrap();
-                                assert_eq!(effects, &row.alternatives[0].encoded);
-                                assert_eq!(
-                                    encoded.bytes().len(),
-                                    (usize::from(width.byte_size()) * 2 - usize::from(load)) * 4
-                                );
-                                if load {
-                                    assert_eq!(
-                                        row.alternatives[0].size,
-                                        MachineSizeKnowledge::ExactBytes(
-                                            (u16::from(width.byte_size()) * 2 - 1) * 4
-                                        )
-                                    );
-                                }
-                                assert_eq!(
-                                    effects.external_operand_writes,
-                                    if load { vec![1, 2] } else { vec![2] }
-                                );
-                                assert_eq!(
-                                    effects.external_operand_reads,
-                                    if load { vec![0] } else { vec![0, 1] }
-                                );
-                                assert!(effects.implicit_unit_clobbers.is_empty());
-                                assert!(effects.implicit_unit_defs.is_empty());
-                                assert!(!encoded.footprint().writes_nzcv);
-                                let accesses = encoded
-                                    .bytes()
-                                    .as_chunks::<4>()
-                                    .0
-                                    .iter()
-                                    .map(|bytes| u32::from_le_bytes(*bytes))
-                                    .filter(|word| {
-                                        word & 0xffc0_0000
-                                            == if load { 0x3940_0000 } else { 0x3900_0000 }
-                                    })
-                                    .map(|word| (word >> 10) & 4095)
-                                    .collect::<Vec<_>>();
-                                assert_eq!(
-                                    accesses,
-                                    (offset..offset + u32::from(width.byte_size()))
-                                        .collect::<Vec<_>>()
-                                );
-                                assert_eq!(
-                                    check_memory(
-                                        &physical,
-                                        kind,
-                                        alternative,
-                                        &operands,
-                                        i64::from(offset),
-                                        encoded.bytes()
-                                    )
-                                    .unwrap(),
-                                    encoded
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-
-            #[test]
-            fn packed_forms_reject_width_offset_alias_and_instruction_mutations() {
-                let physical = register_model::validate_physical_register_model(
-                    aarch64_physical_register_model(),
-                )
-                .unwrap();
-                let operands =
-                    ["x3", "x7", "x12"].map(|name| physical.model().view_named(name).unwrap().id);
-                for load in [true, false] {
-                    let (kind, alternative, _) = case(load, PackedByteWidth::Three, 16);
-                    let encoded = encode_aarch64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        16,
-                    )
-                    .unwrap();
-                    reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
-                        check_memory(&physical, kind, alternative, &operands, 16, changed).is_err()
-                    });
-                    for width in [
-                        PackedByteWidth::Five,
-                        PackedByteWidth::Six,
-                        PackedByteWidth::Seven,
-                    ] {
-                        let (other_kind, other_alternative, _) = case(load, width, 16);
-                        assert!(
-                            check_memory(
-                                &physical,
-                                other_kind,
-                                other_alternative,
-                                &operands,
-                                16,
-                                encoded.bytes()
-                            )
-                            .is_err()
-                        );
-                    }
-                    for offset in [4094, u32::MAX] {
-                        let (kind, alternative, _) = case(load, PackedByteWidth::Three, offset);
-                        assert!(
-                            encode_aarch64_selected_memory_form(
-                                &physical,
-                                kind,
-                                alternative,
-                                &operands,
-                                i64::from(offset)
-                            )
-                            .is_err()
-                        );
-                    }
-                    assert!(
-                        encode_aarch64_selected_memory_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            17
-                        )
-                        .is_err()
-                    );
-                    assert!(
-                        encode_aarch64_selected_memory_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands[..2],
-                            16
-                        )
-                        .is_err()
-                    );
-                    for alias in [0, 1] {
-                        let mut changed = operands;
-                        changed[2] = changed[alias];
-                        assert!(
-                            encode_aarch64_selected_memory_form(
-                                &physical,
-                                kind,
-                                alternative,
-                                &changed,
-                                16
-                            )
-                            .is_err()
-                        );
-                    }
-                    let mut changed = operands;
-                    changed[1] = changed[0];
-                    assert_eq!(
-                        encode_aarch64_selected_memory_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &changed,
-                            16
-                        )
-                        .is_err(),
-                        load
-                    );
-                    let mut changed = operands;
-                    changed[2] = physical.model().view_named("d0").unwrap().id;
-                    assert!(
-                        encode_aarch64_selected_memory_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &changed,
-                            16
-                        )
-                        .is_err()
-                    );
-                    assert!(
-                        check_memory(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            16,
-                            &encoded.bytes()[..encoded.bytes().len() - 4]
-                        )
-                        .is_err()
-                    );
-                }
-            }
-
-            #[test]
-            fn packed_constraints_require_early_clobbers_and_effects_reject_scratch_omission() {
-                let physical = register_model::validate_physical_register_model(
-                    aarch64_physical_register_model(),
-                )
-                .unwrap();
-                let catalog = crate::aarch64_register_constraint_catalog(&physical);
-                for (key, load) in [
-                    (crate::AARCH64_LOAD_PACKED, true),
-                    (crate::AARCH64_STORE_PACKED, false),
-                ] {
-                    let row = catalog.constraint(key).unwrap();
-                    assert_eq!(row.operands.len(), 3);
-                    assert_eq!(row.operands[1].early_clobber, load);
-                    assert!(row.operands[2].early_clobber);
-                    assert!(row.clobbers.is_empty());
-                    let mut changed = catalog.clone();
-                    register_model::find_register_constraint_mut(&mut changed.constraints, key)
-                        .unwrap()
-                        .operands[2]
-                        .early_clobber = false;
-                    assert!(
-                        crate::validate_aarch64_register_constraint_catalog(changed, &physical)
-                            .is_err()
-                    );
-                }
-                let constraints =
-                    crate::validate_aarch64_register_constraint_catalog(catalog, &physical)
-                        .unwrap();
-                for target in [
-                    target::NativeTarget::linux_arm64(),
-                    target::NativeTarget::macos_arm64(),
-                ] {
-                    let mut effects =
-                        crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
-                    effects
-                        .declaration_by_semantic_mut(MachineSemanticKind::StorePacked)
-                        .unwrap()
-                        .alternatives[0]
-                        .encoded
-                        .external_operand_writes
-                        .clear();
-                    assert!(
-                        crate::validate_aarch64_machine_effect_catalog(
-                            target,
-                            &constraints,
-                            effects
-                        )
-                        .is_err()
-                    );
-                }
-            }
-        }
-    }
-    #[cfg(test)]
-    mod placed_scalar_tests {
-        use crate::test_support::reject_every_bit_flip;
-        use selected_instructions::{
-            AccessorScalarForm, MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier,
-            MachineEncodedMemoryEffect, MachineSemanticKind, SelectedInstructionKind,
-        };
-
-        fn accessor_scalar_request(
-            form: AccessorScalarForm,
-        ) -> (SelectedInstructionKind, MachineAlternativeKey) {
-            (
-                SelectedInstructionKind::AccessorScalarAccess {
-                    form,
-                    contract: [3; 32],
-                    byte_offset: 8,
-                },
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::AccessorScalarAccess(form),
-                    variant: 0,
-                },
-            )
-        }
-
-        #[test]
-        fn accessor_scalar_forms_decode_one_exact_width_transfer() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let constraints = crate::validate_aarch64_register_constraint_catalog(
-                crate::aarch64_register_constraint_catalog(&physical),
-                &physical,
-            )
-            .unwrap();
-            let target = target::NativeTarget::linux_arm64();
-            let catalog = crate::validate_aarch64_machine_effect_catalog(
-                target,
-                &constraints,
-                crate::aarch64_machine_effect_catalog(target, &constraints).unwrap(),
-            )
-            .unwrap();
-            let base = physical.model().view_named("x1").unwrap().id;
-            let data = physical.model().view_named("x2").unwrap().id;
-            for form in AccessorScalarForm::ALL {
-                let (kind, alternative) = accessor_scalar_request(form);
-                let declaration = catalog
-                    .catalog()
-                    .declaration_by_semantic(MachineSemanticKind::AccessorScalarAccess(form))
-                    .unwrap();
-                assert_eq!(declaration.barrier, MachineBarrier::ExternalEffect);
-                let encoded = super::encode_aarch64_selected_memory_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &[base, data],
-                    8,
-                )
-                .unwrap();
-                let expected = if form.write {
-                    MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
-                } else {
-                    MachineEncodedMemoryEffect::ReadPointerV1 {
-                        pointer_operand: 0,
-                        byte_count: u16::from(form.bytes),
-                    }
-                };
-                assert_eq!(encoded.footprint().encoded.memory, expected);
-                assert_eq!(
-                    encoded.footprint().register_reads,
-                    if form.write {
-                        vec![base, data]
-                    } else {
-                        vec![base]
-                    }
-                );
-                assert_eq!(
-                    encoded.footprint().register_writes,
-                    if form.write { vec![] } else { vec![data] }
-                );
-                let verify = |kind,
-                              alternative,
-                              operands: &[register_model::RegisterViewId],
-                              displacement,
-                              bytes: &[u8]| {
-                    super::check_memory(&physical, kind, alternative, operands, displacement, bytes)
-                };
-                let verify_request =
-                    |kind: SelectedInstructionKind, alternative: MachineAlternativeKey| {
-                        verify(kind, alternative, &[base, data], 8, encoded.bytes())
-                    };
-                verify_request(kind, alternative).unwrap();
-                assert!(verify(kind, alternative, &[data, base], 8, encoded.bytes()).is_err());
-                assert!(verify(kind, alternative, &[data, data], 8, encoded.bytes()).is_err());
-                assert!(verify(kind, alternative, &[base, data], 16, encoded.bytes()).is_err());
-                let mut appended = encoded.bytes().to_vec();
-                appended.extend_from_slice(encoded.bytes());
-                assert!(verify(kind, alternative, &[base, data], 8, &appended).is_err());
-                let changed = AccessorScalarForm {
-                    write: !form.write,
-                    bytes: form.bytes,
-                };
-                let (changed_kind, changed_alternative) = accessor_scalar_request(changed);
-                assert!(verify_request(changed_kind, changed_alternative).is_err());
-                let changed = AccessorScalarForm {
-                    write: form.write,
-                    bytes: if form.bytes == 8 { 4 } else { 8 },
-                };
-                let (changed_kind, changed_alternative) = accessor_scalar_request(changed);
-                assert!(verify_request(changed_kind, changed_alternative).is_err());
-                let undeclared = MachineAlternativeKey {
-                    family: alternative.family,
-                    variant: 1,
-                };
-                assert!(verify(kind, undeclared, &[base, data], 8, encoded.bytes()).is_err());
-                reject_every_bit_flip(encoded.bytes(), &format!("{form:?}"), |changed| {
-                    verify(kind, alternative, &[base, data], 8, changed).is_err()
-                });
-            }
-        }
-    }
-    mod pointer {
-        use super::{
-            Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-            MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-            MachineEncodedTrapBehavior, RegisterViewId, SelectedInstructionKind,
-            ValidatedAarch64SelectedFormEncoding, ValidatedPhysicalRegisterModel,
-            request_registers, word_stream,
-        };
-        use crate::immediate_offset::{address_word_count, address_words, decode_address_words};
-
-        fn request(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-        ) -> Result<(u32, u32, u8, u8), Aarch64SelectedFormEncodingError> {
-            let (family, byte_offset, opcode, scale) = match kind {
-                SelectedInstructionKind::Store {
-                    byte_offset,
-                    byte_size,
-                } => {
-                    let opcode = match byte_size {
-                        1 => 0x3900_0000,
-                        2 => 0x7900_0000,
-                        4 => 0xb900_0000,
-                        8 => 0xf900_0000,
-                        _ => return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
-                    };
-                    (
-                        MachineAlternativeFamily::Store,
-                        byte_offset,
-                        opcode,
-                        u32::from(byte_size),
-                    )
-                }
-                SelectedInstructionKind::AddressOffset { byte_offset } => (
-                    MachineAlternativeFamily::AddressOffset,
-                    byte_offset,
-                    0x9100_0000,
-                    1,
-                ),
-                _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
-            };
-            let [first, second] =
-                request_registers::<2>(physical, alternative, family, operands, 2)?;
-            if byte_offset != displacement
-                || (matches!(kind, SelectedInstructionKind::Store { .. })
-                    && (!displacement.is_multiple_of(scale) || displacement / scale > 4095))
-            {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            Ok((opcode, scale, first, second))
-        }
-
-        pub(super) fn encode(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-        ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError>
-        {
-            let (opcode, scale, base, register) =
-                request(physical, kind, alternative, operands, displacement)?;
-            let bytes = if matches!(kind, SelectedInstructionKind::AddressOffset { .. }) {
-                address_words(register, base, u64::from(displacement))
-                    .into_iter()
-                    .flat_map(u32::to_le_bytes)
-                    .collect()
-            } else {
-                let word = opcode
-                    | ((displacement / scale) << 10)
-                    | (u32::from(base) << 5)
-                    | u32::from(register);
-                word.to_le_bytes().to_vec()
-            };
-            validate(physical, kind, alternative, operands, displacement, &bytes)
-        }
-
-        pub(super) fn validate(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            displacement: u32,
-            bytes: &[u8],
-        ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError>
-        {
-            let (opcode, scale, base, register) =
-                request(physical, kind, alternative, operands, displacement)?;
-            let store = matches!(kind, SelectedInstructionKind::Store { .. });
-            if store {
-                let word = bytes
-                    .try_into()
-                    .ok()
-                    .map(u32::from_le_bytes)
-                    .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-                if word & 0xffc0_0000 != opcode
-                    || word & 31 != u32::from(register)
-                    || (word >> 5) & 31 != u32::from(base)
-                    || ((word >> 10) & 4095) * scale != displacement
-                {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-            } else {
-                let words = word_stream(bytes)
-                    .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-                if words.len() as u64 != address_word_count(u64::from(displacement)) {
-                    return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
-                }
-                if decode_address_words(&words, register, base) != Some(u64::from(displacement)) {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-            }
-            Ok(ValidatedAarch64SelectedFormEncoding {
-                bytes: bytes.to_vec(),
-                footprint: Aarch64SelectedFormFootprint {
-                    register_reads: if store {
-                        operands.to_vec()
-                    } else {
-                        vec![operands[0]]
-                    },
-                    register_writes: if store { Vec::new() } else { vec![operands[1]] },
-                    writes_nzcv: false,
-                    encoded: MachineEncodedEffects {
-                        external_operand_reads: if store { vec![0, 1] } else { vec![0] },
-                        external_operand_writes: if store { Vec::new() } else { vec![1] },
-                        implicit_unit_uses: Vec::new(),
-                        implicit_unit_defs: Vec::new(),
-                        implicit_unit_clobbers: Vec::new(),
-                        memory: if store {
-                            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
-                        } else {
-                            MachineEncodedMemoryEffect::NoneV1
-                        },
-                        stack: MachineEncodedStackEffect::UnchangedV1,
-                        trap: if store {
-                            MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-                        } else {
-                            MachineEncodedTrapBehavior::NeverV1
-                        },
-                        control: MachineEncodedControlEffect::FallThroughV1,
-                    },
-                },
-            })
-        }
-    }
-    #[cfg(test)]
-    mod pointer_tests {
-        use super::{
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-            RegisterViewId, SelectedInstructionKind, ValidatedPhysicalRegisterModel, check_memory,
-            encode_aarch64_selected_memory_form,
-        };
-        use crate::test_support::reject_every_bit_flip;
-        #[test]
-        fn pointer_store_known_bytes_preserve_the_requested_width() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let operands = ["x12", "x9"].map(|name| physical.model().view_named(name).unwrap().id);
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::Store,
-                variant: 0,
-            };
-            for (byte_size, expected) in [
-                (1, vec![0x89, 0x21, 0x00, 0x39]),
-                (2, vec![0x89, 0x11, 0x00, 0x79]),
-                (4, vec![0x89, 0x09, 0x00, 0xb9]),
-                (8, vec![0x89, 0x05, 0x00, 0xf9]),
-            ] {
-                let kind = SelectedInstructionKind::Store {
-                    byte_offset: 8,
-                    byte_size,
-                };
-                let encoded =
-                    encode_aarch64_selected_memory_form(&physical, kind, alternative, &operands, 8)
-                        .unwrap();
-                assert_eq!(encoded.bytes(), expected);
-                assert!(
-                    check_memory(
-                        &physical,
-                        kind,
-                        alternative,
-                        &[operands[1], operands[0]],
-                        8,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                for wrong_width in [1, 2, 4, 8] {
-                    if wrong_width != byte_size {
-                        assert!(
-                            check_memory(
-                                &physical,
-                                SelectedInstructionKind::Store {
-                                    byte_offset: 8,
-                                    byte_size: wrong_width
-                                },
-                                alternative,
-                                &operands,
-                                8,
-                                encoded.bytes()
-                            )
-                            .is_err()
-                        );
-                    }
-                }
-            }
-            let address = encode_aarch64_selected_memory_form(
-                &physical,
-                SelectedInstructionKind::AddressOffset { byte_offset: 2 },
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::AddressOffset,
-                    variant: 0,
-                },
-                &operands,
-                2,
-            )
-            .unwrap();
-            assert_eq!(address.bytes(), [0x89, 0x09, 0x00, 0x91]);
-            let wide_address = encode_aarch64_selected_memory_form(
-                &physical,
-                SelectedInstructionKind::AddressOffset { byte_offset: 16400 },
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::AddressOffset,
-                    variant: 0,
-                },
-                &operands,
-                16400,
-            )
-            .unwrap();
-            assert_eq!(
-                wide_address.bytes(),
-                [0x89, 0x11, 0x40, 0x91, 0x29, 0x41, 0x00, 0x91]
-            );
-            let paged_address = encode_aarch64_selected_memory_form(
-                &physical,
-                SelectedInstructionKind::AddressOffset {
-                    byte_offset: 0x0100_0000,
-                },
-                MachineAlternativeKey {
-                    family: MachineAlternativeFamily::AddressOffset,
-                    variant: 0,
-                },
-                &operands,
-                0x0100_0000,
-            )
-            .unwrap();
-            assert_eq!(
-                paged_address.bytes(),
-                [0x917f_fd89_u32, 0x9140_0529]
-                    .into_iter()
-                    .flat_map(u32::to_le_bytes)
-                    .collect::<Vec<_>>()
-            );
-        }
-
-        #[test]
-        fn pointer_stores_and_offsets_replay_every_bit_and_operand() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            for base_name in ["x0", "x1", "x9", "x16", "x29", "x30"] {
-                for value_name in ["x0", "x1", "x9", "x16", "x29", "x30"] {
-                    let operands = [base_name, value_name]
-                        .map(|name| physical.model().view_named(name).unwrap().id);
-                    for byte_size in [1, 2, 4, 8] {
-                        for byte_offset in [0, u32::from(byte_size), 4095 * u32::from(byte_size)] {
-                            let kind = SelectedInstructionKind::Store {
-                                byte_offset,
-                                byte_size,
-                            };
-                            check_replay(
-                                &physical,
-                                kind,
-                                MachineAlternativeFamily::Store,
-                                &operands,
-                                i64::from(byte_offset),
-                            );
-                        }
-                    }
-                    for byte_offset in [
-                        0,
-                        2,
-                        4095,
-                        4096,
-                        16400,
-                        0x00ff_ffff,
-                        0x0100_0000,
-                        33_554_431,
-                        u32::MAX,
-                    ] {
-                        check_replay(
-                            &physical,
-                            SelectedInstructionKind::AddressOffset { byte_offset },
-                            MachineAlternativeFamily::AddressOffset,
-                            &operands,
-                            i64::from(byte_offset),
-                        );
-                    }
-                }
-            }
-        }
-
-        fn check_replay(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            family: MachineAlternativeFamily,
-            operands: &[RegisterViewId],
-            displacement: i64,
-        ) {
-            let alternative = MachineAlternativeKey { family, variant: 0 };
-            let encoded = encode_aarch64_selected_memory_form(
-                physical,
-                kind,
-                alternative,
-                operands,
-                displacement,
-            )
-            .unwrap();
-            let store = matches!(kind, SelectedInstructionKind::Store { .. });
-            assert_eq!(
-                encoded.footprint().encoded.external_operand_reads,
-                if store { vec![0, 1] } else { vec![0] }
-            );
-            assert_eq!(
-                encoded.footprint().encoded.external_operand_writes,
-                if store { vec![] } else { vec![1] }
-            );
-            assert_eq!(
-                encoded.footprint().encoded.memory,
-                if store {
-                    MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
-                } else {
-                    MachineEncodedMemoryEffect::NoneV1
-                }
-            );
-            reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupt| {
-                check_memory(physical, kind, alternative, operands, displacement, corrupt).is_err()
-            });
-            for end in 0..encoded.bytes().len() {
-                assert!(
-                    check_memory(
-                        physical,
-                        kind,
-                        alternative,
-                        operands,
-                        displacement,
-                        &encoded.bytes()[..end]
-                    )
-                    .is_err()
-                );
-            }
-            let mut trailing = encoded.bytes().to_vec();
-            trailing.push(0);
-            assert!(
-                check_memory(
-                    physical,
-                    kind,
-                    alternative,
-                    operands,
-                    displacement,
-                    &trailing
-                )
-                .is_err()
-            );
-            assert!(
-                check_memory(
-                    physical,
-                    kind,
-                    alternative,
-                    operands,
-                    displacement + 1,
-                    encoded.bytes()
-                )
-                .is_err()
-            );
-            assert!(
-                encode_aarch64_selected_memory_form(
-                    physical,
-                    kind,
-                    MachineAlternativeKey { family, variant: 1 },
-                    operands,
-                    displacement
-                )
-                .is_err()
-            );
-            assert!(
-                encode_aarch64_selected_memory_form(
-                    physical,
-                    kind,
-                    alternative,
-                    &operands[..1],
-                    displacement
-                )
-                .is_err()
-            );
-        }
-
-        #[test]
-        fn pointer_stores_reject_unsupported_widths_and_offsets() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let operands = ["x1", "x9"].map(|name| physical.model().view_named(name).unwrap().id);
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::Store,
-                variant: 0,
-            };
-            for (byte_size, byte_offset) in [
-                (0, 0),
-                (3, 0),
-                (16, 0),
-                (8, u32::MAX),
-                (2, 1),
-                (4, 2),
-                (8, 4),
-                (1, 4096),
-            ] {
-                assert!(
-                    encode_aarch64_selected_memory_form(
-                        &physical,
-                        SelectedInstructionKind::Store {
-                            byte_offset,
-                            byte_size
-                        },
-                        alternative,
-                        &operands,
-                        i64::from(byte_offset)
-                    )
-                    .is_err()
-                );
-            }
-        }
-
-        #[test]
-        fn incoming_slot_address_and_pointer_load_replay_without_a_store() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let address_view = physical.model().view_named("x9").unwrap().id;
-            let pointer_view = physical.model().view_named("x10").unwrap().id;
-            let slot = selected_instructions::FrameStorageSlotId::Incoming {
-                parameter_index: 8,
-                abi_stack_byte_offset: 16,
-            };
-            let address_kind = SelectedInstructionKind::FrameAddress {
-                slot,
-                byte_offset: 0,
-            };
-            let address_key = MachineAlternativeKey {
-                family: MachineAlternativeFamily::FrameAddress,
-                variant: 0,
-            };
-            let encoded = encode_aarch64_selected_memory_form(
-                &physical,
-                address_kind,
-                address_key,
-                &[address_view],
-                48,
-            )
-            .unwrap();
-            check_memory(
-                &physical,
-                address_kind,
-                address_key,
-                &[address_view],
-                48,
-                encoded.bytes(),
-            )
-            .unwrap();
-            assert!(
-                check_memory(
-                    &physical,
-                    address_kind,
-                    address_key,
-                    &[address_view],
-                    56,
-                    encoded.bytes()
-                )
-                .is_err()
-            );
-            let load_kind = SelectedInstructionKind::Load64 { byte_offset: 0 };
-            let load_key = MachineAlternativeKey {
-                family: MachineAlternativeFamily::Load64,
-                variant: 0,
-            };
-            let load = encode_aarch64_selected_memory_form(
-                &physical,
-                load_kind,
-                load_key,
-                &[address_view, pointer_view],
-                0,
-            )
-            .unwrap();
-            check_memory(
-                &physical,
-                load_kind,
-                load_key,
-                &[address_view, pointer_view],
-                0,
-                load.bytes(),
-            )
-            .unwrap();
-            let store_kind = SelectedInstructionKind::Store64 {
-                slot,
-                byte_offset: 0,
-            };
-            let store_key = MachineAlternativeKey {
-                family: MachineAlternativeFamily::Store64,
-                variant: 0,
-            };
-            assert!(
-                encode_aarch64_selected_memory_form(
-                    &physical,
-                    store_kind,
-                    store_key,
-                    &[pointer_view, address_view],
-                    48
-                )
-                .is_err()
-            );
-            assert!(
-                check_memory(
-                    &physical,
-                    store_kind,
-                    store_key,
-                    &[pointer_view, address_view],
-                    48,
-                    encoded.bytes()
-                )
-                .is_err()
-            );
-        }
-
-        #[test]
-        fn activation_base_encodes_only_the_unshifted_stack_pointer() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            let address = physical.model().view_named("x9").unwrap().id;
-            let kind = SelectedInstructionKind::FrameAddress {
-                slot: selected_instructions::FrameStorageSlotId::ActivationBase,
-                byte_offset: 0,
-            };
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::FrameAddress,
-                variant: 0,
-            };
-            let encoded =
-                encode_aarch64_selected_memory_form(&physical, kind, alternative, &[address], 0)
-                    .unwrap();
-            assert_eq!(encoded.bytes(), [0xe9, 0x03, 0x00, 0x91]);
-            check_memory(&physical, kind, alternative, &[address], 0, encoded.bytes()).unwrap();
-            assert!(
-                encode_aarch64_selected_memory_form(&physical, kind, alternative, &[address], 8)
-                    .is_err()
-            );
-            assert!(
-                check_memory(&physical, kind, alternative, &[address], 8, encoded.bytes()).is_err()
-            );
-            let shifted = SelectedInstructionKind::FrameAddress {
-                slot: selected_instructions::FrameStorageSlotId::ActivationBase,
-                byte_offset: 8,
-            };
-            assert!(
-                encode_aarch64_selected_memory_form(&physical, shifted, alternative, &[address], 0)
-                    .is_err()
-            );
-            let store = SelectedInstructionKind::Store64 {
-                slot: selected_instructions::FrameStorageSlotId::ActivationBase,
-                byte_offset: 0,
-            };
-            let store_alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::Store64,
-                variant: 0,
-            };
-            let value = physical.model().view_named("x10").unwrap().id;
-            assert!(
-                encode_aarch64_selected_memory_form(
-                    &physical,
-                    store,
-                    store_alternative,
-                    &[value, address],
-                    0
-                )
-                .is_err()
-            );
-            for bit in 0..encoded.bytes().len() * 8 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    check_memory(&physical, kind, alternative, &[address], 0, &changed).is_err()
-                );
-            }
-        }
-    }
-    pub fn encode_aarch64_selected_memory_form(
+    pub fn encode_aarch64_selected_jump_form(
         physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
+        alternative: MachineAlternativeKey,
+        displacement: i64,
+    ) -> Result<Encoded, Error> {
+        if displacement % 4 != 0 {
+            return Err(Error::BranchDisplacementMisaligned);
+        }
+        let words = displacement / 4;
+        if !(-(1_i64 << 25)..(1_i64 << 25)).contains(&words) {
+            return Err(Error::BranchDisplacementOutsideImm26);
+        }
+        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+            return Err(Error::NonCanonicalPhysicalModel);
+        }
+        if alternative
+            != (MachineAlternativeKey {
+                family: Fam::Jump,
+                variant: 0,
+            })
+        {
+            return Err(Error::AlternativeMismatch);
+        }
+        Ok(Encoded {
+            bytes: enc::b(words as i32).to_le_bytes().to_vec(),
+            footprint: jump_footprint(physical),
+        })
+    }
+
+    pub fn validate_aarch64_selected_jump_form(
+        physical: &ValidatedPhysicalRegisterModel,
+        alternative: MachineAlternativeKey,
+        displacement: i64,
+        bytes: &[u8],
+    ) -> Result<Encoded, Error> {
+        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
+            return Err(Error::NonCanonicalPhysicalModel);
+        }
+        if alternative
+            != (MachineAlternativeKey {
+                family: Fam::Jump,
+                variant: 0,
+            })
+        {
+            return Err(Error::AlternativeMismatch);
+        }
+        if bytes.len() != 4 {
+            return Err(Error::MalformedEncoding);
+        }
+        let expected = encode_aarch64_selected_jump_form(physical, alternative, displacement)
+            .map_err(|_| Error::EncodedFormMismatch)?;
+        if bytes != expected.bytes.as_slice() {
+            return Err(Error::EncodedFormMismatch);
+        }
+        Ok(expected)
+    }
+}
+
+pub(crate) mod floating_control {
+    use super::{
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded,
+    };
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+    use selected_instructions::{
+        LocalStorageSlotId, MachineAlternativeKey, MachineSemanticKind,
+        SelectedInstructionKind as Kind,
+    };
+    pub(crate) use target_aarch64::form_effects::floating_control::effects;
+
+    pub fn encode_aarch64_selected_floating_control_form(
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
         alternative: MachineAlternativeKey,
         operands: &[RegisterViewId],
         displacement: i64,
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let (kind, alternative) = accessor_scalar_ordinary(kind, alternative)?;
-        if matches!(
-            kind,
-            SelectedInstructionKind::SaveFloatingControl { .. }
-                | SelectedInstructionKind::RestoreFloatingControl { .. }
-        ) {
-            return super::floating_control::encode_aarch64_selected_floating_control_form(
-                physical,
-                kind,
-                alternative,
-                operands,
-                displacement,
-            );
-        }
-        let displacement = u32::try_from(displacement)
-            .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        if matches!(
-            kind,
-            SelectedInstructionKind::LoadPacked { .. }
-                | SelectedInstructionKind::StorePacked { .. }
-        ) {
-            return packed::encode(physical, kind, alternative, operands, displacement);
-        }
-        if matches!(
-            kind,
-            SelectedInstructionKind::Store { .. } | SelectedInstructionKind::AddressOffset { .. }
-        ) {
-            return pointer::encode(physical, kind, alternative, operands, displacement);
-        }
-        if matches!(
-            kind,
-            SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
-        ) {
-            return frame::encode(physical, kind, alternative, operands, displacement, 1);
-        }
-        if kind == SelectedInstructionKind::Load8Indexed {
-            return indexed::encode(physical, alternative, operands, displacement);
-        }
-        let [base, destination] = request(physical, kind, alternative, operands, displacement)?;
-        let width = load_width(kind)?;
-        let opcode = match kind {
-            SelectedInstructionKind::Load8 { .. } => 0x3940_0000,
-            SelectedInstructionKind::Load16 { .. } => 0x7940_0000,
-            SelectedInstructionKind::Load32 { .. } => 0xb940_0000,
-            SelectedInstructionKind::Load64 { .. } => 0xf940_0000,
-            _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
+    ) -> Result<Encoded, Error> {
+        let semantic = match kind {
+            Kind::SaveFloatingControl {
+                slot: LocalStorageSlotId::Boundary { .. },
+            } => MachineSemanticKind::SaveFloatingControl,
+            Kind::RestoreFloatingControl {
+                slot: LocalStorageSlotId::Boundary { .. },
+            } => MachineSemanticKind::RestoreFloatingControl,
+            _ => return Err(Error::EncodedFormMismatch),
         };
-        let word = opcode
-            | ((displacement / width) << 10)
-            | (u32::from(base) << 5)
-            | u32::from(destination);
-        validate_aarch64_selected_memory_form(
-            physical,
-            kind,
-            alternative,
-            operands,
-            i64::from(displacement),
-            &word.to_le_bytes(),
-        )
+        let Ok(offset) = u32::try_from(displacement) else {
+            return Err(Error::EncodedFormMismatch);
+        };
+        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
+            || !operands.is_empty()
+            || alternative
+                != (MachineAlternativeKey {
+                    family: semantic.into(),
+                    variant: 0,
+                })
+            || !offset.is_multiple_of(8)
+        {
+            return Err(Error::EncodedFormMismatch);
+        }
+        let restore = semantic == MachineSemanticKind::RestoreFloatingControl;
+        let bytes = if restore {
+            crate::encode_restore_fpcr_from_sp_displacement(offset)
+        } else {
+            crate::encode_save_fpcr_to_sp_displacement(offset)
+        }
+        .map_err(|_| Error::EncodedFormMismatch)?;
+        Ok(Encoded {
+            bytes,
+            footprint: Footprint {
+                register_reads: Vec::new(),
+                register_writes: Vec::new(),
+                writes_nzcv: false,
+                encoded: effects(restore),
+            },
+        })
     }
 
-    pub fn validate_aarch64_selected_memory_form(
+    pub(crate) fn validate_aarch64_selected_floating_control_form(
         physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
+        kind: Kind,
         alternative: MachineAlternativeKey,
         operands: &[RegisterViewId],
         displacement: i64,
         bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let (kind, alternative) = accessor_scalar_ordinary(kind, alternative)?;
-        if matches!(
+    ) -> Result<Encoded, Error> {
+        let expected = encode_aarch64_selected_floating_control_form(
+            physical,
             kind,
-            SelectedInstructionKind::SaveFloatingControl { .. }
-                | SelectedInstructionKind::RestoreFloatingControl { .. }
-        ) {
-            return super::floating_control::validate_aarch64_selected_floating_control_form(
-                physical,
-                kind,
-                alternative,
-                operands,
-                displacement,
-                bytes,
-            );
+            alternative,
+            operands,
+            displacement,
+        )?;
+        if bytes != expected.bytes.as_slice() {
+            return Err(Error::EncodedFormMismatch);
         }
-        let displacement = u32::try_from(displacement)
-            .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        if matches!(
-            kind,
-            SelectedInstructionKind::LoadPacked { .. }
-                | SelectedInstructionKind::StorePacked { .. }
-        ) {
-            return packed::validate(physical, kind, alternative, operands, displacement, bytes);
-        }
-        if matches!(
-            kind,
-            SelectedInstructionKind::Store { .. } | SelectedInstructionKind::AddressOffset { .. }
-        ) {
-            return pointer::validate(physical, kind, alternative, operands, displacement, bytes);
-        }
-        if matches!(
-            kind,
-            SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
-        ) {
-            return frame::validate(
-                physical,
-                kind,
-                alternative,
-                operands,
-                displacement,
-                1,
-                bytes,
-            );
-        }
-        if kind == SelectedInstructionKind::Load8Indexed {
-            return indexed::validate(physical, alternative, operands, displacement, bytes);
-        }
-        let [base, destination] = request(physical, kind, alternative, operands, displacement)?;
-        let width = load_width(kind)?;
-        let word = bytes
-            .try_into()
-            .ok()
-            .map(u32::from_le_bytes)
-            .filter(|word| {
-                matches!(
-                    (kind, word & 0xffc0_0000),
-                    (SelectedInstructionKind::Load8 { .. }, 0x3940_0000)
-                        | (SelectedInstructionKind::Load16 { .. }, 0x7940_0000)
-                        | (SelectedInstructionKind::Load32 { .. }, 0xb940_0000)
-                        | (SelectedInstructionKind::Load64 { .. }, 0xf940_0000)
-                )
-            })
-            .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-        if (word & 31) != u32::from(destination)
-            || ((word >> 5) & 31) != u32::from(base)
-            || ((word >> 10) & 4095) * width != displacement
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(ValidatedAarch64SelectedFormEncoding {
-            bytes: bytes.to_vec(),
-            footprint: Aarch64SelectedFormFootprint {
-                register_reads: vec![operands[0]],
-                register_writes: vec![operands[1]],
-                writes_nzcv: false,
-                encoded: MachineEncodedEffects {
-                    external_operand_reads: vec![0],
-                    external_operand_writes: vec![1],
-                    implicit_unit_uses: Vec::new(),
-                    implicit_unit_defs: Vec::new(),
-                    implicit_unit_clobbers: Vec::new(),
-                    memory: MachineEncodedMemoryEffect::ReadPointerV1 {
-                        pointer_operand: 0,
-                        byte_count: width as u16,
-                    },
-                    stack: MachineEncodedStackEffect::UnchangedV1,
-                    trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                    control: MachineEncodedControlEffect::FallThroughV1,
-                },
+        Ok(expected)
+    }
+}
+
+mod memory {
+    use super::selected_forms::{request_registers, resolve_registers};
+    use super::{
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded, enc,
+    };
+    use crate::immediate_offset::{
+        ADD_IMMEDIATE, address_words, aligned_frame_address_words, append_page_steps,
+    };
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+    use selected_instructions::{
+        FrameStorageSlotId, MachineAlternativeFamily as Fam, MachineAlternativeKey,
+        MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect as MemEff,
+        MachineEncodedStackEffect, MachineEncodedTrapBehavior as Trap, PackedByteWidth,
+        SelectedInstructionKind as Kind,
+    };
+
+    fn mem_footprint(
+        operands: &[RegisterViewId],
+        read_idx: Vec<u16>,
+        write_idx: Vec<u16>,
+        implicit_unit_uses: Vec<register_model::RegisterUnitId>,
+        memory: MemEff,
+        trap: Trap,
+    ) -> Footprint {
+        Footprint {
+            register_reads: read_idx.iter().map(|&i| operands[usize::from(i)]).collect(),
+            register_writes: write_idx
+                .iter()
+                .map(|&i| operands[usize::from(i)])
+                .collect(),
+            writes_nzcv: false,
+            encoded: MachineEncodedEffects {
+                external_operand_reads: read_idx,
+                external_operand_writes: write_idx,
+                implicit_unit_uses,
+                implicit_unit_defs: Vec::new(),
+                implicit_unit_clobbers: Vec::new(),
+                memory,
+                stack: MachineEncodedStackEffect::UnchangedV1,
+                trap,
+                control: MachineEncodedControlEffect::FallThroughV1,
             },
+        }
+    }
+
+    pub fn encode_aarch64_selected_frame_form(
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+        displacement: u32,
+        alignment_bytes: u16,
+    ) -> Result<Encoded, Error> {
+        let store = matches!(kind, Kind::Store64 { .. });
+        let family = if store {
+            Fam::Store64
+        } else {
+            Fam::FrameAddress
+        };
+        if matches!(
+            kind,
+            Kind::Store64 {
+                slot: FrameStorageSlotId::ActivationBase | FrameStorageSlotId::Incoming { .. },
+                ..
+            }
+        ) || matches!(
+            kind,
+            Kind::FrameAddress {
+                slot: FrameStorageSlotId::ActivationBase,
+                byte_offset
+            } if byte_offset != 0 || displacement != 0 || alignment_bytes != 1
+        ) || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
+            || !matches!(kind, Kind::Store64 { .. } | Kind::FrameAddress { .. })
+            || alternative != (MachineAlternativeKey { family, variant: 0 })
+            || (store && !displacement.is_multiple_of(8))
+        {
+            return Err(Error::EncodedFormMismatch);
+        }
+        let regs = resolve_registers(physical, operands)?;
+        let (reg, scratch) = match regs.as_slice() {
+            [v, s] if store && v != s => (*v, Some(*s)),
+            [r] if !store => (*r, None),
+            _ => return Err(Error::EncodedFormMismatch),
+        };
+        let words = if alignment_bytes != 1 {
+            let (Kind::FrameAddress { byte_offset, .. } | Kind::Store64 { byte_offset, .. }) = kind
+            else {
+                return Err(Error::EncodedFormMismatch);
+            };
+            if scratch.is_some() && !byte_offset.is_multiple_of(8) {
+                return Err(Error::EncodedFormMismatch);
+            }
+            let addr = scratch.unwrap_or(reg);
+            let mut w =
+                aligned_frame_address_words(addr, displacement, alignment_bytes, byte_offset)
+                    .ok_or(Error::EncodedFormMismatch)?;
+            if scratch.is_some() {
+                w.push(enc::ldst_imm(0xf900_0000, reg, addr, 0));
+            }
+            w
+        } else if let Some(scratch) = scratch {
+            let pages = u64::from(displacement >> 12);
+            let mut w = if pages == 0 {
+                vec![ADD_IMMEDIATE | (1 << 22) | (31 << 5) | u32::from(scratch)]
+            } else {
+                let mut w = Vec::new();
+                append_page_steps(&mut w, ADD_IMMEDIATE, scratch, 31, pages);
+                w
+            };
+            w.push(enc::ldst_imm(
+                0xf900_0000,
+                reg,
+                scratch,
+                (displacement & 4095) / 8,
+            ));
+            w
+        } else {
+            address_words(reg, 31, u64::from(displacement))
+        };
+        let sp = physical.model().view_named("sp").expect("canonical sp");
+        let (reads, writes, mem, trap) = if store {
+            (
+                vec![0],
+                vec![1],
+                MemEff::WriteFrameStorageV1 {
+                    stack_pointer: sp.id,
+                    byte_count: 8,
+                },
+                Trap::MayArchitecturalFaultV1,
+            )
+        } else {
+            (vec![], vec![0], MemEff::NoneV1, Trap::NeverV1)
+        };
+        Ok(Encoded {
+            bytes: enc::to_bytes(&words),
+            footprint: mem_footprint(operands, reads, writes, sp.units.clone(), mem, trap),
         })
     }
 
-    fn accessor_scalar_ordinary(
-        kind: SelectedInstructionKind,
+    pub fn validate_aarch64_selected_frame_form(
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
         alternative: MachineAlternativeKey,
-    ) -> Result<(SelectedInstructionKind, MachineAlternativeKey), Aarch64SelectedFormEncodingError>
-    {
-        let SelectedInstructionKind::AccessorScalarAccess {
+        operands: &[RegisterViewId],
+        displacement: u32,
+        alignment_bytes: u16,
+        bytes: &[u8],
+    ) -> Result<Encoded, Error> {
+        let expected = encode_aarch64_selected_frame_form(
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+            alignment_bytes,
+        )?;
+        enc::check_bytes(bytes, &expected.bytes)?;
+        Ok(expected)
+    }
+
+    fn accessor_scalar_ordinary(
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+    ) -> Result<(Kind, MachineAlternativeKey), Error> {
+        let Kind::AccessorScalarAccess {
             form, byte_offset, ..
         } = kind
         else {
             return Ok((kind, alternative));
         };
-        if alternative.family != MachineAlternativeFamily::AccessorScalarAccess(form)
-            || alternative.variant != 0
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        if alternative.family != Fam::AccessorScalarAccess(form) || alternative.variant != 0 {
+            return Err(Error::EncodedFormMismatch);
         }
         let ordinary = form
             .ordinary_kind(byte_offset)
-            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let semantic = form
-            .ordinary_semantic()
-            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+            .ok_or(Error::EncodedFormMismatch)?;
+        let semantic = form.ordinary_semantic().ok_or(Error::EncodedFormMismatch)?;
         Ok((
             ordinary,
             MachineAlternativeKey {
@@ -12340,161 +2757,679 @@ mod memory {
         ))
     }
 
-    fn request(
+    pub fn encode_aarch64_selected_memory_form(
         physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
+        kind: Kind,
         alternative: MachineAlternativeKey,
         operands: &[RegisterViewId],
-        displacement: u32,
-    ) -> Result<[u8; 2], Aarch64SelectedFormEncodingError> {
-        let width = load_width(kind)?;
-        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
-            || !matches!(kind, selected_instructions::load_width_triple_pattern!(byte_offset, ..) | SelectedInstructionKind::Load64 { byte_offset } if byte_offset == displacement)
-            || alternative
-                != (MachineAlternativeKey {
-                    family: match kind {
-                        SelectedInstructionKind::Load8 { .. } => MachineAlternativeFamily::Load8,
-                        SelectedInstructionKind::Load16 { .. } => MachineAlternativeFamily::Load16,
-                        SelectedInstructionKind::Load32 { .. } => MachineAlternativeFamily::Load32,
-                        SelectedInstructionKind::Load64 { .. } => MachineAlternativeFamily::Load64,
-                        _ => return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
-                    },
-                    variant: 0,
-                })
-            || !displacement.is_multiple_of(width)
-            || displacement / width > 4095
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        displacement: i64,
+    ) -> Result<Encoded, Error> {
+        let (kind, alternative) = accessor_scalar_ordinary(kind, alternative)?;
+        if matches!(
+            kind,
+            Kind::SaveFloatingControl { .. } | Kind::RestoreFloatingControl { .. }
+        ) {
+            return super::floating_control::encode_aarch64_selected_floating_control_form(
+                physical,
+                kind,
+                alternative,
+                operands,
+                displacement,
+            );
         }
-        resolve_registers(physical, operands)?
-            .try_into()
-            .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-    }
-
-    fn load_width(kind: SelectedInstructionKind) -> Result<u32, Aarch64SelectedFormEncodingError> {
+        let disp = u32::try_from(displacement).map_err(|_| Error::EncodedFormMismatch)?;
         match kind {
-            SelectedInstructionKind::Load8 { .. } => Ok(1),
-            SelectedInstructionKind::Load16 { .. } => Ok(2),
-            SelectedInstructionKind::Load32 { .. } => Ok(4),
-            SelectedInstructionKind::Load64 { .. } => Ok(8),
-            _ => Err(Aarch64SelectedFormEncodingError::AlternativeMismatch),
+            Kind::Store64 { .. } | Kind::FrameAddress { .. } => {
+                encode_aarch64_selected_frame_form(physical, kind, alternative, operands, disp, 1)
+            }
+            Kind::Load8Indexed => {
+                if disp != 0 {
+                    return Err(Error::EncodedFormMismatch);
+                }
+                let [base, idx, dst] =
+                    request_registers::<3>(physical, alternative, Fam::Load8Indexed, operands, 3)?;
+                Ok(Encoded {
+                    bytes: enc::rrr(0x3860_6800, dst, base, idx).to_le_bytes().to_vec(),
+                    footprint: mem_footprint(
+                        operands,
+                        vec![0, 1],
+                        vec![2],
+                        vec![],
+                        MemEff::ReadIndexedPointerV1 {
+                            pointer_operand: 0,
+                            index_operand: 1,
+                            byte_count: 1,
+                        },
+                        Trap::MayArchitecturalFaultV1,
+                    ),
+                })
+            }
+            Kind::LoadPacked { byte_offset, width } | Kind::StorePacked { byte_offset, width } => {
+                let load = matches!(kind, Kind::LoadPacked { .. });
+                let family = if load {
+                    match width {
+                        PackedByteWidth::Three => Fam::LoadPacked3,
+                        PackedByteWidth::Five => Fam::LoadPacked5,
+                        PackedByteWidth::Six => Fam::LoadPacked6,
+                        PackedByteWidth::Seven => Fam::LoadPacked7,
+                    }
+                } else {
+                    Fam::StorePacked
+                };
+                let w = width.byte_size();
+                let [base, val, scratch] =
+                    request_registers::<3>(physical, alternative, family, operands, 2)?;
+                if (load && base == val)
+                    || byte_offset != disp
+                    || disp
+                        .checked_add(u32::from(w) - 1)
+                        .is_none_or(|last| last > 4095)
+                {
+                    return Err(Error::EncodedFormMismatch);
+                }
+                let mut words = Vec::with_capacity(usize::from(w) * 2);
+                if !load {
+                    words.push(enc::mov(scratch, val));
+                }
+                for byte in 0..u32::from(w) {
+                    let off = disp + byte;
+                    if load {
+                        let dst = if byte == 0 { val } else { scratch };
+                        words.push(enc::ldst_imm(0x3940_0000, dst, base, off));
+                        if byte != 0 {
+                            words.push(
+                                0xaa00_0000
+                                    | (u32::from(scratch) << 16)
+                                    | ((byte * 8) << 10)
+                                    | (u32::from(val) << 5)
+                                    | u32::from(val),
+                            );
+                        }
+                    } else {
+                        words.push(enc::ldst_imm(0x3900_0000, scratch, base, off));
+                        if byte + 1 != u32::from(w) {
+                            words.push(enc::ubfm(true, scratch, scratch, 8, 63));
+                        }
+                    }
+                }
+                let (reads, writes, mem) = if load {
+                    (
+                        vec![0],
+                        vec![1, 2],
+                        MemEff::ReadPointerV1 {
+                            pointer_operand: 0,
+                            byte_count: u16::from(w),
+                        },
+                    )
+                } else {
+                    (
+                        vec![0, 1],
+                        vec![2],
+                        MemEff::WritePointerV1 { pointer_operand: 0 },
+                    )
+                };
+                Ok(Encoded {
+                    bytes: enc::to_bytes(&words),
+                    footprint: mem_footprint(
+                        operands,
+                        reads,
+                        writes,
+                        vec![],
+                        mem,
+                        Trap::MayArchitecturalFaultV1,
+                    ),
+                })
+            }
+            Kind::Store {
+                byte_offset,
+                byte_size,
+            } => {
+                let opcode = match byte_size {
+                    1 => 0x3900_0000_u32,
+                    2 => 0x7900_0000,
+                    4 => 0xb900_0000,
+                    8 => 0xf900_0000,
+                    _ => return Err(Error::EncodedFormMismatch),
+                };
+                let scale = u32::from(byte_size);
+                let [base, val] =
+                    request_registers::<2>(physical, alternative, Fam::Store, operands, 2)?;
+                if byte_offset != disp || !disp.is_multiple_of(scale) || disp / scale > 4095 {
+                    return Err(Error::EncodedFormMismatch);
+                }
+                Ok(Encoded {
+                    bytes: enc::ldst_imm(opcode, val, base, disp / scale)
+                        .to_le_bytes()
+                        .to_vec(),
+                    footprint: mem_footprint(
+                        operands,
+                        vec![0, 1],
+                        vec![],
+                        vec![],
+                        MemEff::WritePointerV1 { pointer_operand: 0 },
+                        Trap::MayArchitecturalFaultV1,
+                    ),
+                })
+            }
+            Kind::AddressOffset { byte_offset } => {
+                let [base, dst] =
+                    request_registers::<2>(physical, alternative, Fam::AddressOffset, operands, 2)?;
+                if byte_offset != disp {
+                    return Err(Error::EncodedFormMismatch);
+                }
+                Ok(Encoded {
+                    bytes: enc::to_bytes(&address_words(dst, base, u64::from(disp))),
+                    footprint: mem_footprint(
+                        operands,
+                        vec![0],
+                        vec![1],
+                        vec![],
+                        MemEff::NoneV1,
+                        Trap::NeverV1,
+                    ),
+                })
+            }
+            Kind::Load8 { byte_offset }
+            | Kind::Load16 { byte_offset }
+            | Kind::Load32 { byte_offset }
+            | Kind::Load64 { byte_offset } => {
+                let (family, width, opcode) = match kind {
+                    Kind::Load8 { .. } => (Fam::Load8, 1_u32, 0x3940_0000_u32),
+                    Kind::Load16 { .. } => (Fam::Load16, 2, 0x7940_0000),
+                    Kind::Load32 { .. } => (Fam::Load32, 4, 0xb940_0000),
+                    Kind::Load64 { .. } => (Fam::Load64, 8, 0xf940_0000),
+                    _ => unreachable!(),
+                };
+                if physical.identity()
+                    != crate::canonical_aarch64_physical_register_model_identity()
+                    || byte_offset != disp
+                    || alternative != (MachineAlternativeKey { family, variant: 0 })
+                    || !disp.is_multiple_of(width)
+                    || disp / width > 4095
+                {
+                    return Err(Error::EncodedFormMismatch);
+                }
+                let [base, dst]: [u8; 2] = resolve_registers(physical, operands)?
+                    .try_into()
+                    .map_err(|_| Error::EncodedFormMismatch)?;
+                Ok(Encoded {
+                    bytes: enc::ldst_imm(opcode, dst, base, disp / width)
+                        .to_le_bytes()
+                        .to_vec(),
+                    footprint: mem_footprint(
+                        operands,
+                        vec![0],
+                        vec![1],
+                        vec![],
+                        MemEff::ReadPointerV1 {
+                            pointer_operand: 0,
+                            byte_count: width as u16,
+                        },
+                        Trap::MayArchitecturalFaultV1,
+                    ),
+                })
+            }
+            _ => Err(Error::AlternativeMismatch),
         }
     }
 
-    #[cfg(test)]
-    fn check_memory(
+    pub fn validate_aarch64_selected_memory_form(
         physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
+        kind: Kind,
         alternative: MachineAlternativeKey,
         operands: &[RegisterViewId],
         displacement: i64,
         bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        validate_aarch64_selected_memory_form(
+    ) -> Result<Encoded, Error> {
+        let (norm_kind, norm_alt) = accessor_scalar_ordinary(kind, alternative)?;
+        if matches!(
+            norm_kind,
+            Kind::SaveFloatingControl { .. } | Kind::RestoreFloatingControl { .. }
+        ) {
+            return super::floating_control::validate_aarch64_selected_floating_control_form(
+                physical,
+                norm_kind,
+                norm_alt,
+                operands,
+                displacement,
+                bytes,
+            );
+        }
+        let expected = encode_aarch64_selected_memory_form(
             physical,
             kind,
             alternative,
             operands,
             displacement,
+        )?;
+        enc::check_bytes(bytes, &expected.bytes)?;
+        Ok(expected)
+    }
+}
+
+pub(crate) mod hosted_exit_process {
+    use super::selected_forms::resolve_registers;
+    use super::{
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded, enc,
+    };
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+    use selected_instructions::{
+        MachineAlternativeFamily as Fam, MachineAlternativeKey, SelectedInstructionKind as Kind,
+    };
+    use target::NativeTarget;
+    pub use target_aarch64::inspection::decode_aarch64_selected_hosted_exit_process_i32;
+
+    pub fn encode_aarch64_selected_hosted_exit_process_form(
+        target: NativeTarget,
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+    ) -> Result<Encoded, Error> {
+        if ![NativeTarget::linux_arm64(), NativeTarget::macos_arm64()].contains(&target)
+            || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
+            || kind != Kind::HostedExitProcessI32
+            || alternative
+                != (MachineAlternativeKey {
+                    family: Fam::HostedExitProcessI32,
+                    variant: 0,
+                })
+        {
+            return Err(Error::EncodedFormMismatch);
+        }
+        let regs = resolve_registers(physical, operands)?;
+        let [reg] = regs.as_slice() else {
+            return Err(Error::EncodedFormMismatch);
+        };
+        let darwin = target == NativeTarget::macos_arm64();
+        let words = [
+            0x2a00_03e0 | (u32::from(*reg) << 16),
+            if darwin { 0xd280_0030 } else { 0xd280_0bc8 },
+            if darwin { enc::SVC_80 } else { enc::SVC_0 },
+            enc::BRK_0,
+        ];
+        Ok(Encoded {
+            bytes: enc::to_bytes(&words),
+            footprint: Footprint {
+                register_reads: operands.to_vec(),
+                register_writes: Vec::new(),
+                writes_nzcv: true,
+                encoded: target_aarch64::form_effects::hosted_exit_process::effects(target)
+                    .map_err(|_| Error::EncodedFormMismatch)?,
+            },
+        })
+    }
+
+    pub fn validate_aarch64_selected_hosted_exit_process_form(
+        target: NativeTarget,
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+        bytes: &[u8],
+    ) -> Result<Encoded, Error> {
+        let expected = encode_aarch64_selected_hosted_exit_process_form(
+            target,
+            physical,
+            kind,
+            alternative,
+            operands,
+        )?;
+        if bytes != expected.bytes.as_slice() {
+            return Err(Error::EncodedFormMismatch);
+        }
+        Ok(expected)
+    }
+}
+
+pub(crate) mod hosted_read_byte {
+    use super::{
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded,
+    };
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+    use selected_instructions::{
+        LocalStorageSlotId, MachineAlternativeFamily as Fam, MachineAlternativeKey,
+        SelectedInstructionKind as Kind,
+    };
+    use target::NativeTarget;
+    pub(crate) use target_aarch64::form_effects::hosted_read_byte::effects;
+    pub use target_aarch64::inspection::decode_aarch64_selected_hosted_read_byte;
+
+    pub fn encode_aarch64_selected_hosted_read_byte_form(
+        target: NativeTarget,
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+        displacement: i64,
+    ) -> Result<Encoded, Error> {
+        if ![NativeTarget::linux_arm64(), NativeTarget::macos_arm64()].contains(&target)
+            || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
+            || !matches!(
+                kind,
+                Kind::HostedReadByte {
+                    slot: LocalStorageSlotId::Structural { .. }
+                }
+            )
+            || alternative
+                != (MachineAlternativeKey {
+                    family: Fam::HostedReadByte,
+                    variant: 0,
+                })
+            || !operands.is_empty()
+            || displacement < 0
+            || displacement % 4 != 0
+            || displacement
+                .checked_add(4)
+                .is_none_or(|p| u32::try_from(p).is_err())
+        {
+            return Err(Error::EncodedFormMismatch);
+        }
+        let disp = u32::try_from(displacement).map_err(|_| Error::EncodedFormMismatch)?;
+        let bytes = if target == NativeTarget::macos_arm64() {
+            crate::encode_macos_read_byte_to_stack(disp, disp + 4)
+        } else {
+            crate::encode_linux_read_byte_to_stack(disp, disp + 4)
+        }
+        .map_err(|_| Error::EncodedFormMismatch)?;
+        Ok(Encoded {
             bytes,
+            footprint: Footprint {
+                register_reads: Vec::new(),
+                register_writes: Vec::new(),
+                writes_nzcv: true,
+                encoded: effects(target),
+            },
+        })
+    }
+
+    pub fn validate_aarch64_selected_hosted_read_byte_form(
+        target: NativeTarget,
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+        displacement: i64,
+        bytes: &[u8],
+    ) -> Result<Encoded, Error> {
+        let expected = encode_aarch64_selected_hosted_read_byte_form(
+            target,
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+        )?;
+        if bytes != expected.bytes.as_slice() {
+            return Err(Error::EncodedFormMismatch);
+        }
+        Ok(expected)
+    }
+}
+
+pub(crate) mod hosted_write_byte {
+    use super::selected_forms::resolve_registers;
+    use super::{
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded, enc,
+    };
+    use crate::immediate_offset::address_words;
+    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+    use selected_instructions::{
+        LocalStorageSlotId, MachineAlternativeFamily as Fam, MachineAlternativeKey,
+        SelectedInstructionKind as Kind,
+    };
+    use target::NativeTarget;
+    pub(crate) use target_aarch64::form_effects::hosted_write_byte::effects;
+    pub use target_aarch64::inspection::{
+        aarch64_hosted_write_byte_i32_byte_count, decode_aarch64_selected_hosted_write_byte_i32,
+    };
+
+    pub fn encode_aarch64_selected_hosted_write_byte_form(
+        target: NativeTarget,
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+        displacement: i64,
+    ) -> Result<Encoded, Error> {
+        let Ok(disp) = u32::try_from(displacement) else {
+            return Err(Error::EncodedFormMismatch);
+        };
+        if ![NativeTarget::linux_arm64(), NativeTarget::macos_arm64()].contains(&target)
+            || physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
+            || !matches!(
+                kind,
+                Kind::HostedWriteByteI32 {
+                    slot: LocalStorageSlotId::Boundary { .. }
+                }
+            )
+            || alternative
+                != (MachineAlternativeKey {
+                    family: Fam::HostedWriteByteI32,
+                    variant: 0,
+                })
+        {
+            return Err(Error::EncodedFormMismatch);
+        }
+        let regs = resolve_registers(physical, operands)?;
+        let [reg] = regs.as_slice() else {
+            return Err(Error::EncodedFormMismatch);
+        };
+        let mut words = if disp <= 4095 {
+            vec![
+                enc::ldst_imm(0x3900_0000, *reg, 31, disp),
+                enc::movz(0, 1, 0),
+                enc::rri12(0x9100_0000, 1, 31, disp as u16),
+                enc::movz(2, 1, 0),
+            ]
+        } else {
+            let mut w = vec![0x2a00_03e2 | (u32::from(*reg) << 16)];
+            w.extend(address_words(1, 31, u64::from(disp)));
+            w.extend([0x3900_0022, enc::movz(0, 1, 0), enc::movz(2, 1, 0)]);
+            w
+        };
+        if target == NativeTarget::macos_arm64() {
+            words.extend([
+                0xd280_0090,
+                enc::SVC_80,
+                0x5400_0062,
+                0xf100_041f,
+                0x5400_0040,
+                enc::BRK_0,
+            ]);
+        } else {
+            words.extend([
+                0xd280_0808,
+                enc::SVC_0,
+                0xf100_001f,
+                0x5400_004c,
+                enc::BRK_0,
+            ]);
+        }
+        Ok(Encoded {
+            bytes: enc::to_bytes(&words),
+            footprint: Footprint {
+                register_reads: operands.to_vec(),
+                register_writes: Vec::new(),
+                writes_nzcv: true,
+                encoded: effects(target),
+            },
+        })
+    }
+
+    pub fn validate_aarch64_selected_hosted_write_byte_form(
+        target: NativeTarget,
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: Kind,
+        alternative: MachineAlternativeKey,
+        operands: &[RegisterViewId],
+        displacement: i64,
+        bytes: &[u8],
+    ) -> Result<Encoded, Error> {
+        let expected = encode_aarch64_selected_hosted_write_byte_form(
+            target,
+            physical,
+            kind,
+            alternative,
+            operands,
+            displacement,
+        )?;
+        if bytes != expected.bytes.as_slice() {
+            return Err(Error::EncodedFormMismatch);
+        }
+        Ok(expected)
+    }
+}
+
+pub(crate) mod system_call {
+    use super::{
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded, enc,
+    };
+    use register_model::{
+        RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel, views_with_access,
+    };
+    use selected_instructions::{MachineAlternativeKey, SelectedInstructionKind};
+    use target::NativeTarget;
+
+    pub fn encode_aarch64_selected_system_call_form(
+        target: NativeTarget,
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: SelectedInstructionKind,
+        alternative: MachineAlternativeKey,
+        operand_views: &[RegisterViewId],
+        operand_accesses: &[RegisterOperandAccess],
+        number: i64,
+    ) -> Result<Encoded, Error> {
+        let n = number as u64;
+        let words = [
+            enc::movz(8, n as u16, 0),
+            enc::movk(8, (n >> 16) as u16, 1),
+            enc::movk(8, (n >> 32) as u16, 2),
+            enc::movk(8, (n >> 48) as u16, 3),
+            enc::SVC_0,
+        ];
+        validate_aarch64_selected_system_call_form(
+            target,
+            physical,
+            kind,
+            alternative,
+            operand_views,
+            operand_accesses,
+            number,
+            &enc::to_bytes(&words),
         )
     }
 
-    #[cfg(test)]
-    mod tests {
-        use super::{check_memory, encode_aarch64_selected_memory_form};
-        use crate::aarch64_physical_register_model;
-        use selected_instructions::MachineAlternativeFamily;
-        use selected_instructions::MachineAlternativeKey;
-        use selected_instructions::SelectedInstructionKind;
+    pub fn validate_aarch64_selected_system_call_form(
+        target: NativeTarget,
+        physical: &ValidatedPhysicalRegisterModel,
+        kind: SelectedInstructionKind,
+        alternative: MachineAlternativeKey,
+        operand_views: &[RegisterViewId],
+        operand_accesses: &[RegisterOperandAccess],
+        number: i64,
+        bytes: &[u8],
+    ) -> Result<Encoded, Error> {
+        let effects = target_aarch64::inspection::selected_system_call_effects(
+            target,
+            physical,
+            kind,
+            alternative,
+            operand_views,
+            operand_accesses,
+            number,
+            bytes,
+        )
+        .ok_or(Error::EncodedFormMismatch)?;
+        Ok(Encoded {
+            bytes: bytes.to_vec(),
+            footprint: Footprint {
+                register_reads: views_with_access(
+                    operand_views,
+                    operand_accesses,
+                    RegisterOperandAccess::Use,
+                ),
+                register_writes: views_with_access(
+                    operand_views,
+                    operand_accesses,
+                    RegisterOperandAccess::Def,
+                ),
+                writes_nzcv: true,
+                encoded: effects,
+            },
+        })
+    }
+}
 
-        #[test]
-        fn pointer_load_replays_opcode_registers_and_scaled_offset() {
-            let physical =
-                register_model::validate_physical_register_model(aarch64_physical_register_model())
-                    .unwrap();
-            let operands = [
-                physical.model().view_named("x1").unwrap().id,
-                physical.model().view_named("x2").unwrap().id,
-            ];
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::Load64,
-                variant: 0,
-            };
-            for byte_offset in [0, 8, 32760] {
-                let kind = SelectedInstructionKind::Load64 { byte_offset };
-                let displacement = i64::from(byte_offset);
-                let encoded = encode_aarch64_selected_memory_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    displacement,
-                )
-                .unwrap();
-                assert_eq!(encoded.bytes().len(), 4);
-                for byte in 0..4 {
-                    let mut corrupt = encoded.bytes().to_vec();
-                    corrupt[byte] ^= 1;
-                    assert!(
-                        check_memory(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            &corrupt
-                        )
-                        .is_err()
-                    );
-                }
-                assert!(
-                    check_memory(
-                        &physical,
-                        kind,
-                        alternative,
-                        &[operands[1], operands[0]],
-                        displacement,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-            }
-            for byte_offset in [1, 32768] {
-                assert!(
-                    encode_aarch64_selected_memory_form(
-                        &physical,
-                        SelectedInstructionKind::Load64 { byte_offset },
-                        alternative,
-                        &operands,
-                        i64::from(byte_offset)
-                    )
-                    .is_err()
-                );
-            }
-        }
+pub(crate) mod table_call {
+    use super::{
+        Aarch64SelectedFormEncodingError as Error, Aarch64SelectedFormFootprint as Footprint,
+        ValidatedAarch64SelectedFormEncoding as Encoded, enc,
+    };
+    use register_model::{RegisterOperandAccess, RegisterViewId, views_with_access};
+    use selected_instructions::{MachineAlternativeKey, SelectedNormalizedForeignCall};
+    use target_aarch64::form_effects::table_call::table_address;
+
+    pub fn encode_aarch64_selected_table_call_form(
+        record: &SelectedNormalizedForeignCall,
+        alternative: MachineAlternativeKey,
+        views: &[RegisterViewId],
+        accesses: &[RegisterOperandAccess],
+    ) -> Result<Encoded, Error> {
+        let (base, offset) = table_address(record).ok_or(Error::EncodedFormMismatch)?;
+        let words = [
+            enc::movz(17, offset as u16, 0),
+            enc::movk(17, (offset >> 16) as u16, 1),
+            enc::rrr(0x8b00_0000, 17, base, 17),
+            0xf940_0231,
+            0xd63f_0220,
+        ];
+        validate_aarch64_selected_table_call_form(
+            record,
+            alternative,
+            views,
+            accesses,
+            &enc::to_bytes(&words),
+        )
+    }
+
+    pub fn validate_aarch64_selected_table_call_form(
+        record: &SelectedNormalizedForeignCall,
+        alternative: MachineAlternativeKey,
+        views: &[RegisterViewId],
+        accesses: &[RegisterOperandAccess],
+        bytes: &[u8],
+    ) -> Result<Encoded, Error> {
+        let effects = target_aarch64::inspection::selected_table_call_effects(
+            record,
+            alternative,
+            views,
+            accesses,
+            bytes,
+        )
+        .ok_or(Error::EncodedFormMismatch)?;
+        Ok(Encoded {
+            bytes: bytes.to_vec(),
+            footprint: Footprint {
+                register_reads: views_with_access(views, accesses, RegisterOperandAccess::Use),
+                register_writes: views_with_access(views, accesses, RegisterOperandAccess::Def),
+                writes_nzcv: true,
+                encoded: effects,
+            },
+        })
     }
 }
-pub(crate) mod movn_materialization {
-    pub(crate) fn append_canonical_materialization(words: &mut Vec<u32>, register: u8, value: u64) {
-        let chunks =
-            std::array::from_fn::<_, 4, _>(|index| ((value >> (index * 16)) & 0xffff) as u16);
-        words.push(0xd280_0000 | (u32::from(chunks[0]) << 5) | u32::from(register));
-        for (index, chunk) in chunks.into_iter().enumerate().skip(1) {
-            if chunk != 0 {
-                words.push(
-                    0xf280_0000
-                        | (u32::try_from(index).expect("halfword index fits u32") << 21)
-                        | (u32::from(chunk) << 5)
-                        | u32::from(register),
-                );
-            }
-        }
-    }
-}
+
 mod normalized_foreign_call {
     mod callback_field;
 
+    use super::enc;
+    use crate::codec_bytes::push_encoded;
+    use crate::machine_effects::aarch64_selected_abi;
     use normalized_foreign_call_plan::{Fixup, Template};
     use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
@@ -12504,10 +3439,7 @@ mod normalized_foreign_call {
     use semantic_vocabulary::BoundaryMachineId;
     use target::NativeTarget;
 
-    use crate::codec_bytes::push_encoded;
-    use crate::machine_effects::aarch64_selected_abi;
-
-    pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH: u8 = 4;
+    const PATCH_WIDTH: u8 = 4;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Aarch64NormalizedForeignCallFixupKind {
@@ -12542,10 +3474,8 @@ mod normalized_foreign_call {
         Aarch64NormalizedForeignCallFixupState,
         Aarch64CallbackAddressMaterialization,
     >;
-
     pub type ValidatedAarch64SelectedNormalizedForeignCallTemplate =
         Template<Aarch64NormalizedForeignCallFixup>;
-
     pub type Aarch64NormalizedForeignCallTemplateError = normalized_foreign_call_plan::Error;
 
     pub fn encode_aarch64_selected_normalized_foreign_call_template(
@@ -12562,11 +3492,8 @@ mod normalized_foreign_call {
         ValidatedAarch64SelectedNormalizedForeignCallTemplate,
         Aarch64NormalizedForeignCallTemplateError,
     > {
-        let (boundary, ordinal) = match kind {
-            SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } => {
-                (boundary, ordinal)
-            }
-            _ => return Err(Aarch64NormalizedForeignCallTemplateError::InstructionKindMismatch),
+        let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
+            return Err(Aarch64NormalizedForeignCallTemplateError::InstructionKindMismatch);
         };
         let bytes = canonical_call_bytes(callback_destinations)
             .ok_or(Aarch64NormalizedForeignCallTemplateError::AlternativeMismatch)?;
@@ -12587,6 +3514,7 @@ mod normalized_foreign_call {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn validate_aarch64_selected_normalized_foreign_call_template(
         target: NativeTarget,
         physical: &ValidatedPhysicalRegisterModel,
@@ -12617,31 +3545,31 @@ mod normalized_foreign_call {
             crate::machine_effects::normalized_foreign_constraint,
             crate::aarch64_normalized_foreign_call_declaration,
         )?;
-        let destinations = record
+        let expected_dests = record
             .call
             .callbacks
             .iter()
-            .map(|callback| {
+            .map(|cb| {
                 let [calling_conventions::ValueLocation::Register { register, .. }] =
-                    callback.application.placement.locations.as_slice()
+                    cb.application.placement.locations.as_slice()
                 else {
                     return None;
                 };
-                match callback.destination.clone() {
+                match cb.destination {
                     calling_conventions::NativePlace::Parameter(_) => Some(
                         Aarch64CallbackMaterializationDestination::Register(*register),
                     ),
                     calling_conventions::NativePlace::Field { .. } => {
                         Some(Aarch64CallbackMaterializationDestination::RecordField {
                             root_register: *register,
-                            placements: callback.field_placements.clone()?,
+                            placements: cb.field_placements.clone()?,
                         })
                     }
                 }
             })
             .collect::<Option<Vec<_>>>()
             .ok_or(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch)?;
-        if destinations != callback_destinations {
+        if expected_dests != callback_destinations {
             return Err(Aarch64NormalizedForeignCallTemplateError::OperandViewMismatch);
         }
         let expected_bytes = canonical_call_bytes(callback_destinations)
@@ -12668,99 +3596,33 @@ mod normalized_foreign_call {
         destinations: &[Aarch64CallbackMaterializationDestination],
     ) -> Option<Vec<u8>> {
         let mut bytes = Vec::new();
-        for destination in destinations {
-            bytes.extend(callback_group_bytes(destination)?);
+        for d in destinations {
+            bytes.extend(callback_group_bytes(d)?);
         }
-        push_encoded(&mut bytes, 0x9400_0000_u32.to_le_bytes());
+        push_encoded(&mut bytes, enc::BL_ZERO.to_le_bytes());
         Some(bytes)
     }
 
-    #[test]
-    fn callback_record_field_encodes_the_selected_bits() {
-        use calling_conventions::{MachineRegister, PrivateCallbackPlacements};
-        let field = Aarch64CallbackMaterializationDestination::RecordField {
-            root_register: MachineRegister::Aarch64X(0),
-            placements: PrivateCallbackPlacements::new(&[
-                layout_plans::LayoutPlacementReport::Bits {
-                    container: 4,
-                    container_width: 32,
-                    destination_lsb: 5,
-                    source_lsb: 17,
-                    width: 10,
-                },
-            ]),
-        };
-        assert_eq!(
-            callback_group_bytes(&field).unwrap(),
-            [
-                0x10, 0x00, 0x00, 0x90, 0x10, 0x02, 0x00, 0x91, 0x11, 0x04, 0x40, 0xb9, 0x0f, 0x6a,
-                0x51, 0xd3, 0xf1, 0x25, 0x7b, 0xb3, 0x11, 0x04, 0x00, 0xb9
-            ]
-        );
-    }
-
-    #[test]
-    fn field_sizes_match_encoded_callbacks_and_refusals() {
-        use calling_conventions::{MachineRegister as R, PrivateCallbackPlacements};
-        use layout_plans::LayoutPlacementReport::{At, Bits};
-        for root in [R::Aarch64X(0), R::Aarch64X(15), R::Aarch64X(30), R::X86Rdi] {
-            for offset in [0, 1, 255, 4095, 4096, 32760, u64::MAX] {
-                let mut groups = vec![
-                    vec![],
-                    vec![At { offset }],
-                    vec![At { offset }, At { offset: 16 }],
-                ];
-                for container_width in [8, 16, 24, 32, 40, 48, 56, 64] {
-                    for (destination_lsb, source_lsb, width) in
-                        [(0, 0, container_width), (1, 3, 4), (2, 2, 63)]
-                    {
-                        groups.push(vec![Bits {
-                            container: offset,
-                            container_width,
-                            destination_lsb,
-                            source_lsb,
-                            width,
-                        }]);
-                    }
-                }
-                for placements in groups {
-                    let destination = Aarch64CallbackMaterializationDestination::RecordField {
-                        root_register: root,
-                        placements: PrivateCallbackPlacements::new(&placements),
-                    };
-                    let actual = callback_group_bytes(&destination)
-                        .map(|bytes| u16::try_from(bytes.len()).unwrap());
-                    assert_eq!(
-                        target_aarch64::callback_geometry::callback_field_bytes(root, &placements),
-                        actual,
-                        "{root:?} {placements:?}"
-                    );
-                }
-            }
-        }
-    }
-
-    pub fn callback_group_bytes(
+    pub(super) fn callback_group_bytes(
         destination: &Aarch64CallbackMaterializationDestination,
     ) -> Option<Vec<u8>> {
-        let mut bytes = Vec::new();
-        let register = match destination {
-            Aarch64CallbackMaterializationDestination::Register(register) => *register,
+        let reg = match destination {
+            Aarch64CallbackMaterializationDestination::Register(r) => *r,
             Aarch64CallbackMaterializationDestination::RecordField { .. } => {
                 calling_conventions::MachineRegister::Aarch64X(16)
             }
         };
-        let calling_conventions::MachineRegister::Aarch64X(index) = register else {
+        let calling_conventions::MachineRegister::Aarch64X(idx) = reg else {
             return None;
         };
-        if index > 30 {
+        if idx > 30 {
             return None;
         }
-        let index = u32::from(index);
-        push_encoded(&mut bytes, (0x9000_0000_u32 | index).to_le_bytes());
+        let mut bytes = Vec::new();
+        push_encoded(&mut bytes, (0x9000_0000_u32 | u32::from(idx)).to_le_bytes());
         push_encoded(
             &mut bytes,
-            (0x9100_0000_u32 | (index << 5) | index).to_le_bytes(),
+            enc::rri12(0x9100_0000, idx, idx, 0).to_le_bytes(),
         );
         if let Aarch64CallbackMaterializationDestination::RecordField {
             root_register,
@@ -12773,8 +3635,8 @@ mod normalized_foreign_call {
             if placements.as_slice().is_empty() {
                 return None;
             }
-            for placement in placements.as_slice() {
-                callback_field::append_fragment(&mut bytes, 16, root, 15, 17, *placement)?;
+            for &p in placements.as_slice() {
+                callback_field::append_fragment(&mut bytes, 16, root, 15, 17, p)?;
             }
         }
         Some(bytes)
@@ -12785,330 +3647,47 @@ mod normalized_foreign_call {
         ordinal: u32,
         destinations: &[Aarch64CallbackMaterializationDestination],
     ) -> Option<Aarch64NormalizedForeignCallFixup> {
-        let mut materializations = Vec::with_capacity(destinations.len());
+        let mut mats = Vec::with_capacity(destinations.len());
         let mut offset = 0_u16;
-        for destination in destinations {
-            let byte_count = u16::try_from(callback_group_bytes(destination)?.len()).ok()?;
-            materializations.push(Aarch64CallbackAddressMaterialization {
-                destination: destination.clone(),
+        for d in destinations {
+            let count = u16::try_from(callback_group_bytes(d)?.len()).ok()?;
+            mats.push(Aarch64CallbackAddressMaterialization {
+                destination: d.clone(),
                 materialization_byte_offset: offset,
-                materialization_byte_count: byte_count,
+                materialization_byte_count: count,
                 page_relocation_byte_offset: offset,
                 page_offset_relocation_byte_offset: offset + 4,
             });
-            offset = offset.checked_add(byte_count)?;
+            offset = offset.checked_add(count)?;
         }
         Some(Aarch64NormalizedForeignCallFixup {
-        kind: Aarch64NormalizedForeignCallFixupKind::BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
-        state: Aarch64NormalizedForeignCallFixupState::UnresolvedImportFieldV1,
-        boundary,
-        ordinal,
-        opcode_byte_offset: offset,
-        patch_byte_offset: offset,
-        reference_byte_offset: offset,
-        patch_byte_width: AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH,
-        callbacks: materializations,
-    })
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::{
-            callback_fixup, encode_aarch64_selected_normalized_foreign_call_template,
-            validate_aarch64_selected_normalized_foreign_call_template,
-        };
-        use normalized_foreign_call_plan::fixture;
-        use register_model::validate_physical_register_model;
-        use selected_instructions::{
-            MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-            MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedNormalizedForeignCall,
-        };
-        use target::NativeTarget;
-
-        use crate::aarch64_physical_register_model;
-
-        fn callback_destination(
-            placement: fixture::CallbackPlacement,
-        ) -> super::Aarch64CallbackMaterializationDestination {
-            match placement.field_byte_offset {
-                None => {
-                    super::Aarch64CallbackMaterializationDestination::Register(placement.register)
-                }
-                Some(byte_offset) => {
-                    super::Aarch64CallbackMaterializationDestination::RecordField {
-                        root_register: placement.register,
-                        placements: calling_conventions::PrivateCallbackPlacements::new(&[
-                            layout_plans::LayoutPlacementReport::At {
-                                offset: u64::try_from(byte_offset).unwrap(),
-                            },
-                        ]),
-                    }
-                }
-            }
-        }
-
-        const CALLBACK_BYTE_COUNTS: fixture::CallbackByteCounts = fixture::CallbackByteCounts {
-            register: 8,
-            field: 16,
-        };
-
-        fn inputs(darwin: bool, input_layout: usize, result: usize) -> fixture::Case {
-            fixture::case(
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap(),
-                record(darwin, input_layout, result),
-                crate::machine_effects::normalized_foreign_constraint,
-                |row, _| MachineEncodedEffects {
-                    external_operand_reads: row.operand_reads(),
-                    external_operand_writes: row.operand_writes(),
-                    implicit_unit_uses: row.implicit_uses.clone(),
-                    implicit_unit_defs: row.implicit_defs.clone(),
-                    implicit_unit_clobbers: row.clobbers.clone(),
-                    memory: MachineEncodedMemoryEffect::NoneV1,
-                    stack: MachineEncodedStackEffect::UnchangedV1,
-                    trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                    control: MachineEncodedControlEffect::DirectRelativeCallV1,
-                },
-            )
-        }
-
-        #[test]
-        fn table_calls_retain_full_offsets_and_independently_reject_changed_bytes() {
-            use super::super::table_call::{
-                encode_aarch64_selected_table_call_form, validate_aarch64_selected_table_call_form,
-            };
-            for (table_operand, byte_offset) in [(0, 7), (1, 65_536), (1, u32::MAX)] {
-                let (_, _, alternative, operands, accesses, _, mut record) = inputs(false, 2, 1);
-                let contribution = record
-                    .call
-                    .binding
-                    .same_stack_contribution()
-                    .unwrap()
-                    .clone();
-                record.call.binding.mechanism =
-                    target_operations::NormalizedForeignCallMechanism::Table {
-                        target: target::TargetProfile::LinuxArm64,
-                        byte_offset,
-                        table_operand,
-                        dispatch_only: false,
-                        same_stack_contribution: contribution,
-                    };
-                let encoded = encode_aarch64_selected_table_call_form(
-                    &record,
-                    alternative,
-                    &operands,
-                    &accesses,
-                )
-                .unwrap();
-                assert_eq!(encoded.bytes().len(), 20);
-                assert_eq!(
-                    encoded.footprint().encoded.memory,
-                    MachineEncodedMemoryEffect::ReadTableFieldV1 {
-                        pointer_operand: table_operand as u16,
-                        byte_offset,
-                    }
-                );
-                let add_base = 0x8b11_0011u32 | (table_operand << 5);
-                assert_eq!(&encoded.bytes()[8..12], &add_base.to_le_bytes());
-                assert_eq!(
-                    encoded.footprint().encoded.control,
-                    MachineEncodedControlEffect::IndirectExternalCallV1
-                );
-                for position in 0..encoded.bytes().len() {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[position] ^= 1;
-                    assert!(
-                        validate_aarch64_selected_table_call_form(
-                            &record,
-                            alternative,
-                            &operands,
-                            &accesses,
-                            &changed
-                        )
-                        .is_err()
-                    );
-                }
-            }
-        }
-
-        #[test]
-        fn table_dispatch_only_preserves_wire_plan_and_refuses_ip1_aliases() {
-            use super::super::table_call::encode_aarch64_selected_table_call_form;
-            let (_, _, alternative, _, _, _, mut record) = inputs(true, 1, 1);
-            let original = record.call.binding.boundary_entry_plan.clone();
-            let contribution = record
-                .call
-                .binding
-                .same_stack_contribution()
-                .unwrap()
-                .clone();
-            record.call.binding.mechanism =
-                target_operations::NormalizedForeignCallMechanism::Table {
-                    target: target::TargetProfile::MacosArm64,
-                    byte_offset: 8,
-                    table_operand: 1,
-                    dispatch_only: true,
-                    same_stack_contribution: contribution,
-                };
-            let constraint =
-                crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
-            let views = constraint
-                .operands
-                .iter()
-                .map(|operand| operand.fixed_view.unwrap())
-                .collect::<Vec<_>>();
-            let accesses = constraint
-                .operands
-                .iter()
-                .map(|operand| operand.access)
-                .collect::<Vec<_>>();
-            let encoded =
-                encode_aarch64_selected_table_call_form(&record, alternative, &views, &accesses)
-                    .unwrap();
-            assert_eq!(&encoded.bytes()[8..12], &0x8b11_0211_u32.to_le_bytes());
-            assert_eq!(record.call.binding.boundary_entry_plan, original);
-            let calling_conventions::ValueLocation::Register { register, .. } =
-                &mut record.call.binding.boundary_entry_plan.call.parameters[0].locations[0]
-            else {
-                panic!("register argument");
-            };
-            *register = calling_conventions::MachineRegister::Aarch64X(17);
-            assert!(
-                encode_aarch64_selected_table_call_form(&record, alternative, &views, &accesses)
-                    .is_err()
-            );
-            let calling_conventions::ValueLocation::Register { register, .. } =
-                &mut record.call.binding.boundary_entry_plan.call.parameters[0].locations[0]
-            else {
-                panic!("register argument");
-            };
-            *register = calling_conventions::MachineRegister::Aarch64X(16);
-            assert!(
-                encode_aarch64_selected_table_call_form(&record, alternative, &views, &accesses)
-                    .is_err()
-            );
-        }
-
-        fn record(
-            darwin: bool,
-            input_layout: usize,
-            result: usize,
-        ) -> SelectedNormalizedForeignCall {
-            use calling_conventions::ValueShape;
-            use target::TargetProfile;
-
-            fixture::record(
-                if darwin {
-                    NativeTarget::macos_arm64()
-                } else {
-                    NativeTarget::linux_arm64()
-                },
-                9,
-                ValueShape::homogeneous_float_aggregate(8, 2),
-                if darwin {
-                    fixture::mach_o_locator()
-                } else {
-                    fixture::elf_locator(TargetProfile::LinuxArm64)
-                },
-                input_layout,
-                result,
-            )
-        }
-
-        type Entrances = fixture::Entrances<
-            super::Aarch64CallbackMaterializationDestination,
-            super::Aarch64NormalizedForeignCallFixupKind,
-            super::Aarch64NormalizedForeignCallFixupState,
-            super::Aarch64CallbackAddressMaterialization,
-        >;
-
-        fn entrances() -> Entrances {
-            fixture::Entrances {
-                call: fixture::CallBytes {
-                    bytes: 0x9400_0000_u32.to_le_bytes().to_vec(),
-                    patch_byte_offset: 0,
-                    reference_byte_offset: 0,
-                },
-                constraint: crate::machine_effects::normalized_foreign_constraint,
-                declaration: crate::aarch64_normalized_foreign_call_declaration,
-                fixed_view: crate::aarch64_fixed_register_view,
-                encode: encode_aarch64_selected_normalized_foreign_call_template,
-                validate: validate_aarch64_selected_normalized_foreign_call_template,
-                fixup: |boundary, ordinal, destinations| {
-                    callback_fixup(boundary, ordinal, destinations)
-                },
-                fixup_row: |callback| {
-                    (
-                        callback.destination.clone(),
-                        callback.materialization_byte_offset,
-                        callback.materialization_byte_count,
-                    )
-                },
-                advance: |callback| callback.materialization_byte_offset += 1,
-            }
-        }
-
-        #[test]
-        fn retained_multiple_callbacks_bind_operands_effects_bytes_and_fixups() {
-            fixture::retained_callbacks(
-                &entrances(),
-                inputs,
-                callback_destination,
-                CALLBACK_BYTE_COUNTS,
-            );
-        }
-
-        #[test]
-        fn direct_and_hidden_aggregate_results_share_the_import_template() {
-            fixture::direct_and_hidden_aggregate_results_share_the_import_template(
-                &entrances(),
-                inputs,
-            );
-        }
-
-        #[test]
-        fn template_has_exact_bytes_and_fixup() {
-            fixture::template_has_exact_bytes_and_fixup(&entrances(), inputs);
-        }
-
-        #[test]
-        fn evaluated_plans_select_exact_operands_and_effects_under_one_template() {
-            fixture::evaluated_plans_select_exact_operands_and_effects_under_one_template(
-                &entrances(),
-                inputs,
-                0..81,
-                "x8",
-            );
-        }
-
-        #[test]
-        fn rejects_wrong_kind_target_alternative_and_fixup() {
-            fixture::rejects_wrong_kind_target_alternative_and_fixup(
-                &entrances(),
-                inputs,
-                &[NativeTarget::linux_x64(), NativeTarget::windows_x64()],
-                &0x1400_0000_u32.to_le_bytes(),
-            );
-        }
+            kind: Aarch64NormalizedForeignCallFixupKind::BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
+            state: Aarch64NormalizedForeignCallFixupState::UnresolvedImportFieldV1,
+            boundary,
+            ordinal,
+            opcode_byte_offset: offset,
+            patch_byte_offset: offset,
+            reference_byte_offset: offset,
+            patch_byte_width: PATCH_WIDTH,
+            callbacks: mats,
+        })
     }
 }
+
 mod scalar_call {
+    use super::enc;
+    use crate::machine_effects::{Aarch64SelectedAbi, aarch64_selected_abi};
+    use crate::{aarch64_aapcs64_register_call_keys, aarch64_register_constraint_catalog_for};
     use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+        MachineAlternativeFamily as Fam, MachineAlternativeKey, MachineEncodedControlEffect,
         MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-        MachineEncodedTrapBehavior, SelectedInstructionKind,
+        MachineEncodedTrapBehavior, SelectedInstructionKind as Kind,
     };
     use semantic_vocabulary::MachineId;
     use target::NativeTarget;
 
-    use crate::machine_effects::{Aarch64SelectedAbi, aarch64_selected_abi};
-    use crate::{aarch64_aapcs64_register_call_keys, aarch64_register_constraint_catalog_for};
-
-    pub(crate) const AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT: usize = 4;
-    pub(crate) const AARCH64_SCALAR_CALL_OPCODE_OFFSET: u16 = 0;
-    pub(crate) const AARCH64_SCALAR_CALL_PATCH_OFFSET: u16 = 0;
-    pub(crate) const AARCH64_SCALAR_CALL_REFERENCE_OFFSET: u16 = 0;
-    pub(crate) const AARCH64_SCALAR_CALL_PATCH_WIDTH: u8 = 4;
+    const TEMPLATE_LEN: usize = 4;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Aarch64ScalarCallFixupKind {
@@ -13133,35 +3712,30 @@ mod scalar_call {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ValidatedAarch64SelectedScalarCallTemplate {
-        kind: SelectedInstructionKind,
+        kind: Kind,
         alternative: MachineAlternativeKey,
         operand_views: Vec<RegisterViewId>,
         effects: MachineEncodedEffects,
-        bytes: [u8; AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT],
+        bytes: [u8; TEMPLATE_LEN],
         fixup: Aarch64ScalarCallFixup,
     }
 
     impl ValidatedAarch64SelectedScalarCallTemplate {
-        pub const fn kind(&self) -> SelectedInstructionKind {
+        pub const fn kind(&self) -> Kind {
             self.kind
         }
-
         pub const fn alternative(&self) -> MachineAlternativeKey {
             self.alternative
         }
-
         pub fn operand_views(&self) -> &[RegisterViewId] {
             &self.operand_views
         }
-
         pub const fn effects(&self) -> &MachineEncodedEffects {
             &self.effects
         }
-
-        pub const fn bytes(&self) -> &[u8; AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT] {
+        pub const fn bytes(&self) -> &[u8; TEMPLATE_LEN] {
             &self.bytes
         }
-
         pub const fn fixup(&self) -> Aarch64ScalarCallFixup {
             self.fixup
         }
@@ -13190,7 +3764,7 @@ mod scalar_call {
     pub fn encode_aarch64_selected_scalar_call_template(
         target: NativeTarget,
         physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
+        kind: Kind,
         alternative: MachineAlternativeKey,
         operand_views: &[RegisterViewId],
         effects: &MachineEncodedEffects,
@@ -13198,8 +3772,6 @@ mod scalar_call {
         let callee = kind
             .machine_callee()
             .ok_or(Aarch64ScalarCallTemplateError::InstructionKindMismatch)?;
-        let bytes = crate::ORDINARY_DIRECT_CALL_BYTES;
-        let fixup = canonical_fixup(callee);
         validate_aarch64_selected_scalar_call_template(
             target,
             physical,
@@ -13207,15 +3779,16 @@ mod scalar_call {
             alternative,
             operand_views,
             effects,
-            &bytes,
-            fixup,
+            &crate::ORDINARY_DIRECT_CALL_BYTES,
+            canonical_fixup(callee),
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn validate_aarch64_selected_scalar_call_template(
         target: NativeTarget,
         physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
+        kind: Kind,
         alternative: MachineAlternativeKey,
         operand_views: &[RegisterViewId],
         effects: &MachineEncodedEffects,
@@ -13233,19 +3806,18 @@ mod scalar_call {
         if alternative != kind.call_alternative_key() {
             return Err(Aarch64ScalarCallTemplateError::AlternativeMismatch);
         }
-        let (expected_operand_views, expected) =
-            if matches!(kind, SelectedInstructionKind::InvokeNoNormal { .. }) {
-                expected_no_normal_mechanics(abi, physical, operand_views, effects)?
-            } else {
-                expected_call_mechanics(abi, physical, kind, operand_views)?
-            };
+        let (expected_views, expected) = if matches!(kind, Kind::InvokeNoNormal { .. }) {
+            expected_no_normal_mechanics(abi, physical, operand_views, effects)?
+        } else {
+            expected_call_mechanics(abi, physical, kind, operand_views)?
+        };
         if effects != &expected {
             return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
         }
-        let bytes: [u8; AARCH64_SCALAR_CALL_TEMPLATE_BYTE_COUNT] = bytes
+        let bytes: [u8; TEMPLATE_LEN] = bytes
             .try_into()
             .map_err(|_| Aarch64ScalarCallTemplateError::MalformedTemplate)?;
-        if u32::from_le_bytes(bytes) != 0x9400_0000 {
+        if u32::from_le_bytes(bytes) != enc::BL_ZERO {
             return Err(Aarch64ScalarCallTemplateError::MalformedTemplate);
         }
         if fixup != canonical_fixup(callee) {
@@ -13254,66 +3826,32 @@ mod scalar_call {
         Ok(ValidatedAarch64SelectedScalarCallTemplate {
             kind,
             alternative,
-            operand_views: expected_operand_views,
+            operand_views: expected_views,
             effects: effects.clone(),
             bytes,
             fixup,
         })
     }
 
-    fn canonical_fixup(callee: MachineId) -> Aarch64ScalarCallFixup {
+    pub(super) fn canonical_fixup(callee: MachineId) -> Aarch64ScalarCallFixup {
         Aarch64ScalarCallFixup {
             kind:
                 Aarch64ScalarCallFixupKind::SignedImmediate26WordsFromInstructionToInternalMachineV1,
             state: Aarch64ScalarCallFixupState::UnresolvedZeroImmediateV1,
             callee,
-            opcode_byte_offset: AARCH64_SCALAR_CALL_OPCODE_OFFSET,
-            patch_byte_offset: AARCH64_SCALAR_CALL_PATCH_OFFSET,
-            reference_byte_offset: AARCH64_SCALAR_CALL_REFERENCE_OFFSET,
-            patch_byte_width: AARCH64_SCALAR_CALL_PATCH_WIDTH,
+            opcode_byte_offset: 0,
+            patch_byte_offset: 0,
+            reference_byte_offset: 0,
+            patch_byte_width: 4,
         }
     }
 
-    fn expected_operand_views(
-        physical: &ValidatedPhysicalRegisterModel,
-        arity: usize,
-    ) -> Vec<RegisterViewId> {
-        ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
-            .into_iter()
-            .take(arity)
-            .chain(["x0"])
-            .map(|name| {
-                physical
-                    .model()
-                    .view_named(name)
-                    .expect("canonical ABI register")
-                    .id
-            })
-            .collect()
-    }
-
-    fn expected_effects(
-        abi: Aarch64SelectedAbi,
-        physical: &ValidatedPhysicalRegisterModel,
-        arity: usize,
+    fn effects_from_row(
+        row: &register_model::RegisterInstructionConstraint,
     ) -> MachineEncodedEffects {
-        let catalog = aarch64_register_constraint_catalog_for(physical);
-        let row = catalog
-            .constraints
-            .iter()
-            .find(|row| {
-                row.key
-                    == match abi {
-                        Aarch64SelectedAbi::Aapcs64 => aarch64_aapcs64_register_call_keys()[arity],
-                        Aarch64SelectedAbi::Darwin => {
-                            crate::aarch64_darwin_register_call_keys()[arity]
-                        }
-                    }
-            })
-            .expect("canonical AArch64 catalog contains scalar-call constraint");
         MachineEncodedEffects {
-            external_operand_reads: (0..arity as u16).collect(),
-            external_operand_writes: vec![arity as u16],
+            external_operand_reads: row.operand_reads(),
+            external_operand_writes: row.operand_writes(),
             implicit_unit_uses: row.implicit_uses.clone(),
             implicit_unit_defs: row.implicit_defs.clone(),
             implicit_unit_clobbers: row.clobbers.clone(),
@@ -13324,769 +3862,49 @@ mod scalar_call {
         }
     }
 
-    #[cfg(test)]
-    mod mixed_calls {
-        use super::{
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, MachineId,
-            NativeTarget, RegisterViewId, SelectedInstructionKind,
-            ValidatedAarch64SelectedScalarCallTemplate, aarch64_selected_abi, canonical_fixup,
-            encode_aarch64_selected_scalar_call_template, expected_effects,
-        };
-        use crate::{aarch64_physical_register_model, aarch64_register_constraint_catalog};
-        use register_model::validate_physical_register_model;
-        use selected_instructions::fixture;
-
-        impl fixture::CallTemplate for ValidatedAarch64SelectedScalarCallTemplate {
-            fn bound_operands(&self) -> &[RegisterViewId] {
-                self.operand_views()
-            }
-
-            fn names_callee(&self, callee: MachineId) -> bool {
-                self.fixup() == canonical_fixup(callee)
-            }
-        }
-
-        macro_rules! a {
-            ($cond:expr => $msg:expr) => {
-                assert!($cond, $msg);
-            };
-        }
-
-        #[test]
-        fn mixed_aggregate_call_templates_retain_integer_results_and_ieee_inputs() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let catalog = aarch64_register_constraint_catalog(&physical);
-            let kind = SelectedInstructionKind::CallAggregate {
-                target: selected_instructions::SelectedCallTarget::Machine(
-                    MachineId::new(7).unwrap(),
-                ),
-            };
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::CallAggregate,
-                variant: 0,
-            };
-            for (target, unit_keys) in [
-                (
-                    NativeTarget::linux_arm64(),
-                    crate::aarch64_aapcs64_mixed_unit_call_keys(),
-                ),
-                (
-                    NativeTarget::macos_arm64(),
-                    crate::aarch64_darwin_mixed_unit_call_keys(),
-                ),
-            ] {
-                for ordinal in [0, 7, 8, 71, 72, 79, 80, 143] {
-                    let fragments = ordinal / 72 + 1;
-                    let general_count = ordinal % 72 / 8;
-                    let float_count = ordinal % 8 + 1;
-                    let arity = general_count + float_count;
-                    let operands = (0..general_count)
-                        .map(|position| format!("x{position}"))
-                        .chain((0..float_count).map(|position| format!("d{position}")))
-                        .chain((0..fragments).map(|position| format!("x{position}")))
-                        .map(|name| physical.model().view_named(&name).unwrap().id)
-                        .collect::<Vec<_>>();
-                    let unit = catalog.constraint(unit_keys[ordinal % 72]).unwrap();
-                    let mut effects =
-                        expected_effects(aarch64_selected_abi(target).unwrap(), &physical, 0);
-                    effects.external_operand_reads = (0..arity as u16).collect();
-                    effects.external_operand_writes =
-                        (arity as u16..(arity + fragments) as u16).collect();
-                    effects.implicit_unit_uses = unit.implicit_uses.clone();
-                    effects.implicit_unit_defs = unit.implicit_defs.clone();
-                    effects.implicit_unit_clobbers = unit.clobbers.clone();
-                    for name in ["x0", "x1"].into_iter().take(fragments) {
-                        effects.implicit_unit_clobbers.retain(|unit| {
-                            !physical
-                                .model()
-                                .view_named(name)
-                                .unwrap()
-                                .write_units
-                                .contains(unit)
-                        });
-                    }
-                    let encode = |operands: &[RegisterViewId], effects: &MachineEncodedEffects| {
-                        encode_aarch64_selected_scalar_call_template(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            operands,
-                            effects,
-                        )
-                    };
-                    let template = encode(&operands, &effects).expect("mixed aggregate template");
-                    assert_eq!(template.operand_views(), operands);
-                    assert_eq!(
-                        template.fixup(),
-                        canonical_fixup(MachineId::new(7).unwrap())
-                    );
-                    let mut changed = operands.clone();
-                    changed[arity] = physical.model().view_named("d0").unwrap().id;
-                    a!(encode(&changed, &effects).is_err() => "result bank substitution");
-                    let mut changed = operands.clone();
-                    changed[general_count] = physical.model().view_named("x2").unwrap().id;
-                    a!(encode(&changed, &effects).is_err() => "IEEE input bank substitution");
-                    assert!(
-                        encode(&operands[..operands.len() - 1], &effects).is_err(),
-                        "missing result definition"
-                    );
-                    let mut changed = effects.clone();
-                    changed.external_operand_writes.clear();
-                    a!(encode(&operands, &changed).is_err() => "missing result effect");
-                    let mut changed = effects.clone();
-                    changed.implicit_unit_clobbers = unit.clobbers.clone();
-                    a!(encode(&operands, &changed).is_err() => "result cannot remain an unknown clobber");
-                    let mut changed = effects.clone();
-                    changed.implicit_unit_clobbers.retain(|unit| {
-                        !physical
-                            .model()
-                            .view_named("x2")
-                            .unwrap()
-                            .write_units
-                            .contains(unit)
-                    });
-                    a!(encode(&operands, &changed).is_err() => "other caller clobbers remain required");
-                }
-            }
-        }
-
-        #[test]
-        fn every_mixed_unit_call_row_has_exact_template_operands_and_effects() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let catalog = aarch64_register_constraint_catalog(&physical);
-            let callee = MachineId::new(7).unwrap();
-            let stack_pointer = physical.model().view_named("sp").unwrap().id;
-            for (target, keys) in [
-                (
-                    NativeTarget::linux_arm64(),
-                    crate::aarch64_aapcs64_mixed_unit_call_keys(),
-                ),
-                (
-                    NativeTarget::macos_arm64(),
-                    crate::aarch64_darwin_mixed_unit_call_keys(),
-                ),
-            ] {
-                let base = expected_effects(aarch64_selected_abi(target).unwrap(), &physical, 0);
-                for key in keys {
-                    fixture::assert_mixed_unit_call_row(
-                        catalog.constraint(key).unwrap(),
-                        base.clone(),
-                        callee,
-                        stack_pointer,
-                        |kind, alternative, operands, effects| {
-                            encode_aarch64_selected_scalar_call_template(
-                                target,
-                                &physical,
-                                kind,
-                                alternative,
-                                operands,
-                                effects,
-                            )
-                        },
-                    );
-                }
-            }
-        }
-    }
-    #[cfg(test)]
-    mod target_abis {
-        use super::{
-            Aarch64ScalarCallTemplateError, MachineAlternativeFamily, MachineAlternativeKey,
-            MachineId, NativeTarget, SelectedInstructionKind, aarch64_selected_abi,
-            encode_aarch64_selected_scalar_call_template, expected_effects,
-            validate_aarch64_selected_scalar_call_template,
-        };
-        use crate::{aarch64_physical_register_model, aarch64_register_constraint_catalog};
-        use register_model::validate_physical_register_model;
-
-        #[test]
-        fn target_register_arities_encode_and_reject_opposite_abi_effects() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let constraints = crate::validate_aarch64_register_constraint_catalog(
-                aarch64_register_constraint_catalog(&physical),
-                &physical,
-            )
-            .unwrap();
-            assert!(
-                crate::AARCH64_REQUIRED_REGISTER_CONSTRAINTS
-                    .windows(2)
-                    .all(|pair| pair[0] < pair[1])
-            );
-            let cases: [(NativeTarget, &[&str]); 2] = [
-                (
-                    NativeTarget::linux_arm64(),
-                    &["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"],
-                ),
-                (
-                    NativeTarget::macos_arm64(),
-                    &["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"],
-                ),
-            ];
-            let kind = SelectedInstructionKind::CallScalar {
-                target: selected_instructions::SelectedCallTarget::Machine(
-                    MachineId::new(7).unwrap(),
-                ),
-            };
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::CallScalar,
-                variant: 0,
-            };
-            for (target, arguments) in cases {
-                let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
-                for arity in 0..=arguments.len() {
-                    let operands = arguments[..arity]
-                        .iter()
-                        .copied()
-                        .chain(["x0"])
-                        .map(|name| physical.model().view_named(name).unwrap().id)
-                        .collect::<Vec<_>>();
-                    let effects = &catalog
-                        .declarations
-                        .iter()
-                        .find(|row| {
-                            row.semantic == selected_instructions::MachineSemanticKind::CallScalar
-                                && row.alternatives[0].encoded.external_operand_reads.len() == arity
-                        })
-                        .unwrap()
-                        .alternatives[0]
-                        .encoded;
-                    let template = encode_aarch64_selected_scalar_call_template(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        effects,
-                    )
-                    .unwrap();
-                    assert_eq!(
-                        validate_aarch64_selected_scalar_call_template(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            effects,
-                            template.bytes(),
-                            template.fixup(),
-                        )
-                        .unwrap(),
-                        template
-                    );
-                    let opposite = if target == NativeTarget::linux_arm64() {
-                        NativeTarget::macos_arm64()
-                    } else {
-                        NativeTarget::linux_arm64()
-                    };
-                    let mut changed = effects.clone();
-                    changed.implicit_unit_clobbers =
-                        expected_effects(aarch64_selected_abi(opposite).unwrap(), &physical, 0)
-                            .implicit_unit_clobbers;
-                    assert_eq!(
-                        validate_aarch64_selected_scalar_call_template(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            &changed,
-                            template.bytes(),
-                            template.fixup(),
-                        ),
-                        Err(Aarch64ScalarCallTemplateError::EffectMismatch)
-                    );
-                    let mut changed = operands.clone();
-                    *changed.last_mut().unwrap() = physical.model().view_named("sp").unwrap().id;
-                    assert_eq!(
-                        validate_aarch64_selected_scalar_call_template(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &changed,
-                            effects,
-                            template.bytes(),
-                            template.fixup(),
-                        ),
-                        Err(Aarch64ScalarCallTemplateError::OperandViewMismatch)
-                    );
-                }
-            }
-        }
-    }
-    #[cfg(test)]
-    mod unit_calls {
-        use super::{
-            MachineAlternativeFamily, MachineAlternativeKey, MachineId, NativeTarget,
-            SelectedInstructionKind, aarch64_selected_abi,
-            encode_aarch64_selected_scalar_call_template, expected_effects, expected_operand_views,
-            validate_aarch64_selected_scalar_call_template,
-        };
-        use crate::{aarch64_physical_register_model, aarch64_register_constraint_catalog};
-        use register_model::{RegisterOperandAccess, validate_physical_register_model};
-
-        #[test]
-        fn unit_call_templates_cover_native_register_arities_and_reject_forged_results() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let catalog = aarch64_register_constraint_catalog(&physical);
-            for (target, keys) in [
-                (
-                    NativeTarget::linux_arm64(),
-                    crate::aarch64_aapcs64_register_unit_call_keys(),
-                ),
-                (
-                    NativeTarget::macos_arm64(),
-                    crate::aarch64_darwin_register_unit_call_keys(),
-                ),
-            ] {
-                for (arity, key) in keys.iter().enumerate() {
-                    let row = catalog.constraint(*key).unwrap();
-                    assert_eq!(row.operands.len(), arity);
-                    assert!(
-                        row.operands
-                            .iter()
-                            .all(|operand| operand.access == RegisterOperandAccess::Use)
-                    );
-                    let mut missing_clobber = catalog.clone();
-                    register_model::find_register_constraint_mut(
-                        &mut missing_clobber.constraints,
-                        *key,
-                    )
-                    .unwrap()
-                    .clobbers
-                    .clear();
-                    assert!(
-                        crate::validate_aarch64_register_constraint_catalog(
-                            missing_clobber,
-                            &physical
-                        )
-                        .is_err()
-                    );
-                    let mut operands = expected_operand_views(&physical, arity);
-                    operands.pop();
-                    let mut effects =
-                        expected_effects(aarch64_selected_abi(target).unwrap(), &physical, arity);
-                    effects.external_operand_writes.clear();
-                    effects.implicit_unit_uses = row.implicit_uses.clone();
-                    effects.implicit_unit_defs = row.implicit_defs.clone();
-                    effects.implicit_unit_clobbers = row.clobbers.clone();
-                    let kind = SelectedInstructionKind::CallUnit {
-                        target: selected_instructions::SelectedCallTarget::Machine(
-                            MachineId::new(7).unwrap(),
-                        ),
-                    };
-                    let alternative = MachineAlternativeKey {
-                        family: MachineAlternativeFamily::CallUnit,
-                        variant: 0,
-                    };
-                    let template = encode_aarch64_selected_scalar_call_template(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        &effects,
-                    )
-                    .unwrap();
-                    assert_eq!(template.operand_views(), operands);
-                    validate_aarch64_selected_scalar_call_template(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        &effects,
-                        template.bytes(),
-                        template.fixup(),
-                    )
-                    .unwrap();
-                    let mut forged = effects.clone();
-                    forged.external_operand_writes.push(arity as u16);
-                    assert!(
-                        encode_aarch64_selected_scalar_call_template(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            &forged
-                        )
-                        .is_err()
-                    );
-                    let wrong_family = MachineAlternativeKey {
-                        family: MachineAlternativeFamily::CallScalar,
-                        variant: 0,
-                    };
-                    assert!(
-                        encode_aarch64_selected_scalar_call_template(
-                            target,
-                            &physical,
-                            kind,
-                            wrong_family,
-                            &operands,
-                            &effects
-                        )
-                        .is_err()
-                    );
-                    if !operands.is_empty() {
-                        let mut wrong = operands.clone();
-                        wrong[0] = physical.model().view_named("sp").unwrap().id;
-                        assert!(
-                            encode_aarch64_selected_scalar_call_template(
-                                target,
-                                &physical,
-                                kind,
-                                alternative,
-                                &wrong,
-                                &effects
-                            )
-                            .is_err()
-                        );
-                    }
-                }
-            }
-        }
-    }
-    #[cfg(test)]
-    mod tests {
-        use super::{
-            Aarch64ScalarCallFixup, Aarch64ScalarCallTemplateError, Aarch64SelectedAbi,
-            MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, MachineId,
-            NativeTarget, RegisterViewId, SelectedInstructionKind, ValidatedPhysicalRegisterModel,
-            aarch64_aapcs64_register_call_keys, aarch64_selected_abi, canonical_fixup,
-            encode_aarch64_selected_scalar_call_template, expected_effects, expected_operand_views,
-            validate_aarch64_selected_scalar_call_template,
-        };
-        use crate::aarch64_physical_register_model;
-        use register_model::validate_physical_register_model;
-
-        fn inputs() -> (
-            ValidatedPhysicalRegisterModel,
-            SelectedInstructionKind,
-            MachineAlternativeKey,
-            Vec<RegisterViewId>,
-            MachineEncodedEffects,
-        ) {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let kind = SelectedInstructionKind::CallScalar {
-                target: selected_instructions::SelectedCallTarget::Machine(
-                    MachineId::new(7).unwrap(),
-                ),
-            };
-            let alternative = MachineAlternativeKey {
-                family: MachineAlternativeFamily::CallScalar,
-                variant: 0,
-            };
-            let operands = expected_operand_views(&physical, 2);
-            let effects = expected_effects(Aarch64SelectedAbi::Aapcs64, &physical, 2);
-            (physical, kind, alternative, operands, effects)
-        }
-
-        #[test]
-        fn every_register_arity_has_exact_operands_and_effects() {
-            let (physical, kind, alternative, _, _) = inputs();
-            let catalog = crate::aarch64_register_constraint_catalog(&physical);
-            for (arity, key) in aarch64_aapcs64_register_call_keys().into_iter().enumerate() {
-                let row = catalog.constraint(key).unwrap();
-                let operands = expected_operand_views(&physical, arity);
-                assert_eq!(row.operands.len(), arity + 1);
-                assert_eq!(
-                    row.operands
-                        .iter()
-                        .map(|operand| operand.fixed_view.unwrap())
-                        .collect::<Vec<_>>(),
-                    operands
-                );
-                let effects = expected_effects(Aarch64SelectedAbi::Aapcs64, &physical, arity);
-                assert_eq!(
-                    effects.external_operand_reads,
-                    (0..arity as u16).collect::<Vec<_>>()
-                );
-                assert_eq!(effects.external_operand_writes, vec![arity as u16]);
-                let template = encode_aarch64_selected_scalar_call_template(
-                    NativeTarget::linux_arm64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &effects,
-                )
-                .unwrap();
-                assert_eq!(template.operand_views(), operands.as_slice());
-                let mut wrong_effects = effects.clone();
-                wrong_effects.external_operand_writes = vec![(arity + 1) as u16];
-                assert!(
-                    encode_aarch64_selected_scalar_call_template(
-                        NativeTarget::linux_arm64(),
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        &wrong_effects,
-                    )
-                    .is_err()
-                );
-                let mut wrong_views = operands.clone();
-                wrong_views[arity] = physical.model().view_named("sp").unwrap().id;
-                assert!(
-                    encode_aarch64_selected_scalar_call_template(
-                        NativeTarget::linux_arm64(),
-                        &physical,
-                        kind,
-                        alternative,
-                        &wrong_views,
-                        &effects,
-                    )
-                    .is_err()
-                );
-            }
-            let oversized = vec![physical.model().view_named("x0").unwrap().id; 10];
-            assert_eq!(
-                encode_aarch64_selected_scalar_call_template(
-                    NativeTarget::linux_arm64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &oversized,
-                    &expected_effects(Aarch64SelectedAbi::Aapcs64, &physical, 0),
-                ),
-                Err(Aarch64ScalarCallTemplateError::OperandViewMismatch)
-            );
-        }
-
-        #[test]
-        fn scalar_call_abi_matrix_resolves_declared_pairs_and_fails_closed() {
-            assert_eq!(
-                aarch64_selected_abi(NativeTarget::linux_arm64()),
-                Ok(Aarch64SelectedAbi::Aapcs64)
-            );
-            for reserved_x18 in [NativeTarget::macos_arm64(), NativeTarget::windows_arm64()] {
-                assert_eq!(
-                    aarch64_selected_abi(reserved_x18),
-                    Ok(Aarch64SelectedAbi::Darwin)
-                );
-            }
-            for undeclared in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
-                assert_eq!(
-                aarch64_selected_abi(undeclared),
-                Err(
-                    crate::machine_effects::Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi,
-                )
-            );
-            }
-        }
-
-        #[test]
-        fn scalar_call_template_has_exact_bytes_and_fixup() {
-            let (physical, kind, alternative, operands, effects) = inputs();
-            let template = encode_aarch64_selected_scalar_call_template(
-                NativeTarget::linux_arm64(),
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                &effects,
-            )
-            .unwrap();
-            assert_eq!(template.bytes(), &0x9400_0000_u32.to_le_bytes());
-            assert_eq!(template.kind(), kind);
-            assert_eq!(template.alternative(), alternative);
-            assert_eq!(template.operand_views(), &operands);
-            assert_eq!(template.effects(), &effects);
-            assert_eq!(
-                template.fixup(),
-                canonical_fixup(MachineId::new(7).unwrap())
-            );
-        }
-
-        #[test]
-        fn scalar_call_validation_rejects_malformed_selected_inputs() {
-            let (physical, kind, alternative, operands, effects) = inputs();
-            let fixup = canonical_fixup(MachineId::new(7).unwrap());
-            assert_eq!(
-                validate_aarch64_selected_scalar_call_template(
-                    NativeTarget::linux_x64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &effects,
-                    &0x9400_0000_u32.to_le_bytes(),
-                    fixup,
-                ),
-                Err(Aarch64ScalarCallTemplateError::UnsupportedTarget)
-            );
-            assert_eq!(
-                validate_aarch64_selected_scalar_call_template(
-                    NativeTarget::linux_arm64(),
-                    &physical,
-                    SelectedInstructionKind::ReturnUnit,
-                    alternative,
-                    &operands,
-                    &effects,
-                    &0x9400_0000_u32.to_le_bytes(),
-                    fixup,
-                ),
-                Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch)
-            );
-            assert_eq!(
-                validate_aarch64_selected_scalar_call_template(
-                    NativeTarget::linux_arm64(),
-                    &physical,
-                    kind,
-                    MachineAlternativeKey {
-                        variant: 1,
-                        ..alternative
-                    },
-                    &operands,
-                    &effects,
-                    &0x9400_0000_u32.to_le_bytes(),
-                    fixup,
-                ),
-                Err(Aarch64ScalarCallTemplateError::AlternativeMismatch)
-            );
-            assert_eq!(
-                validate_aarch64_selected_scalar_call_template(
-                    NativeTarget::linux_arm64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands[..2],
-                    &effects,
-                    &0x9400_0000_u32.to_le_bytes(),
-                    fixup,
-                ),
-                Err(Aarch64ScalarCallTemplateError::OperandViewMismatch)
-            );
-            let mut malformed_effects = effects.clone();
-            malformed_effects.external_operand_reads.clear();
-            assert_eq!(
-                validate_aarch64_selected_scalar_call_template(
-                    NativeTarget::linux_arm64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &malformed_effects,
-                    &0x9400_0000_u32.to_le_bytes(),
-                    fixup,
-                ),
-                Err(Aarch64ScalarCallTemplateError::EffectMismatch)
-            );
-        }
-
-        #[test]
-        fn scalar_call_validation_rejects_nonzero_or_trailing_bytes_and_bad_fixup() {
-            let (physical, kind, alternative, operands, effects) = inputs();
-            let fixup = canonical_fixup(MachineId::new(7).unwrap());
-            for malformed in [
-                &0x1400_0000_u32.to_le_bytes()[..],
-                &0x9400_0001_u32.to_le_bytes()[..],
-                &[0, 0, 0x94][..],
-                &[0, 0, 0, 0x94, 0][..],
-            ] {
-                assert_eq!(
-                    validate_aarch64_selected_scalar_call_template(
-                        NativeTarget::linux_arm64(),
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        &effects,
-                        malformed,
-                        fixup,
-                    ),
-                    Err(Aarch64ScalarCallTemplateError::MalformedTemplate)
-                );
-            }
-            assert_eq!(
-                validate_aarch64_selected_scalar_call_template(
-                    NativeTarget::linux_arm64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &effects,
-                    &0x9400_0000_u32.to_le_bytes(),
-                    Aarch64ScalarCallFixup {
-                        callee: MachineId::new(8).unwrap(),
-                        ..fixup
-                    },
-                ),
-                Err(Aarch64ScalarCallTemplateError::FixupMismatch)
-            );
-            assert_eq!(
-                validate_aarch64_selected_scalar_call_template(
-                    NativeTarget::linux_arm64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &effects,
-                    &0x9400_0000_u32.to_le_bytes(),
-                    Aarch64ScalarCallFixup {
-                        reference_byte_offset: 4,
-                        ..fixup
-                    },
-                ),
-                Err(Aarch64ScalarCallTemplateError::FixupMismatch)
-            );
-        }
+    fn row_matches_views(
+        row: &register_model::RegisterInstructionConstraint,
+        views: &[RegisterViewId],
+    ) -> bool {
+        row.operands.len() == views.len()
+            && row
+                .operands
+                .iter()
+                .zip(views)
+                .all(|(op, view)| op.fixed_view == Some(*view))
     }
 
     fn expected_no_normal_mechanics(
         abi: Aarch64SelectedAbi,
         physical: &ValidatedPhysicalRegisterModel,
-        operand_views: &[RegisterViewId],
+        views: &[RegisterViewId],
         effects: &MachineEncodedEffects,
     ) -> Result<(Vec<RegisterViewId>, MachineEncodedEffects), Aarch64ScalarCallTemplateError> {
         let darwin = abi == Aarch64SelectedAbi::Darwin;
-        let keys = if darwin {
+        let mut keys: Vec<_> = if darwin {
             crate::aarch64_darwin_register_call_keys()
                 .into_iter()
                 .chain(crate::aarch64_darwin_register_unit_call_keys())
                 .chain(crate::aarch64_darwin_mixed_unit_call_keys())
-                .collect::<Vec<_>>()
+                .collect()
         } else {
-            crate::aarch64_aapcs64_register_call_keys()
+            aarch64_aapcs64_register_call_keys()
                 .into_iter()
                 .chain(crate::aarch64_aapcs64_register_unit_call_keys())
                 .chain(crate::aarch64_aapcs64_mixed_unit_call_keys())
-                .collect::<Vec<_>>()
+                .collect()
         };
-        let keys = keys
-            .into_iter()
-            .chain(crate::aarch64_float_scalar_call_keys(darwin))
-            .chain(crate::aarch64_register_aggregate_call_keys(darwin))
-            .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
-            .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
-            .collect::<Vec<_>>();
+        keys.extend(crate::aarch64_float_scalar_call_keys(darwin));
+        keys.extend(crate::aarch64_register_aggregate_call_keys(darwin));
+        keys.extend(crate::aarch64_mixed_aggregate_call_keys(darwin));
+        keys.extend(crate::aarch64_indirect_aggregate_call_keys(darwin));
         let catalog = aarch64_register_constraint_catalog_for(physical);
         for row in &catalog.constraints {
-            if !keys.contains(&row.key)
-                || row.operands.len() != operand_views.len()
-                || !row
-                    .operands
-                    .iter()
-                    .zip(operand_views)
-                    .all(|(operand, view)| operand.fixed_view == Some(*view))
-            {
-                continue;
-            }
-            let mut expected = expected_effects(abi, physical, 0);
-            expected.external_operand_reads = row.operand_reads();
-            expected.external_operand_writes = row.operand_writes();
-            expected.implicit_unit_uses = row.implicit_uses.clone();
-            expected.implicit_unit_defs = row.implicit_defs.clone();
-            expected.implicit_unit_clobbers = row.clobbers.clone();
-            if &expected == effects {
-                return Ok((operand_views.to_vec(), expected));
+            if keys.contains(&row.key) && row_matches_views(row, views) {
+                let expected = effects_from_row(row);
+                if &expected == effects {
+                    return Ok((views.to_vec(), expected));
+                }
             }
         }
         Err(Aarch64ScalarCallTemplateError::EffectMismatch)
@@ -14095,86 +3913,80 @@ mod scalar_call {
     fn expected_call_mechanics(
         abi: Aarch64SelectedAbi,
         physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        operand_views: &[RegisterViewId],
+        kind: Kind,
+        views: &[RegisterViewId],
     ) -> Result<(Vec<RegisterViewId>, MachineEncodedEffects), Aarch64ScalarCallTemplateError> {
-        let unit = matches!(kind, SelectedInstructionKind::CallUnit { .. });
-        let aggregate = matches!(kind, SelectedInstructionKind::CallAggregate { .. });
-        let floating_scalar = !unit
+        let darwin = abi == Aarch64SelectedAbi::Darwin;
+        let unit = matches!(kind, Kind::CallUnit { .. });
+        let aggregate = matches!(kind, Kind::CallAggregate { .. });
+        let float_scalar = !unit
             && !aggregate
-            && operand_views.iter().any(|id| {
+            && views.iter().any(|id| {
                 physical
                     .model()
                     .views
                     .iter()
-                    .any(|view| view.id == *id && view.name.starts_with("d"))
+                    .any(|v| v.id == *id && v.name.starts_with('d'))
             });
-        let (expected_operand_views, expected) = if unit || aggregate || floating_scalar {
-            let darwin = abi == Aarch64SelectedAbi::Darwin;
-            let keys = if aggregate {
+        let catalog = aarch64_register_constraint_catalog_for(physical);
+        if unit || aggregate || float_scalar {
+            let keys: Vec<_> = if aggregate {
                 crate::aarch64_register_aggregate_call_keys(darwin)
                     .into_iter()
                     .chain(crate::aarch64_mixed_aggregate_call_keys(darwin))
                     .chain(crate::aarch64_indirect_aggregate_call_keys(darwin))
-                    .collect::<Vec<_>>()
-            } else if floating_scalar {
+                    .collect()
+            } else if float_scalar {
                 crate::aarch64_float_scalar_call_keys(darwin)
+            } else if darwin {
+                crate::aarch64_darwin_register_unit_call_keys()
+                    .into_iter()
+                    .chain(crate::aarch64_darwin_mixed_unit_call_keys())
+                    .collect()
             } else {
-                match abi {
-                    Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_register_unit_call_keys()
-                        .into_iter()
-                        .chain(crate::aarch64_aapcs64_mixed_unit_call_keys())
-                        .collect::<Vec<_>>(),
-                    Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_register_unit_call_keys()
-                        .into_iter()
-                        .chain(crate::aarch64_darwin_mixed_unit_call_keys())
-                        .collect::<Vec<_>>(),
-                }
+                crate::aarch64_aapcs64_register_unit_call_keys()
+                    .into_iter()
+                    .chain(crate::aarch64_aapcs64_mixed_unit_call_keys())
+                    .collect()
             };
-            let catalog = aarch64_register_constraint_catalog_for(physical);
             let row = catalog
                 .constraints
                 .iter()
-                .find(|row| {
-                    keys.contains(&row.key)
-                        && row.operands.len() == operand_views.len()
-                        && row
-                            .operands
-                            .iter()
-                            .zip(operand_views)
-                            .all(|(operand, view)| operand.fixed_view == Some(*view))
-                })
+                .find(|row| keys.contains(&row.key) && row_matches_views(row, views))
                 .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
-            let mut expected = expected_effects(abi, physical, 0);
-            expected.external_operand_reads = row.operand_reads();
-            expected.external_operand_writes = row.operand_writes();
-            expected.implicit_unit_uses = row.implicit_uses.clone();
-            expected.implicit_unit_defs = row.implicit_defs.clone();
-            expected.implicit_unit_clobbers = row.clobbers.clone();
-            (operand_views.to_vec(), expected)
+            return Ok((views.to_vec(), effects_from_row(row)));
+        }
+        let arity = views
+            .len()
+            .checked_sub(1)
+            .filter(|&a| a <= 8)
+            .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
+        let expected_views: Vec<_> = ["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]
+            .into_iter()
+            .take(arity)
+            .chain(["x0"])
+            .map(|name| physical.model().view_named(name).expect("ABI reg").id)
+            .collect();
+        if views != expected_views {
+            return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
+        }
+        let key = if darwin {
+            crate::aarch64_darwin_register_call_keys()[arity]
         } else {
-            let arity = operand_views
-                .len()
-                .checked_sub(1)
-                .filter(|arity| *arity <= 8)
-                .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
-            let expected_operand_views = expected_operand_views(physical, arity);
-            if operand_views != expected_operand_views {
-                return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
-            }
-            (
-                expected_operand_views,
-                expected_effects(abi, physical, arity),
-            )
+            aarch64_aapcs64_register_call_keys()[arity]
         };
-
-        Ok((expected_operand_views, expected))
+        let row = catalog
+            .constraints
+            .iter()
+            .find(|r| r.key == key)
+            .expect("canonical scalar-call constraint");
+        Ok((expected_views, effects_from_row(row)))
     }
 
     pub fn encode_aarch64_selected_dynamic_call_template(
         target: NativeTarget,
         physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
+        kind: Kind,
         alternative: MachineAlternativeKey,
         operand_views: &[RegisterViewId],
         effects: &MachineEncodedEffects,
@@ -14184,18 +3996,13 @@ mod scalar_call {
         if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
             return Err(Aarch64ScalarCallTemplateError::NonCanonicalPhysicalModel);
         }
-        let Some(offset) = kind
-            .call_target()
-            .and_then(|target| target.indirect_code_offset())
-        else {
+        let Some(offset) = kind.call_target().and_then(|t| t.indirect_code_offset()) else {
             return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch);
         };
         let family = match kind {
-            SelectedInstructionKind::CallUnit { .. } => MachineAlternativeFamily::CallUnit,
-            SelectedInstructionKind::CallScalar { .. } => MachineAlternativeFamily::CallScalar,
-            SelectedInstructionKind::CallAggregate { .. } => {
-                MachineAlternativeFamily::CallAggregate
-            }
+            Kind::CallUnit { .. } => Fam::CallUnit,
+            Kind::CallScalar { .. } => Fam::CallScalar,
+            Kind::CallAggregate { .. } => Fam::CallAggregate,
             _ => return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch),
         };
         if alternative != (MachineAlternativeKey { family, variant: 1 }) {
@@ -14207,13 +4014,13 @@ mod scalar_call {
             .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?
             .id;
         let mut ordinary = operand_views.to_vec();
-        let position = ordinary
+        let pos = ordinary
             .iter()
-            .position(|view| *view == selector)
+            .position(|v| *v == selector)
             .ok_or(Aarch64ScalarCallTemplateError::OperandViewMismatch)?;
-        ordinary.remove(position);
+        ordinary.remove(pos);
         let (_, baseline) = expected_call_mechanics(abi, physical, kind, &ordinary)?;
-        if position != baseline.external_operand_reads.len() {
+        if pos != baseline.external_operand_reads.len() {
             return Err(Aarch64ScalarCallTemplateError::OperandViewMismatch);
         }
         let expected = selected_instructions::calls::dynamic::encoded_effects(
@@ -14224,3330 +4031,21 @@ mod scalar_call {
         if *effects != expected {
             return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
         }
-
-        let mut bytes = Vec::with_capacity(36);
-        for half in 0..4 {
-            let immediate = ((offset >> (half * 16)) & 0xffff) as u32;
-            let opcode = if half == 0 { 0xd280_0000 } else { 0xf280_0000 };
-            bytes.extend_from_slice(
-                &(opcode | (half as u32) << 21 | immediate << 5 | 17).to_le_bytes(),
-            );
-        }
-        for word in [
-            0x8b11_0211_u32,
+        let words = [
+            enc::movz(17, offset as u16, 0),
+            enc::movk(17, (offset >> 16) as u16, 1),
+            enc::movk(17, (offset >> 32) as u16, 2),
+            enc::movk(17, (offset >> 48) as u16, 3),
+            0x8b11_0211,
             0xf940_0231,
             0xb500_0051,
-            0xd420_0000,
+            enc::BRK_0,
             0xd63f_0220,
-        ] {
-            crate::codec_bytes::push_encoded(&mut bytes, word.to_le_bytes());
-        }
-        Ok((bytes, expected))
-    }
-
-    #[cfg(test)]
-    mod dynamic_call_tests {
-        use super::*;
-        #[test]
-        fn dispatch_register_is_separate_from_each_supported_data_arity_and_result() {
-            let physical = register_model::validate_physical_register_model(
-                crate::aarch64_physical_register_model(),
-            )
-            .unwrap();
-            for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
-                let abi = aarch64_selected_abi(target).unwrap();
-                for arity in [0, 1, 8] {
-                    let mut operands = expected_operand_views(&physical, arity);
-                    let selector = physical.model().view_named("x16").unwrap().id;
-                    operands.insert(arity, selector);
-                    let baseline = expected_effects(abi, &physical, arity);
-                    let effects = selected_instructions::calls::dynamic::encoded_effects(
-                        &baseline,
-                        physical.model().architecture,
-                    )
-                    .unwrap();
-                    let kind = SelectedInstructionKind::CallScalar {
-                        target: selected_instructions::SelectedCallTarget::Dynamic {
-                            interface: 7,
-                            slot: 0x1234_5678,
-                        },
-                    };
-                    let alternative = MachineAlternativeKey {
-                        family: MachineAlternativeFamily::CallScalar,
-                        variant: 1,
-                    };
-                    let (bytes, actual) = encode_aarch64_selected_dynamic_call_template(
-                        target,
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        &effects,
-                    )
-                    .unwrap();
-                    assert_eq!(bytes.len(), 36);
-                    assert_eq!(
-                        actual.external_operand_reads,
-                        (0..=arity as u16).collect::<Vec<_>>()
-                    );
-                    assert_eq!(actual.external_operand_writes, vec![arity as u16 + 1]);
-                    assert_eq!(
-                        actual.control,
-                        MachineEncodedControlEffect::IndirectTableCallOrTrapV1
-                    );
-                    assert_eq!(&bytes[28..32], &0xd420_0000_u32.to_le_bytes());
-                    assert_eq!(&bytes[32..36], &0xd63f_0220_u32.to_le_bytes());
-                    let mut missing_dispatch = operands.clone();
-                    missing_dispatch.remove(arity);
-                    assert!(
-                        encode_aarch64_selected_dynamic_call_template(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &missing_dispatch,
-                            &effects
-                        )
-                        .is_err()
-                    );
-                    let mut altered = effects.clone();
-                    altered.external_operand_writes = vec![arity as u16];
-                    assert!(
-                        encode_aarch64_selected_dynamic_call_template(
-                            target,
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            &altered
-                        )
-                        .is_err()
-                    );
-                }
-            }
-        }
-    }
-}
-mod selected_forms {
-    use crate::saturating_forms::SaturatingRealization;
-    use crate::selected_form_encoding::compare_byte_sequences;
-    use crate::selected_form_encoding::copy_bytes;
-    use crate::selected_form_encoding::decoding::{decode_words, footprint, validate_decoded};
-    use crate::selected_form_encoding::encoded_scalar;
-    use crate::selected_form_encoding::float_bits;
-    use crate::selected_form_encoding::movn_materialization::append_canonical_materialization;
-    use crate::selected_form_encoding::scan_byte_sequence;
-    use crate::selected_form_encoding::zero_bytes;
-    use crate::selected_form_encoding::{
-        Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding,
-    };
-    use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
-    use selected_instructions::{
-        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
-        is_float_bit_transfer,
-    };
-    use semantic_vocabulary::IntegerValue;
-
-    pub fn encode_aarch64_selected_form(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        if kind == SelectedInstructionKind::CopyBytes {
-            return copy_bytes::encode(physical, alternative, operands);
-        }
-        if kind == SelectedInstructionKind::ZeroBytes {
-            return zero_bytes::encode(physical, alternative, operands);
-        }
-        if matches!(
-            kind,
-            SelectedInstructionKind::LoadEncodedScalar
-                | SelectedInstructionKind::StoreEncodedScalar
-        ) {
-            return encoded_scalar::encode(physical, kind, alternative, operands);
-        }
-        if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
-            return scan_byte_sequence::encode(physical, predicate, alternative, operands);
-        }
-        if kind == SelectedInstructionKind::CompareByteSequences {
-            return compare_byte_sequences::encode(physical, alternative, operands);
-        }
-        if is_float_bit_transfer(kind) {
-            return float_bits::encode(physical, kind, alternative, operands);
-        }
-        validate_request(physical, kind, alternative, operands)?;
-        let registers = resolve_scalar_registers(physical, kind, operands)?;
-        validate_return_home(kind, &registers)?;
-        let bytes = encode_unchecked(kind, &registers)?;
-        validate_aarch64_selected_form_encoding(physical, kind, alternative, operands, &bytes)
-    }
-
-    pub fn validate_aarch64_selected_form_encoding(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        if kind == SelectedInstructionKind::CopyBytes {
-            return copy_bytes::validate(physical, alternative, operands, bytes);
-        }
-        if kind == SelectedInstructionKind::ZeroBytes {
-            return zero_bytes::validate(physical, alternative, operands, bytes);
-        }
-        if matches!(
-            kind,
-            SelectedInstructionKind::LoadEncodedScalar
-                | SelectedInstructionKind::StoreEncodedScalar
-        ) {
-            return encoded_scalar::validate(physical, kind, alternative, operands, bytes);
-        }
-        if let SelectedInstructionKind::ScanByteSequence { predicate } = kind {
-            return scan_byte_sequence::validate(physical, predicate, alternative, operands, bytes);
-        }
-        if kind == SelectedInstructionKind::CompareByteSequences {
-            return compare_byte_sequences::validate(physical, alternative, operands, bytes);
-        }
-        if is_float_bit_transfer(kind) {
-            return float_bits::validate(physical, kind, alternative, operands, bytes);
-        }
-        validate_request(physical, kind, alternative, operands)?;
-        let registers = resolve_scalar_registers(physical, kind, operands)?;
-        validate_return_home(kind, &registers)?;
-        if let SelectedInstructionKind::RegisterAccess {
-            operation: selected_instructions::RegisterOperation::MemoryFence(expected),
-        } = kind
-        {
-            if super::memory_fence::decode(bytes) != Some(expected) {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-        } else if let SelectedInstructionKind::AtomicAccess { form } = kind {
-            super::atomic::validate(form, &registers, bytes)?;
-        } else if let SelectedInstructionKind::NearestIeeeFloatArithmetic { form } = kind {
-            super::ieee_float_arithmetic::validate(form, &registers, bytes)?;
-        } else if let SelectedInstructionKind::FloatResultPolicy { form } = kind {
-            super::float_result_policy::validate(form, &registers, bytes)?;
-        } else {
-            let decoded = decode_words(bytes)?;
-            validate_decoded(kind, &registers, &decoded)?;
-        }
-        let canonical = encode_unchecked(kind, &registers)?;
-        if bytes != canonical {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(ValidatedAarch64SelectedFormEncoding {
-            bytes: bytes.to_vec(),
-            footprint: footprint(kind, operands),
-        })
-    }
-
-    fn validate_request(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operands: &[RegisterViewId],
-    ) -> Result<(), Aarch64SelectedFormEncodingError> {
-        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-            return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-        }
-        let (family, count) = family_and_operand_count(kind)?;
-        if alternative != (MachineAlternativeKey { family, variant: 0 }) {
-            return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-        }
-        if operands.len() != count {
-            return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
-        }
-        Ok(())
-    }
-
-    fn family_and_operand_count(
-        kind: SelectedInstructionKind,
-    ) -> Result<(MachineAlternativeFamily, usize), Aarch64SelectedFormEncodingError> {
-        Ok(match kind {
-            SelectedInstructionKind::PackedAddI16x8
-            | SelectedInstructionKind::PackedSubI16x8
-            | SelectedInstructionKind::PackedShuffleI16x8 { .. }
-            | SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
-            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
-            | SelectedInstructionKind::PackedWidenU8x8ToI16x8
-            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating
-            | SelectedInstructionKind::PackedLoadI16x4ZeroExtend
-            | SelectedInstructionKind::PackedWidenU8x4ToI16x8
-            | SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
-            | SelectedInstructionKind::PackedLoad128 { .. }
-            | SelectedInstructionKind::PackedStore128 { .. }
-            | SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
-            | SelectedInstructionKind::PackedStore64 { .. }
-            | SelectedInstructionKind::PackedLoad32ZeroExtend { .. }
-            | SelectedInstructionKind::PackedStore32 { .. }
-            | SelectedInstructionKind::PackedMaterializeZero
-            | SelectedInstructionKind::PackedFromGpr64ZeroExtend
-            | SelectedInstructionKind::PackedFromGpr64Pair
-            | SelectedInstructionKind::PackedAddI16x8Reg
-            | SelectedInstructionKind::PackedSubI16x8Reg
-            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
-            | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
-            | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
-            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
-            | SelectedInstructionKind::PackedAddU8x16
-            | SelectedInstructionKind::PackedMinI16x8
-            | SelectedInstructionKind::PackedCmpGtI16x8
-            | SelectedInstructionKind::PackedBitAndI16x8
-            | SelectedInstructionKind::PackedBitAndNotI16x8
-            | SelectedInstructionKind::PackedAbsI16x8
-            | SelectedInstructionKind::PackedAddU8x16Reg
-            | SelectedInstructionKind::PackedMinI16x8Reg
-            | SelectedInstructionKind::PackedCmpGtI16x8Reg
-            | SelectedInstructionKind::PackedBitAndI16x8Reg
-            | SelectedInstructionKind::PackedBitAndNotI16x8Reg
-            | SelectedInstructionKind::PackedAbsI16x8Reg => {
-                return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-            }
-            SelectedInstructionKind::AccessorScalarAccess { form, .. } => {
-                (MachineAlternativeFamily::AccessorScalarAccess(form), 2)
-            }
-            SelectedInstructionKind::AtomicAccess { form } => (
-                MachineAlternativeFamily::AtomicAccess(form),
-                usize::from(form.operand_count()),
-            ),
-            SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => (
-                MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
-                form.operand_count() + 1,
-            ),
-            SelectedInstructionKind::FloatResultPolicy { form } => (
-                MachineAlternativeFamily::FloatResultPolicy(form),
-                form.operand_count() + 1,
-            ),
-            SelectedInstructionKind::RegisterAccess {
-                operation: selected_instructions::RegisterOperation::MemoryFence(kind),
-            } => {
-                if kind.target() != selected_instructions::RegisterTargetApplicability::Aarch64 {
-                    return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-                }
-                (MachineAlternativeFamily::MemoryFence, 0)
-            }
-            SelectedInstructionKind::RegisterAccess { operation } => (
-                if operation.produces_value() {
-                    MachineAlternativeFamily::SystemRegisterRead
-                } else {
-                    MachineAlternativeFamily::SystemRegisterWrite
-                },
-                1,
-            ),
-            SelectedInstructionKind::PrivilegedCrash
-            | SelectedInstructionKind::InstalledInterruptCpuCheck { .. }
-            | SelectedInstructionKind::InstalledInterruptTaskCommit { .. }
-            | SelectedInstructionKind::InstalledInterruptTablePublication { .. }
-            | SelectedInstructionKind::PortWrite { .. } => {
-                return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-            }
-            SelectedInstructionKind::AtomicFence => (MachineAlternativeFamily::AtomicFence, 0),
-            SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0),
-            SelectedInstructionKind::TrappingInteger { form } => (
-                MachineAlternativeFamily::TrappingInteger(form),
-                super::trapping_forms::operand_count(form),
-            ),
-            SelectedInstructionKind::CompareByteSequences => {
-                (MachineAlternativeFamily::CompareByteSequences, 8)
-            }
-            SelectedInstructionKind::CompareI64Zero => {
-                (MachineAlternativeFamily::CompareI64Zero, 1)
-            }
-            SelectedInstructionKind::CompareI64Immediate { .. } => {
-                (MachineAlternativeFamily::CompareI64Immediate, 1)
-            }
-            SelectedInstructionKind::CompareI64 => (MachineAlternativeFamily::CompareI64, 2),
-            SelectedInstructionKind::MaterializeI64 { .. } => {
-                (MachineAlternativeFamily::MaterializeI64, 1)
-            }
-            SelectedInstructionKind::ImageAddress { .. } => {
-                (MachineAlternativeFamily::ImageAddress, 1)
-            }
-            SelectedInstructionKind::CopyI64 => (MachineAlternativeFamily::CopyI64, 2),
-            SelectedInstructionKind::MaterializeBooleanEqual => {
-                (MachineAlternativeFamily::MaterializeBooleanEqual, 1)
-            }
-            SelectedInstructionKind::MaterializeBooleanU64LessThan => {
-                (MachineAlternativeFamily::MaterializeBooleanU64LessThan, 1)
-            }
-            SelectedInstructionKind::MaterializeBooleanI64LessThan => {
-                (MachineAlternativeFamily::MaterializeBooleanI64LessThan, 1)
-            }
-            SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => (
-                MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual,
-                1,
-            ),
-            SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => (
-                MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual,
-                1,
-            ),
-            SelectedInstructionKind::ZeroExtendU8 => (MachineAlternativeFamily::ZeroExtendU8, 2),
-            SelectedInstructionKind::ZeroExtendU16 => (MachineAlternativeFamily::ZeroExtendU16, 2),
-            SelectedInstructionKind::SignExtendI8 => (MachineAlternativeFamily::SignExtendI8, 2),
-            SelectedInstructionKind::SignExtendI16 => (MachineAlternativeFamily::SignExtendI16, 2),
-            SelectedInstructionKind::SignExtendI32 => (MachineAlternativeFamily::SignExtendI32, 2),
-            SelectedInstructionKind::ZeroExtendU32 => (MachineAlternativeFamily::ZeroExtendU32, 2),
-            SelectedInstructionKind::ByteViewAddress => {
-                (MachineAlternativeFamily::ByteViewAddress, 3)
-            }
-            SelectedInstructionKind::ExactAddI64 { .. } => {
-                (MachineAlternativeFamily::ExactAddI64, 3)
-            }
-            SelectedInstructionKind::WrappingAddI64 => {
-                (MachineAlternativeFamily::WrappingAddI64, 3)
-            }
-            SelectedInstructionKind::WrappingSubtractI64 => {
-                (MachineAlternativeFamily::WrappingSubtractI64, 3)
-            }
-            SelectedInstructionKind::WrappingMultiplyI64 => {
-                (MachineAlternativeFamily::WrappingMultiplyI64, 3)
-            }
-            SelectedInstructionKind::BitwiseAndI64 => (MachineAlternativeFamily::BitwiseAndI64, 3),
-            SelectedInstructionKind::BitwiseOrI64 => (MachineAlternativeFamily::BitwiseOrI64, 3),
-            SelectedInstructionKind::BitwiseXorI64 => (MachineAlternativeFamily::BitwiseXorI64, 3),
-            SelectedInstructionKind::BitwiseNotI64 => (MachineAlternativeFamily::BitwiseNotI64, 2),
-            SelectedInstructionKind::SaturatingAdd { carrier } => (
-                MachineAlternativeFamily::SaturatingAdd(carrier),
-                SaturatingRealization::of_kind(kind)
-                    .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
-                    .operand_count(),
-            ),
-            SelectedInstructionKind::SaturatingSubtract { carrier } => (
-                MachineAlternativeFamily::SaturatingSubtract(carrier),
-                SaturatingRealization::of_kind(kind)
-                    .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
-                    .operand_count(),
-            ),
-            SelectedInstructionKind::SaturatingDivide { carrier, .. } => (
-                MachineAlternativeFamily::SaturatingDivide(carrier),
-                SaturatingRealization::of_kind(kind)
-                    .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
-                    .operand_count(),
-            ),
-            SelectedInstructionKind::SaturatingRemainder { carrier, .. } => (
-                MachineAlternativeFamily::SaturatingRemainder(carrier),
-                SaturatingRealization::of_kind(kind)
-                    .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
-                    .operand_count(),
-            ),
-            SelectedInstructionKind::SaturatingMultiply { carrier } => (
-                MachineAlternativeFamily::SaturatingMultiply(carrier),
-                SaturatingRealization::of_kind(kind)
-                    .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
-                    .operand_count(),
-            ),
-            SelectedInstructionKind::ExactDivideU64 { .. } => {
-                (MachineAlternativeFamily::ExactDivideU64, 3)
-            }
-            SelectedInstructionKind::ExactRemainderU64 { .. } => {
-                (MachineAlternativeFamily::ExactRemainderU64, 3)
-            }
-            SelectedInstructionKind::WrappingRemainderI64 { .. } => {
-                (MachineAlternativeFamily::WrappingRemainderI64, 3)
-            }
-            SelectedInstructionKind::WrappingDivideI64 { .. } => {
-                (MachineAlternativeFamily::WrappingDivideI64, 3)
-            }
-            SelectedInstructionKind::ExactDivideI64 { .. } => {
-                (MachineAlternativeFamily::ExactDivideI64, 3)
-            }
-            SelectedInstructionKind::ExactRemainderI64 { .. } => {
-                (MachineAlternativeFamily::ExactRemainderI64, 3)
-            }
-            SelectedInstructionKind::ExactSubtractI64 { .. } => {
-                (MachineAlternativeFamily::ExactSubtractI64, 3)
-            }
-            SelectedInstructionKind::ExactMultiplyI64 { .. } => {
-                (MachineAlternativeFamily::ExactMultiplyI64, 3)
-            }
-            SelectedInstructionKind::WrappingShiftLeftI64 => {
-                (MachineAlternativeFamily::WrappingShiftLeftI64, 3)
-            }
-            SelectedInstructionKind::WrappingShiftRightI64 => {
-                (MachineAlternativeFamily::WrappingShiftRightI64, 3)
-            }
-            SelectedInstructionKind::WrappingShiftRightU64 => {
-                (MachineAlternativeFamily::WrappingShiftRightU64, 3)
-            }
-            SelectedInstructionKind::ExactShiftLeftI64 { .. } => {
-                (MachineAlternativeFamily::ExactShiftLeftI64, 3)
-            }
-            SelectedInstructionKind::ExactShiftRightI64 { .. } => {
-                (MachineAlternativeFamily::ExactShiftRightI64, 3)
-            }
-            SelectedInstructionKind::ExactShiftRightU64 { .. } => {
-                (MachineAlternativeFamily::ExactShiftRightU64, 3)
-            }
-            SelectedInstructionKind::ExactAddI64Immediate { .. } => {
-                (MachineAlternativeFamily::ExactAddI64Immediate, 2)
-            }
-            SelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
-                (MachineAlternativeFamily::ExactSubtractI64Immediate, 2)
-            }
-            SelectedInstructionKind::ReturnScalar => (MachineAlternativeFamily::ReturnScalar, 1),
-            SelectedInstructionKind::ReturnAggregate { fragment_count } => {
-                if !(1..=2).contains(&fragment_count) {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-                (
-                    MachineAlternativeFamily::ReturnAggregate,
-                    usize::from(fragment_count),
-                )
-            }
-            SelectedInstructionKind::ReturnUnit => (MachineAlternativeFamily::ReturnUnit, 0),
-            SelectedInstructionKind::ConditionalBranchNonZero => {
-                return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
-            }
-            SelectedInstructionKind::ConditionalBranchU64LessThan => {
-                return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
-            }
-            SelectedInstructionKind::ConditionalBranchI64LessThan => {
-                return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
-            }
-            SelectedInstructionKind::Float32ToBits
-            | SelectedInstructionKind::Float64ToBits
-            | SelectedInstructionKind::BitsToFloat32
-            | SelectedInstructionKind::BitsToFloat64
-            | SelectedInstructionKind::CopyBytes
-            | SelectedInstructionKind::ZeroBytes
-            | SelectedInstructionKind::ScanByteSequence { .. }
-            | SelectedInstructionKind::LoadEncodedScalar
-            | SelectedInstructionKind::StoreEncodedScalar
-            | SelectedInstructionKind::Load8Indexed
-            | SelectedInstructionKind::Load16Indexed
-            | SelectedInstructionKind::Load32Indexed
-            | SelectedInstructionKind::Load64Indexed
-            | selected_instructions::load_width_triple_pattern!(..)
-            | SelectedInstructionKind::Load64 { .. }
-            | SelectedInstructionKind::LoadPacked { .. }
-            | SelectedInstructionKind::StorePacked { .. }
-            | SelectedInstructionKind::Store { .. }
-            | SelectedInstructionKind::AddressOffset { .. }
-            | SelectedInstructionKind::Store64 { .. }
-            | SelectedInstructionKind::HostedExitProcessI32
-            | selected_instructions::hosted_slot_quad_pattern!(..)
-            | SelectedInstructionKind::FrameAddress { .. }
-            | SelectedInstructionKind::InvokeNoNormal { .. }
-            | SelectedInstructionKind::CallUnit { .. }
-            | SelectedInstructionKind::Jump
-            | SelectedInstructionKind::CallAggregate { .. }
-            | SelectedInstructionKind::NormalizedForeignCall { .. }
-            | SelectedInstructionKind::CallScalar { .. } => {
-                return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
-            }
-        })
-    }
-
-    fn validate_return_home(
-        kind: SelectedInstructionKind,
-        registers: &[u8],
-    ) -> Result<(), Aarch64SelectedFormEncodingError> {
-        if matches!(kind, SelectedInstructionKind::ReturnScalar) && registers != [0] {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        if let SelectedInstructionKind::ReturnAggregate { fragment_count } = kind
-            && (!(1..=2).contains(&fragment_count)
-                || registers != &([0, 1][..usize::from(fragment_count)]))
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(())
-    }
-
-    fn resolve_scalar_registers(
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        operands: &[RegisterViewId],
-    ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
-        if kind == SelectedInstructionKind::ReturnScalar
-            && physical
-                .model()
-                .view_named("d0")
-                .is_some_and(|view| operands == [view.id])
-        {
-            return Ok(vec![0]);
-        }
-        resolve_registers(physical, operands)
-    }
-
-    pub(super) fn request_registers<const COUNT: usize>(
-        physical: &ValidatedPhysicalRegisterModel,
-        alternative: MachineAlternativeKey,
-        family: MachineAlternativeFamily,
-        operands: &[RegisterViewId],
-        first_early: usize,
-    ) -> Result<[u8; COUNT], Aarch64SelectedFormEncodingError> {
-        if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
-            return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
-        }
-        if alternative != (MachineAlternativeKey { family, variant: 0 }) {
-            return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-        }
-        let registers: [u8; COUNT] = resolve_registers(physical, operands)?
-            .try_into()
-            .map_err(|_| Aarch64SelectedFormEncodingError::OperandCountMismatch)?;
-        if (first_early..COUNT).any(|slot| registers[..slot].contains(&registers[slot])) {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        Ok(registers)
-    }
-
-    pub(crate) fn resolve_registers(
-        physical: &ValidatedPhysicalRegisterModel,
-        operands: &[RegisterViewId],
-    ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
-        operands
-            .iter()
-            .map(|id| {
-                let view = physical
-                    .model()
-                    .view(*id)
-                    .ok_or(Aarch64SelectedFormEncodingError::UnknownOrNonGpr64View(*id))?;
-                let Some(index) = view.name.strip_prefix('x') else {
-                    return Err(Aarch64SelectedFormEncodingError::UnknownOrNonGpr64View(*id));
-                };
-                let index = index
-                    .parse::<u8>()
-                    .ok()
-                    .filter(|index| *index <= 30)
-                    .ok_or(Aarch64SelectedFormEncodingError::UnknownOrNonGpr64View(*id))?;
-                if view.bits != 64 || !view.allocatable {
-                    return Err(Aarch64SelectedFormEncodingError::UnknownOrNonGpr64View(*id));
-                }
-                Ok(index)
-            })
-            .collect()
-    }
-
-    pub(crate) fn integer_bits(
-        value: IntegerValue,
-    ) -> Result<u64, Aarch64SelectedFormEncodingError> {
-        match value {
-            IntegerValue::Signed(value) => i64::try_from(value)
-                .map(|value| value as u64)
-                .map_err(|_| Aarch64SelectedFormEncodingError::IntegerOutsideI64Bits),
-            IntegerValue::Unsigned(value) => u64::try_from(value)
-                .map_err(|_| Aarch64SelectedFormEncodingError::IntegerOutsideI64Bits),
-        }
-    }
-
-    pub(crate) fn u12(value: IntegerValue) -> Result<u16, Aarch64SelectedFormEncodingError> {
-        match value {
-            IntegerValue::Unsigned(value) if value <= 4095 => Ok(value as u16),
-            _ => Err(Aarch64SelectedFormEncodingError::ImmediateOutsideU12),
-        }
-    }
-
-    fn encode_unchecked(
-        kind: SelectedInstructionKind,
-        registers: &[u8],
-    ) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
-        let mut words = Vec::new();
-        macro_rules! push_three {
-            ($opcode:expr $(,)?) => {
-                words.push(three_address(
-                    $opcode,
-                    registers[0],
-                    registers[1],
-                    registers[2],
-                ))
-            };
-        }
-        match kind {
-            SelectedInstructionKind::AccessorScalarAccess { .. } => {
-                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-            }
-            SelectedInstructionKind::AtomicAccess { form } => {
-                return super::atomic::encode(form, registers);
-            }
-            SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
-                return super::ieee_float_arithmetic::encode(form, registers);
-            }
-            SelectedInstructionKind::FloatResultPolicy { form } => {
-                return super::float_result_policy::encode(form, registers);
-            }
-            SelectedInstructionKind::RegisterAccess {
-                operation: selected_instructions::RegisterOperation::MemoryFence(kind),
-            } => {
-                if !registers.is_empty() {
-                    return Err(Aarch64SelectedFormEncodingError::OperandCountMismatch);
-                }
-                return super::memory_fence::encode(kind)
-                    .ok_or(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-            }
-            SelectedInstructionKind::RegisterAccess { operation } => {
-                return super::register_access::encode(operation, registers);
-            }
-            SelectedInstructionKind::PrivilegedCrash
-            | SelectedInstructionKind::InstalledInterruptCpuCheck { .. }
-            | SelectedInstructionKind::InstalledInterruptTaskCommit { .. }
-            | SelectedInstructionKind::InstalledInterruptTablePublication { .. }
-            | SelectedInstructionKind::PortWrite { .. } => {
-                return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
-            }
-            SelectedInstructionKind::AtomicFence => words.push(0xd503_3fbf),
-            SelectedInstructionKind::Crash => words.push(0xd420_0000),
-            SelectedInstructionKind::TrappingInteger { form } => {
-                let sources = form.source_count();
-                if registers[sources..]
-                    .iter()
-                    .enumerate()
-                    .any(|(index, late)| {
-                        registers[..sources].contains(late)
-                            || registers[sources + index + 1..].contains(late)
-                    })
-                {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-                words.extend(
-                    super::trapping_forms::realization(form, registers)
-                        .into_iter()
-                        .map(super::trapping_forms::encode_word),
-                );
-            }
-            SelectedInstructionKind::MaterializeI64 { value } => {
-                append_canonical_materialization(&mut words, registers[0], integer_bits(value)?);
-            }
-            SelectedInstructionKind::ImageAddress { .. } => {
-                let [page, page_offset] = byte_literal_address_words(registers[0]);
-                words.extend([page, page_offset]);
-            }
-            SelectedInstructionKind::MaterializeBooleanEqual
-            | SelectedInstructionKind::MaterializeBooleanU64LessThan
-            | SelectedInstructionKind::MaterializeBooleanI64LessThan
-            | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-            | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
-                let condition: u32 = match kind {
-                    SelectedInstructionKind::MaterializeBooleanEqual => 0,
-                    SelectedInstructionKind::MaterializeBooleanU64LessThan => 3,
-                    SelectedInstructionKind::MaterializeBooleanI64LessThan => 11,
-                    SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => 9,
-                    SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => 13,
-                    _ => unreachable!("Boolean condition arm"),
-                };
-                words.push(0x9a9f_07e0 | ((condition ^ 1) << 12) | u32::from(registers[0]));
-            }
-            SelectedInstructionKind::ZeroExtendU8 => {
-                words.push(two_address(0xd340_1c00, registers[0], registers[1]));
-            }
-            SelectedInstructionKind::ZeroExtendU16 => {
-                words.push(two_address(0xd340_3c00, registers[0], registers[1]));
-            }
-            SelectedInstructionKind::SignExtendI8 => {
-                words.push(two_address(0x9340_1c00, registers[0], registers[1]));
-            }
-            SelectedInstructionKind::SignExtendI16 => {
-                words.push(two_address(0x9340_3c00, registers[0], registers[1]));
-            }
-            SelectedInstructionKind::SignExtendI32 => {
-                words.push(two_address(0x9340_7c00, registers[0], registers[1]));
-            }
-            SelectedInstructionKind::ZeroExtendU32 => {
-                words.push(two_address(0xd340_7c00, registers[0], registers[1]));
-            }
-            SelectedInstructionKind::CopyI64 => {
-                words.push(0xaa00_03e0 | (u32::from(registers[0]) << 16) | u32::from(registers[1]));
-            }
-            SelectedInstructionKind::CompareI64Zero => {
-                words.push(0xf100_001f | (u32::from(registers[0]) << 5));
-            }
-            SelectedInstructionKind::CompareI64Immediate { immediate } => {
-                words.push(
-                    0xf100_001f
-                        | (u32::from(u12(immediate)?) << 10)
-                        | (u32::from(registers[0]) << 5),
-                );
-            }
-            SelectedInstructionKind::CompareI64 => {
-                words.push(
-                    0xeb00_001f | (u32::from(registers[1]) << 16) | (u32::from(registers[0]) << 5),
-                );
-            }
-            SelectedInstructionKind::ByteViewAddress
-            | SelectedInstructionKind::WrappingAddI64
-            | SelectedInstructionKind::ExactAddI64 { .. } => {
-                push_three!(0x8b00_0000);
-            }
-            SelectedInstructionKind::BitwiseAndI64 => {
-                push_three!(0x8a00_0000);
-            }
-            SelectedInstructionKind::BitwiseOrI64 => {
-                push_three!(0xaa00_0000);
-            }
-            SelectedInstructionKind::BitwiseNotI64 => {
-                words.push(0xaa20_03e0 | (u32::from(registers[0]) << 16) | u32::from(registers[1]));
-            }
-            selected_instructions::saturating_add_or_subtract_pattern!()
-            | SelectedInstructionKind::SaturatingDivide { .. }
-            | SelectedInstructionKind::SaturatingRemainder { .. }
-            | SelectedInstructionKind::SaturatingMultiply { .. } => {
-                append_saturating(&mut words, kind, registers)?;
-            }
-            SelectedInstructionKind::ExactDivideU64 { .. } => {
-                push_three!(0x9ac0_0800);
-            }
-            SelectedInstructionKind::WrappingDivideI64 { .. } => {
-                push_three!(0x9ac0_0c00);
-            }
-            SelectedInstructionKind::WrappingRemainderI64 { .. }
-            | SelectedInstructionKind::ExactRemainderI64 { .. } => {
-                if registers[2] == registers[0] || registers[2] == registers[1] {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-                push_three!(0x9ac0_0c00);
-                words.push(
-                    0x9b00_8000
-                        | (u32::from(registers[1]) << 16)
-                        | (u32::from(registers[0]) << 10)
-                        | (u32::from(registers[2]) << 5)
-                        | u32::from(registers[2]),
-                );
-            }
-            SelectedInstructionKind::ExactDivideI64 { .. } => {
-                push_three!(0x9ac0_0c00);
-            }
-            SelectedInstructionKind::ExactRemainderU64 { .. } => {
-                if registers[2] == registers[0] || registers[2] == registers[1] {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-                push_three!(0x9ac0_0800);
-                words.push(
-                    0x9b00_8000
-                        | (u32::from(registers[1]) << 16)
-                        | (u32::from(registers[0]) << 10)
-                        | (u32::from(registers[2]) << 5)
-                        | u32::from(registers[2]),
-                );
-            }
-            SelectedInstructionKind::BitwiseXorI64 => {
-                push_three!(0xca00_0000);
-            }
-            SelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
-                words.push(
-                    0x9100_0000
-                        | (u32::from(u12(immediate)?) << 10)
-                        | (u32::from(registers[0]) << 5)
-                        | u32::from(registers[1]),
-                );
-            }
-            SelectedInstructionKind::ExactSubtractI64 { .. }
-            | SelectedInstructionKind::WrappingSubtractI64 => {
-                push_three!(0xcb00_0000);
-            }
-            SelectedInstructionKind::ExactMultiplyI64 { .. }
-            | SelectedInstructionKind::WrappingMultiplyI64 => {
-                push_three!(0x9b00_7c00);
-            }
-            SelectedInstructionKind::WrappingShiftLeftI64
-            | SelectedInstructionKind::WrappingShiftRightI64
-            | SelectedInstructionKind::WrappingShiftRightU64
-            | selected_instructions::exact_shift_i64_pair_pattern!()
-            | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
-                push_three!(match kind {
-                    SelectedInstructionKind::WrappingShiftLeftI64
-                    | SelectedInstructionKind::ExactShiftLeftI64 { .. } => 0x9ac0_2000,
-                    SelectedInstructionKind::WrappingShiftRightU64
-                    | SelectedInstructionKind::ExactShiftRightU64 { .. } => 0x9ac0_2400,
-                    _ => 0x9ac0_2800,
-                },);
-            }
-            SelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
-                words.push(
-                    0xd100_0000
-                        | (u32::from(u12(immediate)?) << 10)
-                        | (u32::from(registers[0]) << 5)
-                        | u32::from(registers[1]),
-                );
-            }
-            SelectedInstructionKind::ReturnScalar
-            | SelectedInstructionKind::ReturnAggregate { .. }
-            | SelectedInstructionKind::ReturnUnit => {
-                words.push(u32::from_le_bytes(crate::ORDINARY_RETURN_BYTES))
-            }
-            selected_instructions::layout_dependent_selected_transfers!()
-            | selected_instructions::dedicated_selected_forms!() => {
-                return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
-            }
-        }
-        Ok(words.into_iter().flat_map(u32::to_le_bytes).collect())
-    }
-
-    pub(crate) const BOUND_WORDS: [(u64, u32); 11] = [
-        (i8::MAX as u64, 0xb240_1be0),
-        (i8::MIN as i64 as u64, 0xb279_e3e0),
-        (i16::MAX as u64, 0xb240_3be0),
-        (i16::MIN as i64 as u64, 0xb271_c3e0),
-        (i32::MAX as u64, 0xb240_7be0),
-        (i32::MIN as i64 as u64, 0xb261_83e0),
-        (i64::MAX as u64, 0xb240_fbe0),
-        (i64::MIN as u64, 0xb241_03e0),
-        (u8::MAX as u64, 0xb240_1fe0),
-        (u16::MAX as u64, 0xb240_3fe0),
-        (u32::MAX as u64, 0xb240_7fe0),
-    ];
-
-    fn bound_word(bound: u64, destination: u8) -> Result<u32, Aarch64SelectedFormEncodingError> {
-        BOUND_WORDS
-            .iter()
-            .find(|(value, _)| *value == bound)
-            .map(|(_, word)| word | u32::from(destination))
-            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-    }
-
-    fn select(value: u8, scratch: u8, condition: u32) -> u32 {
-        0x9a80_0000
-            | (u32::from(value) << 16)
-            | (condition << 12)
-            | (u32::from(scratch) << 5)
-            | u32::from(value)
-    }
-
-    const MULTIPLY: u32 = 0x9b00_7c00;
-    const SIGNED_MULTIPLY_HIGH: u32 = 0x9b40_7c00;
-    const UNSIGNED_MULTIPLY_HIGH: u32 = 0x9bc0_7c00;
-
-    fn three_address(opcode: u32, left: u8, right: u8, destination: u8) -> u32 {
-        opcode | (u32::from(right) << 16) | (u32::from(left) << 5) | u32::from(destination)
-    }
-
-    fn two_address(opcode: u32, left: u8, destination: u8) -> u32 {
-        opcode | (u32::from(left) << 5) | u32::from(destination)
-    }
-
-    fn append_saturating(
-        words: &mut Vec<u32>,
-        kind: SelectedInstructionKind,
-        registers: &[u8],
-    ) -> Result<(), Aarch64SelectedFormEncodingError> {
-        let realization = SaturatingRealization::of_kind(kind)
-            .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let (left, right, value) = (registers[0], registers[1], registers[2]);
-        if realization.operand_count() == 4
-            && (registers[2..]
-                .iter()
-                .any(|late| registers[..2].contains(late))
-                || registers[2] == registers[3])
-        {
-            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-        }
-        match realization {
-            SaturatingRealization::AddU64 => {
-                words.push(three_address(0xab00_0000, left, right, value));
-                words.push(0xda9f_3000 | (u32::from(value) << 5) | u32::from(value));
-            }
-            SaturatingRealization::SubtractUnsigned => {
-                words.push(three_address(0xeb00_0000, left, right, value));
-                words.push(0x9a9f_2000 | (u32::from(value) << 5) | u32::from(value));
-            }
-            SaturatingRealization::DivideUnsigned => {
-                words.push(three_address(0x9ac0_0800, left, right, value));
-            }
-            SaturatingRealization::Remainder { signed } => {
-                if value == left || value == right {
-                    return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-                }
-                words.push(three_address(
-                    if signed { 0x9ac0_0c00 } else { 0x9ac0_0800 },
-                    left,
-                    right,
-                    value,
-                ));
-                words.push(
-                    0x9b00_8000
-                        | (u32::from(right) << 16)
-                        | (u32::from(left) << 10)
-                        | (u32::from(value) << 5)
-                        | u32::from(value),
-                );
-            }
-            SaturatingRealization::ClampNarrow { operation, .. } => {
-                let scratch = registers[3];
-                words.push(three_address(
-                    match operation {
-                        selected_instructions::SaturatingOperation::Add => 0x8b00_0000,
-                        selected_instructions::SaturatingOperation::Subtract => 0xcb00_0000,
-                        selected_instructions::SaturatingOperation::Divide => 0x9ac0_0c00,
-                        selected_instructions::SaturatingOperation::Multiply => MULTIPLY,
-                        selected_instructions::SaturatingOperation::Remainder => {
-                            unreachable!("remainder is realized through the divide/MSUB pair")
-                        }
-                    },
-                    left,
-                    right,
-                    value,
-                ));
-                for (index, bound) in realization.clamp_bounds().into_iter().enumerate() {
-                    words.push(bound_word(bound, scratch)?);
-                    words.push(0xeb00_001f | (u32::from(scratch) << 16) | (u32::from(value) << 5));
-                    words.push(select(
-                        value,
-                        scratch,
-                        if index == 0 {
-                            realization.upper_condition()
-                        } else {
-                            0xb
-                        },
-                    ));
-                }
-            }
-            SaturatingRealization::MultiplyI64 => {
-                let scratch = registers[3];
-                words.push(three_address(SIGNED_MULTIPLY_HIGH, left, right, scratch));
-                words.push(three_address(MULTIPLY, left, right, value));
-                words.push(0xeb80_fc1f | (u32::from(value) << 16) | (u32::from(scratch) << 5));
-                words.push(0x937f_fc00 | (u32::from(scratch) << 5) | u32::from(scratch));
-                words.push(0xd240_f800 | (u32::from(scratch) << 5) | u32::from(scratch));
-                words.push(select(value, scratch, 0x1));
-            }
-            SaturatingRealization::MultiplyU64 => {
-                let scratch = registers[3];
-                words.push(three_address(UNSIGNED_MULTIPLY_HIGH, left, right, scratch));
-                words.push(three_address(MULTIPLY, left, right, value));
-                words.push(0xf100_001f | (u32::from(scratch) << 5));
-                words.push(0xda9f_0000 | (u32::from(value) << 5) | u32::from(value));
-            }
-            SaturatingRealization::OverflowI64 { subtract } => {
-                let scratch = registers[3];
-                words.push(0x937f_fc00 | (u32::from(left) << 5) | u32::from(scratch));
-                words.push(0xd240_f800 | (u32::from(scratch) << 5) | u32::from(scratch));
-                words.push(three_address(
-                    if subtract { 0xeb00_0000 } else { 0xab00_0000 },
-                    left,
-                    right,
-                    value,
-                ));
-                words.push(select(value, scratch, 0x6));
-            }
-            SaturatingRealization::DivideI64 => {
-                let scratch = registers[3];
-                words.push(three_address(0x9ac0_0c00, left, right, value));
-                words.push(bound_word(i64::MIN as u64, scratch)?);
-                words.push(0xeb00_001f | (u32::from(scratch) << 16) | (u32::from(value) << 5));
-                words.push(0xba41_0800 | (u32::from(right) << 5));
-                words.push(bound_word(i64::MAX as u64, scratch)?);
-                words.push(select(value, scratch, 0x0));
-            }
-        }
-        Ok(())
-    }
-
-    pub const AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET: u16 = 0;
-    pub const AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET: u16 = 4;
-
-    pub(crate) const fn byte_literal_address_words(register: u8) -> [u32; 2] {
-        let register = register as u32;
-        [
-            0x9000_0000 | register,
-            0x9100_0000 | (register << 5) | register,
-        ]
-    }
-}
-pub(crate) mod system_call {
-    use super::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-        ValidatedAarch64SelectedFormEncoding,
-    };
-    use register_model::{
-        RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel, views_with_access,
-    };
-    use selected_instructions::{MachineAlternativeKey, SelectedInstructionKind};
-    use target::NativeTarget;
-
-    pub fn encode_aarch64_selected_system_call_form(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operand_views: &[RegisterViewId],
-        operand_accesses: &[RegisterOperandAccess],
-        number: i64,
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let mut bytes = Vec::with_capacity(20);
-        for halfword in 0..4 {
-            let immediate = ((number as u64 >> (halfword * 16)) & 0xffff) as u32;
-            let opcode = if halfword == 0 {
-                0xd280_0000
-            } else {
-                0xf280_0000
-            };
-            let word = opcode | (halfword << 21) | (immediate << 5) | 8;
-            crate::codec_bytes::push_encoded(&mut bytes, word.to_le_bytes());
-        }
-        crate::codec_bytes::push_encoded(&mut bytes, 0xd400_0001u32.to_le_bytes());
-        validate_aarch64_selected_system_call_form(
-            target,
-            physical,
-            kind,
-            alternative,
-            operand_views,
-            operand_accesses,
-            number,
-            &bytes,
-        )
-    }
-
-    pub fn validate_aarch64_selected_system_call_form(
-        target: NativeTarget,
-        physical: &ValidatedPhysicalRegisterModel,
-        kind: SelectedInstructionKind,
-        alternative: MachineAlternativeKey,
-        operand_views: &[RegisterViewId],
-        operand_accesses: &[RegisterOperandAccess],
-        number: i64,
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let effects = target_aarch64::inspection::selected_system_call_effects(
-            target,
-            physical,
-            kind,
-            alternative,
-            operand_views,
-            operand_accesses,
-            number,
-            bytes,
-        )
-        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let views_for = |access| views_with_access(operand_views, operand_accesses, access);
-        Ok(ValidatedAarch64SelectedFormEncoding {
-            bytes: bytes.to_vec(),
-            footprint: Aarch64SelectedFormFootprint {
-                register_reads: views_for(RegisterOperandAccess::Use),
-                register_writes: views_for(RegisterOperandAccess::Def),
-                writes_nzcv: true,
-                encoded: effects,
-            },
-        })
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use isa_conformance::system_call::{Encoding, conformance};
-        use semantic_vocabulary::BoundaryMachineId;
-
-        #[test]
-        fn system_call_encoding_replays_all_transport_rows_and_rejects_substituted_bytes() {
-            let physical = crate::validated_aarch64_physical_register_model();
-            let target = NativeTarget::linux_arm64();
-            let catalog = crate::aarch64_register_constraint_catalog(physical);
-            let kind = SelectedInstructionKind::NormalizedForeignCall {
-                boundary: BoundaryMachineId::new(3).unwrap(),
-                ordinal: 0,
-            };
-            let alternative = MachineAlternativeKey {
-                family: selected_instructions::MachineAlternativeFamily::NormalizedForeignCall,
-                variant: 0,
-            };
-            let summarize = |encoded: ValidatedAarch64SelectedFormEncoding| Encoding {
-                bytes: encoded.bytes().to_vec(),
-                effects: encoded.footprint().encoded.clone(),
-            };
-            let rows: Vec<_> = crate::aarch64_linux_system_call_keys()
-                .into_iter()
-                .map(|key| catalog.constraint(key).unwrap())
-                .collect();
-            conformance(
-                &rows,
-                physical.model().view_named("x16").unwrap().id,
-                |views, accesses, number| {
-                    encode_aarch64_selected_system_call_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        views,
-                        accesses,
-                        number,
-                    )
-                    .map(summarize)
-                },
-                |views, accesses, number, bytes| {
-                    validate_aarch64_selected_system_call_form(
-                        target,
-                        physical,
-                        kind,
-                        alternative,
-                        views,
-                        accesses,
-                        number,
-                        bytes,
-                    )
-                    .map(summarize)
-                },
-                |views, accesses, number, bytes| {
-                    validate_aarch64_selected_system_call_form(
-                        NativeTarget::macos_arm64(),
-                        physical,
-                        kind,
-                        alternative,
-                        views,
-                        accesses,
-                        number,
-                        bytes,
-                    )
-                    .is_err()
-                },
-            );
-        }
-    }
-}
-pub(crate) mod table_call {
-    pub(crate) use target_aarch64::form_effects::table_call::table_address;
-
-    use super::{
-        Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-        ValidatedAarch64SelectedFormEncoding,
-    };
-    use register_model::{RegisterOperandAccess, RegisterViewId, views_with_access};
-    use selected_instructions::{MachineAlternativeKey, SelectedNormalizedForeignCall};
-
-    pub fn encode_aarch64_selected_table_call_form(
-        record: &SelectedNormalizedForeignCall,
-        alternative: MachineAlternativeKey,
-        views: &[RegisterViewId],
-        accesses: &[RegisterOperandAccess],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let (base, offset) =
-            table_address(record).ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let mut bytes = Vec::with_capacity(20);
-        for word in [
-            0xd280_0011 | ((offset & 0xffff) << 5),
-            0xf2a0_0011 | ((offset >> 16) << 5),
-            0x8b11_0011 | (u32::from(base) << 5),
-            0xf940_0231,
-            0xd63f_0220,
-        ] {
-            bytes.extend_from_slice(&word.to_le_bytes());
-        }
-        validate_aarch64_selected_table_call_form(record, alternative, views, accesses, &bytes)
-    }
-
-    pub fn validate_aarch64_selected_table_call_form(
-        record: &SelectedNormalizedForeignCall,
-        alternative: MachineAlternativeKey,
-        views: &[RegisterViewId],
-        accesses: &[RegisterOperandAccess],
-        bytes: &[u8],
-    ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-        let effects = target_aarch64::inspection::selected_table_call_effects(
-            record,
-            alternative,
-            views,
-            accesses,
-            bytes,
-        )
-        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
-        let registers = |access| views_with_access(views, accesses, access);
-        Ok(ValidatedAarch64SelectedFormEncoding {
-            bytes: bytes.to_vec(),
-            footprint: Aarch64SelectedFormFootprint {
-                register_reads: registers(RegisterOperandAccess::Use),
-                register_writes: registers(RegisterOperandAccess::Def),
-                writes_nzcv: true,
-                encoded: effects,
-            },
-        })
-    }
-}
-#[cfg(test)]
-mod tests {
-    use crate::test_support::rejects_every_bit_flip;
-
-    use super::{
-        Aarch64ConditionalBranchForm, Aarch64SelectedFormEncodingError,
-        encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
-        encode_aarch64_selected_conditional_branch_form, encode_aarch64_selected_form,
-        validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
-        validate_aarch64_selected_conditional_branch_form, validate_aarch64_selected_form_encoding,
-    };
-    use crate::aarch64_physical_register_model;
-    use crate::saturating_forms::SaturatingRealization;
-    use crate::selected_form_encoding::decoding::DecodedWord;
-    use crate::selected_form_encoding::decoding::decode_words;
-    use optimization_core::AcceptedObligationFactIdentity;
-    use register_model::validate_physical_register_model;
-    use selected_instructions::MachineAlternativeFamily;
-    use selected_instructions::MachineAlternativeKey;
-    use selected_instructions::MachineEncodedControlEffect;
-    use selected_instructions::MachineEncodedEffects;
-    use selected_instructions::MachineEncodedMemoryEffect;
-    use selected_instructions::MachineEncodedStackEffect;
-    use selected_instructions::MachineEncodedTrapBehavior;
-    use selected_instructions::SelectedInstructionKind;
-    use selected_instructions::{SaturatingCarrier, SaturatingOperation};
-    use semantic_vocabulary::{IntegerValue, MachineId, ObligationId};
-
-    mod control {
-        use super::*;
-
-        #[test]
-        fn ret_x30_is_exact_and_separates_abi_result_custody_from_encoded_effects() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let x0 = physical.model().view_named("x0").unwrap().id;
-            let x1 = physical.model().view_named("x1").unwrap().id;
-            let x30 = physical.model().view_named("x30").unwrap();
-            let pc = physical.model().view_named("pc").unwrap();
-            let kind = SelectedInstructionKind::ReturnScalar;
-            let alternative = alternative(MachineAlternativeFamily::ReturnScalar);
-            let encoded =
-                encode_aarch64_selected_form(&physical, kind, alternative, &[x0]).unwrap();
-
-            assert_eq!(encoded.bytes(), [0xc0, 0x03, 0x5f, 0xd6]);
-            assert!(encoded.footprint().register_reads.is_empty());
-            assert!(encoded.footprint().register_writes.is_empty());
-            assert!(
-                encoded
-                    .footprint()
-                    .encoded
-                    .external_operand_reads
-                    .is_empty()
-            );
-            assert!(
-                encoded
-                    .footprint()
-                    .encoded
-                    .external_operand_writes
-                    .is_empty()
-            );
-            assert_eq!(encoded.footprint().encoded.implicit_unit_uses, x30.units);
-            assert_eq!(encoded.footprint().encoded.implicit_unit_defs, pc.units);
-            assert_eq!(
-                encoded.footprint().encoded.memory,
-                MachineEncodedMemoryEffect::NoneV1
-            );
-            assert_eq!(
-                encoded.footprint().encoded.stack,
-                MachineEncodedStackEffect::UnchangedV1
-            );
-            assert_eq!(
-                encoded.footprint().encoded.trap,
-                MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-            );
-            assert_eq!(
-                encoded.footprint().encoded.control,
-                MachineEncodedControlEffect::ReturnIndirectRegisterV1 { target: x30.id }
-            );
-            assert!(encode_aarch64_selected_form(&physical, kind, alternative, &[x1]).is_err());
-            assert!(
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    alternative,
-                    &[x0],
-                    &0xd65f_03a0_u32.to_le_bytes()
-                )
-                .is_err()
-            );
-            assert!(
-                validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    alternative,
-                    &[x0],
-                    &[0xc0, 0x03, 0x5f, 0xd6, 0xc0, 0x03, 0x5f, 0xd6]
-                )
-                .is_err()
-            );
-        }
-
-        #[test]
-        fn unit_return_is_a_distinct_zero_operand_ret_x30() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let kind = SelectedInstructionKind::ReturnUnit;
-            let return_alternative = alternative(MachineAlternativeFamily::ReturnUnit);
-            let encoded =
-                encode_aarch64_selected_form(&physical, kind, return_alternative, &[]).unwrap();
-
-            assert_eq!(encoded.bytes(), [0xc0, 0x03, 0x5f, 0xd6]);
-            assert!(encoded.footprint().register_reads.is_empty());
-            assert!(encoded.footprint().register_writes.is_empty());
-            assert!(matches!(
-                encoded.footprint().encoded.control,
-                MachineEncodedControlEffect::ReturnIndirectRegisterV1 { .. }
-            ));
-            assert!(
-                encode_aarch64_selected_form(
-                    &physical,
-                    kind,
-                    alternative(MachineAlternativeFamily::ReturnScalar),
-                    &[]
-                )
-                .is_err()
-            );
-        }
-
-        #[test]
-        fn nonzero_branch_has_exact_instruction_relative_imm19_and_effects() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let alternative = alternative(MachineAlternativeFamily::ConditionalBranchNonZero);
-            for displacement in [-1_048_576, -4, 0, 4, 1_048_572] {
-                let encoded = encode_aarch64_selected_conditional_branch_form(
-                    &physical,
-                    alternative,
-                    MachineAlternativeFamily::ConditionalBranchNonZero,
-                    Aarch64ConditionalBranchForm::CanonicalWordV1,
-                    displacement,
-                )
-                .unwrap();
-                assert_eq!(encoded.bytes().len(), 4);
-                assert_eq!(encoded.bytes()[0] & 0x1f, 1);
-                assert!(encoded.footprint().register_reads.is_empty());
-                assert!(encoded.footprint().register_writes.is_empty());
-                assert_eq!(
-                    encoded.footprint().encoded.control,
-                    MachineEncodedControlEffect::ConditionalRelativeBranchV1
-                );
-            }
-            for displacement in [-1_048_580, 1_048_576, 2] {
-                assert!(
-                    encode_aarch64_selected_conditional_branch_form(
-                        &physical,
-                        alternative,
-                        MachineAlternativeFamily::ConditionalBranchNonZero,
-                        Aarch64ConditionalBranchForm::CanonicalWordV1,
-                        displacement
-                    )
-                    .is_err()
-                );
-            }
-            assert!(
-                validate_aarch64_selected_conditional_branch_form(
-                    &physical,
-                    alternative,
-                    MachineAlternativeFamily::ConditionalBranchNonZero,
-                    Aarch64ConditionalBranchForm::CanonicalWordV1,
-                    0,
-                    &0x5400_0000_u32.to_le_bytes()
-                )
-                .is_err()
-            );
-            assert!(
-                validate_aarch64_selected_conditional_branch_form(
-                    &physical,
-                    alternative,
-                    MachineAlternativeFamily::ConditionalBranchNonZero,
-                    Aarch64ConditionalBranchForm::CanonicalWordV1,
-                    0,
-                    &[1, 0, 0, 0, 0]
-                )
-                .is_err()
-            );
-        }
-
-        #[test]
-        fn u64_less_than_branch_is_exact_b_lo_imm19_with_flag_control_effects() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let nzcv = physical.model().view_named("nzcv").unwrap();
-            let pc = physical.model().view_named("pc").unwrap();
-            let alternative = alternative(MachineAlternativeFamily::ConditionalBranchU64LessThan);
-            for (displacement, expected) in [
-                (-4, [0xe3, 0xff, 0xff, 0x54]),
-                (0, [0x03, 0x00, 0x00, 0x54]),
-                (4, [0x23, 0x00, 0x00, 0x54]),
-            ] {
-                let encoded = encode_aarch64_selected_conditional_branch_form(
-                    &physical,
-                    alternative,
-                    MachineAlternativeFamily::ConditionalBranchU64LessThan,
-                    Aarch64ConditionalBranchForm::CanonicalWordV1,
-                    displacement,
-                )
-                .unwrap();
-                assert_eq!(encoded.bytes(), expected);
-                assert!(encoded.footprint().register_reads.is_empty());
-                assert!(encoded.footprint().register_writes.is_empty());
-                assert_eq!(
-                    encoded.footprint().encoded.control,
-                    MachineEncodedControlEffect::ConditionalRelativeBranchV1
-                );
-                assert!(nzcv.units.iter().all(|unit| {
-                    encoded
-                        .footprint()
-                        .encoded
-                        .implicit_unit_uses
-                        .contains(unit)
-                }));
-                assert!(pc.units.iter().all(|unit| {
-                    encoded
-                        .footprint()
-                        .encoded
-                        .implicit_unit_uses
-                        .contains(unit)
-                }));
-                assert_eq!(encoded.footprint().encoded.implicit_unit_defs, pc.units);
-            }
-            for displacement in [-1_048_576, 1_048_572] {
-                assert!(
-                    encode_aarch64_selected_conditional_branch_form(
-                        &physical,
-                        alternative,
-                        MachineAlternativeFamily::ConditionalBranchU64LessThan,
-                        Aarch64ConditionalBranchForm::CanonicalWordV1,
-                        displacement,
-                    )
-                    .is_ok()
-                );
-            }
-            for displacement in [-1_048_580, 1_048_576, 2] {
-                assert!(
-                    encode_aarch64_selected_conditional_branch_form(
-                        &physical,
-                        alternative,
-                        MachineAlternativeFamily::ConditionalBranchU64LessThan,
-                        Aarch64ConditionalBranchForm::CanonicalWordV1,
-                        displacement,
-                    )
-                    .is_err()
-                );
-            }
-            for bytes in [
-                0x5400_0002_u32.to_le_bytes(),
-                0x5400_0009_u32.to_le_bytes(),
-                0x1400_0003_u32.to_le_bytes(),
-            ] {
-                assert_eq!(
-                    validate_aarch64_selected_conditional_branch_form(
-                        &physical,
-                        alternative,
-                        MachineAlternativeFamily::ConditionalBranchU64LessThan,
-                        Aarch64ConditionalBranchForm::CanonicalWordV1,
-                        0,
-                        &bytes,
-                    ),
-                    Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
-                );
-            }
-            assert_eq!(
-                validate_aarch64_selected_conditional_branch_form(
-                    &physical,
-                    alternative,
-                    MachineAlternativeFamily::ConditionalBranchU64LessThan,
-                    Aarch64ConditionalBranchForm::CanonicalWordV1,
-                    0,
-                    &0x5400_0023_u32.to_le_bytes(),
-                ),
-                Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-            );
-        }
-
-        #[test]
-        fn i64_less_than_branch_is_exact_b_lt_imm19() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let alternative = alternative(MachineAlternativeFamily::ConditionalBranchI64LessThan);
-            for (displacement, expected) in [
-                (-4, [0xeb, 0xff, 0xff, 0x54]),
-                (0, [0x0b, 0x00, 0x00, 0x54]),
-                (4, [0x2b, 0x00, 0x00, 0x54]),
-            ] {
-                let encoded = encode_aarch64_selected_conditional_branch_form(
-                    &physical,
-                    alternative,
-                    MachineAlternativeFamily::ConditionalBranchI64LessThan,
-                    Aarch64ConditionalBranchForm::CanonicalWordV1,
-                    displacement,
-                )
-                .unwrap();
-                assert_eq!(encoded.bytes(), expected);
-                assert_eq!(
-                    encoded.footprint().encoded.control,
-                    MachineEncodedControlEffect::ConditionalRelativeBranchV1
-                );
-            }
-            assert_eq!(
-                validate_aarch64_selected_conditional_branch_form(
-                    &physical,
-                    alternative,
-                    MachineAlternativeFamily::ConditionalBranchI64LessThan,
-                    Aarch64ConditionalBranchForm::CanonicalWordV1,
-                    0,
-                    &0x5400_0003_u32.to_le_bytes(),
-                ),
-                Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
-            );
-        }
-
-        #[test]
-        fn fused_cbnz_is_exact_rejects_nearby_opcodes_and_does_not_read_nzcv() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let x0 = physical.model().view_named("x0").unwrap();
-            let x30 = physical.model().view_named("x30").unwrap();
-            let pc = physical.model().view_named("pc").unwrap();
-            let nzcv = physical.model().view_named("nzcv").unwrap();
-
-            for (source, register) in [(x0.id, 0_u8), (x30.id, 30_u8)] {
-                for displacement in [-1_048_576, -4, 0, 4, 1_048_572] {
-                    let encoded =
-                        encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
-                            &physical,
-                            source,
-                            displacement,
-                        )
-                        .unwrap();
-                    assert_eq!(encoded.bytes().len(), 4);
-                    assert_eq!(encoded.bytes()[0] & 0x1f, register);
-                    assert_eq!(encoded.footprint().register_reads, [source]);
-                    assert!(encoded.footprint().register_writes.is_empty());
-                    assert!(!encoded.footprint().writes_nzcv);
-                    assert!(
-                        encoded
-                            .footprint()
-                            .encoded
-                            .external_operand_reads
-                            .is_empty()
-                    );
-                    assert_eq!(encoded.footprint().encoded.implicit_unit_uses, pc.units);
-                    assert_eq!(encoded.footprint().encoded.implicit_unit_defs, pc.units);
-                    assert!(
-                        encoded
-                            .footprint()
-                            .encoded
-                            .implicit_unit_uses
-                            .iter()
-                            .all(|unit| !nzcv.units.contains(unit))
-                    );
-                }
-            }
-
-            for displacement in [-1_048_580, 1_048_576, 2] {
-                assert!(
-                    encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
-                        &physical,
-                        x0.id,
-                        displacement,
-                    )
-                    .is_err()
-                );
-            }
-            for word in [0xb400_0000_u32, 0x3500_0000_u32, 0xb500_001e_u32] {
-                assert!(
-                    validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
-                        &physical,
-                        x0.id,
-                        0,
-                        &word.to_le_bytes(),
-                    )
-                    .is_err()
-                );
-            }
-            assert!(
-                validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
-                    &physical,
-                    x0.id,
-                    0,
-                    &[0, 0, 0, 0, 0],
-                )
-                .is_err()
-            );
-        }
-
-        #[test]
-        fn widened_branch_forms_encode_inverted_skip_plus_unconditional_imm26() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let cases: [(MachineAlternativeFamily, u32); 3] = [
-                (MachineAlternativeFamily::ConditionalBranchNonZero, 0x0),
-                (MachineAlternativeFamily::ConditionalBranchU64LessThan, 0x2),
-                (MachineAlternativeFamily::ConditionalBranchI64LessThan, 0xa),
-            ];
-            for (family, inverted_condition) in cases {
-                let alternative = alternative(family);
-                for row_displacement in [-1_048_580, -4, 4, 1_048_576, 134_217_724, 134_217_728] {
-                    let encoded = encode_aarch64_selected_conditional_branch_form(
-                        &physical,
-                        alternative,
-                        family,
-                        Aarch64ConditionalBranchForm::WidenedPairV1,
-                        row_displacement,
-                    )
-                    .unwrap();
-                    assert_eq!(encoded.bytes().len(), 8);
-                    let skip = u32::from_le_bytes(encoded.bytes()[0..4].try_into().unwrap());
-                    assert_eq!(skip, 0x5400_0000 | (2 << 5) | inverted_condition);
-                    let target = u32::from_le_bytes(encoded.bytes()[4..8].try_into().unwrap());
-                    assert_eq!(target & 0xfc00_0000, 0x1400_0000);
-                    let decoded = i64::from(((target & 0x03ff_ffff) << 6) as i32 >> 6) * 4;
-                    assert_eq!(decoded, row_displacement - 4);
-                    assert_eq!(
-                        encoded.footprint().encoded.control,
-                        MachineEncodedControlEffect::ConditionalRelativeBranchV1
-                    );
-                }
-                for displacement in [-134_217_732, 134_217_732, 2] {
-                    assert!(
-                        encode_aarch64_selected_conditional_branch_form(
-                            &physical,
-                            alternative,
-                            family,
-                            Aarch64ConditionalBranchForm::WidenedPairV1,
-                            displacement,
-                        )
-                        .is_err()
-                    );
-                }
-            }
-        }
-
-        #[test]
-        fn widened_branch_forms_decode_and_reject_corruption() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let cases: [(MachineAlternativeFamily, u32); 3] = [
-                (MachineAlternativeFamily::ConditionalBranchNonZero, 0x0),
-                (MachineAlternativeFamily::ConditionalBranchU64LessThan, 0x2),
-                (MachineAlternativeFamily::ConditionalBranchI64LessThan, 0xa),
-            ];
-            for (family, inverted_condition) in cases {
-                let alternative = alternative(family);
-                let row_displacement = 2_000_000;
-                let check = |displacement, bytes: &[u8]| {
-                    validate_aarch64_selected_conditional_branch_form(
-                        &physical,
-                        alternative,
-                        family,
-                        Aarch64ConditionalBranchForm::WidenedPairV1,
-                        displacement,
-                        bytes,
-                    )
-                };
-                let encoded = encode_aarch64_selected_conditional_branch_form(
-                    &physical,
-                    alternative,
-                    family,
-                    Aarch64ConditionalBranchForm::WidenedPairV1,
-                    row_displacement,
-                )
-                .unwrap();
-                let round_trip = check(row_displacement, encoded.bytes()).unwrap();
-                assert_eq!(round_trip.bytes(), encoded.bytes());
-                assert_eq!(
-                    check(0, &encoded.bytes()[0..4]),
-                    Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
-                );
-                let wrong_skip = 0x5400_0000_u32 | (2 << 5) | (inverted_condition ^ 0xf);
-                let mut corrupt = encoded.bytes().to_vec();
-                crate::codec_bytes::patch_encoded(&mut corrupt, 0, wrong_skip.to_le_bytes());
-                assert_eq!(
-                    check(row_displacement, &corrupt),
-                    Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
-                );
-                let mut corrupt = encoded.bytes().to_vec();
-                crate::codec_bytes::patch_encoded(&mut corrupt, 4, 0x5400_000b_u32.to_le_bytes());
-                assert_eq!(
-                    check(row_displacement, &corrupt),
-                    Err(Aarch64SelectedFormEncodingError::MalformedEncoding)
-                );
-                let other = encode_aarch64_selected_conditional_branch_form(
-                    &physical,
-                    alternative,
-                    family,
-                    Aarch64ConditionalBranchForm::WidenedPairV1,
-                    row_displacement - 8,
-                )
-                .unwrap();
-                assert_eq!(
-                    check(row_displacement, other.bytes()),
-                    Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch)
-                );
-                let foreign = self::alternative(MachineAlternativeFamily::Jump);
-                assert_eq!(
-                    encode_aarch64_selected_conditional_branch_form(
-                        &physical,
-                        foreign,
-                        family,
-                        Aarch64ConditionalBranchForm::WidenedPairV1,
-                        row_displacement,
-                    )
-                    .map(|encoding| encoding.bytes().len()),
-                    Err(Aarch64SelectedFormEncodingError::AlternativeMismatch)
-                );
-            }
-        }
-    }
-    mod saturating {
-        use super::*;
-        use super::{SaturatingCarrier as Carrier, SaturatingOperation as Op};
-
-        #[test]
-        fn saturating_forms_bind_registers_condition_and_flag_effects() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            for (kind, family) in [
-                (
-                    SelectedInstructionKind::SaturatingSubtract {
-                        carrier: SaturatingCarrier::U64,
-                    },
-                    MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
-                ),
-                (
-                    SelectedInstructionKind::SaturatingAdd {
-                        carrier: SaturatingCarrier::U64,
-                    },
-                    MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
-                ),
-            ] {
-                let key = alternative(family);
-                for left in ["x0", "x1", "x9", "x29"] {
-                    for right in ["x0", "x1", "x9", "x29"] {
-                        for destination in ["x0", "x1", "x9", "x29"] {
-                            let operands = [left, right, destination]
-                                .map(|name| physical.model().view_named(name).unwrap().id);
-                            let encoded =
-                                encode_aarch64_selected_form(&physical, kind, key, &operands)
-                                    .unwrap();
-                            assert_eq!(encoded.bytes().len(), 8);
-                            let decoded = validate_aarch64_selected_form_encoding(
-                                &physical,
-                                kind,
-                                key,
-                                &operands,
-                                encoded.bytes(),
-                            )
-                            .unwrap();
-                            assert_eq!(decoded.footprint().encoded.external_operand_reads, [0, 1]);
-                            assert_eq!(decoded.footprint().encoded.external_operand_writes, [2]);
-                            assert!(!decoded.footprint().encoded.implicit_unit_defs.is_empty());
-                            for byte in 0..encoded.bytes().len() {
-                                let mut changed = encoded.bytes().to_vec();
-                                changed[byte] ^= 1;
-                                assert!(
-                                    validate_aarch64_selected_form_encoding(
-                                        &physical, kind, key, &operands, &changed
-                                    )
-                                    .is_err(),
-                                    "changed byte {byte}"
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        #[test]
-        fn saturation_high_register_bytes_match_independent_assembler() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let operands =
-                ["x9", "x10", "x11"].map(|name| physical.model().view_named(name).unwrap().id);
-            for (kind, family, bytes) in [
-                (
-                    SelectedInstructionKind::SaturatingSubtract {
-                        carrier: SaturatingCarrier::U64,
-                    },
-                    MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
-                    [0xeb0a012bu32, 0x9a9f216b]
-                        .into_iter()
-                        .flat_map(u32::to_le_bytes)
-                        .collect::<Vec<_>>(),
-                ),
-                (
-                    SelectedInstructionKind::SaturatingAdd {
-                        carrier: SaturatingCarrier::U64,
-                    },
-                    MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
-                    [0xab0a012bu32, 0xda9f316b]
-                        .into_iter()
-                        .flat_map(u32::to_le_bytes)
-                        .collect::<Vec<_>>(),
-                ),
-            ] {
-                let key = alternative(family);
-                let encoded =
-                    encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
-                assert_eq!(encoded.bytes(), bytes);
-                validate_aarch64_selected_form_encoding(&physical, kind, key, &operands, &bytes)
-                    .unwrap();
-            }
-        }
-
-        fn saturating_kinds() -> Vec<(
-            SaturatingOperation,
-            SaturatingCarrier,
-            SelectedInstructionKind,
-            MachineAlternativeFamily,
-        )> {
-            let mut kinds = Vec::new();
-            for carrier in SaturatingCarrier::ALL {
-                kinds.push((
-                    SaturatingOperation::Add,
-                    carrier,
-                    SelectedInstructionKind::SaturatingAdd { carrier },
-                    MachineAlternativeFamily::SaturatingAdd(carrier),
-                ));
-                kinds.push((
-                    SaturatingOperation::Subtract,
-                    carrier,
-                    SelectedInstructionKind::SaturatingSubtract { carrier },
-                    MachineAlternativeFamily::SaturatingSubtract(carrier),
-                ));
-                kinds.push((
-                    SaturatingOperation::Divide,
-                    carrier,
-                    SelectedInstructionKind::SaturatingDivide {
-                        carrier,
-                        obligation: ObligationId::new(1).unwrap(),
-                        accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
-                    },
-                    MachineAlternativeFamily::SaturatingDivide(carrier),
-                ));
-                kinds.push((
-                    SaturatingOperation::Remainder,
-                    carrier,
-                    SelectedInstructionKind::SaturatingRemainder {
-                        carrier,
-                        obligation: ObligationId::new(1).unwrap(),
-                        accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
-                    },
-                    MachineAlternativeFamily::SaturatingRemainder(carrier),
-                ));
-                kinds.push((
-                    SaturatingOperation::Multiply,
-                    carrier,
-                    SelectedInstructionKind::SaturatingMultiply { carrier },
-                    MachineAlternativeFamily::SaturatingMultiply(carrier),
-                ));
-            }
-            kinds
-        }
-
-        const fn words(
-            operation: SaturatingOperation,
-            carrier: SaturatingCarrier,
-            encoded: &'static [u32],
-        ) -> (SaturatingOperation, SaturatingCarrier, &'static [u32]) {
-            (operation, carrier, encoded)
-        }
-
-        const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]); 40] = [
-            words(
-                Op::Add,
-                Carrier::I8,
-                &[
-                    0x8b02_0023,
-                    0xb240_1be4,
-                    0xeb04_007f,
-                    0x9a83_c083,
-                    0xb279_e3e4,
-                    0xeb04_007f,
-                    0x9a83_b083,
-                ],
-            ),
-            words(
-                Op::Add,
-                Carrier::I16,
-                &[
-                    0x8b02_0023,
-                    0xb240_3be4,
-                    0xeb04_007f,
-                    0x9a83_c083,
-                    0xb271_c3e4,
-                    0xeb04_007f,
-                    0x9a83_b083,
-                ],
-            ),
-            words(
-                Op::Add,
-                Carrier::I32,
-                &[
-                    0x8b02_0023,
-                    0xb240_7be4,
-                    0xeb04_007f,
-                    0x9a83_c083,
-                    0xb261_83e4,
-                    0xeb04_007f,
-                    0x9a83_b083,
-                ],
-            ),
-            words(
-                Op::Add,
-                Carrier::I64,
-                &[0x937f_fc24, 0xd240_f884, 0xab02_0023, 0x9a83_6083],
-            ),
-            words(
-                Op::Add,
-                Carrier::U8,
-                &[0x8b02_0023, 0xb240_1fe4, 0xeb04_007f, 0x9a83_c083],
-            ),
-            words(
-                Op::Add,
-                Carrier::U16,
-                &[0x8b02_0023, 0xb240_3fe4, 0xeb04_007f, 0x9a83_c083],
-            ),
-            words(
-                Op::Add,
-                Carrier::U32,
-                &[0x8b02_0023, 0xb240_7fe4, 0xeb04_007f, 0x9a83_c083],
-            ),
-            words(Op::Add, Carrier::U64, &[0xab02_0023, 0xda9f_3063]),
-            words(
-                Op::Subtract,
-                Carrier::I8,
-                &[
-                    0xcb02_0023,
-                    0xb240_1be4,
-                    0xeb04_007f,
-                    0x9a83_c083,
-                    0xb279_e3e4,
-                    0xeb04_007f,
-                    0x9a83_b083,
-                ],
-            ),
-            words(
-                Op::Subtract,
-                Carrier::I16,
-                &[
-                    0xcb02_0023,
-                    0xb240_3be4,
-                    0xeb04_007f,
-                    0x9a83_c083,
-                    0xb271_c3e4,
-                    0xeb04_007f,
-                    0x9a83_b083,
-                ],
-            ),
-            words(
-                Op::Subtract,
-                Carrier::I32,
-                &[
-                    0xcb02_0023,
-                    0xb240_7be4,
-                    0xeb04_007f,
-                    0x9a83_c083,
-                    0xb261_83e4,
-                    0xeb04_007f,
-                    0x9a83_b083,
-                ],
-            ),
-            words(
-                Op::Subtract,
-                Carrier::I64,
-                &[0x937f_fc24, 0xd240_f884, 0xeb02_0023, 0x9a83_6083],
-            ),
-            words(Op::Subtract, Carrier::U8, &[0xeb02_0023, 0x9a9f_2063]),
-            words(Op::Subtract, Carrier::U16, &[0xeb02_0023, 0x9a9f_2063]),
-            words(Op::Subtract, Carrier::U32, &[0xeb02_0023, 0x9a9f_2063]),
-            words(Op::Subtract, Carrier::U64, &[0xeb02_0023, 0x9a9f_2063]),
-            words(
-                Op::Divide,
-                Carrier::I8,
-                &[0x9ac2_0c23, 0xb240_1be4, 0xeb04_007f, 0x9a83_c083],
-            ),
-            words(
-                Op::Divide,
-                Carrier::I16,
-                &[0x9ac2_0c23, 0xb240_3be4, 0xeb04_007f, 0x9a83_c083],
-            ),
-            words(
-                Op::Divide,
-                Carrier::I32,
-                &[0x9ac2_0c23, 0xb240_7be4, 0xeb04_007f, 0x9a83_c083],
-            ),
-            words(
-                Op::Divide,
-                Carrier::I64,
-                &[
-                    0x9ac2_0c23,
-                    0xb241_03e4,
-                    0xeb04_007f,
-                    0xba41_0840,
-                    0xb240_fbe4,
-                    0x9a83_0083,
-                ],
-            ),
-            words(Op::Divide, Carrier::U8, &[0x9ac2_0823]),
-            words(Op::Divide, Carrier::U16, &[0x9ac2_0823]),
-            words(Op::Divide, Carrier::U32, &[0x9ac2_0823]),
-            words(Op::Divide, Carrier::U64, &[0x9ac2_0823]),
-            words(Op::Remainder, Carrier::I8, &[0x9ac2_0c23, 0x9b02_8463]),
-            words(Op::Remainder, Carrier::I16, &[0x9ac2_0c23, 0x9b02_8463]),
-            words(Op::Remainder, Carrier::I32, &[0x9ac2_0c23, 0x9b02_8463]),
-            words(Op::Remainder, Carrier::I64, &[0x9ac2_0c23, 0x9b02_8463]),
-            words(Op::Remainder, Carrier::U8, &[0x9ac2_0823, 0x9b02_8463]),
-            words(Op::Remainder, Carrier::U16, &[0x9ac2_0823, 0x9b02_8463]),
-            words(Op::Remainder, Carrier::U32, &[0x9ac2_0823, 0x9b02_8463]),
-            words(Op::Remainder, Carrier::U64, &[0x9ac2_0823, 0x9b02_8463]),
-            words(
-                Op::Multiply,
-                Carrier::I8,
-                &[
-                    0x9b02_7c23,
-                    0xb240_1be4,
-                    0xeb04_007f,
-                    0x9a83_c083,
-                    0xb279_e3e4,
-                    0xeb04_007f,
-                    0x9a83_b083,
-                ],
-            ),
-            words(
-                Op::Multiply,
-                Carrier::I16,
-                &[
-                    0x9b02_7c23,
-                    0xb240_3be4,
-                    0xeb04_007f,
-                    0x9a83_c083,
-                    0xb271_c3e4,
-                    0xeb04_007f,
-                    0x9a83_b083,
-                ],
-            ),
-            words(
-                Op::Multiply,
-                Carrier::I32,
-                &[
-                    0x9b02_7c23,
-                    0xb240_7be4,
-                    0xeb04_007f,
-                    0x9a83_c083,
-                    0xb261_83e4,
-                    0xeb04_007f,
-                    0x9a83_b083,
-                ],
-            ),
-            words(
-                Op::Multiply,
-                Carrier::I64,
-                &[
-                    0x9b42_7c24,
-                    0x9b02_7c23,
-                    0xeb83_fc9f,
-                    0x937f_fc84,
-                    0xd240_f884,
-                    0x9a83_1083,
-                ],
-            ),
-            words(
-                Op::Multiply,
-                Carrier::U8,
-                &[0x9b02_7c23, 0xb240_1fe4, 0xeb04_007f, 0x9a83_8083],
-            ),
-            words(
-                Op::Multiply,
-                Carrier::U16,
-                &[0x9b02_7c23, 0xb240_3fe4, 0xeb04_007f, 0x9a83_8083],
-            ),
-            words(
-                Op::Multiply,
-                Carrier::U32,
-                &[0x9b02_7c23, 0xb240_7fe4, 0xeb04_007f, 0x9a83_8083],
-            ),
-            words(
-                Op::Multiply,
-                Carrier::U64,
-                &[0x9bc2_7c24, 0x9b02_7c23, 0xf100_009f, 0xda9f_0063],
-            ),
         ];
-
-        fn clang_words(operation: SaturatingOperation, carrier: SaturatingCarrier) -> Vec<u8> {
-            CLANG_SATURATING_WORDS
-                .iter()
-                .find(|(row_operation, row_carrier, _)| {
-                    *row_operation == operation && *row_carrier == carrier
-                })
-                .map(|(_, _, words)| words.iter().copied().flat_map(u32::to_le_bytes).collect())
-                .unwrap()
-        }
-
-        #[test]
-        fn every_saturating_carrier_matches_independent_assembler_and_rejects_mutation() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let names = ["x1", "x2", "x3", "x4"];
-            for (operation, carrier, kind, family) in saturating_kinds() {
-                let key = alternative(family);
-                let expected = clang_words(operation, carrier);
-                let operand_count = SaturatingRealization::of(operation, carrier).operand_count();
-                let operands: Vec<_> = names[..operand_count]
-                    .iter()
-                    .map(|name| physical.model().view_named(name).unwrap().id)
-                    .collect();
-                let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands)
-                    .unwrap_or_else(|error| panic!("{kind:?}: {error:?}"));
-                assert_eq!(encoded.bytes(), expected, "{kind:?}");
-                assert_eq!(encoded.footprint().register_reads, operands[..2]);
-                assert_eq!(encoded.footprint().register_writes, operands[2..]);
-                assert_eq!(
-                    encoded.footprint().writes_nzcv,
-                    !(operation == SaturatingOperation::Divide && !carrier.is_signed())
-                        && operation != SaturatingOperation::Remainder,
-                    "{kind:?}"
-                );
-                assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
-                assert_eq!(
-                    encoded.footprint().encoded.external_operand_writes,
-                    (2..operand_count as u16).collect::<Vec<_>>()
-                );
-                for byte_position in 0..expected.len() {
-                    let mut changed = expected.clone();
-                    changed[byte_position] ^= 1;
-                    assert!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical, kind, key, &operands, &changed
-                        )
-                        .is_err(),
-                        "{kind:?} mutated byte {byte_position}"
-                    );
-                }
-                for operand_position in 0..operands.len() {
-                    let mut changed = operands.clone();
-                    changed[operand_position] = physical.model().view_named("x8").unwrap().id;
-                    assert!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical, kind, key, &changed, &expected
-                        )
-                        .is_err(),
-                        "{kind:?} substituted operand {operand_position}"
-                    );
-                }
-                for (other_operation, other_carrier, other_kind, other_family) in saturating_kinds()
-                {
-                    if (other_operation, other_carrier) == (operation, carrier) {
-                        continue;
-                    }
-                    let same_words = clang_words(other_operation, other_carrier) == expected;
-                    assert_eq!(
-                        validate_aarch64_selected_form_encoding(
-                            &physical,
-                            other_kind,
-                            alternative(other_family),
-                            &operands,
-                            &expected,
-                        )
-                        .is_ok(),
-                        same_words,
-                        "{kind:?} bytes under {other_kind:?}"
-                    );
-                }
-            }
-        }
-
-        #[test]
-        fn only_unsigned_subtract_divide_and_remainders_share_a_realization_across_carriers() {
-            let mut shared = Vec::new();
-            for (operation, carrier, _, _) in saturating_kinds() {
-                let words = clang_words(operation, carrier);
-                for (other_operation, other_carrier, _, _) in saturating_kinds() {
-                    if (other_operation, other_carrier) != (operation, carrier)
-                        && clang_words(other_operation, other_carrier) == words
-                    {
-                        shared.push((operation, carrier));
-                        break;
-                    }
-                }
-            }
-            assert!(shared.iter().all(|(operation, carrier)| {
-                (!carrier.is_signed()
-                    && matches!(
-                        operation,
-                        SaturatingOperation::Subtract | SaturatingOperation::Divide
-                    ))
-                    || *operation == SaturatingOperation::Remainder
-            }));
-            assert_eq!(shared.len(), 16);
-        }
-
-        #[test]
-        fn four_operand_saturating_forms_reject_aliased_outputs() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            for (operation, carrier, kind, family) in saturating_kinds() {
-                let key = alternative(family);
-                if SaturatingRealization::of(operation, carrier).operand_count() != 4 {
-                    continue;
-                }
-                for names in [
-                    ["x9", "x10", "x11", "x9"],
-                    ["x9", "x10", "x11", "x10"],
-                    ["x9", "x10", "x11", "x11"],
-                    ["x9", "x10", "x9", "x12"],
-                    ["x9", "x10", "x10", "x12"],
-                ] {
-                    let aliased = names.map(|name| physical.model().view_named(name).unwrap().id);
-                    assert!(
-                        encode_aarch64_selected_form(&physical, kind, key, &aliased).is_err(),
-                        "{kind:?} {names:?}"
-                    );
-                }
-            }
-        }
-
-        fn reference(
-            operation: SaturatingOperation,
-            carrier: SaturatingCarrier,
-            left: i128,
-            right: i128,
-        ) -> i128 {
-            let exact = match operation {
-                SaturatingOperation::Add => left + right,
-                SaturatingOperation::Subtract => left - right,
-                SaturatingOperation::Divide => left / right,
-                SaturatingOperation::Remainder => left % right,
-                SaturatingOperation::Multiply => left.checked_mul(right).unwrap_or(i128::MAX),
-            };
-            let (minimum, maximum) = carrier_bounds(carrier);
-            exact.clamp(minimum, maximum)
-        }
-
-        fn carrier_bounds(carrier: SaturatingCarrier) -> (i128, i128) {
-            if carrier.is_signed() {
-                (
-                    i128::from(carrier.minimum_bits() as i64),
-                    i128::from(carrier.maximum_bits() as i64),
-                )
-            } else {
-                (0, i128::from(carrier.maximum_bits()))
-            }
-        }
-
-        fn interpret(decoded: &[DecodedWord], left: i128, right: i128) -> i128 {
-            let mut registers = [0_u64; 32];
-            registers[1] = left as u64;
-            registers[2] = right as u64;
-            let (mut n, mut z, mut c, mut v) = (false, false, false, false);
-            let read = |registers: &[u64; 32], index: u8| {
-                if index == 31 {
-                    0
-                } else {
-                    registers[index as usize]
-                }
-            };
-            let set_flags = |n: &mut bool,
-                             z: &mut bool,
-                             c: &mut bool,
-                             v: &mut bool,
-                             left: u64,
-                             right: u64,
-                             subtract: bool|
-             -> u64 {
-                let (result, carry) = if subtract {
-                    let (result, borrow) = left.overflowing_sub(right);
-                    (result, !borrow)
-                } else {
-                    left.overflowing_add(right)
-                };
-                let overflow = if subtract {
-                    (left as i64).overflowing_sub(right as i64).1
-                } else {
-                    (left as i64).overflowing_add(right as i64).1
-                };
-                *n = (result as i64) < 0;
-                *z = result == 0;
-                *c = carry;
-                *v = overflow;
-                result
-            };
-            for word in decoded {
-                match *word {
-                    DecodedWord::Add {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        registers[destination as usize] =
-                            read(&registers, left).wrapping_add(read(&registers, right));
-                    }
-                    DecodedWord::Subtract {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        registers[destination as usize] =
-                            read(&registers, left).wrapping_sub(read(&registers, right));
-                    }
-                    DecodedWord::SignedDivide {
-                        dividend,
-                        divisor,
-                        destination,
-                    } => {
-                        registers[destination as usize] = (read(&registers, dividend) as i64)
-                            .wrapping_div(read(&registers, divisor) as i64)
-                            as u64;
-                    }
-                    DecodedWord::UnsignedDivide {
-                        dividend,
-                        divisor,
-                        destination,
-                    } => {
-                        registers[destination as usize] =
-                            read(&registers, dividend) / read(&registers, divisor);
-                    }
-                    DecodedWord::MultiplySubtract {
-                        left,
-                        right,
-                        minuend,
-                        destination,
-                    } => {
-                        registers[destination as usize] = read(&registers, minuend).wrapping_sub(
-                            read(&registers, left).wrapping_mul(read(&registers, right)),
-                        );
-                    }
-                    DecodedWord::AddWithFlags {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        registers[destination as usize] = set_flags(
-                            &mut n,
-                            &mut z,
-                            &mut c,
-                            &mut v,
-                            read(&registers, left),
-                            read(&registers, right),
-                            false,
-                        );
-                    }
-                    DecodedWord::SubtractWithFlags {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        registers[destination as usize] = set_flags(
-                            &mut n,
-                            &mut z,
-                            &mut c,
-                            &mut v,
-                            read(&registers, left),
-                            read(&registers, right),
-                            true,
-                        );
-                    }
-                    DecodedWord::Compare { left, right } => {
-                        set_flags(
-                            &mut n,
-                            &mut z,
-                            &mut c,
-                            &mut v,
-                            read(&registers, left),
-                            read(&registers, right),
-                            true,
-                        );
-                    }
-                    DecodedWord::SelectMaximumOnCarry {
-                        source,
-                        destination,
-                    } => {
-                        registers[destination as usize] = if c {
-                            u64::MAX
-                        } else {
-                            read(&registers, source)
-                        };
-                    }
-                    DecodedWord::SelectZeroOnBorrow {
-                        source,
-                        destination,
-                    } => {
-                        registers[destination as usize] =
-                            if c { read(&registers, source) } else { 0 };
-                    }
-                    DecodedWord::MaterializeBound { destination, value } => {
-                        registers[destination as usize] = value;
-                    }
-                    DecodedWord::SelectOnGreater {
-                        source,
-                        destination,
-                    } => {
-                        if !z && n == v {
-                            registers[destination as usize] = read(&registers, source);
-                        }
-                    }
-                    DecodedWord::SelectOnLess {
-                        source,
-                        destination,
-                    } => {
-                        if n != v {
-                            registers[destination as usize] = read(&registers, source);
-                        }
-                    }
-                    DecodedWord::SelectOnEqual {
-                        source,
-                        destination,
-                    } => {
-                        if z {
-                            registers[destination as usize] = read(&registers, source);
-                        }
-                    }
-                    DecodedWord::SelectOnOverflow {
-                        source,
-                        destination,
-                    } => {
-                        if v {
-                            registers[destination as usize] = read(&registers, source);
-                        }
-                    }
-                    DecodedWord::ArithmeticShiftRight63 {
-                        source,
-                        destination,
-                    } => {
-                        registers[destination as usize] =
-                            ((read(&registers, source) as i64) >> 63) as u64;
-                    }
-                    DecodedWord::ExclusiveOrI64Maximum { register } => {
-                        registers[register as usize] ^= i64::MAX as u64;
-                    }
-                    DecodedWord::Multiply {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        registers[destination as usize] =
-                            read(&registers, left).wrapping_mul(read(&registers, right));
-                    }
-                    DecodedWord::SignedMultiplyHigh {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        let product = i128::from(read(&registers, left) as i64)
-                            * i128::from(read(&registers, right) as i64);
-                        registers[destination as usize] = (product >> 64) as u64;
-                    }
-                    DecodedWord::UnsignedMultiplyHigh {
-                        left,
-                        right,
-                        destination,
-                    } => {
-                        let product = u128::from(read(&registers, left))
-                            * u128::from(read(&registers, right));
-                        registers[destination as usize] = (product >> 64) as u64;
-                    }
-                    DecodedWord::CompareWithSignOf { high, low } => {
-                        let sign = ((read(&registers, low) as i64) >> 63) as u64;
-                        set_flags(
-                            &mut n,
-                            &mut z,
-                            &mut c,
-                            &mut v,
-                            read(&registers, high),
-                            sign,
-                            true,
-                        );
-                    }
-                    DecodedWord::CompareZero { source } => {
-                        set_flags(
-                            &mut n,
-                            &mut z,
-                            &mut c,
-                            &mut v,
-                            read(&registers, source),
-                            0,
-                            true,
-                        );
-                    }
-                    DecodedWord::SelectOnNotEqual {
-                        source,
-                        destination,
-                    } => {
-                        if !z {
-                            registers[destination as usize] = read(&registers, source);
-                        }
-                    }
-                    DecodedWord::SelectOnHigher {
-                        source,
-                        destination,
-                    } => {
-                        if c && !z {
-                            registers[destination as usize] = read(&registers, source);
-                        }
-                    }
-                    DecodedWord::SelectMaximumUnlessEqual {
-                        source,
-                        destination,
-                    } => {
-                        registers[destination as usize] = if z {
-                            read(&registers, source)
-                        } else {
-                            u64::MAX
-                        };
-                    }
-                    DecodedWord::ConditionalCompareMinusOne { register } => {
-                        if z {
-                            set_flags(
-                                &mut n,
-                                &mut z,
-                                &mut c,
-                                &mut v,
-                                read(&registers, register),
-                                1,
-                                false,
-                            );
-                        } else {
-                            (n, z, c, v) = (false, false, false, false);
-                        }
-                    }
-                    other => panic!("unexpected saturating word {other:?}"),
-                }
-            }
-            assert_eq!((registers[1], registers[2]), (left as u64, right as u64));
-            i128::from(registers[3] as i64)
-        }
-
-        #[test]
-        fn every_saturating_carrier_clamps_its_edges_in_the_decoded_words() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            for (operation, carrier, kind, family) in saturating_kinds() {
-                let operand_count = SaturatingRealization::of(operation, carrier).operand_count();
-                let operands: Vec<_> = ["x1", "x2", "x3", "x4"][..operand_count]
-                    .iter()
-                    .map(|name| physical.model().view_named(name).unwrap().id)
-                    .collect();
-                let encoded =
-                    encode_aarch64_selected_form(&physical, kind, alternative(family), &operands)
-                        .unwrap();
-                let decoded = decode_words(encoded.bytes()).unwrap();
-                let (minimum, maximum) = carrier_bounds(carrier);
-                let mut samples = vec![minimum, minimum + 1, 0, 1, 2, 7, 40, maximum - 1, maximum];
-                if carrier.is_signed() {
-                    samples.extend([-1, -2, -7, -40]);
-                }
-                for &left in &samples {
-                    for &right in &samples {
-                        if matches!(
-                            operation,
-                            SaturatingOperation::Divide | SaturatingOperation::Remainder
-                        ) && right == 0
-                        {
-                            continue;
-                        }
-                        let observed = interpret(&decoded, left, right);
-                        let observed = if carrier.is_signed() {
-                            observed
-                        } else {
-                            i128::from(observed as u64)
-                        };
-                        assert_eq!(
-                            observed,
-                            reference(operation, carrier, left, right),
-                            "{kind:?} {left} {right}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-    mod scalar {
-        use super::super::ValidatedAarch64SelectedFormEncoding;
-        use super::*;
-        use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
-
-        fn check_encoding(
-            physical: &ValidatedPhysicalRegisterModel,
-            kind: SelectedInstructionKind,
-            alternative: MachineAlternativeKey,
-            operands: &[RegisterViewId],
-            bytes: &[u8],
-        ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError>
-        {
-            validate_aarch64_selected_form_encoding(physical, kind, alternative, operands, bytes)
-        }
-
-        #[test]
-        fn scalar_call_is_explicitly_refused_before_encoding() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            assert_eq!(
-                encode_aarch64_selected_form(
-                    &physical,
-                    SelectedInstructionKind::CallScalar {
-                        target: selected_instructions::SelectedCallTarget::Machine(
-                            MachineId::new(1).unwrap()
-                        ),
-                    },
-                    alternative(MachineAlternativeFamily::ReturnUnit),
-                    &[],
-                ),
-                Err(Aarch64SelectedFormEncodingError::LayoutDependentForm),
-            );
-        }
-
-        #[test]
-        fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            for source in ["x0", "x1", "x9", "x16", "x29"] {
-                for destination in ["x0", "x1", "x9", "x16", "x29"] {
-                    let operands = [
-                        physical.model().view_named(source).unwrap().id,
-                        physical.model().view_named(destination).unwrap().id,
-                    ];
-                    let kind = SelectedInstructionKind::ZeroExtendU8;
-                    let key = alternative(MachineAlternativeFamily::ZeroExtendU8);
-                    let encoded =
-                        encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
-                    assert_eq!(encoded.bytes().len(), 4);
-                    check_encoding(&physical, kind, key, &operands, encoded.bytes()).unwrap();
-                    let copy = encode_aarch64_selected_form(
-                        &physical,
-                        SelectedInstructionKind::CopyI64,
-                        alternative(MachineAlternativeFamily::CopyI64),
-                        &operands,
-                    )
-                    .unwrap();
-                    assert!(check_encoding(&physical, kind, key, &operands, copy.bytes()).is_err());
-                    for byte in 0..4 {
-                        let mut changed = encoded.bytes().to_vec();
-                        changed[byte] ^= 1;
-                        assert!(check_encoding(&physical, kind, key, &operands, &changed).is_err());
-                    }
-                }
-            }
-        }
-
-        #[test]
-        fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            for source in ["x0", "x1", "x9", "x16", "x29"] {
-                for destination in ["x0", "x1", "x9", "x16", "x29"] {
-                    let operands = [
-                        physical.model().view_named(source).unwrap().id,
-                        physical.model().view_named(destination).unwrap().id,
-                    ];
-                    let kind = SelectedInstructionKind::ZeroExtendU32;
-                    let key = alternative(MachineAlternativeFamily::ZeroExtendU32);
-                    let encoded =
-                        encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
-                    assert_eq!(encoded.bytes().len(), 4);
-                    let word = u32::from_le_bytes(encoded.bytes().try_into().unwrap());
-                    assert_eq!(word & 0xffff_fc00, 0xd340_7c00);
-                    check_encoding(&physical, kind, key, &operands, encoded.bytes()).unwrap();
-                    let narrow = encode_aarch64_selected_form(
-                        &physical,
-                        SelectedInstructionKind::ZeroExtendU8,
-                        alternative(MachineAlternativeFamily::ZeroExtendU8),
-                        &operands,
-                    )
-                    .unwrap();
-                    assert!(
-                        check_encoding(&physical, kind, key, &operands, narrow.bytes()).is_err()
-                    );
-                    let copy = encode_aarch64_selected_form(
-                        &physical,
-                        SelectedInstructionKind::CopyI64,
-                        alternative(MachineAlternativeFamily::CopyI64),
-                        &operands,
-                    )
-                    .unwrap();
-                    assert!(check_encoding(&physical, kind, key, &operands, copy.bytes()).is_err());
-                    for byte in 0..4 {
-                        let mut changed = encoded.bytes().to_vec();
-                        changed[byte] ^= 1;
-                        assert!(check_encoding(&physical, kind, key, &operands, &changed).is_err());
-                    }
-                }
-            }
-        }
-
-        #[test]
-        fn zero_seeded_materialization_is_canonical_and_decoded_independently() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let x9 = physical.model().view_named("x9").unwrap().id;
-            for (value, byte_count) in [
-                (IntegerValue::Unsigned(0), 4),
-                (IntegerValue::Unsigned(u64::MAX as u128), 16),
-                (IntegerValue::Unsigned(0x1234_0000_5678_0000), 12),
-                (IntegerValue::Unsigned(0x1234_5678_9abc_def0), 16),
-            ] {
-                let kind = SelectedInstructionKind::MaterializeI64 { value };
-                let encoded = encode_aarch64_selected_form(
-                    &physical,
-                    kind,
-                    alternative(MachineAlternativeFamily::MaterializeI64),
-                    &[x9],
-                )
-                .unwrap();
-                assert_eq!(encoded.bytes().len(), byte_count);
-                let mut corrupted = encoded.bytes().to_vec();
-                corrupted[0] ^= 0x20;
-                assert!(
-                    check_encoding(
-                        &physical,
-                        kind,
-                        alternative(MachineAlternativeFamily::MaterializeI64),
-                        &[x9],
-                        &corrupted,
-                    )
-                    .is_err()
-                );
-            }
-        }
-
-        #[test]
-        fn bitwise_xor_preserves_exact_eor_registers_aliases_and_effects() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let registers = [("x3", 3_u32), ("x9", 9), ("x20", 20)]
-                .map(|(name, number)| (physical.model().view_named(name).unwrap().id, number));
-            let kind = SelectedInstructionKind::BitwiseXorI64;
-            let alternative = alternative(MachineAlternativeFamily::BitwiseXorI64);
-            for (left, left_number) in registers {
-                for (right, right_number) in registers {
-                    for (output, output_number) in registers {
-                        let operands = [left, right, output];
-                        let expected =
-                            0xca00_0000 | (right_number << 16) | (left_number << 5) | output_number;
-                        let encoded =
-                            encode_aarch64_selected_form(&physical, kind, alternative, &operands)
-                                .unwrap();
-                        assert_eq!(encoded.bytes(), expected.to_le_bytes());
-                        let footprint = encoded.footprint();
-                        assert_eq!(footprint.register_reads, [left, right]);
-                        assert_eq!(footprint.register_writes, [output]);
-                        assert!(!footprint.writes_nzcv);
-                        assert_eq!(footprint.encoded.external_operand_reads, [0, 1]);
-                        assert_eq!(footprint.encoded.external_operand_writes, [2]);
-                        assert_eq!(footprint.encoded.memory, MachineEncodedMemoryEffect::NoneV1);
-                        for mask in [
-                            1_u32,
-                            1 << 5,
-                            1 << 16,
-                            1 << 30,
-                            1 << 29,
-                            1 << 21,
-                            1 << 31,
-                            1 << 10,
-                        ] {
-                            assert!(
-                                check_encoding(
-                                    &physical,
-                                    kind,
-                                    alternative,
-                                    &operands,
-                                    &(expected ^ mask).to_le_bytes(),
-                                )
-                                .is_err(),
-                                "mutation {mask:#x}"
-                            );
-                        }
-                        assert!(
-                            check_encoding(
-                                &physical,
-                                kind,
-                                alternative,
-                                &operands,
-                                &encoded.bytes()[..3],
-                            )
-                            .is_err()
-                        );
-                        let duplicated = [encoded.bytes(), encoded.bytes()].concat();
-                        assert!(
-                            check_encoding(&physical, kind, alternative, &operands, &duplicated,)
-                                .is_err()
-                        );
-                    }
-                }
-            }
-            let operands = registers.map(|(view, _)| view);
-            let wrong_alternative = self::alternative(MachineAlternativeFamily::BitwiseAndI64);
-            assert!(
-                encode_aarch64_selected_form(&physical, kind, wrong_alternative, &operands)
-                    .is_err()
-            );
-        }
-
-        #[test]
-        fn wrapping_add_preserves_aliases_and_rejects_exact_family_or_changed_bytes() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let views =
-                ["x3", "x9", "x20"].map(|name| physical.model().view_named(name).unwrap().id);
-            let kind = SelectedInstructionKind::WrappingAddI64;
-            let key = alternative(MachineAlternativeFamily::WrappingAddI64);
-            for left in views {
-                for right in views {
-                    for output in views {
-                        let operands = [left, right, output];
-                        let encoded =
-                            encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
-                        check_encoding(&physical, kind, key, &operands, encoded.bytes()).unwrap();
-                        assert!(!encoded.footprint().writes_nzcv);
-                        assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
-                        assert_eq!(encoded.footprint().encoded.external_operand_writes, [2]);
-                        let mut changed = encoded.bytes().to_vec();
-                        changed[0] ^= 1;
-                        assert!(check_encoding(&physical, kind, key, &operands, &changed).is_err());
-                        assert!(
-                            encode_aarch64_selected_form(
-                                &physical,
-                                kind,
-                                alternative(MachineAlternativeFamily::ExactAddI64),
-                                &operands
-                            )
-                            .is_err()
-                        );
-                        assert!(
-                            check_encoding(
-                                &physical,
-                                kind,
-                                alternative(MachineAlternativeFamily::ExactAddI64),
-                                &operands,
-                                encoded.bytes()
-                            )
-                            .is_err()
-                        );
-                    }
-                }
-            }
-        }
-
-        #[test]
-        fn bitwise_and_preserves_aliases_and_rejects_opcode_corruption() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let views =
-                ["x3", "x9", "x20"].map(|name| physical.model().view_named(name).unwrap().id);
-            let kind = SelectedInstructionKind::BitwiseAndI64;
-            let alternative = alternative(MachineAlternativeFamily::BitwiseAndI64);
-            for left in views {
-                for right in views {
-                    for output in views {
-                        let operands = [left, right, output];
-                        let encoded =
-                            encode_aarch64_selected_form(&physical, kind, alternative, &operands)
-                                .unwrap();
-                        assert_eq!(encoded.bytes().len(), 4);
-                        assert!(!encoded.footprint().writes_nzcv);
-                        assert_eq!(encoded.footprint().encoded.external_operand_reads, [0, 1]);
-                        assert_eq!(encoded.footprint().encoded.external_operand_writes, [2]);
-                        for mask in [1_u32, 1 << 5, 1 << 16, 1 << 29] {
-                            let word = u32::from_le_bytes(encoded.bytes().try_into().unwrap());
-                            let corrupted = (word ^ mask).to_le_bytes();
-                            assert!(
-                                check_encoding(&physical, kind, alternative, &operands, &corrupted)
-                                    .is_err()
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
-        #[test]
-        fn scalar_forms_report_exact_decoded_footprints() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let views =
-                ["x3", "x4", "x5"].map(|name| physical.model().view_named(name).unwrap().id);
-            let fact = optimization_core::AcceptedObligationFactIdentity::from_bytes([7; 32]);
-            let cases = [
-                (
-                    SelectedInstructionKind::CopyI64,
-                    MachineAlternativeFamily::CopyI64,
-                    2,
-                ),
-                (
-                    SelectedInstructionKind::CompareI64Zero,
-                    MachineAlternativeFamily::CompareI64Zero,
-                    1,
-                ),
-                (
-                    SelectedInstructionKind::CompareI64,
-                    MachineAlternativeFamily::CompareI64,
-                    2,
-                ),
-                (
-                    SelectedInstructionKind::ExactAddI64 {
-                        obligation: ObligationId::new(1).unwrap(),
-                        accepted_fact: fact,
-                    },
-                    MachineAlternativeFamily::ExactAddI64,
-                    3,
-                ),
-                (
-                    SelectedInstructionKind::ExactAddI64Immediate {
-                        immediate: IntegerValue::Unsigned(4095),
-                        obligation: ObligationId::new(2).unwrap(),
-                        accepted_fact: fact,
-                    },
-                    MachineAlternativeFamily::ExactAddI64Immediate,
-                    2,
-                ),
-                (
-                    SelectedInstructionKind::ExactSubtractI64 {
-                        obligation: ObligationId::new(3).unwrap(),
-                        accepted_fact: fact,
-                    },
-                    MachineAlternativeFamily::ExactSubtractI64,
-                    3,
-                ),
-                (
-                    SelectedInstructionKind::ExactSubtractI64Immediate {
-                        immediate: IntegerValue::Unsigned(5),
-                        obligation: ObligationId::new(4).unwrap(),
-                        accepted_fact: fact,
-                    },
-                    MachineAlternativeFamily::ExactSubtractI64Immediate,
-                    2,
-                ),
-                (
-                    SelectedInstructionKind::ExactMultiplyI64 {
-                        obligation: ObligationId::new(5).unwrap(),
-                        accepted_fact: fact,
-                    },
-                    MachineAlternativeFamily::ExactMultiplyI64,
-                    3,
-                ),
-            ];
-            for (kind, family, count) in cases {
-                let encoded = encode_aarch64_selected_form(
-                    &physical,
-                    kind,
-                    alternative(family),
-                    &views[..count],
-                )
-                .unwrap();
-                assert_eq!(encoded.bytes().len(), 4);
-                if matches!(
-                    kind,
-                    SelectedInstructionKind::ExactSubtractI64Immediate { .. }
-                ) {
-                    assert_eq!(encoded.bytes(), [0x64, 0x14, 0x00, 0xd1]);
-                    assert!(!encoded.footprint().writes_nzcv);
-                    assert!(encoded.footprint().encoded.implicit_unit_defs.is_empty());
-                }
-            }
-            let compare = encode_aarch64_selected_form(
-                &physical,
-                SelectedInstructionKind::CompareI64,
-                alternative(MachineAlternativeFamily::CompareI64),
-                &views[..2],
-            )
-            .unwrap();
-            assert_eq!(compare.bytes(), [0x7f, 0x00, 0x04, 0xeb]);
-            assert_eq!(compare.footprint().register_reads, views[..2]);
-            assert!(compare.footprint().register_writes.is_empty());
-            assert!(compare.footprint().writes_nzcv);
-            assert_eq!(compare.footprint().encoded.external_operand_reads, [0, 1]);
-            let multiply = encode_aarch64_selected_form(
-                &physical,
-                SelectedInstructionKind::ExactMultiplyI64 {
-                    obligation: ObligationId::new(5).unwrap(),
-                    accepted_fact: fact,
-                },
-                alternative(MachineAlternativeFamily::ExactMultiplyI64),
-                &views,
-            )
-            .unwrap();
-            assert_eq!(multiply.bytes(), [0x65, 0x7c, 0x04, 0x9b]);
-            assert_eq!(multiply.footprint().register_reads, views[..2]);
-            assert_eq!(multiply.footprint().register_writes, views[2..]);
-            assert!(!multiply.footprint().writes_nzcv);
-            assert_eq!(multiply.footprint().encoded.external_operand_reads, [0, 1]);
-            assert_eq!(multiply.footprint().encoded.external_operand_writes, [2]);
-        }
-
-        #[test]
-        fn compare_i64_immediate_is_subs_xzr_imm12_with_exact_footprint() {
-            let physical =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let x3 = physical.model().view_named("x3").unwrap().id;
-            let x12 = physical.model().view_named("x12").unwrap().id;
-            let alternative = alternative(MachineAlternativeFamily::CompareI64Immediate);
-            for (operand, immediate, expected) in [
-                (x3, 5, [0x7f, 0x14, 0x00, 0xf1]),
-                (x3, 4095, [0x7f, 0xfc, 0x3f, 0xf1]),
-                (x12, 4095, [0x9f, 0xfd, 0x3f, 0xf1]),
-            ] {
-                let kind = SelectedInstructionKind::CompareI64Immediate {
-                    immediate: IntegerValue::Unsigned(immediate),
-                };
-                let encoded =
-                    encode_aarch64_selected_form(&physical, kind, alternative, &[operand]).unwrap();
-                assert_eq!(encoded.bytes(), expected);
-                assert_eq!(encoded.footprint().register_reads, [operand]);
-                assert!(encoded.footprint().register_writes.is_empty());
-                assert!(encoded.footprint().writes_nzcv);
-                assert_eq!(encoded.footprint().encoded.external_operand_reads, [0]);
-                assert!(
-                    encoded
-                        .footprint()
-                        .encoded
-                        .external_operand_writes
-                        .is_empty()
-                );
-                assert!(!encoded.footprint().encoded.implicit_unit_defs.is_empty());
-                assert!(
-                    check_encoding(&physical, kind, alternative, &[operand], encoded.bytes())
-                        .is_ok()
-                );
-                for mask in [1_u32, 1 << 5, 1 << 10, 1 << 22, 1 << 30] {
-                    let word = u32::from_le_bytes(encoded.bytes().try_into().unwrap());
-                    let corrupted = (word ^ mask).to_le_bytes();
-                    assert!(
-                        check_encoding(&physical, kind, alternative, &[operand], &corrupted)
-                            .is_err()
-                    );
-                }
-            }
-            let zero = SelectedInstructionKind::CompareI64Immediate {
-                immediate: IntegerValue::Unsigned(0),
-            };
-            let encoded =
-                encode_aarch64_selected_form(&physical, zero, alternative, &[x3]).unwrap();
-            assert_eq!(encoded.bytes(), [0x7f, 0x00, 0x00, 0xf1]);
-            assert!(check_encoding(&physical, zero, alternative, &[x3], encoded.bytes()).is_ok());
-            for immediate in [IntegerValue::Unsigned(4096), IntegerValue::Signed(-1)] {
-                let kind = SelectedInstructionKind::CompareI64Immediate { immediate };
-                assert!(encode_aarch64_selected_form(&physical, kind, alternative, &[x3]).is_err());
-            }
-        }
-    }
-    macro_rules! r {
-        ($kind:expr => $family:ident => $count:expr) => {
-            ($kind, MachineAlternativeFamily::$family, $count)
-        };
-    }
-
-    fn alternative(family: MachineAlternativeFamily) -> MachineAlternativeKey {
-        MachineAlternativeKey { family, variant: 0 }
-    }
-
-    #[test]
-    fn scalar_operand_effects_cover_remainder_wrapping_and_bitwise_forms() {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let obligation = ObligationId::new(1).unwrap();
-        let accepted_fact = AcceptedObligationFactIdentity::from_bytes([3; 32]);
-        for (kind, family, count) in [
-            r!(SelectedInstructionKind::WrappingSubtractI64 => WrappingSubtractI64 => 3),
-            r!(SelectedInstructionKind::WrappingMultiplyI64 => WrappingMultiplyI64 => 3),
-            r!(SelectedInstructionKind::BitwiseOrI64 => BitwiseOrI64 => 3),
-            r!(SelectedInstructionKind::BitwiseNotI64 => BitwiseNotI64 => 2),
-            (
-                SelectedInstructionKind::ExactRemainderU64 {
-                    obligation,
-                    accepted_fact,
-                },
-                MachineAlternativeFamily::ExactRemainderU64,
-                3,
-            ),
-            (
-                SelectedInstructionKind::WrappingDivideI64 {
-                    obligation,
-                    accepted_fact,
-                },
-                MachineAlternativeFamily::WrappingDivideI64,
-                3,
-            ),
-            r!(SelectedInstructionKind::WrappingShiftLeftI64 => WrappingShiftLeftI64 => 3),
-            r!(SelectedInstructionKind::WrappingShiftRightI64 => WrappingShiftRightI64 => 3),
-            r!(SelectedInstructionKind::WrappingShiftRightU64 => WrappingShiftRightU64 => 3),
-            (
-                SelectedInstructionKind::ExactShiftLeftI64 {
-                    obligation,
-                    accepted_fact,
-                },
-                MachineAlternativeFamily::ExactShiftLeftI64,
-                3,
-            ),
-            (
-                SelectedInstructionKind::ExactShiftRightI64 {
-                    obligation,
-                    accepted_fact,
-                },
-                MachineAlternativeFamily::ExactShiftRightI64,
-                3,
-            ),
-            (
-                SelectedInstructionKind::ExactShiftRightU64 {
-                    obligation,
-                    accepted_fact,
-                },
-                MachineAlternativeFamily::ExactShiftRightU64,
-                3,
-            ),
-        ] {
-            for names in [["x9", "x10", "x11"], ["x9", "x9", "x11"]] {
-                let registers = names.map(|name| physical.model().view_named(name).unwrap().id);
-                let operands = &registers[..count];
-                let key = alternative(family);
-                let encoded = encode_aarch64_selected_form(&physical, kind, key, operands).unwrap();
-                let decoded = validate_aarch64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    operands,
-                    encoded.bytes(),
-                )
-                .unwrap();
-                assert_eq!(decoded.footprint().register_reads, operands[..count - 1]);
-                assert_eq!(decoded.footprint().register_writes, operands[count - 1..]);
-                assert_eq!(
-                    decoded.footprint().encoded,
-                    MachineEncodedEffects::fallthrough_v1(
-                        (0..count as u16 - 1).collect(),
-                        vec![count as u16 - 1],
-                    )
-                );
-                rejects_every_bit_flip(&physical, kind, key, operands, encoded.bytes());
-            }
-        }
-    }
-
-    #[test]
-    fn wrapping_remainder_binds_signed_divide_msub_and_preserved_inputs() {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let kind = SelectedInstructionKind::WrappingRemainderI64 {
-            obligation: ObligationId::new(1).unwrap(),
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
-        };
-        let key = alternative(MachineAlternativeFamily::WrappingRemainderI64);
-        for names in [["x9", "x10", "x11"], ["x9", "x9", "x11"]] {
-            let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
-            let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
-            assert_eq!(encoded.bytes().len(), 8);
-            assert_eq!(encoded.footprint().register_reads, operands[..2]);
-            assert_eq!(encoded.footprint().register_writes, operands[2..]);
-            assert_eq!(
-                encoded.footprint().encoded,
-                MachineEncodedEffects::fallthrough_v1(vec![0, 1], vec![2])
-            );
-            assert!(!encoded.footprint().writes_nzcv);
-            if names[1] == "x10" {
-                assert_eq!(
-                    encoded.bytes(),
-                    [0x9aca_0d2b_u32, 0x9b0a_a56b]
-                        .into_iter()
-                        .flat_map(u32::to_le_bytes)
-                        .collect::<Vec<_>>()
-                );
-            }
-            for byte_position in 0..encoded.bytes().len() {
-                let mut changed = encoded.bytes().to_vec();
-                changed[byte_position] ^= 1;
-                assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical, kind, key, &operands, &changed,
-                    )
-                    .is_err(),
-                    "mutated byte {byte_position}"
-                );
-            }
-            for operand_position in 0..operands.len() {
-                let mut changed = operands;
-                changed[operand_position] = physical.model().view_named("x8").unwrap().id;
-                assert!(
-                    validate_aarch64_selected_form_encoding(
-                        &physical,
-                        kind,
-                        key,
-                        &changed,
-                        encoded.bytes(),
-                    )
-                    .is_err()
-                );
-            }
-        }
-        for names in [["x9", "x10", "x9"], ["x9", "x10", "x10"]] {
-            let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
-            assert!(encode_aarch64_selected_form(&physical, kind, key, &operands).is_err());
-            let destination = if names[2] == "x9" { 9 } else { 10 };
-            let bytes = [
-                0x9aca_0d20 | destination,
-                0x9b0a_a400 | (destination << 5) | destination,
-            ]
-            .into_iter()
-            .flat_map(u32::to_le_bytes)
-            .collect::<Vec<_>>();
-            assert!(
-                validate_aarch64_selected_form_encoding(&physical, kind, key, &operands, &bytes)
-                    .is_err()
-            );
-        }
-    }
-
-    #[test]
-    fn wrapping_remainder_decoded_arithmetic_covers_minimum_and_dividend_sign() {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let kind = SelectedInstructionKind::WrappingRemainderI64 {
-            obligation: ObligationId::new(1).unwrap(),
-            accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
-        };
-        let key = alternative(MachineAlternativeFamily::WrappingRemainderI64);
-        let operands =
-            ["x9", "x10", "x11"].map(|name| physical.model().view_named(name).unwrap().id);
-        let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
-        for (dividend, divisor, expected) in [
-            (i64::MIN, -1, 0),
-            (i64::MIN, 1, 0),
-            (i64::MIN, 3, -2),
-            (7, 2, 1),
-            (-7, 2, -1),
-            (7, -2, 1),
-            (-7, -2, -1),
-            (0, -1, 0),
-        ] {
-            let mut registers = [0_i64; 31];
-            registers[9] = dividend;
-            registers[10] = divisor;
-            for instruction in decode_words(encoded.bytes()).unwrap() {
-                match instruction {
-                    DecodedWord::SignedDivide {
-                        dividend,
-                        divisor,
-                        destination,
-                    } => {
-                        registers[destination as usize] =
-                            registers[dividend as usize].wrapping_div(registers[divisor as usize]);
-                    }
-                    DecodedWord::MultiplySubtract {
-                        left,
-                        right,
-                        minuend,
-                        destination,
-                    } => {
-                        registers[destination as usize] = registers[minuend as usize].wrapping_sub(
-                            registers[left as usize].wrapping_mul(registers[right as usize]),
-                        );
-                    }
-                    _ => panic!("unexpected remainder instruction"),
-                }
-            }
-            assert_eq!(registers[11], expected, "{dividend} % {divisor}");
-            assert_eq!((registers[9], registers[10]), (dividend, divisor));
-        }
-    }
-
-    #[test]
-    fn exact_divide_binds_unsigned_opcode_and_registers() {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let kind = SelectedInstructionKind::ExactDivideU64 {
-            obligation: ObligationId::new(1).unwrap(),
-            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([3; 32]),
-        };
-        let key = alternative(MachineAlternativeFamily::ExactDivideU64);
-        let names = ["x9", "x10", "x11"];
-        let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
-        let expected = 0x9aca092bu32.to_le_bytes().to_vec();
-
-        let encoded = encode_aarch64_selected_form(&physical, kind, key, &operands).unwrap();
-        assert_eq!(encoded.bytes(), expected);
-        for byte in 0..expected.len() {
-            let mut changed = expected.clone();
-            changed[byte] ^= 1;
-            assert!(
-                validate_aarch64_selected_form_encoding(&physical, kind, key, &operands, &changed)
-                    .is_err()
-            );
-        }
-        for operand in 0..operands.len() {
-            let mut changed = operands;
-            changed[operand] = physical.model().view_named("x8").unwrap().id;
-            assert!(
-                validate_aarch64_selected_form_encoding(&physical, kind, key, &changed, &expected)
-                    .is_err()
-            );
-        }
+        Ok((enc::to_bytes(&words), expected))
     }
 }
+
 pub use branch_forms::{
     AARCH64_CONDITIONAL_BRANCH_BYTE_REACH, Aarch64ConditionalBranchForm,
     encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
@@ -17557,6 +4055,7 @@ pub use branch_forms::{
 };
 pub(crate) use encoding_types::Aarch64SelectedFormFootprint;
 pub use encoding_types::{Aarch64SelectedFormEncodingError, ValidatedAarch64SelectedFormEncoding};
+pub use floating_control::encode_aarch64_selected_floating_control_form;
 pub use hosted_write_byte::{
     encode_aarch64_selected_hosted_write_byte_form,
     validate_aarch64_selected_hosted_write_byte_form,
@@ -17566,7 +4065,6 @@ pub use memory::{
     encode_aarch64_selected_frame_form, encode_aarch64_selected_memory_form,
     validate_aarch64_selected_frame_form, validate_aarch64_selected_memory_form,
 };
-
 pub use normalized_foreign_call::{
     Aarch64CallbackAddressMaterialization, Aarch64CallbackMaterializationDestination,
     Aarch64NormalizedForeignCallFixup, Aarch64NormalizedForeignCallFixupKind,
@@ -17579,26 +4077,14 @@ pub use scalar_call::{
     Aarch64ScalarCallTemplateError, encode_aarch64_selected_dynamic_call_template,
     encode_aarch64_selected_scalar_call_template, validate_aarch64_selected_scalar_call_template,
 };
-pub use table_call::{
-    encode_aarch64_selected_table_call_form, validate_aarch64_selected_table_call_form,
-};
-
 pub use selected_forms::{
     AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
     AARCH64_BYTE_LITERAL_ADDRESS_PAGE_OFFSET_FIELD_OFFSET, encode_aarch64_selected_form,
     validate_aarch64_selected_form_encoding,
 };
-
-fn nzcv_flag_units(
-    physical: &register_model::ValidatedPhysicalRegisterModel,
-) -> Result<Vec<register_model::RegisterUnitId>, Aarch64SelectedFormEncodingError> {
-    Ok(physical
-        .model()
-        .view_named("nzcv")
-        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
-        .units
-        .clone())
-}
+pub use table_call::{
+    encode_aarch64_selected_table_call_form, validate_aarch64_selected_table_call_form,
+};
 
 fn nzcv_effects_encoding(
     physical: &register_model::ValidatedPhysicalRegisterModel,
@@ -17607,6 +4093,12 @@ fn nzcv_effects_encoding(
     read_count: usize,
     memory: selected_instructions::MachineEncodedMemoryEffect,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    let nzcv = physical
+        .model()
+        .view_named("nzcv")
+        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
+        .units
+        .clone();
     Ok(ValidatedAarch64SelectedFormEncoding {
         bytes: bytes.to_vec(),
         footprint: Aarch64SelectedFormFootprint {
@@ -17618,7 +4110,7 @@ fn nzcv_effects_encoding(
                 external_operand_writes: (read_count as u16..operands.len() as u16).collect(),
                 implicit_unit_uses: Vec::new(),
                 implicit_unit_defs: Vec::new(),
-                implicit_unit_clobbers: nzcv_flag_units(physical)?,
+                implicit_unit_clobbers: nzcv,
                 memory,
                 stack: selected_instructions::MachineEncodedStackEffect::UnchangedV1,
                 trap: selected_instructions::MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -17628,20 +4120,1027 @@ fn nzcv_effects_encoding(
     })
 }
 
-fn word_stream(bytes: &[u8]) -> Option<Vec<u32>> {
-    let (words, tail) = bytes.as_chunks::<4>();
-    tail.is_empty()
-        .then(|| words.iter().map(|word| u32::from_le_bytes(*word)).collect())
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::aarch64_physical_register_model;
+    use crate::saturating_forms::SaturatingRealization;
+    use crate::test_support::{reject_every_bit_flip, rejects_every_bit_flip};
+    use optimization_core::AcceptedObligationFactIdentity;
+    use register_model::{
+        RegisterViewId, ValidatedPhysicalRegisterModel, validate_physical_register_model,
+    };
+    use selected_instructions::{
+        AtomicForm, AtomicOperation, AtomicWidth, ByteSequencePredicate, FloatResultPolicyForm,
+        FloatResultPolicyKind, FrameStorageSlotId, IeeeFloatArithmeticForm,
+        IeeeFloatArithmeticOperation, IeeeFloatFormat, IeeeFloatIntegerCarrier,
+        IeeeFloatToIntegerDomain, LocalStorageSlotId, MachineAlternativeFamily as Fam,
+        MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+        MachineSizeKnowledge, MemoryFenceKind, PackedByteWidth, RegisterOperation,
+        SaturatingCarrier as C, SaturatingOperation as SatOp, SelectedCallTarget,
+        SelectedImageAddressReference, SelectedInstructionKind as Kind, SystemRegister,
+        TrappingForm, TrappingOperation as TrapOp,
+    };
+    use semantic_vocabulary::{
+        IntegerSign, IntegerValue, MachineId, ObligationId, OperationId, PlaceId,
+    };
+    use target::NativeTarget;
 
-fn decode_all<D>(
-    bytes: &[u8],
-    decode_word: impl Fn(u32, usize) -> Result<D, Aarch64SelectedFormEncodingError>,
-) -> Result<Vec<D>, Aarch64SelectedFormEncodingError> {
-    word_stream(bytes)
-        .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?
-        .into_iter()
-        .enumerate()
-        .map(|(position, word)| decode_word(word, position))
-        .collect()
+    fn phys() -> ValidatedPhysicalRegisterModel {
+        validate_physical_register_model(aarch64_physical_register_model()).unwrap()
+    }
+
+    fn v(p: &ValidatedPhysicalRegisterModel, name: &str) -> RegisterViewId {
+        p.model().view_named(name).unwrap().id
+    }
+
+    fn vs(p: &ValidatedPhysicalRegisterModel, names: &[&str]) -> Vec<RegisterViewId> {
+        names.iter().map(|n| v(p, n)).collect()
+    }
+
+    fn key(family: Fam) -> MachineAlternativeKey {
+        MachineAlternativeKey { family, variant: 0 }
+    }
+
+    fn le(words: &[u32]) -> Vec<u8> {
+        words.iter().flat_map(|w| w.to_le_bytes()).collect()
+    }
+
+    fn ob() -> ObligationId {
+        ObligationId::new(1).unwrap()
+    }
+
+    fn fact() -> AcceptedObligationFactIdentity {
+        AcceptedObligationFactIdentity::from_bytes([3; 32])
+    }
+
+    #[test]
+    fn scalar_forms_match_golden_words_and_reject_bit_flips() {
+        let p = phys();
+        #[rustfmt::skip]
+        let cases: Vec<(Kind, Fam, &[&str], &[u32], bool)> = vec![
+            (Kind::AtomicFence, Fam::AtomicFence, &[], &[0xd503_3fbf], false),
+            (Kind::Crash, Fam::Crash, &[], &[0xd420_0000], false),
+            (Kind::RegisterAccess { operation: RegisterOperation::MemoryFence(MemoryFenceKind::Aarch64Load) }, Fam::MemoryFence, &[], &[0xd503_3dbf], false),
+            (Kind::RegisterAccess { operation: RegisterOperation::MemoryFence(MemoryFenceKind::Aarch64Store) }, Fam::MemoryFence, &[], &[0xd503_3ebf], false),
+            (Kind::RegisterAccess { operation: RegisterOperation::MemoryFence(MemoryFenceKind::Aarch64Full) }, Fam::MemoryFence, &[], &[0xd503_3fbf], false),
+            (Kind::RegisterAccess { operation: RegisterOperation::SystemRead(SystemRegister::SctlrEl1) }, Fam::SystemRegisterRead, &["x3"], &[0xd538_1003], false),
+            (Kind::RegisterAccess { operation: RegisterOperation::SystemWrite(SystemRegister::TpidrEl1) }, Fam::SystemRegisterWrite, &["x4"], &[0xd518_d084], false),
+            (Kind::ReturnUnit, Fam::ReturnUnit, &[], &[0xd65f_03c0], false),
+            (Kind::ReturnScalar, Fam::ReturnScalar, &["x0"], &[0xd65f_03c0], false),
+            (Kind::ReturnScalar, Fam::ReturnScalar, &["d0"], &[0xd65f_03c0], false),
+            (Kind::ReturnAggregate { fragment_count: 2 }, Fam::ReturnAggregate, &["x0", "x1"], &[0xd65f_03c0], false),
+            (Kind::MaterializeBooleanEqual, Fam::MaterializeBooleanEqual, &["x2"], &[0x9a9f_17e2], false),
+            (Kind::MaterializeBooleanU64LessThan, Fam::MaterializeBooleanU64LessThan, &["x2"], &[0x9a9f_27e2], false),
+            (Kind::MaterializeBooleanI64LessThan, Fam::MaterializeBooleanI64LessThan, &["x2"], &[0x9a9f_a7e2], false),
+            (Kind::MaterializeBooleanU64LessOrEqual, Fam::MaterializeBooleanU64LessOrEqual, &["x2"], &[0x9a9f_87e2], false),
+            (Kind::MaterializeBooleanI64LessOrEqual, Fam::MaterializeBooleanI64LessOrEqual, &["x2"], &[0x9a9f_c7e2], false),
+            (Kind::MaterializeI64 { value: IntegerValue::Unsigned(0x1234_0000_5678_9abc) }, Fam::MaterializeI64, &["x5"], &[0xd293_5785, 0xf2aa_cf05, 0xf2e2_4685], false),
+            (Kind::ImageAddress { reference: SelectedImageAddressReference::RetainedEntryStorageStart }, Fam::ImageAddress, &["x3"], &[0x9000_0003, 0x9100_0063], false),
+            (Kind::CopyI64, Fam::CopyI64, &["x1", "x2"], &[0xaa01_03e2], false),
+            (Kind::BitwiseNotI64, Fam::BitwiseNotI64, &["x1", "x2"], &[0xaa21_03e2], false),
+            (Kind::ZeroExtendU8, Fam::ZeroExtendU8, &["x1", "x2"], &[0xd340_1c22], false),
+            (Kind::ZeroExtendU16, Fam::ZeroExtendU16, &["x1", "x2"], &[0xd340_3c22], false),
+            (Kind::ZeroExtendU32, Fam::ZeroExtendU32, &["x1", "x2"], &[0xd340_7c22], false),
+            (Kind::SignExtendI8, Fam::SignExtendI8, &["x1", "x2"], &[0x9340_1c22], false),
+            (Kind::SignExtendI16, Fam::SignExtendI16, &["x1", "x2"], &[0x9340_3c22], false),
+            (Kind::SignExtendI32, Fam::SignExtendI32, &["x1", "x2"], &[0x9340_7c22], false),
+            (Kind::CompareI64Zero, Fam::CompareI64Zero, &["x3"], &[0xf100_007f], true),
+            (Kind::CompareI64Immediate { immediate: IntegerValue::Unsigned(42) }, Fam::CompareI64Immediate, &["x3"], &[0xf100_a87f], true),
+            (Kind::CompareI64, Fam::CompareI64, &["x1", "x2"], &[0xeb02_003f], true),
+            (Kind::ByteViewAddress, Fam::ByteViewAddress, &["x1", "x2", "x3"], &[0x8b02_0023], false),
+            (Kind::WrappingAddI64, Fam::WrappingAddI64, &["x1", "x2", "x3"], &[0x8b02_0023], false),
+            (Kind::WrappingSubtractI64, Fam::WrappingSubtractI64, &["x1", "x2", "x3"], &[0xcb02_0023], false),
+            (Kind::WrappingMultiplyI64, Fam::WrappingMultiplyI64, &["x1", "x2", "x3"], &[0x9b02_7c23], false),
+            (Kind::BitwiseAndI64, Fam::BitwiseAndI64, &["x1", "x2", "x3"], &[0x8a02_0023], false),
+            (Kind::BitwiseOrI64, Fam::BitwiseOrI64, &["x1", "x2", "x3"], &[0xaa02_0023], false),
+            (Kind::BitwiseXorI64, Fam::BitwiseXorI64, &["x1", "x2", "x3"], &[0xca02_0023], false),
+            (Kind::ExactAddI64Immediate { immediate: IntegerValue::Unsigned(16), obligation: ob(), accepted_fact: fact() }, Fam::ExactAddI64Immediate, &["x1", "x2"], &[0x9100_4022], false),
+            (Kind::ExactSubtractI64Immediate { immediate: IntegerValue::Unsigned(16), obligation: ob(), accepted_fact: fact() }, Fam::ExactSubtractI64Immediate, &["x1", "x2"], &[0xd100_4022], false),
+            (Kind::ExactDivideU64 { obligation: ob(), accepted_fact: fact() }, Fam::ExactDivideU64, &["x9", "x10", "x11"], &[0x9aca_092b], false),
+            (Kind::ExactDivideI64 { obligation: ob(), accepted_fact: fact() }, Fam::ExactDivideI64, &["x9", "x10", "x11"], &[0x9aca_0d2b], false),
+            (Kind::ExactRemainderU64 { obligation: ob(), accepted_fact: fact() }, Fam::ExactRemainderU64, &["x9", "x10", "x11"], &[0x9aca_092b, 0x9b0a_a56b], false),
+            (Kind::WrappingRemainderI64 { obligation: ob(), accepted_fact: fact() }, Fam::WrappingRemainderI64, &["x9", "x10", "x11"], &[0x9aca_0d2b, 0x9b0a_a56b], false),
+            (Kind::WrappingShiftLeftI64, Fam::WrappingShiftLeftI64, &["x1", "x2", "x3"], &[0x9ac2_2023], false),
+            (Kind::WrappingShiftRightU64, Fam::WrappingShiftRightU64, &["x1", "x2", "x3"], &[0x9ac2_2423], false),
+            (Kind::WrappingShiftRightI64, Fam::WrappingShiftRightI64, &["x1", "x2", "x3"], &[0x9ac2_2823], false),
+        ];
+        for (kind, family, names, expected, nzcv) in cases {
+            let ops = vs(&p, names);
+            let k = key(family);
+            let encoded = encode_aarch64_selected_form(&p, kind, k, &ops).unwrap();
+            assert_eq!(encoded.bytes(), le(expected), "{kind:?}");
+            assert_eq!(encoded.footprint().writes_nzcv, nzcv, "{kind:?}");
+            validate_aarch64_selected_form_encoding(&p, kind, k, &ops, encoded.bytes()).unwrap();
+            rejects_every_bit_flip(&p, kind, k, &ops, encoded.bytes());
+        }
+        assert!(
+            encode_aarch64_selected_form(
+                &p,
+                Kind::ReturnScalar,
+                key(Fam::ReturnScalar),
+                &vs(&p, &["x1"])
+            )
+            .is_err()
+        );
+        assert!(
+            encode_aarch64_selected_form(
+                &p,
+                Kind::ExactRemainderU64 {
+                    obligation: ob(),
+                    accepted_fact: fact()
+                },
+                key(Fam::ExactRemainderU64),
+                &vs(&p, &["x1", "x2", "x1"])
+            )
+            .is_err()
+        );
+        assert_eq!(
+            encode_aarch64_selected_form(
+                &p,
+                Kind::CompareI64Immediate {
+                    immediate: IntegerValue::Unsigned(4096)
+                },
+                key(Fam::CompareI64Immediate),
+                &vs(&p, &["x0"])
+            ),
+            Err(Aarch64SelectedFormEncodingError::ImmediateOutsideU12)
+        );
+        assert_eq!(
+            encode_aarch64_selected_form(&p, Kind::PackedAddI16x8, key(Fam::CopyI64), &[]),
+            Err(Aarch64SelectedFormEncodingError::AlternativeMismatch)
+        );
+        assert_eq!(
+            encode_aarch64_selected_form(&p, Kind::Jump, key(Fam::Jump), &[]),
+            Err(Aarch64SelectedFormEncodingError::LayoutDependentForm)
+        );
+    }
+
+    #[test]
+    fn saturating_forms_match_all_forty_clang_golden_vectors() {
+        let p = phys();
+        #[rustfmt::skip]
+        const ROWS: [(SatOp, C, &[u32]); 40] = [
+            (SatOp::Add, C::I8, &[0x8b02_0023, 0xb240_1be4, 0xeb04_007f, 0x9a83_c083, 0xb279_e3e4, 0xeb04_007f, 0x9a83_b083]),
+            (SatOp::Add, C::I16, &[0x8b02_0023, 0xb240_3be4, 0xeb04_007f, 0x9a83_c083, 0xb271_c3e4, 0xeb04_007f, 0x9a83_b083]),
+            (SatOp::Add, C::I32, &[0x8b02_0023, 0xb240_7be4, 0xeb04_007f, 0x9a83_c083, 0xb261_83e4, 0xeb04_007f, 0x9a83_b083]),
+            (SatOp::Add, C::I64, &[0x937f_fc24, 0xd240_f884, 0xab02_0023, 0x9a83_6083]),
+            (SatOp::Add, C::U8, &[0x8b02_0023, 0xb240_1fe4, 0xeb04_007f, 0x9a83_c083]),
+            (SatOp::Add, C::U16, &[0x8b02_0023, 0xb240_3fe4, 0xeb04_007f, 0x9a83_c083]),
+            (SatOp::Add, C::U32, &[0x8b02_0023, 0xb240_7fe4, 0xeb04_007f, 0x9a83_c083]),
+            (SatOp::Add, C::U64, &[0xab02_0023, 0xda9f_3063]),
+            (SatOp::Subtract, C::I8, &[0xcb02_0023, 0xb240_1be4, 0xeb04_007f, 0x9a83_c083, 0xb279_e3e4, 0xeb04_007f, 0x9a83_b083]),
+            (SatOp::Subtract, C::I16, &[0xcb02_0023, 0xb240_3be4, 0xeb04_007f, 0x9a83_c083, 0xb271_c3e4, 0xeb04_007f, 0x9a83_b083]),
+            (SatOp::Subtract, C::I32, &[0xcb02_0023, 0xb240_7be4, 0xeb04_007f, 0x9a83_c083, 0xb261_83e4, 0xeb04_007f, 0x9a83_b083]),
+            (SatOp::Subtract, C::I64, &[0x937f_fc24, 0xd240_f884, 0xeb02_0023, 0x9a83_6083]),
+            (SatOp::Subtract, C::U8, &[0xeb02_0023, 0x9a9f_2063]),
+            (SatOp::Subtract, C::U16, &[0xeb02_0023, 0x9a9f_2063]),
+            (SatOp::Subtract, C::U32, &[0xeb02_0023, 0x9a9f_2063]),
+            (SatOp::Subtract, C::U64, &[0xeb02_0023, 0x9a9f_2063]),
+            (SatOp::Divide, C::I8, &[0x9ac2_0c23, 0xb240_1be4, 0xeb04_007f, 0x9a83_c083]),
+            (SatOp::Divide, C::I16, &[0x9ac2_0c23, 0xb240_3be4, 0xeb04_007f, 0x9a83_c083]),
+            (SatOp::Divide, C::I32, &[0x9ac2_0c23, 0xb240_7be4, 0xeb04_007f, 0x9a83_c083]),
+            (SatOp::Divide, C::I64, &[0x9ac2_0c23, 0xb241_03e4, 0xeb04_007f, 0xba41_0840, 0xb240_fbe4, 0x9a83_0083]),
+            (SatOp::Divide, C::U8, &[0x9ac2_0823]),
+            (SatOp::Divide, C::U16, &[0x9ac2_0823]),
+            (SatOp::Divide, C::U32, &[0x9ac2_0823]),
+            (SatOp::Divide, C::U64, &[0x9ac2_0823]),
+            (SatOp::Remainder, C::I8, &[0x9ac2_0c23, 0x9b02_8463]),
+            (SatOp::Remainder, C::I16, &[0x9ac2_0c23, 0x9b02_8463]),
+            (SatOp::Remainder, C::I32, &[0x9ac2_0c23, 0x9b02_8463]),
+            (SatOp::Remainder, C::I64, &[0x9ac2_0c23, 0x9b02_8463]),
+            (SatOp::Remainder, C::U8, &[0x9ac2_0823, 0x9b02_8463]),
+            (SatOp::Remainder, C::U16, &[0x9ac2_0823, 0x9b02_8463]),
+            (SatOp::Remainder, C::U32, &[0x9ac2_0823, 0x9b02_8463]),
+            (SatOp::Remainder, C::U64, &[0x9ac2_0823, 0x9b02_8463]),
+            (SatOp::Multiply, C::I8, &[0x9b02_7c23, 0xb240_1be4, 0xeb04_007f, 0x9a83_c083, 0xb279_e3e4, 0xeb04_007f, 0x9a83_b083]),
+            (SatOp::Multiply, C::I16, &[0x9b02_7c23, 0xb240_3be4, 0xeb04_007f, 0x9a83_c083, 0xb271_c3e4, 0xeb04_007f, 0x9a83_b083]),
+            (SatOp::Multiply, C::I32, &[0x9b02_7c23, 0xb240_7be4, 0xeb04_007f, 0x9a83_c083, 0xb261_83e4, 0xeb04_007f, 0x9a83_b083]),
+            (SatOp::Multiply, C::I64, &[0x9b42_7c24, 0x9b02_7c23, 0xeb83_fc9f, 0x937f_fc84, 0xd240_f884, 0x9a83_1083]),
+            (SatOp::Multiply, C::U8, &[0x9b02_7c23, 0xb240_1fe4, 0xeb04_007f, 0x9a83_8083]),
+            (SatOp::Multiply, C::U16, &[0x9b02_7c23, 0xb240_3fe4, 0xeb04_007f, 0x9a83_8083]),
+            (SatOp::Multiply, C::U32, &[0x9b02_7c23, 0xb240_7fe4, 0xeb04_007f, 0x9a83_8083]),
+            (SatOp::Multiply, C::U64, &[0x9bc2_7c24, 0x9b02_7c23, 0xf100_009f, 0xda9f_0063]),
+        ];
+        for (op, carrier, expected) in ROWS {
+            let (kind, family) = match op {
+                SatOp::Add => (Kind::SaturatingAdd { carrier }, Fam::SaturatingAdd(carrier)),
+                SatOp::Subtract => (
+                    Kind::SaturatingSubtract { carrier },
+                    Fam::SaturatingSubtract(carrier),
+                ),
+                SatOp::Divide => (
+                    Kind::SaturatingDivide {
+                        carrier,
+                        obligation: ob(),
+                        accepted_fact: fact(),
+                    },
+                    Fam::SaturatingDivide(carrier),
+                ),
+                SatOp::Remainder => (
+                    Kind::SaturatingRemainder {
+                        carrier,
+                        obligation: ob(),
+                        accepted_fact: fact(),
+                    },
+                    Fam::SaturatingRemainder(carrier),
+                ),
+                SatOp::Multiply => (
+                    Kind::SaturatingMultiply { carrier },
+                    Fam::SaturatingMultiply(carrier),
+                ),
+            };
+            let n = SaturatingRealization::of(op, carrier).operand_count();
+            let ops = vs(&p, &["x1", "x2", "x3", "x4"][..n]);
+            let encoded = encode_aarch64_selected_form(&p, kind, key(family), &ops).unwrap();
+            assert_eq!(encoded.bytes(), le(expected), "{op:?} {carrier:?}");
+            rejects_every_bit_flip(&p, kind, key(family), &ops, encoded.bytes());
+            if n == 4 {
+                assert!(
+                    encode_aarch64_selected_form(
+                        &p,
+                        kind,
+                        key(family),
+                        &vs(&p, &["x1", "x2", "x3", "x3"])
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn trapping_forms_match_all_seventy_two_clang_golden_vectors() {
+        let p = phys();
+        const fn conv(source: IntegerSign, c: C, w: &'static [u32]) -> (TrapOp, C, &'static [u32]) {
+            (TrapOp::Convert { source }, c, w)
+        }
+        #[rustfmt::skip]
+        const ROWS: [(TrapOp, C, &[u32]); 72] = [
+            (TrapOp::Add, C::I8, &[0x8b02_0023, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Add, C::I16, &[0x8b02_0023, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Add, C::I32, &[0x8b02_0023, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Add, C::I64, &[0xab02_0023, 0x5400_0047, 0xd420_0000]),
+            (TrapOp::Add, C::U8, &[0x8b02_0023, 0xeb23_007f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Add, C::U16, &[0x8b02_0023, 0xeb23_207f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Add, C::U32, &[0x8b02_0023, 0xeb23_407f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Add, C::U64, &[0xab02_0023, 0x5400_0043, 0xd420_0000]),
+            (TrapOp::Subtract, C::I8, &[0xcb02_0023, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Subtract, C::I16, &[0xcb02_0023, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Subtract, C::I32, &[0xcb02_0023, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Subtract, C::I64, &[0xeb02_0023, 0x5400_0047, 0xd420_0000]),
+            (TrapOp::Subtract, C::U8, &[0xcb02_0023, 0xeb23_007f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Subtract, C::U16, &[0xcb02_0023, 0xeb23_207f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Subtract, C::U32, &[0xcb02_0023, 0xeb23_407f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Subtract, C::U64, &[0xeb02_0023, 0x5400_0042, 0xd420_0000]),
+            (TrapOp::Multiply, C::I8, &[0x9b02_7c23, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Multiply, C::I16, &[0x9b02_7c23, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Multiply, C::I32, &[0x9b02_7c23, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Multiply, C::I64, &[0x9b42_7c24, 0x9b02_7c23, 0xeb83_fc9f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Multiply, C::U8, &[0x9b02_7c23, 0xeb23_007f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Multiply, C::U16, &[0x9b02_7c23, 0xeb23_207f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Multiply, C::U32, &[0x9b02_7c23, 0xeb23_407f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Multiply, C::U64, &[0x9bc2_7c24, 0x9b02_7c23, 0xf100_009f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Divide, C::I8, &[0xb500_0042, 0xd420_0000, 0x9ac2_0c23, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Divide, C::I16, &[0xb500_0042, 0xd420_0000, 0x9ac2_0c23, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Divide, C::I32, &[0xb500_0042, 0xd420_0000, 0x9ac2_0c23, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::Divide, C::I64, &[0xb500_0042, 0xd420_0000, 0xb100_045f, 0xfa41_0820, 0x5400_0047, 0xd420_0000, 0x9ac2_0c23]),
+            (TrapOp::Divide, C::U8, &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
+            (TrapOp::Divide, C::U16, &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
+            (TrapOp::Divide, C::U32, &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
+            (TrapOp::Divide, C::U64, &[0xb500_0042, 0xd420_0000, 0x9ac2_0823]),
+            (TrapOp::Remainder, C::I8, &[0xb500_0042, 0xd420_0000, 0x9ac2_0c24, 0xeb24_809f, 0x5400_0040, 0xd420_0000, 0x9b02_8483]),
+            (TrapOp::Remainder, C::I16, &[0xb500_0042, 0xd420_0000, 0x9ac2_0c24, 0xeb24_a09f, 0x5400_0040, 0xd420_0000, 0x9b02_8483]),
+            (TrapOp::Remainder, C::I32, &[0xb500_0042, 0xd420_0000, 0x9ac2_0c24, 0xeb24_c09f, 0x5400_0040, 0xd420_0000, 0x9b02_8483]),
+            (TrapOp::Remainder, C::I64, &[0xb500_0042, 0xd420_0000, 0xb100_045f, 0xfa41_0820, 0x5400_0047, 0xd420_0000, 0x9ac2_0c24, 0x9b02_8483]),
+            (TrapOp::Remainder, C::U8, &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
+            (TrapOp::Remainder, C::U16, &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
+            (TrapOp::Remainder, C::U32, &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
+            (TrapOp::Remainder, C::U64, &[0xb500_0042, 0xd420_0000, 0x9ac2_0824, 0x9b02_8483]),
+            (TrapOp::ShiftLeft, C::I8, &[0xf100_205f, 0x5400_0043, 0xd420_0000, 0x9ac2_2023, 0xeb23_807f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::ShiftLeft, C::I16, &[0xf100_405f, 0x5400_0043, 0xd420_0000, 0x9ac2_2023, 0xeb23_a07f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::ShiftLeft, C::I32, &[0xf100_805f, 0x5400_0043, 0xd420_0000, 0x9ac2_2023, 0xeb23_c07f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::ShiftLeft, C::I64, &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2023, 0x9ac2_2864, 0xeb01_009f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::ShiftLeft, C::U8, &[0xf100_205f, 0x5400_0043, 0xd420_0000, 0x9ac2_2023, 0xeb23_007f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::ShiftLeft, C::U16, &[0xf100_405f, 0x5400_0043, 0xd420_0000, 0x9ac2_2023, 0xeb23_207f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::ShiftLeft, C::U32, &[0xf100_805f, 0x5400_0043, 0xd420_0000, 0x9ac2_2023, 0xeb23_407f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::ShiftLeft, C::U64, &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2023, 0x9ac2_2464, 0xeb01_009f, 0x5400_0040, 0xd420_0000]),
+            (TrapOp::ShiftRight, C::I8, &[0xf100_205f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
+            (TrapOp::ShiftRight, C::I16, &[0xf100_405f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
+            (TrapOp::ShiftRight, C::I32, &[0xf100_805f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
+            (TrapOp::ShiftRight, C::I64, &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2823]),
+            (TrapOp::ShiftRight, C::U8, &[0xf100_205f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
+            (TrapOp::ShiftRight, C::U16, &[0xf100_405f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
+            (TrapOp::ShiftRight, C::U32, &[0xf100_805f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
+            (TrapOp::ShiftRight, C::U64, &[0xf101_005f, 0x5400_0043, 0xd420_0000, 0x9ac2_2423]),
+            conv(IntegerSign::Signed, C::I8, &[0xeb21_803f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Signed, C::I16, &[0xeb21_a03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Signed, C::I32, &[0xeb21_c03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Signed, C::I64, &[0xaa01_03e3]),
+            conv(IntegerSign::Signed, C::U8, &[0xf278_dc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Signed, C::U16, &[0xf270_bc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Signed, C::U32, &[0xf260_7c3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Signed, C::U64, &[0xf241_003f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Unsigned, C::I8, &[0xf279_e03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Unsigned, C::I16, &[0xf271_c03f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Unsigned, C::I32, &[0xf261_803f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Unsigned, C::I64, &[0xf241_003f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Unsigned, C::U8, &[0xf278_dc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Unsigned, C::U16, &[0xf270_bc3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Unsigned, C::U32, &[0xf260_7c3f, 0x5400_0040, 0xd420_0000, 0xaa01_03e3]),
+            conv(IntegerSign::Unsigned, C::U64, &[0xaa01_03e3]),
+        ];
+        assert_eq!(TrappingForm::ALL.len(), ROWS.len());
+        for (operation, carrier, expected) in ROWS {
+            let form = TrappingForm { operation, carrier };
+            let kind = Kind::TrappingInteger { form };
+            let ops = vs(
+                &p,
+                if form.source_count() == 1 {
+                    &["x1", "x3", "x4"]
+                } else {
+                    &["x1", "x2", "x3", "x4"]
+                },
+            );
+            let encoded =
+                encode_aarch64_selected_form(&p, kind, key(Fam::TrappingInteger(form)), &ops)
+                    .unwrap();
+            assert_eq!(encoded.bytes(), le(expected), "{form:?}");
+            assert_eq!(
+                usize::from(target_aarch64::form_effects::trapping_forms::byte_size(
+                    form
+                )),
+                encoded.bytes().len()
+            );
+            rejects_every_bit_flip(
+                &p,
+                kind,
+                key(Fam::TrappingInteger(form)),
+                &ops,
+                encoded.bytes(),
+            );
+        }
+    }
+
+    #[test]
+    fn atomic_forms_match_golden_vectors_and_reject_bit_flips() {
+        let p = phys();
+        for (width, load, store) in [
+            (AtomicWidth::Bits8, 0x085f_fd2b_u32, 0x0811_fd30_u32),
+            (AtomicWidth::Bits16, 0x485f_fd2b, 0x4811_fd30),
+            (AtomicWidth::Bits32, 0x885f_fd2b, 0x8811_fd30),
+            (AtomicWidth::Bits64, 0xc85f_fd2b, 0xc811_fd30),
+        ] {
+            for (op, narrow, wide) in [
+                (AtomicOperation::FetchAdd, 0x0b0a_0170_u32, 0x8b0a_0170_u32),
+                (AtomicOperation::FetchSub, 0x4b0a_0170, 0xcb0a_0170),
+                (AtomicOperation::Swap, 0x2a0a_03f0, 0xaa0a_03f0),
+                (AtomicOperation::FetchAnd, 0x0a0a_0170, 0x8a0a_0170),
+                (AtomicOperation::FetchOr, 0x2a0a_0170, 0xaa0a_0170),
+                (AtomicOperation::FetchXor, 0x4a0a_0170, 0xca0a_0170),
+            ] {
+                let form = AtomicForm {
+                    operation: op,
+                    width,
+                };
+                let kind = Kind::AtomicAccess { form };
+                let ops = vs(&p, &["x9", "x10", "x11"]);
+                let encoded =
+                    encode_aarch64_selected_form(&p, kind, key(Fam::AtomicAccess(form)), &ops)
+                        .unwrap();
+                let alu = if width == AtomicWidth::Bits64 {
+                    wide
+                } else {
+                    narrow
+                };
+                assert_eq!(
+                    encoded.bytes(),
+                    le(&[0xd503_3fbf, load, alu, store, 0x35ff_ffb1, 0xd503_3fbf])
+                );
+                rejects_every_bit_flip(
+                    &p,
+                    kind,
+                    key(Fam::AtomicAccess(form)),
+                    &ops,
+                    encoded.bytes(),
+                );
+            }
+        }
+        for form in AtomicForm::ALL {
+            let kind = Kind::AtomicAccess { form };
+            let ops = match form.operation {
+                AtomicOperation::Load | AtomicOperation::Store => vs(&p, &["x1", "x2"]),
+                AtomicOperation::CompareExchange => vs(&p, &["x9", "x10", "x11", "x12"]),
+                AtomicOperation::CompareExchangeOnce => vs(&p, &["x1", "x2", "x3", "x4", "x5"]),
+                _ => vs(&p, &["x9", "x10", "x11"]),
+            };
+            let encoded =
+                encode_aarch64_selected_form(&p, kind, key(Fam::AtomicAccess(form)), &ops).unwrap();
+            validate_aarch64_selected_form_encoding(
+                &p,
+                kind,
+                key(Fam::AtomicAccess(form)),
+                &ops,
+                encoded.bytes(),
+            )
+            .unwrap();
+            rejects_every_bit_flip(
+                &p,
+                kind,
+                key(Fam::AtomicAccess(form)),
+                &ops,
+                encoded.bytes(),
+            );
+        }
+    }
+
+    #[test]
+    fn float_arithmetic_policy_and_bit_transfers_match_golden_words_and_declared_lengths() {
+        let p = phys();
+        use IeeeFloatArithmeticOperation as FOp;
+        use IeeeFloatFormat::{Binary32, Binary64};
+        #[rustfmt::skip]
+        const GOLDEN: &[(IeeeFloatArithmeticForm, &[&str], &[u32])] = &[
+            (IeeeFloatArithmeticForm { operation: FOp::Add, format: Binary64 }, &["x1", "x2", "x0"], &[0x9e67_0030, 0x9e67_0051, 0x1e71_2a10, 0x9e66_0200]),
+            (IeeeFloatArithmeticForm { operation: FOp::Divide, format: Binary32 }, &["x3", "x4", "x5"], &[0x1e27_0070, 0x1e27_0091, 0x1e31_1a10, 0x1e26_0205]),
+            (IeeeFloatArithmeticForm { operation: FOp::Minimum, format: Binary64 }, &["x1", "x2", "x0"], &[0x9e67_0030, 0x9e67_0051, 0x7ef0_e632, 0x2e71_1e12, 0x9e66_0240]),
+            (IeeeFloatArithmeticForm { operation: FOp::MultiplyThenAdd, format: Binary64 }, &["x1", "x2", "x3", "x0"], &[0x9e67_0030, 0x9e67_0051, 0x1e71_0a10, 0x9e67_0071, 0x1e71_2a10, 0x9e66_0200]),
+            (IeeeFloatArithmeticForm { operation: FOp::ConvertFormat, format: Binary64 }, &["x3", "x4"], &[0x1e27_0070, 0x1e22_c210, 0x9e66_0204]),
+            (IeeeFloatArithmeticForm { operation: FOp::FromInteger(IeeeFloatIntegerCarrier::I8), format: Binary64 }, &["x3", "x4"], &[0x1300_1c64, 0x1e62_0090, 0x9e66_0204]),
+            (IeeeFloatArithmeticForm { operation: FOp::TruncateToInteger { target: IeeeFloatIntegerCarrier::I32, domain: IeeeFloatToIntegerDomain::Trapping }, format: Binary64 }, &["x3", "x4"], &[0x9e67_0070, 0xd2f8_3c04, 0xf2a0_0404, 0x9e67_0091, 0x7ef1_e612, 0x9e66_0244, 0xb500_0044, 0xd420_0000, 0xd2e8_3c04, 0x9e67_0091, 0x7ef0_e632, 0x9e66_0244, 0xb500_0044, 0xd420_0000, 0x1e78_0204, 0x9340_7c84]),
+            (IeeeFloatArithmeticForm { operation: FOp::TruncateToInteger { target: IeeeFloatIntegerCarrier::I8, domain: IeeeFloatToIntegerDomain::Saturating }, format: Binary64 }, &["x3", "x4"], &[0x9e67_0070, 0xd2f8_0c04, 0x9e67_0091, 0x1e71_4a10, 0xd2e8_0be4, 0xf2d8_0004, 0x9e67_0091, 0x1e71_5a10, 0x1e78_0204, 0x9340_7c84]),
+            (IeeeFloatArithmeticForm { operation: FOp::Classify, format: Binary64 }, &["x0", "x0"], &[0x9e67_0010, 0xd374_f800, 0xb400_00a0, 0xd11f_fc00, 0xb400_0140, 0xd280_0040, 0x1400_000e, 0x9e66_0200, 0xd340_f800, 0xb400_0060, 0xd280_0060, 0x1400_0009, 0xd280_0080, 0x1400_0007, 0x9e66_0200, 0xd340_cc00, 0xb400_0060, 0xd280_0000, 0x1400_0002, 0xd280_0020, 0xb400_0100, 0x9e67_0011, 0x9e66_0200, 0xd37f_fc00, 0xd360_7c00, 0x9e67_0010, 0x0eb1_1e10, 0x9e66_0200]),
+        ];
+        for &(form, names, expected) in GOLDEN {
+            let ops = vs(&p, names);
+            let encoded = encode_aarch64_selected_form(
+                &p,
+                Kind::NearestIeeeFloatArithmetic { form },
+                key(Fam::NearestIeeeFloatArithmetic(form)),
+                &ops,
+            )
+            .unwrap();
+            assert_eq!(encoded.bytes(), le(expected), "{form:?}");
+        }
+        for form in IeeeFloatArithmeticForm::ALL {
+            let ops = vs(
+                &p,
+                &["x6", "x7", "x30", "x12"][4 - form.operand_count() - 1..],
+            );
+            let kind = Kind::NearestIeeeFloatArithmetic { form };
+            let encoded = encode_aarch64_selected_form(
+                &p,
+                kind,
+                key(Fam::NearestIeeeFloatArithmetic(form)),
+                &ops,
+            )
+            .unwrap();
+            if let MachineSizeKnowledge::ExactBytes(n) =
+                target_aarch64::float_sizes::ieee_float_arithmetic_size(form)
+            {
+                assert_eq!(encoded.bytes().len(), usize::from(n), "{form:?}");
+            }
+            rejects_every_bit_flip(
+                &p,
+                kind,
+                key(Fam::NearestIeeeFloatArithmetic(form)),
+                &ops,
+                encoded.bytes(),
+            );
+        }
+        for form in FloatResultPolicyForm::ALL {
+            let ops = vs(
+                &p,
+                if form.can_trap() {
+                    &["x3", "x4"]
+                } else {
+                    &["x1", "x3", "x4"]
+                },
+            );
+            let kind = Kind::FloatResultPolicy { form };
+            let encoded =
+                encode_aarch64_selected_form(&p, kind, key(Fam::FloatResultPolicy(form)), &ops)
+                    .unwrap();
+            if form
+                == (FloatResultPolicyForm {
+                    format: Binary64,
+                    policy: FloatResultPolicyKind::Trapping,
+                })
+            {
+                assert_eq!(
+                    encoded.bytes(),
+                    le(&[
+                        0x9e67_0070,
+                        0x9e66_0204,
+                        0xd374_f884,
+                        0xf11f_fc9f,
+                        0x5400_0041,
+                        0xd420_0000,
+                        0x9e66_0204
+                    ])
+                );
+            }
+            if let MachineSizeKnowledge::ExactBytes(n) =
+                target_aarch64::float_sizes::float_result_policy_size(form)
+            {
+                assert_eq!(encoded.bytes().len(), usize::from(n), "{form:?}");
+            }
+            rejects_every_bit_flip(
+                &p,
+                kind,
+                key(Fam::FloatResultPolicy(form)),
+                &ops,
+                encoded.bytes(),
+            );
+        }
+        for (kind, family, names, expected) in [
+            (
+                Kind::Float32ToBits,
+                Fam::Float32ToBits,
+                &["d3", "x4"],
+                0x1e26_0064_u32,
+            ),
+            (
+                Kind::Float64ToBits,
+                Fam::Float64ToBits,
+                &["d3", "x4"],
+                0x9e66_0064,
+            ),
+            (
+                Kind::BitsToFloat32,
+                Fam::BitsToFloat32,
+                &["x3", "d4"],
+                0x1e27_0064,
+            ),
+            (
+                Kind::BitsToFloat64,
+                Fam::BitsToFloat64,
+                &["x3", "d4"],
+                0x9e67_0064,
+            ),
+        ] {
+            let ops = vs(&p, names);
+            let encoded = encode_aarch64_selected_form(&p, kind, key(family), &ops).unwrap();
+            assert_eq!(encoded.bytes(), expected.to_le_bytes());
+            rejects_every_bit_flip(&p, kind, key(family), &ops, encoded.bytes());
+        }
+    }
+
+    #[test]
+    fn byte_sequences_and_encoded_scalar_match_golden_bytes_and_reject_mutations() {
+        let p = phys();
+        let zero_ops = vs(&p, &["x0", "x1", "x2"]);
+        let zero =
+            encode_aarch64_selected_form(&p, Kind::ZeroBytes, key(Fam::ZeroBytes), &zero_ops)
+                .unwrap();
+        assert_eq!(
+            zero.bytes(),
+            le(&[
+                0xd280_0002,
+                0xb400_00a1,
+                0x3822_681f,
+                0x9100_0442,
+                0xeb01_005f,
+                0x54ff_ffa1
+            ])
+        );
+        rejects_every_bit_flip(
+            &p,
+            Kind::ZeroBytes,
+            key(Fam::ZeroBytes),
+            &zero_ops,
+            zero.bytes(),
+        );
+
+        let copy_ops = vs(&p, &["x0", "x1", "x2", "x3", "x4"]);
+        let copy =
+            encode_aarch64_selected_form(&p, Kind::CopyBytes, key(Fam::CopyBytes), &copy_ops)
+                .unwrap();
+        rejects_every_bit_flip(
+            &p,
+            Kind::CopyBytes,
+            key(Fam::CopyBytes),
+            &copy_ops,
+            copy.bytes(),
+        );
+        assert!(
+            encode_aarch64_selected_form(
+                &p,
+                Kind::CopyBytes,
+                key(Fam::CopyBytes),
+                &vs(&p, &["x0", "x1", "x2", "x0", "x4"])
+            )
+            .is_err()
+        );
+
+        let cmp_ops = vs(&p, &["x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7"]);
+        let cmp = encode_aarch64_selected_form(
+            &p,
+            Kind::CompareByteSequences,
+            key(Fam::CompareByteSequences),
+            &cmp_ops,
+        )
+        .unwrap();
+        rejects_every_bit_flip(
+            &p,
+            Kind::CompareByteSequences,
+            key(Fam::CompareByteSequences),
+            &cmp_ops,
+            cmp.bytes(),
+        );
+
+        for pred in ByteSequencePredicate::ALL {
+            let kind = Kind::ScanByteSequence { predicate: pred };
+            let scan =
+                encode_aarch64_selected_form(&p, kind, key(Fam::ScanByteSequence), &copy_ops)
+                    .unwrap();
+            rejects_every_bit_flip(
+                &p,
+                kind,
+                key(Fam::ScanByteSequence),
+                &copy_ops,
+                scan.bytes(),
+            );
+        }
+
+        let codec_ops: [RegisterViewId; 6] = vs(&p, &["x0", "x1", "x2", "x3", "x4", "x5"])
+            .try_into()
+            .unwrap();
+        encoded_scalar_plan::harness::rejects_every_single_bit_mutation(
+            codec_ops,
+            |k, alt, ops| encode_aarch64_selected_form(&p, k, alt, ops).map(|e| e.bytes),
+            |k, alt, ops, bytes| {
+                validate_aarch64_selected_form_encoding(&p, k, alt, ops, bytes).is_err()
+            },
+        );
+    }
+
+    #[test]
+    fn control_memory_frame_and_hosted_forms_match_golden_bytes_and_reject_mutations() {
+        let p = phys();
+        let jmp = encode_aarch64_selected_jump_form(&p, key(Fam::Jump), -16).unwrap();
+        assert_eq!(jmp.bytes(), 0x17ff_fffc_u32.to_le_bytes());
+        reject_every_bit_flip(jmp.bytes(), "jump", |b| {
+            validate_aarch64_selected_jump_form(&p, key(Fam::Jump), -16, b).is_err()
+        });
+        assert_eq!(
+            encode_aarch64_selected_jump_form(&p, key(Fam::Jump), 2),
+            Err(Aarch64SelectedFormEncodingError::BranchDisplacementMisaligned)
+        );
+
+        for (fam, disp, form, expected) in [
+            (
+                Fam::ConditionalBranchNonZero,
+                16,
+                Aarch64ConditionalBranchForm::CanonicalWordV1,
+                &[0x5400_0081_u32][..],
+            ),
+            (
+                Fam::ConditionalBranchU64LessThan,
+                -8,
+                Aarch64ConditionalBranchForm::CanonicalWordV1,
+                &[0x54ff_ffc3][..],
+            ),
+            (
+                Fam::ConditionalBranchI64LessThan,
+                12,
+                Aarch64ConditionalBranchForm::CanonicalWordV1,
+                &[0x5400_006b][..],
+            ),
+            (
+                Fam::ConditionalBranchNonZero,
+                1 << 20,
+                Aarch64ConditionalBranchForm::WidenedPairV1,
+                &[0x5400_0040, 0x1403_ffff][..],
+            ),
+        ] {
+            let br = encode_aarch64_selected_conditional_branch_form(&p, key(fam), fam, form, disp)
+                .unwrap();
+            assert_eq!(br.bytes(), le(expected));
+            reject_every_bit_flip(br.bytes(), "branch", |b| {
+                validate_aarch64_selected_conditional_branch_form(&p, key(fam), fam, form, disp, b)
+                    .is_err()
+            });
+        }
+        let cbnz =
+            encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(&p, v(&p, "x5"), 20)
+                .unwrap();
+        assert_eq!(cbnz.bytes(), 0xb500_00a5_u32.to_le_bytes());
+        reject_every_bit_flip(cbnz.bytes(), "cbnz", |b| {
+            validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form(
+                &p,
+                v(&p, "x5"),
+                20,
+                b,
+            )
+            .is_err()
+        });
+
+        let to_fp =
+            |e: ValidatedAarch64SelectedFormEncoding| isa_conformance::narrow_load::Footprint {
+                bytes: e.bytes().to_vec(),
+                register_reads: e.footprint().register_reads.clone(),
+                register_writes: e.footprint().register_writes.clone(),
+                memory: e.footprint().encoded.memory,
+                stack: e.footprint().encoded.stack,
+                trap: e.footprint().encoded.trap,
+                flags_untouched: !e.footprint().writes_nzcv,
+            };
+        isa_conformance::narrow_load::conformance(
+            &p,
+            &isa_conformance::narrow_load::Roster {
+                bases: &["x0", "x1", "x15", "x28"],
+                destination: "x2",
+                offsets: |w| vec![0, u32::from(w), 4095 * u32::from(w)],
+            },
+            &isa_conformance::narrow_load::Exact {
+                operands: ["x1", "x2"],
+                expected: [(1, &[0x22, 0, 0x40, 0x39]), (2, &[0x22, 0, 0x40, 0x79])],
+                signed_opcode: (2, [0x80, 0x80]),
+                invalid_views: &["sp", "w1", "d0"],
+                invalid_offsets: &[(2, 1), (2, 8192), (1, 4096)],
+            },
+            |k, alt, ops, d| encode_aarch64_selected_memory_form(&p, k, alt, ops, d).map(to_fp),
+            |k, alt, ops, d, b| {
+                validate_aarch64_selected_memory_form(&p, k, alt, ops, d, b).map(to_fp)
+            },
+        );
+        let l32 = encode_aarch64_selected_memory_form(
+            &p,
+            Kind::Load32 { byte_offset: 4 },
+            key(Fam::Load32),
+            &vs(&p, &["x1", "x2"]),
+            4,
+        )
+        .unwrap();
+        assert_eq!(l32.bytes(), &[0x22, 0x04, 0x40, 0xb9]);
+        let idx = encode_aarch64_selected_memory_form(
+            &p,
+            Kind::Load8Indexed,
+            key(Fam::Load8Indexed),
+            &vs(&p, &["x1", "x2", "x3"]),
+            0,
+        )
+        .unwrap();
+        assert_eq!(idx.bytes(), 0x3862_6823_u32.to_le_bytes());
+        let pk_kind = Kind::LoadPacked {
+            byte_offset: 2,
+            width: PackedByteWidth::Three,
+        };
+        let pk_ops = vs(&p, &["x1", "x2", "x3"]);
+        let pk =
+            encode_aarch64_selected_memory_form(&p, pk_kind, key(Fam::LoadPacked3), &pk_ops, 2)
+                .unwrap();
+        reject_every_bit_flip(pk.bytes(), "packed", |b| {
+            validate_aarch64_selected_memory_form(&p, pk_kind, key(Fam::LoadPacked3), &pk_ops, 2, b)
+                .is_err()
+        });
+        let st = encode_aarch64_selected_memory_form(
+            &p,
+            Kind::Store {
+                byte_offset: 16,
+                byte_size: 8,
+            },
+            key(Fam::Store),
+            &vs(&p, &["x1", "x2"]),
+            16,
+        )
+        .unwrap();
+        assert_eq!(st.bytes(), 0xf900_0822_u32.to_le_bytes());
+        let slot = FrameStorageSlotId::Local(LocalStorageSlotId::Structural {
+            operation: OperationId::new(104).unwrap(),
+            place: PlaceId::new(102).unwrap(),
+        });
+        let fr = encode_aarch64_selected_frame_form(
+            &p,
+            Kind::Store64 {
+                slot,
+                byte_offset: 8,
+            },
+            key(Fam::Store64),
+            &vs(&p, &["x9", "x10"]),
+            64,
+            32,
+        )
+        .unwrap();
+        reject_every_bit_flip(fr.bytes(), "aligned frame", |b| {
+            validate_aarch64_selected_frame_form(
+                &p,
+                Kind::Store64 {
+                    slot,
+                    byte_offset: 8,
+                },
+                key(Fam::Store64),
+                &vs(&p, &["x9", "x10"]),
+                64,
+                32,
+                b,
+            )
+            .is_err()
+        });
+
+        let bslot = LocalStorageSlotId::Boundary {
+            operation: OperationId::new(1).unwrap(),
+        };
+        let fp = encode_aarch64_selected_floating_control_form(
+            &p,
+            Kind::SaveFloatingControl { slot: bslot },
+            key(Fam::SaveFloatingControl),
+            &[],
+            16,
+        )
+        .unwrap();
+        reject_every_bit_flip(fp.bytes(), "fpcr", |b| {
+            validate_aarch64_selected_memory_form(
+                &p,
+                Kind::SaveFloatingControl { slot: bslot },
+                key(Fam::SaveFloatingControl),
+                &[],
+                16,
+                b,
+            )
+            .is_err()
+        });
+
+        let sslot = LocalStorageSlotId::Structural {
+            operation: OperationId::new(1).unwrap(),
+            place: PlaceId::new(1).unwrap(),
+        };
+        for target in [NativeTarget::linux_arm64(), NativeTarget::macos_arm64()] {
+            let ex = hosted_exit_process::encode_aarch64_selected_hosted_exit_process_form(
+                target,
+                &p,
+                Kind::HostedExitProcessI32,
+                key(Fam::HostedExitProcessI32),
+                &vs(&p, &["x1"]),
+            )
+            .unwrap();
+            reject_every_bit_flip(ex.bytes(), "hosted_exit", |b| {
+                hosted_exit_process::validate_aarch64_selected_hosted_exit_process_form(
+                    target,
+                    &p,
+                    Kind::HostedExitProcessI32,
+                    key(Fam::HostedExitProcessI32),
+                    &vs(&p, &["x1"]),
+                    b,
+                )
+                .is_err()
+            });
+            let rd = hosted_read_byte::encode_aarch64_selected_hosted_read_byte_form(
+                target,
+                &p,
+                Kind::HostedReadByte { slot: sslot },
+                key(Fam::HostedReadByte),
+                &[],
+                16,
+            )
+            .unwrap();
+            reject_every_bit_flip(rd.bytes(), "hosted_read", |b| {
+                hosted_read_byte::validate_aarch64_selected_hosted_read_byte_form(
+                    target,
+                    &p,
+                    Kind::HostedReadByte { slot: sslot },
+                    key(Fam::HostedReadByte),
+                    &[],
+                    16,
+                    b,
+                )
+                .is_err()
+            });
+            let wr = encode_aarch64_selected_hosted_write_byte_form(
+                target,
+                &p,
+                Kind::HostedWriteByteI32 { slot: bslot },
+                key(Fam::HostedWriteByteI32),
+                &vs(&p, &["x1"]),
+                16,
+            )
+            .unwrap();
+            reject_every_bit_flip(wr.bytes(), "hosted_write", |b| {
+                validate_aarch64_selected_hosted_write_byte_form(
+                    target,
+                    &p,
+                    Kind::HostedWriteByteI32 { slot: bslot },
+                    key(Fam::HostedWriteByteI32),
+                    &vs(&p, &["x1"]),
+                    16,
+                    b,
+                )
+                .is_err()
+            });
+        }
+    }
+
+    #[test]
+    fn call_templates_and_callback_fields_cover_linux_macos_and_windows_arm64() {
+        let p = phys();
+        let constraints = crate::validate_aarch64_register_constraint_catalog(
+            crate::aarch64_register_constraint_catalog(&p),
+            &p,
+        )
+        .unwrap();
+        let kind = Kind::CallScalar {
+            target: SelectedCallTarget::Machine(MachineId::new(7).unwrap()),
+        };
+        assert!(
+            crate::AARCH64_REQUIRED_REGISTER_CONSTRAINTS
+                .windows(2)
+                .all(|pair| pair[0] < pair[1])
+        );
+        for target in [
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::windows_arm64(),
+        ] {
+            let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
+            let ops = vs(&p, &["x0", "x1", "x0"]);
+            let eff = &catalog
+                .declarations
+                .iter()
+                .find(|d| {
+                    d.semantic == selected_instructions::MachineSemanticKind::CallScalar
+                        && d.alternatives[0].encoded.external_operand_reads.len() == 2
+                })
+                .unwrap()
+                .alternatives[0]
+                .encoded;
+            let tmpl = encode_aarch64_selected_scalar_call_template(
+                target,
+                &p,
+                kind,
+                key(Fam::CallScalar),
+                &ops,
+                eff,
+            )
+            .unwrap();
+            assert_eq!(tmpl.bytes(), &crate::ORDINARY_DIRECT_CALL_BYTES);
+            assert_eq!(
+                tmpl.fixup(),
+                scalar_call::canonical_fixup(MachineId::new(7).unwrap())
+            );
+            assert!(
+                validate_aarch64_selected_scalar_call_template(
+                    target,
+                    &p,
+                    kind,
+                    key(Fam::CallScalar),
+                    &ops,
+                    eff,
+                    &[0, 0, 0, 0],
+                    tmpl.fixup()
+                )
+                .is_err()
+            );
+            assert_eq!(
+                tmpl.effects().control,
+                MachineEncodedControlEffect::DirectRelativeCallV1
+            );
+            assert_eq!(tmpl.effects().memory, MachineEncodedMemoryEffect::NoneV1);
+        }
+
+        use calling_conventions::{MachineRegister as R, PrivateCallbackPlacements};
+        use layout_plans::LayoutPlacementReport::{At, Bits};
+        let field = Aarch64CallbackMaterializationDestination::RecordField {
+            root_register: R::Aarch64X(0),
+            placements: PrivateCallbackPlacements::new(&[Bits {
+                container: 4,
+                container_width: 32,
+                destination_lsb: 5,
+                source_lsb: 17,
+                width: 10,
+            }]),
+        };
+        assert_eq!(
+            normalized_foreign_call::callback_group_bytes(&field).unwrap(),
+            [
+                0x10, 0x00, 0x00, 0x90, 0x10, 0x02, 0x00, 0x91, 0x11, 0x04, 0x40, 0xb9, 0x0f, 0x6a,
+                0x51, 0xd3, 0xf1, 0x25, 0x7b, 0xb3, 0x11, 0x04, 0x00, 0xb9
+            ]
+        );
+        for root in [R::Aarch64X(0), R::Aarch64X(15), R::Aarch64X(30), R::X86Rdi] {
+            for placements in [
+                vec![],
+                vec![At { offset: 0 }],
+                vec![At { offset: 4096 }],
+                vec![Bits {
+                    container: 8,
+                    container_width: 64,
+                    destination_lsb: 1,
+                    source_lsb: 3,
+                    width: 4,
+                }],
+            ] {
+                let dest = Aarch64CallbackMaterializationDestination::RecordField {
+                    root_register: root,
+                    placements: PrivateCallbackPlacements::new(&placements),
+                };
+                let actual = normalized_foreign_call::callback_group_bytes(&dest)
+                    .map(|b| u16::try_from(b.len()).unwrap());
+                assert_eq!(
+                    target_aarch64::callback_geometry::callback_field_bytes(root, &placements),
+                    actual
+                );
+            }
+        }
+    }
 }

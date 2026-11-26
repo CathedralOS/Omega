@@ -10,18 +10,23 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::State;
 use syntax_trees::item::StateHandle;
 
-fn parse_source(source: &str, parse_message: &str) -> SyntaxTrees {
-    parse_source_verbose(source, "tokenize should succeed", parse_message)
+/// Parses source that must tokenize and parse, naming the source when it fails.
+pub(crate) fn parse_source(source: &str) -> SyntaxTrees {
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .unwrap_or_else(|error| panic!("tokenize {source:?}: {error:?}"));
+    crate::parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("parse {source:?}: {error:?}"))
 }
 
-fn parse_source_verbose(source: &str, tokenize_message: &str, parse_message: &str) -> SyntaxTrees {
-    let tokens = Lexer::new(source).tokenize().expect(tokenize_message);
-    crate::parse_syntax_trees(&tokens).expect(parse_message)
-}
-
-fn parse_source_unwrap(source: &str) -> SyntaxTrees {
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    crate::parse_syntax_trees(&tokens).unwrap()
+/// Parses source that must tokenize and then be refused by the parser.
+pub(crate) fn parse_error(source: &str) -> ParseError {
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .unwrap_or_else(|error| panic!("tokenize {source:?}: {error:?}"));
+    match crate::parse_syntax_trees(&tokens) {
+        Ok(_) => panic!("{source:?} must not parse"),
+        Err(error) => error,
+    }
 }
 
 fn dispatch(
@@ -104,15 +109,6 @@ fn entry_state_handle(parsed: &SyntaxTrees, machine: &syntax_trees::item::Machin
 
 fn entry_state<'p>(parsed: &'p SyntaxTrees, machine: &syntax_trees::item::Machine) -> &'p State {
     parsed.items.state(entry_state_handle(parsed, machine))
-}
-
-fn parse_source_error(source: &str, tokenize_message: &str, error_message: &str) -> ParseError {
-    let tokens = Lexer::new(source).tokenize().expect(tokenize_message);
-    crate::parse_syntax_trees(&tokens).expect_err(error_message)
-}
-
-fn parse_tokenized_error(source: &str, error_message: &str) -> ParseError {
-    parse_source_error(source, "tokenize should succeed", error_message)
 }
 
 fn expect_error(error: &ParseError, needle: &str) {

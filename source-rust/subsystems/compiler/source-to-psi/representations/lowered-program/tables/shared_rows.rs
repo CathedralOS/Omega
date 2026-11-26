@@ -8,6 +8,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
 use arena::IdTable;
+#[cfg(test)]
 use semantic_vocabulary::ValueId;
 
 use super::{ExactPlaceId, MachineTables, bindings::PlaceRow, values::ValueRow};
@@ -47,7 +48,7 @@ impl<Id: Eq + Hash, T: Eq + Hash> CheckingRows<Id, T> {
 
 #[derive(Default)]
 pub struct LoopCheckingRows {
-    values: HashSet<Arc<IdTable<ValueId, ValueRow>>>,
+    values: HashSet<Arc<Vec<ValueRow>>>,
     places: HashSet<Arc<IdTable<ExactPlaceId, PlaceRow>>>,
 }
 
@@ -75,9 +76,59 @@ mod tests {
         tables.places.push(PlaceRow {
             origin: PlaceOrigin::Root(PlaceId::new(1).unwrap()),
             children: Vec::new(),
-            writes: Vec::new(),
         });
         tables
+    }
+
+    #[test]
+    fn sharing_places_keeps_each_entrys_writes() {
+        use crate::bindings::{Content, WriteRow, record_write};
+        use crate::{MachineId, ProgramPoint};
+        use semantic_vocabulary::BlockId;
+
+        let mut store = LoopCheckingRows::default();
+        let mut untouched = tables(0);
+        let mut written = tables(0);
+        let place = written.places.keys().next().unwrap();
+        record_write(
+            MachineId::new(1).unwrap(),
+            &written.places,
+            &mut written.writes,
+            WriteRow {
+                place,
+                at: ProgramPoint::BlockEntry(BlockId::new(1).unwrap()),
+                content: Content::Overwritten,
+            },
+        )
+        .unwrap();
+
+        store.retain(&mut untouched);
+        store.retain(&mut written);
+        assert!(Arc::ptr_eq(&untouched.places.0, &written.places.0));
+        assert!(untouched.writes.is_empty());
+        assert_eq!(written.writes.values().next().unwrap().place, place);
+    }
+
+    #[test]
+    fn finding_an_existing_projection_keeps_shared_geometry() {
+        use crate::MachineId;
+        use crate::bindings::{Segment, intern_projection};
+        use semantic_vocabulary::StructuralFieldId;
+
+        let mut first = tables(0);
+        let owner = MachineId::new(1).unwrap();
+        let root = first.places.keys().next().unwrap();
+        let project = |tables: &mut MachineTables, field| {
+            let segment = Segment::Field(StructuralFieldId::new(field).unwrap());
+            intern_projection(owner, &mut tables.places, root, segment).unwrap()
+        };
+        let known = project(&mut first, 1);
+        let mut next = first.clone();
+        assert_eq!(project(&mut next, 1), known);
+        assert!(Arc::ptr_eq(&first.places.0, &next.places.0));
+        let fresh = project(&mut next, 2);
+        assert!(next.places.get(fresh).is_some());
+        assert!(first.places.get(fresh).is_none());
     }
 
     #[test]
@@ -90,11 +141,17 @@ mod tests {
         store.retain(&mut same);
         store.retain(&mut different);
         assert!(Arc::ptr_eq(&first.places.0, &same.places.0));
-        assert!(Arc::ptr_eq(&first.values.0, &same.values.0));
-        assert!(Arc::ptr_eq(&first.places.0, &different.places.0));
-        assert!(!Arc::ptr_eq(&first.values.0, &different.values.0));
-
         let id = ValueId::new(1).unwrap();
+        assert!(std::ptr::eq(
+            first.values.get(id).unwrap(),
+            same.values.get(id).unwrap()
+        ));
+        assert!(Arc::ptr_eq(&first.places.0, &different.places.0));
+        assert!(!std::ptr::eq(
+            first.values.get(id).unwrap(),
+            different.values.get(id).unwrap()
+        ));
+
         let replacement = different.values.get(id).unwrap().origin;
         same.values.get_mut(id).unwrap().origin = replacement;
         assert_ne!(same.values.get(id), first.values.get(id));

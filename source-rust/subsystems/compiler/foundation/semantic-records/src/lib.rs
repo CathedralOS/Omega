@@ -21,7 +21,9 @@ pub use clause_identity::{
     ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
 };
 mod declaration_descriptions;
-pub use declaration_descriptions::{FieldInfoDescription, ParameterDescription};
+pub use declaration_descriptions::{
+    FieldInfoDescription, FunctionFieldBinding, ParameterDescription,
+};
 pub mod dependency_reach;
 pub mod provider_identity;
 
@@ -329,6 +331,7 @@ mod boundary {
         pub enum NativeBindingLocator {
             Import(ForeignLocatorCandidate),
             Syscall { number: u64 },
+            FunctionField(Box<crate::FunctionFieldBinding>),
         }
     }
 

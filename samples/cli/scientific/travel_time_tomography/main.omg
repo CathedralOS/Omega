@@ -1,39 +1,30 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/model/model.omg;
+use domain/solver/solver.omg;
+use io/input/input.omg;
+use io/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Entrypoint owns bounded input, private inverse solution, and reporting.
-use system\Console;
-use domain\model;
-use domain\model\Problem;
-use domain\model\Fit;
-use domain\solver;
-use domain\solver\solve;
-use io\input;
-use io\input\Input;
-use io\input\read_input;
-use io\input\problem_from_input;
-use io\report;
-use io\report\Output;
-use io\report\report;
 
-data Main { input: Input; output: Output; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    block read_input(@mutable main.input);
+data Main { input: |input|::Input; output: |report|::Output; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    block |input|::read_input(@mutable main.input);
     transition main.input.valid { true -> compute(main), false -> invalid(main) }
     machine compute(main: @mutable Main) {
-        let problem: Problem = problem_from_input(@main.input);
-        let fit: Fit = solve(@problem);
-        report(@mutable main.output, @problem, @fit);
-        ProcessExit::exit_process(0);
+        let problem: |model|::Problem = |input|::problem_from_input(@main.input);
+        let fit: |model|::Fit = |solver|::solve(@problem);
+        |report|::report(@mutable main.output, @problem, @fit);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("INVALID: expected 13 integers 0..99, ordered bounds, at most 255 input bytes");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("INVALID: expected 13 integers 0..99, ordered bounds, at most 255 input bytes");
+        |process_exit|::ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,69 +1,60 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/baseline_window/baseline_window.omg;
+use domain/fit/fit.omg;
+use domain/input/input.omg;
+use domain/model/model.omg;
+use domain/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Complete bounded input -> private NNLS fit -> numeric report application.
 // Expected exit: 2.
 // Expected output contains: error=input:
-use system\Console;
-use domain\model;
-use domain\model\Chromatogram;
-use domain\model\Fit;
-use domain\input;
-use domain\input\InputReader;
-use domain\input\read_input;
-use domain\fit;
-use domain\fit\fit_components;
-use domain\report;
-use domain\report\report;
-use domain\baseline_window;
-use domain\baseline_window\window;
-use domain\baseline_window\baseline_ready;
 
-data Main { reader: InputReader; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+data Main { reader: |input|::InputReader; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     main.reader.remaining = 512;
     main.reader.exhausted = false;
-    let ready: bool = baseline_ready();
+    let ready: bool = |baseline_window|::baseline_ready();
     transition ready {
         true -> block parse(main),
         _ -> window_failed(main)
     }
     machine parse(main: @mutable Main) {
-        let mutable chromatogram: Chromatogram;
-        let valid: bool = block read_input(@mutable main.reader, @mutable chromatogram);
+        let mutable chromatogram: |model|::Chromatogram;
+        let valid: bool = block |input|::read_input(@mutable main.reader, @mutable chromatogram);
         transition valid {
             true -> fit(main, @chromatogram),
             _ -> invalid(main)
         }
     }
-    machine fit(main: @mutable Main, chromatogram: @Chromatogram) {
-        let mutable result: Fit;
-        let valid: bool = fit_components(chromatogram, @mutable result);
+    machine fit(main: @mutable Main, chromatogram: @|model|::Chromatogram) {
+        let mutable result: |model|::Fit;
+        let valid: bool = |fit|::fit_components(chromatogram, @mutable result);
         transition valid {
             true -> output(main, @result),
             _ -> invalid_profile(main)
         }
     }
-    machine output(main: @mutable Main, result: @Fit) {
-        report(result);
-        ProcessExit::exit_process(0);
+    machine output(main: @mutable Main, result: @|model|::Fit) {
+        |report|::report(result);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("error=input: require exactly 15 signed integer tokens, magnitude <=1000, nonnegative profiles, <=512 bytes");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("error=input: require exactly 15 signed integer tokens, magnitude <=1000, nonnegative profiles, <=512 bytes");
+        |process_exit|::ProcessExit::exit_process(2);
     }
     machine invalid_profile(main: @mutable Main) {
-        Console::write_line("error=profile: each supplied component must have nonzero norm");
-        ProcessExit::exit_process(3);
+        |console|::Console::write_line("error=profile: each supplied component must have nonzero norm");
+        |process_exit|::ProcessExit::exit_process(3);
     }
     machine window_failed(main: @mutable Main) {
-        Console::write_line("error=window: baseline and peak windows must both have length 2");
-        ProcessExit::exit_process(5);
+        |console|::Console::write_line("error=window: baseline and peak windows must both have length 2");
+        |process_exit|::ProcessExit::exit_process(5);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

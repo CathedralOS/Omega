@@ -4,7 +4,6 @@
 pub enum BuildOperation {
     ProviderReadiness,
     ProviderSelection,
-    AssumedBindingContract,
     RepresentationSelection,
     ServiceExclusion,
     ServiceAudit,
@@ -12,7 +11,6 @@ pub enum BuildOperation {
     OptimizationReportRequest,
     BoundaryAcceptance,
     WireCompatibilityRequest,
-    IncludedSourceHandoff,
     LogWriteLine,
     NativeBinding,
     // `builder.tests.group<Requirement>()` (wiki/spec/build/testing.md): one
@@ -21,6 +19,7 @@ pub enum BuildOperation {
     ParameterDescription,
     FieldDescription,
     ServiceDescription,
+    EnableUnsafe,
 }
 
 impl BuildOperation {
@@ -29,7 +28,7 @@ impl BuildOperation {
     }
     pub const fn has_designated_operands(self) -> bool {
         self.selects_product_declarations()
-            || matches!(self, Self::ProviderReadiness | Self::ServiceDescription)
+            || matches!(self, Self::ProviderReadiness | Self::ServiceDescription | Self::EnableUnsafe)
     }
     pub const fn selects_product_declarations(self) -> bool {
         matches!(
@@ -41,16 +40,15 @@ impl BuildOperation {
                 | Self::BoundaryAcceptance
                 | Self::WireCompatibilityRequest
                 | Self::RepresentationSelection
-                | Self::AssumedBindingContract
                 | Self::TestGroupRegistration
         )
     }
 
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 14] = [
         Self::ProviderReadiness,
         Self::ServiceDescription,
+        Self::EnableUnsafe,
         Self::ProviderSelection,
-        Self::AssumedBindingContract,
         Self::RepresentationSelection,
         Self::ServiceExclusion,
         Self::ServiceAudit,
@@ -58,7 +56,6 @@ impl BuildOperation {
         Self::OptimizationReportRequest,
         Self::BoundaryAcceptance,
         Self::WireCompatibilityRequest,
-        Self::IncludedSourceHandoff,
         Self::LogWriteLine,
         Self::NativeBinding,
         Self::TestGroupRegistration,
@@ -67,12 +64,12 @@ impl BuildOperation {
     pub const fn authored_spelling(self) -> &'static str {
         match self {
             Self::ServiceDescription => "service",
+            Self::EnableUnsafe => "enable_unsafe",
             Self::ParameterDescription => "reflect::parameter",
             Self::FieldDescription => "reflect::field",
             Self::NativeBinding => "bind_native",
             Self::ProviderReadiness => "await_provider",
             Self::ProviderSelection => "select_provider",
-            Self::AssumedBindingContract => "assume_binding_contract",
             Self::RepresentationSelection => "select_representation",
             Self::ServiceExclusion => "exclude_service",
             Self::ServiceAudit => "audit_service",
@@ -80,7 +77,6 @@ impl BuildOperation {
             Self::OptimizationReportRequest => "emit_report",
             Self::BoundaryAcceptance => "accept_boundary",
             Self::WireCompatibilityRequest => "require_wire_compatibility",
-            Self::IncludedSourceHandoff => "include_source",
             Self::LogWriteLine => "write_line",
             Self::TestGroupRegistration => "group",
         }
@@ -123,7 +119,7 @@ impl BuildOperation {
             (Self::BoundaryAcceptance, 0) => Some(Role::RootGrantSubject),
             (Self::ParameterDescription, 0) => Some(Role::Formal),
             (Self::FieldDescription, 0) => Some(Role::Field),
-            (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
+            (Self::NativeBinding, 0) => {
                 Some(Role::Requirement)
             }
             (Self::TestGroupRegistration, 0) => Some(Role::TestRequirement),
@@ -140,12 +136,11 @@ impl BuildOperation {
     pub const fn product_operand_count_valid(self, count: usize) -> bool {
         match self {
             Self::ServiceDescription
+            | Self::EnableUnsafe
             | Self::NativeBinding
             | Self::ParameterDescription
             | Self::FieldDescription => count == 1,
-            Self::ProviderSelection
-            | Self::RepresentationSelection
-            | Self::AssumedBindingContract => count == 2,
+            Self::ProviderSelection | Self::RepresentationSelection => count == 2,
             Self::ServiceExclusion | Self::ServiceAudit | Self::BoundaryAcceptance => count == 1,
             Self::TestGroupRegistration => matches!(count, 1 | 2),
             Self::WireCompatibilityRequest => count >= 5,

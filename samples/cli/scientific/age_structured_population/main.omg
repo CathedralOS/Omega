@@ -1,81 +1,68 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use demography\model;
-use demography\model\Census;
-use demography\model\Schedule;
-use demography\model\Balance;
-use demography\model\valid_census;
-use demography\model\valid_schedule;
-use demography\model\total;
-use demography\model\advance;
-use demography\input;
-use demography\input\Parsed;
-use demography\input\read_number;
-use demography\input\input_complete;
-use demography\report;
-use demography\report\row;
-use demography\oracles;
-use demography\oracles\reference_checks;
+use demography/input/input.omg;
+use demography/model/model.omg;
+use demography/oracles/oracles.omg;
+use demography/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // The ordinary sample harness supplies empty stdin; reject that input honestly.
 // Expected exit: 2.
 // Expected output contains: ERROR invalid input
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let verified: bool = reference_checks();
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let verified: bool = |oracles|::reference_checks();
     transition verified { true -> read_input(), false -> oracle_error() }
-    machine oracle_error() { Console::write_line("ERROR internal oracle"); ProcessExit::exit_process(4); }
+    machine oracle_error() { |console|::Console::write_line("ERROR internal oracle"); |process_exit|::ProcessExit::exit_process(4); }
     machine read_input() {
-        let steps: Parsed = block read_number();
-        let newborn: Parsed = block read_number();
-        let juvenile: Parsed = block read_number();
-        let adult: Parsed = block read_number();
-        let survival0: Parsed = block read_number();
-        let survival1: Parsed = block read_number();
-        let survival2: Parsed = block read_number();
-        let fertility0: Parsed = block read_number();
-        let fertility1: Parsed = block read_number();
-        let fertility2: Parsed = block read_number();
-        let migration0: Parsed = block read_number();
-        let migration1: Parsed = block read_number();
-        let migration2: Parsed = block read_number();
-        let complete: bool = block input_complete();
-        let census: Census = Census { newborn: newborn.value, juvenile: juvenile.value, adult: adult.value };
-        let schedule: Schedule = Schedule { survival0: survival0.value, survival1: survival1.value, survival2: survival2.value, fertility0: fertility0.value, fertility1: fertility1.value, fertility2: fertility2.value, migration0: migration0.value, migration1: migration1.value, migration2: migration2.value };
-        transition steps.valid && newborn.valid && juvenile.valid && adult.valid && survival0.valid && survival1.valid && survival2.valid && fertility0.valid && fertility1.valid && fertility2.valid && migration0.valid && migration1.valid && migration2.valid && complete && steps.value >= 0 && steps.value <= 32 && valid_census(@census) && valid_schedule(@schedule) {
+        let steps: |input|::Parsed = block |input|::read_number();
+        let newborn: |input|::Parsed = block |input|::read_number();
+        let juvenile: |input|::Parsed = block |input|::read_number();
+        let adult: |input|::Parsed = block |input|::read_number();
+        let survival0: |input|::Parsed = block |input|::read_number();
+        let survival1: |input|::Parsed = block |input|::read_number();
+        let survival2: |input|::Parsed = block |input|::read_number();
+        let fertility0: |input|::Parsed = block |input|::read_number();
+        let fertility1: |input|::Parsed = block |input|::read_number();
+        let fertility2: |input|::Parsed = block |input|::read_number();
+        let migration0: |input|::Parsed = block |input|::read_number();
+        let migration1: |input|::Parsed = block |input|::read_number();
+        let migration2: |input|::Parsed = block |input|::read_number();
+        let complete: bool = block |input|::input_complete();
+        let census: |model|::Census = |model|::Census { newborn: newborn.value, juvenile: juvenile.value, adult: adult.value };
+        let schedule: |model|::Schedule = |model|::Schedule { survival0: survival0.value, survival1: survival1.value, survival2: survival2.value, fertility0: fertility0.value, fertility1: fertility1.value, fertility2: fertility2.value, migration0: migration0.value, migration1: migration1.value, migration2: migration2.value };
+        transition steps.valid && newborn.valid && juvenile.valid && adult.valid && survival0.valid && survival1.valid && survival2.valid && fertility0.valid && fertility1.valid && fertility2.valid && migration0.valid && migration1.valid && migration2.valid && complete && steps.value >= 0 && steps.value <= 32 && |model|::valid_census(@census) && |model|::valid_schedule(@schedule) {
             true -> forecast(census, schedule, steps.value),
             false -> invalid()
         }
     }
-    machine invalid() { Console::write_line("ERROR invalid input"); ProcessExit::exit_process(2); }
-    machine forecast(census: Census, schedule: Schedule, steps: i64 in Wrapping) {
-        Console::write_line("year,newborn,juvenile,adult,total,births,deaths,migration");
-        let initial: Balance = Balance { births: 0, deaths: 0, migration: 0, before: total(@census), after: total(@census) };
-        row(0, @census, @initial);
+    machine invalid() { |console|::Console::write_line("ERROR invalid input"); |process_exit|::ProcessExit::exit_process(2); }
+    machine forecast(census: |model|::Census, schedule: |model|::Schedule, steps: i64 in Wrapping) {
+        |console|::Console::write_line("year,newborn,juvenile,adult,total,births,deaths,migration");
+        let initial: |model|::Balance = |model|::Balance { births: 0, deaths: 0, migration: 0, before: |model|::total(@census), after: |model|::total(@census) };
+        |report|::row(0, @census, @initial);
         transition { _ -> cycle(census, schedule, steps, 0) }
     }
-    machine cycle(census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
+    machine cycle(census: |model|::Census, schedule: |model|::Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
         transition year < steps { true -> step(census, schedule, steps, year), false -> done() }
     }
-    machine step(census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
-        let mutable next: Census = census;
-        let balance: Balance = advance(@mutable next, @schedule);
-        transition valid_census(@next) && balance.after == balance.before + balance.births - balance.deaths + balance.migration {
+    machine step(census: |model|::Census, schedule: |model|::Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
+        let mutable next: |model|::Census = census;
+        let balance: |model|::Balance = |model|::advance(@mutable next, @schedule);
+        transition |model|::valid_census(@next) && balance.after == balance.before + balance.births - balance.deaths + balance.migration {
             true -> publish(next, schedule, steps, year + 1, balance),
             false -> infeasible()
         }
     }
-    machine publish(census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping, balance: Balance) {
-        row(year, @census, @balance);
+    machine publish(census: |model|::Census, schedule: |model|::Schedule, steps: i64 in Wrapping, year: i64 in Wrapping, balance: |model|::Balance) {
+        |report|::row(year, @census, @balance);
         transition { _ -> cycle(census, schedule, steps, year) }
     }
-    machine infeasible() { Console::write_line("ERROR infeasible cohort"); ProcessExit::exit_process(3); }
-    machine done() { ProcessExit::exit_process(0); }
+    machine infeasible() { |console|::Console::write_line("ERROR infeasible cohort"); |process_exit|::ProcessExit::exit_process(3); }
+    machine done() { |process_exit|::ProcessExit::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

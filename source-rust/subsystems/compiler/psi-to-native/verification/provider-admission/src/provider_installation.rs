@@ -66,7 +66,6 @@ pub struct AdmittedInstalledProviderCall {
     pub(crate) invocation_site: InvocationSite,
     pub(crate) boundary: semantic_vocabulary::BoundaryMachineId,
     pub(crate) provider: ProviderCandidateConformance, // Supplied requirement's real checked conformance, never relabelled.
-    pub(crate) assumption: Option<psi_provider_selections::AdmittedAssumedBinding>,
     pub(crate) result: terminal_psi::OperationResult,
     pub(crate) scalar_arguments: Vec<semantic_vocabulary::ValueId>,
     pub(crate) structural_arguments: Vec<StructuralArgument>,
@@ -87,10 +86,6 @@ impl AdmittedInstalledProviderCall {
         self.boundary
     }
 
-    pub const fn provider(&self) -> &ProviderCandidateConformance {
-        &self.provider
-    }
-
     pub const fn result(&self) -> &terminal_psi::OperationResult {
         &self.result
     }
@@ -101,14 +96,6 @@ impl AdmittedInstalledProviderCall {
 
     pub fn structural_arguments(&self) -> &[StructuralArgument] {
         &self.structural_arguments
-    }
-
-    pub fn completion_claim_sources(&self) -> &[CompletionClaimSource] {
-        &self.completion_claim_sources
-    }
-
-    pub fn completion_receipts(&self) -> &[CompletionReceipt] {
-        &self.completion_receipts
     }
 }
 
@@ -145,15 +132,6 @@ impl AdmittedProviderInstallation {
                 invocation_site: call.invocation_site,
                 boundary: call.boundary,
                 provider: call.provider.clone(),
-                assumption: call.assumption.as_ref().map(|row| {
-                    operation_evidence::provider_calls::InstalledAssumedBindingEvidence {
-                        required: row.required,
-                        supplied_requirement: row.supplied_requirement,
-                        implementation: row.implementation,
-                        selected_requirement: row.selected_requirement,
-                        supply_path: row.supply_path.clone(),
-                    }
-                }),
                 result: call.result.clone(),
                 scalar_arguments: call.scalar_arguments.clone(),
                 structural_arguments: call.structural_arguments.clone(),
@@ -168,7 +146,6 @@ pub(crate) fn admit_provider_installation_with_projection(
     plan: &AbstractOperationPlan,
     artifact: terminal_codec::TerminalArtifactView<'_>,
     selected: &[SelectedProviderAdapter],
-    assumptions: &[psi_provider_selections::AssumedBindingSelection],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     if artifact.identity() != plan.psi {
         return Err(ProviderInstallationError::TerminalIdentityMismatch);
@@ -177,13 +154,12 @@ pub(crate) fn admit_provider_installation_with_projection(
     let (selections, installed_candidates) =
         select_provider_candidates(&plan.provider_candidates, &plan.identities, selected)?;
     let installation =
-        psi_provider_selections::admit_provider_installation(artifact, &selections, assumptions)
+        psi_provider_selections::admit_provider_installation(artifact, &selections)
             .map_err(ProviderInstallationError::PsiAdmission)?;
     let installed_calls = replay_installed_provider_calls(
         plan,
         module,
         &installed_candidates,
-        installation.assumed_bindings(),
     )?;
     Ok(AdmittedProviderInstallation {
         psi: installation.terminal_psi(),
@@ -191,27 +167,6 @@ pub(crate) fn admit_provider_installation_with_projection(
         installed_candidates,
         installed_calls,
     })
-}
-
-pub fn admit_terminal_provider_installation(
-    artifact: terminal_codec::TerminalExecutionView<'_>,
-    selected: &[SelectedProviderAdapter],
-) -> Result<psi_provider_selections::AdmittedProviderSelections, ProviderInstallationError> {
-    let module = artifact.module();
-    let candidates = module
-        .interfaces.provider_candidates
-        .iter()
-        .filter(|candidate| {
-            selected.iter().any(|row| {
-                module.identities.text(candidate.requirement_identity)
-                    == Some(row.requirement_identity.as_str())
-            })
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    let (selections, _) = select_provider_candidates(&candidates, &module.identities, selected)?;
-    psi_provider_selections::admit_provider_execution_installation(artifact, &selections, &[])
-        .map_err(ProviderInstallationError::PsiAdmission)
 }
 
 fn select_provider_candidates(

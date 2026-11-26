@@ -342,6 +342,7 @@ struct Capture<'a> {
     bodies: &'a DeclarationSelection,
     completed_operators: &'a CompletedOperators,
     signature_views: &'a [crate::source_state::signature::StateSignature],
+    active_signature_view: Option<&'a crate::source_state::signature::StateSignature>,
     closed_signature_templates: Vec<SymbolHandle>,
     /// Template requirements whose clauses only their own check form reads
     /// (`Elaboration::generic_templates`), sorted by symbol.
@@ -996,6 +997,11 @@ impl TypedReferences for Capture<'_> {
     fn callable_signature(&mut self, signature: &crate::source_state::signature::StateSignature) {
         self.seen_signatures.insert(signature.symbol);
     }
+    fn expands_nominal_callback_binders(&self) -> bool {
+        // A binder names its requirement and supplies arguments. A use that
+        // reads the applied header already visits that precise signature view.
+        false
+    }
     fn callable_signature_contents(
         &mut self,
         signature: &crate::source_state::signature::StateSignature,
@@ -1005,7 +1011,14 @@ impl TypedReferences for Capture<'_> {
             .iter()
             .filter(|view| view.symbol == signature.symbol);
         match views.next() {
-            Some(first) => first == signature || views.any(|view| view == signature),
+            Some(first) => {
+                // Each admitted view is read once in its supplier's scope.
+                // Encountering it again in a declaration's binder telescope
+                // must not attribute its substituted arguments to the trait.
+                self.active_signature_view == Some(signature)
+                    || (!self.admitted.contains(signature.symbol)
+                        && (first == signature || views.any(|view| view == signature)))
+            }
             // A closed requirement has its own symbol. Its admitted parent
             // also exposes the template, whose clauses are a separate read.
             // So are a template requirement's, which its own check form reads.
@@ -1522,6 +1535,7 @@ pub(crate) fn capture_with_bodies(
         bodies,
         completed_operators,
         signature_views,
+        active_signature_view: None,
         closed_signature_templates,
         template_requirements,
         output: RawSelectionQuestions::for_declarations(roots.to_vec()),
@@ -1548,9 +1562,11 @@ pub(crate) fn capture_with_bodies(
     // declaration-wide traversal or the standalone-signature fallback.
     for (signature, owner) in signature_views.iter().zip(view_owners) {
         if capture.declaration(signature.symbol) {
+            capture.active_signature_view = Some(signature);
             capture.dependency_owner = (*owner != signature.symbol).then_some(*owner);
             crate::source_state::references::visit_signature(typed, &mut capture, signature);
             capture.dependency_owner = None;
+            capture.active_signature_view = None;
         }
     }
     crate::source_state::references::visit_program(typed, &mut capture);

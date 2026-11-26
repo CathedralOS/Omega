@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "readonly_byte_literal_subslice_field");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "readonly_byte_literal_subslice_field" };
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

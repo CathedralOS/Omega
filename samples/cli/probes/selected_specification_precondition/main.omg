@@ -1,29 +1,29 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/nat.omg;
+use {omega}/language/core/process_exit.omg;
 // Expected exit: 70
-use omega\language\core\Nat;
-use omega\language\core\saturating_sub;
-machine selected_identity<machine Modulus>(value: Nat) -> Nat
-requires machine Modulus(value: Nat) -> Nat terminates;
-requires core\Identity::<Nat>(saturating_sub(Modulus(value), value), Nat::Zero)
+machine selected_identity<machine Modulus>(value: |nat|::Nat) -> |nat|::Nat
+requires machine Modulus(value: |nat|::Nat) -> |nat|::Nat terminates;
+requires |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(value), value), |nat|::Nat::Zero)
 {
     value
 }
-machine identity<machine Modulus>(value: Nat)
-requires machine Modulus(value: Nat) -> Nat terminates;
-requires core\Identity::<Nat>(saturating_sub(Modulus(value), value), Nat::Zero)
-ensures core\Identity::<Nat>(selected_identity::<Modulus>(value), value)
+machine identity<machine Modulus>(value: |nat|::Nat)
+requires machine Modulus(value: |nat|::Nat) -> |nat|::Nat terminates;
+requires |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(Modulus(value), value), |nat|::Nat::Zero)
+ensures |proof|::Identity::<|nat|::Nat>(selected_identity::<Modulus>(value), value)
 {
 }
 
-machine zero_modulus(value: Nat) -> Nat terminates { Nat::Zero }
+machine zero_modulus(value: |nat|::Nat) -> |nat|::Nat terminates { |nat|::Nat::Zero }
 data Main { }
-machine Main::main(main: @mutable Main) reaches ProcessExit {
-    identity::<zero_modulus>(Nat::Zero);
-    ProcessExit::exit_process(70);
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    identity::<zero_modulus>(|nat|::Nat::Zero);
+    |process_exit|::ProcessExit::exit_process(70);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

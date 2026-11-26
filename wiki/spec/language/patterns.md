@@ -241,6 +241,6 @@ value, write the equality explicitly, as in `received == count`.
 
 A package or imported constant named `count` permits the same bare binding.
 To test a constant by value, write its qualified path, as in
-`limits\count -> 1`. The literals `true` and `false` test their Boolean
+`|limits|::count -> 1`. The literals `true` and `false` test their Boolean
 values. In a dispatch without a subject, an arm condition such as
 `ready -> 1` reads the existing value of `ready`.

@@ -1,89 +1,82 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use chronology/input/input.omg;
+use chronology/model/model.omg;
+use chronology/solver/solver.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // One-record chronology CLI; EOF without a record is an input error.
 // Expected exit: 2.
 // Expected output contains: invalid input
-use system\Console;
-use system\LineReadResult;
-use chronology\model;
-use chronology\model\Chronology;
-use chronology\model\Reconciliation;
-use chronology\solver;
-use chronology\solver\reconcile;
-use chronology\solver\contradiction;
-use chronology\input;
-use chronology\input\parse;
 
 // The application owns the input backing across the blocking provider call.
 data Main { bytes: [u8; 32]; }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let read: LineReadResult = block Console::read_line(@mutable main.bytes[..]);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let read: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.bytes[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> input(main, count),
-        LineReadResult::EndOfInput { count } -> input(main, count),
+        |console|::LineReadResult::LineComplete { count } -> input(main, count),
+        |console|::LineReadResult::EndOfInput { count } -> input(main, count),
         _ -> invalid(main)
     }
     machine input(main: @mutable Main, count: u64) {
-        let mutable model: Chronology;
-        let valid: bool = parse(@main.bytes, count, @mutable model);
+        let mutable model: |model|::Chronology;
+        let valid: bool = |input|::parse(@main.bytes, count, @mutable model);
         transition valid {
             true -> solve(main, @mutable model),
             false -> invalid(main)
         }
     }
-    machine solve(main: @mutable Main, model: @mutable Chronology) {
-        let mutable result: Reconciliation;
-        reconcile(model, @mutable result);
+    machine solve(main: @mutable Main, model: @mutable |model|::Chronology) {
+        let mutable result: |model|::Reconciliation;
+        |solver|::reconcile(model, @mutable result);
         transition result.count > 0 {
             true -> feasible(main, @result),
             false -> witness(main, model, @mutable result)
         }
     }
-    machine feasible(main: @mutable Main, result: @Reconciliation) {
-        Console::write("feasible count=");
+    machine feasible(main: @mutable Main, result: @|model|::Reconciliation) {
+        |console|::Console::write("feasible count=");
         number(main, result.count);
-        Console::write_line("");
+        |console|::Console::write_line("");
         transition { _ -> event(main, result, 0) }
     }
-    machine event(main: @mutable Main, result: @Reconciliation, index: i32 in Wrapping) {
+    machine event(main: @mutable Main, result: @|model|::Reconciliation, index: i32 in Wrapping) {
         transition index >= 0 && index < 3 {
             true -> report(main, result, index),
             false -> success(main)
         }
     }
-    machine report(main: @mutable Main, result: @Reconciliation, index: i32 in Wrapping)
+    machine report(main: @mutable Main, result: @|model|::Reconciliation, index: i32 in Wrapping)
     requires index >= 0
     requires index < 3
     {
-        Console::write("event ");
+        |console|::Console::write("event ");
         number(main, index);
-        Console::write(" range=");
+        |console|::Console::write(" range=");
         number(main, result.lower[index] as i32 +Wrapping);
-        Console::write("..");
+        |console|::Console::write("..");
         number(main, result.upper[index] as i32 +Wrapping);
-        Console::write_line("");
+        |console|::Console::write_line("");
         transition { _ -> event(main, result, index + 1) }
     }
-    machine witness(main: @mutable Main, model: @mutable Chronology, result: @mutable Reconciliation) {
-        contradiction(model, result);
-        Console::write("infeasible witness bounds+edges=");
+    machine witness(main: @mutable Main, model: @mutable |model|::Chronology, result: @mutable |model|::Reconciliation) {
+        |solver|::contradiction(model, result);
+        |console|::Console::write("infeasible witness bounds+edges=");
         number(main, model.enabled[0] as i32 +Wrapping);
         number(main, model.enabled[1] as i32 +Wrapping);
         number(main, model.enabled[2] as i32 +Wrapping);
         number(main, model.enabled[3] as i32 +Wrapping);
-        Console::write_line(" count=0");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line(" count=0");
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine success(main: @mutable Main) { ProcessExit::exit_process(0); }
+    machine success(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
     machine invalid(main: @mutable Main) {
-        Console::write_line("invalid input");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("invalid input");
+        |process_exit|::ProcessExit::exit_process(2);
     }
 }
 
-machine number(main: @mutable Main, value: i32 in Wrapping) reaches StandardOutput {
+machine number(main: @mutable Main, value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition { _ -> digit(main, value, 1000, false) }
     machine digit(main: @mutable Main, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition divisor > 0 {
@@ -103,14 +96,14 @@ machine number(main: @mutable Main, value: i32 in Wrapping) reaches StandardOutp
     machine emit(main: @mutable Main, value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping)
     requires divisor > 0
     {
-        Console::write_byte((digit + 48) as i32);
+        |console|::Console::write_byte((digit + 48) as i32);
         transition { _ -> digit(main, value % divisor, divisor / 10, true) }
     }
     machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

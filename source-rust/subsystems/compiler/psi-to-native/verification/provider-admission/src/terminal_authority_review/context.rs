@@ -228,7 +228,6 @@ impl<'a> ReviewContext<'a> {
         &self,
         requirement: &str,
     ) -> Result<Option<&'a terminal_psi::ProviderCandidateConformance>, String> {
-        let supplied_requirement = self.selected.assumed_supplier_identity(requirement)?;
         let (plan, row, specialization) = self.selected_requirement(requirement)?;
         let ProviderBinding::CheckedAdapter {
             machine_identity,
@@ -253,7 +252,7 @@ impl<'a> ReviewContext<'a> {
                 .plan()
                 .identities
                 .text(candidate.requirement_identity)
-                == Some(supplied_requirement)
+                == Some(requirement)
                 && self
                     .input
                     .plan()
@@ -295,7 +294,6 @@ impl<'a> ReviewContext<'a> {
         ),
         String,
     > {
-        let requirement = self.selected.assumed_supplier_identity(requirement)?;
         let specialization = self.selected.specialized_requirement_row(requirement);
         let (plan, row) = self
             .selected

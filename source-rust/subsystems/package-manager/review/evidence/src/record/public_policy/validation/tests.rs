@@ -3,10 +3,17 @@
 use crate::record::{
     PackagePolicyPublicApi, PackagePolicyTermination, PackagePolicyTraitRequirement,
     PackagePolicyTraitShape, PackagePolicyTypeParameter, PackagePolicyTypeParameterKind,
-    PackageReviewCallableContract, PackageReviewContractBinaryOperator,
-    PackageReviewContractExpression as Expression, PackageReviewContractFact,
-    PackageReviewContractKind, PackageReviewContractOperatorMeaning, PackageReviewDataProperties,
-    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSignatureParameter,
+    PackageReviewCallableContract, PackageReviewCallableContract as Clause,
+    PackageReviewContractBinaryOperator, PackageReviewContractExpression as Expression,
+    PackageReviewContractFact, PackageReviewContractFact as Fact, PackageReviewContractKind,
+    PackageReviewContractKind as Kind, PackageReviewContractOperatorMeaning,
+    PackageReviewDataProperties, PackageReviewEvidenceInterface as Interface,
+    PackageReviewEvidenceRequirement as Requirement, PackageReviewNominalIdentity,
+    PackageReviewNominalOwner, PackageReviewPropositionApplication as Application,
+    PackageReviewPropositionBinder as Binder, PackageReviewPropositionBinderArgument as Argument,
+    PackageReviewPropositionBinderArgumentKind as ArgumentKind,
+    PackageReviewPropositionBinderKind as BinderKind, PackageReviewPropositionBinderValue as Value,
+    PackageReviewPropositionEvidence as Evidence, PackageReviewSignatureParameter,
     PackageReviewTypeIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
@@ -145,7 +152,10 @@ fn a_trait_has_no_implicit_subject_binder_before_its_statics() {
 fn foreign_stack_requires_a_bodyless_boundary_requirement() {
     let mut shape = objective_c(0);
     shape.requirements[0].admitted_same_stack_bytes = 128;
-    assert_eq!(api(shape.clone()).validate_canonical_structure(package()), Ok(()));
+    assert_eq!(
+        api(shape.clone()).validate_canonical_structure(package()),
+        Ok(())
+    );
     for (boundary, has_default) in [(false, false), (true, true)] {
         shape.is_boundary = boundary;
         shape.requirements[0].has_default_realization = has_default;
@@ -157,8 +167,6 @@ fn foreign_stack_requires_a_bodyless_boundary_requirement() {
 }
 
 mod structural_parameters;
-
-mod evidence_lanes;
 
 #[test]
 fn public_trait_parents_retain_their_local_declaration() {
@@ -212,4 +220,123 @@ fn public_witnesses_retain_their_local_interface_and_its_members() {
     public.conformances[0].interface.requirements.clear();
     public.traits.clear();
     assert!(public.validate_canonical_structure(package()).is_err());
+}
+
+pub(in crate::record::public_policy::validation::tests) fn application() -> Application {
+    Application {
+        declaration: identity("Ordering"),
+        binders: Vec::new(),
+        parameter_types: Vec::new(),
+        binder_arguments: Vec::new(),
+        arguments: Vec::new(),
+        evidence: Evidence::FactOnly,
+    }
+}
+
+pub(in crate::record::public_policy::validation::tests) fn source() -> Clause {
+    let requirement = Requirement {
+        declaring_trait: identity("Compare"),
+        declaring_trait_lifetime_arguments: Vec::new(),
+        declaring_trait_arguments: vec![type_identity(U64)],
+        requirement: identity("Compare::compare"),
+    };
+    let interface = Interface {
+        trait_identity: identity("Compare"),
+        lifetime_arguments: Vec::new(),
+        arguments: vec![type_identity(U64)],
+        requirements: vec![requirement],
+    };
+    Clause {
+        kind: Kind::Requires,
+        result_case: None,
+        binding: None,
+        evidence_lane_position: Some(0),
+        fact: Fact::Proposition(Application {
+            evidence: Evidence::Witness(interface),
+            ..application()
+        }),
+    }
+}
+
+pub(in crate::record::public_policy::validation::tests) fn projection(
+    kind: Kind,
+    position: u32,
+    member: &str,
+) -> Clause {
+    let value = Value::EvidenceProjection {
+        source_kind: kind,
+        source_lane_position: position,
+        declaring_trait: identity("Compare"),
+        declaring_trait_arguments: vec![type_identity(U64)],
+        requirement: identity(member),
+    };
+    Clause {
+        kind: Kind::Ensures,
+        result_case: None,
+        binding: None,
+        evidence_lane_position: None,
+        fact: Fact::Proposition(Application {
+            binders: vec![Binder {
+                kind: BinderKind::Machine,
+                bounds: crate::record::PackageReviewDataProperties {
+                    multiplicity: Default::default(),
+                },
+            }],
+            binder_arguments: vec![Argument {
+                kind: ArgumentKind::Machine,
+                value,
+            }],
+            ..application()
+        }),
+    }
+}
+
+pub(in crate::record::public_policy::validation::tests) fn validate(
+    clauses: Vec<Clause>,
+) -> Result<(), &'static str> {
+    let mut reviewed = objective_c(0);
+    reviewed.requirements[0].contracts = clauses;
+    api(reviewed).validate_canonical_structure(package())
+}
+
+#[test]
+pub(in crate::record::public_policy::validation::tests) fn projected_machine_uses_the_exact_requires_witness_lane_and_member()
+ {
+    let projected = || projection(Kind::Requires, 0, "Compare::compare");
+    assert_eq!(validate(vec![source(), projected()]), Ok(()));
+    assert!(
+        validate(vec![
+            source(),
+            projection(Kind::Requires, 3, "Compare::compare")
+        ])
+        .is_err()
+    );
+    assert!(
+        validate(vec![
+            source(),
+            projection(Kind::Ensures, 0, "Compare::compare")
+        ])
+        .is_err()
+    );
+    assert!(
+        validate(vec![
+            source(),
+            projection(Kind::Requires, 0, "Compare::other")
+        ])
+        .is_err()
+    );
+    assert!(validate(vec![projected()]).is_err());
+    assert!(validate(vec![source(), source(), projected()]).is_err());
+    let mut fact_only = source();
+    fact_only.fact = Fact::Proposition(application());
+    assert!(validate(vec![fact_only, projected()]).is_err());
+    let mut other_arguments = source();
+    let Fact::Proposition(application) = &mut other_arguments.fact else {
+        unreachable!()
+    };
+    let Evidence::Witness(interface) = &mut application.evidence else {
+        unreachable!()
+    };
+    interface.requirements[0].declaring_trait_arguments.clear();
+    assert!(validate(vec![other_arguments, projected()]).is_err());
 }

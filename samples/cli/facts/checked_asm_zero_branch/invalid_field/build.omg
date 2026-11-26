@@ -1,4 +1,4 @@
-machine build(builder: @mutable Build) {
- Build::application(builder, "checked_asm_zero_branch_field_invalid");
+machine build(builder: @mutable BuildPlan) {
+ builder.product = BuildProduct::Application { name: "checked_asm_zero_branch_field_invalid" };
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

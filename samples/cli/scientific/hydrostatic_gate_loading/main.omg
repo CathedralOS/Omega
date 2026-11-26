@@ -1,29 +1,19 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use geometry/profile/profile.omg;
+use input/tokens/tokens.omg;
+use loading/pressure/pressure.omg;
+use output/numbers/numbers.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // ADD02: Complete offline hydrostatic loading of a vertical gate silhouette.
 // Expected exit: 0 for valid bounded stdin; 64 for invalid bounded stdin.
 // Expected output contains: HYDROSTATIC_GATE_V1 micro_units (valid input).
 // Every domain operation and all bounded scratch data are application-private.
-use geometry\profile;
-use geometry\profile\Profile;
-use geometry\profile\WetSegment;
-use geometry\profile\clip;
-use loading\pressure;
-use loading\pressure\SegmentLoad;
-use loading\pressure\integrate;
-use input\tokens;
-use input\tokens\Reader;
-use input\tokens\next;
-use output\numbers;
-use output\numbers\write_integer;
-use output\numbers\write_scaled;
-use system\Console;
-use omega\language\core\F64::from_i64;
 
 data Application {
-    reader: Reader;
-    profile: Profile;
+    reader: |tokens|::Reader;
+    profile: |profile|::Profile;
     levels: [f64; 8];
     level_count: u64 in Wrapping;
     gamma: f64;
@@ -36,16 +26,16 @@ data Application {
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable application: Application;
-    block next(@mutable application.reader);
+    block |tokens|::next(@mutable application.reader);
     transition application.reader.status == 1 && application.reader.value >= 2 && application.reader.value <= 8 {
         true -> block header(@mutable application),
         false -> invalid()
     }
     machine header(application: @mutable Application) {
         application.profile.count = application.reader.value as u64 +Wrapping;
-        block next(@mutable application.reader);
+        block |tokens|::next(@mutable application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 8 {
             true -> block gamma(application),
             false -> invalid()
@@ -53,22 +43,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine gamma(application: @mutable Application) {
         application.level_count = application.reader.value as u64 +Wrapping;
-        block next(@mutable application.reader);
+        block |tokens|::next(@mutable application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 20000 {
             true -> block hinge(application),
             false -> invalid()
         }
     }
     machine hinge(application: @mutable Application) {
-        application.gamma = F64::from_i64(application.reader.value as i64);
-        block next(@mutable application.reader);
+        application.gamma = |float_operations|::F64::from_i64(application.reader.value as i64);
+        block |tokens|::next(@mutable application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 {
             true -> block begin_nodes(application),
             false -> invalid()
         }
     }
     machine begin_nodes(application: @mutable Application) {
-        application.hinge = (F64::from_i64(application.reader.value as i64)) / 1000.0;
+        application.hinge = (|float_operations|::F64::from_i64(application.reader.value as i64)) / 1000.0;
         transition { _ -> block node(application, 0) }
     }
     machine node(application: @mutable Application, index: u64 in Wrapping) {
@@ -78,15 +68,15 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine elevation(application: @mutable Application, index: u64 in Wrapping) {
-        block next(@mutable application.reader);
-        let node_elevation: f64 = F64::from_i64(application.reader.value as i64) / 1000.0;
+        block |tokens|::next(@mutable application.reader);
+        let node_elevation: f64 = |float_operations|::F64::from_i64(application.reader.value as i64) / 1000.0;
         transition application.reader.status == 1 && application.reader.value <= 100000 {
             true -> block width(application, index, node_elevation),
             false -> invalid()
         }
     }
     machine width(application: @mutable Application, index: u64 in Wrapping, elevation: f64) {
-        block next(@mutable application.reader);
+        block |tokens|::next(@mutable application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 && index < 8 {
             true -> block store_node(application, index, elevation),
             false -> invalid()
@@ -94,7 +84,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine store_node(application: @mutable Application, index: u64 in Wrapping, elevation: f64) {
         application.profile.nodes[index].elevation = elevation;
-        application.profile.nodes[index].width = (F64::from_i64(application.reader.value as i64)) / 1000.0;
+        application.profile.nodes[index].width = (|float_operations|::F64::from_i64(application.reader.value as i64)) / 1000.0;
         transition index > 0 {
             true -> block validate_order(application, index, elevation),
             false -> block node(application, index + 1)
@@ -114,25 +104,25 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine read_level(application: @mutable Application, index: u64 in Wrapping) {
-        block next(@mutable application.reader);
+        block |tokens|::next(@mutable application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 && index < 8 {
             true -> block store_level(application, index),
             false -> invalid()
         }
     }
     machine store_level(application: @mutable Application, index: u64 in Wrapping) {
-        application.levels[index] = (F64::from_i64(application.reader.value as i64)) / 1000.0;
+        application.levels[index] = (|float_operations|::F64::from_i64(application.reader.value as i64)) / 1000.0;
         transition { _ -> block level(application, index + 1) }
     }
     machine trailing(application: @mutable Application) {
-        block next(@mutable application.reader);
+        block |tokens|::next(@mutable application.reader);
         transition application.reader.status == 0 {
             true -> begin(application),
             false -> invalid()
         }
     }
     machine begin(application: @mutable Application) {
-        Console::write_line("HYDROSTATIC_GATE_V1 micro_units");
+        |console|::Console::write_line("HYDROSTATIC_GATE_V1 micro_units");
         transition { _ -> water(application, 0) }
     }
     machine water(application: @mutable Application, index: u64 in Wrapping) {
@@ -147,9 +137,9 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         application.first_moment = 0.0;
         application.hinge_moment = 0.0;
         application.wetted_count = 0;
-        Console::write("LEVEL "); write_integer(index as -Wrapping as i64 +Wrapping);
-        Console::write(" water_um="); write_scaled(application.levels[index]);
-        Console::write_line("");
+        |console|::Console::write("LEVEL "); |numbers|::write_integer(index as -Wrapping as i64 +Wrapping);
+        |console|::Console::write(" water_um="); |numbers|::write_scaled(application.levels[index]);
+        |console|::Console::write_line("");
         transition { _ -> segment(application, index, 0) }
     }
     machine segment(application: @mutable Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping) {
@@ -161,55 +151,55 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine calculate(application: @mutable Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, next: u64 in Wrapping) {
         let water: f64 = application.levels[water_index];
-        let wet: WetSegment = clip(application.profile.nodes[segment_index], application.profile.nodes[next], water);
+        let wet: |profile|::WetSegment = |profile|::clip(application.profile.nodes[segment_index], application.profile.nodes[next], water);
         transition wet.upper > wet.lower {
             true -> accumulate(application, water_index, segment_index, wet, water),
             false -> segment(application, water_index, next)
         }
     }
-    machine accumulate(application: @mutable Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, wet: WetSegment, water: f64) {
-        let load: SegmentLoad = integrate(wet, water, application.gamma, application.hinge);
+    machine accumulate(application: @mutable Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, wet: |profile|::WetSegment, water: f64) {
+        let load: |pressure|::SegmentLoad = |pressure|::integrate(wet, water, application.gamma, application.hinge);
         application.area = application.area + load.area;
         application.force = application.force + load.force;
         application.first_moment = application.first_moment + load.first_moment;
         application.hinge_moment = application.hinge_moment + load.hinge_moment;
         application.wetted_count = application.wetted_count + 1;
-        Console::write("WET "); write_integer(segment_index as -Wrapping as i64 +Wrapping);
-        Console::write(" lower_um="); write_scaled(wet.lower);
-        Console::write(" upper_um="); write_scaled(wet.upper);
-        Console::write(" lower_width_um="); write_scaled(wet.lower_width);
-        Console::write(" upper_width_um="); write_scaled(wet.upper_width);
-        Console::write(" area_micro_m2="); write_scaled(load.area);
-        Console::write(" force_uN="); write_scaled(load.force);
-        Console::write(" moment_uNm="); write_scaled(load.hinge_moment);
-        Console::write_line("");
+        |console|::Console::write("WET "); |numbers|::write_integer(segment_index as -Wrapping as i64 +Wrapping);
+        |console|::Console::write(" lower_um="); |numbers|::write_scaled(wet.lower);
+        |console|::Console::write(" upper_um="); |numbers|::write_scaled(wet.upper);
+        |console|::Console::write(" lower_width_um="); |numbers|::write_scaled(wet.lower_width);
+        |console|::Console::write(" upper_width_um="); |numbers|::write_scaled(wet.upper_width);
+        |console|::Console::write(" area_micro_m2="); |numbers|::write_scaled(load.area);
+        |console|::Console::write(" force_uN="); |numbers|::write_scaled(load.force);
+        |console|::Console::write(" moment_uNm="); |numbers|::write_scaled(load.hinge_moment);
+        |console|::Console::write_line("");
         transition { _ -> segment(application, water_index, segment_index + 1) }
     }
     machine summary(application: @mutable Application, water_index: u64 in Wrapping) {
-        Console::write("TOTAL wetted="); write_integer(application.wetted_count);
-        Console::write(" area_micro_m2="); write_scaled(application.area);
-        Console::write(" force_uN="); write_scaled(application.force);
-        Console::write(" moment_uNm="); write_scaled(application.hinge_moment);
+        |console|::Console::write("TOTAL wetted="); |numbers|::write_integer(application.wetted_count);
+        |console|::Console::write(" area_micro_m2="); |numbers|::write_scaled(application.area);
+        |console|::Console::write(" force_uN="); |numbers|::write_scaled(application.force);
+        |console|::Console::write(" moment_uNm="); |numbers|::write_scaled(application.hinge_moment);
         transition application.force > 0.0 {
             true -> center(application, water_index),
             false -> dry_summary(application, water_index)
         }
     }
     machine center(application: @mutable Application, water_index: u64 in Wrapping) {
-        Console::write(" center_um="); write_scaled(application.first_moment / application.force);
-        Console::write_line("");
+        |console|::Console::write(" center_um="); |numbers|::write_scaled(application.first_moment / application.force);
+        |console|::Console::write_line("");
         transition { _ -> water(application, water_index + 1) }
     }
     machine dry_summary(application: @mutable Application, water_index: u64 in Wrapping) {
-        Console::write_line(" center_um=undefined");
+        |console|::Console::write_line(" center_um=undefined");
         transition { _ -> water(application, water_index + 1) }
     }
-    machine done() { ProcessExit::exit_process(0); }
-    machine invalid() { Console::write_line("ERROR invalid bounded gate input"); ProcessExit::exit_process(64); }
+    machine done() { |process_exit|::ProcessExit::exit_process(0); }
+    machine invalid() { |console|::Console::write_line("ERROR invalid bounded gate input"); |process_exit|::ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

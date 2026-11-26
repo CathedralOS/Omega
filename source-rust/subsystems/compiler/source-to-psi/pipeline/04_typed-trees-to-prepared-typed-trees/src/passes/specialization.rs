@@ -722,21 +722,22 @@ fn specialize_application(
                     computational
                         .next()
                         .expect("every computational parameter was read above")
-                        .value
-                        .clone()
+                        .supplied_value(program, supplying_owner)?
                 };
-                crate::source_state::static_applications::StaticMachineBinding {
-                    parameter: parameter.symbol,
-                    value,
-                }
+                Ok(
+                    crate::source_state::static_applications::StaticMachineBinding {
+                        parameter: parameter.symbol,
+                        value,
+                    },
+                )
             })
-            .collect::<Vec<_>>();
+            .collect::<Served<Vec<_>>>()?;
         program
             .expression_table
             .set_static_machine_application_bindings(application, &bindings);
         return Ok(None);
     }
-    bind(program, application, &operands);
+    bind(program, application, &operands)?;
     if program
         .compiler_primitive_schema(callee)
         .map_err(|_| unserved("compiler primitive has no complete authenticated schema"))?
@@ -1055,7 +1056,7 @@ fn enter_generated(
         row.binding_application,
         arguments,
     )?;
-    bind(program, applied.application, &operands);
+    bind(program, applied.application, &operands)?;
     site.enter(program, applied.target);
     Ok(())
 }
@@ -1186,7 +1187,7 @@ fn bind_requirement(
         .expression_table
         .static_machine_application_mut(applied.application)
         .binding_declaration = declaration;
-    bind(program, applied.application, &operands);
+    bind(program, applied.application, &operands)?;
     Ok(())
 }
 

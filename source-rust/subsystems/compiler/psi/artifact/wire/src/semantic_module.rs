@@ -28,12 +28,13 @@ pub(crate) mod canonical_order {
     };
     use std::collections::BTreeSet;
 
-    use semantic_vocabulary::PropositionId;
+    use semantic_vocabulary::{Proposition, PropositionId};
     use terminal_psi::{
         BoundaryApplication, BoundaryApplicationArgument, BoundaryMachineResult,
-        ContentIdentityReshuffle, FloatMeaningSource, OperationKind, ProofPropositionId,
-        ProofValueId, StructuralFieldType, StructuralParameterDeclaration, StructuralTypeShape,
-        TerminalAffineCleanupAction, TerminalModule, Terminator, call_structural_pair_pattern,
+        ContentIdentityReshuffle, CrashRouteBucket, FloatMeaningSource, OperationKind,
+        ProofPropositionId, ProofValueId, StructuralFieldType, StructuralParameterDeclaration,
+        StructuralTypeShape, TerminalAffineCleanupAction, TerminalModule, Terminator,
+        call_structural_pair_pattern,
     };
 
     use super::CodecError;
@@ -47,30 +48,61 @@ pub(crate) mod canonical_order {
         };
     }
 
-    macro_rules! r {
-        ($values:expr => $reason:expr) => {
-            require_increasing($values, $reason)
+    fn check_crash_routes(
+        routes: &[CrashRouteBucket],
+        reason: &'static str,
+    ) -> Result<(), CodecError> {
+        if !crash_routes_are_canonical(routes) {
+            return Err(noncanonical!(reason));
+        }
+        validate_crash_route_predicates(routes)
+    }
+
+    fn check_propositions(
+        propositions: &[Proposition],
+        reason: &'static str,
+    ) -> Result<(), CodecError> {
+        for proposition in propositions {
+            validate_canonical_proposition(proposition)?;
+        }
+        if !canonical_propositions_strictly_increase(propositions)? {
+            return Err(noncanonical!(reason));
+        }
+        Ok(())
+    }
+
+    macro_rules! check_order {
+        (routes $routes:expr, $reason:expr) => {
+            check_crash_routes($routes, $reason)?
+        };
+        (props $props:expr, $reason:expr) => {
+            check_propositions($props, $reason)?
+        };
+        (all $slice:expr, |$item:ident| $iter:expr, $reason:expr) => {
+            $slice.iter().try_for_each(|$item| require_increasing($iter, $reason))?
+        };
+        ($values:expr, $reason:expr) => {
+            require_increasing($values, $reason)?
         };
     }
 
     pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
-        require_increasing(
+        check_order!(
+            module.types.structural_referents.iter().map(|r| r.id),
+            "structural referent identities"
+        );
+        check_order!(
             module
-                .types.structural_referents
+                .interfaces
+                .callback_applications
                 .iter()
-                .map(|referent| referent.id),
-            "structural referent identities",
-        )?;
-        require_increasing(
-            module
-                .interfaces.callback_applications
-                .iter()
-                .map(|row| row.application_index),
-            "callback applications",
-        )?;
+                .map(|r| r.application_index),
+            "callback applications"
+        );
         for application in module.interfaces.callback_applications.iter().chain(
             module
-                .interfaces.installed_interrupt_registrations
+                .interfaces
+                .installed_interrupt_registrations
                 .iter()
                 .flat_map(|registration| &registration.callbacks),
         ) {
@@ -96,73 +128,58 @@ pub(crate) mod canonical_order {
                 ));
             }
         }
-        r!(module.interfaces.boundary_application_candidates.iter() => "boundary application candidates")?;
-        require_increasing(
-            module.execution.task_activation_demands.demands.iter().map(|demand| {
-                (
-                    demand.report_fingerprint,
-                    demand.machine_callable_identity,
-                    demand.entry,
-                )
-            }),
-            "task activation demands by report fingerprint, machine, and entry",
-        )?;
-        require_increasing(
-            module
-                .execution.task_activation_demands
-                .structural_referents
-                .iter()
-                .map(|row| row.id),
-            "task structural referents",
-        )?;
-        require_increasing(
-            module
-                .execution.task_activation_demands
-                .target_layout_applications
-                .iter()
-                .map(|row| row.id),
-            "task target layout applications",
-        )?;
-        for application in &module.execution.task_activation_demands.target_layout_applications {
-            require_increasing(
-                application
-                    .realizations
-                    .iter()
-                    .map(|row| row.target.as_str()),
-                "task target layout alternatives",
-            )?;
+        check_order!(
+            module.interfaces.boundary_application_candidates.iter(),
+            "boundary application candidates"
+        );
+        let task = &module.execution.task_activation_demands;
+        check_order!(
+            task.demands.iter().map(|d| (
+                d.report_fingerprint,
+                d.machine_callable_identity,
+                d.entry
+            )),
+            "task activation demands by report fingerprint, machine, and entry"
+        );
+        check_order!(
+            task.structural_referents.iter().map(|r| r.id),
+            "task structural referents"
+        );
+        check_order!(
+            task.target_layout_applications.iter().map(|r| r.id),
+            "task target layout applications"
+        );
+        for application in &task.target_layout_applications {
+            check_order!(
+                application.realizations.iter().map(|r| r.target.as_str()),
+                "task target layout alternatives"
+            );
         }
-        for demand in &module.execution.task_activation_demands.demands {
-            r!(demand.frames.iter().map(|frame| frame.identity) => "task activation frames")?;
-            require_increasing(
-                demand.crossings.iter().map(|crossing| crossing.identity),
-                "task activation crossings",
-            )?;
+        for demand in &task.demands {
+            check_order!(
+                demand.frames.iter().map(|f| f.identity),
+                "task activation frames"
+            );
+            check_order!(
+                demand.crossings.iter().map(|c| c.identity),
+                "task activation crossings"
+            );
             for crossing in &demand.crossings {
-                if crossing
-                    .live_carry
-                    .iter()
-                    .any(|live| !strictly_increasing(live.claims.iter().copied()))
-                {
-                    return Err(noncanonical!("task activation live carry claims"));
-                }
+                check_order!(all crossing.live_carry, |live| live.claims.iter().copied(), "task activation live carry claims");
             }
         }
-        require_increasing(
+        check_order!(
+            task.structural_types.iter().map(|d| d.id),
+            "task activation structural types by StructuralTypeId"
+        );
+        check_order!(
             module
-                .execution.task_activation_demands
-                .structural_types
+                .interfaces
+                .boundary_application_demands
                 .iter()
-                .map(|declaration| declaration.id),
-            "task activation structural types by StructuralTypeId",
-        )?;
-        require_increasing(
-            module
-                .interfaces.boundary_application_demands
-                .iter()
-                .map(|demand| demand.terminal_operation()),
-            "boundary application demands by operation",
-        )?;
+                .map(|d| d.terminal_operation()),
+            "boundary application demands by operation"
+        );
         for candidate in &module.interfaces.boundary_application_candidates {
             if candidate.selection_identity.is_absent()
                 || candidate.target.as_ref().is_some_and(String::is_empty)
@@ -179,118 +196,120 @@ pub(crate) mod canonical_order {
             }
         }
         for application in module
-            .interfaces.boundary_application_demands
+            .interfaces
+            .boundary_application_demands
             .iter()
             .map(|demand| demand.application())
             .chain(
                 module
-                    .interfaces.boundary_application_candidates
+                    .interfaces
+                    .boundary_application_candidates
                     .iter()
                     .map(|candidate| &candidate.application),
             )
         {
-            match application {
-                BoundaryApplication::Empty => {}
-                BoundaryApplication::Exact(arguments) => {
-                    if arguments.is_empty() {
-                        return Err(CodecError::MalformedStructuralFoundation(
-                            "nonempty boundary application has no arguments",
-                        ));
+            if let BoundaryApplication::Exact(arguments) = application {
+                if arguments.is_empty() {
+                    return Err(CodecError::MalformedStructuralFoundation(
+                        "nonempty boundary application has no arguments",
+                    ));
+                }
+                for (ordinal, argument) in arguments.iter().enumerate() {
+                    if usize::try_from(argument.binder_ordinal()).ok() != Some(ordinal) {
+                        return Err(noncanonical!("boundary application binders"));
                     }
-                    for (ordinal, argument) in arguments.iter().enumerate() {
-                        if usize::try_from(argument.binder_ordinal()).ok() != Some(ordinal) {
-                            return Err(noncanonical!("boundary application binders"));
-                        }
-                        if let BoundaryApplicationArgument::Const {
-                            value_type,
-                            value_encoding,
-                            ..
-                        } = argument
-                            && (value_type.is_empty() || value_encoding.is_empty())
-                        {
-                            return Err(CodecError::MalformedStructuralFoundation(
-                                "boundary const application has an empty canonical value identity",
-                            ));
-                        }
+                    if let BoundaryApplicationArgument::Const {
+                        value_type,
+                        value_encoding,
+                        ..
+                    } = argument
+                        && (value_type.is_empty() || value_encoding.is_empty())
+                    {
+                        return Err(CodecError::MalformedStructuralFoundation(
+                            "boundary const application has an empty canonical value identity",
+                        ));
                     }
                 }
             }
         }
-        require_increasing(
+        check_order!(
             module
-                .proofs.scalar_block_invariants
+                .proofs
+                .scalar_block_invariants
                 .iter()
-                .map(|invariant| (invariant.machine, invariant.header)),
-            "scalar block invariants by machine and header",
-        )?;
-        require_increasing(
+                .map(|i| (i.machine, i.header)),
+            "scalar block invariants by machine and header"
+        );
+        check_order!(
             module
                 .proofs
                 .theorem_parameters
                 .iter()
-                .map(|row| (row.machine, row.proof_position)),
-            "logical parameters by machine and header position",
-        )?;
-        require_increasing(
+                .map(|r| (r.machine, r.proof_position)),
+            "logical parameters by machine and header position"
+        );
+        check_order!(
             module
                 .proofs
                 .theorem_applications
                 .iter()
-                .map(|row| (row.machine, row.edge)),
-            "logical applications by machine and edge",
-        )?;
-        require_increasing(
+                .map(|r| (r.machine, r.edge)),
+            "logical applications by machine and edge"
+        );
+        check_order!(
             module
                 .proofs
                 .theorem_citations
                 .iter()
-                .map(|row| (row.machine, row.site, row.proof_position)),
-            "logical supplies by machine, site and header position",
-        )?;
+                .map(|r| (r.machine, r.site, r.proof_position)),
+            "logical supplies by machine, site and header position"
+        );
         for invariant in &module.proofs.scalar_block_invariants {
             validate_canonical_proposition(&invariant.predicate)?;
-            require_increasing(
-                invariant.arrivals.iter().map(|arrival| arrival.edge),
-                "scalar block invariant arrivals by EdgeId",
-            )?;
+            check_order!(
+                invariant.arrivals.iter().map(|a| a.edge),
+                "scalar block invariant arrivals by EdgeId"
+            );
         }
-        require_increasing(
+        check_order!(
             module
-                .proofs.operation_crash_contracts
+                .proofs
+                .operation_crash_contracts
                 .iter()
-                .map(|contract| (contract.machine, contract.operation)),
-            "operation crash contracts by machine and operation",
-        )?;
+                .map(|c| (c.machine, c.operation)),
+            "operation crash contracts by machine and operation"
+        );
         for contract in &module.proofs.operation_crash_contracts {
-            if contract.published_routes.is_empty()
-                || !crash_routes_are_canonical(&contract.published_routes)
-            {
+            if contract.published_routes.is_empty() {
                 return Err(noncanonical!(
                     "operation crash contract published route buckets"
                 ));
             }
-            validate_crash_route_predicates(&contract.published_routes)?;
-            if !crash_routes_are_canonical(&contract.crash_continuations) {
-                return Err(noncanonical!(
-                    "operation crash contract continuation buckets"
-                ));
-            }
-            validate_crash_route_predicates(&contract.crash_continuations)?;
+            check_order!(
+                routes & contract.published_routes,
+                "operation crash contract published route buckets"
+            );
+            check_order!(
+                routes & contract.crash_continuations,
+                "operation crash contract continuation buckets"
+            );
         }
-        require_increasing(
+        check_order!(
             module
-                .execution.suspension_call_sites
+                .execution
+                .suspension_call_sites
                 .iter()
-                .map(|site| (site.operation, site.crossing)),
-            "suspension call sites by operation and crossing",
-        )?;
-        require_increasing(
+                .map(|s| (s.operation, s.crossing)),
+            "suspension call sites by operation and crossing"
+        );
+        check_order!(
             module
-                .execution.suspension_call_plans
+                .execution
+                .suspension_call_plans
                 .iter()
-                .map(|plan| (plan.operation, plan.crossing)),
-            "suspension call plans by operation and crossing",
-        )?;
+                .map(|p| (p.operation, p.crossing)),
+            "suspension call plans by operation and crossing"
+        );
         for plan in &module.execution.suspension_call_plans {
             if !plan
                 .live_values
@@ -302,44 +321,35 @@ pub(crate) mod canonical_order {
                     "suspension live values by place, storage, and type"
                 ));
             }
-            if plan
-                .live_values
-                .iter()
-                .any(|live| !strictly_increasing(live.claims.iter().copied()))
-            {
-                return Err(noncanonical!("suspension live claims by ClaimId"));
-            }
+            check_order!(all plan.live_values, |live| live.claims.iter().copied(), "suspension live claims by ClaimId");
         }
-        require_increasing(
+        check_order!(
+            module.types.structural_types.iter().map(|d| d.id),
+            "structural types by StructuralTypeId"
+        );
+        check_order!(
             module
-                .types.structural_types
+                .proofs
+                .proof_output_calls
                 .iter()
-                .map(|declaration| declaration.id),
-            "structural types by StructuralTypeId",
-        )?;
-        require_increasing(
+                .map(|i| (i.caller, i.ordinal)),
+            "evidence package invocations by caller and ordinal"
+        );
+        check_order!(
             module
-                .proofs.proof_output_calls
+                .proofs
+                .closed_conformance_applications
                 .iter()
-                .map(|invocation| (invocation.caller, invocation.ordinal)),
-            "evidence package invocations by caller and ordinal",
-        )?;
-        require_increasing(
-            module
-                .proofs.closed_conformance_applications
-                .iter()
-                .map(|application| {
-                    (
-                        application.owner,
-                        module
-                            .identities
-                            .text(application.declaration_identity)
-                            .unwrap_or_default(),
-                        application.report_fingerprint,
-                    )
-                }),
-            "closed conformance applications by owner, declaration, and fingerprint",
-        )?;
+                .map(|a| (
+                    a.owner,
+                    module
+                        .identities
+                        .text(a.declaration_identity)
+                        .unwrap_or_default(),
+                    a.report_fingerprint,
+                )),
+            "closed conformance applications by owner, declaration, and fingerprint"
+        );
         for invocation in &module.proofs.proof_output_calls {
             if invocation
                 .outputs
@@ -364,241 +374,197 @@ pub(crate) mod canonical_order {
             for clause in &declaration.requires {
                 validate_canonical_proposition(clause)?;
             }
-            let (fields, cases) = match &declaration.shape {
-                StructuralTypeShape::Record { fields, .. } => (fields.as_slice(), &[][..]),
-                StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
-                StructuralTypeShape::Mixed { fields, cases } => {
-                    (fields.as_slice(), cases.as_slice())
-                }
-                _ => (&[][..], &[][..]),
-            };
-            for field in fields
-                .iter()
-                .chain(cases.iter().flat_map(|case| &case.fields))
-            {
+            for field in declaration.shape.fields() {
                 if let StructuralFieldType::RefinedScalar(refinement) = &field.field_type {
                     validate_canonical_proposition(refinement.predicate())?;
                 }
             }
             match &declaration.shape {
-                StructuralTypeShape::Record { fields, .. }
-                    if !strictly_increasing(fields.iter().map(|field| field.id)) =>
-                {
-                    return Err(noncanonical!("structural fields by StructuralFieldId"));
+                StructuralTypeShape::Record { fields, .. } => {
+                    check_order!(
+                        fields.iter().map(|f| f.id),
+                        "structural fields by StructuralFieldId"
+                    );
                 }
-                StructuralTypeShape::Sum { cases }
-                    if !strictly_increasing(cases.iter().map(|case| case.id)) =>
-                {
-                    return Err(noncanonical!("structural cases by StructuralCaseId"));
+                StructuralTypeShape::Sum { cases } => {
+                    check_order!(
+                        cases.iter().map(|c| c.id),
+                        "structural cases by StructuralCaseId"
+                    );
+                    check_order!(all cases, |c| c.fields.iter().map(|f| f.id), "structural case fields by StructuralFieldId");
                 }
-                StructuralTypeShape::Sum { cases }
-                    if cases.iter().any(|case| {
-                        !strictly_increasing(case.fields.iter().map(|field| field.id))
-                    }) =>
-                {
-                    return Err(noncanonical!("structural case fields by StructuralFieldId"));
-                }
-                StructuralTypeShape::Mixed { fields, .. }
-                    if !strictly_increasing(fields.iter().map(|field| field.id)) =>
-                {
-                    return Err(noncanonical!(
+                StructuralTypeShape::Mixed { fields, cases } => {
+                    check_order!(
+                        fields.iter().map(|f| f.id),
                         "mixed structural fields by StructuralFieldId"
-                    ));
-                }
-                StructuralTypeShape::Mixed { cases, .. }
-                    if !strictly_increasing(cases.iter().map(|case| case.id)) =>
-                {
-                    return Err(noncanonical!("mixed structural cases by StructuralCaseId"));
-                }
-                StructuralTypeShape::Mixed { cases, .. }
-                    if cases.iter().any(|case| {
-                        !strictly_increasing(case.fields.iter().map(|field| field.id))
-                    }) =>
-                {
-                    return Err(noncanonical!(
-                        "mixed structural case fields by StructuralFieldId"
-                    ));
+                    );
+                    check_order!(
+                        cases.iter().map(|c| c.id),
+                        "mixed structural cases by StructuralCaseId"
+                    );
+                    check_order!(all cases, |c| c.fields.iter().map(|f| f.id), "mixed structural case fields by StructuralFieldId");
                 }
                 _ => {}
             }
         }
-        require_increasing(
+        check_order!(
+            module.types.structural_domains.iter().map(|d| d.id),
+            "structural domains by StructuralDomainId"
+        );
+        check_order!(
             module
-                .types.structural_domains
+                .types
+                .structural_qualification_changes
                 .iter()
-                .map(|declaration| declaration.id),
-            "structural domains by StructuralDomainId",
-        )?;
-        require_increasing(
+                .map(|c| (c.machine, c.edge, c.argument_ordinal)),
+            "structural qualification changes by machine, edge and argument"
+        );
+        check_order!(
+            all module.types.structural_qualification_changes,
+            |c| c.establishments.iter().map(|r| r.domain),
+            "structural qualification change establishments by StructuralDomainId"
+        );
+        check_order!(
+            module.interfaces.services.iter().map(|d| d.id),
+            "services by ServiceId"
+        );
+        check_order!(all module.interfaces.services, |d| d.parents.iter().copied(), "service parents by ServiceId");
+        check_order!(
             module
-                .types.structural_qualification_changes
+                .interfaces
+                .root_service_reach
+                .concrete
                 .iter()
-                .map(|change| (change.machine, change.edge, change.argument_ordinal)),
-            "structural qualification changes by machine, edge and argument",
-        )?;
-        if module
-            .types.structural_qualification_changes
-            .iter()
-            .any(|change| !strictly_increasing(change.establishments.iter().map(|row| row.domain)))
-        {
-            return Err(noncanonical!(
-                "structural qualification change establishments by StructuralDomainId"
-            ));
-        }
-        r!(module.interfaces.services.iter().map(|declaration| declaration.id) => "services by ServiceId")?;
-        if module
-            .interfaces.services
-            .iter()
-            .any(|declaration| !strictly_increasing(declaration.parents.iter().copied()))
-        {
-            return Err(noncanonical!("service parents by ServiceId"));
-        }
-        require_increasing(
-            module.interfaces.root_service_reach.concrete.iter().copied(),
-            "concrete root service reach by ServiceId",
-        )?;
-        require_increasing(
+                .copied(),
+            "concrete root service reach by ServiceId"
+        );
+        check_order!(
             module
-                .interfaces.root_service_reach
+                .interfaces
+                .root_service_reach
                 .installation_dependencies
                 .iter()
-                .map(|dependency| {
+                .map(|d| {
                     module
                         .identities
-                        .text(dependency.requirement_identity)
+                        .text(d.requirement_identity)
                         .unwrap_or_default()
                 }),
-            "installation reach dependencies by requirement identity",
-        )?;
+            "installation reach dependencies by requirement identity"
+        );
+        check_order!(
+            all module.interfaces.root_service_reach.installation_dependencies,
+            |d| d.upper_bound.iter().copied(),
+            "installation reach upper bounds by ServiceId"
+        );
         if module
-            .interfaces.root_service_reach
-            .installation_dependencies
-            .iter()
-            .any(|dependency| !strictly_increasing(dependency.upper_bound.iter().copied()))
-        {
-            return Err(noncanonical!(
-                "installation reach upper bounds by ServiceId"
-            ));
-        }
-        if module
-            .scalars.float_meaning_equalities
+            .scalars
+            .float_meaning_equalities
             .iter()
             .enumerate()
             .any(|(index, proposition)| {
-                let Ok(index) = u32::try_from(index) else {
-                    return true;
-                };
-                proposition.id != ProofPropositionId(index) || proposition.left > proposition.right
+                u32::try_from(index).ok().map(ProofPropositionId) != Some(proposition.id)
+                    || proposition.left > proposition.right
             })
         {
             return Err(noncanonical!(
                 "float-meaning equalities by dense proposition ID and ordered operands"
             ));
         }
-        require_increasing(
-            module
-                .interfaces.boundary_machines
-                .iter()
-                .map(|declaration| declaration.id),
-            "boundary machines by BoundaryMachineId",
-        )?;
+        check_order!(
+            module.interfaces.boundary_machines.iter().map(|d| d.id),
+            "boundary machines by BoundaryMachineId"
+        );
         for declaration in &module.interfaces.boundary_machines {
             if let BoundaryMachineResult::Structural(result) = &declaration.result {
-                require_increasing(
+                check_order!(
                     result.qualifications.iter().copied(),
-                    "boundary result qualifications by StructuralDomainId",
-                )?;
-                if !strictly_increasing(result.projected_qualifications.iter()) {
-                    return Err(noncanonical!(
-                        "boundary result projected qualifications by path and domain"
-                    ));
-                }
+                    "boundary result qualifications by StructuralDomainId"
+                );
+                check_order!(
+                    result.projected_qualifications.iter(),
+                    "boundary result projected qualifications by path and domain"
+                );
             }
-            if !crash_routes_are_canonical(&declaration.crash_routes) {
-                return Err(noncanonical!("boundary crash route buckets"));
-            }
-            validate_crash_route_predicates(&declaration.crash_routes)?;
+            check_order!(
+                routes & declaration.crash_routes,
+                "boundary crash route buckets"
+            );
             validate_parameter_order(&declaration.structural_parameters)?;
-            require_increasing(
+            check_order!(
                 declaration.requires.iter(),
-                "boundary requirements by argument index, path and domain",
-            )?;
-            r!(declaration.normal_qualifications.iter() => "boundary normal parameter qualifications")?;
-            require_increasing(
+                "boundary requirements by argument index, path and domain"
+            );
+            check_order!(
+                declaration.normal_qualifications.iter(),
+                "boundary normal parameter qualifications"
+            );
+            check_order!(
                 declaration.scalar_domain_requirements.iter().copied(),
-                "boundary scalar domain requirements by argument index and domain",
-            )?;
-            for proposition in &declaration.scalar_requires {
-                validate_canonical_proposition(proposition)?;
-            }
-            if !canonical_propositions_strictly_increase(&declaration.scalar_requires)? {
-                return Err(noncanonical!("boundary scalar requires propositions"));
-            }
-            for proposition in &declaration.scalar_ensures {
-                validate_canonical_proposition(proposition)?;
-            }
-            if !canonical_propositions_strictly_increase(&declaration.scalar_ensures)? {
-                return Err(noncanonical!("boundary scalar ensures propositions"));
-            }
-            require_increasing(
+                "boundary scalar domain requirements by argument index and domain"
+            );
+            check_order!(
+                props & declaration.scalar_requires,
+                "boundary scalar requires propositions"
+            );
+            check_order!(
+                props & declaration.scalar_ensures,
+                "boundary scalar ensures propositions"
+            );
+            check_order!(
                 declaration.published_service_ceiling.iter().copied(),
-                "boundary published service ceiling by ServiceId",
-            )?;
-            require_increasing(
+                "boundary published service ceiling by ServiceId"
+            );
+            check_order!(
                 declaration.published_synchronous_entries.iter().copied(),
-                "boundary published synchronous entries by ServiceId",
-            )?;
-            require_increasing(
+                "boundary published synchronous entries by ServiceId"
+            );
+            check_order!(
                 declaration.fixed_service_reach.iter().copied(),
-                "boundary fixed service reach by ServiceId",
-            )?;
+                "boundary fixed service reach by ServiceId"
+            );
         }
-        require_increasing(
-            module.interfaces.provider_candidates.iter().map(|candidate| {
-                (
-                    candidate.boundary,
-                    module
-                        .identities
-                        .text(candidate.provider_identity)
-                        .unwrap_or_default(),
-                    module
-                        .identities
-                        .text(candidate.provider_declaration.identity())
-                        .unwrap_or_default(),
-                    module
-                        .identities
-                        .text(candidate.candidate_identity)
-                        .unwrap_or_default(),
-                    candidate.candidate,
-                )
-            }),
-            "provider candidates by exact conformance identity",
-        )?;
-        require_increasing(
-            module.interfaces.provider_instance_requirements.iter().map(|row| {
-                (
-                    row.template,
-                    row.package,
-                    &row.selecting_declaration,
-                    row.source_candidate_identity,
-                )
-            }),
-            "provider instance requirement templates by callable and package",
-        )?;
+        check_order!(
+            module.interfaces.provider_candidates.iter().map(|c| (
+                c.boundary,
+                module
+                    .identities
+                    .text(c.provider_identity)
+                    .unwrap_or_default(),
+                module
+                    .identities
+                    .text(c.provider_declaration.identity())
+                    .unwrap_or_default(),
+                module
+                    .identities
+                    .text(c.candidate_identity)
+                    .unwrap_or_default(),
+                c.candidate,
+            )),
+            "provider candidates by exact conformance identity"
+        );
+        check_order!(
+            module
+                .interfaces
+                .provider_instance_requirements
+                .iter()
+                .map(|r| (
+                    r.template,
+                    r.package,
+                    &r.selecting_declaration,
+                    r.source_candidate_identity,
+                )),
+            "provider instance requirement templates by callable and package"
+        );
         for row in &module.interfaces.provider_instance_requirements {
-            require_increasing(
+            check_order!(
                 row.required_instances.iter(),
-                "closed provider requirement identities",
-            )?;
+                "closed provider requirement identities"
+            );
         }
         let mut float_projection_sources = Vec::new();
         for (index, projection) in module.scalars.float_meaning_projections.iter().enumerate() {
-            let Ok(index) = u32::try_from(index) else {
-                return Err(noncanonical!(
-                    "float-meaning projections by dense proof value and first-use source IDs"
-                ));
-            };
-            if projection.result.id != ProofValueId(index) {
+            if u32::try_from(index).ok().map(ProofValueId) != Some(projection.result.id) {
                 return Err(noncanonical!(
                     "float-meaning projections by dense proof value and first-use source IDs"
                 ));
@@ -606,12 +572,7 @@ pub(crate) mod canonical_order {
             if let FloatMeaningSource::TransitionalInput(source) = &projection.source
                 && !float_projection_sources.contains(&source.id)
             {
-                let Ok(expected) = u32::try_from(float_projection_sources.len()) else {
-                    return Err(noncanonical!(
-                        "float-meaning projections by dense proof value and first-use transitional source IDs"
-                    ));
-                };
-                if source.id.0 != expected {
+                if u32::try_from(float_projection_sources.len()).ok() != Some(source.id.0) {
                     return Err(noncanonical!(
                         "float-meaning projections by dense proof value and first-use transitional source IDs"
                     ));
@@ -619,18 +580,19 @@ pub(crate) mod canonical_order {
                 float_projection_sources.push(source.id);
             }
         }
-        require_increasing(
+        check_order!(
             module
-                .scalars.scalar_predicate_definitions
+                .scalars
+                .scalar_predicate_definitions
                 .iter()
-                .map(|definition| definition.declaration),
-            "scalar predicate definitions by declaration identity",
-        )?;
+                .map(|d| d.declaration),
+            "scalar predicate definitions by declaration identity"
+        );
         for definition in &module.scalars.scalar_predicate_definitions {
-            require_increasing(
-                definition.parameters.iter().map(|parameter| parameter.id),
-                "scalar predicate inputs by ValueId",
-            )?;
+            check_order!(
+                definition.parameters.iter().map(|p| p.id),
+                "scalar predicate inputs by ValueId"
+            );
             if let Some(body) = definition
                 .clause_body()
                 .map_err(CodecError::MalformedStructuralFoundation)?
@@ -638,129 +600,128 @@ pub(crate) mod canonical_order {
                 validate_canonical_proposition(body)?;
             }
         }
-        require_increasing(
+        let one = PropositionId::new(1).expect("one is nonzero");
+        check_order!(
             module
-                .proofs.proposition_declarations
+                .proofs
+                .proposition_declarations
                 .iter()
                 .cloned()
-                .map(|mut declaration| {
-                    declaration.id = PropositionId::new(1).expect("one is nonzero");
-                    declaration
+                .map(|mut d| {
+                    d.id = one;
+                    d
                 }),
-            "proposition declarations by semantic identity",
-        )?;
-        require_increasing(
+            "proposition declarations by semantic identity"
+        );
+        check_order!(
+            module.proofs.proposition_declarations.iter().map(|d| d.id),
+            "proposition declarations by PropositionId"
+        );
+        check_order!(
             module
-                .proofs.proposition_declarations
-                .iter()
-                .map(|declaration| declaration.id),
-            "proposition declarations by PropositionId",
-        )?;
-        require_increasing(
-            module
-                .proofs.proposition_applications
+                .proofs
+                .proposition_applications
                 .iter()
                 .cloned()
-                .map(|mut application| {
-                    application.id = PropositionId::new(1).expect("one is nonzero");
-                    application
+                .map(|mut a| {
+                    a.id = one;
+                    a
                 }),
-            "proposition applications by semantic identity",
-        )?;
-        require_increasing(
+            "proposition applications by semantic identity"
+        );
+        check_order!(
+            module.proofs.proposition_applications.iter().map(|a| a.id),
+            "proposition applications by PropositionId"
+        );
+        check_order!(
             module
-                .proofs.proposition_applications
+                .proofs
+                .evidence_terms
                 .iter()
-                .map(|application| application.id),
-            "proposition applications by PropositionId",
-        )?;
-        require_increasing(
+                .map(|t| (t.proposition, &t.interface, t.id)),
+            "evidence terms by proposition and EvidenceTermId"
+        );
+        check_order!(
+            module.proofs.evidence_terms.iter().map(|t| t.id),
+            "evidence terms by EvidenceTermId"
+        );
+        check_order!(
             module
-                .proofs.evidence_terms
+                .proofs
+                .evidence_contract_lanes
                 .iter()
-                .map(|term| (term.proposition, &term.interface, term.id)),
-            "evidence terms by proposition and EvidenceTermId",
-        )?;
-        r!(module.proofs.evidence_terms.iter().map(|term| term.id) => "evidence terms by EvidenceTermId")?;
-        require_increasing(
-            module
-                .proofs.evidence_contract_lanes
-                .iter()
-                .map(|lane| (lane.owner, lane.kind, lane.position)),
-            "evidence contract lanes by machine, kind, and position",
-        )?;
-        require_increasing(
-            module
-                .execution.declaration_contracts
-                .iter()
-                .map(|contract| contract.id),
-            "declaration contracts by ContractId",
-        )?;
+                .map(|l| (l.owner, l.kind, l.position)),
+            "evidence contract lanes by machine, kind, and position"
+        );
+        check_order!(
+            module.execution.declaration_contracts.iter().map(|c| c.id),
+            "declaration contracts by ContractId"
+        );
         for contract in module
-            .execution.declaration_contracts
+            .execution
+            .declaration_contracts
             .iter()
             .chain(module.machines.iter().map(|machine| &machine.contract))
         {
             validate_contract_order(contract)?;
         }
-        r!(module.machines.iter().map(|machine| machine.id) => "machines by MachineId")?;
+        check_order!(
+            module.machines.iter().map(|m| m.id),
+            "machines by MachineId"
+        );
         for machine in &module.machines {
-            require_increasing(
-                machine.call_formations.iter().map(|row| row.site),
-                "call acknowledgements by canonical call site",
-            )?;
+            check_order!(
+                machine.call_formations.iter().map(|r| r.site),
+                "call acknowledgements by canonical call site"
+            );
             for block in &machine.blocks {
                 for (_, actions) in block.terminator.cleanup_rosters() {
                     for action in actions {
                         if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
-                            require_increasing(
+                            check_order!(
                                 cleanup.claim_transfers.iter(),
-                                "cleanup claim transfers by claim and argument index",
-                            )?;
+                                "cleanup claim transfers by claim and argument index"
+                            );
                         }
                     }
                 }
                 if let Some(invocation) = block.terminator.module_invocation() {
-                    require_increasing(
+                    check_order!(
                         invocation.claim_transfers.iter(),
-                        "invocation claim transfers by claim and argument index",
-                    )?;
-                    if !crash_routes_are_canonical(invocation.crash_continuations) {
-                        return Err(noncanonical!("invocation crash continuation buckets"));
-                    }
-                    validate_crash_route_predicates(invocation.crash_continuations)?;
+                        "invocation claim transfers by claim and argument index"
+                    );
+                    check_order!(routes invocation.crash_continuations, "invocation crash continuation buckets");
                 }
                 if let Terminator::ExternalCompletion {
                     frontier_lower_bound,
                     ..
                 } = &block.terminator
-                    && !strictly_increasing(frontier_lower_bound.iter().copied())
                 {
-                    return Err(noncanonical!(
+                    check_order!(
+                        frontier_lower_bound.iter().copied(),
                         "external completion frontier lower bound by ClaimId"
-                    ));
+                    );
                 }
                 validate_parameter_order(&block.structural_parameters)?;
             }
-
-            require_increasing(
-                machine.block_entry_claims.iter().map(|claim| claim.claim),
-                "block entry claims by ClaimId",
-            )?;
-            require_increasing(
+            check_order!(
+                machine.block_entry_claims.iter().map(|c| c.claim),
+                "block entry claims by ClaimId"
+            );
+            check_order!(
                 machine
                     .loan_completions
                     .iter()
-                    .map(|completion| (completion.operation, completion.place, &completion.path)),
-                "loan completions by call and owned region",
-            )?;
+                    .map(|c| (c.operation, c.place, &c.path)),
+                "loan completions by call and owned region"
+            );
             for completion in &machine.loan_completions {
-                require_increasing(
-                    completion.claims.iter().map(|claim| claim.claim),
-                    "loan completion claims by ClaimId",
-                )?;
+                check_order!(
+                    completion.claims.iter().map(|c| c.claim),
+                    "loan completion claims by ClaimId"
+                );
             }
-            r!(machine.blocks.iter().map(|block| block.id) => "blocks by BlockId")?;
+            check_order!(machine.blocks.iter().map(|b| b.id), "blocks by BlockId");
             for operation in machine.operations() {
                 if let Some(result) = operation.result.as_structural() {
                     validate_input_observation_order(
@@ -768,39 +729,33 @@ pub(crate) mod canonical_order {
                         &result.projected_qualifications,
                         &result.additional_input_qualifications,
                     )?;
-                    require_increasing(
+                    check_order!(
                         result.qualifications.iter().copied(),
-                        "structural operation result qualifications by StructuralDomainId",
-                    )?;
-                    require_increasing(
-                        result.claims.iter().map(|binding| binding.claim),
-                        "structural operation result claims by ClaimId",
-                    )?;
+                        "structural operation result qualifications by StructuralDomainId"
+                    );
+                    check_order!(
+                        result.claims.iter().map(|b| b.claim),
+                        "structural operation result claims by ClaimId"
+                    );
                 }
-                let crash_continuations = match &operation.kind {
-                    OperationKind::Call {
-                        crash_continuations,
-                        ..
-                    }
-                    | OperationKind::CallUnit {
-                        crash_continuations,
-                        ..
-                    }
-                    | OperationKind::CallStructuralScalar {
-                        crash_continuations,
-                        ..
-                    }
-                    | OperationKind::CallStructural {
-                        crash_continuations,
-                        ..
-                    } => Some(crash_continuations),
-                    _ => None,
-                };
-                if let Some(crash_continuations) = crash_continuations {
-                    if !crash_routes_are_canonical(crash_continuations) {
-                        return Err(noncanonical!("call crash continuation buckets"));
-                    }
-                    validate_crash_route_predicates(crash_continuations)?;
+                if let OperationKind::Call {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallUnit {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallStructuralScalar {
+                    crash_continuations,
+                    ..
+                }
+                | OperationKind::CallStructural {
+                    crash_continuations,
+                    ..
+                } = &operation.kind
+                {
+                    check_order!(routes crash_continuations, "call crash continuation buckets");
                 }
                 match &operation.kind {
                     OperationKind::CallUnit {
@@ -811,28 +766,26 @@ pub(crate) mod canonical_order {
                     }
                     | OperationKind::CallStructural {
                         claim_transfers, ..
-                    } if !strictly_increasing(claim_transfers.iter()) => {
-                        return Err(noncanonical!(
+                    } => {
+                        check_order!(
+                            claim_transfers.iter(),
                             "call claim transfers by claim and argument index"
-                        ));
+                        );
                     }
                     call_structural_pair_pattern!(selected_evidence, ..)
-                        if !strictly_increasing(selected_evidence.iter().map(|binding| {
-                            (
-                                binding.guard,
-                                binding.position,
-                                binding.output_field.as_str(),
-                                binding.output,
-                            )
-                        })) || selected_evidence.iter().any(|binding| {
-                            !strictly_increasing(binding.argument_substitutions.iter().cloned())
+                        if !strictly_increasing(
+                            selected_evidence
+                                .iter()
+                                .map(|b| (b.guard, b.position, b.output_field.as_str(), b.output)),
+                        ) || selected_evidence.iter().any(|b| {
+                            !strictly_increasing(b.argument_substitutions.iter().cloned())
                                 || !strictly_increasing(
-                                    binding.validity.proposition_dependencies.iter().copied(),
+                                    b.validity.proposition_dependencies.iter().copied(),
                                 )
                                 || !strictly_increasing(
-                                    binding.validity.interface_dependencies.iter().copied(),
+                                    b.validity.interface_dependencies.iter().copied(),
                                 )
-                                || !strictly_increasing(binding.uses.iter().cloned())
+                                || !strictly_increasing(b.uses.iter().cloned())
                         }) =>
                     {
                         return Err(noncanonical!(
@@ -842,10 +795,11 @@ pub(crate) mod canonical_order {
                     OperationKind::BoundaryCall {
                         completion_receipts,
                         ..
-                    } if !strictly_increasing(completion_receipts.iter()) => {
-                        return Err(noncanonical!(
+                    } => {
+                        check_order!(
+                            completion_receipts.iter(),
                             "boundary claim settlements by claim and argument index"
-                        ));
+                        );
                     }
                     _ => {}
                 }
@@ -867,30 +821,34 @@ pub(crate) mod canonical_order {
                             TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard),
                             _ => None,
                         })
-                        .any(|discard| {
-                            !places_and_paths.insert((discard.place, discard.path.as_slice()))
-                        })
+                        .any(|d| !places_and_paths.insert((d.place, d.path.as_slice())))
                     {
                         return Err(noncanonical!("partial affine residual discards are unique"));
                     }
                 }
             }
-            require_increasing(
-                machine.structural_places.iter().map(|place| place.id),
-                "structural places by PlaceId",
-            )?;
+            check_order!(
+                machine.structural_places.iter().map(|p| p.id),
+                "structural places by PlaceId"
+            );
             validate_identity_reshuffles(&machine.content_identity_reshuffles)?;
-            r!(machine.content_partition_compositions.iter() => "content partition compositions")?;
+            check_order!(
+                machine.content_partition_compositions.iter(),
+                "content partition compositions"
+            );
             for composition in &machine.content_partition_compositions {
-                require_increasing(
-                    composition
-                        .source_structural_places
-                        .iter()
-                        .map(|place| place.id),
-                    "partition source structural places by PlaceId",
-                )?;
-                r!(composition.input_claims.iter().copied() => "partition input claims by ClaimId")?;
-                r!(composition.substitutions.iter() => "partition place substitutions")?;
+                check_order!(
+                    composition.source_structural_places.iter().map(|p| p.id),
+                    "partition source structural places by PlaceId"
+                );
+                check_order!(
+                    composition.input_claims.iter().copied(),
+                    "partition input claims by ClaimId"
+                );
+                check_order!(
+                    composition.substitutions.iter(),
+                    "partition place substitutions"
+                );
             }
         }
         Ok(())
@@ -907,62 +865,41 @@ pub(crate) mod canonical_order {
         .into_iter()
         .flatten()
         {
-            require_increasing(row.iter().copied(), "authored effect ceiling by ServiceId")?;
+            check_order!(row.iter().copied(), "authored effect ceiling by ServiceId");
         }
         if let Some(routes) = &contract.declared_crash_routes {
-            if !crash_routes_are_canonical(routes) {
-                return Err(noncanonical!("authored crash route buckets"));
-            }
-            validate_crash_route_predicates(routes)?;
+            check_order!(routes routes, "authored crash route buckets");
         }
-
-        r!(contract.entry_claims.iter().map(|claim| claim.claim) => "entry claims by ClaimId")?;
-        require_increasing(
+        check_order!(
+            contract.entry_claims.iter().map(|c| c.claim),
+            "entry claims by ClaimId"
+        );
+        check_order!(
             contract.published_service_ceiling.iter().copied(),
-            "machine published service ceiling by ServiceId",
-        )?;
-        require_increasing(
+            "machine published service ceiling by ServiceId"
+        );
+        check_order!(
             contract.published_synchronous_entries.iter().copied(),
-            "machine published synchronous entries by ServiceId",
-        )?;
-        if !crash_routes_are_canonical(&contract.crash_routes) {
-            return Err(noncanonical!("crash route buckets"));
+            "machine published synchronous entries by ServiceId"
+        );
+        check_order!(routes & contract.crash_routes, "crash route buckets");
+        check_order!(
+            contract.content_entry_claims.iter().map(|b| b.claim),
+            "content entry claims by ClaimId"
+        );
+        check_order!(all contract.content_entry_claims, |b| b.projections.iter(), "entry-claim content projections by identity and algebra");
+        check_order!(
+            contract.ensures.iter().map(|c| c.obligation),
+            "ensures by ObligationId"
+        );
+        for clause in &contract.ensures {
+            validate_canonical_proposition(&clause.proposition)?;
         }
-        validate_crash_route_predicates(&contract.crash_routes)?;
-        require_increasing(
-            contract
-                .content_entry_claims
-                .iter()
-                .map(|binding| binding.claim),
-            "content entry claims by ClaimId",
-        )?;
-        if contract
-            .content_entry_claims
-            .iter()
-            .any(|binding| !strictly_increasing(binding.projections.iter()))
-        {
-            return Err(noncanonical!(
-                "entry-claim content projections by identity and algebra"
-            ));
-        }
-        require_increasing(
-            contract.ensures.iter().map(|clause| clause.obligation),
-            "ensures by ObligationId",
-        )?;
-        let propositions = contract
-            .requires
-            .iter()
-            .chain(contract.source_checked_requires.iter())
-            .chain(contract.ensures.iter().map(|clause| &clause.proposition));
-        for proposition in propositions {
-            validate_canonical_proposition(proposition)?;
-        }
-        if !canonical_propositions_strictly_increase(&contract.requires)? {
-            return Err(noncanonical!("requires propositions"));
-        }
-        if !canonical_propositions_strictly_increase(&contract.source_checked_requires)? {
-            return Err(noncanonical!("source-checked requires propositions"));
-        }
+        check_order!(props & contract.requires, "requires propositions");
+        check_order!(
+            props & contract.source_checked_requires,
+            "source-checked requires propositions"
+        );
         Ok(())
     }
 
@@ -997,22 +934,8 @@ pub(crate) mod canonical_order {
         {
             return Err(noncanonical!("structural parameters by dense position"));
         }
-        if parameters
-            .iter()
-            .any(|parameter| !strictly_increasing(parameter.qualifications.iter().copied()))
-        {
-            return Err(noncanonical!(
-                "structural parameter qualifications by StructuralDomainId"
-            ));
-        }
-        if parameters
-            .iter()
-            .any(|parameter| !strictly_increasing(parameter.projected_qualifications.iter()))
-        {
-            return Err(noncanonical!(
-                "projected structural qualifications by path and StructuralDomainId"
-            ));
-        }
+        check_order!(all parameters, |p| p.qualifications.iter().copied(), "structural parameter qualifications by StructuralDomainId");
+        check_order!(all parameters, |p| p.projected_qualifications.iter(), "projected structural qualifications by path and StructuralDomainId");
         for parameter in parameters {
             validate_input_observation_order(
                 &parameter.qualifications,
@@ -1024,29 +947,21 @@ pub(crate) mod canonical_order {
     }
 
     fn validate_identity_reshuffles(rows: &[ContentIdentityReshuffle]) -> Result<(), CodecError> {
-        if !strictly_increasing(
-            rows.iter()
-                .map(|reshuffle| (reshuffle.claim, &reshuffle.output)),
-        ) || rows.iter().enumerate().any(|(position, row)| {
-            rows[..position].iter().any(|previous| {
-                previous.claim == row.claim
-                    && (previous.input != row.input
-                        || previous.projections != row.projections
-                        || !previous.output.is_case_alternative(&row.output))
+        if !strictly_increasing(rows.iter().map(|r| (r.claim, &r.output)))
+            || rows.iter().enumerate().any(|(position, row)| {
+                rows[..position].iter().any(|previous| {
+                    previous.claim == row.claim
+                        && (previous.input != row.input
+                            || previous.projections != row.projections
+                            || !previous.output.is_case_alternative(&row.output))
+                })
             })
-        }) {
+        {
             return Err(noncanonical!(
                 "content identity reshuffles by claim and exclusive output case"
             ));
         }
-        if rows
-            .iter()
-            .any(|reshuffle| !strictly_increasing(reshuffle.projections.iter()))
-        {
-            return Err(noncanonical!(
-                "claim content projections by identity and algebra"
-            ));
-        }
+        check_order!(all rows, |r| r.projections.iter(), "claim content projections by identity and algebra");
         Ok(())
     }
 
@@ -1115,9 +1030,13 @@ pub(crate) mod dynamic_result_admission {
     ) -> Result<(), CodecError> {
         let mut rows = Vec::new();
         for table in &module.execution.dynamic_dispatch.tables {
-            let interface = module.execution.dynamic_dispatch.interface(table.interface).ok_or(
-                CodecError::MalformedStructuralFoundation("dynamic table has no interface"),
-            )?;
+            let interface = module
+                .execution
+                .dynamic_dispatch
+                .interface(table.interface)
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "dynamic table has no interface",
+                ))?;
             if table.rows.len() != interface.slots.len() {
                 return malformed("dynamic table row count disagrees with its interface");
             }
@@ -1182,144 +1101,93 @@ pub(crate) mod dynamic_result_admission {
     }
 }
 pub(crate) mod external_provider_wire {
-
     use super::CodecError;
-    use super::machine_declaration_wire;
     use super::wire::{Reader, Writer};
-    use super::wire_fields::{ExternalPackage, Field, Optional};
-    use semantic_vocabulary::ExternalBindingIdentity;
-    use terminal_psi::TerminalIdentityIndex;
-    use terminal_psi::{
-        ExternalProviderConformance, ExternalProviderOwner, NominalDeclarationIdentity,
+    use super::wire_fields::{
+        ExternalPackage, Field, I64, Index, MachineDeclaration, Nominal, Optional, Text, wire_enum,
+        wire_record,
     };
+    use semantic_vocabulary::ExternalBindingIdentity;
+    use terminal_psi::{
+        ExternalProviderConformance, ExternalProviderOwner, ExternalRequirementSchema,
+    };
+
+    struct ExternalNumeric;
+    impl Field<Option<numerics::intrinsics::NumericIntrinsic>> for ExternalNumeric {
+        fn write(
+            writer: &mut Writer,
+            value: &Option<numerics::intrinsics::NumericIntrinsic>,
+        ) -> Result<(), CodecError> {
+            writer.boolean(value.is_some());
+            if let Some(meaning) = value {
+                let bytes = meaning.canonical_encoding().ok_or(
+                    CodecError::MalformedStructuralFoundation(
+                        "invalid external provider numeric meaning",
+                    ),
+                )?;
+                writer.bytes(&bytes);
+            }
+            Ok(())
+        }
+        fn read(
+            reader: &mut Reader<'_>,
+        ) -> Result<Option<numerics::intrinsics::NumericIntrinsic>, CodecError> {
+            if !reader.boolean()? {
+                return Ok(None);
+            }
+            numerics::intrinsics::NumericIntrinsic::from_canonical_encoding(reader.array()?)
+                .map(Some)
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "invalid external provider numeric meaning",
+                ))
+        }
+    }
+
+    wire_enum! {
+        Binding: ExternalBindingIdentity, "external provider binding" {
+            2 => Syscall { number: I64 },
+            3 => CompilerIntrinsic,
+            4 => VtableSlot { index: I64 },
+            5 => VtableField { field: Text },
+            6 => TableFunction { field: Text },
+        }
+    }
+
+    wire_record! {
+        Schema: ExternalRequirementSchema { identity: Index, method: Index, owner: Index }
+        Owner: ExternalProviderOwner {
+            declaration: Nominal,
+            identity: Index,
+            package: ExternalPackage,
+        }
+        Conformance: ExternalProviderConformance {
+            requirement: Nominal,
+            requirement_identity: Index,
+            requirement_package: ExternalPackage,
+            requirement_schema: Optional<Schema>,
+            numeric_intrinsic: ExternalNumeric,
+            sealed_intrinsic: Optional<crate::service_schema_wire::SealedIntrinsic>,
+            target: Optional<Text>,
+            realization: MachineDeclaration,
+            realization_package: ExternalPackage,
+            provider: Optional<Owner>,
+            binding: Binding,
+        }
+    }
 
     pub(crate) fn encode(
         writer: &mut Writer,
         candidate: &ExternalProviderConformance,
     ) -> Result<(), CodecError> {
-        writer.u32(candidate.requirement.identity().0);
-        writer.u32(candidate.requirement_identity.0);
-        ExternalPackage::write(writer, &candidate.requirement_package)?;
-        writer.boolean(candidate.requirement_schema.is_some());
-        if let Some(schema) = &candidate.requirement_schema {
-            writer.u32(schema.identity.0);
-            writer.u32(schema.method.0);
-            writer.u32(schema.owner.0);
-        }
-        writer.boolean(candidate.numeric_intrinsic.is_some());
-        if let Some(meaning) = candidate.numeric_intrinsic {
-            writer.bytes(&meaning.canonical_encoding().ok_or(
-                CodecError::MalformedStructuralFoundation(
-                    "invalid external provider numeric meaning",
-                ),
-            )?);
-        }
-        Optional::<crate::service_schema_wire::SealedIntrinsic>::write(
-            writer,
-            &candidate.sealed_intrinsic,
-        )?;
-        writer.boolean(candidate.target.is_some());
-        if let Some(target) = &candidate.target {
-            writer.string("external provider target membership", target)?;
-        }
-        machine_declaration_wire::encode(writer, &candidate.realization)?;
-        ExternalPackage::write(writer, &candidate.realization_package)?;
-        writer.boolean(candidate.provider.is_some());
-        if let Some(provider) = &candidate.provider {
-            writer.u32(provider.declaration.identity().0);
-            writer.u32(provider.identity.0);
-            ExternalPackage::write(writer, &provider.package)?;
-        }
-        writer.u8(candidate.binding.mechanism().identity_tag());
-        match &candidate.binding {
-            ExternalBindingIdentity::CompilerIntrinsic => {}
-            ExternalBindingIdentity::Syscall { number } => writer.bytes(&number.to_le_bytes()),
-            ExternalBindingIdentity::VtableSlot { index } => writer.bytes(&index.to_le_bytes()),
-            ExternalBindingIdentity::VtableField { field }
-            | ExternalBindingIdentity::TableFunction { field } => {
-                writer.string("external binding field", field)?
-            }
-        }
-        Ok(())
+        Conformance::write(writer, candidate)
     }
 
     pub(crate) fn decode(
         reader: &mut Reader<'_>,
     ) -> Result<ExternalProviderConformance, CodecError> {
-        let requirement = NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?));
-        let requirement_identity = TerminalIdentityIndex(reader.u32()?);
-        let requirement_package = ExternalPackage::read(reader)?;
-        let requirement_schema = if reader.boolean()? {
-            Some(terminal_psi::ExternalRequirementSchema {
-                identity: TerminalIdentityIndex(reader.u32()?),
-                method: TerminalIdentityIndex(reader.u32()?),
-                owner: TerminalIdentityIndex(reader.u32()?),
-            })
-        } else {
-            None
-        };
-        let numeric_intrinsic = if reader.boolean()? {
-            Some(
-                numerics::intrinsics::NumericIntrinsic::from_canonical_encoding(
-                    reader.array()?,
-                )
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "invalid external provider numeric meaning",
-                ))?,
-            )
-        } else {
-            None
-        };
-        let sealed_intrinsic =
-            Optional::<crate::service_schema_wire::SealedIntrinsic>::read(reader)?;
-        let target = if reader.boolean()? {
-            Some(reader.string("external provider target membership")?)
-        } else {
-            None
-        };
-        let realization = machine_declaration_wire::decode(reader)?;
-        let realization_package = ExternalPackage::read(reader)?;
-        let provider = if reader.boolean()? {
-            Some(ExternalProviderOwner {
-                declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
-                identity: TerminalIdentityIndex(reader.u32()?),
-                package: ExternalPackage::read(reader)?,
-            })
-        } else {
-            None
-        };
-        let binding = match reader.u8()? {
-            2 => ExternalBindingIdentity::Syscall {
-                number: i64::from_le_bytes(reader.array()?),
-            },
-            3 => ExternalBindingIdentity::CompilerIntrinsic,
-            4 => ExternalBindingIdentity::VtableSlot {
-                index: i64::from_le_bytes(reader.array()?),
-            },
-            5 => ExternalBindingIdentity::VtableField {
-                field: reader.string("external binding field")?,
-            },
-            6 => ExternalBindingIdentity::TableFunction {
-                field: reader.string("external binding field")?,
-            },
-            tag => return Err(CodecError::InvalidTag("external provider binding", tag)),
-        };
-        Ok(ExternalProviderConformance {
-            requirement,
-            requirement_identity,
-            requirement_package,
-            requirement_schema,
-            numeric_intrinsic,
-            sealed_intrinsic,
-            target,
-            realization,
-            realization_package,
-            provider,
-            binding,
-        })
+        Conformance::read(reader)
     }
 }
-pub(crate) use psi_callable_encoding::machine_declarations as machine_declaration_wire;
 pub(crate) mod machine_wire {
     pub(crate) use psi_callable_encoding::signatures::Claim;
 
@@ -1373,23 +1241,26 @@ pub(crate) mod machine_wire {
                 id: place,
                 kind: StructuralPlaceKind::Parameter { position: 0 },
             });
-            module.types.structural_types.push(StructuralTypeDeclaration {
-                declaration_identity: Default::default(),
-                requires: Vec::new(),
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                descriptor_cleanup: false,
-                nominal_cleanup: None,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                scalar_restriction: None,
-                id: structural_type,
-                identity: TerminalIdentityIndex(3),
-                shape: StructuralTypeShape::Record {
-                    fields: Vec::new(),
-                    storage: StructuralRecordStorage::Packed,
-                },
-            });
+            module
+                .types
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: false,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    scalar_restriction: None,
+                    id: structural_type,
+                    identity: TerminalIdentityIndex(3),
+                    shape: StructuralTypeShape::Record {
+                        fields: Vec::new(),
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                });
             module.layouts.native_layouts.insert(
                 structural_type,
                 TerminalIdentityIndex(3),
@@ -1594,9 +1465,9 @@ pub(crate) mod machine_wire {
     };
 
     use super::CodecError;
-    use super::scalar_wire::{
-        decode_integer_type, decode_scalar_type, encode_integer_type, encode_scalar_type,
-    };
+    #[cfg(test)]
+    use super::scalar_wire::encode_integer_type;
+    use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
     use super::structural_place_wire::{
         decode_structural_place_kind, encode_structural_place_kind,
     };
@@ -1617,6 +1488,10 @@ pub(crate) mod machine_wire {
         CallOriginRow: CallOrigin, "CallOrigin" {
             0 => Authored,
             1 => CompilerGenerated,
+        }
+        RankComparison: TerminalNaturalRankComparison, "TerminalNaturalRankComparison" {
+            1 => Preserving,
+            2 => Strict,
         }
     }
     wire_record! {
@@ -1653,6 +1528,10 @@ pub(crate) mod machine_wire {
             path: Path,
             multiplicity: Multiplicity,
             claims: List<ClaimBinding>,
+        }
+        RankValue: TerminalIntegerRankValue {
+            integer_type: super::wire_fields::IntegerTypeField,
+            value: Id,
         }
     }
 
@@ -1720,16 +1599,8 @@ pub(crate) mod machine_wire {
         Machine::write(writer, machine)
     }
 
-    pub(crate) fn encode_declarations(
-        writer: &mut Writer,
-        label: &'static str,
-        declarations: &[ValueDeclaration],
-    ) -> Result<(), CodecError> {
-        writer.len(label, declarations.len())?;
-        for declaration in declarations {
-            encode_declaration(writer, *declaration)?;
-        }
-        Ok(())
+    pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
+        Machine::read(reader)
     }
 
     pub(crate) fn encode_declaration(
@@ -1742,48 +1613,47 @@ pub(crate) mod machine_wire {
         Ok(())
     }
 
-    pub(crate) fn decode_machine(reader: &mut Reader<'_>) -> Result<TerminalMachine, CodecError> {
-        Machine::read(reader)
+    pub(crate) fn decode_declaration(
+        reader: &mut Reader<'_>,
+    ) -> Result<ValueDeclaration, CodecError> {
+        Ok(ValueDeclaration {
+            id: reader.id("ValueId")?,
+            scalar_type: decode_scalar_type(reader)?,
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::new(reader.u64()?),
+        })
     }
 
     fn encode_ranked_scc(
         writer: &mut Writer,
         ranked_scc: Option<&TerminalRankedScc>,
     ) -> Result<(), CodecError> {
-        let Some(ranking) = ranked_scc else {
+        let Some(TerminalRankedScc::Natural(components)) = ranked_scc else {
             writer.u8(0);
             return Ok(());
         };
-        match ranking {
-            TerminalRankedScc::Natural(components) => {
-                if components.is_empty() {
-                    return Err(CodecError::MalformedRanking(
-                        "empty ranked component roster",
-                    ));
-                }
-                writer.u8(3);
-                writer.len("integer cycle components", components.len())?;
-                for component in components {
-                    if component.ranks.is_empty() {
-                        return Err(CodecError::MalformedRanking("empty cyclic rank roster"));
-                    }
-                    writer.len("integer block ranks", component.ranks.len())?;
-                    for rank in &component.ranks {
-                        writer.id(rank.block);
-                        encode_rank_values(writer, component, rank.values)?;
-                    }
-                    writer.len("integer rank edges", component.edges.len())?;
-                    for edge in &component.edges {
-                        writer.id(edge.edge);
-                        writer.id(edge.source);
-                        writer.id(edge.target);
-                        encode_rank_values(writer, component, edge.successor_ranks)?;
-                        writer.u8(match edge.comparison {
-                            TerminalNaturalRankComparison::Preserving => 1,
-                            TerminalNaturalRankComparison::Strict => 2,
-                        });
-                    }
-                }
+        if components.is_empty() {
+            return Err(CodecError::MalformedRanking(
+                "empty ranked component roster",
+            ));
+        }
+        writer.u8(3);
+        writer.len("integer cycle components", components.len())?;
+        for component in components {
+            if component.ranks.is_empty() {
+                return Err(CodecError::MalformedRanking("empty cyclic rank roster"));
+            }
+            writer.len("integer block ranks", component.ranks.len())?;
+            for rank in &component.ranks {
+                writer.id(rank.block);
+                encode_rank_values(writer, component, rank.values)?;
+            }
+            writer.len("integer rank edges", component.edges.len())?;
+            for edge in &component.edges {
+                writer.id(edge.edge);
+                writer.id(edge.source);
+                writer.id(edge.target);
+                encode_rank_values(writer, component, edge.successor_ranks)?;
+                RankComparison::write(writer, &edge.comparison)?;
             }
         }
         Ok(())
@@ -1798,31 +1668,18 @@ pub(crate) mod machine_wire {
                 let components = decode_counted(reader, |reader| {
                     let mut observations = arena::Arena::new();
                     let ranks = decode_counted(reader, |reader| {
-                        let block = reader.id("BlockId")?;
-                        let values = decode_rank_values(reader, &mut observations)?;
-                        Ok(TerminalBlockNaturalRank { block, values })
+                        Ok(TerminalBlockNaturalRank {
+                            block: Id::read(reader)?,
+                            values: decode_rank_values(reader, &mut observations)?,
+                        })
                     })?;
                     let edges = decode_counted(reader, |reader| {
-                        let edge = reader.id("EdgeId")?;
-                        let source = reader.id("BlockId")?;
-                        let target = reader.id("BlockId")?;
-                        let successor_ranks = decode_rank_values(reader, &mut observations)?;
-                        let comparison = match reader.u8()? {
-                            1 => TerminalNaturalRankComparison::Preserving,
-                            2 => TerminalNaturalRankComparison::Strict,
-                            tag => {
-                                return Err(CodecError::InvalidTag(
-                                    "TerminalNaturalRankComparison",
-                                    tag,
-                                ));
-                            }
-                        };
                         Ok(TerminalNaturalRankEdge {
-                            edge,
-                            source,
-                            target,
-                            successor_ranks,
-                            comparison,
+                            edge: Id::read(reader)?,
+                            source: Id::read(reader)?,
+                            target: Id::read(reader)?,
+                            successor_ranks: decode_rank_values(reader, &mut observations)?,
+                            comparison: RankComparison::read(reader)?,
                         })
                     })?;
                     let component = TerminalNaturalCycle {
@@ -1834,11 +1691,11 @@ pub(crate) mod machine_wire {
                         || component
                             .ranks
                             .iter()
-                            .any(|rank| component.rank_values(rank.values).is_none())
+                            .any(|r| component.rank_values(r.values).is_none())
                         || component
                             .edges
                             .iter()
-                            .any(|edge| component.rank_values(edge.successor_ranks).is_none())
+                            .any(|e| component.rank_values(e.successor_ranks).is_none())
                     {
                         return Err(CodecError::MalformedRanking(
                             "incomplete or differently typed rank tuple",
@@ -1867,44 +1724,18 @@ pub(crate) mod machine_wire {
             .ok_or(CodecError::MalformedRanking(
                 "incomplete or differently typed rank tuple",
             ))?;
-        writer.len("integer rank tuple", values.len())?;
-        for value in values {
-            encode_integer_type(writer, value.integer_type)?;
-            writer.id(value.value);
-        }
-        Ok(())
+        writer.counted("integer rank tuple", values, RankValue::write)
     }
 
     fn decode_rank_values(
         reader: &mut Reader<'_>,
         observations: &mut arena::Arena<TerminalIntegerRankValue>,
     ) -> Result<arena::HandleSpan<TerminalIntegerRankValue>, CodecError> {
-        let values = decode_counted(reader, |reader| {
-            Ok(TerminalIntegerRankValue {
-                integer_type: decode_integer_type(reader)?,
-                value: reader.id("ValueId")?,
-            })
-        })?;
+        let values = List::<RankValue>::read(reader)?;
         if values.is_empty() {
             return Err(CodecError::MalformedRanking("empty rank tuple"));
         }
         Ok(observations.insert_many(values))
-    }
-
-    pub(crate) fn decode_declarations(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<ValueDeclaration>, CodecError> {
-        decode_counted(reader, decode_declaration)
-    }
-
-    pub(crate) fn decode_declaration(
-        reader: &mut Reader<'_>,
-    ) -> Result<ValueDeclaration, CodecError> {
-        Ok(ValueDeclaration {
-            id: reader.id("ValueId")?,
-            scalar_type: decode_scalar_type(reader)?,
-            qualifications: semantic_vocabulary::ScalarQualificationSetId::new(reader.u64()?),
-        })
     }
 }
 pub(crate) mod provider_candidate_wire {
@@ -2188,7 +2019,10 @@ mod external_provider_tests {
         module.interfaces.boundary_machines.clear();
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();
-        assert_eq!(decoded.interfaces.external_providers, module.interfaces.external_providers);
+        assert_eq!(
+            decoded.interfaces.external_providers,
+            module.interfaces.external_providers
+        );
         assert!(decoded.interfaces.boundary_machines.is_empty());
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
     }
@@ -2268,49 +2102,54 @@ mod numeric_intrinsic_tests {
         module.identities = identity_table(3);
         let signature = meaning.signature().unwrap();
         let result = match signature.result {
-            NumericResult::Primitive(primitive) => ScalarType::from_numeric_type(primitive).unwrap(),
+            NumericResult::Primitive(primitive) => {
+                ScalarType::from_numeric_type(primitive).unwrap()
+            }
             NumericResult::Boolean => ScalarType::Boolean,
             NumericResult::FloatClass => panic!("this helper creates scalar boundaries"),
         };
-        module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
-            id: BoundaryMachineId::new(1).unwrap(),
-            numeric_intrinsic: Some(meaning),
-            declaration: None,
-            role: BoundaryDeclarationRole::Callable,
-            kind: BoundaryRequirementKind::Machine,
-            completion: BoundaryCompletion::NormalReturn,
-            unconditional_termination: false,
-            identity: TerminalIdentityIndex(3),
-            owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
-            attachment: None,
-            parameter_order: vec![BoundaryParameterKind::Scalar; signature.operand_count],
-            scalar_parameters: vec![
-                ScalarType::from_numeric_type(signature.operand).unwrap();
-                signature.operand_count
-            ],
-            structural_parameters: Vec::new(),
-            result: BoundaryMachineResult::Scalar(QualifiedScalarType {
-                scalar_type: result,
-                qualifications: ScalarQualificationSetId::ZERO,
-            }),
-            membership_ensures: Vec::new(),
-            normal_qualifications: Vec::new(),
-            scalar_domain_requirements: Vec::new(),
-            crash_routes: Vec::new(),
-            requires: Vec::new(),
-            scalar_requires: Vec::new(),
-            scalar_ensures: Vec::new(),
-            program_local_root_introductions: Vec::new(),
-            content_guarantees: Vec::new(),
-            result_reference_regions: Vec::new(),
-            result_lifetimes: None,
-            reference_outputs: Vec::new(),
-            fixed_service_reach: Vec::new(),
-            service_reach_is_installation_bound: false,
-            owning_service: None,
-            published_synchronous_entries: Vec::new(),
-            published_service_ceiling: Vec::new(),
-        });
+        module
+            .interfaces
+            .boundary_machines
+            .push(BoundaryMachineDeclaration {
+                id: BoundaryMachineId::new(1).unwrap(),
+                numeric_intrinsic: Some(meaning),
+                declaration: None,
+                role: BoundaryDeclarationRole::Callable,
+                kind: BoundaryRequirementKind::Machine,
+                completion: BoundaryCompletion::NormalReturn,
+                unconditional_termination: false,
+                identity: TerminalIdentityIndex(3),
+                owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
+                attachment: None,
+                parameter_order: vec![BoundaryParameterKind::Scalar; signature.operand_count],
+                scalar_parameters: vec![
+                    ScalarType::from_numeric_type(signature.operand).unwrap();
+                    signature.operand_count
+                ],
+                structural_parameters: Vec::new(),
+                result: BoundaryMachineResult::Scalar(QualifiedScalarType {
+                    scalar_type: result,
+                    qualifications: ScalarQualificationSetId::ZERO,
+                }),
+                membership_ensures: Vec::new(),
+                normal_qualifications: Vec::new(),
+                scalar_domain_requirements: Vec::new(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                result_reference_regions: Vec::new(),
+                result_lifetimes: None,
+                reference_outputs: Vec::new(),
+                fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
+                owning_service: None,
+                published_synchronous_entries: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            });
         module
     }
 
@@ -2343,7 +2182,10 @@ mod numeric_intrinsic_tests {
             let mut module = module(meaning);
             let boundary = &mut module.interfaces.boundary_machines[0];
             match mutation {
-                0 => boundary.scalar_parameters[0] = ScalarType::from_numeric_type(NumericType::F64).unwrap(),
+                0 => {
+                    boundary.scalar_parameters[0] =
+                        ScalarType::from_numeric_type(NumericType::F64).unwrap()
+                }
                 1 => boundary.result = BoundaryMachineResult::Unit,
                 2 => boundary.role = BoundaryDeclarationRole::ContractEvidence,
                 3 => {
@@ -2445,32 +2287,40 @@ mod reference_transport_tests {
         let mut module = TerminalModule::declarations();
         module.identities = identity_table(4);
         module
-            .types.structural_referents
+            .types
+            .structural_referents
             .push(StructuralReferentIdentity {
                 id: StructuralTypeId::new(1).unwrap(),
                 identity: TerminalIdentityIndex(1),
                 foreign_descriptor,
                 abstract_opaque: false,
             });
-        module.types.structural_types.push(StructuralTypeDeclaration {
-            declaration_identity: Default::default(),
-            requires: Vec::new(),
-            id: StructuralTypeId::new(2).unwrap(),
-            identity: TerminalIdentityIndex(2),
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-            no_code_affine_cleanup: false,
-            descriptor_cleanup: true,
-            nominal_cleanup: None,
-            scalar_restriction: None,
-            shape: StructuralTypeShape::Reference {
-                referent: StructuralTypeId::new(1).unwrap(),
-                access: StructuralAccess::SharedBorrow,
-            },
-        });
-        module.execution.task_activation_demands.structural_types = module.types.structural_types.clone();
-        module.execution.task_activation_demands.structural_referents = module.types.structural_referents.clone();
+        module
+            .types
+            .structural_types
+            .push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                id: StructuralTypeId::new(2).unwrap(),
+                identity: TerminalIdentityIndex(2),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: true,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+                shape: StructuralTypeShape::Reference {
+                    referent: StructuralTypeId::new(1).unwrap(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            });
+        module.execution.task_activation_demands.structural_types =
+            module.types.structural_types.clone();
+        module
+            .execution
+            .task_activation_demands
+            .structural_referents = module.types.structural_referents.clone();
         module
     }
 
@@ -2506,33 +2356,36 @@ mod reference_transport_tests {
                 }],
                 [],
             );
-            module.types.structural_types.push(StructuralTypeDeclaration {
-                declaration_identity: Default::default(),
-                requires: Vec::new(),
-                id: StructuralTypeId::new(3).unwrap(),
-                identity: TerminalIdentityIndex(3),
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-                no_code_affine_cleanup: false,
-                descriptor_cleanup: false,
-                nominal_cleanup: None,
-                scalar_restriction: None,
-                shape: StructuralTypeShape::Record {
-                    storage: StructuralRecordStorage::Packed,
-                    fields: vec![StructuralFieldDeclaration {
-                        declaration_identity: Default::default(),
-                        inline_carrier: None,
-                        id: StructuralFieldId::new(1).unwrap(),
-                        identity: TerminalIdentityIndex(4),
-                        relevance: BindingRelevance::Relevant,
-                        field_type: StructuralFieldType::Structural(
-                            StructuralTypeId::new(1).unwrap(),
-                        ),
-                        storage: None,
-                    }],
-                },
-            });
+            module
+                .types
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    id: StructuralTypeId::new(3).unwrap(),
+                    identity: TerminalIdentityIndex(3),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    no_code_affine_cleanup: false,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    shape: StructuralTypeShape::Record {
+                        storage: StructuralRecordStorage::Packed,
+                        fields: vec![StructuralFieldDeclaration {
+                            declaration_identity: Default::default(),
+                            inline_carrier: None,
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: TerminalIdentityIndex(4),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(
+                                StructuralTypeId::new(1).unwrap(),
+                            ),
+                            storage: None,
+                        }],
+                    },
+                });
             let bytes = encode_module(&module).unwrap();
             let error = decode_module(&bytes).expect_err("transport supplied owned storage");
             assert!(
@@ -2644,7 +2497,8 @@ mod reference_transport_tests {
                 if identity == 4 {
                     module.identities = identity_table(5);
                     module
-                        .types.structural_referents
+                        .types
+                        .structural_referents
                         .push(StructuralReferentIdentity {
                             id: StructuralTypeId::new(4).unwrap(),
                             identity: TerminalIdentityIndex(4),
@@ -2708,7 +2562,8 @@ mod reference_transport_tests {
         let copy_disposition = OpaqueRepresentationCopyDisposition::CheckedSemanticCopy;
         let origin = OpaqueRepresentationApplicationOrigin::NamedConformance;
         module
-            .types.opaque_representations
+            .types
+            .opaque_representations
             .push(terminal_psi::TerminalOpaqueRepresentation {
                 opaque: StructuralTypeId::new(3).unwrap(),
                 carrier: StructuralTypeId::new(4).unwrap(),
@@ -2737,7 +2592,8 @@ mod reference_transport_tests {
         assert_eq!(decode_module(&bytes).unwrap(), module);
         let mut redirected = module.clone();
         let mut noncopy = module.clone();
-        noncopy.types.structural_types[0].multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+        noncopy.types.structural_types[0].multiplicity =
+            terminal_psi::StructuralMultiplicity::Affine;
         let error = decode_module(&super::module_wire::encode_raw(&noncopy).unwrap()).unwrap_err();
         assert!(
             error
@@ -2832,7 +2688,8 @@ mod reference_transport_tests {
                 .contains("substituted its exact storage identity"),
             "{error}"
         );
-        redirected.types.opaque_representations[0].carrier_storage_identity = TerminalIdentityIndex(2);
+        redirected.types.opaque_representations[0].carrier_storage_identity =
+            TerminalIdentityIndex(2);
         let error =
             decode_module(&super::module_wire::encode_raw(&redirected).unwrap()).unwrap_err();
         assert!(
@@ -2844,7 +2701,8 @@ mod reference_transport_tests {
         let mut changed_native = module;
         changed_native.layouts.native_layouts = terminal_psi::NativeLayoutCatalog::default();
         for declaration in changed_native
-            .types.structural_types
+            .types
+            .structural_types
             .iter()
             .filter(|row| row.is_record_shape())
         {
@@ -2939,7 +2797,8 @@ mod routed_scalar_tests {
         module.identities = identity_table(4);
         module.machines.push(machine);
         module
-            .types.scalar_qualifications
+            .types
+            .scalar_qualifications
             .domains
             .push(ScalarDomainDeclaration {
                 required_memberships: Some(Vec::new()),
@@ -2957,14 +2816,16 @@ mod routed_scalar_tests {
                 }]),
             });
         module
-            .types.scalar_qualifications
+            .types
+            .scalar_qualifications
             .sets
             .push(ScalarQualificationSet {
                 id: qualifications,
                 domains: vec![domain],
             });
         module
-            .types.scalar_qualifications
+            .types
+            .scalar_qualifications
             .returns
             .push(ScalarReturnQualification {
                 site: ScalarReturnSite::NormalExit,
@@ -3009,7 +2870,8 @@ mod routed_scalar_tests {
             .proposition = Proposition::Truth;
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
         let mut changed = module.clone();
-        changed.types.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
+        changed.types.scalar_qualifications.returns[0].origins =
+            vec![ScalarReturnOrigin::Forwarded];
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
     }
 
@@ -3022,39 +2884,42 @@ mod routed_scalar_tests {
         let mut module = module();
         let result = module.machines[0].result.scalar().unwrap().value_type();
         let boundary = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
-        module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
-            numeric_intrinsic: None,
-            membership_ensures: Vec::new(),
-            normal_qualifications: Vec::new(),
-            scalar_domain_requirements: Vec::new(),
-            declaration: None,
-            role: BoundaryDeclarationRole::Callable,
-            id: boundary,
-            kind: BoundaryRequirementKind::Machine,
-            completion: BoundaryCompletion::NormalReturn,
-            unconditional_termination: false,
-            identity: TerminalIdentityIndex(1),
-            attachment: None,
-            owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
-            parameter_order: Vec::new(),
-            scalar_parameters: Vec::new(),
-            crash_routes: Vec::new(),
-            structural_parameters: Vec::new(),
-            result: BoundaryMachineResult::Scalar(result),
-            requires: Vec::new(),
-            scalar_requires: Vec::new(),
-            scalar_ensures: Vec::new(),
-            program_local_root_introductions: Vec::new(),
-            content_guarantees: Vec::new(),
-            result_reference_regions: Vec::new(),
-            result_lifetimes: None,
-            reference_outputs: Vec::new(),
-            fixed_service_reach: Vec::new(),
-            service_reach_is_installation_bound: false,
-            owning_service: None,
-            published_synchronous_entries: Vec::new(),
-            published_service_ceiling: Vec::new(),
-        });
+        module
+            .interfaces
+            .boundary_machines
+            .push(BoundaryMachineDeclaration {
+                numeric_intrinsic: None,
+                membership_ensures: Vec::new(),
+                normal_qualifications: Vec::new(),
+                scalar_domain_requirements: Vec::new(),
+                declaration: None,
+                role: BoundaryDeclarationRole::Callable,
+                id: boundary,
+                kind: BoundaryRequirementKind::Machine,
+                completion: BoundaryCompletion::NormalReturn,
+                unconditional_termination: false,
+                identity: TerminalIdentityIndex(1),
+                attachment: None,
+                owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+                parameter_order: Vec::new(),
+                scalar_parameters: Vec::new(),
+                crash_routes: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: BoundaryMachineResult::Scalar(result),
+                requires: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                result_reference_regions: Vec::new(),
+                result_lifetimes: None,
+                reference_outputs: Vec::new(),
+                fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
+                owning_service: None,
+                published_synchronous_entries: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            });
         module.machines[0].blocks[0].operations.push(Operation {
             id: semantic_vocabulary::OperationId::new(1).unwrap(),
             static_reach_binding: None,
@@ -3151,7 +3016,8 @@ mod routed_scalar_tests {
             .clone();
         predicate.remap_value_ids(|_| destination);
         module
-            .proofs.scalar_block_invariants
+            .proofs
+            .scalar_block_invariants
             .push(terminal_psi::ScalarBlockInvariant {
                 machine: module.machines[0].id,
                 header: semantic_vocabulary::BlockId::new(2).unwrap(),
@@ -3264,7 +3130,9 @@ mod routed_scalar_tests {
                     vec![ScalarReturnOrigin::Forwarded]
             }),
             ("missing origin", |module| {
-                module.types.scalar_qualifications.returns[0].origins.clear()
+                module.types.scalar_qualifications.returns[0]
+                    .origins
+                    .clear()
             }),
             ("wrong route", |module| {
                 module.types.scalar_qualifications.returns[0].origins =
@@ -3377,10 +3245,8 @@ mod routed_scalar_tests {
         // Receiving validation refuses a public declaration without its own
         // operational envelope, so publish one that repeats what the contract
         // already promises: no services, no suspension, guaranteed termination.
-        module
-            .execution.callables
-            .declaration_envelopes
-            .push(terminal_psi::TerminalDeclarationEnvelope {
+        module.execution.callables.declaration_envelopes.push(
+            terminal_psi::TerminalDeclarationEnvelope {
                 contract: required,
                 envelope: terminal_psi::TerminalCallableEnvelope {
                     service_reach: public.published_service_ceiling.clone(),
@@ -3396,7 +3262,8 @@ mod routed_scalar_tests {
                         premises: Vec::new(),
                     },
                 },
-            });
+            },
+        );
         module.execution.declaration_contracts.push(public);
         let decoded = decode_module(&encode_module(&module).unwrap()).unwrap();
         assert_eq!(decoded, module);
@@ -3415,7 +3282,9 @@ mod routed_scalar_tests {
         );
 
         let mut missing_predicate = module.clone();
-        missing_predicate.execution.declaration_contracts[0].ensures.clear();
+        missing_predicate.execution.declaration_contracts[0]
+            .ensures
+            .clear();
         assert_eq!(
             decode_module(&encode_raw(&missing_predicate).unwrap()),
             Err(crate::CodecError::MalformedStructuralFoundation(
@@ -3954,7 +3823,8 @@ mod routed_scalar_tests {
             .closed_reach_application
             .as_mut()
             .unwrap()
-            .suspension_dependency.parameters = vec![2];
+            .suspension_dependency
+            .parameters = vec![2];
         assert_eq!(
             decode_module(&encode_raw(&module).unwrap()),
             Err(crate::CodecError::MalformedStructuralFoundation(
@@ -4154,7 +4024,7 @@ pub(crate) use module_wire::decode_module_body;
 
 pub(crate) use proposition_wire::{decode_proposition, encode_proposition};
 pub(crate) use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity};
-pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
+pub(crate) use wire::{Reader, Writer, decode_canonical};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
@@ -4237,6 +4107,7 @@ pub fn decode_closed_parts(
     if reader.remaining() != 0 {
         return Err(CodecError::TrailingBytes(reader.remaining()));
     }
+    let mut types = crate::ClosedTypeCatalog::from_encoded_integers(reader.finish_integer_types());
     scalar_qualification_wire::validate(&module.types.scalar_qualifications)?;
     validate_canonical_order(&module)?;
     module_foundation_validation::validate_storage_foundation(&module)?;
@@ -4264,12 +4135,8 @@ pub fn decode_closed_parts(
     opaque_storage
         .restore(&mut module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
-    let (canonical, mut types) = module_wire::encode_raw_closed(&module)?;
     types.record_callables(&module);
-    if canonical != bytes {
-        return Err(CodecError::NonCanonicalEncoding);
-    }
-    Ok((module, canonical, types))
+    Ok((module, bytes.to_vec(), types))
 }
 
 pub use psi_declaration_encoding::crash_routes::{
@@ -4401,136 +4268,148 @@ mod normal_qualification_tests {
                     [],
                 );
             }
-            module.types.structural_types.push(StructuralTypeDeclaration {
-                declaration_identity: Default::default(),
-                requires: Vec::new(),
-                id: type_id(position as u64 + 1),
-                identity: TerminalIdentityIndex(position as u32 + 4),
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: position != 2,
-                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-                descriptor_cleanup: false,
-                nominal_cleanup: None,
-                scalar_restriction: None,
-                shape,
-            });
+            module
+                .types
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    id: type_id(position as u64 + 1),
+                    identity: TerminalIdentityIndex(position as u32 + 4),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: position != 2,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    shape,
+                });
         }
         let domain = StructuralDomainId::new(1).unwrap();
-        module.types.structural_domains.push(StructuralDomainDeclaration {
-            subject_identity: Default::default(),
-            access_policy: None,
-            id: domain,
-            semantic_domain: DomainSemanticId::new(1).unwrap(),
-            identity: TerminalIdentityIndex(10),
-            carrier: type_id(1),
-            required_memberships: Some(Vec::new()),
-            complete_predicate_theory: false,
-            predicate: None,
-            content_projection: None,
-            byte_predicate: None,
-            establishment_routes: None,
-        });
-        module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
-            id: BoundaryMachineId::new(1).unwrap(),
-            declaration: None,
-            role: terminal_psi::BoundaryDeclarationRole::Callable,
-            kind: BoundaryRequirementKind::Machine,
-            completion: BoundaryCompletion::NormalReturn,
-            numeric_intrinsic: None,
-            unconditional_termination: false,
-            identity: TerminalIdentityIndex(11),
-            owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
-            attachment: None,
-            scalar_parameters: Vec::new(),
-            parameter_order: vec![BoundaryParameterKind::Structural; 3],
-            crash_routes: Vec::new(),
-            structural_parameters: [1, 4, 3]
+        module
+            .types
+            .structural_domains
+            .push(StructuralDomainDeclaration {
+                subject_identity: Default::default(),
+                access_policy: None,
+                id: domain,
+                semantic_domain: DomainSemanticId::new(1).unwrap(),
+                identity: TerminalIdentityIndex(10),
+                carrier: type_id(1),
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: false,
+                predicate: None,
+                content_projection: None,
+                byte_predicate: None,
+                establishment_routes: None,
+            });
+        module
+            .interfaces
+            .boundary_machines
+            .push(BoundaryMachineDeclaration {
+                id: BoundaryMachineId::new(1).unwrap(),
+                declaration: None,
+                role: terminal_psi::BoundaryDeclarationRole::Callable,
+                kind: BoundaryRequirementKind::Machine,
+                completion: BoundaryCompletion::NormalReturn,
+                numeric_intrinsic: None,
+                unconditional_termination: false,
+                identity: TerminalIdentityIndex(11),
+                owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+                attachment: None,
+                scalar_parameters: Vec::new(),
+                parameter_order: vec![BoundaryParameterKind::Structural; 3],
+                crash_routes: Vec::new(),
+                structural_parameters: [1, 4, 3]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(position, carrier)| StructuralParameterDeclaration {
+                        place: PlaceId::new(position as u64 + 1).unwrap(),
+                        position: position as u32,
+                        structural_type: type_id(carrier),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::MutableBorrow,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    })
+                    .collect(),
+                result: BoundaryMachineResult::Unit,
+                requires: vec![StructuralDomainRequirement {
+                    argument_index: 1,
+                    path: vec![field(8)],
+                    domain,
+                }],
+                membership_ensures: Vec::new(),
+                normal_qualifications: [
+                    (0, Vec::new()),
+                    (1, vec![field(8)]),
+                    (
+                        2,
+                        vec![
+                            StructuralPathSegment::Referent,
+                            StructuralPathSegment::AllElements,
+                        ],
+                    ),
+                ]
                 .into_iter()
-                .enumerate()
-                .map(|(position, carrier)| StructuralParameterDeclaration {
-                    place: PlaceId::new(position as u64 + 1).unwrap(),
-                    position: position as u32,
-                    structural_type: type_id(carrier),
-                    multiplicity: StructuralMultiplicity::Affine,
-                    access: StructuralAccess::MutableBorrow,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    additional_input_qualifications: Vec::new(),
+                .map(|(argument_index, path)| StructuralDomainRequirement {
+                    argument_index,
+                    path,
+                    domain,
                 })
                 .collect(),
-            result: BoundaryMachineResult::Unit,
-            requires: vec![StructuralDomainRequirement {
-                argument_index: 1,
-                path: vec![field(8)],
-                domain,
-            }],
-            membership_ensures: Vec::new(),
-            normal_qualifications: [
-                (0, Vec::new()),
-                (1, vec![field(8)]),
-                (
-                    2,
-                    vec![
-                        StructuralPathSegment::Referent,
-                        StructuralPathSegment::AllElements,
-                    ],
-                ),
-            ]
-            .into_iter()
-            .map(|(argument_index, path)| StructuralDomainRequirement {
-                argument_index,
-                path,
-                domain,
-            })
-            .collect(),
-            scalar_domain_requirements: Vec::new(),
-            scalar_requires: Vec::new(),
-            scalar_ensures: Vec::new(),
-            result_reference_regions: Vec::new(),
-            result_lifetimes: None,
-            reference_outputs: vec![BoundaryReferenceOutput {
-                destination: BoundaryReferenceDestination::Parameter(2),
-                path: Vec::new(),
-                access: StructuralAccess::MutableBorrow,
-                dependencies: vec![BoundaryLifetimeDependency::Stored {
-                    argument_index: 2,
+                scalar_domain_requirements: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                result_reference_regions: Vec::new(),
+                result_lifetimes: None,
+                reference_outputs: vec![BoundaryReferenceOutput {
+                    destination: BoundaryReferenceDestination::Parameter(2),
                     path: Vec::new(),
                     access: StructuralAccess::MutableBorrow,
+                    dependencies: vec![BoundaryLifetimeDependency::Stored {
+                        argument_index: 2,
+                        path: Vec::new(),
+                        access: StructuralAccess::MutableBorrow,
+                    }],
                 }],
-            }],
-            program_local_root_introductions: Vec::new(),
-            content_guarantees: Vec::new(),
-            fixed_service_reach: Vec::new(),
-            service_reach_is_installation_bound: false,
-            owning_service: None,
-            published_synchronous_entries: Vec::new(),
-            published_service_ceiling: Vec::new(),
-        });
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
+                owning_service: None,
+                published_synchronous_entries: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            });
         module
     }
 
     #[test]
     fn boundary_logical_result_lifetimes_round_trip_and_reject_missing_frontiers() {
         let mut module = module();
-        module.types.structural_types.push(StructuralTypeDeclaration {
-            declaration_identity: Default::default(),
-            requires: Vec::new(),
-            id: type_id(5),
-            identity: TerminalIdentityIndex(12),
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            no_code_affine_cleanup: true,
-            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-            descriptor_cleanup: false,
-            nominal_cleanup: None,
-            scalar_restriction: None,
-            shape: StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(StructuralAccess::SharedBorrow),
-                },
-            ),
-        });
+        module
+            .types
+            .structural_types
+            .push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                id: type_id(5),
+                identity: TerminalIdentityIndex(12),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+                shape: StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    },
+                ),
+            });
         let boundary = &mut module.interfaces.boundary_machines[0];
         boundary.result =
             BoundaryMachineResult::Structural(terminal_psi::BoundaryStructuralResultDeclaration {
@@ -4715,7 +4594,9 @@ mod normal_qualification_tests {
         let module = module();
         let original = semantic_fingerprint(&module).unwrap();
         let mut changed = module.clone();
-        changed.interfaces.boundary_machines[0].normal_qualifications.clear();
+        changed.interfaces.boundary_machines[0]
+            .normal_qualifications
+            .clear();
         assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
         let mut changed = module.clone();
         changed.interfaces.boundary_machines[0].normal_qualifications[2].path[1] =
@@ -4785,23 +4666,26 @@ mod global_descriptor_table_tests {
             parents: vec![],
         });
         let carrier = StructuralTypeId::new(1).unwrap();
-        module.types.structural_types.push(StructuralTypeDeclaration {
-            declaration_identity: Default::default(),
-            requires: Vec::new(),
-            id: carrier,
-            identity: TerminalIdentityIndex(3),
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-            no_code_affine_cleanup: true,
-            descriptor_cleanup: true,
-            nominal_cleanup: None,
-            scalar_restriction: None,
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
-                capacity: 10,
-                access: Some(StructuralAccess::MutableBorrow),
-            }),
-        });
+        module
+            .types
+            .structural_types
+            .push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                id: carrier,
+                identity: TerminalIdentityIndex(3),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                no_code_affine_cleanup: true,
+                descriptor_cleanup: true,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    capacity: 10,
+                    access: Some(StructuralAccess::MutableBorrow),
+                }),
+            });
         let place = PlaceId::new(1).unwrap();
         let mut machine = unit_machine(machine_id);
         machine.declaration.as_mut().unwrap().parameter_types = vec![TerminalIdentityIndex(3)];
@@ -4942,20 +4826,23 @@ mod descriptor_operation_tests {
             StructuralTypeShape::PrimitiveScalar(unsigned(64)),
         ];
         for (index, shape) in shapes.into_iter().enumerate() {
-            module.types.structural_types.push(StructuralTypeDeclaration {
-                declaration_identity: Default::default(),
-                requires: Vec::new(),
-                id: StructuralTypeId::new(index as u64 + 1).unwrap(),
-                identity: TerminalIdentityIndex(index as u32 + 3),
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-                no_code_affine_cleanup: true,
-                descriptor_cleanup: true,
-                nominal_cleanup: None,
-                scalar_restriction: None,
-                shape,
-            });
+            module
+                .types
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    id: StructuralTypeId::new(index as u64 + 1).unwrap(),
+                    identity: TerminalIdentityIndex(index as u32 + 3),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: true,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    shape,
+                });
         }
         let mut machine = unit_machine(machine_id);
         machine.declaration.as_mut().unwrap().parameter_types =
@@ -5206,20 +5093,23 @@ mod opaque_value_tests {
         let mut module = TerminalModule::declarations();
         let identity = StructuralTypeId::new(1).unwrap();
         module.identities = identity_table(1);
-        module.types.structural_types.push(StructuralTypeDeclaration {
-            declaration_identity: Default::default(),
-            requires: Vec::new(),
-            id: identity,
-            identity: TerminalIdentityIndex(1),
-            quotient_carrier: None,
-            owns_linear_claim: false,
-            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-            no_code_affine_cleanup: true,
-            descriptor_cleanup: false,
-            nominal_cleanup: None,
-            scalar_restriction: None,
-            shape: StructuralTypeShape::Opaque,
-        });
+        module
+            .types
+            .structural_types
+            .push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                id: identity,
+                identity: TerminalIdentityIndex(1),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                no_code_affine_cleanup: true,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+                shape: StructuralTypeShape::Opaque,
+            });
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();
         assert_eq!(decoded, module);
@@ -5322,7 +5212,8 @@ mod scalar_predicate_definition_tests {
         let scalar = ScalarType::Integer(integer);
         let formal = ValueId::new(1).unwrap();
         module
-            .scalars.scalar_predicate_definitions
+            .scalars
+            .scalar_predicate_definitions
             .push(ScalarPredicateDefinition {
                 declaration,
                 parameters: vec![ValueDeclaration {
@@ -5395,7 +5286,8 @@ mod scalar_predicate_definition_tests {
 
         let mut duplicate_declaration = original.clone();
         duplicate_declaration
-            .scalars.scalar_predicate_definitions
+            .scalars
+            .scalar_predicate_definitions
             .push(duplicate_declaration.scalars.scalar_predicate_definitions[0].clone());
         assert!(matches!(
             decode_module(&module_wire::encode_raw(&duplicate_declaration).unwrap()),

@@ -1,5 +1,7 @@
 // The role is issued before enough ordinary work to cross a scheduling slice.
 // Replaying it would create a duplicate project declaration at the final join.
+use main.omg as app;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "activation_yields_without_replay");
     let remaining: u64 = count_down(512);
@@ -18,10 +20,10 @@ terminates by remaining {
 }
 
 machine bind_entries(builder: @mutable Build) {
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }
 
 machine unexpected_result(builder: @mutable Build) {

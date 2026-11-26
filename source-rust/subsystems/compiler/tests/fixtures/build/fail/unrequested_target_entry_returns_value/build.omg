@@ -1,5 +1,7 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "unrequested_target_entry_returns_value");
-    Build::bind(builder, linux_x86_64::ProgramEntry, launch);
-    Build::bind(builder, windows_x86_64::ProgramEntry, foreign_launch);
+use main.omg as app;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "unrequested_target_entry_returns_value" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::launch);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::foreign_launch);
 }

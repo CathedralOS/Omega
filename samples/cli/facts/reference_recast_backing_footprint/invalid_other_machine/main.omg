@@ -2,15 +2,15 @@
 // Expected exit: 0
 // Place: other_machine.
 data Pair { first: u8; second: u8; }
-machine observe(view: @Pair, original: addr) -> bool {
+machine observe(view: @Pair, original: address) -> bool {
     address_of(@view.first) == original && view.second == 37
 }
-machine relay(view: @Pair, original: addr) -> bool {
+machine relay(view: @Pair, original: address) -> bool {
     observe(view, original)
 }
 machine probe() -> bool {
     let mutable bytes: [u8; 4] = [11, 23, 37, 41];
-    let original: addr = address_of(@bytes[1]);
+    let original: address = address_of(@bytes[1]);
     let view: @Pair = @bytes[1] as @Pair;
     bytes[2] = 99;
     relay(view, original)

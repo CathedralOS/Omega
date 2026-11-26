@@ -182,6 +182,13 @@ fn publish_machine_write_frames(
         .collect();
     writes.sort_unstable_by_key(|(operation, _)| *operation);
     for (_, row) in tables.writes.iter() {
+        if tables.places.get(row.place).is_none() {
+            return Err(problem(
+                Construct::Place(row.place),
+                "a storage write has no exact place".to_owned(),
+            ));
+        }
+
         let ProgramPoint::AfterOperation(operation) = row.at else {
             return Err(problem(
                 Construct::Place(row.place),
@@ -299,22 +306,9 @@ fn publish_machine_write_frames(
             });
         }
     }
-    for (_, row) in tables.writes.iter() {
-        tables
-            .places
-            .get_mut(row.place)
-            .ok_or_else(|| {
-                problem(
-                    Construct::Place(row.place),
-                    "a storage write has no exact place".to_owned(),
-                )
-            })?
-            .writes
-            .clear();
-    }
     tables.writes = arena::IdTable::default();
     for row in revised {
-        bindings::record_write(id, &mut tables.places, &mut tables.writes, row)?;
+        bindings::record_write(id, &tables.places, &mut tables.writes, row)?;
     }
     Ok(())
 }
@@ -1394,7 +1388,7 @@ impl Lowering<'_> {
 
 /// Immutable scalar declarations borrowed separately from the mutable cache.
 struct DraftScalarValues<'a> {
-    values: &'a arena::IdTable<ValueId, terminal_check_tables::values::ValueRow>,
+    values: &'a terminal_check_tables::MachineValues,
 }
 
 impl terminal_semantics::ValueTypes for DraftScalarValues<'_> {
@@ -1458,12 +1452,11 @@ mod tests {
                 let exact = machine_tables.places.push(PlaceRow {
                     origin: PlaceOrigin::Root(id::<PlaceId>(1)),
                     children: Vec::new(),
-                    writes: Vec::new(),
                 });
                 machine_tables.roots.push(exact);
                 bindings::record_write(
                     id::<MachineId>(raw),
-                    &mut machine_tables.places,
+                    &machine_tables.places,
                     &mut machine_tables.writes,
                     WriteRow {
                         place: exact,
@@ -1483,23 +1476,17 @@ mod tests {
             budget
                 .run(|| publish_write_frames(&mut module, &mut tables))
                 .unwrap();
-            let writes: Vec<Vec<WriteRow>> = tables
+            tables
                 .machines
                 .values()
-                .map(|m| m.writes.values().copied().collect())
-                .collect();
-            let place_writes: Vec<Vec<Vec<_>>> = tables
-                .machines
-                .values()
-                .map(|m| m.places.values().map(|p| p.writes.clone()).collect())
-                .collect();
-            (writes, place_writes)
+                .map(|machine| machine.writes.values().copied().collect::<Vec<WriteRow>>())
+                .collect::<Vec<_>>()
         };
 
         let sequential = run(1);
         let parallel = run(4);
         assert_eq!(sequential, parallel);
-        assert_eq!(sequential.0.len(), 4);
-        assert!(sequential.0.iter().all(|rows| rows.len() == 1));
+        assert_eq!(sequential.len(), 4);
+        assert!(sequential.iter().all(|rows| rows.len() == 1));
     }
 }

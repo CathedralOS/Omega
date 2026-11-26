@@ -194,15 +194,7 @@ pub struct NativeLayoutPlanReport<SlotApplication> {
 }
 
 pub fn normalized_layout_plan_report_fingerprint(layout: &LayoutPlanReport) -> u64 {
-    let mut entries = layout.entries.iter().collect::<Vec<_>>();
-    entries.sort_unstable_by(|left, right| {
-        member_sort_key(left)
-            .cmp(&member_sort_key(right))
-            .then_with(|| {
-                layout_placement_sort_key(&left.placement)
-                    .cmp(&layout_placement_sort_key(&right.placement))
-            })
-    });
+    let entries = sorted_entries(layout);
 
     let mut hash = wire::fnv1a::Fnv1a::new();
     hash.bytes(b"omega.layout-plan.v3");
@@ -214,17 +206,7 @@ pub fn normalized_layout_plan_report_fingerprint(layout: &LayoutPlanReport) -> u
     hash.u64(layout.align);
     hash.u64(entries.len() as u64);
     for entry in entries {
-        match entry.member_identity {
-            Some(identity) => {
-                hash.byte(1);
-                hash.u64(identity);
-            }
-            None => {
-                hash.byte(0);
-                hash.u64(entry.field.len() as u64);
-                hash.bytes(entry.field.as_bytes());
-            }
-        }
+        hash_optional_member_identity(&mut hash, entry.member_identity, &entry.field);
         match entry.placement {
             LayoutPlacementReport::At { offset } => {
                 hash.byte(0);
@@ -323,19 +305,7 @@ pub fn conventional_sum_layout_reports_match_for_replay(
         return false;
     }
 
-    let common_fields_match = current
-        .common_fields
-        .iter()
-        .zip(&retained.common_fields)
-        .all(|(current_field, retained_field)| {
-            current_field.member_identity == retained_field.member_identity
-                && (current_field.member_identity.is_some()
-                    || current_field.field == retained_field.field)
-                && current_field.offset == retained_field.offset
-                && current_field.size == retained_field.size
-                && current_field.align == retained_field.align
-        });
-    if !common_fields_match {
+    if !conventional_sum_fields_match(&current.common_fields, &retained.common_fields) {
         return false;
     }
 
@@ -348,59 +318,54 @@ pub fn conventional_sum_layout_reports_match_for_replay(
                 && (current_case.member_identity.is_some()
                     || current_case.case == retained_case.case)
                 && current_case.ordinal == retained_case.ordinal
-                && current_case.payload_fields.len() == retained_case.payload_fields.len()
-                && current_case
-                    .payload_fields
-                    .iter()
-                    .zip(&retained_case.payload_fields)
-                    .all(|(current_field, retained_field)| {
-                        current_field.member_identity == retained_field.member_identity
-                            && (current_field.member_identity.is_some()
-                                || current_field.field == retained_field.field)
-                            && current_field.offset == retained_field.offset
-                            && current_field.size == retained_field.size
-                            && current_field.align == retained_field.align
-                    })
+                && conventional_sum_fields_match(
+                    &current_case.payload_fields,
+                    &retained_case.payload_fields,
+                )
+        })
+}
+
+fn conventional_sum_fields_match(
+    current: &[ConventionalSumPayloadFieldLayoutReport],
+    retained: &[ConventionalSumPayloadFieldLayoutReport],
+) -> bool {
+    current.len() == retained.len()
+        && current.iter().zip(retained).all(|(current, retained)| {
+            current.member_identity == retained.member_identity
+                && (current.member_identity.is_some() || current.field == retained.field)
+                && current.offset == retained.offset
+                && current.size == retained.size
+                && current.align == retained.align
         })
 }
 
 fn conventional_sum_member_identities_are_unambiguous(
     layout: &ConventionalSumLayoutReport,
 ) -> bool {
-    for (index, field) in layout.common_fields.iter().enumerate() {
-        if layout.common_fields[..index]
-            .iter()
-            .any(|prior| match field.member_identity {
-                Some(identity) => prior.member_identity == Some(identity),
-                None => prior.member_identity.is_none() && prior.field == field.field,
+    !has_repeated_member(&layout.common_fields, |field| {
+        (field.member_identity, &field.field)
+    }) && !has_repeated_member(&layout.cases, |case| (case.member_identity, &case.case))
+        && layout.cases.iter().all(|case| {
+            !has_repeated_member(&case.payload_fields, |field| {
+                (field.member_identity, &field.field)
             })
-        {
-            return false;
-        }
-    }
-    for (index, case) in layout.cases.iter().enumerate() {
-        if layout.cases[..index]
-            .iter()
-            .any(|prior| match case.member_identity {
-                Some(identity) => prior.member_identity == Some(identity),
-                None => prior.member_identity.is_none() && prior.case == case.case,
-            })
-        {
-            return false;
-        }
-        for (field_index, field) in case.payload_fields.iter().enumerate() {
-            if case.payload_fields[..field_index]
-                .iter()
-                .any(|prior| match field.member_identity {
-                    Some(identity) => prior.member_identity == Some(identity),
-                    None => prior.member_identity.is_none() && prior.field == field.field,
-                })
-            {
-                return false;
-            }
-        }
-    }
-    true
+        })
+}
+
+/// A member with an identity repeats only that identity; an unidentified
+/// member repeats only another unidentified member with the same name.
+fn has_repeated_member<Member>(
+    members: &[Member],
+    member: impl Fn(&Member) -> (Option<u64>, &String),
+) -> bool {
+    let key = |item| {
+        let (identity, name) = member(item);
+        (identity, identity.is_none().then_some(name))
+    };
+    members
+        .iter()
+        .enumerate()
+        .any(|(index, item)| members[..index].iter().any(|prior| key(prior) == key(item)))
 }
 
 fn hash_optional_member_identity(hash: &mut wire::fnv1a::Fnv1a, identity: Option<u64>, name: &str) {
@@ -415,6 +380,19 @@ fn hash_optional_member_identity(hash: &mut wire::fnv1a::Fnv1a, identity: Option
             hash.bytes(name.as_bytes());
         }
     }
+}
+
+fn sorted_entries(layout: &LayoutPlanReport) -> Vec<&LayoutFieldEntryReport> {
+    let mut entries = layout.entries.iter().collect::<Vec<_>>();
+    entries.sort_unstable_by(|left, right| {
+        member_sort_key(left)
+            .cmp(&member_sort_key(right))
+            .then_with(|| {
+                layout_placement_sort_key(&left.placement)
+                    .cmp(&layout_placement_sort_key(&right.placement))
+            })
+    });
+    entries
 }
 
 pub fn normalized_native_layout_plan_report_fingerprint<SlotApplication>(
@@ -469,28 +447,9 @@ pub fn layout_plan_reports_match_for_replay(
         return false;
     }
 
-    let mut current_entries = current.entries.iter().collect::<Vec<_>>();
-    current_entries.sort_unstable_by(|left, right| {
-        member_sort_key(left)
-            .cmp(&member_sort_key(right))
-            .then_with(|| {
-                layout_placement_sort_key(&left.placement)
-                    .cmp(&layout_placement_sort_key(&right.placement))
-            })
-    });
-    let mut retained_entries = retained.entries.iter().collect::<Vec<_>>();
-    retained_entries.sort_unstable_by(|left, right| {
-        member_sort_key(left)
-            .cmp(&member_sort_key(right))
-            .then_with(|| {
-                layout_placement_sort_key(&left.placement)
-                    .cmp(&layout_placement_sort_key(&right.placement))
-            })
-    });
-
-    current_entries
+    sorted_entries(current)
         .into_iter()
-        .zip(retained_entries)
+        .zip(sorted_entries(retained))
         .all(|(current, retained)| {
             current.member_identity == retained.member_identity
                 && (current.member_identity.is_some() || current.field == retained.field)

@@ -2,8 +2,8 @@
 // edge onto dep_c, and both see the same `shared` machine through it.
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_dep_diamond");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_dep_diamond" };
     let mutable kit_a_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep_a" });
     |dependency|::with_alias(@mutable kit_a_dependency, "kit_a");
     let kit_a_registration: DependencyRegistration = Build::dependency(builder, kit_a_dependency);

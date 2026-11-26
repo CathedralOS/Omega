@@ -332,16 +332,28 @@ machine build(builder: @mutable Build) {
     let mut trees = SyntaxTrees::new(SourceId(1));
     let tokens = Lexer::new(text).tokenize().unwrap();
     let roots = parse(&mut trees, SourceId(1), &tokens).unwrap();
-    let imports = roots.items.iter().filter_map(|root| match trees.root_item(*root) {
-        Item::Use(UseItem::File { alias, only_product_operands, .. }) => {
-            Some((alias.as_str(&trees), *only_product_operands))
-        }
-        _ => None,
-    }).collect::<Vec<_>>();
-    assert_eq!(imports, [
-        ("app", true), ("helper", false), ("slot", true),
-        ("provider", true), ("local", false),
-    ]);
+    let imports = roots
+        .items
+        .iter()
+        .filter_map(|root| match trees.root_item(*root) {
+            Item::Use(UseItem::File {
+                alias,
+                only_product_operands,
+                ..
+            }) => Some((alias.as_str(&trees), *only_product_operands)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        imports,
+        [
+            ("app", true),
+            ("helper", false),
+            ("slot", true),
+            ("provider", true),
+            ("local", false),
+        ]
+    );
 }
 
 #[test]
@@ -444,11 +456,7 @@ fn root_operand_file_roles_follow_the_declared_build_record() {
             {declaration}
         "#
         );
-        let parsed = crate::tests::parse_source_verbose(
-            &text,
-            "tokenize file operands",
-            "parse file operands",
-        );
+        let parsed = crate::tests::parse_source(&text);
         let import = parsed.root_items().find_map(|item| match item {
             Item::Use(UseItem::File {
                 only_product_operands,

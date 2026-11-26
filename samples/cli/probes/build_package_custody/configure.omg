@@ -1,0 +1,24 @@
+use {omega}/build/dependency.omg;
+use {kit}/generated.omg as kit;
+use main.omg as app;
+
+machine build(plan: @mutable BuildPlan) crashes Trap {
+    transition |kit|::value() == 7 {
+        true -> application(plan),
+        false -> failed()
+    }
+}
+
+machine application(plan: @mutable BuildPlan) {
+    let mutable package: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
+    |dependency|::with_alias(@mutable package, "product_kit");
+    _ = |dependency|::add(plan, package);
+    plan.product = BuildProduct::Application { name: "build_package_custody" };
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(plan, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(plan, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(plan, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(plan, windows_arm64::ProgramEntry, |app|::main);
+}
+
+machine failed() { crash Trap; }

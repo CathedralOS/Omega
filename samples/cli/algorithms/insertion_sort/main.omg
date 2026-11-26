@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Bubble sort on a fixed [i32; 6] array via compare-and-swap dispatch chains.
 //
 // Exercises: fixed-array element SWAPS (reading one slot, writing two slots) +
@@ -48,7 +48,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 data Sorter [copy] {
     arr: [i32; 6];
@@ -168,8 +167,8 @@ machine pass5(main: @mutable Main) {
     cmp_swap_01(main);
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("insertion_sort: bubble-sorting [5,2,8,1,3,7] with compare-and-swap passes");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("insertion_sort: bubble-sorting [5,2,8,1,3,7] with compare-and-swap passes");
     // Initialize array: [5, 2, 8, 1, 3, 7].
     main.s.arr[0] = 5;
     main.s.arr[1] = 2;
@@ -193,10 +192,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad0(main: @mutable Main) {
-        Console::write_line("FAIL: arr[0] != 1 after sorting (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: arr[0] != 1 after sorting (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 
     machine check1(main: @mutable Main) {
@@ -208,10 +207,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad1(main: @mutable Main) {
-        Console::write_line("FAIL: arr[1] != 2 after sorting (exit 72)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(72);
+        |console|::Console::write_line("FAIL: arr[1] != 2 after sorting (exit 72)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(72);
     }
 
     machine check2(main: @mutable Main) {
@@ -223,10 +222,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad2(main: @mutable Main) {
-        Console::write_line("FAIL: arr[2] != 3 after sorting (exit 73)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(73);
+        |console|::Console::write_line("FAIL: arr[2] != 3 after sorting (exit 73)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(73);
     }
 
     machine check3(main: @mutable Main) {
@@ -238,10 +237,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad3(main: @mutable Main) {
-        Console::write_line("FAIL: arr[3] != 5 after sorting (exit 74)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(74);
+        |console|::Console::write_line("FAIL: arr[3] != 5 after sorting (exit 74)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(74);
     }
 
     machine check4(main: @mutable Main) {
@@ -253,10 +252,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad4(main: @mutable Main) {
-        Console::write_line("FAIL: arr[4] != 7 after sorting (exit 75)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(75);
+        |console|::Console::write_line("FAIL: arr[4] != 7 after sorting (exit 75)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(75);
     }
 
     machine check5(main: @mutable Main) {
@@ -268,22 +267,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad5(main: @mutable Main) {
-        Console::write_line("FAIL: arr[5] != 8 after sorting (exit 76)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(76);
+        |console|::Console::write_line("FAIL: arr[5] != 8 after sorting (exit 76)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(76);
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: array sorted to [1,2,3,5,7,8] (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: array sorted to [1,2,3,5,7,8] (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

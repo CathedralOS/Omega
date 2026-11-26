@@ -1,12 +1,11 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
+use {omega}/language/core/process_authority.omg;
 
 boundary trait Streams {
-    machine read(fd: i32, byte: @mutable u8, count: u64) -> i64 reaches StandardInput crashes none;
-    machine write(fd: i32, byte: @u8, count: u64) -> i64 reaches StandardOutput crashes none;
+    machine read(fd: i32, byte: @mutable u8, count: u64) -> i64 reaches |process_authority|::StandardInput crashes none;
+    machine write(fd: i32, byte: @u8, count: u64) -> i64 reaches |process_authority|::StandardOutput crashes none;
 }
 
-machine main() reaches StandardInput + StandardOutput crashes Trap {
+machine main() reaches |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     let mutable byte: u8 = 0;
     let first: i64 = Streams::read(0, @mutable byte, 1);
     let written_first: i64 = Streams::write(1, @byte, 1);

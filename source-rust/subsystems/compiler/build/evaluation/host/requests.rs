@@ -16,14 +16,14 @@ normal-return settlement charges result custody and publishes the log bytes.
 
 use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName};
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+mod dependency_options;
 mod input_bindings;
 mod output;
-mod reach;
 mod workspace;
+pub(crate) use dependency_options::ReflectedServices;
 pub use input_bindings::FrozenBuildBinding;
 use input_bindings::InputBindings;
 pub(crate) use output::BuildRequestOutput;
-pub(crate) use reach::ReflectedServices;
 use source_compiler::publication::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
 };
@@ -39,6 +39,7 @@ const REGISTRATIONS_POISONED: &str = "Build registration lock was poisoned";
 pub struct IssuedBuildRequest {
     request: BuildRequest,
     forwarded: Option<FrozenBuildBinding>,
+    programs: Vec<package_compilation::DelegatedProgram>,
     _storage: Option<EvaluationStorageLease>,
 }
 
@@ -47,8 +48,30 @@ impl IssuedBuildRequest {
         self.forwarded.as_ref()
     }
 
+    pub fn delegated_programs(&self) -> &[package_compilation::DelegatedProgram] {
+        &self.programs
+    }
+
     pub fn request(&self) -> &BuildRequest {
         &self.request
+    }
+}
+
+/// The package occurrence the executing Build explicitly selected for a full check.
+pub enum BuildValidationRequest {
+    Registered {
+        purpose: DependencyPurpose,
+        ordinal: usize,
+    },
+    Incoming(FrozenBuildBinding),
+}
+
+impl BuildValidationRequest {
+    pub fn purpose(&self) -> DependencyPurpose {
+        match self {
+            Self::Registered { purpose, .. } => *purpose,
+            Self::Incoming(_) => DependencyPurpose::Build,
+        }
     }
 }
 
@@ -56,7 +79,7 @@ pub struct TerminalBuildRequestHost {
     programs: Arc<super::programs::ProgramInstallation>,
     filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
     inputs: InputBindings,
-    reach: reach::ReachSets,
+    options: dependency_options::IssuedDependencyOptions,
     workspace: workspace::WorkspaceCatalogs,
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildRequestCall]>,
@@ -132,7 +155,7 @@ impl TerminalBuildRequestHost {
             calls: Arc::clone(calls),
             inputs: InputBindings::new(libraries),
             workspace: Default::default(),
-            reach: reach::ReachSets::from_module(
+            options: dependency_options::IssuedDependencyOptions::from_module(
                 artifact.module(),
                 calls
                     .iter()
@@ -149,7 +172,7 @@ impl TerminalBuildRequestHost {
     }
 
     pub(crate) fn reflected_services(&self) -> Arc<ReflectedServices> {
-        Arc::clone(&self.reach.reflections)
+        Arc::clone(&self.options.reflections)
     }
 
     pub(crate) fn workspace_members(
@@ -216,17 +239,19 @@ impl TerminalBuildRequestHost {
             .map_err(|_| "Build request output lock was poisoned")
     }
 
-    pub(crate) fn validation_requests(&self) -> Result<Vec<(DependencyPurpose, usize)>, String> {
+    pub(crate) fn validation_requests(&self) -> Result<Vec<BuildValidationRequest>, String> {
         let registrations = self
             .registrations
             .lock()
             .map_err(|_| REGISTRATIONS_POISONED)?;
-        Ok(registrations
-            .issued
-            .iter()
-            .filter(|r| r.validate)
-            .map(|r| (r.purpose, r.request_ordinal))
-            .collect())
+        let mut selected = self.inputs.validation_requests()?;
+        selected.extend(registrations.issued.iter().filter(|r| r.validate).map(|r| {
+            BuildValidationRequest::Registered {
+                purpose: r.purpose,
+                ordinal: r.request_ordinal,
+            }
+        }));
+        Ok(selected)
     }
 
     pub(crate) fn take_output(&self) -> Result<BuildRequestOutput, String> {
@@ -511,48 +536,44 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             return Ok(TerminalEffectResult::Unit);
         }
-        // A registration returns the marker that names it; every other
-        // request returns nothing.
-        let registers = matches!(
+        if let Operation::ForwardProgram { program } = call.action {
+            let ([], [], [], terminal_psi::BoundaryMachineResult::Structural(result)) = (
+                arguments.as_slice(),
+                structural_arguments.as_slice(),
+                byte_sequence_arguments.as_slice(),
+                result,
+            ) else {
+                return Err(refuse(
+                    "program delegation requires one nominal selection and an opaque result",
+                ));
+            };
+            return self
+                .host
+                .options
+                .forward_program(program, result.structural_type, self.host.account.as_ref())
+                .map(TerminalEffectResult::Structural);
+        }
+        let returns_structural = matches!(
             call.action,
             Operation::PathDependency
+                | Operation::BundledDependency
                 | Operation::GitDependency
                 | Operation::InputBinding
                 | Operation::AddBinding
                 | Operation::ExtendReach
                 | Operation::ExtendWorkspace
+                | Operation::CopyBytes
         );
         if structural_arguments.first() != Some(&self.host.original)
             || byte_sequence_arguments.first() != Some(&None)
             || structural_arguments.len() != byte_sequence_arguments.len()
-            || registers != matches!(result, terminal_psi::BoundaryMachineResult::Structural(_))
-            || (!registers && *result != terminal_psi::BoundaryMachineResult::Unit)
+            || returns_structural
+                != matches!(result, terminal_psi::BoundaryMachineResult::Structural(_))
+            || (!returns_structural && *result != terminal_psi::BoundaryMachineResult::Unit)
         {
             return Err(refuse(
                 "project requests require the original compiler-issued Build receiver",
             ));
-        }
-        if call.action == Operation::PublishSource {
-            let [None, Some(name), Some(source)] = byte_sequence_arguments.as_slice() else {
-                return Err(refuse(
-                    "Build source publication requires a filename and source bytes",
-                ));
-            };
-            if !arguments.is_empty() {
-                return Err(refuse(
-                    "Build source publication does not accept scalar arguments",
-                ));
-            }
-            let account = self.host.account.as_ref().ok_or_else(|| {
-                refuse("Build source publication requires the activation's evaluation account")
-            })?;
-            self.host
-                .output()
-                .map_err(TerminalEffectRejection::new)?
-                .sources
-                .publish(account, name, source)
-                .map_err(TerminalEffectRejection::new)?;
-            return Ok(TerminalEffectResult::Unit);
         }
         let text = |position: usize| -> Result<&str, TerminalEffectRejection> {
             let bytes = byte_sequence_arguments
@@ -575,18 +596,18 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 return Err(refuse("program call lost its borrowed argument list"));
             }
             Operation::ArtifactOnly => (0, 1),
-            Operation::InputBinding => (0, 2),
+            Operation::InputBinding | Operation::ValidateBinding | Operation::CopyBytes => (0, 2),
             Operation::AddBinding => (0, 3),
             Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
-            Operation::PathDependency => (2, 4),
-            Operation::GitDependency => (3, 6),
-            Operation::ConfigureTestFixture
+            Operation::PathDependency | Operation::BundledDependency => (1, 4),
+            Operation::GitDependency => (2, 6),
+            Operation::ForwardProgram { .. }
+            | Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
             | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
-            | Operation::ValidateDependency
-            | Operation::PublishSource => {
+            | Operation::ValidateDependency => {
                 return Err(refuse("Build request did not complete its host request"));
             }
         };
@@ -594,6 +615,24 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             return Err(refuse(
                 "Build request argument roster differs from its protocol",
             ));
+        }
+        if call.action == Operation::CopyBytes {
+            let bytes = byte_sequence_arguments[1]
+                .as_deref()
+                .ok_or_else(|| refuse("Build byte storage requires a byte view"))?;
+            return terminal_interpreter::TerminalByteSequenceValue::copy(
+                bytes,
+                self.host.account.as_ref(),
+            )
+            .map(TerminalEffectResult::ByteSequence)
+            .map_err(|error| TerminalEffectRejection::new(format!("Build byte storage: {error}")));
+        }
+        if call.action == Operation::ValidateBinding {
+            if byte_sequence_arguments[1].is_some() {
+                return Err(refuse("Build validation requires a PackageBinding"));
+            }
+            self.host.inputs.validate(&structural_arguments[1])?;
+            return Ok(TerminalEffectResult::Unit);
         }
         if call.action == Operation::InputBinding {
             let terminal_psi::BoundaryMachineResult::Structural(binding) = result else {
@@ -637,7 +676,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             };
             return self
                 .host
-                .reach
+                .options
                 .extend(
                     &structural_arguments[1],
                     &structural_arguments[2],
@@ -646,18 +685,30 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 )
                 .map(TerminalEffectResult::Structural);
         }
-        let max_reach = if matches!(
+        let (max_reach, forwarded_programs) = if matches!(
             call.action,
-            Operation::PathDependency | Operation::GitDependency | Operation::AddBinding
+            Operation::PathDependency
+                | Operation::BundledDependency
+                | Operation::GitDependency
+                | Operation::AddBinding
         ) {
-            self.host.reach.get(
+            self.host.options.get(
                 structural_arguments
                     .last()
-                    .ok_or_else(|| refuse("Build dependency lost its service set"))?,
+                    .ok_or_else(|| refuse("Build dependency lost its registration options"))?,
             )?
         } else {
             Default::default()
         };
+        let programs = forwarded_programs
+            .into_iter()
+            .map(|program| {
+                self.host
+                    .programs
+                    .delegated(program, &self.host.filesystem)
+                    .map_err(TerminalEffectRejection::new)
+            })
+            .collect::<Result<_, _>>()?;
         let forwarded = if call.action == Operation::AddBinding {
             if byte_sequence_arguments[1].is_some() {
                 return Err(refuse(
@@ -681,9 +732,8 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
         };
         match call.action {
-            Operation::PathDependency | Operation::GitDependency => {
-                flag(0)?;
-                if flag(1)? {
+            Operation::PathDependency | Operation::BundledDependency | Operation::GitDependency => {
+                if flag(0)? {
                     let alias = text(1)?;
                     if !ProjectName::is_valid(alias) {
                         return Err(TerminalEffectRejection::new(format!(
@@ -697,7 +747,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 text(2)?;
                 if call.action == Operation::GitDependency {
                     text(3)?;
-                    if flag(2)? {
+                    if flag(1)? {
                         name(text(4)?)?;
                     } else if !text(4)?.is_empty() {
                         return Err(refuse("root package selection carries unexpected text"));
@@ -714,6 +764,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             retained_text.extend(alias.as_ref().map(ProjectName::as_str));
             match source {
                 BuildDependencySource::Path(path) => retained_text.push(path),
+                BuildDependencySource::Bundled(name) => retained_text.push(name.as_str()),
                 BuildDependencySource::Git {
                     repository,
                     revision,
@@ -761,12 +812,16 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
-            | Operation::ValidateDependency
-            | Operation::PublishSource => {
+            | Operation::ValidateDependency => {
                 return Err(refuse("Build request did not complete its host request"));
             }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
-            Operation::InputBinding | Operation::ExtendReach | Operation::ExtendWorkspace => {
+            Operation::InputBinding
+            | Operation::ValidateBinding
+            | Operation::CopyBytes
+            | Operation::ExtendWorkspace
+            | Operation::ExtendReach
+            | Operation::ForwardProgram { .. } => {
                 return Err(refuse(
                     "Build input binding or service set already returned",
                 ));
@@ -785,32 +840,32 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                     source: source.clone(),
                 }
             }
-            Operation::PathDependency | Operation::GitDependency => BuildRequest::Dependency {
-                max_reach,
-                purpose: if flag(0)? {
-                    DependencyPurpose::Build
-                } else {
-                    DependencyPurpose::Product
-                },
-                alias: if flag(1)? {
-                    Some(project_name(text(1)?)?)
-                } else {
-                    None
-                },
-                source: if call.action == Operation::PathDependency {
-                    BuildDependencySource::Path(copy(text(2)?)?)
-                } else {
-                    BuildDependencySource::Git {
-                        repository: copy(text(2)?)?,
-                        revision: copy(text(3)?)?,
-                        package: if flag(2)? {
-                            Some(project_name(text(4)?)?)
-                        } else {
-                            None
-                        },
-                    }
-                },
-            },
+            Operation::PathDependency | Operation::BundledDependency | Operation::GitDependency => {
+                BuildRequest::Dependency {
+                    max_reach,
+                    purpose: DependencyPurpose::Product,
+                    alias: if flag(0)? {
+                        Some(project_name(text(1)?)?)
+                    } else {
+                        None
+                    },
+                    source: if call.action == Operation::PathDependency {
+                        BuildDependencySource::Path(copy(text(2)?)?)
+                    } else if call.action == Operation::BundledDependency {
+                        BuildDependencySource::Bundled(project_name(text(2)?)?)
+                    } else {
+                        BuildDependencySource::Git {
+                            repository: copy(text(2)?)?,
+                            revision: copy(text(3)?)?,
+                            package: if flag(1)? {
+                                Some(project_name(text(4)?)?)
+                            } else {
+                                None
+                            },
+                        }
+                    },
+                }
+            }
         };
         let mut requests = self
             .host
@@ -828,6 +883,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             _ => None,
         };
         requests.push(IssuedBuildRequest {
+            programs,
             request,
             forwarded,
             _storage: storage,

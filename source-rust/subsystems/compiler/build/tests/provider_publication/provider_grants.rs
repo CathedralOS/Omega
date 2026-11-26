@@ -1,5 +1,5 @@
 //! Check the grant and callback contract a Build selects for a private service.
-use super::{fixture_repository, run_project_build};
+use super::{fixture_repository, reviewed_policy, run_project_build};
 use review_evidence::record::{
     PackagePolicyBaseline, PackagePolicySelectedProviders, PackageReviewProviderGrantSelectorKind,
 };
@@ -38,14 +38,7 @@ fn package_review_retains_the_build_grant_for_a_private_provider() {
         std::fs::copy(fixture.join(name), root.join(name)).unwrap();
     }
     let target = TargetProfile::LinuxX64;
-    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
-    let settled = returned.settle_dependency(inputs.clone()).unwrap();
-    let product = settled.open_product(inputs).unwrap();
-    let reviewed = product
-        .product_stage(&[target])
-        .unwrap()
-        .review_policy(target)
-        .unwrap();
+    let reviewed = reviewed_policy(&root.join("build.omg"), target);
     assert!(reviewed.policy.public_api.traits.is_empty());
     assert!(reviewed.policy.public_api.data.is_empty());
     let plans = &reviewed.policy.selected_providers.plans;
@@ -137,14 +130,7 @@ fn package_review_recovers_a_native_bindings_caller_chosen_result() {
     std::fs::write(root.join("main.omg"), main).unwrap();
 
     let target = TargetProfile::LinuxX64;
-    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
-    let settled = returned.settle_dependency(inputs.clone()).unwrap();
-    let product = settled.open_product(inputs).unwrap();
-    let reviewed = product
-        .product_stage(&[target])
-        .unwrap()
-        .review_policy(target)
-        .unwrap();
+    let reviewed = reviewed_policy(&root.join("build.omg"), target);
     let bytes = reviewed.policy.canonical_bytes().unwrap();
     let policy = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
     policy

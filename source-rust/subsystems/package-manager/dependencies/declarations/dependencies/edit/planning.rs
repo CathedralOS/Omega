@@ -1,7 +1,7 @@
 // Pure source-level planning for `build.omg` dependency additions and replacements.
 // Both planners operate on command-owned source strings without reading or writing the filesystem, binding any automatic edit or manual patch to the exact input SHA-256 digest and re-projecting the generated source to verify that the edit produced the exact expected row sequence.
 
-use crate::declarations::dependencies::edit::layout::{BuildLayout, discover_build_layout};
+use crate::declarations::dependencies::edit::layout::discover_build_layout;
 use crate::declarations::dependencies::edit::rendering::{
     canonical_dependency_statement, source_digest,
 };
@@ -10,9 +10,10 @@ use crate::declarations::dependencies::edit::{
     BuildDependencyManualReason, BuildFileReplacement,
 };
 use crate::declarations::dependencies::read::{
-    DependencyPurpose, DependencySourceRequest, EditableSource, extract_scoped_from_source,
+    DependencyPurpose, DependencySourceRequest, EditableSource, extract_requests_from_source,
     project_source_for_edit,
 };
+use crate::declarations::editable_build::DependencyImport;
 use std::path::PathBuf;
 
 pub(crate) fn plan_dependency_addition_from_source(
@@ -23,189 +24,138 @@ pub(crate) fn plan_dependency_addition_from_source(
     let EditableSource {
         parsed,
         entry,
-        requests,
-        import,
+        rows,
     } = project_source_for_edit(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
+    let requests: Vec<_> = rows.into_iter().map(|row| row.request).collect();
     let receiver = entry.receiver_name(&parsed.syntax);
-    if requests
-        .iter()
-        .any(|(purpose, existing)| purpose.is_product() && existing == request)
-    {
+    let import = DependencyImport::for_edit(&parsed.syntax, request.explicit_alias().is_some());
+    if requests.contains(request) {
         return Ok(BuildDependencyEditPlan::Unchanged);
     }
     let digest = source_digest(&source);
-    let statement = canonical_dependency_statement(
-        DependencyPurpose::Product,
-        request,
-        &source,
-        &import.alias,
-        receiver,
-    );
-    let Some(layout) = discover_build_layout(&parsed, receiver) else {
-        return Ok(manual_patch(
-            build_path,
+    let statement = canonical_dependency_statement(request, &source, &import.alias, receiver);
+    let patch = |reason| {
+        Ok(manual_patch(
+            build_path.clone(),
             digest,
-            BuildDependencyManualReason::NonCanonicalBuildBodyLayout,
+            reason,
             None,
-            import.manual_proposal(statement),
-        ));
+            import.manual_proposal(statement.clone()),
+        ))
+    };
+    let Some(layout) = discover_build_layout(&parsed, receiver) else {
+        return patch(BuildDependencyManualReason::NonCanonicalBuildBodyLayout);
     };
     let Some(layout) = layout else {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::NonCanonicalBuildSignature,
-            None,
-            import.manual_proposal(statement),
-        ));
+        return patch(BuildDependencyManualReason::NonCanonicalBuildSignature);
     };
     let Some(replacement) = layout.insert_statement(&source, &statement) else {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::NonCanonicalBuildBodyLayout,
-            None,
-            import.manual_proposal(statement),
-        ));
+        return patch(BuildDependencyManualReason::NonCanonicalBuildBodyLayout);
     };
-    validated_automatic_addition(
-        build_path,
-        digest,
-        import.include_in(replacement),
-        requests,
-        (DependencyPurpose::Product, request.clone()),
-        import.manual_proposal(statement),
-    )
-}
-
-fn validated_automatic_addition(
-    build_path: PathBuf,
-    digest: [u8; 32],
-    replacement: String,
-    mut expected: Vec<(DependencyPurpose, DependencySourceRequest)>,
-    request: (DependencyPurpose, DependencySourceRequest),
-    statement: String,
-) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
-    expected.push(request);
-    if extract_scoped_from_source(&replacement).ok().as_ref() != Some(&expected) {
-        return Ok(manual_patch(
-            build_path,
-            digest,
-            BuildDependencyManualReason::GeneratedEditRejected,
-            None,
-            statement,
-        ));
+    let replacement = import.include_in(replacement);
+    let mut expected = requests;
+    expected.push(request.clone());
+    if extract_requests_from_source(&replacement).ok().as_ref() != Some(&expected) {
+        return patch(BuildDependencyManualReason::GeneratedEditRejected);
     }
     Ok(BuildDependencyEditPlan::Automatic(
         BuildFileReplacement::new(build_path, digest, replacement),
     ))
 }
 
-pub(crate) fn plan_dependency_replacement_from_source(
+/// The explicit version-4 update operation changes one selected Git revision.
+/// Use its parsed string operand so every other authored byte keeps its meaning.
+pub(crate) fn plan_git_revision_from_source(
     build_path: PathBuf,
     source: String,
     purpose: DependencyPurpose,
     accepted: &DependencySourceRequest,
-    candidate: &DependencySourceRequest,
+    revision: &str,
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
-    let EditableSource {
-        parsed,
-        entry,
-        requests,
-        import,
-    } = project_source_for_edit(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
-    let receiver = entry.receiver_name(&parsed.syntax);
-    let scoped_contains = |request: &DependencySourceRequest| {
-        requests
-            .iter()
-            .any(|(row_purpose, existing)| *row_purpose == purpose && existing == request)
+    let EditableSource { parsed, rows, .. } =
+        project_source_for_edit(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
+    let mut candidate = accepted.clone();
+    let DependencySourceRequest::Git {
+        revision: requested,
+        repository,
+        explicit_alias,
+        ..
+    } = &mut candidate
+    else {
+        return Err(BuildDependencyEditError::ExpectedGitDependency);
     };
-    if accepted == candidate {
-        return Ok(if scoped_contains(candidate) {
-            BuildDependencyEditPlan::Unchanged
-        } else {
-            manual_patch(
-                build_path,
-                source_digest(&source),
-                BuildDependencyManualReason::AcceptedRequestMissing,
-                Some(canonical_dependency_statement(
-                    purpose,
-                    accepted,
-                    &source,
-                    &import.alias,
-                    receiver,
-                )),
-                import.manual_proposal(canonical_dependency_statement(
-                    purpose,
-                    candidate,
-                    &source,
-                    &import.alias,
-                    receiver,
-                )),
-            )
-        });
-    }
     let digest = source_digest(&source);
-    let current_statement =
-        canonical_dependency_statement(purpose, accepted, &source, &import.alias, receiver);
-    let proposed_statement =
-        canonical_dependency_statement(purpose, candidate, &source, &import.alias, receiver);
+    let current = source_text::display_literal_bytes(requested.as_bytes());
+    let updated = source_text::display_literal_bytes(revision.as_bytes());
+    let repository = source_text::display_literal_bytes(repository.as_bytes());
+    let alias = explicit_alias
+        .as_ref()
+        .map(|name| format!(" as `{}`", name.as_str()))
+        .unwrap_or_default();
+    let owner = if purpose.is_product() {
+        "Build"
+    } else {
+        "preparing Build"
+    };
+    let proposal = format!(
+        "In the {owner} that supplies {repository}{alias}, change revision {current} to {updated}."
+    );
     let patch = |reason| {
         manual_patch(
             build_path.clone(),
             digest,
             reason,
-            Some(current_statement),
-            import.manual_proposal(proposed_statement.clone()),
+            Some(format!("revision: {current}")),
+            proposal.clone(),
         )
     };
-    let accepted_indices = requests
+    if !purpose.is_product() {
+        return Ok(patch(BuildDependencyManualReason::AcceptedRequestMissing));
+    }
+    let mut matches = rows
         .iter()
         .enumerate()
-        .filter_map(|(index, (row_purpose, request))| {
-            (*row_purpose == purpose && request == accepted).then_some(index)
-        })
-        .collect::<Vec<_>>();
-    let [accepted_index] = accepted_indices.as_slice() else {
-        let reason = if accepted_indices.is_empty() {
-            BuildDependencyManualReason::AcceptedRequestMissing
-        } else {
-            BuildDependencyManualReason::AcceptedRequestAmbiguous
-        };
-        return Ok(patch(reason));
+        .filter(|(_, row)| &row.request == accepted);
+    let Some((index, row)) = matches.next() else {
+        return Ok(patch(BuildDependencyManualReason::AcceptedRequestMissing));
     };
-    if scoped_contains(candidate) {
+    if requested == revision {
+        return Ok(BuildDependencyEditPlan::Unchanged);
+    }
+    if matches.next().is_some() {
+        return Ok(patch(BuildDependencyManualReason::AcceptedRequestAmbiguous));
+    }
+    requested.clear();
+    requested.push_str(revision);
+    if rows.iter().any(|row| row.request == candidate) {
         return Ok(patch(BuildDependencyManualReason::CandidateAlreadyPresent));
     }
-    let Some(layout) = discover_build_layout(&parsed, receiver) else {
-        return Ok(patch(
-            BuildDependencyManualReason::NonCanonicalBuildBodyLayout
-        ));
+    let expressions = &parsed.syntax.expressions;
+    let syntax_trees::expression::ExpressionNode::StructLiteral(literal) =
+        expressions.expression(row.source)
+    else {
+        return Ok(patch(BuildDependencyManualReason::GeneratedEditRejected));
     };
-    let Some(layout) = layout else {
-        return Ok(patch(
-            BuildDependencyManualReason::NonCanonicalBuildSignature
-        ));
+    let Some(field) = expressions
+        .struct_fields(literal.fields)
+        .iter()
+        .find(|field| field.name.as_str(&parsed.syntax) == "revision")
+    else {
+        return Ok(patch(BuildDependencyManualReason::GeneratedEditRejected));
     };
-    if layout.dependency_rows().len() != requests.len() {
-        return Ok(patch(
-            BuildDependencyManualReason::NonCanonicalDependencyRows
-        ));
+    let span = expressions.source_span(field.value).span;
+    if source.get(span.start..span.end).is_none() {
+        return Ok(patch(BuildDependencyManualReason::GeneratedEditRejected));
     }
-    let row = &layout.dependency_rows()[*accepted_index];
-    if row.contains_comment {
-        return Ok(patch(
-            BuildDependencyManualReason::DependencyRowContainsComment
-        ));
-    }
-    let replacement = BuildLayout::replace_row(&source, row, &proposed_statement);
-    let mut expected = requests;
-    expected[*accepted_index] = (purpose, candidate.clone());
-    if extract_scoped_from_source(&replacement).ok().as_ref() != Some(&expected) {
+    let mut expected: Vec<_> = rows.into_iter().map(|row| row.request).collect();
+    expected[index] = candidate;
+    let mut edited = source;
+    edited.replace_range(span.start..span.end, &updated);
+    if extract_requests_from_source(&edited).ok().as_ref() != Some(&expected) {
         return Ok(patch(BuildDependencyManualReason::GeneratedEditRejected));
     }
     Ok(BuildDependencyEditPlan::Automatic(
-        BuildFileReplacement::new(build_path, digest, replacement),
+        BuildFileReplacement::new(build_path, digest, edited),
     ))
 }
 
@@ -227,11 +177,13 @@ fn manual_patch(
 
 #[cfg(test)]
 mod tests {
-    use super::{plan_dependency_addition_from_source, plan_dependency_replacement_from_source};
+    use super::{plan_dependency_addition_from_source, plan_git_revision_from_source};
     use crate::declarations::AliasName;
-    use crate::declarations::dependencies::edit::BuildDependencyEditPlan;
+    use crate::declarations::dependencies::edit::{
+        BuildDependencyEditPlan, BuildDependencyManualReason,
+    };
     use crate::declarations::dependencies::read::{
-        DependencyPurpose, DependencySourceRequest, extract_scoped_from_source,
+        DependencyPurpose, DependencySourceRequest, extract_requests_from_source,
     };
     use std::path::PathBuf;
 
@@ -241,7 +193,7 @@ machine build(builder: @mutable BuildPlan) {
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../library/system" }));
     let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "kit" });
     |dependency|::with_alias(@mutable kit_dependency, "kit");
-    let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
+    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
 }
 "#;
 
@@ -273,17 +225,13 @@ machine build(builder: @mutable BuildPlan) {
         let updated = replaced(edit);
         assert!(updated.contains("    choose(plan);"));
         assert!(updated.ends_with(helper));
-        assert_eq!(
-            extract_scoped_from_source(&updated).unwrap(),
-            [(DependencyPurpose::Product, proposed)]
-        );
+        assert_eq!(extract_requests_from_source(&updated).unwrap(), [proposed]);
     }
 
     #[test]
-    fn add_and_replace_use_the_parameter_bound_by_the_entry() {
+    fn additions_use_the_parameter_bound_by_the_entry() {
         let initial = "machine build(plan: @mutable BuildPlan) {\n    plan.product = BuildProduct::Package { name: \"client\" };\n}\n";
         let first = path(Some("selected"), "../first");
-        let second = path(Some("selected"), "../second");
         let file = PathBuf::from("build.omg");
         let BuildDependencyEditPlan::Automatic(added) =
             plan_dependency_addition_from_source(file.clone(), initial.to_owned(), &first).unwrap()
@@ -292,24 +240,6 @@ machine build(builder: @mutable BuildPlan) {
         };
         let added = added.replacement_source();
         assert!(added.contains("Build::dependency(plan, selected_dependency)"));
-        let BuildDependencyEditPlan::Automatic(replaced) = plan_dependency_replacement_from_source(
-            file,
-            added.to_owned(),
-            DependencyPurpose::Product,
-            &first,
-            &second,
-        )
-        .unwrap() else {
-            panic!("expected an update for the renamed Build parameter");
-        };
-        let updated = replaced.replacement_source();
-        assert_eq!(
-            extract_scoped_from_source(updated).unwrap(),
-            [(DependencyPurpose::Product, second)]
-        );
-        let wrong_receiver =
-            updated.replace("Build::dependency(plan,", "Build::dependency(builder,");
-        assert!(extract_scoped_from_source(&wrong_receiver).is_err());
     }
 
     #[test]
@@ -341,41 +271,51 @@ machine build(builder: @mutable BuildPlan) {
             assert!(source.contains(&format!("|{expected}|::with_alias(")));
             assert!(!source.replace("\r\n", "").contains('\n'));
             assert_eq!(
-                extract_scoped_from_source(source).unwrap(),
-                [(DependencyPurpose::Product, request.clone())]
-            );
-            let candidate = path(Some("kit"), "../next");
-            let change = plan_dependency_replacement_from_source(
-                "build.omg".into(),
-                source.to_owned(),
-                DependencyPurpose::Product,
-                &request,
-                &candidate,
-            )
-            .unwrap();
-            let BuildDependencyEditPlan::Automatic(change) = change else {
-                panic!("missing update")
-            };
-            assert_eq!(
-                extract_scoped_from_source(change.replacement_source()).unwrap(),
-                [(DependencyPurpose::Product, candidate)]
+                extract_requests_from_source(source).unwrap(),
+                std::slice::from_ref(&request)
             );
             let spoof = source.replace(
                 "{omega}/build/dependency.omg",
                 "{vendor}/wrong/dependency.omg",
             );
-            assert!(extract_scoped_from_source(&spoof).is_err());
+            assert!(extract_requests_from_source(&spoof).is_err());
         }
     }
 
     #[test]
-    fn both_registration_spellings_project_with_their_purpose_and_alias() {
+    fn direct_registrations_need_a_helper_import_only_when_an_alias_is_added() {
+        let initial = r#"machine build(plan: @mutable BuildPlan) {
+    _ = Build::dependency(plan, Source::Path { location: "../first" });
+    plan.product = BuildProduct::Package { name: "demo" };
+}"#;
+        let file = PathBuf::from("build.omg");
+        let first = path(None, "../first");
+        let second = path(None, "../second");
+        let added = replaced(
+            plan_dependency_addition_from_source(file.clone(), initial.to_owned(), &second)
+                .unwrap(),
+        );
+        assert!(!added.contains("use "));
+        assert!(
+            added.contains(r#"Build::dependency(plan, Source::Path { location: "../second" })"#)
+        );
+        let third = path(Some("selected"), "../third");
+        let updated = replaced(plan_dependency_addition_from_source(file, added, &third).unwrap());
         assert_eq!(
-            extract_scoped_from_source(ROOT).expect("project"),
-            [
-                (DependencyPurpose::Product, path(None, "../library/system")),
-                (DependencyPurpose::Build, path(Some("kit"), "kit")),
-            ]
+            updated.matches("use {omega}/build/dependency.omg;").count(),
+            1
+        );
+        assert_eq!(
+            extract_requests_from_source(&updated).unwrap(),
+            [first, second, third,]
+        );
+    }
+
+    #[test]
+    fn direct_and_configured_registrations_keep_their_aliases() {
+        assert_eq!(
+            extract_requests_from_source(ROOT).expect("project"),
+            [path(None, "../library/system"), path(Some("kit"), "kit"),]
         );
     }
 
@@ -396,7 +336,7 @@ machine build(builder: @mutable BuildPlan) {
             "{edited}"
         );
         assert_eq!(
-            extract_scoped_from_source(&edited)
+            extract_requests_from_source(&edited)
                 .expect("reproject")
                 .len(),
             3
@@ -414,34 +354,51 @@ machine build(builder: @mutable BuildPlan) {
             .expect("plan"),
         );
         assert!(
-            edited.contains("    let system_registration_2: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"../vendor/system\" }));\n}"),
+            edited.contains("    let system_registration_2: DependencyRegistration = Build::dependency(builder, Source::Path { location: \"../vendor/system\" });\n}"),
             "{edited}"
         );
     }
 
     #[test]
-    fn a_replaced_aliased_row_keeps_its_place_and_indent() {
-        let edited = replaced(
-            plan_dependency_replacement_from_source(
-                PathBuf::from("build.omg"),
-                ROOT.to_owned(),
-                DependencyPurpose::Build,
-                &path(Some("kit"), "kit"),
-                &path(Some("kit"), "../kit"),
-            )
-            .expect("plan"),
-        );
+    fn repinning_changes_only_the_requested_revision_literal() {
+        let original = r#"use {omega}/build/dependency.omg as dep;
+machine build(plan: @mutable BuildPlan) {
+    let mutable request: DependencyDescription = |dep|::from_source(Source::Git {
+        selection: PackageSelection::Root {},
+        revision: /* provenance */ "old",
+        repository: "ssh://git@test.invalid/old"
+    });
+    |dep|::with_alias(@mutable request, "old");
+    let chosen: DependencyRegistration = Build::dependency(plan, request);
+    inspect(@chosen);
+}
+machine inspect(registered: @DependencyRegistration) {}
+"#;
+        let [accepted]: [_; 1] = extract_requests_from_source(original)
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let supplied = plan_git_revision_from_source(
+            "build.omg".into(),
+            original.to_owned(),
+            DependencyPurpose::Build,
+            &accepted,
+            "new",
+        )
+        .unwrap();
+        assert!(matches!(supplied, BuildDependencyEditPlan::Manual(patch)
+            if patch.reason() == BuildDependencyManualReason::AcceptedRequestMissing && patch.proposed_statement().contains("preparing Build")));
+        let edit = plan_git_revision_from_source(
+            "build.omg".into(),
+            original.to_owned(),
+            DependencyPurpose::Product,
+            &accepted,
+            "new",
+        )
+        .unwrap();
         assert_eq!(
-            extract_scoped_from_source(&edited).expect("reproject"),
-            [
-                (DependencyPurpose::Product, path(None, "../library/system")),
-                (DependencyPurpose::Build, path(Some("kit"), "../kit")),
-            ]
-        );
-        assert!(
-            edited
-                .contains("\n    |dependency|::with_alias(@mutable kit_dependency_2, \"kit\");\n"),
-            "{edited}"
+            replaced(edit),
+            original.replace("/* provenance */ \"old\"", "/* provenance */ \"new\"")
         );
     }
 }

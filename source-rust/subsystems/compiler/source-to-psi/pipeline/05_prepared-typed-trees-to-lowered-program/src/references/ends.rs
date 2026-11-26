@@ -274,7 +274,7 @@ pub(crate) fn install(
                         }
                         bindings::record_write(
                             owner,
-                            &mut machine_tables.places,
+                            &machine_tables.places,
                             &mut machine_tables.writes,
                             WriteRow {
                                 place,

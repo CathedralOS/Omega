@@ -337,12 +337,7 @@ fn create_materialized_symlink(
 fn materialization_diagnostics(
     diagnostics: Vec<Diagnostic>,
 ) -> BuildStagedOutputMaterializationError {
-    let message = diagnostics
-        .into_iter()
-        .map(|diagnostic| diagnostic.message)
-        .collect::<Vec<_>>()
-        .join("; ");
-    materialization_error(message)
+    materialization_error(diagnostics::join_messages(&diagnostics))
 }
 
 fn materialization_error(message: impl Into<String>) -> BuildStagedOutputMaterializationError {

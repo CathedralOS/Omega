@@ -284,7 +284,7 @@ pub(crate) fn rejoin_native_foreign_execution(
         .ok_or("native call has no unique retained calling application")?;
     let checked = native_binding_admission::validate_native_binding_realization(
         row,
-        &retained.identities,
+        retained,
         module,
         row.binding.target(),
         application,

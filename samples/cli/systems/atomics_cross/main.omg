@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 70.
 // Cross-platform atomics smoke test: exercises atomic read-modify-write plus
 // every legal load/store ordering family so each target's real instructions
@@ -18,15 +18,14 @@ use omega\language\core\ProcessExit;
 // The named-entry form runs natively and in the checked interpreter on
 // macOS ARM64. Other declared targets retain their matching-host obligations.
 
-use system\Console;
 
 data Main {
     counter: AtomicU32;
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("atomics_cross: real LOCK xadd + LOCK cmpxchg -- store(10), fetch_add(5), compare_exchange(15,99)");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("atomics_cross: real LOCK xadd + LOCK cmpxchg -- store(10), fetch_add(5), compare_exchange(15,99)");
     main.counter.store(10, NoOrdering);
 
     let old1: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
@@ -70,21 +69,21 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: RMW and every load/store ordering round-tripped (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: RMW and every load/store ordering round-tripped (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: an atomic RMW or ordered load/store misbehaved (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: an atomic RMW or ordered load/store misbehaved (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

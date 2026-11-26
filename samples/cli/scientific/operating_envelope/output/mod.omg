@@ -1,20 +1,19 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\F64::from_i32;
-use omega\language\core\I32::from_f64;
-use geometry;
+use geometry/mod.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Integer text emission uses the existing byte provider; decimal coordinates
 // and areas are emitted in micro-units, with truncation error below one unit.
-public machine integer(value: i32) reaches StandardOutput
-invokes Console
+public machine integer(value: i32) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition value < 0 {
         true -> negative(value as i32 +Wrapping),
         _ -> digits(value as i32 +Wrapping, 1000000000, false)
     }
     machine negative(value: i32 in Wrapping) {
-        Console::write_byte(45);
+        |console|::Console::write_byte(45);
         transition { _ -> digits(0 - value, 1000000000, false) }
     }
     machine digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
@@ -31,7 +30,7 @@ invokes Console
         }
     }
     machine emit(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) {
-        Console::write_byte((digit + 48) as i32);
+        |console|::Console::write_byte((digit + 48) as i32);
         transition divisor > 1 {
             true -> digits(value % divisor, divisor / 10, true),
             _ -> done()
@@ -39,60 +38,60 @@ invokes Console
     }
     machine done() { }
 }
-public machine micro(value: f64) reaches StandardOutput
-invokes Console
+public machine micro(value: f64) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    let converted: i32 in Saturating = I32::from_f64(value * 1000000.0);
+    let converted: i32 in Saturating = |float_operations|::I32::from_f64(value * 1000000.0);
     integer(converted as i32);
 }
-public machine report(envelope: @geometry\Envelope) reaches StandardOutput
-invokes Console
+public machine report(envelope: @|mod|::Envelope) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition envelope.count == 0 {
         true -> empty(envelope),
         _ -> window(envelope)
     }
-    machine empty(envelope: @geometry\Envelope) {
-        Console::write_line("status empty-in-window");
+    machine empty(envelope: @|mod|::Envelope) {
+        |console|::Console::write_line("status empty-in-window");
         transition { _ -> summary(envelope) }
     }
-    machine window(envelope: @geometry\Envelope) {
+    machine window(envelope: @|mod|::Envelope) {
         transition envelope.window_active {
             true -> limited(envelope),
             _ -> bounded(envelope)
         }
     }
-    machine limited(envelope: @geometry\Envelope) {
-        Console::write_line("status window-limited-unboundedness-undetermined");
+    machine limited(envelope: @|mod|::Envelope) {
+        |console|::Console::write_line("status window-limited-unboundedness-undetermined");
         transition { _ -> summary(envelope) }
     }
-    machine bounded(envelope: @geometry\Envelope) {
-        Console::write_line("status bounded");
+    machine bounded(envelope: @|mod|::Envelope) {
+        |console|::Console::write_line("status bounded");
         transition { _ -> summary(envelope) }
     }
-    machine summary(envelope: @geometry\Envelope) {
-        Console::write("vertices "); integer(envelope.count as i32); Console::write_byte(10);
+    machine summary(envelope: @|mod|::Envelope) {
+        |console|::Console::write("vertices "); integer(envelope.count as i32); |console|::Console::write_byte(10);
         // Split area at its integral part: the maximum 40000 square units
         // cannot fit in i32 micro-units as a single number.
-        let whole: i32 in Saturating = I32::from_f64(envelope.area);
-        Console::write("area_whole "); integer(whole as i32); Console::write_byte(10);
-        Console::write("area_fraction_micro ");
-        micro(envelope.area - F64::from_i32(whole as i32)); Console::write_byte(10);
+        let whole: i32 in Saturating = |float_operations|::I32::from_f64(envelope.area);
+        |console|::Console::write("area_whole "); integer(whole as i32); |console|::Console::write_byte(10);
+        |console|::Console::write("area_fraction_micro ");
+        micro(envelope.area - |float_operations|::F64::from_i32(whole as i32)); |console|::Console::write_byte(10);
         transition { _ -> vertex(envelope, 0) }
     }
-    machine vertex(envelope: @geometry\Envelope, index: i32 in Wrapping) {
+    machine vertex(envelope: @|mod|::Envelope, index: i32 in Wrapping) {
         transition index >= 0 && index < envelope.count && index < 32 {
             true -> emit_vertex(envelope, index),
             _ -> done()
         }
     }
-    machine emit_vertex(envelope: @geometry\Envelope, index: i32 in Wrapping) {
-        Console::write("vertex "); integer(index as i32); Console::write_byte(32);
-        micro(envelope.x[index]); Console::write_byte(32); micro(envelope.y[index]); Console::write_byte(10);
+    machine emit_vertex(envelope: @|mod|::Envelope, index: i32 in Wrapping) {
+        |console|::Console::write("vertex "); integer(index as i32); |console|::Console::write_byte(32);
+        micro(envelope.x[index]); |console|::Console::write_byte(32); micro(envelope.y[index]); |console|::Console::write_byte(10);
         transition { _ -> certificate(envelope, index, 0) }
     }
     machine certificate(
-        envelope: @geometry\Envelope,
+        envelope: @|mod|::Envelope,
         vertex: i32 in Wrapping,
         constraint: i32 in Wrapping
     ) {
@@ -102,29 +101,29 @@ invokes Console
         }
     }
     machine residual(
-        envelope: @geometry\Envelope,
+        envelope: @|mod|::Envelope,
         vertex: i32 in Wrapping,
         constraint: i32 in Wrapping
     ) {
         let residual: f64 = envelope.a[constraint] * envelope.x[vertex]
                          + envelope.b[constraint] * envelope.y[vertex] - envelope.limit[constraint];
-        Console::write("certificate "); integer(vertex as i32); Console::write_byte(32);
-        integer(constraint as i32); Console::write_byte(32); micro(residual / 100.0); Console::write_byte(10);
+        |console|::Console::write("certificate "); integer(vertex as i32); |console|::Console::write_byte(32);
+        integer(constraint as i32); |console|::Console::write_byte(32); micro(residual / 100.0); |console|::Console::write_byte(10);
         transition residual >= -0.00000001 && residual <= 0.00000001 {
             true -> active(envelope, vertex, constraint),
             _ -> certificate(envelope, vertex, constraint + 1)
         }
     }
     machine active(
-        envelope: @geometry\Envelope,
+        envelope: @|mod|::Envelope,
         vertex: i32 in Wrapping,
         constraint: i32 in Wrapping
     ) {
-        Console::write("active "); integer(vertex as i32); Console::write_byte(32);
-        integer(constraint as i32); Console::write_byte(10);
+        |console|::Console::write("active "); integer(vertex as i32); |console|::Console::write_byte(32);
+        integer(constraint as i32); |console|::Console::write_byte(10);
         transition { _ -> certificate(envelope, vertex, constraint + 1) }
     }
-    machine next_vertex(envelope: @geometry\Envelope, vertex: i32 in Wrapping) {
+    machine next_vertex(envelope: @|mod|::Envelope, vertex: i32 in Wrapping) {
         transition { _ -> vertex(envelope, vertex + 1) }
     }
     machine done() { }

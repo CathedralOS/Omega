@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "progress_provider");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "progress_provider" };
     Build::select_provider::<Scheduler, SchedulerProvider>(builder, linux_arm64);
     Build::select_provider::<Scheduler, SchedulerProvider>(builder, linux_x86_64);
     Build::select_provider::<Scheduler, SchedulerProvider>(builder, macos_arm64);

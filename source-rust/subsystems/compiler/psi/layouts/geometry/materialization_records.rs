@@ -147,59 +147,58 @@ pub mod field_identities {
     pub fn validate_materialization_field_identities(
         layout: &LayoutPlanReport,
     ) -> Result<(), MaterializationDiagnostic> {
-        let mut identity_names = std::collections::BTreeMap::new();
-        let mut name_identities = std::collections::BTreeMap::new();
-        for entry in &layout.entries {
-            let key = materialization_field_key(&entry.field, entry.member_identity);
-            if let Some(prior_name) = identity_names.insert(key.clone(), entry.field.as_str())
-                && prior_name != entry.field
-            {
-                return Err(MaterializationDiagnostic(format!(
-                    "layout field identity names both `{prior_name}` and `{}`",
-                    entry.field
-                )));
-            }
-            if let Some(prior_identity) = name_identities.insert(entry.field.as_str(), key.clone())
-                && prior_identity != key
-            {
-                return Err(MaterializationDiagnostic(format!(
-                    "layout field `{}` fragments do not retain the same stable identity",
-                    entry.field
-                )));
-            }
-        }
-        Ok(())
+        validate_member_identities(
+            layout
+                .entries
+                .iter()
+                .map(|entry| (entry.field.as_str(), entry.member_identity)),
+            |prior, field| format!("layout field identity names both `{prior}` and `{field}`"),
+            |field| {
+                format!("layout field `{field}` fragments do not retain the same stable identity")
+            },
+        )
     }
 
     pub fn validate_conventional_sum_materialization_identities(
         layout: &ConventionalSumLayoutReport,
     ) -> Result<(), MaterializationDiagnostic> {
+        validate_member_identities(
+            layout.cases.iter().flat_map(|case| {
+                [(case.case.as_str(), case.member_identity)]
+                    .into_iter()
+                    .chain(
+                        case.payload_fields
+                            .iter()
+                            .map(|payload| (payload.field.as_str(), payload.member_identity)),
+                    )
+            }),
+            |prior, field| format!("sum interior identity names both `{prior}` and `{field}`"),
+            |field| {
+                format!("sum interior field `{field}` does not retain the same stable identity")
+            },
+        )
+    }
+
+    /// Each stable identity names one member, and each member name keeps one
+    /// stable identity across all of its fragments.
+    fn validate_member_identities<'a>(
+        members: impl Iterator<Item = (&'a str, Option<u64>)>,
+        renamed: impl Fn(&str, &str) -> String,
+        refragmented: impl Fn(&str) -> String,
+    ) -> Result<(), MaterializationDiagnostic> {
         let mut identity_names = std::collections::BTreeMap::new();
         let mut name_identities = std::collections::BTreeMap::new();
-        for case in &layout.cases {
-            for (field, member_identity) in [(case.case.as_str(), case.member_identity)]
-                .into_iter()
-                .chain(
-                    case.payload_fields
-                        .iter()
-                        .map(|payload| (payload.field.as_str(), payload.member_identity)),
-                )
+        for (field, member_identity) in members {
+            let key = materialization_field_key(field, member_identity);
+            if let Some(prior_name) = identity_names.insert(key.clone(), field)
+                && prior_name != field
             {
-                let key = materialization_field_key(field, member_identity);
-                if let Some(prior_name) = identity_names.insert(key.clone(), field)
-                    && prior_name != field
-                {
-                    return Err(MaterializationDiagnostic(format!(
-                        "sum interior identity names both `{prior_name}` and `{field}`"
-                    )));
-                }
-                if let Some(prior_identity) = name_identities.insert(field, key.clone())
-                    && prior_identity != key
-                {
-                    return Err(MaterializationDiagnostic(format!(
-                        "sum interior field `{field}` does not retain the same stable identity"
-                    )));
-                }
+                return Err(MaterializationDiagnostic(renamed(prior_name, field)));
+            }
+            if let Some(prior_identity) = name_identities.insert(field, key.clone())
+                && prior_identity != key
+            {
+                return Err(MaterializationDiagnostic(refragmented(field)));
             }
         }
         Ok(())

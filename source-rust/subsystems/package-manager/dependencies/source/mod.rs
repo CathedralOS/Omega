@@ -1,9 +1,7 @@
 /*
     We resolve immutable source custody into one declared package source,
     binding executed declarations and historical recovery behind this facade.
-    Package entry selection (`package_entry`) inspects the acquired in-memory
-    source tree when available, falling back to the physical root only for
-    legacy persisted-custody consumers without an in-memory capture.
+    Each acquisition selects its entry from the captured tree.
 
     We also define the core value and error types shared across source custody:
     `ResolvePackageSourceError` for source resolution and Git-pin retention
@@ -23,6 +21,7 @@
 mod acquisition;
 pub(crate) use acquisition::LocalWorkspaceMembers;
 mod build_resolution;
+mod bundled;
 mod custody;
 pub(crate) mod git;
 mod local;
@@ -55,18 +54,6 @@ use source_acquisition::{
     ResolvedLocalSource, SourceContentDigest, SourceRelativePath, SourceResolveError,
 };
 use std::fmt;
-use std::path::{Path, PathBuf};
-
-pub(crate) fn package_entry(
-    root: &Path,
-    captured: Option<&source_capture::CapturedSourceTree>,
-) -> PathBuf {
-    let has_build = match captured {
-        Some(tree) => tree.is_file(Path::new("build.omg")),
-        None => root.join("build.omg").is_file(),
-    };
-    root.join(if has_build { "build.omg" } else { "main.omg" })
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ResolvePackageSourceError {
@@ -128,5 +115,3 @@ pub(crate) enum PackageSourceNavigation {
     Root,
     Member(SourceRelativePath),
 }
-
-impl PackageSourceNavigation {}

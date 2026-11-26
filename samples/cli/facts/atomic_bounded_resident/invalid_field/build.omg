@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "atomic_bounded_resident");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "atomic_bounded_resident" };
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

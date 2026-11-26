@@ -8,6 +8,7 @@ version.workspace = true
 path = "result.rs"
 
 [dependencies]
+language-core = { path = "../../../foundation/language-core" }
 behavior-exclusion-requests = { path = "../../settings/behavior-exclusions" }
 build-consent = { path = "../authority/consent" }
 build-declarations = { path = "../../inputs/declarations" }

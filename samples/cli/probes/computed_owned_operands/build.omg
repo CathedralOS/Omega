@@ -1,7 +1,7 @@
 // computed_owned_operands build file: no standard-library dependency.
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "computed_owned_operands");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "computed_owned_operands" };
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

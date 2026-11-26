@@ -1,11 +1,11 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\narrow_i64_to_i32_wrapping;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Prints nonnegative i64 values through existing Console byte providers.
 // Largest reachable element total is 64*INT32_MAX (<10^12).
-machine number(value: i64 in Wrapping) reaches StandardOutput
-invokes Console
+machine number(value: i64 in Wrapping) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition { _ -> place(value, 1000000000000, false) }
     machine place(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
@@ -24,28 +24,28 @@ invokes Console
     }
     machine emit(value: i64 in Wrapping, divisor: i64 in Wrapping, digit: i64 in Wrapping)
     requires divisor > 0 {
-        let byte: i32 = narrow_i64_to_i32_wrapping((digit + 48) as i64);
-        Console::write_byte(byte);
+        let byte: i32 = |numeric_conversion|::narrow_i64_to_i32_wrapping((digit + 48) as i64);
+        |console|::Console::write_byte(byte);
         transition { _ -> place(value % divisor, divisor / 10, true) }
     }
     machine done() { }
 }
 
-machine line_number(value: i64 in Wrapping) reaches StandardOutput
-invokes Console
+machine line_number(value: i64 in Wrapping) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     number(value);
-    Console::write_line("");
+    |console|::Console::write_line("");
 }
 
-machine line_four(values: @[i64 in Wrapping; 4]) reaches StandardOutput
-invokes Console
+machine line_four(values: @[i64 in Wrapping; 4]) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     number(values[0]);
-    Console::write(" ");
+    |console|::Console::write(" ");
     number(values[1]);
-    Console::write(" ");
+    |console|::Console::write(" ");
     number(values[2]);
-    Console::write(" ");
+    |console|::Console::write(" ");
     line_number(values[3]);
 }

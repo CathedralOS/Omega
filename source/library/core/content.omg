@@ -33,7 +33,7 @@ public trait Content<Owner, A> {
 // address embeds into proof Int with its complete carrier range; a consumer
 // that needs a nonnegative algebra must perform an explicit exact `as Nat`
 // conversion and discharge nonnegativity from that derived range. The content-
-// fragment validator admits this surface only for u8/u16/u32/u64/addr subject
+// fragment validator admits this surface only for u8/u16/u32/u64/address subject
 // fields; arbitrary calls and non-scalar arguments remain outside the fragment.
 // `embed` is installed by the compiler as a proof term, like `old` and
 // `separate`. It has no machine declaration, provider, or runtime implementation.

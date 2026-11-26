@@ -1,13 +1,17 @@
+use main.omg as app;
 use {omega}/build/dependency.omg;
+use {omega}/language/core/process_authority.omg as streams;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "fixed_timestep");
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
-        location: "../../../../source/library/system"
-    }));
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, windows_arm64::ProgramEntry, main);
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "fixed_timestep" };
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled {
+        name: "system"
+    });
+    let allowed: [BoundaryServiceReference; 1] = [Build::service::<|streams|::StandardOutput>(builder)];
+    _ = |dependency|::add(builder, system, @allowed[..]);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);
 }

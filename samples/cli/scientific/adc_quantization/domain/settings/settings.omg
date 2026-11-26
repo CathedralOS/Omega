@@ -1,7 +1,6 @@
-use omega\language\core\StandardInput;
-use system\Console;
-use io\input;
-use io\input\number;
+use io/input/input.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Settings {
     width: i64 in Wrapping;
     signedness: i64 in Wrapping;
@@ -14,21 +13,21 @@ public data Settings {
     rounding: i64 in Wrapping;
     count: i64 in Wrapping;
 }
-public machine settings(configuration: @mutable Settings) -> bool reaches StandardInput
-invokes Console
+public machine settings(configuration: @mutable Settings) -> bool reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
-    configuration.width = block number();
-    configuration.signedness = block number();
-    configuration.reference_low = block number();
-    configuration.reference_high = block number();
-    configuration.raw_low = block number();
-    configuration.raw_high = block number();
-    configuration.physical_low = block number();
-    configuration.physical_high = block number();
-    configuration.rounding = block number();
-    configuration.count = block number();
+    configuration.width = block |input|::number();
+    configuration.signedness = block |input|::number();
+    configuration.reference_low = block |input|::number();
+    configuration.reference_high = block |input|::number();
+    configuration.raw_low = block |input|::number();
+    configuration.raw_high = block |input|::number();
+    configuration.physical_low = block |input|::number();
+    configuration.physical_high = block |input|::number();
+    configuration.rounding = block |input|::number();
+    configuration.count = block |input|::number();
     transition configuration.width >= 2 && configuration.width <= 8 &&
         configuration.signedness >= 0 && configuration.signedness <= 1 &&
         configuration.rounding == 0 && configuration.count >= 1 && configuration.count <= 32 &&

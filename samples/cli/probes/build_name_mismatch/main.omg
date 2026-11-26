@@ -1,5 +1,5 @@
-use depkit;
+use {depkit}/main.omg as depkit;
 
 machine entry() -> i32 {
-    depkit\value()
+    |depkit|::value()
 }

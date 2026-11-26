@@ -2,7 +2,7 @@
 // caller-provided slot. No caller assigned `toolchain-key` to this
 // activation, so the lookup must reject rather than fabricate a slot.
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_unassigned_input");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_unassigned_input" };
     let slot: BuildSource = BuildInputs::get(@builder.inputs, "toolchain-key");
 }

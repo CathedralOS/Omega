@@ -1,85 +1,64 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
 // Longest run of equal bytes, the measure behind run-length encoding.
 // The input belongs to the invocation. States carry the cursor, previous byte,
 // current run length and maximum; the current byte is an iteration-local value.
 // For "aaabbbbccdaa", the longest run is 4 (the "bbbb").
 // Expected exit: 4.
 
-domain [u8]::Utf8
-requires
-    valid_utf8(self);
-domain [u8; 12]::Utf8
-requires
-    valid_utf8(self);
-use system\Console;
+use {system}/console.omg;
+use {omega}/language/core/byte_observation/byte_observation.omg as observations;
+use {omega}/language/core/process_authority.omg as streams;
+use {omega}/language/core/process_exit.omg as process;
+
+domain [u8; 12]::Utf8 requires |observations|::valid_utf8(@self[..]);
 
 data Main {
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
-    let text: [u8; 12] in Utf8 = "aaabbbbccdaa";
+machine main(context: @mutable Main)
+blocks
+reaches |process|::ProcessExit + |streams|::StandardInput + |streams|::StandardOutput {
+    |console|::Console::write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
+    let text: [u8; 12] in Utf8 = "aaabbbbccdaa" as +Utf8;
     let maximum: i32 in Wrapping = longest_run(@text);
-    Console::write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
-    Console::write_line("[press Enter to close]");
+    |console|::Console::write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
     let mutable pause: [u8; 256];
-    _ = block Console::read_line(@mutable pause[..]);
-    ProcessExit::exit_process(maximum as i32);
+    _ = block |console|::Console::read_line(@mutable pause[..]);
+    |process|::ProcessExit::exit_process(maximum as -Wrapping);
 }
 
 machine longest_run(text: @[u8; 12] in Utf8) -> i32 in Wrapping {
-    transition { _ -> step(text, 0, 0, 0, 0) }
+    let zero: i32 in Wrapping = 0i32 as +Wrapping;
+    transition { _ -> scan(text as -Utf8, 0, 0, zero, zero) }
 
-    machine step(text: @[u8; 12] in Utf8, index: i32, previous: u8,
-               current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
-    requires index >= 0 {
-        transition index < text.length {
-            true -> read(text, index, previous, current, maximum),
-            _ -> maximum
+    machine scan(bytes: @[u8; 12], index: u64, previous: u8,
+                 run: i32 in Wrapping, longest: i32 in Wrapping) -> i32 in Wrapping {
+        transition index < bytes.length {
+            true -> consume(bytes, index, previous, run, longest),
+            _ -> longest
         }
     }
 
-    machine read(text: @[u8; 12] in Utf8, index: i32, previous: u8,
-               current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
-    requires index >= 0 {
-        let byte: u8 = text[index];
-        transition byte == previous {
-            true -> update(text, index, byte, current + 1, maximum),
-            _ -> update(text, index, byte, 1, maximum)
-        }
-    }
-
-    machine update(text: @[u8; 12] in Utf8, index: i32, previous: u8,
-                 current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
-    requires index >= 0 {
-        transition current > maximum {
-            true -> advance(text, index, previous, current, current),
-            _ -> advance(text, index, previous, current, maximum)
-        }
-    }
-
-    // Retain the capacity guard immediately before the Exact cursor increment.
-    machine advance(text: @[u8; 12] in Utf8, index: i32, previous: u8,
-                  current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
-    requires index >= 0 {
-        transition index < 16 {
-            true -> bump(text, index, previous, current, maximum),
-            _ -> maximum
-        }
-    }
-
-    machine bump(text: @[u8; 12] in Utf8, index: i32, previous: u8,
-               current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
-    requires index >= 0
-    requires index < 16 {
-        transition { _ -> step(text, index + 1, previous, current, maximum) }
+    machine consume(bytes: @[u8; 12], index: u64, previous: u8,
+                    run: i32 in Wrapping, longest: i32 in Wrapping) -> i32 in Wrapping
+    requires index < bytes.length {
+        let byte: u8 = bytes[index];
+        let next_run: i32 in Wrapping = match byte == previous {
+            true -> run + 1,
+            false -> 1i32 as +Wrapping
+        };
+        let next_longest: i32 in Wrapping = match next_run > longest {
+            true -> next_run,
+            false -> longest
+        };
+        transition { _ -> scan(bytes, index + 1, byte, next_run, next_longest) }
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+public machine entry_start()
+blocks
+reaches |process|::ProcessExit + |streams|::StandardInput + |streams|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

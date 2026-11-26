@@ -1,23 +1,15 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/model/model.omg;
+use io/protocol/protocol.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0 with bounded input.txt; complete numerical oracle in validation/.
-use system\Console;
-use io\protocol;
-use io\protocol\Protocol;
-use io\protocol\read;
-use io\protocol\integer;
-use io\protocol\number;
-use domain\model;
-use domain\model\direct_time;
-use domain\model\Model;
-use domain\model\branch;
-use omega\language\core\I32::from_f64;
 data Main {
- protocol: Protocol; model: Model; best_time: f64; best_branch: i32 in Wrapping;
+ protocol: |protocol|::Protocol; model: |model|::Model; best_time: f64; best_branch: i32 in Wrapping;
 }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
- let valid: bool = block read(@mutable main.protocol);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+ let valid: bool = block |protocol|::read(@mutable main.protocol);
  transition valid && main.protocol.position >= 2 { true -> header(main), false -> syntax(main) }
  machine header(main: @mutable Main) {
   let layers: f64 = main.protocol.fields[0]; let offsets: f64 = main.protocol.fields[1];
@@ -28,8 +20,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
  machine counts(main: @mutable Main, layers: f64, offsets: f64)
  requires layers >= 1.0 && layers <= 4.0
  requires offsets >= 0.0 && offsets <= 16.0 {
-  main.model.layers = I32::from_f64(layers) as i32 +Wrapping;
-  main.model.offsets = I32::from_f64(offsets) as i32 +Wrapping;
+  main.model.layers = |float_operations|::I32::from_f64(layers) as i32 +Wrapping;
+  main.model.offsets = |float_operations|::I32::from_f64(offsets) as i32 +Wrapping;
   let layer_value: f64 = main.model.layers as f64; let offset_value: f64 = main.model.offsets as f64;
   transition layers == layer_value && offsets == offset_value && main.protocol.position == 1 + 2 * main.model.layers + main.model.offsets {
    true -> velocity(main, 0, 0.0), false -> syntax(main)
@@ -80,11 +72,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
  }
  machine compute_branch(main: @mutable Main, refractor: i32 in Wrapping)
  requires refractor >= 1 && refractor < 4 {
-  branch(@mutable main.model, refractor);
-  Console::write("B "); integer(@mutable main.protocol, refractor);
-  Console::write(" "); number(@mutable main.protocol, main.model.critical[refractor]);
-  Console::write(" "); number(@mutable main.protocol, main.model.intercept[refractor]);
-  Console::write_line("");
+  |model|::branch(@mutable main.model, refractor);
+  |console|::Console::write("B "); |protocol|::integer(@mutable main.protocol, refractor);
+  |console|::Console::write(" "); |protocol|::number(@mutable main.protocol, main.model.critical[refractor]);
+  |console|::Console::write(" "); |protocol|::number(@mutable main.protocol, main.model.intercept[refractor]);
+  |console|::Console::write_line("");
   transition { _ -> prepare(main, refractor + 1) }
  }
  machine offset(main: @mutable Main, index: i32 in Wrapping) {
@@ -101,9 +93,9 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
   }
  }
  machine direct(main: @mutable Main, index: i32 in Wrapping, distance: f64) {
-  let offset: f64 in SurfaceOffset = distance as +SurfaceOffset;
-  let speed: f64 in Velocity = main.model.velocities[0] as f64 +Velocity;
-  let duration: f64 in TravelTime = direct_time(offset, speed);
+  let offset: f64 in |model|::f64::SurfaceOffset = distance as + |model|::f64::SurfaceOffset;
+  let speed: f64 in |model|::f64::Velocity = main.model.velocities[0] as f64 +Velocity;
+  let duration: f64 in |model|::f64::TravelTime = |model|::direct_time(offset, speed);
   main.best_time = duration as f64; main.best_branch = 0;
   let time: f64 = main.best_time;
   emit(main, "R ", index, 0, distance, time);
@@ -140,20 +132,20 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
   emit(main, "F ", index, identifier, distance, time);
   transition { _ -> offset(main, index + 1) }
  }
- machine success(main: @mutable Main) { ProcessExit::exit_process(0); }
- machine syntax(main: @mutable Main) { Console::write_line("ERROR syntax"); ProcessExit::exit_process(64); }
- machine range(main: @mutable Main) { Console::write_line("ERROR range"); ProcessExit::exit_process(65); }
+ machine success(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
+ machine syntax(main: @mutable Main) { |console|::Console::write_line("ERROR syntax"); |process_exit|::ProcessExit::exit_process(64); }
+ machine range(main: @mutable Main) { |console|::Console::write_line("ERROR range"); |process_exit|::ProcessExit::exit_process(65); }
 }
-machine emit(main: @mutable Main, prefix: @[u8], index: i32 in Wrapping, identifier: i32 in Wrapping, distance: f64, time: f64) reaches StandardOutput {
- Console::write(prefix); integer(@mutable main.protocol, index);
- Console::write(" "); integer(@mutable main.protocol, identifier);
- Console::write(" "); number(@mutable main.protocol, distance);
- Console::write(" "); number(@mutable main.protocol, time);
- Console::write_line("");
+machine emit(main: @mutable Main, prefix: @[u8], index: i32 in Wrapping, identifier: i32 in Wrapping, distance: f64, time: f64) reaches |process_authority|::StandardOutput {
+ |console|::Console::write(prefix); |protocol|::integer(@mutable main.protocol, index);
+ |console|::Console::write(" "); |protocol|::integer(@mutable main.protocol, identifier);
+ |console|::Console::write(" "); |protocol|::number(@mutable main.protocol, distance);
+ |console|::Console::write(" "); |protocol|::number(@mutable main.protocol, time);
+ |console|::Console::write_line("");
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -2,7 +2,7 @@
 // Checks offset and overlapping candidates, missing/empty patterns, truncated
 // tails and embedded zero bytes. No encoding qualification is assumed.
 // Expected exit: 0.
-use omega\language\core\Optional;
+use {omega}/language/core/option.omg;
 
 machine starts_with(bytes: @[u8], pattern: @[u8]) -> bool {
     transition pattern.length == 0 {
@@ -27,39 +27,39 @@ machine starts_with(bytes: @[u8], pattern: @[u8]) -> bool {
     }
 }
 
-machine find(bytes: @[u8], pattern: @[u8]) -> Optional<u64> {
+machine find(bytes: @[u8], pattern: @[u8]) -> |option|::Optional<u64> {
     transition { _ -> search(bytes, pattern, 0) }
-    machine search(bytes: @[u8], pattern: @[u8], position: u64) -> Optional<u64>
+    machine search(bytes: @[u8], pattern: @[u8], position: u64) -> |option|::Optional<u64>
     requires position <= bytes.length
     {
         let remaining: @[u8] = bytes[position..];
         let matches: bool = starts_with(remaining, pattern);
         transition matches {
-            true -> (Optional::Some { value: position }),
+            true -> (|option|::Optional::Some { value: position }),
             false -> advance(bytes, pattern, position)
         }
     }
-    machine advance(bytes: @[u8], pattern: @[u8], position: u64) -> Optional<u64>
+    machine advance(bytes: @[u8], pattern: @[u8], position: u64) -> |option|::Optional<u64>
     requires position <= bytes.length
     {
         transition position < bytes.length {
             true -> search(bytes, pattern, position + 1),
-            false -> (Optional::None)
+            false -> (|option|::Optional::None)
         }
     }
 }
 
-machine found_at(result: @Optional<u64>, expected: u64) -> bool {
+machine found_at(result: @|option|::Optional<u64>, expected: u64) -> bool {
     transition result {
-        Optional::Some { value } -> (value == expected),
-        Optional::None -> (false)
+        |option|::Optional::Some { value } -> (value == expected),
+        |option|::Optional::None -> (false)
     }
 }
 
-machine absent(result: @Optional<u64>) -> bool {
+machine absent(result: @|option|::Optional<u64>) -> bool {
     transition result {
-        Optional::Some { value } -> (false),
-        Optional::None -> (true)
+        |option|::Optional::Some { value } -> (false),
+        |option|::Optional::None -> (true)
     }
 }
 
@@ -93,14 +93,14 @@ requires pattern.length > 0
 }
 
 machine main() crashes Trap {
-    let offset: Optional<u64> = find("abracadabra", "cad");
-    let overlapping: Optional<u64> = find("aaaab", "aab");
-    let zero: Optional<u64> = find("a\0bc", "\0b");
-    let missing: Optional<u64> = find("abc", "d");
-    let truncated: Optional<u64> = find("abc", "bcd");
-    let empty: Optional<u64> = find("", "");
-    let empty_pattern: Optional<u64> = find("abc", "");
-    let empty_input: Optional<u64> = find("", "x");
+    let offset: |option|::Optional<u64> = find("abracadabra", "cad");
+    let overlapping: |option|::Optional<u64> = find("aaaab", "aab");
+    let zero: |option|::Optional<u64> = find("a\0bc", "\0b");
+    let missing: |option|::Optional<u64> = find("abc", "d");
+    let truncated: |option|::Optional<u64> = find("abc", "bcd");
+    let empty: |option|::Optional<u64> = find("", "");
+    let empty_pattern: |option|::Optional<u64> = find("abc", "");
+    let empty_input: |option|::Optional<u64> = find("", "x");
     let mutable positions: [u64; 4];
     positions[3] = 99;
     let count: u64 = collect_matches("aaaa", "aa", @mutable positions[..]);

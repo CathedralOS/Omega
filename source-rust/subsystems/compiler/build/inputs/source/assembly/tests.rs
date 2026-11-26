@@ -256,8 +256,9 @@ machine build(builder: @mutable Build) {
 fn build_imports_are_fixed_before_a_conditional_dependency_wait() {
     let conditional = r#"use {scores}/value.omg as scores;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "fixed_wait");
+use main.omg as entry;
+machine build(builder: @mutable BuildPlan) suspends {
+    builder.product = BuildProduct::Application { name: "fixed_wait" };
     let path: BuildPath = BuildOutput::resolve(@builder.output, "ran.txt");
     let writer: i32 = BuildOutput::create(@mutable builder.output, path, 0);
     _ = BuildOutput::write(@mutable builder.output, writer, "ran");
@@ -267,19 +268,19 @@ machine build(builder: @mutable Build) suspends {
         true -> suspend later(builder),
         _ -> done(builder)
     }
-    machine later(builder: @mutable Build) suspends {
+    machine later(builder: @mutable BuildPlan) suspends {
         let request: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "lib" }));
         suspend Build::prepare_dependency(builder, request);
         let value: i32 = |scores|::value();
     }
-    machine done(builder: @mutable Build) {
-        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    machine done(builder: @mutable BuildPlan) {
+        Build::bind(builder, linux_x86_64::ProgramEntry, |entry|::main);
     }
 }
 "#;
     let product_only = r#"use {scores}/value.omg as scores;
 use {omega}/build/dependency.omg as dependencies;
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     let kit: DependencyDescription = |dependencies|::from_source(Source::Path { location: "lib" });
     _ = Build::dependency(builder, kit);
     Build::bind(builder, linux_x86_64::ProgramEntry, |scores|::main);
@@ -291,7 +292,7 @@ machine build(builder: @mutable Build) {
     )
     .unwrap();
     let root = temporary.path().join("build.omg");
-    std::fs::write(temporary.path().join("main.omg"), "machine main() {}\n").unwrap();
+    std::fs::write(temporary.path().join("main.omg"), "public machine main() {}\n").unwrap();
     std::fs::write(
         temporary.path().join("value.omg"),
         "public machine value() -> i32 { 7 }\n",
@@ -436,4 +437,112 @@ fn successor_selects_only_the_requested_build_from_its_frozen_package() {
             invalid.display()
         );
     }
+}
+
+#[test]
+fn a_prepared_build_library_can_import_a_later_frozen_file() {
+    use crate::source::source_imports::{
+        GeneratedFiles, ImportQueue, ProductQueryDependency, ProductQueryInputs, SourceStorage,
+    };
+    use crate::{
+        BuildDeclarationKind, PackageBuildHandoff, PackageCompilationInputs, PackageSourceBinding,
+    };
+    use build_output::PackageGeneratedSource;
+    use semantic_vocabulary::PackageKeyIdentity;
+
+    let owner = PackageKeyIdentity::from_digest([9; 32]).unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("prepared-library");
+    let graph = PackageCompilationInputs::new(
+        owner,
+        BuildDeclarationKind::Package,
+        vec![
+            PackageSourceBinding::new(owner, "library", root.clone())
+                .with_captured_source(Arc::new(
+                    source_capture::CapturedSourceTree::new([(
+                        std::path::PathBuf::from("authored.omg"),
+                        source_capture::CapturedSourceNode::File {
+                            bytes: Arc::from(b"public data Authored {}".as_slice()),
+                            executable: false,
+                        },
+                    )])
+                    .unwrap(),
+                ))
+                .unwrap(),
+        ],
+        vec![],
+    )
+    .unwrap();
+    let generated = |path: &str, text: &str| {
+        PackageGeneratedSource::from_retained_parts(
+            path.as_bytes().into(),
+            Arc::from(text.as_bytes()),
+        )
+    };
+    let user = generated(
+        "entry.omg",
+        "use value.omg; public machine read() -> u8 { |value|::get() }",
+    );
+    let value = generated("value.omg", "public machine get() -> u8 { 7 }");
+    let assemble = |sources| {
+        let handoff = PackageBuildHandoff::from_checked(
+            owner,
+            build_declarations::DependencyPurpose::Build,
+            target::TargetProfile::LinuxX64,
+            Some(target::TargetProfile::LinuxX64),
+            graph.dependency_closure(),
+            crate::PackageSourceConsumptionCommitment::from_retained_digest([3; 32]),
+            sources,
+        );
+        let inputs = ProductQueryInputs::for_build_stage(
+            None,
+            vec![ProductQueryDependency {
+                alias: "library".into(),
+                max_reach: Default::default(),
+                inputs: graph.clone(),
+                child_build_source: None,
+                generated: Some(handoff),
+            }],
+        )
+        .unwrap();
+        let mut storage = SourceStorage::default();
+        inputs.mount(&mut storage)?;
+        super::generated::admit_generated_files(
+            &mut storage,
+            &mut ImportQueue::default(),
+            GeneratedFiles::for_build_libraries(&inputs)?,
+            super::SourceRouting::Query(&inputs),
+            &mut Default::default(),
+            &mut Default::default(),
+        )?;
+        Ok::<_, Vec<diagnostics::Diagnostic>>(
+            storage
+                .resolved_imports
+                .into_iter()
+                .map(|import| import.path)
+                .collect::<Vec<_>>(),
+        )
+    };
+    let expected = vec![
+        root.join(source_admission::GENERATED_SOURCE_DIRECTORY)
+            .join("value.omg"),
+    ];
+    assert_eq!(
+        assemble(vec![value.clone(), user.clone()]).unwrap(),
+        expected
+    );
+    assert_eq!(assemble(vec![user.clone(), value]).unwrap(), expected);
+    let errors = assemble(vec![user]).unwrap_err();
+    assert!(
+        errors[0]
+            .message
+            .contains("no admitted logical file `value.omg`"),
+        "{errors:?}"
+    );
+    let collision = assemble(vec![generated("authored.omg", "public data Other {}")]).unwrap_err();
+    assert!(
+        collision[0]
+            .message
+            .contains("collides with an existing source"),
+        "{collision:?}"
+    );
 }

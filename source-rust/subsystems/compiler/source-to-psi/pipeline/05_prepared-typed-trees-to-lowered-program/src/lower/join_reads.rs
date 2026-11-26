@@ -4,7 +4,6 @@
 //! arrivals while checking each read against its own reaching store.
 //! See `wiki/spec/terminal-psi/fact_validity.md`, “Premise availability.”
 
-use arena::NumericId;
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ScalarType, ValueId};
 use terminal_check_tables::bindings::PlaceOrigin;
 use terminal_check_tables::values::ValueOrigin;
@@ -101,15 +100,12 @@ impl Lowering<'_> {
             self.join_reads = None;
             return Ok(None);
         }
+        let branch_writes = self.tables.writes.values().skip(writes_before);
         loop {
             let Some(place) = self.tables.places.get(leaf) else {
                 return Err(self.internal("a join read names no place"));
             };
-            if place
-                .writes
-                .last()
-                .is_some_and(|write| write.get() > writes_before as u64)
-            {
+            if branch_writes.clone().any(|write| write.place == leaf) {
                 break;
             }
             match place.origin {

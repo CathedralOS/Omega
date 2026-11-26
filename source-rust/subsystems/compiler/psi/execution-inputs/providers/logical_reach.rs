@@ -248,7 +248,7 @@ pub fn admit_interpreted_providers(
         selections.sort_unstable();
         selections.dedup();
     }
-    crate::admit_provider_execution_installation(artifact, &selections, &[]).map_err(|error| {
+    crate::admit_provider_execution_installation(artifact, &selections).map_err(|error| {
         vec![Diagnostic::error(format!(
             "interpreter provider installation: {error:?}"
         ))]

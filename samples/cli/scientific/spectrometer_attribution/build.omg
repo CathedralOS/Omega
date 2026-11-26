@@ -1,11 +1,12 @@
+use spectrometer/program.omg;
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "spectrometer_attribution");
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../source/library/system" }));
-    Build::bind(builder, linux_x86_64::ProgramEntry, spectrometer\main);
-    Build::bind(builder, linux_arm64::ProgramEntry, spectrometer\main);
-    Build::bind(builder, macos_arm64::ProgramEntry, spectrometer\main);
-    Build::bind(builder, macos_x86_64::ProgramEntry, spectrometer\main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, spectrometer\main);
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "spectrometer_attribution" };
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
+    Build::bind(builder, linux_x86_64::ProgramEntry, |program|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |program|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |program|::main);
+    Build::bind(builder, macos_x86_64::ProgramEntry, |program|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |program|::main);
 }

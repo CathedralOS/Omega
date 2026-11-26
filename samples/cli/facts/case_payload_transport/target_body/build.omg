@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "case_payload_transport_target_body");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "case_payload_transport_target_body" };
     Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);

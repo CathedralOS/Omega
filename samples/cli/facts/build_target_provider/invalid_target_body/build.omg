@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_target_provider_target_body_invalid");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_target_provider_target_body_invalid" };
     let reading_provider_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../support/fact_dependencies/reading_provider_weak_contract" }));
     Build::select_provider::<Calculation, FirstCalculationBody>(builder, windows_x86_64);
     Build::select_provider::<Calculation, FirstCalculationBody>(builder, macos_x86_64);

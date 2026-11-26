@@ -508,6 +508,10 @@ mod judgments {
             pub right: TermHandle,
         }
 
+        fn terms(left: TermHandle, right: TermHandle) -> Terms {
+            Terms { left, right }
+        }
+
         #[derive(Clone, Copy)]
         pub(super) struct Query<'a> {
             pub terms: Terms,
@@ -801,16 +805,10 @@ mod judgments {
                         codomain: rc,
                     },
                 ) => type_comparison(
-                    Terms {
-                        left: ld,
-                        right: rd,
-                    },
+                    terms(ld, rd),
                     TypeTail::Binders {
                         domain: ld,
-                        codomains: Terms {
-                            left: lc,
-                            right: rc,
-                        },
+                        codomains: terms(lc, rc),
                     },
                     retained,
                 ),
@@ -819,14 +817,7 @@ mod judgments {
                     match arena.get(ty) {
                         Term::Pi { domain, codomain } => {
                             context.bindings.push(domain);
-                            compare(
-                                Terms {
-                                    left: lb,
-                                    right: rb,
-                                }
-                                .at(codomain, retained),
-                                None,
-                            )
+                            compare(terms(lb, rb).at(codomain, retained), None)
                         }
                         _ => Step::Complete(false),
                     }
@@ -844,11 +835,7 @@ mod judgments {
                     let ty = head(arena, context, shared_type, budget, retained)?;
                     match arena.get(ty) {
                         Term::Sigma { domain, codomain } => compare(
-                            Terms {
-                                left: lf,
-                                right: rf,
-                            }
-                            .at(domain, retained),
+                            terms(lf, rf).at(domain, retained),
                             Some(Work::PairFirst {
                                 left: Second::Stored(ls),
                                 right: Second::Stored(rs),
@@ -872,14 +859,8 @@ mod judgments {
                 ) => infer(
                     lf,
                     Work::FunctionType {
-                        functions: Terms {
-                            left: lf,
-                            right: rf,
-                        },
-                        arguments: Terms {
-                            left: la,
-                            right: ra,
-                        },
+                        functions: terms(lf, rf),
+                        arguments: terms(la, ra),
                         retained,
                     },
                 ),
@@ -905,24 +886,12 @@ mod judgments {
                         scrutinee: rs,
                     },
                 ) => motives(
-                    Terms {
-                        left: lm,
-                        right: rm,
-                    },
+                    terms(lm, rm),
                     Elimination::Two {
                         motive: lm,
-                        zero: Terms {
-                            left: lz,
-                            right: rz,
-                        },
-                        one: Terms {
-                            left: lo,
-                            right: ro,
-                        },
-                        scrutinees: Terms {
-                            left: ls,
-                            right: rs,
-                        },
+                        zero: terms(lz, rz),
+                        one: terms(lo, ro),
+                        scrutinees: terms(ls, rs),
                     },
                     retained,
                 ),
@@ -938,34 +907,18 @@ mod judgments {
                         right: rr,
                     },
                 ) => type_comparison(
-                    Terms {
-                        left: lt,
-                        right: rt,
-                    },
+                    terms(lt, rt),
                     TypeTail::Identity {
                         carrier: lt,
-                        left: Terms {
-                            left: ll,
-                            right: rl,
-                        },
-                        right: Terms {
-                            left: lr,
-                            right: rr,
-                        },
+                        left: terms(ll, rl),
+                        right: terms(lr, rr),
                     },
                     retained,
                 ),
                 (Term::Refl { value: lv, .. }, Term::Refl { value: rv, .. }) => {
                     let ty = head(arena, context, shared_type, budget, retained)?;
                     match arena.get(ty) {
-                        Term::Id { ty, .. } => compare(
-                            Terms {
-                                left: lv,
-                                right: rv,
-                            }
-                            .at(ty, retained),
-                            None,
-                        ),
+                        Term::Id { ty, .. } => compare(terms(lv, rv).at(ty, retained), None),
                         _ => Step::Complete(false),
                     }
                 }
@@ -983,24 +936,12 @@ mod judgments {
                         proof: rp,
                     },
                 ) => motives(
-                    Terms {
-                        left: lm,
-                        right: rm,
-                    },
+                    terms(lm, rm),
                     Elimination::Identity {
                         motive: lm,
-                        bases: Terms {
-                            left: lb,
-                            right: rb,
-                        },
-                        endpoints: Terms {
-                            left: le,
-                            right: re,
-                        },
-                        proofs: Terms {
-                            left: lp,
-                            right: rp,
-                        },
+                        bases: terms(lb, rb),
+                        endpoints: terms(le, re),
+                        proofs: terms(lp, rp),
                     },
                     retained,
                 ),
@@ -1011,28 +952,14 @@ mod judgments {
                 (Term::SquashIntro { value: lv, .. }, Term::SquashIntro { value: rv, .. }) => {
                     let ty = head(arena, context, shared_type, budget, retained)?;
                     match arena.get(ty) {
-                        Term::Squash { ty } => compare(
-                            Terms {
-                                left: lv,
-                                right: rv,
-                            }
-                            .at(ty, retained),
-                            None,
-                        ),
+                        Term::Squash { ty } => compare(terms(lv, rv).at(ty, retained), None),
                         _ => Step::Complete(false),
                     }
                 }
                 (Term::BoxIntro { value: lv, .. }, Term::BoxIntro { value: rv, .. }) => {
                     let ty = head(arena, context, shared_type, budget, retained)?;
                     match arena.get(ty) {
-                        Term::Box { ty } => compare(
-                            Terms {
-                                left: lv,
-                                right: rv,
-                            }
-                            .at(ty, retained),
-                            None,
-                        ),
+                        Term::Box { ty } => compare(terms(lv, rv).at(ty, retained), None),
                         _ => Step::Complete(false),
                     }
                 }
@@ -1046,15 +973,9 @@ mod judgments {
                         scrutinee: rs,
                     },
                 ) => type_comparison(
-                    Terms {
-                        left: lt,
-                        right: rt,
-                    },
+                    terms(lt, rt),
                     TypeTail::Empty {
-                        scrutinees: Terms {
-                            left: ls,
-                            right: rs,
-                        },
+                        scrutinees: terms(ls, rs),
                     },
                     retained,
                 ),
@@ -1070,20 +991,11 @@ mod judgments {
                         scrutinee: rs,
                     },
                 ) => type_comparison(
-                    Terms {
-                        left: lp,
-                        right: rp,
-                    },
+                    terms(lp, rp),
                     TypeTail::Squash {
                         proposition: lp,
-                        functions: Terms {
-                            left: lf,
-                            right: rf,
-                        },
-                        scrutinees: Terms {
-                            left: ls,
-                            right: rs,
-                        },
+                        functions: terms(lf, rf),
+                        scrutinees: terms(ls, rs),
                     },
                     retained,
                 ),
@@ -1099,20 +1011,11 @@ mod judgments {
                         scrutinee: rs,
                     },
                 ) => motives(
-                    Terms {
-                        left: lm,
-                        right: rm,
-                    },
+                    terms(lm, rm),
                     Elimination::Box {
                         motive: lm,
-                        bodies: Terms {
-                            left: lb,
-                            right: rb,
-                        },
-                        scrutinees: Terms {
-                            left: ls,
-                            right: rs,
-                        },
+                        bodies: terms(lb, rb),
+                        scrutinees: terms(ls, rs),
                     },
                     retained,
                 ),
@@ -1122,11 +1025,7 @@ mod judgments {
                         Term::Sigma { domain, codomain } => {
                             let other_first = arena.insert(Term::Fst { pair: right });
                             compare(
-                                Terms {
-                                    left: first,
-                                    right: other_first,
-                                }
-                                .at(domain, retained),
+                                terms(first, other_first).at(domain, retained),
                                 Some(Work::PairFirst {
                                     left: Second::Stored(second),
                                     right: Second::Project(right),
@@ -1145,11 +1044,7 @@ mod judgments {
                         Term::Sigma { domain, codomain } => {
                             let other_first = arena.insert(Term::Fst { pair: left });
                             compare(
-                                Terms {
-                                    left: other_first,
-                                    right: first,
-                                }
-                                .at(domain, retained),
+                                terms(other_first, first).at(domain, retained),
                                 Some(Work::PairFirst {
                                     left: Second::Project(left),
                                     right: Second::Stored(second),
@@ -1178,14 +1073,7 @@ mod judgments {
                                 function: lifted,
                                 argument: fresh,
                             });
-                            compare(
-                                Terms {
-                                    left: body,
-                                    right: applied,
-                                }
-                                .at(codomain, retained),
-                                None,
-                            )
+                            compare(terms(body, applied).at(codomain, retained), None)
                         }
                         _ => Step::Complete(false),
                     }

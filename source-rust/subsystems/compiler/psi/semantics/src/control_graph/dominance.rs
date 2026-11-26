@@ -13,6 +13,10 @@ impl DominanceInterval {
         self.traversal_start <= used.traversal_start && used.traversal_start < self.traversal_end
     }
 
+    pub fn traversal_start(&self) -> usize {
+        self.traversal_start
+    }
+
     pub fn depth(&self) -> usize {
         self.depth
     }

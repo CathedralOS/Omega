@@ -10,7 +10,7 @@ pub use mechanisms::{
     CheckedPhysicalOperationIdentity, CheckedPhysicalTerminalMechanismIdentity,
     CheckedSyscallArgumentContractIdentity, NormalizedForeignArgumentContract,
     NormalizedForeignTerminalMechanismIdentity, SyscallTerminalMechanismIdentity,
-    TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
+    TableBindingAuthority, TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

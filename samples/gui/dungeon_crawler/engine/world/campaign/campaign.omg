@@ -1,19 +1,15 @@
-use world\rooms\Dungeon;
-use world\rooms\Room;
-use world\rooms\Exit;
-use world\rooms\Layout;
-use world\rooms\Reward;
+use world/rooms/rooms.omg;
 
-public machine hollow_dungeon() -> Dungeon<6>
+public machine hollow_dungeon() -> |rooms|::Dungeon<6>
 terminates
 {
-    let wall: Exit<6> = Exit { destination: 0, open: false, needs_key: false };
-    Dungeon { rooms: [
-        Room { exits: [Exit { destination: 3, open: true, needs_key: false }, Exit { destination: 1, open: true, needs_key: false }, wall, wall], layout: Layout::Pillars, reward: Reward::None, name: "THE ATRIUM", inhabited: false },
-        Room { exits: [Exit { destination: 4, open: true, needs_key: false }, Exit { destination: 2, open: true, needs_key: false }, wall, Exit { destination: 0, open: true, needs_key: false }], layout: Layout::Channel, reward: Reward::None, name: "MOSS HALL ", inhabited: true },
-        Room { exits: [Exit { destination: 5, open: true, needs_key: true }, wall, wall, Exit { destination: 1, open: true, needs_key: false }], layout: Layout::Archive, reward: Reward::Key, name: "ARCHIVE   ", inhabited: true },
-        Room { exits: [wall, Exit { destination: 4, open: true, needs_key: false }, Exit { destination: 0, open: true, needs_key: false }, wall], layout: Layout::Pools, reward: Reward::Heal, name: "CISTERN   ", inhabited: true },
-        Room { exits: [wall, Exit { destination: 5, open: true, needs_key: true }, Exit { destination: 1, open: true, needs_key: false }, Exit { destination: 3, open: true, needs_key: false }], layout: Layout::Forge, reward: Reward::None, name: "THE FORGE ", inhabited: true },
-        Room { exits: [wall, wall, Exit { destination: 2, open: true, needs_key: false }, Exit { destination: 4, open: true, needs_key: false }], layout: Layout::Pillars, reward: Reward::Relic, name: "SANCTUM   ", inhabited: true }
+    let wall: |rooms|::Exit<6> = |rooms|::Exit { destination: 0, open: false, needs_key: false };
+    |rooms|::Dungeon { rooms: [
+        |rooms|::Room { exits: [|rooms|::Exit { destination: 3, open: true, needs_key: false }, |rooms|::Exit { destination: 1, open: true, needs_key: false }, wall, wall], layout: |rooms|::Layout::Pillars, reward: |rooms|::Reward::None, name: "THE ATRIUM", inhabited: false },
+        |rooms|::Room { exits: [|rooms|::Exit { destination: 4, open: true, needs_key: false }, |rooms|::Exit { destination: 2, open: true, needs_key: false }, wall, |rooms|::Exit { destination: 0, open: true, needs_key: false }], layout: |rooms|::Layout::Channel, reward: |rooms|::Reward::None, name: "MOSS HALL ", inhabited: true },
+        |rooms|::Room { exits: [|rooms|::Exit { destination: 5, open: true, needs_key: true }, wall, wall, |rooms|::Exit { destination: 1, open: true, needs_key: false }], layout: |rooms|::Layout::Archive, reward: |rooms|::Reward::Key, name: "ARCHIVE   ", inhabited: true },
+        |rooms|::Room { exits: [wall, |rooms|::Exit { destination: 4, open: true, needs_key: false }, |rooms|::Exit { destination: 0, open: true, needs_key: false }, wall], layout: |rooms|::Layout::Pools, reward: |rooms|::Reward::Heal, name: "CISTERN   ", inhabited: true },
+        |rooms|::Room { exits: [wall, |rooms|::Exit { destination: 5, open: true, needs_key: true }, |rooms|::Exit { destination: 1, open: true, needs_key: false }, |rooms|::Exit { destination: 3, open: true, needs_key: false }], layout: |rooms|::Layout::Forge, reward: |rooms|::Reward::None, name: "THE FORGE ", inhabited: true },
+        |rooms|::Room { exits: [wall, wall, |rooms|::Exit { destination: 2, open: true, needs_key: false }, |rooms|::Exit { destination: 4, open: true, needs_key: false }], layout: |rooms|::Layout::Pillars, reward: |rooms|::Reward::Relic, name: "SANCTUM   ", inhabited: true }
     ] }
 }

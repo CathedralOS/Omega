@@ -5,7 +5,7 @@
 // `Optional::Some { value }` payload destructure all work
 // through the ordinary sum machinery.
 //
-//   * `use omega\language\core\option` — depend-free
+//   * `use {omega}/language/core/option.omg` — depend-free
 //     core import.
 //   * `Optional::Some { value: First { value: 1 } }`
 //     nested record payload construction.
@@ -15,22 +15,22 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega\language\core\Optional;
+use {omega}/language/core/option.omg;
 
 data First { value: i32; }
 data Second { padding: u64; value: i32; }
 
-machine first(subject: @Optional<First>) -> i32 {
+machine first(subject: @|option|::Optional<First>) -> i32 {
     transition subject {
-        Optional::Some { value } -> (value.value),
-        Optional::None -> (0)
+        |option|::Optional::Some { value } -> (value.value),
+        |option|::Optional::None -> (0)
     }
 }
 
-machine second(subject: @Optional<Second>) -> i32 {
+machine second(subject: @|option|::Optional<Second>) -> i32 {
     transition subject {
-        Optional::Some { value } -> (2),
-        Optional::None -> (0)
+        |option|::Optional::Some { value } -> (2),
+        |option|::Optional::None -> (0)
     }
 }
 
@@ -38,9 +38,9 @@ data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: @mutable Main) {
     main.hits = 0;
-    let left: Optional<First> = Optional::Some { value: First { value: 1 } };
-    let right: Optional<Second> = Optional::Some { value: Second { padding: 41, value: 2 } };
-    let empty: Optional<Second> = Optional::None;
+    let left: |option|::Optional<First> = |option|::Optional::Some { value: First { value: 1 } };
+    let right: |option|::Optional<Second> = |option|::Optional::Some { value: Second { padding: 41, value: 2 } };
+    let empty: |option|::Optional<Second> = |option|::Optional::None;
     let left_result: i32 = first(@left);
     let right_result: i32 = second(@right);
     let empty_result: i32 = second(@empty);

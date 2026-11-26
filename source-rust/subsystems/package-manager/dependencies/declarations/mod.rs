@@ -20,7 +20,7 @@ pub use build_declarations::{BuildDeclarationKind, WorkspaceMemberPath};
 pub use dependencies::DependencyPurpose;
 pub(crate) use dependencies::PackageSelection;
 pub(crate) use dependencies::edit::{
-    plan_dependency_addition_from_source, plan_dependency_replacement_from_source,
+    plan_dependency_addition_from_source, plan_git_revision_from_source,
 };
 pub(crate) use dependencies::{
     BuildDependencyEditPlan, BuildFileReplacement, DependencySourceRequest,

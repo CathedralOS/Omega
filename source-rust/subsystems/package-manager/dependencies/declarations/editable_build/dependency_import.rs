@@ -35,7 +35,7 @@ pub(crate) struct DependencyImport {
 }
 
 impl DependencyImport {
-    pub fn for_edit(trees: &SyntaxTrees) -> Self {
+    pub fn for_edit(trees: &SyntaxTrees, required: bool) -> Self {
         if let Some((alias, _)) = file_aliases(trees).find(|(_, installed)| *installed) {
             return Self {
                 alias: alias.to_owned(),
@@ -48,7 +48,7 @@ impl DependencyImport {
             .expect("a finite file uses finitely many aliases");
         Self {
             alias,
-            insert: true,
+            insert: required,
         }
     }
 

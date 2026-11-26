@@ -162,7 +162,7 @@ action, and a machine that promises to finish says what gets smaller:
 
 ```omega
 machine countdown(n: u64)
-terminates by n -> Nat\Descending
+terminates by n -> |nat|::Nat::Descending
 {
     transition n {
         0 -> {},
@@ -192,7 +192,7 @@ as a proof, started as a task or supplied where a trait asks for one. Its
 contract decides which of those are allowed. An operator is a machine too:
 
 ```omega
-machine + vector\add(left: Vector, right: Vector) -> Vector { ... }
+machine + add(left: Vector, right: Vector) -> Vector { ... }
 ```
 
 See [operators](chapter_5_expressions_evaluation.md#operators).

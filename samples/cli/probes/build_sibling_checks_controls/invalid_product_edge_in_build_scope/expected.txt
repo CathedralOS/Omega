@@ -1,0 +1,2 @@
+Build import `{prod}/main.omg as prod` has no supplied source
+build.omg:6:5

@@ -1,3 +1,3 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "remainder_width_match_join_invalid");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "remainder_width_match_join_invalid" };
 }

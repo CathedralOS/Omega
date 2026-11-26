@@ -5,9 +5,8 @@ use proof_admission::ClosedIntegerEvaluator;
 use semantic_vocabulary::IntegerMathLiteral;
 
 impl Prover<'_> {
-    /// Preserve a shared endpoint in an order such as base <= base + length.
-    /// The kernel checks both the nonnegative offset and the translated exact
-    /// endpoints. No finite-carrier fit is needed for erased integer sums.
+    /// An offset with a checked sign orders a base and its translated endpoint.
+    /// The kernel checks the sign and the translation on mathematical integers.
     pub(super) fn mathematical_offset_order(
         &mut self,
         left: &IntegerMathTerm,
@@ -20,25 +19,25 @@ impl Prover<'_> {
             if offset == left || offset == right {
                 continue;
             }
-            let translated = IntegerMathTerm::Add(Box::new(left.clone()), Box::new(offset.clone()));
-            if compare_integer_math_terms(&translated, right)
-                .ok()
-                .flatten()
-                != Some(Ordering::Equal)
-            {
-                continue;
+            for (base, sum, extend_right) in [(left, right, true), (right, left, false)] {
+                let translated = IntegerMathTerm::Add(Box::new(base.clone()), Box::new(offset.clone()));
+                if compare_integer_math_terms(&translated, sum).ok().flatten() != Some(Ordering::Equal) {
+                    continue;
+                }
+                let zero = IntegerMathTerm::literal(IntegerValue::Unsigned(0));
+                let bound = if extend_right {
+                    Proposition::IntegerMathLessOrEqual(zero, offset.clone())
+                } else {
+                    Proposition::IntegerMathLessOrEqual(offset.clone(), zero)
+                };
+                let Ok(proof) = self.prove(&bound) else { continue };
+                if let Some(translated) = self.translate_mathematical_order(
+                    proof, base.clone(),
+                    &Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
+                ) {
+                    return Some(translated);
+                }
             }
-            let nonnegative = self
-                .prove(&Proposition::IntegerMathLessOrEqual(
-                    IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
-                    offset.clone(),
-                ))
-                .ok()?;
-            return self.translate_mathematical_order(
-                nonnegative,
-                left.clone(),
-                &Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
-            );
         }
         None
     }
@@ -199,9 +198,17 @@ impl Prover<'_> {
                 Direction::Upper => (term, &actual),
                 Direction::Lower => (&actual, term),
             };
-            let Some((bridge, strict)) =
-                self.common_sum_order(left, right, direction == Direction::Upper)
-            else {
+            let bridge = self
+                .common_sum_order(left, right, direction == Direction::Upper)
+                .or_else(|| {
+                    if !preferred.is_some_and(|limit| image_satisfies(&existing, limit, direction))
+                    {
+                        return None;
+                    }
+                    self.translated_equality_order(left, right)
+                        .map(|proof| (proof, false))
+                });
+            let Some((bridge, strict)) = bridge else {
                 continue;
             };
             let Proposition::IntegerMathLessOrEqual(first, middle) = &bridge.conclusion else {
@@ -260,6 +267,65 @@ impl Prover<'_> {
             }
         }
         fallback
+    }
+
+    /// If the two endpoints differ by a retained equality, translating that
+    /// equality by their common offset preserves the bound. For example,
+    /// `a + x == b` lets a bound on `b + y` bound `a + (x + y)`.
+    fn translated_equality_order(
+        &self,
+        left: &IntegerMathTerm,
+        right: &IntegerMathTerm,
+    ) -> Option<ProofNode> {
+        let goal = Proposition::IntegerMathLessOrEqual(left.clone(), right.clone());
+        for fact in &self.facts {
+            let lifted;
+            let (a, b) = match fact.proposition() {
+                Proposition::IntegerMathEqual(a, b) => (a, b),
+                scalar @ Proposition::Equal(..) => {
+                    lifted = proof_admission::lift_fixed_integer_relation(scalar);
+                    let Some(Proposition::IntegerMathEqual(a, b)) = &lifted else {
+                        continue;
+                    };
+                    (a, b)
+                }
+                _ => continue,
+            };
+            for (start, end) in [(a, b), (b, a)] {
+                let offset =
+                    IntegerMathTerm::Subtract(Box::new(left.clone()), Box::new(start.clone()));
+                let order = Proposition::IntegerMathLessOrEqual(start.clone(), end.clone());
+                let Some(translation) =
+                    self.prepare_mathematical_order_translation(&order, offset, &goal)
+                else {
+                    continue;
+                };
+                let equality = fact.proof(&self.facts);
+                let relation = if let Proposition::Equal(a, _) = &equality.conclusion {
+                    let equality = if IntegerMathTerm::embed(a.clone()).as_ref() == Some(start) {
+                        equality
+                    } else {
+                        flip(equality).ok()?
+                    };
+                    ranges::lift_endpoint_order(weaken(equality).ok()?)?
+                } else {
+                    let reflexive = self.closed(Proposition::IntegerMathLessOrEqual(
+                        start.clone(),
+                        start.clone(),
+                    ))?;
+                    node(
+                        order,
+                        ProofRule::IntegerOrderSubstitution {
+                            relation: Box::new(reflexive),
+                            equality: Box::new(equality),
+                            endpoint: 1,
+                        },
+                    )
+                };
+                return Some(translation.apply(relation));
+            }
+        }
+        None
     }
 
     fn common_sum_order(

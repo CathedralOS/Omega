@@ -11,15 +11,15 @@ artifact identities (`NativeArtifactIdentity`).
 
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use diagnostics::Diagnostic;
+use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
+use provider_admission::AdmittedNativeProviders;
+use provider_admission::ProviderExecutionEvidence;
+use selected_provider_plans::{SelectedExternalRequirementApplication, SelectedProviderPlanFacts};
 use terminal_authority_receipts::{
     TerminalAuthorityClosureReviewReceipt,
     TerminalAuthorityPermissionPolicyIdentity,
     TerminalAuthorityPolicyIdentity,
 };
-use selected_provider_plans::{SelectedExternalRequirementApplication, SelectedProviderPlanFacts};
-use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
-use provider_admission::ProviderExecutionEvidence;
-use provider_admission::AdmittedNativeProviders;
 use terminal_psi::{TerminalIdentityTable, TerminalModule};
 
 #[path = "dynamic_elf.rs"]
@@ -36,8 +36,7 @@ mod tests;
 
 use crate::physical::{
     self, NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
-    PhysicalEvidencePass, ValidatedOptimizedNativePhysicalEvidenceScope, canonical_usize,
-    derive_physical_evidence,
+    PhysicalEvidencePass, ValidatedOptimizedNativePhysicalEvidenceScope, derive_physical_evidence,
 };
 use crate::publication::publication_digest;
 pub use dynamic_elf::{
@@ -137,7 +136,7 @@ pub(crate) fn boundary_application_coverage_identity(
 ) -> Option<[u8; 32]> {
     let coverage = coverage?;
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(CUSTODY_IDENTITY_DOMAIN);
-    digest.raw(&canonical_usize(coverage.references().len()));
+    digest.len(coverage.references().len());
     for reference in coverage.references() {
         digest.raw(&reference.terminal().vocabulary_marker.get().to_le_bytes());
         digest.raw(reference.terminal().program_fingerprint.as_bytes());
@@ -145,12 +144,12 @@ pub(crate) fn boundary_application_coverage_identity(
         digest.raw(reference.coverage().as_bytes());
     }
     let applications = coverage.opaque_applications();
-    digest.raw(&canonical_usize(applications.rows().len()));
+    digest.len(applications.rows().len());
     for application in applications.rows() {
         digest.raw(&application.requirement_identity.0.to_le_bytes());
         digest.string(&application.abi.requirement_identity);
         digest.string(&application.abi.declaring_application);
-        digest.raw(&canonical_usize(application.abi.operands.len()));
+        digest.len(application.abi.operands.len());
         for operand in &application.abi.operands {
             digest.raw(&operand.ordinal.to_le_bytes());
             digest.byte(operand.kind as u8);
@@ -483,6 +482,28 @@ pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> 
 }
 
 impl<Image> NativeArtifactEmissionParts<Image> {
+    fn publication_derivation(
+        &self,
+        image_output: &image::EmittedImageOutput,
+        final_image_symbol_digest: [u8; 32],
+    ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
+        derive_physical_evidence(
+            PhysicalEvidencePass::Publication,
+            &self.physical_evidence_scope,
+            self.psi_artifact.view().into(),
+            self.target,
+            &self.object,
+            &image_output.final_text_bytes,
+            final_image_symbol_digest,
+            &self.selected_provider_plans,
+            &self.provider_executions,
+            &self.native_bindings,
+            &self.native_calling,
+            self.boundary_application_coverage.as_ref(),
+            &self.physical_originals,
+        )
+    }
+
     fn into_parts(
         self,
         derivation: NativePhysicalEvidenceDerivation,
@@ -490,11 +511,7 @@ impl<Image> NativeArtifactEmissionParts<Image> {
         NativeArtifactParts<Image>,
         Option<NativePhysicalEvidenceGap>,
     ) {
-        let (physical_evidence, physical_evidence_gap) = match derivation {
-            NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
-            NativePhysicalEvidenceDerivation::Unavailable => (None, None),
-            NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
-        };
+        let (physical_evidence, physical_evidence_gap) = derivation.split();
         (
             NativeArtifactParts {
                 target: self.target,
@@ -523,6 +540,28 @@ impl<Image> NativeArtifactEmissionParts<Image> {
 }
 
 impl<Image> NativeArtifactParts<Image> {
+    /// Checks the object against the Terminal Psi module it claims to realize:
+    /// structural scalars, boundary application coverage, fused multiply-add
+    /// occurrences and the terminal entry.
+    fn validate_terminal_module(&self) -> Result<(), &'static str> {
+        let module = self.psi_artifact.semantic_module();
+        mixed_structural_scalar::validate(module, &self.object)?;
+        let execution_scope = self.object.native_execution_scope(
+            self.psi_artifact.view().identity(),
+            *self.selected_provider_closure_digest.as_bytes(),
+        )?;
+        validate_boundary_application_coverage(
+            module,
+            self.psi_artifact.manifest().semantic(),
+            self.boundary_application_coverage.as_ref(),
+            &self.physical_evidence_scope,
+            execution_scope,
+        )?;
+        validate_ieee_float_fma_occurrences(module, execution_scope)?;
+        self.object
+            .validate_terminal_entry(self.psi_artifact.view().identity())
+    }
+
     fn terminal_authority_closure_matches(&self) -> bool {
         self.terminal_authority_closure_review
             .terminal_artifact_identity()
@@ -611,20 +650,6 @@ impl<Image> NativeArtifactParts<Image> {
         }
     }
 
-    fn replayed_gap(
-        &self,
-        output: &image::EmittedImageOutput,
-        final_image_symbol_digest: [u8; 32],
-    ) -> Result<Option<NativePhysicalEvidenceGap>, &'static str> {
-        Ok(
-            match self.evidence_derivation(output, final_image_symbol_digest)? {
-                NativePhysicalEvidenceDerivation::Blocked(gap) => Some(gap),
-                NativePhysicalEvidenceDerivation::Unavailable
-                | NativePhysicalEvidenceDerivation::Complete(_) => None,
-            },
-        )
-    }
-
     fn replayed_evidence(
         &self,
         output: &image::EmittedImageOutput,
@@ -636,13 +661,9 @@ impl<Image> NativeArtifactParts<Image> {
         ),
         &'static str,
     > {
-        Ok(
-            match self.evidence_derivation(output, final_image_symbol_digest)? {
-                NativePhysicalEvidenceDerivation::Unavailable => (None, None),
-                NativePhysicalEvidenceDerivation::Complete(evidence) => (Some(evidence), None),
-                NativePhysicalEvidenceDerivation::Blocked(gap) => (None, Some(gap)),
-            },
-        )
+        Ok(self
+            .evidence_derivation(output, final_image_symbol_digest)?
+            .split())
     }
 
     fn evidence_derivation(
@@ -681,35 +702,18 @@ impl NativeArtifact {
         if parts.image.foreign_calls() != parts.object.foreign_calls() {
             return Err("native artifact image differs from fragment foreign call custody");
         }
-        let (parts, physical_evidence_gap) =
-            Self::derivation_of(&parts).map(|derivation| parts.into_parts(derivation))?;
-        Ok(Self::seal(parts, physical_evidence_gap))
-    }
-
-    fn derivation_of(
-        parts: &NativeArtifactEmissionParts,
-    ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
-        derive_physical_evidence(
-            PhysicalEvidencePass::Publication,
-            &parts.physical_evidence_scope,
-            parts.psi_artifact.view().into(),
-            parts.target,
-            &parts.object,
-            &parts.image.output().final_text_bytes,
+        let derivation = parts.publication_derivation(
+            parts.image.output(),
             *parts.image.final_image_symbol_digest().as_bytes(),
-            &parts.selected_provider_plans,
-            &parts.provider_executions,
-            &parts.native_bindings,
-            &parts.native_calling,
-            parts.boundary_application_coverage.as_ref(),
-            &parts.physical_originals,
-        )
+        )?;
+        let (parts, physical_evidence_gap) = parts.into_parts(derivation);
+        Ok(Self::seal(parts, physical_evidence_gap))
     }
 
     pub fn from_replayed_parts(
         parts: NativeArtifactParts,
     ) -> Result<Self, NativeArtifactValidationError> {
-        let physical_evidence_gap = parts.replayed_gap(
+        let (_, physical_evidence_gap) = parts.replayed_evidence(
             parts.image.output(),
             *parts.image.final_image_symbol_digest().as_bytes(),
         )?;
@@ -759,22 +763,7 @@ impl RetainedNativeArtifact {
         image_emission::validate_direct_executable_image(&self.parts.object, &self.parts.image)
             .map_err(NativeArtifactValidationError::ImageReplay)?;
         let module = self.parts.psi_artifact.semantic_module();
-        mixed_structural_scalar::validate(module, &self.parts.object)?;
-        let execution_scope = self.parts.object.native_execution_scope(
-            self.parts.psi_artifact.view().identity(),
-            *self.parts.selected_provider_closure_digest.as_bytes(),
-        )?;
-        validate_boundary_application_coverage(
-            module,
-            self.parts.psi_artifact.manifest().semantic(),
-            self.parts.boundary_application_coverage.as_ref(),
-            &self.parts.physical_evidence_scope,
-            execution_scope,
-        )?;
-        validate_ieee_float_fma_occurrences(module, execution_scope)?;
-        self.parts
-            .object
-            .validate_terminal_entry(self.parts.psi_artifact.view().identity())?;
+        self.parts.validate_terminal_module()?;
         if self.parts.selected_provider_closure_report_identity == 0 {
             return Err(
                 "native artifact selected provider closure has the reserved zero identity".into(),
@@ -923,10 +912,7 @@ impl std::fmt::Debug for NativeArtifactIdentity {
 
 impl std::fmt::Display for NativeArtifactIdentity {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for byte in self.0 {
-            write!(formatter, "{byte:02x}")?;
-        }
-        Ok(())
+        formatter.write_str(&crate::digest_encoder::hex(&self.0))
     }
 }
 
@@ -972,9 +958,6 @@ pub struct NativeSelectedProviderPlan {
     external_requirement_applications: Vec<SelectedExternalRequirementApplication>,
     identities: TerminalIdentityTable,
     closed_requirement_rows: Vec<(String, String)>,
-    assumed_requirement_rows: Vec<(String, String)>,
-    assumed_relationships: Vec<selected_provider_plans::AssumedBindingContractSelection>,
-    assumed_closure: Option<[u8; 32]>,
 }
 
 impl NativeSelectedProviderPlan {
@@ -1027,23 +1010,6 @@ impl NativeSelectedProviderPlan {
                     .filter(|row| row.provider_plan_report_identity == report_identity)
                     .cloned()
                     .collect();
-                projected.assumed_relationships = selection.assumed_bindings().to_vec();
-                if !projected.assumed_relationships.is_empty() {
-                    projected.assumed_closure = Some(*selection.identity_digest().as_bytes());
-                }
-                for row in selection.assumed_bindings() {
-                    if let Ok(supplied) = selection.assumed_supplier_identity(&row.required)
-                        && projected
-                            .requirement_identities
-                            .iter()
-                            .any(|identity| identity == supplied)
-                    {
-                        projected
-                            .assumed_requirement_rows
-                            .push((row.required.clone(), supplied.to_owned()));
-                        projected.requirement_identities.push(row.required.clone());
-                    }
-                }
                 projected.requirement_identities.sort();
                 projected.requirement_identities.dedup();
                 projected
@@ -1067,58 +1033,7 @@ impl NativeSelectedProviderPlan {
             external_requirement_applications: Vec::new(),
             identities: TerminalIdentityTable::from(vec![String::new()]),
             closed_requirement_rows: Vec::new(),
-            assumed_requirement_rows: Vec::new(),
-            assumed_relationships: Vec::new(),
-            assumed_closure: None,
         }
-    }
-
-    pub(crate) fn assumption_closure(&self) -> Option<[u8; 32]> {
-        self.assumed_closure
-    }
-
-    pub(crate) fn matches_assumption(
-        &self,
-        module: &TerminalModule,
-        required: &str,
-        evidence: &operation_evidence::provider_calls::InstalledAssumedBindingEvidence,
-    ) -> bool {
-        let identity = |id| {
-            module
-                .boundary_machine(id)
-                .and_then(|row| module.identities.text(row.identity))
-        };
-        if identity(evidence.required) != Some(required) || self.assumed_closure.is_none() {
-            return false;
-        }
-        let mut current = required;
-        let mut path = Vec::new();
-        for _ in 0..=self.assumed_relationships.len() {
-            let Some(row) = self
-                .assumed_relationships
-                .iter()
-                .find(|row| row.required == current)
-            else {
-                return identity(evidence.selected_requirement) == Some(current)
-                    && path == evidence.supply_path;
-            };
-            if current == required {
-                if identity(evidence.supplied_requirement) != Some(row.supplied.as_str()) {
-                    return false;
-                }
-            } else {
-                let Some(boundary) = module
-                    .interfaces.boundary_machines
-                    .iter()
-                    .find(|boundary| module.identities.text(boundary.identity) == Some(current))
-                else {
-                    return false;
-                };
-                path.push(boundary.id);
-            }
-            current = &row.supplied;
-        }
-        false
     }
 
     pub const fn report_identity(&self) -> u64 {
@@ -1184,14 +1099,6 @@ impl NativeSelectedProviderPlan {
     }
 
     pub fn selected_requirement_identity<'a>(&'a self, requirement: &'a str) -> &'a str {
-        if let Some((_, supplied)) = self
-            .assumed_requirement_rows
-            .iter()
-            .find(|(required, _)| required == requirement)
-        {
-            return supplied;
-        }
-
         if let Some(row) = self
             .external_requirement_applications
             .iter()
@@ -1290,7 +1197,7 @@ fn native_supply_identity(
         b"omega.native-artifact.native-supply.v1\0",
     );
     digest.raw(&bindings.identity_digest());
-    digest.raw(&canonical_usize(calling.len()));
+    digest.len(calling.len());
     for application in calling {
         digest.raw(&application.commitment);
     }

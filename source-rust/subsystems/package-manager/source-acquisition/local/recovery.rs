@@ -1,12 +1,7 @@
-// Historical local-source recovery from the retained snapshot collection.
-//
-// `recover_cached_local_source_in_lane` locates a previously published snapshot
-// for a canonical local origin and expected `SourceContentDigest` without
-// opening or reading the live origin directory. It first probes the direct
-// `source-v2-<digest>` address (which still consumes one entry from the lookup
-// budget so `maximum_entries == 0` fails closed without scanning), and only on
-// a direct miss scans bounded `source-<digest>` legacy entries. Any matched
-// candidate is locked, custody-checked, and re-verified before returning.
+// Recover the snapshot published for this origin and content pin. A package
+// review can still read the baseline after the author moves or deletes the
+// live directory. The selected cache entry must pass the same custody and
+// content checks as a live acquisition.
 
 use crate::SourceResolveError;
 use crate::custody::lock::CacheEntryLock;
@@ -14,7 +9,7 @@ use crate::custody::platform::same_capability_file_identity;
 use crate::custody::tree::verify_local_cache_custody;
 use crate::error::local_snapshot_invalid;
 use crate::identity::SourceContentDigest;
-use crate::limits::{CACHE_CUSTODY_ENTRY_LIMIT, LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits};
+use crate::limits::{LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits};
 use crate::snapshot::metadata::{local_snapshot_content_identity, verify_local_snapshot};
 use crate::storage::RetainedStorageLane;
 use crate::tree::ResolvedLocalSource;
@@ -25,10 +20,7 @@ use cap_std::fs::Dir;
 use std::ffi::OsStr;
 use std::path::{Component, Path};
 
-use super::snapshot::{
-    LocalSnapshotAddress, is_legacy_snapshot_name, legacy_snapshot_publication_name,
-    snapshot_lock_name,
-};
+use super::snapshot::LocalSnapshotAddress;
 use crate::limits::LOCAL_SNAPSHOT_LOCK_TIMEOUT;
 
 mod timings;
@@ -39,22 +31,6 @@ pub fn recover_cached_local_source_in_lane(
     expected: &SourceContentDigest,
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
-) -> Result<Option<ResolvedLocalSource>, SourceResolveError> {
-    recover_bounded(
-        canonical_origin,
-        expected,
-        lane,
-        limits,
-        CACHE_CUSTODY_ENTRY_LIMIT,
-    )
-}
-
-fn recover_bounded(
-    canonical_origin: &Path,
-    expected: &SourceContentDigest,
-    lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    maximum_entries: usize,
 ) -> Result<Option<ResolvedLocalSource>, SourceResolveError> {
     let mut timings = RecoveryTimings::requested();
     if !canonical_origin.is_absolute()
@@ -81,90 +57,35 @@ fn recover_bounded(
         if let Some(timings) = &mut timings {
             timings.direct_lookup_started();
         }
-        let direct_exists = match directory.symlink_metadata(&publication_name) {
+        match directory.symlink_metadata(&publication_name) {
             Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
                 return Err(local_snapshot_invalid(
                     &publication,
                     "direct local snapshot publication is not a concrete directory",
                 ));
             }
-            Ok(_) => true,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if let Some(timings) = &mut timings {
+                    timings.direct_miss();
+                }
+                return Ok(None);
+            }
             Err(error) => return Err(io_error(&publication, error)),
-        };
-        if direct_exists {
-            if maximum_entries == 0 {
-                return Err(local_snapshot_invalid(
-                    &collection,
-                    "cached local source lookup exceeds its entry limit",
-                ));
-            }
-            let identity = read_routing_identity(&publication, &mut timings)?;
-            let actual = SourceContentDigest::derive(identity.as_bytes());
-            if actual != *expected
-                || LocalSnapshotAddress::new(canonical_origin, &actual).publication_name()
-                    != publication_name
-            {
-                return Err(local_snapshot_invalid(
-                    &publication,
-                    "direct local snapshot metadata does not match its origin and content pin",
-                ));
-            }
-            let source = verify_selected_snapshot(
-                lane,
-                &directory,
-                &publication_name,
-                &identity,
-                limits,
-                &mut timings,
-            )?;
-            if let Some(timings) = &mut timings {
-                timings.direct_hit();
-            }
-            return Ok(Some(source));
         }
+        let identity = read_routing_identity(&publication, &mut timings)?;
+        if SourceContentDigest::derive(identity.as_bytes()) != *expected {
+            return Err(local_snapshot_invalid(
+                &publication,
+                "direct local snapshot metadata does not match its origin and content pin",
+            ));
+        }
+        let source =
+            verify_selected_snapshot(lane, &directory, &address, &identity, limits, &mut timings)?;
         if let Some(timings) = &mut timings {
-            timings.direct_miss();
-            timings.legacy_lookup_started();
+            timings.direct_hit();
         }
-        for (index, entry) in directory.entries().at(&collection)?.enumerate() {
-            if let Some(timings) = &mut timings {
-                timings.entry_enumerated();
-            }
-            if index >= maximum_entries {
-                return Err(local_snapshot_invalid(
-                    &collection,
-                    "cached local source lookup exceeds its entry limit",
-                ));
-            }
-            let entry = entry.at(&collection)?;
-            let name = entry.file_name();
-            let Some(name) = name.to_str().filter(|name| is_legacy_snapshot_name(name)) else {
-                continue;
-            };
-            if !entry.file_type().at(&collection)?.is_dir() {
-                continue;
-            }
-            let publication = collection.join(name);
-            let Ok(identity) = read_routing_identity(&publication, &mut timings) else {
-                continue;
-            };
-            if SourceContentDigest::derive(identity.as_bytes()) != *expected
-                || name != legacy_snapshot_publication_name(canonical_origin, &identity)
-            {
-                continue;
-            }
-            return verify_selected_snapshot(
-                lane,
-                &directory,
-                name,
-                &identity,
-                limits,
-                &mut timings,
-            )
-            .map(Some);
-        }
-        Ok(None)
+        Ok(Some(source))
     })();
     verify_collection(lane, &directory)?;
     result
@@ -185,7 +106,7 @@ fn read_routing_identity(
 fn verify_selected_snapshot(
     lane: &RetainedStorageLane,
     directory: &Dir,
-    publication_name: &str,
+    address: &LocalSnapshotAddress,
     identity: &str,
     limits: LocalSourceLimits,
     timings: &mut Option<RecoveryTimings>,
@@ -194,8 +115,8 @@ fn verify_selected_snapshot(
         timings.candidate_matched();
     }
     let collection = lane.path().join(LOCAL_CACHE_SNAPSHOTS);
-    let publication = collection.join(publication_name);
-    let lock_name = snapshot_lock_name(publication_name);
+    let publication = collection.join(address.publication_name());
+    let lock_name = address.lock_name();
     let lock_started = timings.as_ref().map(|_| std::time::Instant::now());
     let lock = CacheEntryLock::acquire_local_from_parent(
         &collection,

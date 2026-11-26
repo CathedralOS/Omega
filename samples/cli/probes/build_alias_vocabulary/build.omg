@@ -3,8 +3,8 @@
 // `ki t`, and the empty string all reject with one diagnostic.
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_alias_vocabulary");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_alias_vocabulary" };
     let mutable kit9_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
     |dependency|::with_alias(@mutable kit9_dependency, "kit9");
     let kit9_registration: DependencyRegistration = Build::dependency(builder, kit9_dependency);

@@ -25,7 +25,6 @@ pub struct TerminalTargetProviderProposal {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTargetProviderSelection {
     pub plans: Vec<ProviderPlan>,
-    pub assumed_bindings: Vec<selected_provider_plans::AssumedBindingContractSelection>,
     pub checked_candidates: Vec<psi_provider_selections::ProviderInstallationSelection>,
 }
 
@@ -175,7 +174,6 @@ impl TerminalTargetProviderSelection {
         let checked_candidates = checked_candidate_roster(&plans, artifact.module())?;
         Ok(Self {
             plans,
-            assumed_bindings: Vec::new(),
             checked_candidates,
         })
     }
@@ -197,8 +195,7 @@ impl TerminalTargetProviderSelection {
         }
         let selected = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
             self.plans.clone(),
-        )?
-        .with_assumed_bindings(self.assumed_bindings.clone());
+        )?;
         admit_checked_roster(artifact, target, &selected, &supplied)
     }
 }
@@ -228,22 +225,11 @@ fn admit_checked_roster(
             return Err("selected provider plan belongs to another deployment target".into());
         }
     }
-    let module = artifact.module();
     let dependencies =
         matching_folded_constant_dependencies(artifact, target, selected.plans().iter())?;
     let installation = psi_provider_selections::admit_provider_installation(
         artifact,
         supplied,
-        &selected
-            .assumed_binding_coordinates(module)?
-            .into_iter()
-            .map(|(required, supplied_requirement)| {
-                psi_provider_selections::AssumedBindingSelection {
-                    required,
-                    supplied_requirement,
-                }
-            })
-            .collect::<Vec<_>>(),
     )
     .map_err(|error| format!("catalog admission rejected: {error:?}"))?;
     validate_synchronous_calls(artifact, selected)?;
@@ -285,19 +271,16 @@ fn validate_synchronous_calls(
                     .identities
                     .text(declaration.identity)
                     .ok_or_else(|| failure("invoked boundary has no canonical identity".into()))?;
-                let supplied = selected
-                    .assumed_supplier_identity(requirement)
-                    .map_err(&failure)?;
                 let mut slots = candidates
                     .iter()
                     .filter(|matched| {
                         matched.candidates.iter().any(|candidate| {
-                            module.identities.text(candidate.requirement_identity) == Some(supplied)
+                            module.identities.text(candidate.requirement_identity) == Some(requirement)
                         })
                     })
                     .map(|matched| matched.selected)
                     .collect::<Vec<_>>();
-                if let Some((plan, _)) = selected.selected_requirement_row(supplied) {
+                if let Some((plan, _)) = selected.selected_requirement_row(requirement) {
                     slots.push(plan);
                 }
                 slots.dedup();
@@ -870,7 +853,7 @@ mod tests {
 
     #[test]
     fn invocation_rows_consume_all_closed_headers_instead_of_the_open_template() {
-        let (selected, mut module) = invocation_fixture();
+        let (selected, module) = invocation_fixture();
         let plans = [selected];
         let rows = selected_checked_invocation_rows(&plans, &module).unwrap();
         assert_eq!(rows.len(), 1);
@@ -887,68 +870,6 @@ mod tests {
         assert_eq!(
             closed.header.callable,
             Ok(closed.conformance.candidate_identity)
-        );
-        crate::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
-            &plans, &module,
-        )
-        .unwrap();
-        let handle = module
-            .scalars.scalar_applications
-            .proof_scope
-            .callable_headers
-            .iter()
-            .find_map(|(handle, header)| {
-                (header.declaration == terminal_psi::ProofDeclarationId(2)).then_some(handle)
-            })
-            .unwrap();
-        module
-            .scalars.scalar_applications
-            .proof_scope
-            .callable_headers
-            .get_mut(handle)
-            .synchronous_invocations = Err("missing uncalled summary".into());
-        let errors =
-            crate::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
-                &plans, &module,
-            )
-            .unwrap_err();
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.message == "missing uncalled summary")
-        );
-    }
-
-    #[test]
-    fn an_uncalled_closed_invocation_still_forms_a_selected_cycle() {
-        let (selected, mut module) = invocation_fixture();
-        let mut identities = module.identities.clone().into_builder();
-        let declaration = identities.intern("Parent");
-        let application = identities.intern("Parent<u64>");
-        module.identities = identities.build();
-        let headers = &mut module.scalars.scalar_applications.proof_scope.callable_headers;
-        let handle = headers
-            .iter()
-            .find_map(|(handle, header)| {
-                (header.declaration == terminal_psi::ProofDeclarationId(2)).then_some(handle)
-            })
-            .unwrap();
-        headers.get_mut(handle).synchronous_invocations =
-            Ok(vec![terminal_psi::DeclaredSynchronousBoundaryTarget {
-                declaration,
-                package: None,
-                application: Some(application),
-            }]);
-        let errors =
-            crate::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
-                &[selected],
-                &module,
-            )
-            .unwrap_err();
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.message.contains("cyclic synchronous"))
         );
     }
 

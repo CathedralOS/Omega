@@ -20,7 +20,7 @@ The subject set is decided by the request, not by where source lives:
 | Check a workspace with no member named | Every declared member |
 | Build or check one workspace member | That member |
 | Admit, update or audit a package revision | That revision |
-| Any of the above with `Build::validate` rows | The product plus each selected registered dependency in its checking context |
+| Any of the above with `Build::validate` rows | The product plus each selected dependency in its checking context |
 
 Being bundled with the toolchain, vendored, located in the workspace or
 editable does not make a package a subject. A dependency is a dependency.
@@ -63,8 +63,20 @@ unchecked declaration.
 borrows an exact dependency registration and records a full-package validation
 request. It performs no alias-string lookup and adds no dependency identifier
 syntax. Both directly selected product libraries and the Build libraries supplied to
-this invocation remain eligible in their own checking contexts. Validation uses
-the exact registration available to the builder. It cannot add an import.
+this invocation remain eligible in their own checking contexts.
+
+For a library received from the caller, the validation operand is the exact
+`PackageBinding` returned by `|dependency|::input` in this activation:
+
+```omega
+let generator: PackageBinding = |dependency|::input(builder, "layout");
+Build::validate(builder, @generator);
+```
+
+This requests a full check of the incoming library in its Build-host context.
+Its existing reach ceiling still applies. The request adds no Product dependency
+or import. A binding from another or expired activation is invalid for this
+builder. The registration form for a library selected by this Build is:
 
 ```omega
 use {omega}/build/dependency.omg;
@@ -104,9 +116,9 @@ revision. That context retains purpose and applicable execution profile/target.
 When Build completes, retain that resolved subject identity with the request,
 not a transient coordinator handle. Transitive dependencies enter through their
 ordinary demanded semantic closure; selecting one dependency does not make
-every transitive dependency a full-package subject. Register a dependency
-directly to request its full check. The check report lists its subjects and
-checking contexts.
+every transitive dependency a full-package subject. Select a directly registered
+dependency or an incoming Build binding for its full check. The check report
+lists its subjects and checking contexts.
 
 ## Explicit package roots
 
@@ -132,8 +144,8 @@ current implementation's overlap guard is passed the core subtree, not the
 entire library bundle, so this exception must not be generalized into special
 bundled-package kinds or unsupported claims about `system`/`allocation` overlap.
 
-No magic `"core"` alias is added to `Build::validate`. A product requests checks
-through registrations; a direct package check selects the package as its root.
+No magic `"core"` alias is added to `Build::validate`. A Build requests checks
+through exact registrations or incoming bindings; a direct package check selects the package as its root.
 The [ordinary-library boundary](declarations.md#ordinary-library-packages)
 separates distribution from package ownership and compiler custody.
 

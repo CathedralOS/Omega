@@ -604,7 +604,7 @@ fn primitive_access_carrier(scalar: ClosedScalarType) -> Result<(String, u64), S
     let (name, bits) = match scalar {
         ClosedScalarType::Boolean => ("bool".to_owned(), 8),
         ClosedScalarType::Integer(integer) if integer.is_address() => {
-            ("addr".to_owned(), u64::from(integer.bits()))
+            ("address".to_owned(), u64::from(integer.bits()))
         }
         ClosedScalarType::Integer(integer) => (
             format!(
@@ -909,7 +909,7 @@ mod closed_width_tests {
                 ClosedIntegerType::new(IntegerSign::Unsigned, 13).unwrap(),
                 "named(name(u13))",
             ),
-            (ClosedIntegerType::address(48).unwrap(), "named(name(addr))"),
+            (ClosedIntegerType::address(48).unwrap(), "named(name(address))"),
         ] {
             assert_eq!(
                 primitive_access_carrier(ClosedScalarType::Integer(integer))

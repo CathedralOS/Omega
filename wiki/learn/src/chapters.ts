@@ -37,13 +37,13 @@ export const chapters: Chapter[] = [
         title: "The smallest whole program",
         figure: {
           kind: "code",
-          code: `use omega\\language\\core\\ProcessExit;
-use omega\\language\\core\\StandardOutput;
-use system\\Console;
+          code: `use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
-machine start() reaches StandardOutput + ProcessExit {
-    Console::write_line("Hello, Omega.");
-    ProcessExit::exit_process(0);
+machine start() reaches |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    |console|::Console::write_line("Hello, Omega.");
+    |process_exit|::ProcessExit::exit_process(0);
 }`,
           highlight: [5],
         },
@@ -374,13 +374,13 @@ ensures
         title: "Reach is declared, then checked",
         figure: {
           kind: "code",
-          code: `use omega\\language\\core\\ProcessExit;
-use omega\\language\\core\\StandardOutput;
-use system\\Console;
+          code: `use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
-machine start() reaches StandardOutput + ProcessExit {
-    Console::write_line("through one wall");
-    ProcessExit::exit_process(0);
+machine start() reaches |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    |console|::Console::write_line("through one wall");
+    |process_exit|::ProcessExit::exit_process(0);
 }`,
           highlight: [5],
         },
@@ -434,50 +434,53 @@ machine uptime() -> u64 reaches Clock {
         title: "Wiring, declared",
         figure: {
           kind: "code",
-          code: `machine build(builder: @mutable Build) {
+          code: `use {omega}/build/dependency.omg;
+use main.omg;
+
+machine build(builder: @mutable Build) {
     Build::application(builder, "learn_omega");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
-        location: "../../source/library/system"
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled {
+        name: "system"
     }));
     Build::bind(
         builder,
         windows_x86_64::ProgramEntry,
-        start
+        |main|::start
     );
     Build::bind(
         builder,
         linux_x86_64::ProgramEntry,
-        start
+        |main|::start
     );
     Build::bind(
         builder,
         linux_arm64::ProgramEntry,
-        start
+        |main|::start
     );
     Build::bind(
         builder,
         macos_arm64::ProgramEntry,
-        start
+        |main|::start
     );
 }`,
           filename: "build.omg",
-          companion: `use omega\\language\\core\\ProcessExit;
-use omega\\language\\core\\StandardOutput;
-use system\\Console;
+          companion: `use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
-machine start() reaches StandardOutput + ProcessExit {
-    Console::write_line("wired by the build machine");
-    ProcessExit::exit_process(0);
+machine start() reaches |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    |console|::Console::write_line("wired by the build machine");
+    |process_exit|::ProcessExit::exit_process(0);
 }`,
-          highlight: [6, 11, 16],
+          highlight: [9, 14, 19],
         },
         notes: [
-          { for: 1, text: "`build.omg` defines `machine build(builder: @mutable Build)`. It is parsed, type-checked, and evaluated under the same rules as application code." },
-          { for: 2, text: "`Build::application` declares an executable root (libraries use `Build::package`; workspaces use `Build::member`). Mixing or repeating kinds is rejected." },
-          { for: 3, text: "`Build::dependency` registers the standard library from a source so `main.omg` can import the `Console` trait. Dependencies come only from this registration; imports never add one." },
-          { for: 6, text: "`Build::bind` connects a target's `ProgramEntry` slot to the free entry machine `start`. Naming `start` selects the entry without allocating hidden state." },
-          { for: 8, text: "A project with dependencies records its accepted resolution in `omega.lock`; `omega packages update` acquires and reviews it (spec: package acceptance)." },
-          { for: 11, text: "Each hosted target (`windows_x86_64`, `linux_x86_64`, `linux_arm64`, `macos_arm64`) binds its own `ProgramEntry` to the same portable `start` machine. A required slot with no binding for the selected target is an error." },
+          { for: 4, text: "`build.omg` defines `machine build(builder: @mutable Build)`. It is parsed, type-checked, and evaluated under the same rules as application code." },
+          { for: 5, text: "`Build::application` declares an executable root (libraries use `Build::package`; workspaces use `Build::member`). Mixing or repeating kinds is rejected." },
+          { for: 6, text: "`Build::dependency` registers the standard library from a source so `main.omg` can import the `Console` trait. Dependencies come only from this registration; imports never add one." },
+          { for: 9, text: "`Build::bind` connects a target's `ProgramEntry` slot to the free entry machine `start`. Naming `start` selects the entry without allocating hidden state." },
+          { for: 11, text: "A project with dependencies records its accepted resolution in `omega.lock`; `omega packages update` acquires and reviews it (spec: package acceptance)." },
+          { for: 14, text: "Each hosted target (`windows_x86_64`, `linux_x86_64`, `linux_arm64`, `macos_arm64`) binds its own `ProgramEntry` to the same portable `start` machine. A required slot with no binding for the selected target is an error." },
           { text: "Read `build.omg` first when reviewing a package: it shows every dependency, provider selection, and target entry point in one place." },
         ],
       },
@@ -493,9 +496,9 @@ machine start() reaches StandardOutput + ProcessExit {
         title: "Pad it yourself",
         figure: {
           kind: "code",
-          code: `use omega\\language\\core\\ProcessExit;
-use omega\\language\\core\\StandardOutput;
-use system\\Console;
+          code: `use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 machine clear(line: @mutable [u8; 28]) {
     transition { _ -> scan(line, 0u64) }
@@ -515,12 +518,12 @@ machine clear(line: @mutable [u8; 28]) {
     machine done() { }
 }
 
-machine main() reaches StandardOutput + ProcessExit {
+machine main() reaches |process_authority|::StandardOutput + |process_exit|::ProcessExit {
     let mutable line: [u8; 28] =
         "this text is about to vanish";
     clear(@mutable line);
-    Console::write_line(@line[..]);
-    ProcessExit::exit_process(0);
+    |console|::Console::write_line(@line[..]);
+    |process_exit|::ProcessExit::exit_process(0);
 }`,
           highlight: [9, 16],
         },
@@ -564,15 +567,15 @@ machine main() reaches StandardOutput + ProcessExit {
         title: "The exit code is an answer",
         figure: {
           kind: "code",
-          code: `use omega\\language\\core\\ProcessExit;
-use omega\\language\\core\\StandardOutput;
-use system\\Console;
+          code: `use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Expected exit: 70.
-machine start() reaches StandardOutput + ProcessExit {
+machine start() reaches |process_authority|::StandardOutput + |process_exit|::ProcessExit {
     let sorted: u64 in Wrapping = (64u64 + 6u64) as +Wrapping;
-    Console::write_line("ten shelves, sorted");
-    ProcessExit::exit_process(sorted as -Wrapping as i32);
+    |console|::Console::write_line("ten shelves, sorted");
+    |process_exit|::ProcessExit::exit_process(sorted as -Wrapping as i32);
 }`,
           highlight: [5],
         },
@@ -633,12 +636,12 @@ machine start() reaches StandardOutput + ProcessExit {
         title: "The program, whole",
         figure: {
           kind: "code",
-          code: `use omega\\language\\core\\ProcessExit;
-use omega\\language\\core\\StandardOutput;
-use system\\Console;
+          code: `use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Expected exit: 4.
-machine start() reaches StandardOutput + ProcessExit {
+machine start() reaches |process_authority|::StandardOutput + |process_exit|::ProcessExit {
     transition { _ -> count(2026u64, 0u8 as +Wrapping) }
 
     machine count(n: u64, digits: u8 in Wrapping) {
@@ -649,8 +652,8 @@ machine start() reaches StandardOutput + ProcessExit {
     }
 
     machine report(digits: u8 in Wrapping) {
-        Console::write_line("counted the digits");
-        ProcessExit::exit_process(digits as -Wrapping as i32);
+        |console|::Console::write_line("counted the digits");
+        |process_exit|::ProcessExit::exit_process(digits as -Wrapping as i32);
     }
 }`,
           highlight: [9, 11],

@@ -1,5 +1,6 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // A brightness controller whose command cases publish ordinary predicates.
 // Matching SetLevel supplies its level bounds; matching Dim supplies the
 // amount bounds used by exact multiplication. Off supplies a literal zero.
@@ -9,7 +10,6 @@ use omega\language\core\ProcessExit;
 // main issues `SetLevel { level: 65 }`, so the controller settles at 65.
 // Expected exit: 65.
 
-use system\Console;
 
 data Command 
     requires ((self in Command::SetLevel) && (self.level >= 0 && self.level <= 100)) || ((self in Command::Dim) && (self.amount >= 0 && self.amount <= 10)) || (self in Command::Off)
@@ -24,8 +24,8 @@ data Main requires brightness >= 0 && brightness <= 100 {
     command: Command;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
-    Console::write_line("brightness_control: applying a bounded SetLevel command");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
+    |console|::Console::write_line("brightness_control: applying a bounded SetLevel command");
     main.brightness = 80;
     main.command = Command::SetLevel { level: 65 };
 
@@ -43,13 +43,13 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     }
 
     machine report(main: @mutable Main) {
-        Console::write_line("brightness settled at the applied level (the exit code)");
-        ProcessExit::exit_process(main.brightness);
+        |console|::Console::write_line("brightness settled at the applied level (the exit code)");
+        |process_exit|::ProcessExit::exit_process(main.brightness);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

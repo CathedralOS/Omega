@@ -1,5 +1,5 @@
-use omega\language\core\StandardOutput;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 trait Arithmetic<Value> {
     machine + combine(left: Value, right: Value) -> Value blocks;
@@ -25,7 +25,7 @@ requires 0 <= right && right <= 100
 // Expected output contains: 78
 // The returned scalar observes two distinct applications of one captured map.
 data Main { }
-machine Main::main(main: @mutable Main) blocks reaches StandardOutput crashes Trap {
+machine Main::main(main: @mutable Main) blocks reaches |process_authority|::StandardOutput crashes Trap {
     let seven: i32 = block choose::<Selected<7>>(5, 6);
     let eight: i32 = block choose::<Selected<8>>(5, 6);
     transition 0 <= seven && seven <= 9 && 0 <= eight && eight <= 9 {
@@ -36,9 +36,9 @@ machine Main::main(main: @mutable Main) blocks reaches StandardOutput crashes Tr
     requires 0 <= first && first <= 9 && 0 <= second && second <= 9
     {
         let combined: i32 = first * 10 + second;
-        Console::write_byte(first + 48);
-        Console::write_byte(second + 48);
-        Console::write_line("");
+        |console|::Console::write_byte(first + 48);
+        |console|::Console::write_byte(second + 48);
+        |console|::Console::write_line("");
         transition combined == 78 { true -> done(), _ -> bad() }
     }
     machine done() {}
@@ -46,7 +46,7 @@ machine Main::main(main: @mutable Main) blocks reaches StandardOutput crashes Tr
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() blocks reaches StandardOutput crashes Trap {
+machine entry_start() blocks reaches |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

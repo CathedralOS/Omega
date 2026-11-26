@@ -228,9 +228,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             .providers
             .providers()
             .map(|(_, body)| terminal_psi::TargetMachineCallable::Machine(body))
-            .chain(self.providers.assumed_bindings().iter().map(|binding| {
-                terminal_psi::TargetMachineCallable::Machine(binding.implementation)
-            }))
+
         {
             let owner = scope
                 .callable_declaration(callable)
@@ -303,12 +301,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
             &catalog.conditions,
             self.target(),
             self.target() == value_scope,
-            self.providers.providers().chain(
-                self.providers
-                    .assumed_bindings()
-                    .iter()
-                    .map(|binding| (binding.required, binding.implementation)),
-            ),
+            self.providers.providers(),
             demanded,
             &self.condition_scope,
         )?;

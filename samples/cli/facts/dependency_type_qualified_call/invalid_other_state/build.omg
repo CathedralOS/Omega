@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "dependency_type_qualified_call_other_state");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "dependency_type_qualified_call_other_state" };
     let mutable lib_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../../support/fact_dependencies/qualified_call_lib" });
     |dependency|::with_alias(@mutable lib_dependency, "lib");
     let lib_registration: DependencyRegistration = Build::dependency(builder, lib_dependency);

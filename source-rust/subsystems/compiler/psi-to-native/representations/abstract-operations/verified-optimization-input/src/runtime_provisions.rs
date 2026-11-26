@@ -213,7 +213,7 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
                     .ok_or("runtime native binding lost its unique calling application")?;
                 let execution = native_binding_admission::validate_native_binding_execution(
                     row,
-                    &native.bindings.identities,
+                    &native.bindings,
                     module,
                     profile,
                     application,

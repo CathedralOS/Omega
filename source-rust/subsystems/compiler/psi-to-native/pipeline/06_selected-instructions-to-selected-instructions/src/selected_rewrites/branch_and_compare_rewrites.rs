@@ -505,135 +505,101 @@ pub(crate) mod constant_boolean {
                 && encoded.implicit_unit_clobbers.is_empty()
         }
     }
-    pub(crate) mod rewrite {
-        use optimization_core::OptimizationWorkBudget;
-        use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::{PreparedMachineEffectCatalog, SelectedInstructionId};
-
-        use super::{ConstantBooleanError, ValidatedConstantBoolean, admission};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-        pub(crate) fn fold_selected_constant_boolean(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            materialization: SelectedInstructionId,
-            environment: &ValidatedTargetRegisterEnvironment,
-            effect_catalog: &PreparedMachineEffectCatalog,
-            budget: OptimizationWorkBudget,
-        ) -> Result<ValidatedConstantBoolean, ConstantBooleanError> {
-            let admitted = admission::admit(
-                source,
-                function_index,
-                materialization,
-                environment,
-                effect_catalog,
-                budget,
-            )?;
-            let mut transformed = source.selected_plan().clone();
-            let function = &mut transformed.functions[function_index];
-            function.blocks[admitted.block_index].instructions[admitted.materialization_index] =
-                admission::rewritten(&admitted);
-            super::validation::seal_constant_boolean_fold(
-                source,
-                function_index,
-                materialization,
-                transformed,
-            )
-        }
-    }
-    pub(crate) mod validation {
-        use std::collections::BTreeSet;
-
-        use register_environment::ValidatedTargetRegisterEnvironment;
-        use register_model::RegisterUnitId;
-        use selected_instructions::{
-            MachineSemanticKind, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-        };
-
-        use super::{ConstantBooleanError, ConstantBooleanReceipt, ValidatedConstantBoolean};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-        use crate::selected_rewrites::rewrites::sealed;
-
-        pub(crate) fn surface_sizes(
-            environment: &ValidatedTargetRegisterEnvironment,
-        ) -> Result<(usize, usize), ConstantBooleanError> {
-            let keys = environment.selected_keys();
-            let mut flag_universe = BTreeSet::new();
-            for key in [
-                keys.compare_i64,
-                keys.compare_i64_immediate,
-                keys.compare_i64_zero,
-            ] {
-                flag_universe.extend(
-                    environment
-                        .constraint(key)
-                        .ok_or(ConstantBooleanError::ConstraintMismatch)?
-                        .implicit_defs
-                        .iter()
-                        .copied(),
-                );
-            }
-            let materialize_row = environment
-                .constraint(
-                    keys.for_semantic(MachineSemanticKind::MaterializeI64)
-                        .ok_or(ConstantBooleanError::ConstraintMismatch)?,
-                )
-                .ok_or(ConstantBooleanError::ConstraintMismatch)?;
-            let materialize_surface: BTreeSet<RegisterUnitId> = materialize_row
-                .implicit_uses
-                .iter()
-                .chain(materialize_row.implicit_defs.iter())
-                .chain(materialize_row.clobbers.iter())
-                .copied()
-                .collect();
-            Ok((flag_universe.len(), materialize_surface.len()))
-        }
-
-        pub(crate) fn measured_steps(
-            plan: &SelectedInstructionPlan,
-            function: &SelectedFunction,
-            successors: &[Vec<usize>],
-            implicit_uses: usize,
-            flag_universe: usize,
-            materialize_surface: usize,
-            producer_defs: usize,
-        ) -> Result<u64, ConstantBooleanError> {
-            let steps = crate::selected_rewrites::rewrites::constant_fold_steps(
-                plan,
-                function,
-                successors,
-                implicit_uses,
-                flag_universe,
-                materialize_surface,
-                producer_defs,
-                || ConstantBooleanError::IdentityOverflow,
-            )?;
-            u64::try_from(steps).map_err(|_| ConstantBooleanError::IdentityOverflow)
-        }
-
-        pub(crate) fn seal_constant_boolean_fold(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            materialization: SelectedInstructionId,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedConstantBoolean, ConstantBooleanError> {
-            Ok(
-                sealed!(ValidatedConstantBoolean, ConstantBooleanReceipt, source, proposed, function_index: function_index, materialization: materialization),
-            )
-        }
+    pub(crate) fn fold_selected_constant_boolean(
+        source: &impl ValidatedSelectedAnalysis,
+        function_index: usize,
+        materialization: SelectedInstructionId,
+        environment: &ValidatedTargetRegisterEnvironment,
+        effect_catalog: &PreparedMachineEffectCatalog,
+        budget: OptimizationWorkBudget,
+    ) -> Result<ValidatedConstantBoolean, ConstantBooleanError> {
+        let admitted = admission::admit(
+            source,
+            function_index,
+            materialization,
+            environment,
+            effect_catalog,
+            budget,
+        )?;
+        let mut transformed = source.selected_plan().clone();
+        let function = &mut transformed.functions[function_index];
+        function.blocks[admitted.block_index].instructions[admitted.materialization_index] =
+            admission::rewritten(&admitted);
+        Ok(
+            sealed!(ValidatedConstantBoolean, ConstantBooleanReceipt, source, transformed, function_index: function_index, materialization: materialization),
+        )
     }
 
-    use std::sync::Arc;
+    pub(crate) fn surface_sizes(
+        environment: &ValidatedTargetRegisterEnvironment,
+    ) -> Result<(usize, usize), ConstantBooleanError> {
+        let keys = environment.selected_keys();
+        let mut flag_universe = BTreeSet::new();
+        for key in [
+            keys.compare_i64,
+            keys.compare_i64_immediate,
+            keys.compare_i64_zero,
+        ] {
+            flag_universe.extend(
+                environment
+                    .constraint(key)
+                    .ok_or(ConstantBooleanError::ConstraintMismatch)?
+                    .implicit_defs
+                    .iter()
+                    .copied(),
+            );
+        }
+        let materialize_row = environment
+            .constraint(
+                keys.for_semantic(MachineSemanticKind::MaterializeI64)
+                    .ok_or(ConstantBooleanError::ConstraintMismatch)?,
+            )
+            .ok_or(ConstantBooleanError::ConstraintMismatch)?;
+        let materialize_surface: BTreeSet<RegisterUnitId> = materialize_row
+            .implicit_uses
+            .iter()
+            .chain(materialize_row.implicit_defs.iter())
+            .chain(materialize_row.clobbers.iter())
+            .copied()
+            .collect();
+        Ok((flag_universe.len(), materialize_surface.len()))
+    }
 
-    use optimization_core::OptimizationUnitIdentity;
+    pub(crate) fn measured_steps(
+        plan: &SelectedInstructionPlan,
+        function: &SelectedFunction,
+        successors: &[Vec<usize>],
+        implicit_uses: usize,
+        flag_universe: usize,
+        materialize_surface: usize,
+        producer_defs: usize,
+    ) -> Result<u64, ConstantBooleanError> {
+        let steps = crate::selected_rewrites::rewrites::constant_fold_steps(
+            plan,
+            function,
+            successors,
+            implicit_uses,
+            flag_universe,
+            materialize_surface,
+            producer_defs,
+            || ConstantBooleanError::IdentityOverflow,
+        )?;
+        u64::try_from(steps).map_err(|_| ConstantBooleanError::IdentityOverflow)
+    }
+
+    use crate::selected_rewrites::ValidatedSelectedAnalysis;
+    use crate::selected_rewrites::rewrites::sealed;
+    use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+    use register_environment::ValidatedTargetRegisterEnvironment;
+    use register_model::RegisterUnitId;
     use selected_instructions::{
-        ConstantBooleanIdentity, SelectedInstructionId, SelectedInstructionPlan,
+        ConstantBooleanIdentity, MachineSemanticKind, PreparedMachineEffectCatalog,
+        SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
         SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
-
-    pub(crate) use rewrite::fold_selected_constant_boolean;
-    pub(crate) use validation::{measured_steps, surface_sizes};
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
 
     validated_transformed_receipt!(ValidatedConstantBoolean, ConstantBooleanReceipt);
 
@@ -1152,131 +1118,96 @@ pub(crate) mod constant_branch {
                     }
         }
     }
-    pub(crate) mod rewrite {
-        use optimization_core::OptimizationWorkBudget;
-        use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::{PreparedMachineEffectCatalog, SelectedInstructionId};
-
-        use super::{ConstantBranchError, ValidatedConstantBranch, admission};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-        pub(crate) fn fold_selected_constant_branch(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            branch: SelectedInstructionId,
-            environment: &ValidatedTargetRegisterEnvironment,
-            effect_catalog: &PreparedMachineEffectCatalog,
-            budget: OptimizationWorkBudget,
-        ) -> Result<ValidatedConstantBranch, ConstantBranchError> {
-            let admitted = admission::admit(
-                source,
-                function_index,
-                branch,
-                environment,
-                effect_catalog,
-                budget,
-            )?;
-            let mut transformed = source.selected_plan().clone();
-            transformed.functions[function_index].blocks[admitted.block_index].terminator =
-                admission::rewritten(&admitted);
-            super::validation::seal_constant_branch_fold(
-                source,
-                function_index,
-                branch,
-                transformed,
-            )
-        }
-    }
-    pub(crate) mod validation {
-        use std::collections::BTreeSet;
-
-        use register_environment::ValidatedTargetRegisterEnvironment;
-        use register_model::RegisterUnitId;
-        use selected_instructions::{
-            SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-        };
-
-        use super::{ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-        use crate::selected_rewrites::rewrites::sealed;
-
-        pub(crate) fn surface_sizes(
-            environment: &ValidatedTargetRegisterEnvironment,
-        ) -> Result<(usize, usize), ConstantBranchError> {
-            let keys = environment.selected_keys();
-            let mut flag_universe = BTreeSet::new();
-            for key in [
-                keys.compare_i64,
-                keys.compare_i64_immediate,
-                keys.compare_i64_zero,
-            ] {
-                flag_universe.extend(
-                    environment
-                        .constraint(key)
-                        .ok_or(ConstantBranchError::ConstraintMismatch)?
-                        .implicit_defs
-                        .iter()
-                        .copied(),
-                );
-            }
-            let jump_row = environment
-                .constraint(keys.jump)
-                .ok_or(ConstantBranchError::ConstraintMismatch)?;
-            let jump_surface: BTreeSet<RegisterUnitId> = jump_row
-                .implicit_uses
-                .iter()
-                .chain(jump_row.implicit_defs.iter())
-                .chain(jump_row.clobbers.iter())
-                .copied()
-                .collect();
-            Ok((flag_universe.len(), jump_surface.len()))
-        }
-
-        pub(crate) fn measured_steps(
-            plan: &SelectedInstructionPlan,
-            function: &SelectedFunction,
-            successors: &[Vec<usize>],
-            implicit_uses: usize,
-            flag_universe: usize,
-            jump_surface: usize,
-            compare_defs: usize,
-        ) -> Result<u64, ConstantBranchError> {
-            let steps = crate::selected_rewrites::rewrites::constant_fold_steps(
-                plan,
-                function,
-                successors,
-                implicit_uses,
-                flag_universe,
-                jump_surface,
-                compare_defs,
-                || ConstantBranchError::IdentityOverflow,
-            )?;
-            u64::try_from(steps).map_err(|_| ConstantBranchError::IdentityOverflow)
-        }
-
-        pub(crate) fn seal_constant_branch_fold(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            branch: SelectedInstructionId,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedConstantBranch, ConstantBranchError> {
-            Ok(
-                sealed!(ValidatedConstantBranch, ConstantBranchReceipt, source, proposed, function_index: function_index, branch: branch),
-            )
-        }
+    pub(crate) fn fold_selected_constant_branch(
+        source: &impl ValidatedSelectedAnalysis,
+        function_index: usize,
+        branch: SelectedInstructionId,
+        environment: &ValidatedTargetRegisterEnvironment,
+        effect_catalog: &PreparedMachineEffectCatalog,
+        budget: OptimizationWorkBudget,
+    ) -> Result<ValidatedConstantBranch, ConstantBranchError> {
+        let admitted = admission::admit(
+            source,
+            function_index,
+            branch,
+            environment,
+            effect_catalog,
+            budget,
+        )?;
+        let mut transformed = source.selected_plan().clone();
+        transformed.functions[function_index].blocks[admitted.block_index].terminator =
+            admission::rewritten(&admitted);
+        Ok(
+            sealed!(ValidatedConstantBranch, ConstantBranchReceipt, source, transformed, function_index: function_index, branch: branch),
+        )
     }
 
-    use std::sync::Arc;
+    pub(crate) fn surface_sizes(
+        environment: &ValidatedTargetRegisterEnvironment,
+    ) -> Result<(usize, usize), ConstantBranchError> {
+        let keys = environment.selected_keys();
+        let mut flag_universe = BTreeSet::new();
+        for key in [
+            keys.compare_i64,
+            keys.compare_i64_immediate,
+            keys.compare_i64_zero,
+        ] {
+            flag_universe.extend(
+                environment
+                    .constraint(key)
+                    .ok_or(ConstantBranchError::ConstraintMismatch)?
+                    .implicit_defs
+                    .iter()
+                    .copied(),
+            );
+        }
+        let jump_row = environment
+            .constraint(keys.jump)
+            .ok_or(ConstantBranchError::ConstraintMismatch)?;
+        let jump_surface: BTreeSet<RegisterUnitId> = jump_row
+            .implicit_uses
+            .iter()
+            .chain(jump_row.implicit_defs.iter())
+            .chain(jump_row.clobbers.iter())
+            .copied()
+            .collect();
+        Ok((flag_universe.len(), jump_surface.len()))
+    }
 
-    use optimization_core::OptimizationUnitIdentity;
+    pub(crate) fn measured_steps(
+        plan: &SelectedInstructionPlan,
+        function: &SelectedFunction,
+        successors: &[Vec<usize>],
+        implicit_uses: usize,
+        flag_universe: usize,
+        jump_surface: usize,
+        compare_defs: usize,
+    ) -> Result<u64, ConstantBranchError> {
+        let steps = crate::selected_rewrites::rewrites::constant_fold_steps(
+            plan,
+            function,
+            successors,
+            implicit_uses,
+            flag_universe,
+            jump_surface,
+            compare_defs,
+            || ConstantBranchError::IdentityOverflow,
+        )?;
+        u64::try_from(steps).map_err(|_| ConstantBranchError::IdentityOverflow)
+    }
+
+    use crate::selected_rewrites::ValidatedSelectedAnalysis;
+    use crate::selected_rewrites::rewrites::sealed;
+    use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+    use register_environment::ValidatedTargetRegisterEnvironment;
+    use register_model::RegisterUnitId;
     use selected_instructions::{
-        ConstantBranchIdentity, SelectedInstructionId, SelectedInstructionPlan,
-        SelectedInstructionPlanIdentity,
+        ConstantBranchIdentity, PreparedMachineEffectCatalog, SelectedFunction,
+        SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
-
-    pub(crate) use rewrite::fold_selected_constant_branch;
-    pub(crate) use validation::{measured_steps, surface_sizes};
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
 
     validated_transformed_receipt!(ValidatedConstantBranch, ConstantBranchReceipt);
 
@@ -1977,100 +1908,72 @@ pub(crate) mod dead_compare {
                 )
             }
         }
-        pub(crate) mod rewrite {
-            use optimization_core::OptimizationWorkBudget;
-            use register_environment::ValidatedTargetRegisterEnvironment;
-            use selected_instructions::SelectedInstructionId;
-
-            use super::super::DeadCompareError;
-            use super::{EquivalentCompareError, ValidatedEquivalentCompare, admission};
-            use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-            pub(crate) fn remove_equivalent_compare(
-                source: &impl ValidatedSelectedAnalysis,
-                function_index: usize,
-                compare: SelectedInstructionId,
-                environment: &ValidatedTargetRegisterEnvironment,
-                budget: OptimizationWorkBudget,
-            ) -> Result<ValidatedEquivalentCompare, EquivalentCompareError> {
-                super::super::admission::remove_compare(
-                    source,
-                    function_index,
-                    compare,
-                    environment,
-                    budget,
-                    admission::admit,
-                    |error| match error {
-                        DeadCompareError::IdentityOverflow => {
-                            EquivalentCompareError::IdentityOverflow
-                        }
-                        _ => EquivalentCompareError::SourceMismatch,
-                    },
-                    super::validation::seal_equivalent_compare,
-                )
-            }
+        pub(crate) fn remove_equivalent_compare(
+            source: &impl ValidatedSelectedAnalysis,
+            function_index: usize,
+            compare: SelectedInstructionId,
+            environment: &ValidatedTargetRegisterEnvironment,
+            budget: OptimizationWorkBudget,
+        ) -> Result<ValidatedEquivalentCompare, EquivalentCompareError> {
+            super::admission::remove_compare(
+                source,
+                function_index,
+                compare,
+                environment,
+                budget,
+                admission::admit,
+                |error| match error {
+                    DeadCompareError::IdentityOverflow => EquivalentCompareError::IdentityOverflow,
+                    _ => EquivalentCompareError::SourceMismatch,
+                },
+                |source, function_index, compare, proposed| {
+                    Ok(
+                        sealed!(ValidatedEquivalentCompare, EquivalentCompareReceipt, source, proposed, function_index: function_index, compare: compare),
+                    )
+                },
+            )
         }
-        pub(crate) mod validation {
-            use selected_instructions::{
-                SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-            };
 
-            use super::super::admission::compare_removal_steps;
-            use super::{
-                EquivalentCompareError, EquivalentCompareReceipt, ValidatedEquivalentCompare,
-            };
-            use crate::selected_rewrites::ValidatedSelectedAnalysis;
-            use crate::selected_rewrites::rewrites::sealed;
-
-            pub(crate) fn measured_steps(
-                plan: &SelectedInstructionPlan,
-                function: &SelectedFunction,
-                successors: &[Vec<usize>],
-                units: usize,
-            ) -> Result<u64, EquivalentCompareError> {
-                let steps = compare_removal_steps(
-                    plan,
-                    function,
-                    successors,
-                    units,
-                    |cone| {
-                        cone.per_unit_base
-                            .checked_add(
-                                cone.elements
-                                    .checked_mul(cone.function_scan)
-                                    .and_then(|product| product.checked_mul(4))
-                                    .ok_or(EquivalentCompareError::IdentityOverflow)?,
-                            )
-                            .ok_or(EquivalentCompareError::IdentityOverflow)
-                    },
-                    || EquivalentCompareError::IdentityOverflow,
-                )?;
-                u64::try_from(steps).map_err(|_| EquivalentCompareError::IdentityOverflow)
-            }
-
-            pub(crate) fn seal_equivalent_compare(
-                source: &impl ValidatedSelectedAnalysis,
-                function_index: usize,
-                compare: SelectedInstructionId,
-                proposed: SelectedInstructionPlan,
-            ) -> Result<ValidatedEquivalentCompare, EquivalentCompareError> {
-                Ok(
-                    sealed!(ValidatedEquivalentCompare, EquivalentCompareReceipt, source, proposed, function_index: function_index, compare: compare),
-                )
-            }
+        pub(crate) fn measured_steps(
+            plan: &SelectedInstructionPlan,
+            function: &SelectedFunction,
+            successors: &[Vec<usize>],
+            units: usize,
+        ) -> Result<u64, EquivalentCompareError> {
+            let steps = compare_removal_steps(
+                plan,
+                function,
+                successors,
+                units,
+                |cone| {
+                    cone.per_unit_base
+                        .checked_add(
+                            cone.elements
+                                .checked_mul(cone.function_scan)
+                                .and_then(|product| product.checked_mul(4))
+                                .ok_or(EquivalentCompareError::IdentityOverflow)?,
+                        )
+                        .ok_or(EquivalentCompareError::IdentityOverflow)
+                },
+                || EquivalentCompareError::IdentityOverflow,
+            )?;
+            u64::try_from(steps).map_err(|_| EquivalentCompareError::IdentityOverflow)
         }
 
         use std::sync::Arc;
 
-        use optimization_core::OptimizationUnitIdentity;
+        use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+        use register_environment::ValidatedTargetRegisterEnvironment;
         use selected_instructions::{
-            EquivalentCompareIdentity, SelectedInstructionId, SelectedInstructionPlan,
-            SelectedInstructionPlanIdentity,
+            EquivalentCompareIdentity, SelectedFunction, SelectedInstructionId,
+            SelectedInstructionPlan, SelectedInstructionPlanIdentity,
         };
         use semantic_vocabulary::WorkScheduleIdentity;
 
-        pub(crate) use rewrite::remove_equivalent_compare;
-        pub(crate) use validation::measured_steps;
+        use super::DeadCompareError;
+        use super::admission::compare_removal_steps;
+        use crate::selected_rewrites::ValidatedSelectedAnalysis;
+        use crate::selected_rewrites::rewrites::sealed;
 
         validated_transformed_receipt!(ValidatedEquivalentCompare, EquivalentCompareReceipt);
 
@@ -2157,91 +2060,63 @@ pub(crate) mod dead_compare {
                 )
             }
         }
-        pub(crate) mod rewrite {
-            use optimization_core::OptimizationWorkBudget;
-            use register_environment::ValidatedTargetRegisterEnvironment;
-            use selected_instructions::SelectedInstructionId;
-
-            use super::super::DeadCompareError;
-            use super::{RedundantCompareError, ValidatedRedundantCompare, admission};
-            use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-            pub(crate) fn remove_redundant_compare(
-                source: &impl ValidatedSelectedAnalysis,
-                function_index: usize,
-                compare: SelectedInstructionId,
-                environment: &ValidatedTargetRegisterEnvironment,
-                budget: OptimizationWorkBudget,
-            ) -> Result<ValidatedRedundantCompare, RedundantCompareError> {
-                super::super::admission::remove_compare(
-                    source,
-                    function_index,
-                    compare,
-                    environment,
-                    budget,
-                    admission::admit,
-                    |error| match error {
-                        DeadCompareError::IdentityOverflow => {
-                            RedundantCompareError::IdentityOverflow
-                        }
-                        _ => RedundantCompareError::SourceMismatch,
-                    },
-                    super::validation::seal_redundant_compare,
-                )
-            }
+        pub(crate) fn remove_redundant_compare(
+            source: &impl ValidatedSelectedAnalysis,
+            function_index: usize,
+            compare: SelectedInstructionId,
+            environment: &ValidatedTargetRegisterEnvironment,
+            budget: OptimizationWorkBudget,
+        ) -> Result<ValidatedRedundantCompare, RedundantCompareError> {
+            super::admission::remove_compare(
+                source,
+                function_index,
+                compare,
+                environment,
+                budget,
+                admission::admit,
+                |error| match error {
+                    DeadCompareError::IdentityOverflow => RedundantCompareError::IdentityOverflow,
+                    _ => RedundantCompareError::SourceMismatch,
+                },
+                |source, function_index, compare, proposed| {
+                    Ok(
+                        sealed!(ValidatedRedundantCompare, RedundantCompareReceipt, source, proposed, function_index: function_index, compare: compare),
+                    )
+                },
+            )
         }
-        pub(crate) mod validation {
-            use selected_instructions::{
-                SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-            };
 
-            use super::super::admission::compare_removal_steps;
-            use super::{
-                RedundantCompareError, RedundantCompareReceipt, ValidatedRedundantCompare,
-            };
-            use crate::selected_rewrites::ValidatedSelectedAnalysis;
-            use crate::selected_rewrites::rewrites::sealed;
-
-            pub(crate) fn measured_steps(
-                plan: &SelectedInstructionPlan,
-                function: &SelectedFunction,
-                successors: &[Vec<usize>],
-                units: usize,
-            ) -> Result<u64, RedundantCompareError> {
-                let steps = compare_removal_steps(
-                    plan,
-                    function,
-                    successors,
-                    units,
-                    |cone| Ok(cone.per_unit_base),
-                    || RedundantCompareError::IdentityOverflow,
-                )?;
-                u64::try_from(steps).map_err(|_| RedundantCompareError::IdentityOverflow)
-            }
-
-            pub(crate) fn seal_redundant_compare(
-                source: &impl ValidatedSelectedAnalysis,
-                function_index: usize,
-                compare: SelectedInstructionId,
-                proposed: SelectedInstructionPlan,
-            ) -> Result<ValidatedRedundantCompare, RedundantCompareError> {
-                Ok(
-                    sealed!(ValidatedRedundantCompare, RedundantCompareReceipt, source, proposed, function_index: function_index, compare: compare),
-                )
-            }
+        pub(crate) fn measured_steps(
+            plan: &SelectedInstructionPlan,
+            function: &SelectedFunction,
+            successors: &[Vec<usize>],
+            units: usize,
+        ) -> Result<u64, RedundantCompareError> {
+            let steps = compare_removal_steps(
+                plan,
+                function,
+                successors,
+                units,
+                |cone| Ok(cone.per_unit_base),
+                || RedundantCompareError::IdentityOverflow,
+            )?;
+            u64::try_from(steps).map_err(|_| RedundantCompareError::IdentityOverflow)
         }
 
         use std::sync::Arc;
 
-        use optimization_core::OptimizationUnitIdentity;
+        use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+        use register_environment::ValidatedTargetRegisterEnvironment;
         use selected_instructions::{
-            RedundantCompareIdentity, SelectedInstructionId, SelectedInstructionPlan,
-            SelectedInstructionPlanIdentity,
+            RedundantCompareIdentity, SelectedFunction, SelectedInstructionId,
+            SelectedInstructionPlan, SelectedInstructionPlanIdentity,
         };
         use semantic_vocabulary::WorkScheduleIdentity;
 
-        pub(crate) use rewrite::remove_redundant_compare;
-        pub(crate) use validation::measured_steps;
+        use super::DeadCompareError;
+        use super::admission::compare_removal_steps;
+        use crate::selected_rewrites::ValidatedSelectedAnalysis;
+        use crate::selected_rewrites::rewrites::sealed;
 
         validated_transformed_receipt!(ValidatedRedundantCompare, RedundantCompareReceipt);
 
@@ -2272,94 +2147,71 @@ pub(crate) mod dead_compare {
 
         failed_display!(RedundantCompareError, "invalid redundant-compare removal");
     }
-    pub(crate) mod rewrite {
-        use optimization_core::OptimizationWorkBudget;
-        use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::SelectedInstructionId;
-
-        use super::{DeadCompareError, ValidatedDeadCompare, admission};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-        pub(crate) fn remove_dead_compare(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            compare: SelectedInstructionId,
-            environment: &ValidatedTargetRegisterEnvironment,
-            budget: OptimizationWorkBudget,
-        ) -> Result<ValidatedDeadCompare, DeadCompareError> {
-            let admitted = admission::admit(source, function_index, compare, environment, budget)?;
-            let mut transformed = source.selected_plan().clone();
-            admission::apply(
-                &admitted,
-                &mut transformed.functions[function_index],
-                |error| error,
-            )?;
-            super::validation::seal_dead_compare(source, function_index, compare, transformed)
-        }
+    pub(crate) fn remove_dead_compare(
+        source: &impl ValidatedSelectedAnalysis,
+        function_index: usize,
+        compare: SelectedInstructionId,
+        environment: &ValidatedTargetRegisterEnvironment,
+        budget: OptimizationWorkBudget,
+    ) -> Result<ValidatedDeadCompare, DeadCompareError> {
+        let admitted = admission::admit(source, function_index, compare, environment, budget)?;
+        let mut proposed = source.selected_plan().clone();
+        admission::apply(
+            &admitted,
+            &mut proposed.functions[function_index],
+            |error| error,
+        )?;
+        Ok(
+            sealed!(ValidatedDeadCompare, DeadCompareReceipt, source, proposed, function_index: function_index, compare: compare),
+        )
     }
-    pub(crate) mod validation {
-        use selected_instructions::{
-            SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-        };
 
-        use super::{DeadCompareError, DeadCompareReceipt, ValidatedDeadCompare};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-        use crate::selected_rewrites::rewrites::block_edges::terminator_successors;
-        use crate::selected_rewrites::rewrites::sealed;
-
-        pub(crate) fn measured_steps(
-            plan: &SelectedInstructionPlan,
-            function: &SelectedFunction,
-            units: usize,
-        ) -> Result<u64, DeadCompareError> {
-            let function_scan = crate::selected_rewrites::rewrites::function_scan(function)
-                .ok_or(DeadCompareError::IdentityOverflow)?;
-            let edge_count = function
-                .blocks
-                .iter()
-                .map(|block| terminator_successors(&block.terminator).len())
-                .sum::<usize>();
-            let dead_audit = units
-                .checked_mul(
-                    function_scan
-                        .checked_mul(2)
-                        .and_then(|scan| scan.checked_add(edge_count))
-                        .ok_or(DeadCompareError::IdentityOverflow)?,
-                )
-                .ok_or(DeadCompareError::IdentityOverflow)?;
-            let steps = crate::selected_rewrites::rewrites::rewrite_scan(plan, function)
-                .and_then(|total| {
-                    total
-                        .checked_add(function_scan)?
-                        .checked_add(function.virtual_registers.len())?
-                        .checked_add(function.calls.len())?
-                        .checked_add(function.memory_accesses.len())
-                })
-                .and_then(|total| total.checked_add(dead_audit))
-                .ok_or(DeadCompareError::IdentityOverflow)?;
-            u64::try_from(steps).map_err(|_| DeadCompareError::IdentityOverflow)
-        }
-
-        pub(crate) fn seal_dead_compare(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            compare: SelectedInstructionId,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedDeadCompare, DeadCompareError> {
-            Ok(
-                sealed!(ValidatedDeadCompare, DeadCompareReceipt, source, proposed, function_index: function_index, compare: compare),
+    pub(crate) fn measured_steps(
+        plan: &SelectedInstructionPlan,
+        function: &SelectedFunction,
+        units: usize,
+    ) -> Result<u64, DeadCompareError> {
+        let function_scan = crate::selected_rewrites::rewrites::function_scan(function)
+            .ok_or(DeadCompareError::IdentityOverflow)?;
+        let edge_count = function
+            .blocks
+            .iter()
+            .map(|block| terminator_successors(&block.terminator).len())
+            .sum::<usize>();
+        let dead_audit = units
+            .checked_mul(
+                function_scan
+                    .checked_mul(2)
+                    .and_then(|scan| scan.checked_add(edge_count))
+                    .ok_or(DeadCompareError::IdentityOverflow)?,
             )
-        }
+            .ok_or(DeadCompareError::IdentityOverflow)?;
+        let steps = crate::selected_rewrites::rewrites::rewrite_scan(plan, function)
+            .and_then(|total| {
+                total
+                    .checked_add(function_scan)?
+                    .checked_add(function.virtual_registers.len())?
+                    .checked_add(function.calls.len())?
+                    .checked_add(function.memory_accesses.len())
+            })
+            .and_then(|total| total.checked_add(dead_audit))
+            .ok_or(DeadCompareError::IdentityOverflow)?;
+        u64::try_from(steps).map_err(|_| DeadCompareError::IdentityOverflow)
     }
 
     use std::sync::Arc;
 
-    use optimization_core::OptimizationUnitIdentity;
+    use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+    use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
-        DeadCompareIdentity, SelectedInstructionId, SelectedInstructionPlan,
+        DeadCompareIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
         SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
+
+    use crate::selected_rewrites::ValidatedSelectedAnalysis;
+    use crate::selected_rewrites::rewrites::block_edges::terminator_successors;
+    use crate::selected_rewrites::rewrites::sealed;
 
     pub(crate) use equivalent::{EquivalentCompareError, ValidatedEquivalentCompare};
     pub(crate) use equivalent::{
@@ -2369,8 +2221,6 @@ pub(crate) mod dead_compare {
     pub(crate) use redundant::{
         measured_steps as redundant_compare_measured_steps, remove_redundant_compare,
     };
-    pub(crate) use rewrite::remove_dead_compare;
-    pub(crate) use validation::measured_steps;
 
     validated_transformed_receipt!(ValidatedDeadCompare, DeadCompareReceipt);
 

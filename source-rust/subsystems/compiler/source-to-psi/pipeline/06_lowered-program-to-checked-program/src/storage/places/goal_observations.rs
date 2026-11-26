@@ -171,14 +171,12 @@ impl Held<'_, '_> {
                     "the scalar store has no uncertain selector",
                 ))?;
                 let written_index = storage.fixed_write_indices.get(selector).copied().flatten();
-                let supplied = terminal_check_tables::row(
-                    &self.tables.values,
-                    value,
-                    storage.machine,
-                    self.concerns,
-                )
-                .map_err(crate::Unbound::Refused)?
-                .scalar_type;
+                let supplied = self
+                    .tables
+                    .values
+                    .checked(value, storage.machine, self.concerns)
+                    .map_err(crate::Unbound::Refused)?
+                    .scalar_type;
                 if supplied != scalar_type {
                     return Err(crate::Unbound::Unsupported(
                         "an indexed store operand has another scalar carrier",

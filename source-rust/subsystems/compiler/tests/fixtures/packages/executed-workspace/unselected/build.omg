@@ -2,7 +2,7 @@ use {omega}/build/dependency.omg;
 use {omega}/language/core/program_image.omg as image;
 use {naming}/main.omg as backing;
 
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     let mutable naming_dependency: DependencyDescription = |dependency|::from_source(Source::Git {
         repository: "https://omega-source.invalid/catalog-helper.git",
         revision: "executed-build-fixture-v1",
@@ -11,5 +11,5 @@ machine build(builder: @mutable Build) {
     |dependency|::with_alias(@mutable naming_dependency, "naming");
     _ = |dependency|::add(builder, naming_dependency);
     Build::select_provider::<|image|::ProgramImage, |backing|::CatalogImage>(builder, interpreter);
-    Build::build_entry(builder, "name.omg");
+    builder.product = BuildProduct::InterpretedBuild { entry: "name.omg" };
 }

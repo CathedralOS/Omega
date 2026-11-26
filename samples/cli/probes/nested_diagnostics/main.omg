@@ -1,5 +1,6 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Nested method receivers through a plain-data intermediate. A `Dashboard` is a
 // plain record (no attached machine) holding two DISTINCT subsystem types, each
 // with its own machine; `main` reads them with `main.dash.engine.reading()` and
@@ -23,7 +24,6 @@ use omega\language\core\ProcessExit;
 // call binding 0) would fail one of the equality guards and exit 1.
 // Expected exit: 85.
 
-use system\Console;
 
 data Engine {
     rpm: i32;
@@ -48,8 +48,8 @@ data Main {
     dash: Dashboard;
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
-    Console::write_line("nested_diagnostics: read engine + battery through nested receivers");
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
+    |console|::Console::write_line("nested_diagnostics: read engine + battery through nested receivers");
     main.dash.engine.rpm = 3000;
     main.dash.battery.percent = 85;
 
@@ -69,18 +69,18 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     }
 
     machine nominal(main: @mutable Main) {
-        Console::write_line("engine 3000rpm, battery 85% -> nominal (exit = battery level)");
-        ProcessExit::exit_process(85);
+        |console|::Console::write_line("engine 3000rpm, battery 85% -> nominal (exit = battery level)");
+        |process_exit|::ProcessExit::exit_process(85);
     }
 
     machine fault(main: @mutable Main) {
-        Console::write_line("reading mismatch -> fault (exit 1)");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("reading mismatch -> fault (exit 1)");
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

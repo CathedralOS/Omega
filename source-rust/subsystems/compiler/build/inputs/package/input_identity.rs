@@ -9,11 +9,11 @@ use crate::{
 use filesystem_authority::CanonicalFilesystemMetadataIndex;
 
 // Previously issued Build receipts bind this domain.
-const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x07";
+const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x08";
 
 impl PackageBuildHandoff {
     pub fn identity_digest(&self) -> [u8; 32] {
-        let mut digest = DomainDigestEncoder::new(b"omega-package-build-products-v5\0");
+        let mut digest = DomainDigestEncoder::new(b"omega-package-build-products-v6\0");
         hash_generated_bundle(&mut digest, self);
         digest.finish()
     }
@@ -137,6 +137,10 @@ fn hash_generated_bundle(digest: &mut DomainDigestEncoder, bundle: &PackageBuild
         ),
     );
     digest.raw(&super::native_output_identity::digest(bundle));
+    digest.u64(bundle.enabled_unsafe_atoms().len() as u64);
+    for atom in bundle.enabled_unsafe_atoms() {
+        digest.bytes(atom.name().as_bytes());
+    }
     digest.u64(bundle.sources().len() as u64);
     for source in bundle.sources() {
         digest.bytes(source.relative_path());

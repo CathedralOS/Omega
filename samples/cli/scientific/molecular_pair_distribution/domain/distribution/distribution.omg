@@ -1,16 +1,10 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\F64::from_i32;
-use system\Console;
-use omega\language\core\widen_i32_to_i64;
-use domain\model;
-use domain\model\Distribution;
-use io\output;
-use io\output\integer;
-use io\output\real;
-use io\output\precise_real;
-use domain\precision;
-use domain\precision\Precise;
-use domain\precision\normalized;
+use domain/model/model.omg;
+use domain/precision/precision.omg;
+use io/output/output.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Canonicalize independently along each axis before the minimum-image fold.
 // Bounded integer coordinates preserve exact squared radial-edge decisions.
@@ -30,77 +24,77 @@ machine separation(first: i32, second: i32, box: i32) -> f64 crashes Trap {
     }
     machine invalid_box() -> f64 { crash Trap; }
     machine folded(delta: i32, box: i32) -> f64 {
-        transition delta > box / 2 { true -> F64::from_i32(((box as i32 +Wrapping) - (delta as i32 +Wrapping)) as i32), _ -> F64::from_i32(delta) }
+        transition delta > box / 2 { true -> |float_operations|::F64::from_i32(((box as i32 +Wrapping) - (delta as i32 +Wrapping)) as i32), _ -> |float_operations|::F64::from_i32(delta) }
     }
 }
-public machine histogram(distribution: @mutable Distribution) crashes Trap {
+public machine histogram(distribution: @mutable |model|::Distribution) crashes Trap {
     transition { _ -> snapshot(distribution, 0) }
-    machine snapshot(distribution: @mutable Distribution, snapshot: i32 in Wrapping) {
+    machine snapshot(distribution: @mutable |model|::Distribution, snapshot: i32 in Wrapping) {
         transition snapshot >= 0 && snapshot < 8 && snapshot < distribution.snapshots {
             true -> first(distribution, snapshot, 0), _ -> done()
         }
     }
-    machine first(distribution: @mutable Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping) {
+    machine first(distribution: @mutable |model|::Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping) {
         transition first >= 0 && first < distribution.particles - 1 {
             true -> second(distribution, snapshot, first, first + 1), _ -> snapshot(distribution, snapshot + 1)
         }
     }
-    machine second(distribution: @mutable Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping) {
+    machine second(distribution: @mutable |model|::Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping) {
         transition second >= 0 && second < distribution.particles {
             true -> indices(distribution, snapshot, first, second), _ -> first(distribution, snapshot, first + 1)
         }
     }
-    machine indices(distribution: @mutable Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping) {
+    machine indices(distribution: @mutable |model|::Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping) {
         let left: i32 in Wrapping = 3 * (snapshot * distribution.particles + first);
         let right: i32 in Wrapping = 3 * (snapshot * distribution.particles + second);
         transition left >= 0 && left < 766 && right >= 0 && right < 766 {
             true -> distance(distribution, snapshot, first, second, left, right), _ -> done()
         }
     }
-    machine distance(distribution: @mutable Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, left: i32 in Wrapping, right: i32 in Wrapping) {
+    machine distance(distribution: @mutable |model|::Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, left: i32 in Wrapping, right: i32 in Wrapping) {
         let x: f64 = separation(distribution.coordinates[left], distribution.coordinates[right], distribution.box);
         let y: f64 = separation(distribution.coordinates[left + 1], distribution.coordinates[right + 1], distribution.box);
         let z: f64 = separation(distribution.coordinates[left + 2], distribution.coordinates[right + 2], distribution.box);
         transition { _ -> bin(distribution, snapshot, first, second, x*x + y*y + z*z, 0) }
     }
-    machine bin(distribution: @mutable Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, squared: f64, bin: i32 in Wrapping) {
+    machine bin(distribution: @mutable |model|::Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, squared: f64, bin: i32 in Wrapping) {
         transition bin >= 0 && bin < 16 && bin < distribution.bins {
             true -> endpoint(distribution, snapshot, first, second, squared, bin), _ -> second(distribution, snapshot, first, second + 1)
         }
     }
-    machine endpoint(distribution: @mutable Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, squared: f64, bin: i32 in Wrapping) {
-        let edge: f64 = F64::from_i32(distribution.edges[bin]);
+    machine endpoint(distribution: @mutable |model|::Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, squared: f64, bin: i32 in Wrapping) {
+        let edge: f64 = |float_operations|::F64::from_i32(distribution.edges[bin]);
         transition squared < edge*edge || (bin == distribution.bins - 1 && squared == edge*edge) {
             true -> count(distribution, snapshot, first, second, bin), _ -> bin(distribution, snapshot, first, second, squared, bin + 1)
         }
     }
-    machine count(distribution: @mutable Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, bin: i32 in Wrapping) {
+    machine count(distribution: @mutable |model|::Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, bin: i32 in Wrapping) {
         distribution.counts[bin] = distribution.counts[bin] + 1;
         transition { _ -> second(distribution, snapshot, first, second + 1) }
     }
     machine done() { }
 }
-public machine report(distribution: @Distribution) reaches StandardOutput invokes Console crashes Trap {
-    Console::write_line("molecular_pair_distribution bin count g coordination");
+public machine report(distribution: @|model|::Distribution) reaches |process_authority|::StandardOutput invokes |console|::Console crashes Trap {
+    |console|::Console::write_line("molecular_pair_distribution bin count g coordination");
     transition { _ -> row(distribution, 0, 0.0, 0) }
-    machine row(distribution: @Distribution, bin: i32 in Wrapping, lower: f64, cumulative: i32 in Wrapping) {
+    machine row(distribution: @|model|::Distribution, bin: i32 in Wrapping, lower: f64, cumulative: i32 in Wrapping) {
         transition bin >= 0 && bin < 16 && bin < distribution.bins {
             true -> values(distribution, bin, lower, cumulative), _ -> done()
         }
     }
-    machine values(distribution: @Distribution, bin: i32 in Wrapping, lower: f64, cumulative: i32 in Wrapping) {
-        let upper: f64 = F64::from_i32(distribution.edges[bin]);
+    machine values(distribution: @|model|::Distribution, bin: i32 in Wrapping, lower: f64, cumulative: i32 in Wrapping) {
+        let upper: f64 = |float_operations|::F64::from_i32(distribution.edges[bin]);
         let count: i32 in Wrapping = distribution.counts[bin];
         let total: i32 in Wrapping = cumulative + count;
-        let particles: f64 = F64::from_i32(distribution.particles as i32);
-        let snapshots: f64 = F64::from_i32(distribution.snapshots as i32);
-        let box: f64 = F64::from_i32(distribution.box);
+        let particles: f64 = |float_operations|::F64::from_i32(distribution.particles as i32);
+        let snapshots: f64 = |float_operations|::F64::from_i32(distribution.snapshots as i32);
+        let box: f64 = |float_operations|::F64::from_i32(distribution.box);
         let cubes: f64 = upper*upper*upper - lower*lower*lower;
-        let g: Precise = normalized(F64::from_i32(count as i32), box, snapshots, particles, cubes);
-        let coordination: f64 = 2.0 * F64::from_i32(total as i32) / (snapshots * particles);
-        integer(widen_i32_to_i64(bin as i32) as i64 +Wrapping); Console::write(" ");
-        integer(widen_i32_to_i64(count as i32) as i64 +Wrapping); Console::write(" ");
-        precise_real(g); Console::write(" "); real(coordination); Console::write_line("");
+        let g: |precision|::Precise = |precision|::normalized(|float_operations|::F64::from_i32(count as i32), box, snapshots, particles, cubes);
+        let coordination: f64 = 2.0 * |float_operations|::F64::from_i32(total as i32) / (snapshots * particles);
+        |output|::integer(|numeric_conversion|::widen_i32_to_i64(bin as i32) as i64 +Wrapping); |console|::Console::write(" ");
+        |output|::integer(|numeric_conversion|::widen_i32_to_i64(count as i32) as i64 +Wrapping); |console|::Console::write(" ");
+        |output|::precise_real(g); |console|::Console::write(" "); |output|::real(coordination); |console|::Console::write_line("");
         transition { _ -> row(distribution, bin + 1, upper, total) }
     }
     machine done() { }

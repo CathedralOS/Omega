@@ -127,6 +127,7 @@ fn describe_calls(
         &[][..]
     };
     let recursive = transfers.is_some();
+    let member = sites.heads.get(id).is_some_and(|heads| !heads.is_empty());
     let mut calls = outgoing
         .iter()
         .map(|&index| &sites.arrivals[index])
@@ -159,6 +160,7 @@ fn describe_calls(
                 tables,
                 &elaboration.sources,
                 calls,
+                member,
                 edges,
                 transfers,
                 incoming,
@@ -176,6 +178,7 @@ fn describe_arrivals<'calls>(
     tables: &mut MachineTables,
     sources: &IdTable<MachineId, MachineSources>,
     calls: impl Iterator<Item = &'calls Arrival>,
+    member: bool,
     edges: &[(EdgeId, MachineId)],
     mut transfers: Option<&mut recursive::Transfers>,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
@@ -222,7 +225,6 @@ fn describe_arrivals<'calls>(
             declared: &declared,
             unreached: &beyond,
             law_instances: &[],
-            donated: None,
         },
         tables,
         &mut decided,
@@ -232,9 +234,12 @@ fn describe_arrivals<'calls>(
     // Identify what each member's inputs hold at its physical head, before
     // inspecting the outgoing transfers in this copy of the component.
     let mut heads = Vec::new();
-    if !edges.is_empty() {
+    if transfers.is_some() && (member || !edges.is_empty()) {
         let sources = terminal_check_tables::row(sources, id, id, Construct::Machine)?;
-        for &(head, owner) in &sources.heads {
+        // A member can enter the component through an ordinary call. Its
+        // own entry names the incoming storage before any call or write.
+        let entry = member.then_some((lowered.entry, id));
+        for (head, owner) in sources.heads.iter().copied().chain(entry) {
             let block = lowered
                 .blocks
                 .get((head.get() - 1) as usize)
@@ -248,8 +253,12 @@ fn describe_arrivals<'calls>(
                     )
                 })?;
             let machine = terminal_machine(&module.machines, owner, id)?;
-            let arguments: Vec<_> = block
-                .structural_parameters
+            let (scalars, places) = if head == lowered.entry {
+                (&lowered.parameters, &lowered.structural_parameters)
+            } else {
+                (&block.parameters, &block.structural_parameters)
+            };
+            let arguments: Vec<_> = places
                 .iter()
                 .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
                 .collect();
@@ -265,7 +274,7 @@ fn describe_arrivals<'calls>(
             let names = machine
                 .parameters
                 .iter()
-                .zip(&block.parameters)
+                .zip(scalars)
                 .map(|(formal, actual)| {
                     (ScalarTerm::value(formal.id, formal.scalar_type), actual.id)
                 })
@@ -308,27 +317,15 @@ fn describe_arrivals<'calls>(
         let predicate = describe(&known, context, &crossing, &mut bindings);
         let arrivals = incoming.get_mut(callee).expect("callee was indexed");
         if let Some(transfers) = transfers.as_deref_mut() {
-            let mut source = None;
-            for (head, owner, names) in &heads {
-                let head = ProgramPoint::BlockEntry(*head);
-                if graph.dominates(head, point)?
-                    && match source {
-                        Some((previous, _, _)) => graph.dominates(previous, head)?,
-                        None => true,
-                    }
-                {
-                    source = Some((head, *owner, names));
-                }
-            }
-            if let Some((_, owner, names)) = source {
-                let mut preserved = Vec::new();
-                for (name, value) in names {
-                    if let Ok(next) = bindings.value(*value, name.scalar_type()) {
-                        preserved.push((name.clone(), next));
-                    }
-                }
-                transfers.insert(owner, callee, arrivals.len(), preserved);
-            }
+            preserve(
+                transfers,
+                graph,
+                &heads,
+                point,
+                callee,
+                arrivals.len(),
+                &mut bindings,
+            )?;
         }
         arrivals.push(predicate);
     }
@@ -362,20 +359,28 @@ fn describe_arrivals<'calls>(
         let mut observations = fields.observations();
         let mut described = crossing.clone();
         described.extend(observations.field_crossings());
-        let predicate = describe(
-            &known,
+        let mut bindings = InputBindings {
+            actuals: &actuals,
+            target,
+            denotation: crate::known::TransportInputs::new(known.equations.len()),
+            known: &known,
             context,
-            &described,
-            &mut InputBindings {
-                actuals: &actuals,
-                target,
-                denotation: crate::known::TransportInputs::new(known.equations.len()),
-                known: &known,
-                context,
-                fields: observations,
-                equal: None,
-            },
-        );
+            fields: observations,
+            equal: None,
+        };
+        let predicate = describe(&known, context, &described, &mut bindings);
+        let arrivals = machine_row_mut(incoming, callee, id)?;
+        if let Some(transfers) = transfers.as_deref_mut() {
+            preserve(
+                transfers,
+                graph,
+                &heads,
+                site.before,
+                callee,
+                arrivals.len(),
+                &mut bindings,
+            )?;
+        }
         // What the caller derives of an integer actual without holding it
         // as a fact: the interval of a sum of bounded values, of a call's
         // result, of a cast. The helper's body may need exactly that
@@ -399,17 +404,40 @@ fn describe_arrivals<'calls>(
         let mut parts = derived.bounds;
         parts.push(predicate);
         let predicate = joins::connective(parts, true);
-        incoming
-            .get_mut(callee)
-            .ok_or_else(|| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    id,
-                    Construct::Machine,
-                    "a private callee has no arrival roster",
-                )
-            })?
-            .push(predicate);
+        arrivals.push(predicate);
+    }
+    Ok(())
+}
+
+fn preserve(
+    transfers: &mut recursive::Transfers,
+    graph: &Graph,
+    heads: &[(BlockId, MachineId, Vec<(ScalarTerm, ValueId)>)],
+    point: ProgramPoint,
+    callee: MachineId,
+    arrival: usize,
+    bindings: &mut InputBindings<'_, '_>,
+) -> Checked<()> {
+    let mut source = None;
+    for (head, owner, names) in heads {
+        let head = ProgramPoint::BlockEntry(*head);
+        if graph.dominates(head, point)?
+            && match source {
+                Some((previous, _, _)) => graph.dominates(previous, head)?,
+                None => true,
+            }
+        {
+            source = Some((head, *owner, names));
+        }
+    }
+    if let Some((_, owner, names)) = source {
+        let mut preserved = Vec::new();
+        for (name, value) in names {
+            if let Ok(next) = bindings.value(*value, name.scalar_type()) {
+                preserved.push((name.clone(), next));
+            }
+        }
+        transfers.insert(owner, callee, arrival, preserved);
     }
     Ok(())
 }
@@ -743,7 +771,7 @@ fn derived(
         }
     }
     let mut prover =
-        crate::prove::Prover::new(context, &assumptions, &axioms, &*tables.values, activity);
+        crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, activity);
     let mut found = Derived {
         bounds: Vec::new(),
         unreached: Vec::new(),
@@ -808,7 +836,7 @@ pub(crate) fn known_at<'tables>(
         context,
         assumptions,
         axioms,
-        &*tables.values,
+        &tables.values,
     ))
 }
 

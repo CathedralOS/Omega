@@ -1,10 +1,11 @@
-use omega\language\core\ForeignBinding;
+use main.omg as app;
+use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable Build) {
     Build::application(builder, "registered_test_host_binding");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind_native::<HostProcessId::get>(builder, linux_x86_64,
-        ForeignBinding::Syscall { number: 39 });
-    Build::bind_native::<HostFile::resize>(builder, linux_x86_64,
-        ForeignBinding::Syscall { number: 77 });
-    _ = builder.tests.group::<Tests::host>();
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind_native::<|app|::HostProcessId::get>(builder, linux_x86_64,
+        |native|::ForeignBinding::Syscall { number: 39 });
+    Build::bind_native::<|app|::HostFile::resize>(builder, linux_x86_64,
+        |native|::ForeignBinding::Syscall { number: 77 });
+    _ = builder.tests.group::<|app|::Tests::host>();
 }

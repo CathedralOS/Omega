@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
+use {system}/console.omg;
 // An elementary cellular automaton (Wolfram Rule 90) rendered as a scrolling space-time
 // diagram -- each generation is one printed row, so the history builds downward. From a
 // single live cell in the centre, Rule 90 (next = left XOR right) draws the SIERPINSKI
@@ -19,8 +20,6 @@ use omega\language\core\ProcessExit;
 // Pure compute + stdout + Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: #
-use system\Console;
-use system\Clock;
 
 domain [u8]::Utf8
 requires
@@ -81,8 +80,8 @@ requires self.cv >= 0 && self.cv <= 1
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
-    Console::write_line("cellular_automaton: Rule 90 from a single centre cell -- 32 generations draw the Sierpinski triangle");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("cellular_automaton: Rule 90 from a single centre cell -- 32 generations draw the Sierpinski triangle");
     main.line = "                                                                ";
     main.chars = " #";
     main.x = 0;
@@ -131,7 +130,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition { _ -> block render_loop(main) }
     }
     machine emit(main: @mutable Main) {
-        Console::write_line(main.line);
+        |console|::Console::write_line(main.line);
         transition { _ -> block scan_init(main) }
     }
 
@@ -205,7 +204,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     // Sleep first (the host call would kill facts), then re-guard `gen < 32`
     // so the increment proves into [0..=32].
     machine gen_next(main: @mutable Main) {
-        block Clock::sleep(50);
+        block |clock|::Clock::sleep(50);
         transition main.gen < 32 { true -> block gen_bump(main), _ -> block gen_loop(main) }
     }
     machine gen_bump(main: @mutable Main) {
@@ -214,21 +213,21 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     }
 
     machine finish(main: @mutable Main) {
-        Console::write_line("done: 32 generations of Rule 90 rendered (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("done: 32 generations of Rule 90 rendered (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: a cell value or index left its guarded range (exit 1)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: a cell value or index left its guarded range (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

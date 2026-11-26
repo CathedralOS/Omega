@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "checked_asm_register_contract_bound");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "checked_asm_register_contract_bound" };
     Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
     Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);

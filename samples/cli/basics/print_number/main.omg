@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Compute a value and PRINT it as text -- the read/compute/print pipeline a real
 // CLI app needs. It sums an array with a runtime-indexed loop, then converts the
 // total to decimal digits and writes them to stdout (a fixed-width 3-digit
@@ -14,8 +15,6 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: 150
 
-use system\Console;
-use omega\language\core\narrow_i32_to_u8_trapping;
 
 domain [u8]::Utf8
 requires
@@ -40,8 +39,8 @@ requires self.i >= 0 && self.i <= 5
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("print_number: summing [10..50] and printing the total as decimal text");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("print_number: summing [10..50] and printing the total as decimal text");
     main.nums[0] = 10i32 as +Wrapping;
     main.nums[1] = 20i32 as +Wrapping;
     main.nums[2] = 30i32 as +Wrapping;
@@ -83,7 +82,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         main.out = "000" as +Utf8;
         main.digit = main.sum / 100;
         main.digit = main.digit + 0x30;
-        main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
+        main.ch = |numeric_conversion|::narrow_i32_to_u8_trapping(main.digit as i32);
         transition main.ch < 0x80 { true -> block hundreds(main), _ -> block bad(main) }
     }
     machine hundreds(main: @mutable Main) {
@@ -91,34 +90,34 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         main.digit = main.sum / 10;
         main.digit = main.digit % 10;
         main.digit = main.digit + 0x30;
-        main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
+        main.ch = |numeric_conversion|::narrow_i32_to_u8_trapping(main.digit as i32);
         transition main.ch < 0x80 { true -> block tens(main), _ -> block bad(main) }
     }
     machine tens(main: @mutable Main) {
         main.out[1] = main.ch;
         main.digit = main.sum % 10;
         main.digit = main.digit + 0x30;
-        main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
+        main.ch = |numeric_conversion|::narrow_i32_to_u8_trapping(main.digit as i32);
         transition main.ch < 0x80 { true -> block ones(main), _ -> block bad(main) }
     }
     machine ones(main: @mutable Main) {
         main.out[2] = main.ch;
-        Console::write_line(main.out);
-        Console::write_line("PASS: the sum 150 printed above (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line(main.out);
+        |console|::Console::write_line("PASS: the sum 150 printed above (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: a computed digit char left ASCII (exit 1)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: a computed digit char left ASCII (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

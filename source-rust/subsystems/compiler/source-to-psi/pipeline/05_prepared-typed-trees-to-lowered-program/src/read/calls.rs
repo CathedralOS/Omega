@@ -956,10 +956,11 @@ impl<'t> Program<'t> {
                     })?;
             }
         }
-        if call.quotient_operation.is_some()
-            || call.layout_query.is_some()
-            || call.native_code_layout.is_some()
-        {
+        if let Some(request) = &call.quotient_operation {
+            return self
+                .quotient_operation_call(id, slots, handle, call, request, source, expected);
+        }
+        if call.layout_query.is_some() || call.native_code_layout.is_some() {
             return unserved("compiler operation call");
         }
         // Qualification names a declaration without supplying an extra
@@ -2877,7 +2878,21 @@ impl<'t> Program<'t> {
             match self.typed.evidence_requirement_declaration(target) {
                 Ok(Some(requirement)) => requirement,
                 Ok(None) => {
-                    let Some(contract) = self.typed.retained_static_machine_contract(target) else {
+                    let contract = self
+                        .symbols
+                        .get(id)
+                        .and_then(|owner| self.typed.machine_by_symbol(*owner))
+                        .and_then(|owner| self.typed.machine_parameter_contract_in(owner, target));
+                    let Some(contract) = contract else {
+                        if self
+                            .typed
+                            .retained_static_machine_contract(target)
+                            .is_some()
+                        {
+                            return Err(unserved(
+                                "static machine parameter outside its declaration scope",
+                            ));
+                        }
                         return Ok(None);
                     };
                     if let crate::source_state::data::MachineParameterContractView::Nominal {
@@ -2890,20 +2905,7 @@ impl<'t> Program<'t> {
                             "a boundary callback needs its selected boundary entry",
                         ));
                     }
-                    let requirement = contract.signature();
-                    let owner = self
-                        .symbols
-                        .get(id)
-                        .and_then(|owner| self.typed.machine_by_symbol(*owner));
-                    if owner
-                        .and_then(|owner| self.typed.machine_parameter_signature_in(owner, target))
-                        != Some(requirement)
-                    {
-                        return Err(unserved(
-                            "static machine parameter outside its declaration scope",
-                        ));
-                    }
-                    requirement
+                    contract.signature()
                 }
                 Err(_) => {
                     return Err(unserved(
@@ -3439,14 +3441,21 @@ impl<'t> Program<'t> {
         is_public: bool,
         selection: Option<AuthoredDeclarationSelection>,
     ) -> Checked<()> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if is_public {
             return Ok(());
         }
+        let violation = |rule| {
+            Err(terminal_check_tables::Refusal::at(
+                terminal_check_tables::RefusalReason::Violation,
+                id.into(),
+                rule,
+            )
+            .with_source_span(selection.map(|selection| selection.source_span())))
+        };
         if selection.is_some_and(|selection| {
             selection.exposure() == AuthoredDeclarationSelectionExposure::PublicInterface
         }) {
-            return unserved("private machine in a public interface");
+            return violation("a public interface cannot select a private machine");
         }
         let symbols = &self.typed.symbols;
         // A machine stage 04 generated belongs where its declaration does.
@@ -3467,8 +3476,12 @@ impl<'t> Program<'t> {
         };
         match (caller, package(callee)) {
             (Some(caller), Some(callee)) if caller == callee => Ok(()),
-            (Some(_), Some(_)) => unserved("private machine of another package"),
-            _ => unserved("call between declarations without a source file"),
+            (Some(_), Some(_)) => violation("cannot call a private machine of another package"),
+            _ => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("call between declarations without a source file"),
+            )),
         }
     }
 

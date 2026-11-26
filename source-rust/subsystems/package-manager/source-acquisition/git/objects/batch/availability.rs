@@ -13,7 +13,7 @@ mod tests;
 use super::PendingGitBatchRequest;
 use crate::error::{SourceResolveError, cache_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::git_command::{GitCommandCapture, run_git_output};
 use crate::git::objects::identity::{git_object_algorithm, git_object_invalid};

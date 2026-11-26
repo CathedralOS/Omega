@@ -10,17 +10,17 @@ machine outer() -> u64 {
     let buffer: Buffer<leaf()>;
     buffer.slots.length
 }
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_const_storage");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_const_storage" };
     let result: ComputedStorage;
     transition result.buffer.slots.length == 4 {
         true -> good(builder),
         _ -> bad(builder)
     }
-    machine good(builder: @mutable Build) {
+    machine good(builder: @mutable BuildPlan) {
         Build::bind(builder, linux_x86_64::ProgramEntry, main);
     }
-    machine bad(builder: @mutable Build) {
+    machine bad(builder: @mutable BuildPlan) {
         _ = BuildDeclarations::entry(@builder.declarations, "wrong_const_dependency", "linux_x86_64::ProgramEntry");
     }
 }

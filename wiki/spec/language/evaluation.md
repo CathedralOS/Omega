@@ -189,7 +189,7 @@ or an entry guarantee for one target profile. A subject not fixed by target
 closure rejects. Values and interpretation selectors use the same heterogeneous
 typed mechanism; an endianness selector need not be encoded as an integer.
 The source spelling of these projections remains unsettled; conceptual
-`TargetSemantics::address_bound::<addr>()` is not an approved API declaration.
+`TargetSemantics::address_bound::<address>()` is not an approved API declaration.
 
 Installed memory, devices, page geometry, and current CPU features instead come
 from explicit providers, capabilities, installation, or admitted hardware input.

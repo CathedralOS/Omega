@@ -62,8 +62,7 @@ pub trait PlanningServices {
     fn validation_subject(
         &mut self,
         _issued: &[build_execution::host::requests::IssuedBuildRequest],
-        _purpose: build_declarations::DependencyPurpose,
-        _ordinal: usize,
+        _request: &build_execution::host::requests::BuildValidationRequest,
     ) -> Result<build_execution::DependencyValidationSubject, CompileFailure> {
         Err(refusal(
             "Build validation requires a registered dependency service".into(),
@@ -163,17 +162,25 @@ pub struct ReturnedPlanningStage {
 /// and observations stay with the eventual Product, separate from its own settings.
 #[derive(Default)]
 struct BuildPreparations {
+    package_capture: Option<package_compilation::BuildSnapshotCapture>,
+    first_stage_in_package: usize,
+    demanded_programs: Vec<package_compilation::DelegatedProgram>,
     stages: Vec<(build_declarations::BuildEntryPath, EvaluatedBuild)>,
     files: Vec<std::path::PathBuf>,
     entries: Vec<(
         std::path::PathBuf,
+        String,
         Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
         source_compiler::InterpretedProviderSelections,
+        std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     )>,
 }
 
 /// Only the Build that returned this entry can issue its source view and incoming bindings.
 pub struct PreparedSuccessor {
+    directories: package_compilation::build_execution::BuildDirectoryMappings,
+    issuer: package_compilation::CapturedLocalSource,
+    enabled_unsafe_atoms: std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     source_owner: Option<package_compilation::CompletedAnonymousSource>,
     providers: source_compiler::InterpretedProviderSelections,
     capture: package_compilation::CapturedLocalSource,
@@ -183,6 +190,17 @@ pub struct PreparedSuccessor {
 }
 
 impl PreparedSuccessor {
+    /// Only the acquisition that issued this preparation may adopt its successor's source.
+    pub fn capture_for(
+        &self,
+        issuer: &package_compilation::CapturedLocalSource,
+    ) -> Result<&package_compilation::CapturedLocalSource, String> {
+        if self.issuer != *issuer {
+            return Err("successor directory was issued by another source acquisition".into());
+        }
+        Ok(&self.capture)
+    }
+
     pub fn path(&self) -> &std::path::Path {
         &self.path
     }
@@ -193,31 +211,73 @@ impl ReturnedPlanningStage {
         self,
         libraries: Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
     ) -> Result<PreparedSuccessor, CompileFailure> {
+        let directory = self.returned.successor_directory().cloned();
+        let directories = self.returned.successor_directories.clone();
         let (entry, capture) = self.returned.successor_source().map_err(refusal)?;
         let entry = entry.clone();
         let capture = capture.clone();
-        let path = capture.canonical_live_root().join(entry.as_str());
         let mut preparations = self.preparations;
+        preparations
+            .demanded_programs
+            .extend(self.evaluation.demanded_programs().cloned());
         let evaluated = self
             .evaluation
             .complete_successor(self.returned, &libraries)?;
         let mut source = self.source;
+        let issuer = capture.clone();
+        let capture = match directory {
+            Some(directory) => {
+                preparations.package_capture =
+                    Some(package_compilation::BuildSnapshotCapture::PackageInventory);
+                let staging = evaluated
+                    .configuration
+                    .observation_summary
+                    .as_ref()
+                    .and_then(|summary| summary.staged_output_tree());
+                let next = directory
+                    .freeze(capture.canonical_live_root(), staging)
+                    .map_err(refusal)?;
+                if next == capture {
+                    source
+                        .retain_build_files(capture.canonical_live_root(), &mut preparations.files);
+                } else {
+                    preparations.files.clear();
+                    preparations.first_stage_in_package = preparations.stages.len() + 1;
+                }
+                next
+            }
+            None => {
+                source.retain_build_files(capture.canonical_live_root(), &mut preparations.files);
+                capture
+            }
+        };
+        let path = capture.canonical_live_root().join(entry.as_str());
+        let identity = &capture.normalized().content_identity;
         let (providers, source_owner) =
             source.successor_provider_selections(&entry, &libraries, &evaluated)?;
-        if preparations.entries.iter().any(|(file, inputs, choices)| {
-            file == &path && inputs == &libraries && choices == &providers
+        let enabled_unsafe_atoms = evaluated.configuration.enabled_unsafe_atoms.clone();
+        if preparations
+            .entries
+            .iter()
+            .any(|(file, content, inputs, choices, atoms)| {
+                file == &path && content == identity
+                    && inputs == &libraries
+                    && choices == &providers
+                    && atoms == &enabled_unsafe_atoms
         }) {
             return Err(refusal(format!(
                 "Build successor repeats the same inputs for {}",
                 path.display()
             )));
         }
-        source.retain_build_files(capture.canonical_live_root(), &mut preparations.files);
         preparations.stages.push((entry, evaluated));
         preparations
             .entries
-            .push((path.clone(), libraries.clone(), providers.clone()));
+            .push((path.clone(), identity.clone(), libraries.clone(), providers.clone(), enabled_unsafe_atoms.clone()));
         Ok(PreparedSuccessor {
+            directories,
+            issuer,
+            enabled_unsafe_atoms,
             source_owner,
             providers,
             capture,
@@ -231,6 +291,16 @@ impl ReturnedPlanningStage {
         &self,
     ) -> &source_compiler::compile_time_invocations::SourceCompletionAccounting {
         self.evaluation.source_completion_accounting()
+    }
+
+    /// The exact executable grants consumed by this Build, including preparations.
+    pub fn used_programs(&self) -> Vec<package_compilation::DelegatedProgram> {
+        self.preparations
+            .demanded_programs
+            .iter()
+            .chain(self.evaluation.demanded_programs())
+            .cloned()
+            .collect()
     }
 
     pub fn returned(&self) -> &ReturnedBuild {
@@ -391,8 +461,8 @@ pub fn interpret(
         };
         failure.with_source_completion_accounting(evaluation.source_completion_accounting().clone())
     })?;
-    returned.resolve_validation_requests(|issued, purpose, ordinal| {
-        services.validation_subject(issued, purpose, ordinal)
+    returned.resolve_validation_requests(|issued, request| {
+        services.validation_subject(issued, request)
     })?;
     evaluation.record_return(&returned)?;
     Ok(ReturnedPlanningStage {

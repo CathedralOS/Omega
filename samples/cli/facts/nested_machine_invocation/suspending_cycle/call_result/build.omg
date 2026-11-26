@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "nested_suspending_cycle_call_result");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "nested_suspending_cycle_call_result" };
     Build::select_provider::<Scheduler, InlineScheduler>(builder, windows_x86_64);
     Build::select_provider::<Scheduler, InlineScheduler>(builder, linux_x86_64);
     Build::select_provider::<Scheduler, InlineScheduler>(builder, linux_arm64);

@@ -1,1 +1,1 @@
-machine build(builder: @mutable Build) { Build::application(builder, "hmm_invalid_transition"); }
+machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "hmm_invalid_transition" }; }

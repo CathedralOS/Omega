@@ -2,10 +2,9 @@
 // at most36 product digits. Compare normalized decimal digit streams, with
 // powers affecting length, so neither integer overflow nor f64 rounding can
 // admit an unstable request or reject an exact CFL-one boundary.
-use io\input;
-use omega\language\core\narrow_i32_to_u32_saturating;
-use omega\language\core\narrow_u32_to_i32_saturating;
-use omega\language\core\F64::from_u64;
+use io/input/input.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
 public data Digits { values:[u64 in Wrapping;36]; length:u32 in Saturating; }
 machine digits(coefficient:u64 in Wrapping,result:@mutable Digits) {
  result.length=0;
@@ -52,7 +51,7 @@ machine significant(number:@Digits,offset:u32 in Saturating) -> u64 in Wrapping 
  machine zero() -> u64 in Wrapping { 0 }
 }
 // -1 means stable below one,0 exactly one,+1 unstable above one.
-public machine classify(input:@io\input\Input) -> i32 in Wrapping {
+public machine classify(input:@|input|::Input) -> i32 in Wrapping {
  let mutable speed:Digits; let mutable duration:Digits; let mutable spacing:Digits; let mutable product:Digits;
  digits(input.coefficients[2],@mutable speed);
  digits(input.coefficients[4],@mutable duration);
@@ -65,7 +64,7 @@ public machine classify(input:@io\input\Input) -> i32 in Wrapping {
 // or adjacent decimal-length cohorts, align the exact integers and subtract
 // their digits first. A36-digit product can need a37th spacing digit here.
 // Only the positive difference and denominator are converted to f64.
-public machine complement(input:@io\input\Input,rounded_fraction:f64) -> f64 {
+public machine complement(input:@|input|::Input,rounded_fraction:f64) -> f64 {
  let mutable speed:Digits; let mutable duration:Digits; let mutable spacing:Digits; let mutable product:Digits;
  digits(input.coefficients[2],@mutable speed);
  digits(input.coefficients[4],@mutable duration);
@@ -77,8 +76,8 @@ machine complementary_digits(product:@Digits,product_power:i32 in Wrapping,spaci
  transition product.length == 0 { true -> zero(), false -> lengths(product,product_power,spacing,spacing_power,rounded_fraction) }
  machine zero() -> f64 { 1.0 }
  machine lengths(product:@Digits,product_power:i32 in Wrapping,spacing:@Digits,spacing_power:i32 in Wrapping,rounded_fraction:f64) -> f64 {
-  let left:i32 in Wrapping=(narrow_u32_to_i32_saturating(product.length as u32) as i32 +Wrapping)+product_power;
-  let right:i32 in Wrapping=(narrow_u32_to_i32_saturating(spacing.length as u32) as i32 +Wrapping)+spacing_power;
+  let left:i32 in Wrapping=(|numeric_conversion|::narrow_u32_to_i32_saturating(product.length as u32) as i32 +Wrapping)+product_power;
+  let right:i32 in Wrapping=(|numeric_conversion|::narrow_u32_to_i32_saturating(spacing.length as u32) as i32 +Wrapping)+spacing_power;
   transition left < right-1 { true -> separated(rounded_fraction), false -> align(product,product_power,spacing,spacing_power) }
  }
  machine separated(rounded_fraction:f64) -> f64 {
@@ -98,10 +97,10 @@ machine complementary_digits(product:@Digits,product_power:i32 in Wrapping,spaci
  machine invalid() -> f64 { -1.0 }
 }
 machine aligned_digit(number:@Digits,shift:i32 in Wrapping,index:u32 in Saturating) -> u64 in Wrapping {
- let offset:i32 in Wrapping=(narrow_u32_to_i32_saturating(index as u32) as i32 +Wrapping)-shift;
- transition offset >= 0 && offset < (narrow_u32_to_i32_saturating(number.length as u32) as i32 +Wrapping) { true -> present(number,offset), false -> absent() }
+ let offset:i32 in Wrapping=(|numeric_conversion|::narrow_u32_to_i32_saturating(index as u32) as i32 +Wrapping)-shift;
+ transition offset >= 0 && offset < (|numeric_conversion|::narrow_u32_to_i32_saturating(number.length as u32) as i32 +Wrapping) { true -> present(number,offset), false -> absent() }
  machine present(number:@Digits,offset:i32 in Wrapping) -> u64 in Wrapping {
-  number.values[(narrow_i32_to_u32_saturating(offset as i32) as u32 +Saturating)%36]
+  number.values[(|numeric_conversion|::narrow_i32_to_u32_saturating(offset as i32) as u32 +Saturating)%36]
  }
  machine absent() -> u64 in Wrapping { 0 }
 }
@@ -112,8 +111,8 @@ machine subtract(product:@Digits,product_shift:i32 in Wrapping,spacing:@Digits,s
   let higher:u64 in Wrapping=aligned_digit(product,product_shift,index)+borrow;
   let value:u64 in Wrapping=match lower >= higher { true -> lower-higher, false -> lower+10-higher };
   let next_borrow:u64 in Wrapping=match lower >= higher { true -> 0, false -> 1 };
-  let next_difference:f64=difference+F64::from_u64(value as u64)*power;
-  let next_denominator:f64=denominator+F64::from_u64(lower as u64)*power;
+  let next_difference:f64=difference+ |float_operations|::F64::from_u64(value as u64)*power;
+  let next_denominator:f64=denominator+ |float_operations|::F64::from_u64(lower as u64)*power;
   transition { _ -> subtract(product,product_shift,spacing,spacing_shift,index+1,next_borrow,power*10.0,next_difference,next_denominator) }
  }
  machine finish(borrow:u64 in Wrapping,difference:f64,denominator:f64) -> f64 {
@@ -135,8 +134,8 @@ machine compare_digits(product:@Digits,left_power:i32 in Wrapping,spacing:@Digit
   transition spacing.length == 0 { true -> above(), false -> lengths(product,left_power,spacing,right_power) }
  }
  machine lengths(product:@Digits,left_power:i32 in Wrapping,spacing:@Digits,right_power:i32 in Wrapping) -> i32 in Wrapping {
-  let left:i32 in Wrapping=(narrow_u32_to_i32_saturating(product.length as u32) as i32 +Wrapping)+left_power;
-  let right:i32 in Wrapping=(narrow_u32_to_i32_saturating(spacing.length as u32) as i32 +Wrapping)+right_power;
+  let left:i32 in Wrapping=(|numeric_conversion|::narrow_u32_to_i32_saturating(product.length as u32) as i32 +Wrapping)+left_power;
+  let right:i32 in Wrapping=(|numeric_conversion|::narrow_u32_to_i32_saturating(spacing.length as u32) as i32 +Wrapping)+right_power;
   transition left < right { true -> below(), false -> upper(product,spacing,left,right) }
  }
  machine upper(product:@Digits,spacing:@Digits,left:i32 in Wrapping,right:i32 in Wrapping) -> i32 in Wrapping {

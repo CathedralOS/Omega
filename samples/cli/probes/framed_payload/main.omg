@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Extract and checksum the payload of a framed message. The frame is
 // [header, b0, b1, b2, trailer]; the payload is the middle three bytes, obtained
 // with the TWO-BOUND subslice `full[1..4]` (the `Slice::range` operator, distinct
@@ -10,7 +10,6 @@ use omega\language\core\ProcessExit;
 // walks the payload with the shrinking-window recursion.
 // Expected exit: 60.
 
-use system\Console;
 
 // Wrapping DECLARED: the checksum sums slice elements, which carry no range
 // facts yet (the elements share the domain so the accumulation is single-domain).
@@ -32,8 +31,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("framed_payload: subslicing the payload out of a framed message and summing it");
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("framed_payload: subslicing the payload out of a framed message and summing it");
     main.frame.bytes[0] = 255;
     main.frame.bytes[1] = 10;
     main.frame.bytes[2] = 20;
@@ -42,14 +41,14 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
 
     let full: @[i32 in Wrapping] = @main.frame.bytes[..];
     let checksum: i32 = sum(full[1..4], 0) as i32;
-    Console::write_line("result: the payload checksum, 60 for this frame (the exit code)");
-    Console::write_line("[press Enter to close]");
-    _ = block Console::read_line(@mutable main.pause);
-    ProcessExit::exit_process(checksum);
+    |console|::Console::write_line("result: the payload checksum, 60 for this frame (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
+    _ = block |console|::Console::read_line(@mutable main.pause);
+    |process_exit|::ProcessExit::exit_process(checksum);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

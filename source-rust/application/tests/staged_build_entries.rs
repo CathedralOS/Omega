@@ -34,6 +34,63 @@ fn build(body: &str) -> String {
 }
 
 #[test]
+fn a_returned_build_requires_the_filename_even_when_the_namespace_exists() {
+    let prepare = r#"machine build(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::InterpretedBuild { entry: "stage.omg" };
+    }"#;
+    let helper = "public machine enabled() -> bool { true }";
+    let stage = r#"use helpers/board.omg;
+machine build(plan: @mutable BuildPlan) {
+    transition |board|::enabled() {
+        true -> ready(plan),
+        false -> missing(plan)
+    }
+    machine ready(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::Package { name: "board" };
+    }
+    machine missing(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::InterpretedBuild { entry: "unreachable.omg" };
+    }
+}"#;
+    let check = |source| {
+        invoke(
+            &[
+                ("build.omg", prepare),
+                ("stage.omg", source),
+                ("helpers/board.omg", helper),
+            ],
+            &["--check"],
+        )
+    };
+    let (status, report) = check(stage);
+    assert!(status.success(), "{report}");
+    let obsolete = format!("use helpers;\n{stage}");
+    let (status, report) = check(&obsolete);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("Build import `helpers` requires an exact .omg filename"),
+        "{report}"
+    );
+    assert!(report.contains("stage.omg:1:5"), "{report}");
+}
+
+#[test]
+fn a_build_cannot_register_a_library_for_its_own_activation() {
+    let source = r#"use {omega}/build/dependency.omg;
+machine build(plan: @mutable BuildPlan) {
+    let description: DependencyDescription = |dependency|::from_source(Source::Path { location: "unsupplied" });
+    _ = Build::build_dependency(plan, description);
+    plan.product = BuildProduct::Package { name: "example" };
+}"#;
+    let (status, report) = invoke(&[("build.omg", source)], &["build"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("no visible declaration") && report.contains("build.omg:4:9"),
+        "{report}"
+    );
+}
+
+#[test]
 fn successive_builds_select_the_final_native_and_psi_entry() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
@@ -161,7 +218,7 @@ machine build(plan: @mutable BuildPlan) {
                 ("build.omg", &caller),
                 ("main.omg", "use {api}/main.omg as table; public data Header { value: |table|::Table; }"),
                 ("library/build.omg", &library),
-                ("library/main.omg", "public data Table { invoke: addr; }"),
+                ("library/main.omg", "public data Table { invoke: address; }"),
             ],
             &["--check"],
         );
@@ -198,6 +255,13 @@ machine select_workspace(plan: @mutable BuildPlan) {
         &["--check", "--build-input", "build.omg", "--build-input", "tools"],
     );
     assert!(status.success(), "{report}");
+
+    let (status, report) = invoke(&[("build.omg", workspace)], &["build"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("a workspace declaration does not name a Product source owner"),
+        "{report}"
+    );
 
     let duplicate = workspace.replace(
         "plan.product = BuildProduct::Workspace { members: second };",
@@ -258,11 +322,12 @@ fn the_selected_build_must_accept_the_original_builder() {
 
 #[test]
 fn dependency_imports_respect_the_build_files_the_child_entered() {
-    let consumer = r#"use {omega}/build/dependency.omg;
+    let consumer = r#"use main.omg as app;
+use {omega}/build/dependency.omg;
         machine build(builder: @mutable BuildPlan) {
             builder.product = BuildProduct::Application { name: "consumer" };
             let kit: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "kit" }));
-            Build::bind(builder, linux_x86_64::ProgramEntry, main);
+            Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
         }"#;
     let first =
         build(r#"builder.product = BuildProduct::InterpretedBuild { entry: "prepare.omg" };"#);
@@ -297,6 +362,59 @@ fn dependency_imports_respect_the_build_files_the_child_entered() {
                 report.contains("may not load dependency build file") && report.contains(path),
                 "{report}"
             );
+        }
+    }
+}
+
+#[test]
+fn only_executed_core_unsafe_opt_ins_admit_the_returned_product() {
+    let Some(target) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let name = target.target_name();
+    let build = format!(
+        r#"use main.omg as app;
+use {{omega}}/language/core/unsafe.omg as native;
+        boundary trait RawMemoryRead {{}}
+        machine build(plan: @mutable BuildPlan) {{
+            plan.product = BuildProduct::Application {{ name: "reader" }};
+            OPT_IN
+            Build::bind(plan, {name}::ProgramEntry, |app|::main);
+        }}"#
+    );
+    let program = r#"use {omega}/language/core/unsafe.omg as native;
+        machine main() reaches |native|::RawMemoryRead crashes none { inspect(); }
+        machine inspect() reaches |native|::RawMemoryRead crashes none {}
+        machine unused_writer() reaches |native|::RawMemoryWrite crashes none {}"#;
+    let read = "Build::enable_unsafe::<|native|::RawMemoryRead>(plan);";
+    let cases = [
+        (read.to_owned(), None),
+        (
+            format!("let selected: u32 = match false {{ true -> {{ {read} 1u32 }}, false -> 0u32 }};"),
+            Some("did not enable Unsafe + RawMemoryRead"),
+        ),
+        (
+            read.replace("RawMemoryRead", "RawMemoryWrite"),
+            Some("did not enable Unsafe + RawMemoryRead"),
+        ),
+        (
+            read.replace("RawMemoryRead", "Unsafe"),
+            Some("requires a specific Unsafe atom declared by core"),
+        ),
+        (
+            read.replace("|native|::RawMemoryRead", "RawMemoryRead"),
+            Some("requires a specific Unsafe atom declared by core"),
+        ),
+    ];
+    for (opt_in, refusal) in cases {
+        let source = build.replace("OPT_IN", &opt_in);
+        let (status, report) = invoke(
+            &[("build.omg", &source), ("main.omg", program)],
+            &["--check", "--target", name],
+        );
+        match refusal {
+            Some(reason) => assert!(!status.success() && report.contains(reason), "{report}"),
+            None => assert!(status.success(), "{report}"),
         }
     }
 }

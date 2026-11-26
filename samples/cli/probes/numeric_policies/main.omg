@@ -1,4 +1,4 @@
-// Numeric conversion policies: `core\numeric_conversion` exposes
+// Numeric conversion policies: `{omega}/language/core/numeric_conversion.omg` exposes
 // `narrow_<S>_to_<T>_{exact,wrapping,saturating,trapping}` and
 // `widen_<S>_to_<T>` — the policy is part of the machine name.
 // exact traps on out-of-range (unchecked spelling), wrapping
@@ -13,19 +13,16 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-use omega\language\core\narrow_i16_to_i8_exact;
-use omega\language\core\narrow_i16_to_i8_saturating;
-use omega\language\core\narrow_i16_to_i8_wrapping;
-use omega\language\core\widen_i8_to_i64;
+use {omega}/language/core/numeric_conversion.omg;
 
 data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: @mutable Main) {
     main.hits = 0;
-    let wrapped: i8 = narrow_i16_to_i8_wrapping(128);
-    let clamped: i8 = narrow_i16_to_i8_saturating(128);
-    let exact: i8 = narrow_i16_to_i8_exact(127);
-    let wide: i64 = widen_i8_to_i64(-5);
+    let wrapped: i8 = |numeric_conversion|::narrow_i16_to_i8_wrapping(128);
+    let clamped: i8 = |numeric_conversion|::narrow_i16_to_i8_saturating(128);
+    let exact: i8 = |numeric_conversion|::narrow_i16_to_i8_exact(127);
+    let wide: i64 = |numeric_conversion|::widen_i8_to_i64(-5);
     transition wrapped == -128 && clamped == 127 && exact == 127 && wide == -5 {
         true -> pass(main),
         _ -> fail(main)

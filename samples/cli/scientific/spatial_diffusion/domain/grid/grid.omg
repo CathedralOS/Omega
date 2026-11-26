@@ -1,4 +1,4 @@
-use omega\language\core\F64::from_u64;
+use {omega}/language/core/float_operations.omg;
 
 // Scalar observations are captured before forwarding exclusive grid loans;
 // argument evaluation is left to right, including internal jumps.
@@ -79,10 +79,10 @@ machine boundary(grid: @mutable Grid, row: u64, side: u64, horizontal: f64, vert
  machine quadratic_flux(grid: @mutable Grid, row: u64, side: u64) -> f64 {
   transition side { 1 -> north(grid,row), 3 -> north(grid,row), _ -> 0.0 }
  }
- machine west(grid: @mutable Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]-grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
- machine east(grid: @mutable Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]+grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
- machine south(grid: @mutable Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]-2.0*grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
- machine north(grid: @mutable Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]+2.0*grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
+ machine west(grid: @mutable Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]-grid.diffusion* |float_operations|::F64::from_u64(grid.n as u64); 0.0 }
+ machine east(grid: @mutable Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]+grid.diffusion* |float_operations|::F64::from_u64(grid.n as u64); 0.0 }
+ machine south(grid: @mutable Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]-2.0*grid.diffusion* |float_operations|::F64::from_u64(grid.n as u64); 0.0 }
+ machine north(grid: @mutable Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]+2.0*grid.diffusion* |float_operations|::F64::from_u64(grid.n as u64); 0.0 }
 }
 public machine assemble(grid: @mutable Grid) {
  transition valid(grid) { true -> start(grid), false -> invalid(grid) }
@@ -98,8 +98,8 @@ public machine assemble(grid: @mutable Grid) {
  machine initialize(grid: @mutable Grid,index:u64 in Saturating) requires grid.n > 0 {
   let horizontal:u64 in Saturating=index%grid.n;
   let vertical:u64 in Saturating=index/grid.n;
-  let x:f64=(F64::from_u64(horizontal as u64)+0.5)/F64::from_u64(grid.n as u64);
-  let y:f64=(F64::from_u64(vertical as u64)+0.5)/F64::from_u64(grid.n as u64);
+  let x:f64=(|float_operations|::F64::from_u64(horizontal as u64)+0.5)/ |float_operations|::F64::from_u64(grid.n as u64);
+  let y:f64=(|float_operations|::F64::from_u64(vertical as u64)+0.5)/ |float_operations|::F64::from_u64(grid.n as u64);
   grid.offsets[index%145]=grid.nonzeros as u64;
   grid.right[index%144]=grid.reaction*exact(grid.linear,x,y);
   let reaction:f64=grid.reaction;
@@ -111,7 +111,7 @@ public machine assemble(grid: @mutable Grid) {
   transition { _ -> west(grid,index,horizontal,vertical,x,y,reaction) }
  }
  machine west(grid:@mutable Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64) {
-  let coefficient:f64=grid.diffusion*F64::from_u64(grid.n as u64)*F64::from_u64(grid.n as u64);
+  let coefficient:f64=grid.diffusion* |float_operations|::F64::from_u64(grid.n as u64)* |float_operations|::F64::from_u64(grid.n as u64);
   transition horizontal > 0 { true -> west_inside(grid,index,horizontal,vertical,x,y,diagonal,coefficient), false -> west_face(grid,index,horizontal,vertical,x,y,diagonal,coefficient) }
  }
  machine west_inside(grid:@mutable Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {

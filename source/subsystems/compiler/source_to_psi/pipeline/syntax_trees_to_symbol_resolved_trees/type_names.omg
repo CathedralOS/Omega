@@ -618,11 +618,11 @@ crashes Trap
 
     machine spells_u64(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::TypeBinding {
         let matched: bool = |source|::span_spells(sources, name, "u64");
-        transition matched { true -> found(|symbol_resolved_trees|::BuiltinType::U64), _ -> spells_addr(sources, name) }
+        transition matched { true -> found(|symbol_resolved_trees|::BuiltinType::U64), _ -> spells_address(sources, name) }
     }
 
-    machine spells_addr(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::TypeBinding {
-        let matched: bool = |source|::span_spells(sources, name, "addr");
+    machine spells_address(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::TypeBinding {
+        let matched: bool = |source|::span_spells(sources, name, "address");
         transition matched { true -> found(|symbol_resolved_trees|::BuiltinType::Address), _ -> spells_f32(sources, name) }
     }
 

@@ -239,79 +239,50 @@ pub(crate) mod address_fold {
             instruction
         }
     }
-    pub(crate) mod rewrite {
-        use optimization_core::OptimizationWorkBudget;
-        use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::SelectedInstructionId;
-
-        use super::{AddressFoldError, ValidatedAddressFold, admission};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-        pub(crate) fn fold_selected_address(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            access: SelectedInstructionId,
-            environment: &ValidatedTargetRegisterEnvironment,
-            budget: OptimizationWorkBudget,
-        ) -> Result<ValidatedAddressFold, AddressFoldError> {
-            let admitted = admission::admit(source, function_index, access, environment, budget)?;
-            let mut transformed = source.selected_plan().clone();
-            let function = &mut transformed.functions[function_index];
-            function.blocks[admitted.block_index].instructions[admitted.consumer_index] =
-                admission::rewritten(&admitted);
-            super::validation::seal_address_fold(source, function_index, access, transformed)
-        }
-    }
-    pub(crate) mod validation {
-        use crate::selected_rewrites::rewrites::sealed;
-
-        use selected_instructions::{
-            SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-        };
-
-        use super::{AddressFoldError, AddressFoldReceipt, ValidatedAddressFold, admission};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-        pub(crate) fn measured_steps(
-            plan: &SelectedInstructionPlan,
-            function: &SelectedFunction,
-        ) -> Result<u64, AddressFoldError> {
-            let largest_block = function
-                .blocks
-                .iter()
-                .map(|block| block.instructions.len())
-                .max()
-                .unwrap_or(0);
-            let steps = admission::rewrite_scan_steps(plan, function)?
-                .checked_add(largest_block)
-                .and_then(|total| total.checked_add(largest_block))
-                .ok_or(AddressFoldError::IdentityOverflow)?;
-            u64::try_from(steps).map_err(|_| AddressFoldError::IdentityOverflow)
-        }
-
-        pub(crate) fn seal_address_fold(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            access: SelectedInstructionId,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedAddressFold, AddressFoldError> {
-            Ok(
-                sealed!(ValidatedAddressFold, AddressFoldReceipt, source, proposed, function_index: function_index, access: access),
-            )
-        }
+    pub(crate) fn fold_selected_address(
+        source: &impl ValidatedSelectedAnalysis,
+        function_index: usize,
+        access: SelectedInstructionId,
+        environment: &ValidatedTargetRegisterEnvironment,
+        budget: OptimizationWorkBudget,
+    ) -> Result<ValidatedAddressFold, AddressFoldError> {
+        let admitted = admission::admit(source, function_index, access, environment, budget)?;
+        let mut transformed = source.selected_plan().clone();
+        let function = &mut transformed.functions[function_index];
+        function.blocks[admitted.block_index].instructions[admitted.consumer_index] =
+            admission::rewritten(&admitted);
+        Ok(
+            sealed!(ValidatedAddressFold, AddressFoldReceipt, source, transformed, function_index: function_index, access: access),
+        )
     }
 
-    use std::sync::Arc;
+    pub(crate) fn measured_steps(
+        plan: &SelectedInstructionPlan,
+        function: &SelectedFunction,
+    ) -> Result<u64, AddressFoldError> {
+        let largest_block = function
+            .blocks
+            .iter()
+            .map(|block| block.instructions.len())
+            .max()
+            .unwrap_or(0);
+        let steps = admission::rewrite_scan_steps(plan, function)?
+            .checked_add(largest_block)
+            .and_then(|total| total.checked_add(largest_block))
+            .ok_or(AddressFoldError::IdentityOverflow)?;
+        u64::try_from(steps).map_err(|_| AddressFoldError::IdentityOverflow)
+    }
 
-    use optimization_core::OptimizationUnitIdentity;
+    use crate::selected_rewrites::ValidatedSelectedAnalysis;
+    use crate::selected_rewrites::rewrites::sealed;
+    use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+    use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
-        AddressFoldIdentity, SelectedInstructionId, SelectedInstructionPlan,
+        AddressFoldIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
         SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
-
-    pub(crate) use rewrite::fold_selected_address;
-    pub(crate) use validation::measured_steps;
+    use std::sync::Arc;
 
     validated_transformed_receipt!(ValidatedAddressFold, AddressFoldReceipt);
 
@@ -1303,91 +1274,64 @@ pub(crate) mod load_forwarding {
             }
         }
     }
-    pub(crate) mod rewrite {
-        use optimization_core::OptimizationWorkBudget;
-        use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::SelectedInstructionId;
-
-        use super::{StoredLoadForwardingError, ValidatedStoredLoadForwarding, admission};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-        pub(crate) fn forward_selected_stored_load(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            load: SelectedInstructionId,
-            environment: &ValidatedTargetRegisterEnvironment,
-            budget: OptimizationWorkBudget,
-        ) -> Result<ValidatedStoredLoadForwarding, StoredLoadForwardingError> {
-            let admitted = admission::admit(source, function_index, load, environment, budget)?;
-            let mut transformed = source.selected_plan().clone();
-            let function = &mut transformed.functions[function_index];
-            function.blocks[admitted.block_index].instructions[admitted.load_index] =
-                admission::forwarded(&admitted);
-            function.memory_accesses.remove(admitted.load_access);
-            super::validation::seal_stored_load_forwarding(
-                source,
-                function_index,
-                load,
-                transformed,
-            )
-        }
-    }
-    pub(crate) mod validation {
-        use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
-
-        use super::{
-            StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
-        };
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-        pub(crate) fn seal_stored_load_forwarding(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            load: SelectedInstructionId,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedStoredLoadForwarding, StoredLoadForwardingError> {
-            let transformed_selected = selected_instruction_plan_identity(&proposed);
-            let mut canonical = b"omega.stored-load-forwarding.v1".to_vec();
-            canonical.extend_from_slice(&source.selected_identity().bytes());
-            canonical.extend_from_slice(&transformed_selected.bytes());
-            canonical.extend_from_slice(&source.optimization_unit_identity().bytes());
-            crate::selected_rewrites::codec_bytes::push_encoded(
-                &mut canonical,
-                source.work_schedule_identity().marker().to_le_bytes(),
-            );
-            crate::selected_rewrites::codec_bytes::push_encoded(
-                &mut canonical,
-                (function_index as u64).to_le_bytes(),
-            );
-            crate::selected_rewrites::codec_bytes::push_encoded(
-                &mut canonical,
-                load.0.to_le_bytes(),
-            );
-            Ok(sealed!(ValidatedStoredLoadForwarding,
-                StoredLoadForwardingReceipt,
-                source,
-                proposed,
-                identity: selected_instructions::StoredLoadForwardingIdentity::from_canonical_bytes(
-                    &canonical
-                ),
-                function_index: function_index,
-                load: load
-            ))
-        }
-        use crate::selected_rewrites::rewrites::sealed;
-        use selected_instructions::selected_instruction_plan_identity;
+    pub(crate) fn forward_selected_stored_load(
+        source: &impl ValidatedSelectedAnalysis,
+        function_index: usize,
+        load: SelectedInstructionId,
+        environment: &ValidatedTargetRegisterEnvironment,
+        budget: OptimizationWorkBudget,
+    ) -> Result<ValidatedStoredLoadForwarding, StoredLoadForwardingError> {
+        let admitted = admission::admit(source, function_index, load, environment, budget)?;
+        let mut transformed = source.selected_plan().clone();
+        let function = &mut transformed.functions[function_index];
+        function.blocks[admitted.block_index].instructions[admitted.load_index] =
+            admission::forwarded(&admitted);
+        function.memory_accesses.remove(admitted.load_access);
+        seal_stored_load_forwarding(source, function_index, load, transformed)
     }
 
-    use std::sync::Arc;
+    pub(crate) fn seal_stored_load_forwarding(
+        source: &impl ValidatedSelectedAnalysis,
+        function_index: usize,
+        load: SelectedInstructionId,
+        proposed: SelectedInstructionPlan,
+    ) -> Result<ValidatedStoredLoadForwarding, StoredLoadForwardingError> {
+        let transformed_selected = selected_instruction_plan_identity(&proposed);
+        let mut canonical = b"omega.stored-load-forwarding.v1".to_vec();
+        canonical.extend_from_slice(&source.selected_identity().bytes());
+        canonical.extend_from_slice(&transformed_selected.bytes());
+        canonical.extend_from_slice(&source.optimization_unit_identity().bytes());
+        crate::selected_rewrites::codec_bytes::push_encoded(
+            &mut canonical,
+            source.work_schedule_identity().marker().to_le_bytes(),
+        );
+        crate::selected_rewrites::codec_bytes::push_encoded(
+            &mut canonical,
+            (function_index as u64).to_le_bytes(),
+        );
+        crate::selected_rewrites::codec_bytes::push_encoded(&mut canonical, load.0.to_le_bytes());
+        Ok(sealed!(ValidatedStoredLoadForwarding,
+            StoredLoadForwardingReceipt,
+            source,
+            proposed,
+            identity: selected_instructions::StoredLoadForwardingIdentity::from_canonical_bytes(
+                &canonical
+            ),
+            function_index: function_index,
+            load: load
+        ))
+    }
 
-    use optimization_core::OptimizationUnitIdentity;
+    use crate::selected_rewrites::ValidatedSelectedAnalysis;
+    use crate::selected_rewrites::rewrites::sealed;
+    use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+    use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
         SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
-        StoredLoadForwardingIdentity,
+        StoredLoadForwardingIdentity, selected_instruction_plan_identity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
-
-    pub(crate) use rewrite::forward_selected_stored_load;
+    use std::sync::Arc;
 
     validated_transformed_receipt!(ValidatedStoredLoadForwarding, StoredLoadForwardingReceipt);
 

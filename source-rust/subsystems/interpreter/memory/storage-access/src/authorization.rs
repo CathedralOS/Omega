@@ -8,11 +8,11 @@ use access_vocabulary::{
 };
 
 pub(crate) fn authorize_descriptor(
-    descriptor: &FieldAccessDescriptor,
+    descriptor: FieldAccessDescriptor,
     current_borrow: BorrowPolarity,
     source_loan: BorrowPolarity,
     operation: AccessOperation,
-) -> Result<(), AccessPlanDiagnostic> {
+) -> Result<AuthorizedFieldAccess, AccessPlanDiagnostic> {
     validate_operation_ordering(operation)?;
     let borrow_permits = match operation.receiver_polarity() {
         BorrowPolarity::Shared => true,
@@ -20,51 +20,38 @@ pub(crate) fn authorize_descriptor(
             current_borrow == BorrowPolarity::Exclusive && source_loan == BorrowPolarity::Exclusive
         }
     };
+    let perms = descriptor.permissions();
     let permission_admits = match operation {
-        AccessOperation::Read => descriptor.permissions().read,
-        AccessOperation::Take => descriptor.permissions().take,
-        AccessOperation::Write => descriptor.permissions().write,
+        AccessOperation::Read => perms.read,
+        AccessOperation::Take => perms.take,
+        AccessOperation::Write => perms.write,
         AccessOperation::CompoundMutation => {
-            descriptor.observation() == ObservationModel::Stable
-                && descriptor.permissions().read
-                && descriptor.permissions().write
+            descriptor.observation() == ObservationModel::Stable && perms.read && perms.write
         }
-        AccessOperation::Atomic(AtomicAccessOperation::Load(_)) => {
-            descriptor.permissions().atomic.load
-        }
-        AccessOperation::Atomic(AtomicAccessOperation::Store(_)) => {
-            descriptor.permissions().atomic.store
-        }
-        AccessOperation::Atomic(AtomicAccessOperation::FetchAdd(_)) => {
-            descriptor.permissions().atomic.fetch_add
-        }
-        AccessOperation::Atomic(AtomicAccessOperation::FetchSub(_)) => {
-            descriptor.permissions().atomic.fetch_sub
-        }
-        AccessOperation::Atomic(AtomicAccessOperation::FetchXor(_)) => {
-            descriptor.permissions().atomic.fetch_xor
-        }
-        AccessOperation::Atomic(AtomicAccessOperation::FetchOr(_)) => {
-            descriptor.permissions().atomic.fetch_or
-        }
-        AccessOperation::Atomic(AtomicAccessOperation::FetchAnd(_)) => {
-            descriptor.permissions().atomic.fetch_and
-        }
-        AccessOperation::Atomic(AtomicAccessOperation::Swap(_)) => {
-            descriptor.permissions().atomic.swap
-        }
-        AccessOperation::Atomic(AtomicAccessOperation::CompareExchange { .. }) => {
-            descriptor.permissions().atomic.compare_exchange
-        }
-        AccessOperation::Atomic(AtomicAccessOperation::CompareExchangeOnce { .. }) => {
-            descriptor.permissions().atomic.compare_exchange_once
-        }
-        AccessOperation::Atomic(AtomicAccessOperation::TryExchangeOnce { .. }) => {
-            descriptor.permissions().atomic.try_exchange_once
+        AccessOperation::Atomic(atomic_op) => {
+            use AtomicAccessOperation as A;
+            match atomic_op {
+                A::Load(_) => perms.atomic.load,
+                A::Store(_) => perms.atomic.store,
+                A::FetchAdd(_) => perms.atomic.fetch_add,
+                A::FetchSub(_) => perms.atomic.fetch_sub,
+                A::FetchXor(_) => perms.atomic.fetch_xor,
+                A::FetchOr(_) => perms.atomic.fetch_or,
+                A::FetchAnd(_) => perms.atomic.fetch_and,
+                A::Swap(_) => perms.atomic.swap,
+                A::CompareExchange { .. } => perms.atomic.compare_exchange,
+                A::CompareExchangeOnce { .. } => perms.atomic.compare_exchange_once,
+                A::TryExchangeOnce { .. } => perms.atomic.try_exchange_once,
+            }
         }
     };
     if borrow_permits && permission_admits {
-        Ok(())
+        Ok(AuthorizedFieldAccess {
+            descriptor,
+            current_borrow,
+            source_loan,
+            operation,
+        })
     } else {
         Err(AccessPlanDiagnostic(format!(
             "field `{}` does not permit {operation:?} through a {current_borrow:?} current borrow over a {source_loan:?} source loan",
@@ -163,13 +150,7 @@ impl AccessAuthorization for ValidatedAccessFields {
                 format!("field `{}` is inaccessible", entry.field())
             })
         })?;
-        authorize_descriptor(descriptor, current_borrow, source_loan, operation)?;
-        Ok(AuthorizedFieldAccess {
-            descriptor: descriptor.clone(),
-            current_borrow,
-            source_loan,
-            operation,
-        })
+        authorize_descriptor(descriptor.clone(), current_borrow, source_loan, operation)
     }
 
     fn authorize_region_projection(
@@ -182,12 +163,6 @@ impl AccessAuthorization for ValidatedAccessFields {
         operation: AccessOperation,
     ) -> Result<AuthorizedFieldAccess, AccessPlanDiagnostic> {
         let descriptor = self.validate_region_projection(key, byte_offset, transfer_width_bits)?;
-        authorize_descriptor(&descriptor, current_borrow, source_loan, operation)?;
-        Ok(AuthorizedFieldAccess {
-            descriptor,
-            current_borrow,
-            source_loan,
-            operation,
-        })
+        authorize_descriptor(descriptor, current_borrow, source_loan, operation)
     }
 }

@@ -666,6 +666,10 @@ pub struct RankRange {
 /// creates a machine body nor selects a provider.
 #[derive(Clone, Copy)]
 pub(crate) struct Signatures<'a> {
+    /// Callers contribute to these machines' inferred preconditions. Source
+    /// closure preparation supplies the complete sorted set; other forms keep
+    /// ordinary argument observations when that information is unavailable.
+    pub inferred_inputs: Option<&'a [MachineId]>,
     pub theorems: &'a [terminal_psi::TheoremParameter],
     pub machines: &'a IdTable<MachineId, Signature>,
     pub declarations: &'a IdTable<semantic_vocabulary::ContractId, Signature>,

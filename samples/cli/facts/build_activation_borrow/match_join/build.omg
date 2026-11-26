@@ -8,15 +8,15 @@ machine bind_configuration(configuration: @mutable Configuration) {
     Build::bind(configuration.builder, macos_arm64::ProgramEntry, main);
     Build::bind(configuration.builder, windows_x86_64::ProgramEntry, main);
 }
-machine join(builder: @mutable Build, first: bool) {
+machine join(builder: @mutable BuildPlan, first: bool) {
     let mutable configuration: Configuration = match first {
         true -> Configuration { builder: builder },
         false -> wrap(builder)
     };
     configuration.builder.identifier = "com.example.borrowed";
 }
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_activation_borrow_match_join");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_activation_borrow_match_join" };
     join(builder, true);
     join(builder, false);
     let mutable configuration: Configuration = wrap(builder);

@@ -1,18 +1,18 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\I64::from_f64;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Decimal integer fields represent trillionths, truncated toward zero. The
 // external oracle requires absolute numerical error at most 1e-9.
 // Scan at most nineteen decimal places with state transfers. Only the final
 // remainder is negated, so even the minimum i64 value needs no magnitude cast.
-public machine print_integer(value: i64) reaches StandardOutput {
+public machine print_integer(value: i64) reaches |process_authority|::StandardOutput {
     transition value < 0 {
         true -> negative(value),
         false -> scan(value, 1000000000000000000, false)
     }
     machine negative(value: i64) {
-        Console::write("-");
+        |console|::Console::write("-");
         transition { _ -> scan(value, 1000000000000000000, false) }
     }
     machine scan(value: i64, divisor: i64, started: bool)
@@ -34,13 +34,13 @@ public machine print_integer(value: i64) reaches StandardOutput {
     machine signed_digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= -9 requires remainder < 0 {
-        Console::write_byte((48 - remainder) as i32);
+        |console|::Console::write_byte((48 - remainder) as i32);
         transition { _ -> advance(value, divisor, true) }
     }
     machine unsigned_digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= 0 requires remainder <= 9 {
-        Console::write_byte((48 + remainder) as i32);
+        |console|::Console::write_byte((48 + remainder) as i32);
         transition { _ -> advance(value, divisor, true) }
     }
     machine advance(value: i64, divisor: i64, started: bool)
@@ -52,8 +52,8 @@ public machine print_integer(value: i64) reaches StandardOutput {
     }
     machine finished() { }
 }
-public machine print_number(value: f64) reaches StandardOutput {
-    let integer: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
-    Console::write(" ");
+public machine print_number(value: f64) reaches |process_authority|::StandardOutput {
+    let integer: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000000000.0);
+    |console|::Console::write(" ");
     print_integer(integer as i64);
 }

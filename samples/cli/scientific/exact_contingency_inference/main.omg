@@ -1,26 +1,18 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use system\LineReadResult;
-use domain\tables;
-use domain\tables\Table;
-use domain\tables\Model;
-use domain\tables\Inference;
-use domain\inference;
-use domain\inference\analyze;
-use io\report;
-use io\report\report;
-use controls\runtime_oracle;
-use controls\runtime_oracle\frozen_numerical_control;
+use controls/runtime_oracle/runtime_oracle.omg;
+use domain/inference/inference.omg;
+use domain/tables/tables.omg;
+use io/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 data Main { input: [u8; 19]; digits: [u64 in Wrapping; 17]; }
 // One bounded record: 17 ASCII digits followed by LF, or exact-length EOF.
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let read: LineReadResult = block Console::read_line(@mutable main.input[..]);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let read: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.input[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> command(main, count),
-        LineReadResult::EndOfInput { count } -> end(main, count),
+        |console|::LineReadResult::LineComplete { count } -> command(main, count),
+        |console|::LineReadResult::EndOfInput { count } -> end(main, count),
         _ -> malformed(main)
     }
     machine command(main: @mutable Main, count: u64) {
@@ -29,7 +21,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
             false -> line(main, count)
         }
     }
-    machine control(main: @mutable Main) { frozen_numerical_control(); }
+    machine control(main: @mutable Main) { |runtime_oracle|::frozen_numerical_control(); }
     machine line(main: @mutable Main, count: u64) {
         transition count == 18 && main.input[17] == 10 {
             true -> parse(main, 0),
@@ -59,13 +51,13 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> parse(main, position + 1) }
     }
     machine calculate(main: @mutable Main) {
-        let model: Model = Model {
+        let model: |tables|::Model = |tables|::Model {
             rows: [main.digits[0], main.digits[1]],
             columns: [main.digits[2], main.digits[3], main.digits[4]],
-            observed: Table { cells: [main.digits[5], main.digits[6], main.digits[7], main.digits[8], main.digits[9], main.digits[10]] },
+            observed: |tables|::Table { cells: [main.digits[5], main.digits[6], main.digits[7], main.digits[8], main.digits[9], main.digits[10]] },
             zeros: [main.digits[11], main.digits[12], main.digits[13], main.digits[14], main.digits[15], main.digits[16]]
         };
-        let result: Inference = analyze(@model);
+        let result: |tables|::Inference = |inference|::analyze(@model);
         transition result.status {
             0 -> success(main, result),
             1 -> margins(main),
@@ -74,19 +66,19 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
             _ -> invariant(main)
         }
     }
-    machine success(main: @mutable Main, result: Inference) {
-        report(@result);
-        ProcessExit::exit_process(0);
+    machine success(main: @mutable Main, result: |tables|::Inference) {
+        |report|::report(@result);
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine malformed(main: @mutable Main) { Console::write_line("ERROR malformed_record"); ProcessExit::exit_process(64); }
-    machine margins(main: @mutable Main) { Console::write_line("ERROR invalid_margins_or_mask"); ProcessExit::exit_process(65); }
-    machine impossible(main: @mutable Main) { Console::write_line("ERROR impossible_support"); ProcessExit::exit_process(66); }
-    machine observation(main: @mutable Main) { Console::write_line("ERROR invalid_observation"); ProcessExit::exit_process(67); }
-    machine invariant(main: @mutable Main) { Console::write_line("ERROR arithmetic_invariant"); ProcessExit::exit_process(70); }
+    machine malformed(main: @mutable Main) { |console|::Console::write_line("ERROR malformed_record"); |process_exit|::ProcessExit::exit_process(64); }
+    machine margins(main: @mutable Main) { |console|::Console::write_line("ERROR invalid_margins_or_mask"); |process_exit|::ProcessExit::exit_process(65); }
+    machine impossible(main: @mutable Main) { |console|::Console::write_line("ERROR impossible_support"); |process_exit|::ProcessExit::exit_process(66); }
+    machine observation(main: @mutable Main) { |console|::Console::write_line("ERROR invalid_observation"); |process_exit|::ProcessExit::exit_process(67); }
+    machine invariant(main: @mutable Main) { |console|::Console::write_line("ERROR arithmetic_invariant"); |process_exit|::ProcessExit::exit_process(70); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

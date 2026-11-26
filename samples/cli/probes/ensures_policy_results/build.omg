@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "ensures_policy_results");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "ensures_policy_results" };
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_arm64::ProgramEntry, Main::main);

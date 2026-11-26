@@ -1,29 +1,29 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use protocol\model;
+use protocol/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 public data Report { }
 
-public machine row(laboratory: @protocol\model\Laboratory, decision: i32) reaches StandardOutput
-invokes Console
+public machine row(laboratory: @|model|::Laboratory, decision: i32) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     decision(decision);
-    Console::write(" owner=");
+    |console|::Console::write(" owner=");
     number(laboratory.owner as i32 +Saturating);
-    Console::write(" phase=");
+    |console|::Console::write(" phase=");
     number(laboratory.phase as i32 +Saturating);
-    Console::write(" lid=");
+    |console|::Console::write(" lid=");
     report_lid(laboratory.closed);
-    Console::write(" tick=");
+    |console|::Console::write(" tick=");
     number(laboratory.elapsed);
-    Console::write(" completed=");
+    |console|::Console::write(" completed=");
     number(laboratory.completed);
-    Console::write(" aborted=");
+    |console|::Console::write(" aborted=");
     number(laboratory.aborted);
-    Console::write_line("");
+    |console|::Console::write_line("");
 }
 
-machine number(value: i32 in Saturating) reaches StandardOutput {
+machine number(value: i32 in Saturating) reaches |process_authority|::StandardOutput {
     transition value >= 0 && value <= 99 {
         true -> digits(value),
         false -> invalid()
@@ -31,24 +31,24 @@ machine number(value: i32 in Saturating) reaches StandardOutput {
     machine digits(value: i32 in Saturating) {
         let tens: i32 in Saturating = value / 10 + 48;
         let units: i32 in Saturating = value % 10 + 48;
-        Console::write_byte(tens as i32);
-        Console::write_byte(units as i32);
+        |console|::Console::write_byte(tens as i32);
+        |console|::Console::write_byte(units as i32);
     }
     machine invalid() {
-        Console::write("??");
+        |console|::Console::write("??");
     }
 }
 
-machine report_lid(closed: bool) reaches StandardOutput {
+machine report_lid(closed: bool) reaches |process_authority|::StandardOutput {
     transition closed {
         true -> shut(),
         false -> open()
     }
-    machine shut() { Console::write("closed"); }
-    machine open() { Console::write("open"); }
+    machine shut() { |console|::Console::write("closed"); }
+    machine open() { |console|::Console::write("open"); }
 }
 
-machine decision(decision: i32) reaches StandardOutput {
+machine decision(decision: i32) reaches |process_authority|::StandardOutput {
     transition decision {
         0 -> acquired(),
         1 -> loaded(),
@@ -65,18 +65,18 @@ machine decision(decision: i32) reaches StandardOutput {
         13 -> emergency(),
         _ -> invalid()
     }
-    machine acquired() { Console::write("ALLOW acquire"); }
-    machine loaded() { Console::write("ALLOW load"); }
-    machine started() { Console::write("ALLOW start interlock=closed"); }
-    machine advanced() { Console::write("ALLOW advance deadline=pending"); }
-    machine completed() { Console::write("ALLOW finish lease=released"); }
-    machine cancelled() { Console::write("ABORT cancel lease=retained"); }
-    machine recovered() { Console::write("ALLOW recover lease=released"); }
-    machine lid_changed() { Console::write("ALLOW lid"); }
-    machine conflict() { Console::write("DENY resource_owner"); }
-    machine phase() { Console::write("DENY phase"); }
-    machine interlock() { Console::write("DENY interlock=open"); }
-    machine timeout() { Console::write("ABORT timeout lease=retained"); }
-    machine emergency() { Console::write("ABORT interlock=open lease=retained"); }
-    machine invalid() { Console::write("DENY input"); }
+    machine acquired() { |console|::Console::write("ALLOW acquire"); }
+    machine loaded() { |console|::Console::write("ALLOW load"); }
+    machine started() { |console|::Console::write("ALLOW start interlock=closed"); }
+    machine advanced() { |console|::Console::write("ALLOW advance deadline=pending"); }
+    machine completed() { |console|::Console::write("ALLOW finish lease=released"); }
+    machine cancelled() { |console|::Console::write("ABORT cancel lease=retained"); }
+    machine recovered() { |console|::Console::write("ALLOW recover lease=released"); }
+    machine lid_changed() { |console|::Console::write("ALLOW lid"); }
+    machine conflict() { |console|::Console::write("DENY resource_owner"); }
+    machine phase() { |console|::Console::write("DENY phase"); }
+    machine interlock() { |console|::Console::write("DENY interlock=open"); }
+    machine timeout() { |console|::Console::write("ABORT timeout lease=retained"); }
+    machine emergency() { |console|::Console::write("ABORT interlock=open lease=retained"); }
+    machine invalid() { |console|::Console::write("DENY input"); }
 }

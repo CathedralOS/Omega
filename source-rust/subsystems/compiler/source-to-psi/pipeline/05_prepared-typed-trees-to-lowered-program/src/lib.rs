@@ -469,6 +469,7 @@ fn elaborate_source_for<'source>(
         compilation.providers,
         &mut further,
         parallel_machines,
+        BodyScope::All,
     )
     .map_err(|first| {
         let mut refused = vec![first];
@@ -835,10 +836,52 @@ pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHa
         .flatten()
 }
 
+#[derive(Clone, PartialEq)]
+pub(crate) struct CalleeSummary {
+    pub envelope: publication::reach::SourceEnvelope,
+    pub crash_routes: Vec<terminal_psi::CrashRouteBucket>,
+    pub completes_normally: bool,
+}
+
+#[derive(Default)]
+pub(crate) struct CalleeSummaries(arena::HandleKeyMap<SymbolHandle, Option<CalleeSummary>>);
+
+impl CalleeSummaries {
+    pub(crate) fn insert(&mut self, symbol: SymbolHandle, summary: CalleeSummary) {
+        match self.0.get_mut(&symbol) {
+            Some(slot @ Some(_)) => {
+                if slot.as_ref() != Some(&summary) {
+                    *slot = None;
+                }
+            }
+            Some(None) => {}
+            None => {
+                self.0.insert(symbol, Some(summary));
+            }
+        }
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        for (symbol, entry) in other.0 {
+            match entry {
+                Some(summary) => self.insert(symbol, summary),
+                None => {
+                    self.0.insert(symbol, None);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn get(&self, symbol: SymbolHandle) -> Option<&CalleeSummary> {
+        self.0.get(&symbol).and_then(Option::as_ref)
+    }
+}
+
 struct WitnessInputs<'scope> {
     captures: SharedReading,
     purpose: source_provenance::DependencyScope,
     outcome_subjects: Option<&'scope [Option<PackageKeyIdentity>]>,
+    callee_summaries: Option<&'scope CalleeSummaries>,
     parallel_machines: bool,
 }
 
@@ -875,6 +918,7 @@ pub fn elaborate_witness(
             captures: shared_reading(typed),
             purpose: declaration_context(typed, implementation),
             outcome_subjects: None,
+            callee_summaries: None,
             parallel_machines: worker_budget::current_workers() > 1,
         },
     )
@@ -938,6 +982,7 @@ fn prepare_witness<'source>(
     inputs: WitnessInputs<'_>,
 ) -> Checked<PreparedProgram<'source>> {
     let parallel_machines = inputs.parallel_machines;
+    let summaries = inputs.callee_summaries;
     let mut program = witness_program(typed, implementation, &inputs);
     let (entry, _) = program.witnessed(
         declaring_trait,
@@ -948,14 +993,23 @@ fn prepare_witness<'source>(
     )?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
     let bodies = witness_call(&mut program, entry, callee)?;
-    let mut prepared = finish_reading(
+    let scope = match summaries {
+        Some(summaries) => BodyScope::UpTo {
+            last_body: callee,
+            summaries,
+        },
+        None => BodyScope::All,
+    };
+    let mut prepared = finish_reading_into(
         program,
         Some(entry),
         bodies,
         None,
         None,
         None,
+        &mut Vec::new(),
         parallel_machines,
+        scope,
     )?;
     if typed
         .trait_machine_signature(requirement)
@@ -1130,6 +1184,7 @@ fn finish_logical_witness<'source>(
         &bodies,
         &components,
         body::Signatures {
+            inferred_inputs: None,
             theorems: &program.theorem_parameters,
             machines: &program.signatures,
             boundaries: &program.boundaries,
@@ -1240,6 +1295,15 @@ fn prepare_form<'source>(
 /// compilation's program, whose machines are then given their declaration
 /// identities (`declare`). This owner publishes their proof scopes once after
 /// the declarations are formed.
+#[derive(Clone, Copy)]
+enum BodyScope<'a> {
+    All,
+    UpTo {
+        last_body: MachineId,
+        summaries: &'a CalleeSummaries,
+    },
+}
+
 fn finish_reading<'source>(
     program: read::Program<'source>,
     entry: Option<MachineId>,
@@ -1258,6 +1322,7 @@ fn finish_reading<'source>(
         providers,
         &mut Vec::new(),
         parallel_machines,
+        BodyScope::All,
     )
 }
 
@@ -1273,6 +1338,7 @@ fn finish_reading_into<'source>(
     providers: Option<declare::provider_selections::ProviderSelections<'_>>,
     further: &mut Vec<Refusal>,
     parallel_machines: bool,
+    body_scope: BodyScope<'_>,
 ) -> Checked<PreparedProgram<'source>> {
     // Refusals need a coordinate even for an empty declaration module. This
     // diagnostic anchor is never installed as an entry or an input boundary.
@@ -1307,10 +1373,41 @@ fn finish_reading_into<'source>(
                     Unserved::Machine("identity overflow"),
                 )
             })?;
-            if bodies.get(next).is_none() {
-                bodies.push(program.body(next)?);
-            }
-            binder_reach.push(program.application_binders(next)?);
+            let stubbed = if bodies.get(next).is_none() {
+                let stubbed = match body_scope {
+                    BodyScope::All => false,
+                    BodyScope::UpTo {
+                        last_body,
+                        summaries,
+                    } if next > last_body => program.stub_witness_callee(next, summaries)?,
+                    BodyScope::UpTo { .. } => false,
+                };
+                if stubbed {
+                    let slots = terminal_check_tables::row(
+                        &program.signatures,
+                        next,
+                        next,
+                        Construct::Machine,
+                    )?
+                    .parameters
+                    .clone();
+                    bodies.push(Body {
+                        slots,
+                        statements: Vec::new(),
+                    });
+                    true
+                } else {
+                    bodies.push(program.body(next)?);
+                    false
+                }
+            } else {
+                false
+            };
+            binder_reach.push(if stubbed {
+                Vec::new()
+            } else {
+                program.application_binders(next)?
+            });
         }
         let components = prepare_call_components(&bodies, &mut program.signatures)?;
         program.finish_operational_envelopes(&bodies, &components)?;
@@ -1324,6 +1421,8 @@ fn finish_reading_into<'source>(
     program.finish_operational_envelopes(&bodies, &components)?;
     program.finish_declarations(diagnostic)?;
     program.prepare_external_providers(diagnostic)?;
+    program.requirements.sort_unstable();
+    program.requirements.dedup();
     for requirement in program.requirements.clone() {
         program.retain_requirement_schema(requirement)?;
     }
@@ -1352,6 +1451,7 @@ fn finish_reading_into<'source>(
         &bodies,
         &components,
         body::Signatures {
+            inferred_inputs: Some(&private_inputs),
             theorems: &program.theorem_parameters,
             machines: &program.signatures,
             boundaries: &program.boundaries,
@@ -1580,6 +1680,8 @@ fn finish_reading_into<'source>(
     Ok(PreparedProgram {
         program: elaboration,
         outcomes,
+        source_envelopes: program.callables.envelopes,
+        has_type_alternative: program.alternative.is_some(),
         source,
         selected_calls: Vec::new(),
         prepared_applications,
@@ -1632,6 +1734,7 @@ pub fn lower_generic(
         Some(entry),
         bodies,
         body::Signatures {
+            inferred_inputs: None,
             theorems: &[],
             declarations: &IdTable::default(),
             declaration_aliases: None,
@@ -1851,6 +1954,7 @@ fn lower_program_with_parallel<'source>(
         bodies,
         signatures,
         requirements,
+        declarations.map_or(&[][..], |source| source.non_returning_requirements.as_slice()),
         callables,
         local_summaries
             .as_ref()
@@ -1977,10 +2081,10 @@ fn lower_program_with_parallel<'source>(
         records: source_records,
         ..SourceFormCorrespondence::default()
     };
-    let mut loop_rows = terminal_check_tables::LoopCheckingRows::default();
+    let loop_rows = std::sync::Mutex::new(terminal_check_tables::LoopCheckingRows::default());
     let mut static_reach_applications = Vec::new();
     let decl_contracts_len = module.execution.declaration_contracts.len();
-    let lower_one = |position: usize| -> Checked<(lower::Lowered, bool)> {
+    let lower_one = |position: usize| -> Checked<lower::Lowered> {
         let id = MachineId::new(position as u64).ok_or_else(|| {
             refuse(
                 diagnostic,
@@ -2024,9 +2128,17 @@ fn lower_program_with_parallel<'source>(
             lowered.machine.declared_suspension = bounds.suspension;
             lowered.machine.declared_blocking = bounds.blocking;
         }
-        Ok((lowered, component.len() > 1))
+        // A family member keeps its own entry, edges, roots and proof obligations.
+        // Share equal machine-local rows before retaining the completed body.
+        if component.len() > 1 {
+            loop_rows
+                .lock()
+                .expect("loop row storage poisoned")
+                .retain(&mut lowered.tables);
+        }
+        Ok(lowered)
     };
-    let lowered_machines: Vec<Checked<(lower::Lowered, bool)>> = if parallel && bodies.len() >= 2 {
+    let lowered_machines: Vec<Checked<lower::Lowered>> = if parallel && bodies.len() >= 2 {
         use rayon::prelude::*;
         (0..bodies.len())
             .into_par_iter()
@@ -2036,8 +2148,9 @@ fn lower_program_with_parallel<'source>(
     } else {
         (1..=bodies.len()).map(lower_one).collect()
     };
+    drop(loop_rows);
     for lowered in lowered_machines {
-        let (mut lowered, cyclic) = lowered?;
+        let mut lowered = lowered?;
         lower::apply_machine_qualifications(&mut lowered, &mut qualifications)?;
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
@@ -2050,9 +2163,6 @@ fn lower_program_with_parallel<'source>(
             .proofs
             .theorem_applications
             .extend(lowered.theorem_applications);
-        if cyclic {
-            loop_rows.retain(&mut lowered.tables);
-        }
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
@@ -2197,6 +2307,8 @@ fn lower_program_with_parallel<'source>(
     }
     let mut prepared = PreparedProgram {
         outcomes,
+        source_envelopes: IdTable::default(),
+        has_type_alternative: false,
         source,
         selected_calls: Vec::new(),
         prepared_applications: Vec::new(),
@@ -2529,6 +2641,7 @@ mod publication_scope_tests {
                 &bodies,
                 &components,
                 body::Signatures {
+                    inferred_inputs: None,
                     theorems: &[],
                     declarations: &IdTable::default(),
                     declaration_aliases: None,

@@ -34,6 +34,8 @@ pub struct PackagePolicyCallingPlan {
     pub shape_graph: PackageReviewBoundaryShapeGraph,
     pub semantic_parameters: Vec<PackagePolicyCallingParameter>,
     pub semantic_result: Option<PackageReviewTypeIdentity>,
+    /// Source formal retained for addressing the table and omitted from the foreign argument list.
+    pub dispatch_only_formal: Option<u32>,
     pub native_parameters: Vec<PackagePolicyNativeParameter>,
     pub callbacks: PackagePolicyCallbacks,
     pub opaque_uses: Vec<PackagePolicyCallingOpaqueUse>,

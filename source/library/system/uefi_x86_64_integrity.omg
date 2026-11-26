@@ -1,4 +1,15 @@
 use targets/uefi_x86_64/integrity.omg;
+use targets/uefi_x86_64/tables.omg;
+
+// The installed x86-64 layout provides the readable 120-byte prefix.
+// Validate the claimed header extent before using it as the checksum bound.
+public machine validate_system_table(table: @|tables|::EfiSystemTable, minimum_revision: u32) -> bool
+terminates
+{
+    let storage: @[u8; 120] = table as @[u8; 120];
+    let bytes: @[u8] = storage[..];
+    validate_table(bytes, 0x5453595320494249u64, minimum_revision, 120u32)
+}
 
 public machine validate_table(
     bytes: @[u8],

@@ -2,7 +2,7 @@
 // structural result declarations in canonical legalized-operation identities.
 //
 // `encode_boundary_settlement`, `encode_provider_execution`, and `encode_call_source` bind
-// provider conformance, assumed-binding contracts, and completion claim/receipt rosters.
+// provider conformance and completion claim/receipt rosters.
 // `encode_ownership_roster` and `encode_cleanup_action` serialize ownership events and affine
 // cleanup actions. `encode_operation_result` and `encode_result` bind operation-level and
 // function-level structural result declarations, including reference result sources and leaf paths.
@@ -108,28 +108,12 @@ pub fn encode_call_source(bytes: &mut Vec<u8>, source: &NativeCallOrigin) {
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
-            assumption,
             completion_claim_sources,
             completion_receipts,
         } => {
-            bytes.push(if assumption.is_some() { 4 } else { 2 });
+            bytes.push(2);
             crate::codec_bytes::push_encoded(bytes, boundary.get().to_le_bytes());
             encode_provider_candidate(bytes, provider);
-            if let Some(row) = assumption {
-                bytes.extend_from_slice(b"assumed-binding-contract\0");
-                for id in [
-                    row.required.get(),
-                    row.supplied_requirement.get(),
-                    row.selected_requirement.get(),
-                    row.implementation.get(),
-                ] {
-                    bytes.extend_from_slice(&id.to_le_bytes());
-                }
-                encode_len(bytes, row.supply_path.len());
-                for id in &row.supply_path {
-                    bytes.extend_from_slice(&id.get().to_le_bytes());
-                }
-            }
             encode_completion_roster(bytes, completion_claim_sources, completion_receipts);
         }
     }

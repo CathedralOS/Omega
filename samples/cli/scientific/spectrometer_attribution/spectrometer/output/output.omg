@@ -1,31 +1,31 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\abs_f64;
-use spectrometer\model\Spectrometer;
-use system\Console;
-use omega\language\core\I32::from_f64;
+use spectrometer/model/model.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Fixed-width decimal fields are emitted from computed values, with no string
 // carrier or UTF-8 assertion. Accepted coordinates times 1000 fit signed i32.
-machine print_integer(application: @mutable Spectrometer, value: i32 in Wrapping) reaches StandardOutput {
+machine print_integer(application: @mutable |model|::Spectrometer, value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition value < 0 {
         true -> negative(application, value),
         false -> digits(application, value, 100000000)
     }
-    machine negative(application: @mutable Spectrometer, value: i32 in Wrapping) {
-        Console::write_byte(45);
+    machine negative(application: @mutable |model|::Spectrometer, value: i32 in Wrapping) {
+        |console|::Console::write_byte(45);
         transition { _ -> digits(application, 0 - value, 100000000) }
     }
-    machine digits(application: @mutable Spectrometer, value: i32 in Wrapping,
+    machine digits(application: @mutable |model|::Spectrometer, value: i32 in Wrapping,
                  divisor: i32 in Wrapping) {
         transition divisor > 0 {
             true -> emit(application, value, divisor),
             false -> finished()
         }
     }
-    machine emit(application: @mutable Spectrometer, value: i32 in Wrapping,
+    machine emit(application: @mutable |model|::Spectrometer, value: i32 in Wrapping,
                divisor: i32 in Wrapping) {
         let digit: i32 in Wrapping = value / divisor;
-        Console::write_byte((digit + 48) as i32);
+        |console|::Console::write_byte((digit + 48) as i32);
         transition { _ -> digits(application, value % divisor, divisor / 10) }
     }
     machine finished() {}
@@ -40,29 +40,29 @@ machine rounded_ratio_thousandths(numerator: f64, denominator: f64) -> i32 in Wr
         false -> positive(scaled)
     }
     machine negative(value: f64) -> i32 in Wrapping {
-        let converted: i32 in Saturating = I32::from_f64(value - 0.5);
+        let converted: i32 in Saturating = |float_operations|::I32::from_f64(value - 0.5);
         converted as -Saturating +Wrapping
     }
     machine positive(value: f64) -> i32 in Wrapping {
-        let converted: i32 in Saturating = I32::from_f64(value + 0.5);
+        let converted: i32 in Saturating = |float_operations|::I32::from_f64(value + 0.5);
         converted as -Saturating +Wrapping
     }
 }
-public machine print_report(application: @mutable Spectrometer) reaches StandardOutput
-invokes Console
+public machine print_report(application: @mutable |model|::Spectrometer) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     let count: i32 in Wrapping = application.regions.count;
-    Console::write("regions=");
+    |console|::Console::write("regions=");
     print_integer(application, count);
-    Console::write_line("");
+    |console|::Console::write_line("");
     transition { _ -> region(application, 0) }
-    machine region(application: @mutable Spectrometer, index: i32 in Wrapping) {
+    machine region(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) {
         transition index >= 0 && index < application.regions.count && index < 8 {
             true -> row(application, index),
             false -> finished()
         }
     }
-    machine row(application: @mutable Spectrometer, index: i32 in Wrapping) {
+    machine row(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) {
         // Finish scalar reads before borrowing the whole receiver for output.
         let start: i32 in Wrapping = application.regions.starts[index];
         let end: i32 in Wrapping = application.regions.ends[index];
@@ -72,17 +72,17 @@ invokes Console
             application.regions.area_fifteenths[index]);
         let candidate_count: i32 in Wrapping = application.regions.candidates[index];
         let nearest: i32 in Wrapping = application.regions.nearest[index];
-        Console::write("region start=");
+        |console|::Console::write("region start=");
         print_integer(application, start);
-        Console::write(" end=");
+        |console|::Console::write(" end=");
         print_integer(application, end);
-        Console::write(" area_milli=");
+        |console|::Console::write(" area_milli=");
         print_integer(application, area_milli);
-        Console::write(" centroid_micro=");
+        |console|::Console::write(" centroid_micro=");
         print_integer(application, centroid_micro);
-        Console::write(" candidates=");
+        |console|::Console::write(" candidates=");
         print_integer(application, candidate_count);
-        Console::write(" nearest=");
+        |console|::Console::write(" nearest=");
         print_integer(application, nearest);
         transition candidate_count {
             0 -> missing(application, index),
@@ -90,41 +90,41 @@ invokes Console
             _ -> ambiguous(application, index)
         }
     }
-    machine missing(application: @mutable Spectrometer, index: i32 in Wrapping) {
-        Console::write(" status=missing ids=");
+    machine missing(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) {
+        |console|::Console::write(" status=missing ids=");
         transition { _ -> identifiers(application, index, 0) }
     }
-    machine unique(application: @mutable Spectrometer, index: i32 in Wrapping) {
-        Console::write(" status=unique ids=");
+    machine unique(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) {
+        |console|::Console::write(" status=unique ids=");
         transition { _ -> identifiers(application, index, 0) }
     }
-    machine ambiguous(application: @mutable Spectrometer, index: i32 in Wrapping) {
-        Console::write(" status=ambiguous ids=");
+    machine ambiguous(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) {
+        |console|::Console::write(" status=ambiguous ids=");
         transition { _ -> identifiers(application, index, 0) }
     }
-    machine identifiers(application: @mutable Spectrometer, index: i32 in Wrapping,
+    machine identifiers(application: @mutable |model|::Spectrometer, index: i32 in Wrapping,
                       reference: i32 in Wrapping) {
         transition reference >= 0 && reference < 4 {
             true -> candidate(application, index, reference),
             false -> next(application, index)
         }
     }
-    machine candidate(application: @mutable Spectrometer, index: i32 in Wrapping,
+    machine candidate(application: @mutable |model|::Spectrometer, index: i32 in Wrapping,
                     reference: i32 in Wrapping) {
-        let distance: f64 = abs_f64(application.regions.centroids[index] - application.spectrum.lines[reference]);
+        let distance: f64 = |math|::abs_f64(application.regions.centroids[index] - application.spectrum.lines[reference]);
         transition distance <= application.spectrum.tolerance {
             true -> emit_id(application, index, reference),
             false -> identifiers(application, index, reference + 1)
         }
     }
-    machine emit_id(application: @mutable Spectrometer, index: i32 in Wrapping,
+    machine emit_id(application: @mutable |model|::Spectrometer, index: i32 in Wrapping,
                   reference: i32 in Wrapping) {
         print_integer(application, reference + 1);
-        Console::write(",");
+        |console|::Console::write(",");
         transition { _ -> identifiers(application, index, reference + 1) }
     }
-    machine next(application: @mutable Spectrometer, index: i32 in Wrapping) {
-        Console::write_line("");
+    machine next(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) {
+        |console|::Console::write_line("");
         transition { _ -> region(application, index + 1) }
     }
     machine finished() {}

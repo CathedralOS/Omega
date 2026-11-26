@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // A turn-based combat simulator -- a small but complete app that stresses how the
 // pieces compose: two `Fighter` records (hp + attack), damage ARITHMETIC
 // (`hp = (hp - attacker.attack) % 101`, fully Exact via the modular idiom: the
@@ -12,7 +12,6 @@ use omega\language\core\ProcessExit;
 // monster (25 hp, 5 atk) and wins. Exits 1 if the hero wins, 2 if the monster wins.
 // Expected exit: 1.
 
-use system\Console;
 
 data Fighter requires -100 <= hp, hp <= 100, 0 <= attack, attack <= 10 {
     hp: i32;
@@ -25,8 +24,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("turn_combat: hero (30hp/7atk) and monster (25hp/5atk) trade blows");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("turn_combat: hero (30hp/7atk) and monster (25hp/5atk) trade blows");
     main.hero.hp = 30;
     main.hero.attack = 7;
     main.monster.hp = 25;
@@ -51,21 +50,21 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine hero_wins(main: @mutable Main) {
-        Console::write_line("PASS: the hero out-damaged the monster and won (exit 1)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("PASS: the hero out-damaged the monster and won (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
     machine monster_wins(main: @mutable Main) {
-        Console::write_line("result: the monster won this fight (exit 2)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("result: the monster won this fight (exit 2)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(2);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

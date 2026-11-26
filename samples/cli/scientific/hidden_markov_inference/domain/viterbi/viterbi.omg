@@ -1,6 +1,4 @@
-use domain\inference;
-use domain\inference\Model;
-use domain\inference\Inference;
+use domain/inference/inference.omg;
 // Inputs are integer millionths. Every length-n path has the same denominator
 // 10^(12n), so 33 base-million limbs compare its numerator exactly (n <= 16).
 // This avoids both underflow and floating-point false ties. Carry never exceeds
@@ -33,15 +31,15 @@ machine prefer(first: @Weight, second: @Weight, first_path: u64, second_path: u6
         transition index > 0 { true -> limb(first, second, first_path, second_path, index - 1), false -> (first_path < second_path) }
     }
 }
-public machine viterbi(model: @Model, paths: @mutable Paths, result: @mutable Inference)
+public machine viterbi(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference)
 requires model.count >= 1 requires model.count <= 16 {
     transition { _ -> clear(model, paths, result, 0) }
-    machine clear(model: @Model, paths: @mutable Paths, result: @mutable Inference, index: u64)
+    machine clear(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, index: u64)
     requires model.count >= 1 requires model.count <= 16 requires index < 33 {
         paths.first.digits[index] = 0;
         transition index < 32 { true -> clear(model, paths, result, index + 1), false -> seed(model, paths, result) }
     }
-    machine seed(model: @Model, paths: @mutable Paths, result: @mutable Inference)
+    machine seed(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference)
     requires model.count >= 1 requires model.count <= 16 {
         paths.first.digits[0] = 1;
         transition model.units[0] <= 1000000 && model.units[1] <= 1000000 {
@@ -49,7 +47,7 @@ requires model.count >= 1 requires model.count <= 16 {
             false -> finished()
         }
     }
-    machine initial(model: @Model, paths: @mutable Paths, result: @mutable Inference)
+    machine initial(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference)
     requires model.count >= 1 requires model.count <= 16 requires model.units[0] <= 1000000 requires model.units[1] <= 1000000 {
         multiply(@paths.first, @mutable paths.zero, model.units[0]);
         multiply(@paths.first, @mutable paths.one, model.units[1]);
@@ -57,16 +55,16 @@ requires model.count >= 1 requires model.count <= 16 {
         paths.one_path = 1;
         transition { _ -> emission(model, paths, result, 0) }
     }
-    machine emission(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64)
+    machine emission(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 16 {
         let symbol: u64 = model.observations[step];
         transition symbol <= 1 { true -> symbol(model, paths, result, step, symbol), false -> finished() }
     }
-    machine symbol(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64, symbol: u64)
+    machine symbol(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64, symbol: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 16 requires symbol <= 1 {
         transition model.units[6 + symbol] <= 1000000 && model.units[8 + symbol] <= 1000000 { true -> bounded_emission(model, paths, result, step, symbol), false -> finished() }
     }
-    machine bounded_emission(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64, symbol: u64)
+    machine bounded_emission(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64, symbol: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 16 requires symbol <= 1
     requires model.units[6 + symbol] <= 1000000 requires model.units[8 + symbol] <= 1000000 {
         multiply(@paths.zero, @mutable paths.first, model.units[6 + symbol]);
@@ -75,14 +73,14 @@ requires model.count >= 1 requires model.count <= 16 {
         paths.one = paths.second;
         transition step + 1 < model.count { true -> next(model, paths, result, step), false -> complete(model, paths, result) }
     }
-    machine next(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64)
+    machine next(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 16 {
         transition step < 15 && model.units[2] <= 1000000 && model.units[3] <= 1000000 && model.units[4] <= 1000000 && model.units[5] <= 1000000 {
             true -> transitions(model, paths, result, step),
             false -> finished()
         }
     }
-    machine transitions(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64)
+    machine transitions(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 15
     requires model.units[2] <= 1000000 requires model.units[3] <= 1000000 requires model.units[4] <= 1000000 requires model.units[5] <= 1000000 {
         multiply(@paths.zero, @mutable paths.first, model.units[2]);
@@ -92,24 +90,24 @@ requires model.count >= 1 requires model.count <= 16 {
             false -> select_zero(model, paths, result, step, false)
         }
     }
-    machine select_zero(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64, first: bool)
+    machine select_zero(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64, first: bool)
     requires model.count >= 1 requires model.count <= 16 requires step < 15
     requires model.units[3] <= 1000000 requires model.units[5] <= 1000000 {
         transition first { true -> zero_first(model, paths, result, step), false -> zero_second(model, paths, result, step) }
     }
-    machine zero_first(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64)
+    machine zero_first(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 15 requires model.units[3] <= 1000000 requires model.units[5] <= 1000000 {
         paths.next_zero = paths.first;
         paths.next_zero_path = (paths.zero_path % 32768) * 2;
         transition { _ -> one_candidates(model, paths, result, step) }
     }
-    machine zero_second(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64)
+    machine zero_second(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 15 requires model.units[3] <= 1000000 requires model.units[5] <= 1000000 {
         paths.next_zero = paths.second;
         paths.next_zero_path = (paths.one_path % 32768) * 2;
         transition { _ -> one_candidates(model, paths, result, step) }
     }
-    machine one_candidates(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64)
+    machine one_candidates(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 15 requires model.units[3] <= 1000000 requires model.units[5] <= 1000000 {
         multiply(@paths.zero, @mutable paths.first, model.units[3]);
         multiply(@paths.one, @mutable paths.second, model.units[5]);
@@ -118,19 +116,19 @@ requires model.count >= 1 requires model.count <= 16 {
             false -> one_second(model, paths, result, step)
         }
     }
-    machine one_first(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64)
+    machine one_first(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 15 {
         paths.next_one = paths.first;
         paths.next_one_path = (paths.zero_path % 32768) * 2 + 1;
         transition { _ -> advance(model, paths, result, step) }
     }
-    machine one_second(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64)
+    machine one_second(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 15 {
         paths.next_one = paths.second;
         paths.next_one_path = (paths.one_path % 32768) * 2 + 1;
         transition { _ -> advance(model, paths, result, step) }
     }
-    machine advance(model: @Model, paths: @mutable Paths, result: @mutable Inference, step: u64)
+    machine advance(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 15 {
         paths.zero = paths.next_zero;
         paths.one = paths.next_one;
@@ -138,9 +136,9 @@ requires model.count >= 1 requires model.count <= 16 {
         paths.one_path = paths.next_one_path;
         transition { _ -> emission(model, paths, result, step + 1) }
     }
-    machine complete(model: @Model, paths: @mutable Paths, result: @mutable Inference) {
+    machine complete(model: @|inference|::Model, paths: @mutable Paths, result: @mutable |inference|::Inference) {
         transition prefer(@paths.zero, @paths.one, paths.zero_path, paths.one_path) { true -> chosen(result, paths.zero_path), false -> chosen(result, paths.one_path) }
     }
-    machine chosen(result: @mutable Inference, path: u64) { result.path = path; }
+    machine chosen(result: @mutable |inference|::Inference, path: u64) { result.path = path; }
     machine finished() { }
 }

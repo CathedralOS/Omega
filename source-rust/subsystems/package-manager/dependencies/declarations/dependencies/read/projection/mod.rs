@@ -1,33 +1,39 @@
 /*
 Editable dependency projection from parsed `build.omg` syntax trees.
 
-`extract_scoped_from_source` projects every unconditional direct
-dependency row in authored order, tagged with the scope it authorizes, so
-edit planning can correlate row positions to one flat list across both
-purposes. Only the executed Build determines which product it produces.
+The editor projects unconditional, direct Product registrations in source
+order. The returned Build plan decides the actual dependencies.
 */
 
+use super::DependencySourceRequest;
 use super::error::DependencyProjectionError;
 use super::policy::reject_unprojected_dependency_syntax;
-use super::{DependencyPurpose, DependencySourceRequest};
-use crate::declarations::editable_build::{self, DependencyImport};
+use crate::declarations::editable_build;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionHandle;
 
 mod calls;
+
+pub(crate) struct EditableDependency {
+    pub request: DependencySourceRequest,
+    pub source: ExpressionHandle,
+}
 
 pub(crate) struct EditableSource<'a> {
     pub parsed: source_syntax::ParsedText<'a>,
     pub entry: editable_build::BuildEntrySyntaxProjection,
-    pub requests: Vec<(DependencyPurpose, DependencySourceRequest)>,
-    pub import: DependencyImport,
+    pub rows: Vec<EditableDependency>,
 }
 
-pub(crate) fn extract_scoped_from_source(
+pub(crate) fn extract_requests_from_source(
     source: &str,
-) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
+) -> Result<Vec<DependencySourceRequest>, DependencyProjectionError> {
     let parsed = parse_build(source)?;
     let entry = project_entry(&parsed.syntax)?;
-    project_editable_dependencies(&parsed.syntax, &entry)
+    Ok(project_editable_dependencies(&parsed.syntax, &entry)?
+        .into_iter()
+        .map(|row| row.request)
+        .collect())
 }
 
 pub(crate) fn project_source_for_edit(
@@ -35,13 +41,11 @@ pub(crate) fn project_source_for_edit(
 ) -> Result<EditableSource<'_>, DependencyProjectionError> {
     let parsed = parse_build(source)?;
     let entry = project_entry(&parsed.syntax)?;
-    let requests = project_editable_dependencies(&parsed.syntax, &entry)?;
-    let import = DependencyImport::for_edit(&parsed.syntax);
+    let rows = project_editable_dependencies(&parsed.syntax, &entry)?;
     Ok(EditableSource {
         parsed,
         entry,
-        requests,
-        import,
+        rows,
     })
 }
 
@@ -72,12 +76,13 @@ fn project_entry(
 fn project_editable_dependencies(
     syntax_trees: &SyntaxTrees,
     build_entry: &editable_build::BuildEntrySyntaxProjection,
-) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
+) -> Result<Vec<EditableDependency>, DependencyProjectionError> {
     let dependencies = calls::project_direct_dependencies(syntax_trees, build_entry)?;
+    let sources: Vec<_> = dependencies.rows.iter().map(|row| row.source).collect();
     reject_unprojected_dependency_syntax(
         syntax_trees,
-        &dependencies.accepted_sources,
+        &sources,
         &dependencies.accepted_calls,
     )?;
-    Ok(dependencies.requests)
+    Ok(dependencies.rows)
 }

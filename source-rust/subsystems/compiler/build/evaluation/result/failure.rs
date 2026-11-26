@@ -130,6 +130,7 @@ mod tests {
         );
         let failure = CompileFailure::BuildConsentRequired {
             site: build_consent::RestrictedBuildSite {
+                subject: None,
                 entry: "build".into(),
                 program: [7; 32],
             },

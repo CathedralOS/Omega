@@ -12,12 +12,12 @@ fn project_source(source: &str) -> TemporaryDirectory {
     fs::write(scratch.path().join("main.omg"), source).unwrap();
     let build = fs::read_to_string(fixture.join("build.omg")).unwrap();
     let library = root
-        .join("source/library/simd")
+        .join("source/library/system")
         .to_string_lossy()
         .replace('\\', "/");
     fs::write(
         scratch.path().join("build.omg"),
-        build.replace("../../../../../../../source/library/simd", &library),
+        build.replace("../../../../../../../source/library/system", &library),
     )
     .unwrap();
     scratch
@@ -26,7 +26,6 @@ fn project_source(source: &str) -> TemporaryDirectory {
 fn project(short_input: bool) -> TemporaryDirectory {
     let root = support::repository_root();
     let fixture = root.join("source-rust/application/tests/fixtures/simd/positive/wrapping_add");
-    let scratch = TemporaryDirectory::create("packed-integer", false).unwrap();
     let source = fs::read_to_string(fixture.join("main.omg")).unwrap();
     let source = if short_input {
         let short = source
@@ -37,18 +36,7 @@ fn project(short_input: bool) -> TemporaryDirectory {
     } else {
         source
     };
-    fs::write(scratch.path().join("main.omg"), source).unwrap();
-    let build = fs::read_to_string(fixture.join("build.omg")).unwrap();
-    let library = root
-        .join("source/library/simd")
-        .to_string_lossy()
-        .replace('\\', "/");
-    fs::write(
-        scratch.path().join("build.omg"),
-        build.replace("../../../../../../../source/library/simd", &library),
-    )
-    .unwrap();
-    scratch
+    project_source(&source)
 }
 
 #[test]
@@ -59,10 +47,10 @@ fn dependent_additions_wrap_each_lane() {
 #[test]
 fn u8x16_wrapping_addition_matches_psi_and_native() {
     let source = r#"
-use {simd}/simd.omg as simd;
-use {simd}/u8x16.omg as u8x16;
+use {system}/simd/simd.omg as simd;
+use {system}/simd/u8x16.omg as u8x16;
 
-machine main() crashes Trap {
+public machine main() crashes Trap {
     let left: [u8; 16] = [255u8, 200u8, 0u8, 127u8, 128u8, 10u8, 250u8, 1u8, 99u8, 254u8, 42u8, 16u8, 240u8, 3u8, 120u8, 200u8];
     let right: [u8; 16] = [1u8, 100u8, 0u8, 1u8, 128u8, 245u8, 10u8, 255u8, 157u8, 3u8, 214u8, 240u8, 20u8, 252u8, 136u8, 56u8];
     let a: |simd|::Lanes<u8, 16> = |u8x16|::load(@left);
@@ -87,10 +75,10 @@ machine main() crashes Trap {
 #[test]
 fn i16x8_abs_min_cmpgt_and_bitops_match_psi_and_native() {
     let source = r#"
-use {simd}/simd.omg as simd;
-use {simd}/i16x8.omg as i16x8;
+use {system}/simd/simd.omg as simd;
+use {system}/simd/i16x8.omg as i16x8;
 
-machine main() crashes Trap {
+public machine main() crashes Trap {
     let a_arr: [i16; 8] = [-32768i16, -5i16, 0i16, 7i16, -1i16, 32767i16, -256i16, 255i16];
     let b_arr: [i16; 8] = [10i16, -10i16, 0i16, 12i16, 5i16, -1i16, -300i16, 255i16];
     let mask_arr: [i16; 8] = [-1i16, 0i16, 255i16, 15i16, -256i16, 255i16, -1i16, 0i16];

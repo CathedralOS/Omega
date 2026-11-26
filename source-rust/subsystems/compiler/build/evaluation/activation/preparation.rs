@@ -23,7 +23,7 @@ use evaluation_contracts::BuildEvaluationSponsorLimits;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
-    programs: Arc<crate::host::programs::ProgramInstallation>,
+    pub(crate) programs: Arc<crate::host::programs::ProgramInstallation>,
     original_sources: Option<Arc<super::OriginalBuildSources>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<source_compiler::publication::ProducedTerminalProgram>,
@@ -199,7 +199,6 @@ impl PreparedBuildExecution {
         if let Some(filesystem) = completed.filesystem {
             observations.retain_filesystem_effects(filesystem)?;
         }
-        observations.retain_source_publications(completed.output.sources, &self.account)?;
         observations.retain_build_log(
             completed
                 .output
@@ -218,14 +217,14 @@ impl PreparedBuildExecution {
             .snapshot()
             .map_err(|error| self.refuse(&error.to_string()))?
             .record();
-        let history = Arc::new(completed.history);
+        let preparations = Arc::new(completed.preparations);
         let native_binding_evaluation = if completed.native_bindings.is_empty() {
             None
         } else {
             Some(Arc::new(
                 evaluation_receipts::NativeBuildEvaluation::from_execution(
                     completed.identity.semantic(),
-                    Arc::clone(&history),
+                    Arc::clone(&preparations),
                     usage,
                     observation_summary.identity().digest(),
                 )
@@ -250,7 +249,7 @@ impl PreparedBuildExecution {
             )
             .map_err(|reason| self.refuse(reason))?;
         Ok(ComputedBuildConfig {
-            execution_history: history,
+            dependency_preparations: preparations,
             accepted_builds: vec![self.produced.retain_code()],
             config,
             root_binding_requests: completed.root_bindings,
@@ -258,6 +257,7 @@ impl PreparedBuildExecution {
             product_selection_requests: completed.product_selections,
             native_binding_requests: completed.native_bindings,
             native_formations: completed.native_formations,
+            enabled_unsafe_atoms: completed.enabled_unsafe_atoms,
             behavior_exclusion_requests: completed.exclusions,
             project_declaration: declaration,
             optimization_report_request: completed.optimization_report,

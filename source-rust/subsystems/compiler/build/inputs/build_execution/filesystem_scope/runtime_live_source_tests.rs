@@ -1,4 +1,4 @@
-// Unit tests verifying capability-bound `LiveBuildSource` reads, symlink refusal, and scope isolation.
+// Unit tests verifying capability-bound `BoundDirectory` reads, symlink refusal, and scope isolation.
 
 use super::*;
 

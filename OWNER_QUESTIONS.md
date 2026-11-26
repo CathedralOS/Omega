@@ -64,65 +64,34 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="interpreted-cli-filesystem-inputs"></a>
-### 1. How should a caller supply filesystem access to `omega run` and `omega build`?
+<a id="returning-uefi-firmware-services"></a>
+### 1. How does a returning UEFI application receive its firmware console?
 
-A developer running a parser or a Build generator may want to expose a directory
-of inputs and choose where writes may go. Which parts of that invocation should
-the CLI expose, and which defaults and arguments should the two commands share?
-The [local Build input rules](wiki/spec/build/command_line.md#local-build-inputs)
-describe source capture, and the [default filesystem contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
-describes the executing program’s view. The CLI for supplying that view remains open.
+The firmware gives the physical adapter a system table. To display text, the
+application needs that invocation’s live `ConOut` protocol. The existing sample
+uses the old physical entry directly. Under the current profile the Build-bound
+application receives exactly two owned extents, for its image and initial
+storage. Neither carries a firmware protocol. The adapter must keep any retained
+bootstrap state outside both ranges.
+[UEFI entry and firmware handoff](wiki/spec/build/uefi_entry.md#physical-arrival-and-semantic-roots) ·
+[Current sample](samples/uefi/uefi_hello/main.omg)
 
-<a id="build-product-source-view-selection"></a>
-### 2. How can a parent supply a virtual filesystem to a dependency or successor?
+The UEFI contract says to install lifecycle-scoped providers. Build can select
+the code for a provider, but a static slot has no hidden receiver. A runtime
+provider also needs an actual value passed to its caller. The ordinary console
+write takes only text. A package cannot save the firmware pointer in a globally
+nameable mutable object. An extent containing the same address bits would still
+lack the firmware’s authority over that table.
+[Provider slots and era entry](wiki/spec/build/component_publication.md#provider-slots-and-era-entry) ·
+[Constants and storage](wiki/spec/language/constants.md) ·
+[Initial-call authority](wiki/spec/resources/authority.md#initial-call-authority) ·
+[Standard streams](wiki/spec/build/platform_services.md#standard-streams)
 
-A parser generator creates a private memory directory containing a Build entry,
-its imports and a data file the entry reads. How can the parent construct and
-hand off that view for source capture or for the child's runtime filesystem?
-Can it transfer the directory directly, or must it use a mount installed by
-its caller? The [generated-source contract](wiki/spec/build/execution.md#generated-source-boundary)
-defines when the compiler freezes its input. The [child filesystem contract](wiki/spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build)
-defines backing custody and borrow duration. The public virtual-backing and
-handoff API remains open.
-
-<a id="unnamed-workspace-check-discovery"></a>
-### 3. How does an unnamed check identify its workspace among enclosing Build entries?
-
-`omega --check` inside a workspace selects every declared member. A member and
-its enclosing workspace can each have a `build.omg`. The workspace can compute
-its roster through helpers and later Build stages, so filenames and the text of
-an individual source file cannot establish membership. Running every enclosing
-Build to inspect its return can execute an unrelated ancestor's program. The
-source-based workflow has no persistent workspace marker.
-
-Should tooling require the caller to name the catalog when it finds multiple
-enclosing Build entries, or should a workspace declare a discoverable identity
-outside Build execution? Recommend the explicit path in the ambiguous case.
-`omega --check ../build.omg` can execute that catalog and validate its actual
-members. A single enclosing entry remains discoverable from a subdirectory.
-
-[Command vocabulary](wiki/spec/build/command_line.md#command-vocabulary) ·
-[Workspaces](wiki/spec/build/declarations.md#workspaces) ·
-[Validation subjects](wiki/spec/build/validation_subjects.md#subjects)
-
-<a id="validation-of-incoming-build-libraries"></a>
-### 4. Can a Build request a full check of a library it received from its caller?
-
-The board's configuration imports an already admitted layout generator. It can
-use that generator without adding it to the firmware. If the board wants every
-declaration in the generator checked on the Build host, what value does it pass
-to the validator? The validation contract makes supplied Build libraries
-eligible and takes a dependency registration. Looking up the incoming generator
-returns a `PackageBinding`. Adding that binding produces a registration but
-also adds a Product dependency. A preparing caller can already validate its own
-registration before handing the generator to the board.
-[Board configuration and forwarding](wiki/spec/packages/staged_inputs.md#from-source-to-the-next-stage) ·
-[Eligible validation subjects](wiki/spec/build/validation_subjects.md#buildvalidate) ·
-[Dependency operations](source/library/build/dependency.omg)
-
-**Recommend accepting the incoming binding as a validation operand.** The
-binding already names the admitted occurrence. Checking it would use its Build
-host context and leave the board's Product dependencies alone. The alternative
-is to give the supplying caller sole responsibility for requesting the full
-check. That choice would narrow the eligibility rule for the receiving Build.
+**Recommend an explicit firmware-services borrow on the returning application’s
+target-owned entry contract.** The adapter would supply only the qualified
+operations it obtained for that boot-services phase. Application code could
+then pass the console handle to a source-authored firmware output operation.
+The OS handoff could retain its existing two-root contract. Another choice is
+to keep the two-root returning entry and specify how the adapter lends an
+actual service instance to calls made by that continuation, including nested
+or concurrent invocations. Which contract should returning applications use?

@@ -177,9 +177,7 @@ waiting connection -> record + buffer + pending I/O claim in an arena
 
 A hundred thousand idle connections then cost a hundred thousand records and
 32 worker stacks. It is more work to write than a task per connection, so use
-it only when you need it. The
-[blocking-executor package](../../source/library/blocking-executor/README.md)
-has the building blocks.
+it only when you need it.
 
 ## Step an activation yourself
 

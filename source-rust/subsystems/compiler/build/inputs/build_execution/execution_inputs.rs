@@ -22,6 +22,9 @@ pub struct BuildExecutionInputs {
     /// The caller may designate this activation's retained diagnostics as a bounded StandardOutput.
     pub diagnostic_output_bytes: Option<u64>,
     pub programs: super::BuildProgramInvocation,
+    /// Product policy issued by the Build that returned this interpreted entry.
+    pub prepared_unsafe_atoms:
+        std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     pub interpreter_providers: crate::InterpretedProviderSelections,
     pub profile: Option<TargetProfile>, // Compilation requests default to the host, independently of Product target.
     pub directory: Option<PathBuf>, // Writable staging, separate from immutable source snapshots.

@@ -1,0 +1,9 @@
+// A plain package declares no application, so an executable root binding is
+// a row the request never asks for and must be rejected.
+
+use main.omg as app;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "invalid_package_binds_root" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+}

@@ -61,9 +61,11 @@ adapter may invoke through the handles and table borrows received on this call.
 The adapter delegates that authority to the subsystem doing the work by passing
 a qualified handle or borrow. The subsystem may use it only for the permitted
 operations and within its firmware phase. Each protected domain uses
-`Issuance::Only` in its `AccessPlan` to name its authorized issuers. The adapter
-declares the firmware calls, grant issuance and semantic entry call in its
-`reaches` and `invokes` ceilings. [Initial-call authority](../resources/authority.md#initial-call-authority)
+`Issuance::Only` in its `AccessPlan` to name its authorized issuers. The installed
+physical requirement permits the `UefiBootServices` reach required by page
+allocation. The adapter’s synchronous handoff to the
+Build-bound continuation contributes `invokes ProgramStorageEntry`. Calls to
+outbound firmware and grant providers contribute their published effect rows. [Initial-call authority](../resources/authority.md#initial-call-authority)
 
 Firmware supplies the image handle for this invocation. The selected Loaded Image
 operation establishes which mapping belongs to that handle. A successful page

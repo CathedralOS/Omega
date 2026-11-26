@@ -979,7 +979,7 @@ pub(crate) mod byte_arrays {
     use crate::storage::byte_sequences::ByteSequenceView;
     use crate::storage::byte_sequences::binding::ByteSequenceBinding;
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
-    use crate::storage::element_views::CollectionStorage;
+    use crate::storage::element_views::{CollectionStorage, ElementView};
     use crate::storage::runtime_rows::RuntimeRows;
     use semantic_vocabulary::ScalarType;
     use semantic_vocabulary::StructuralTypeId;
@@ -1221,6 +1221,7 @@ pub(crate) mod byte_arrays {
         fn byte_array_storage_staged(
             &self,
             source: &StructuralArgument,
+            backing: CollectionStorage,
             identity_cursor: &mut Option<u64>,
             local_array_roots: &mut RuntimeRows<
                 semantic_vocabulary::PlaceId,
@@ -1231,7 +1232,7 @@ pub(crate) mod byte_arrays {
                 collection: selected,
                 home,
                 ..
-            } = self.element_collection_storage(source)?;
+            } = backing;
             let referent = match selected {
                 Some(selected) => selected,
                 None => {
@@ -1385,9 +1386,37 @@ pub(crate) mod byte_arrays {
                 let bytes = bytes.with_descriptor_home(presentation.clone());
                 return Ok((presentation.clone(), ByteSequenceBinding::Immutable(bytes)));
             }
+            let backing = self.element_collection_storage(source)?;
+            if let Some(tip @ crate::storage::reference::AggregateViewTip::Aggregate { view, .. }) =
+                backing.view
+            {
+                let length = byte_array_length(&self.structural_types(), view.structural_type)
+                    .ok_or_else(|| {
+                        malformed().in_reference_formation("aggregate byte-array presentation")
+                    })?;
+                if source.access != StructuralAccess::SharedBorrow
+                    || collection.extent != terminal_semantics::CollectionExtent::Fixed(length)
+                    || view.byte_length != length
+                {
+                    return Err(malformed().in_reference_formation("aggregate byte-array loan"));
+                }
+                let array = ElementView::shared_aggregate_array(
+                    backing.collection.ok_or(malformed())?,
+                    tip,
+                    backing.home,
+                    usize::try_from(length).map_err(|_| malformed())?,
+                    source.place,
+                )
+                .with_descriptor_home(presentation.clone());
+                return Ok((
+                    presentation.clone(),
+                    ByteSequenceBinding::Representation(std::sync::Arc::new(array)),
+                ));
+            }
             let (mut referent, array) = self
                 .byte_array_storage_staged(
                     source,
+                    backing,
                     identity_cursor,
                     &mut RuntimeRows::new(self.account.as_ref()),
                 )
@@ -1678,6 +1707,7 @@ pub(crate) mod byte_arrays {
             };
             let (mut referent, array) = self.byte_array_storage_staged(
                 &backing_argument,
+                self.element_collection_storage(&backing_argument)?,
                 identity_cursor,
                 local_array_roots,
             )?;

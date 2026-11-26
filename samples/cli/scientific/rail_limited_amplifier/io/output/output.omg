@@ -1,44 +1,42 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\I64::from_f64;
-use omega\language\core\narrow_i64_to_u64_wrapping;
-use omega\language\core\narrow_u64_to_i32_saturating;
-use omega\language\core\widen_i32_to_i64;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // A near-singular algebraic equilibrium can be far outside the output rails.
 // Keep its microvolt presentation in i64 rather than silently clipping to i32.
 public machine voltage(value: f64)
-invokes Console
-reaches StandardOutput {
-    let scaled: i64 in Saturating = I64::from_f64(value * 1000000.0);
+invokes |console|::Console
+reaches |process_authority|::StandardOutput {
+    let scaled: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000.0);
     integer64(scaled as i64);
 }
 public machine integer(value: i32)
-invokes Console
-reaches StandardOutput {
-    integer64(widen_i32_to_i64(value));
+invokes |console|::Console
+reaches |process_authority|::StandardOutput {
+    integer64(|numeric_conversion|::widen_i32_to_i64(value));
 }
 machine integer64(value: i64)
-invokes Console
-reaches StandardOutput {
+invokes |console|::Console
+reaches |process_authority|::StandardOutput {
     transition value < 0 {
         true -> negative(value),
         false -> positive(value)
     }
     machine negative(value: i64) {
-        Console::write("-");
+        |console|::Console::write("-");
         // Unsigned modular negation also handles the full signed minimum.
-        let bits: u64 = narrow_i64_to_u64_wrapping(value);
+        let bits: u64 = |numeric_conversion|::narrow_i64_to_u64_wrapping(value);
         let magnitude: u64 in Wrapping = 0 - (bits as +Wrapping);
         unsigned(magnitude as u64);
     }
     machine positive(value: i64) {
-        unsigned(narrow_i64_to_u64_wrapping(value));
+        unsigned(|numeric_conversion|::narrow_i64_to_u64_wrapping(value));
     }
 }
 machine unsigned(value: u64)
-invokes Console
-reaches StandardOutput {
+invokes |console|::Console
+reaches |process_authority|::StandardOutput {
     transition { _ -> digits(value, 10000000000000000000, false) }
     machine digits(value: u64, divisor: u64, started: bool)
     requires divisor > 0
@@ -53,7 +51,7 @@ reaches StandardOutput {
     requires divisor > 0
     {
         let byte: u64 in Wrapping = (digit as +Wrapping) + 48;
-        Console::write_byte(narrow_u64_to_i32_saturating(byte as u64));
+        |console|::Console::write_byte(|numeric_conversion|::narrow_u64_to_i32_saturating(byte as u64));
         transition divisor >= 10 {
             true -> digits(value, divisor / 10, true),
             false -> done()

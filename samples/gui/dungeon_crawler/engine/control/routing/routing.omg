@@ -1,40 +1,35 @@
-use omega\language\core\ElementStep;
-use omega\language\core\for_each;
+use actors/state/state.omg as state_state;
+use control/pursuit/pursuit.omg;
+use control/state/state.omg as control_state;
+use simulation/clock/clock.omg;
+use {omega}/language/core/iteration.omg;
 
-use control\state\Command;
-use control\state\ControlSource;
-use control\state\ControllerSet;
-use control\state\IntentSet;
 
-use control\state\ControllerBinding;
-use actors\state\ActorSet;
-use control\pursuit\pursue;
-use simulation\clock\FrameClock;
 
-public machine clear_intents<const Actors: u64>(intents: @mutable IntentSet<Actors>)
+public machine clear_intents<const Actors: u64>(intents: @mutable |control_state|::IntentSet<Actors>)
 terminates
 requires Actors >= 1 {
-    for_each::<Command, clear_command>(@mutable intents.items[..]);
+    |iteration|::for_each::<|control_state|::Command, clear_command>(@mutable intents.items[..]);
 }
 
-machine clear_command(command: @mutable Command)
-satisfies ElementStep<Command>::apply {
+machine clear_command(command: @mutable |control_state|::Command)
+satisfies |iteration|::ElementStep<|control_state|::Command>::apply {
     command.direction = -1;
     command.attack = false;
 }
 
-public machine route_autonomy<const Bindings: u64, const Actors: u64, const Rooms: u64>(controls: @ControllerSet<Bindings, Actors>, actors: @ActorSet<Actors, Rooms>, intents: @mutable IntentSet<Actors>, clock: FrameClock)
+public machine route_autonomy<const Bindings: u64, const Actors: u64, const Rooms: u64>(controls: @|control_state|::ControllerSet<Bindings, Actors>, actors: @|state_state|::ActorSet<Actors, Rooms>, intents: @mutable |control_state|::IntentSet<Actors>, clock: |clock|::FrameClock)
 terminates
 requires Bindings >= 1 && Actors >= 1 && Rooms >= 1 {
     route_autonomous_bindings::<Actors, Rooms>(@controls.bindings[..controls.count], actors, intents, clock);
 }
 
-machine route_autonomous_bindings<const Actors: u64, const Rooms: u64>(bindings: @[ControllerBinding<Actors>], actors: @ActorSet<Actors, Rooms>, intents: @mutable IntentSet<Actors>, clock: FrameClock)
+machine route_autonomous_bindings<const Actors: u64, const Rooms: u64>(bindings: @[|control_state|::ControllerBinding<Actors>], actors: @|state_state|::ActorSet<Actors, Rooms>, intents: @mutable |control_state|::IntentSet<Actors>, clock: |clock|::FrameClock)
 terminates
 terminates by bindings -> Slice::Length
 requires Actors >= 1 && Rooms >= 1 {
     transition bindings.length > 0 { true -> head(bindings, actors, intents, clock), _ -> done() }
-    machine head(bindings: @[ControllerBinding<Actors>], actors: @ActorSet<Actors, Rooms>, intents: @mutable IntentSet<Actors>, clock: FrameClock)
+    machine head(bindings: @[|control_state|::ControllerBinding<Actors>], actors: @|state_state|::ActorSet<Actors, Rooms>, intents: @mutable |control_state|::IntentSet<Actors>, clock: |clock|::FrameClock)
     requires Actors >= 1 && Rooms >= 1 && bindings.length > 0 {
         route_autonomous_binding::<Actors, Rooms>(bindings[0], actors, intents, clock);
         transition { _ -> route_autonomous_bindings(bindings[1..], actors, intents, clock) }
@@ -42,56 +37,56 @@ requires Actors >= 1 && Rooms >= 1 {
     machine done() {}
 }
 
-machine route_autonomous_binding<const Actors: u64, const Rooms: u64>(binding: ControllerBinding<Actors>, actors: @ActorSet<Actors, Rooms>, intents: @mutable IntentSet<Actors>, clock: FrameClock)
+machine route_autonomous_binding<const Actors: u64, const Rooms: u64>(binding: |control_state|::ControllerBinding<Actors>, actors: @|state_state|::ActorSet<Actors, Rooms>, intents: @mutable |control_state|::IntentSet<Actors>, clock: |clock|::FrameClock)
 terminates
 requires Actors >= 1 && Rooms >= 1 {
     transition binding.source {
-        ControlSource::Input { device } -> done(),
-        ControlSource::Pursuit { target } -> pursuit(binding.actor, target, actors, intents, clock)
+        |control_state|::ControlSource::Input { device } -> done(),
+        |control_state|::ControlSource::Pursuit { target } -> pursuit(binding.actor, target, actors, intents, clock)
     }
-    machine pursuit(actor: u64, target: u64, actors: @ActorSet<Actors, Rooms>, intents: @mutable IntentSet<Actors>, clock: FrameClock)
+    machine pursuit(actor: u64, target: u64, actors: @|state_state|::ActorSet<Actors, Rooms>, intents: @mutable |control_state|::IntentSet<Actors>, clock: |clock|::FrameClock)
     requires Actors >= 1 && Rooms >= 1 {
         transition actor < Actors && target < Actors { true -> write(actor, target, actors, intents, clock), _ -> done() }
     }
-    machine write(actor: u64, target: u64, actors: @ActorSet<Actors, Rooms>, intents: @mutable IntentSet<Actors>, clock: FrameClock)
+    machine write(actor: u64, target: u64, actors: @|state_state|::ActorSet<Actors, Rooms>, intents: @mutable |control_state|::IntentSet<Actors>, clock: |clock|::FrameClock)
     requires Actors >= 1 && Rooms >= 1 && actor < Actors && target < Actors {
-        intents.items[actor] = pursue::<Rooms>(actors.items[actor], actors.items[target], clock.ticks);
+        intents.items[actor] = |pursuit|::pursue::<Rooms>(actors.items[actor], actors.items[target], clock.ticks);
     }
     machine done() {}
 }
 
-public machine route_input<const Bindings: u64, const Actors: u64>(controls: @ControllerSet<Bindings, Actors>, intents: @mutable IntentSet<Actors>, device: u32, command: Command)
+public machine route_input<const Bindings: u64, const Actors: u64>(controls: @|control_state|::ControllerSet<Bindings, Actors>, intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command)
 terminates
 requires Bindings >= 1 && Actors >= 1 {
     route_bindings::<Actors>(@controls.bindings[..controls.count], intents, device, command);
 }
 
-machine route_bindings<const Actors: u64>(bindings: @[ControllerBinding<Actors>], intents: @mutable IntentSet<Actors>, device: u32, command: Command)
+machine route_bindings<const Actors: u64>(bindings: @[|control_state|::ControllerBinding<Actors>], intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command)
 terminates by bindings -> Slice::Length
 requires Actors >= 1 {
     transition bindings.length > 0 { true -> head(bindings, intents, device, command), _ -> done() }
-    machine head(bindings: @[ControllerBinding<Actors>], intents: @mutable IntentSet<Actors>, device: u32, command: Command)
+    machine head(bindings: @[|control_state|::ControllerBinding<Actors>], intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command)
     requires Actors >= 1 && bindings.length > 0 {
-        let binding: ControllerBinding<Actors> = bindings[0];
+        let binding: |control_state|::ControllerBinding<Actors> = bindings[0];
         route_binding::<Actors>(binding, intents, device, command);
         transition { _ -> route_bindings(bindings[1..], intents, device, command) }
     }
     machine done() {}
 }
 
-machine route_binding<const Actors: u64>(binding: ControllerBinding<Actors>, intents: @mutable IntentSet<Actors>, device: u32, command: Command)
+machine route_binding<const Actors: u64>(binding: |control_state|::ControllerBinding<Actors>, intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command)
 terminates
 requires Actors >= 1 {
-    let source: ControlSource<Actors> = binding.source;
+    let source: |control_state|::ControlSource<Actors> = binding.source;
     transition source {
-        ControlSource::Input { device as selected } -> manual(binding.actor, intents, device, command, selected),
-        ControlSource::Pursuit { target } -> done()
+        |control_state|::ControlSource::Input { device as selected } -> manual(binding.actor, intents, device, command, selected),
+        |control_state|::ControlSource::Pursuit { target } -> done()
     }
-    machine manual(actor: u64, intents: @mutable IntentSet<Actors>, device: u32, command: Command, selected: u32)
+    machine manual(actor: u64, intents: @mutable |control_state|::IntentSet<Actors>, device: u32, command: |control_state|::Command, selected: u32)
     requires Actors >= 1 {
         transition selected == device && actor < Actors { true -> write(actor, intents, command), _ -> done() }
     }
-    machine write(actor: u64, intents: @mutable IntentSet<Actors>, command: Command)
+    machine write(actor: u64, intents: @mutable |control_state|::IntentSet<Actors>, command: |control_state|::Command)
     requires Actors >= 1 && actor < Actors {
         intents.items[actor] = command;
     }

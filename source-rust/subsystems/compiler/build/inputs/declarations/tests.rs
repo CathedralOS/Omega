@@ -75,7 +75,9 @@ fn every_build_host_operation_writes_its_crash_ceiling() {
 }
 
 #[test]
-fn build_helpers_belong_to_modules_instead_of_data_carriers() {
+fn build_prelude_uses_file_imports_and_free_machines() {
+    use syntax_trees::item::{Item, UseItem};
+
     let prelude = crate::build_prelude();
     for (namespace, text) in std::iter::once((None, prelude.declarations)).chain(
         prelude
@@ -91,7 +93,11 @@ fn build_helpers_belong_to_modules_instead_of_data_carriers() {
             "{namespace:?}"
         );
         for item in syntax.root_items() {
-            if let syntax_trees::item::Item::Machine(machine) = item {
+            assert!(
+                !matches!(item, Item::Use(UseItem::Namespace { .. })),
+                "{namespace:?}: a Build import must select a file"
+            );
+            if let Item::Machine(machine) = item {
                 assert!(
                     machine.attached_data.is_none(),
                     "{namespace:?}: a helper still names a data owner"

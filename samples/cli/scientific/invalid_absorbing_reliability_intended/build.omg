@@ -1,3 +1,3 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_probability");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_probability" };
 }

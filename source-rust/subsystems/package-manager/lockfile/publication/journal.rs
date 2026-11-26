@@ -6,7 +6,6 @@ use super::{PackagePublicationError, PackagePublicationLimits};
 use crate::transaction::PackageCommandKind;
 
 const HEADER: &[u8] = b"omega-package-transaction 2\n";
-const LEGACY_HEADER: &[u8] = b"omega-package-transaction 1\n";
 const INSTALL: &[u8] = b"install ";
 const UPDATE: &[u8] = b"update ";
 
@@ -25,7 +24,7 @@ const DECIMAL_CAPACITY: usize = usize::MAX.ilog10() as usize + 1;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct PackageFileJournal {
-    pub proposal: Option<ReviewedProposal>,
+    pub proposal: ReviewedProposal,
     pub before_build: Vec<u8>,
     pub after_build: Vec<u8>,
     pub before_lock: Option<Vec<u8>>,
@@ -43,19 +42,12 @@ impl PackageFileJournal {
             (BEFORE_LOCK, self.before_lock.as_deref()),
             (AFTER_LOCK, Some(self.after_lock.as_slice())),
         ];
-        let proposal_row = self.proposal.map(|proposal| {
-            let command = match proposal.kind {
-                PackageCommandKind::Install => "install",
-                PackageCommandKind::Update => "update",
-            };
-            format!("{command} {}\n", crate::Hex(&proposal.digest))
-        });
-        let header = if proposal_row.is_some() {
-            HEADER
-        } else {
-            LEGACY_HEADER
+        let command = match self.proposal.kind {
+            PackageCommandKind::Install => "install",
+            PackageCommandKind::Update => "update",
         };
-        let mut total = header.len() + proposal_row.as_ref().map_or(0, String::len);
+        let proposal_row = format!("{command} {}\n", crate::Hex(&self.proposal.digest));
+        let mut total = HEADER.len() + proposal_row.len();
         for (name, payload) in rows {
             let mut decimal = [0; DECIMAL_CAPACITY];
             let row_length = if let Some(payload) = payload {
@@ -80,10 +72,8 @@ impl PackageFileJournal {
         }
         let mut bytes = Vec::new();
         crate::reserve!(bytes, total, PackagePublicationError);
-        bytes.extend_from_slice(header);
-        if let Some(proposal) = proposal_row {
-            bytes.extend_from_slice(proposal.as_bytes());
-        }
+        bytes.extend_from_slice(HEADER);
+        bytes.extend_from_slice(proposal_row.as_bytes());
         for (name, payload) in rows {
             bytes.extend_from_slice(name);
             if let Some(payload) = payload {
@@ -106,30 +96,26 @@ impl PackageFileJournal {
         if bytes.len() > limits.maximum_journal_bytes {
             return Err(PackagePublicationError::ByteLimitExceeded);
         }
-        let (proposal, mut remaining) = if let Some(rest) = bytes.strip_prefix(LEGACY_HEADER) {
-            (None, rest)
+        let mut remaining = bytes
+            .strip_prefix(HEADER)
+            .ok_or(PackagePublicationError::InvalidJournal("invalid header"))?;
+        let kind = if remaining.starts_with(INSTALL) {
+            consume(&mut remaining, INSTALL)?;
+            PackageCommandKind::Install
         } else {
-            let mut rest = bytes
-                .strip_prefix(HEADER)
-                .ok_or(PackagePublicationError::InvalidJournal("invalid header"))?;
-            let kind = if rest.starts_with(INSTALL) {
-                consume(&mut rest, INSTALL)?;
-                PackageCommandKind::Install
-            } else {
-                consume(&mut rest, UPDATE)?;
-                PackageCommandKind::Update
-            };
-            let digest = rest
-                .get(..64)
-                .and_then(|row| std::str::from_utf8(row).ok())
-                .and_then(crate::hex_digest)
-                .ok_or(PackagePublicationError::InvalidJournal(
-                    "invalid proposal digest",
-                ))?;
-            rest = &rest[64..];
-            consume(&mut rest, b"\n")?;
-            (Some(ReviewedProposal { kind, digest }), rest)
+            consume(&mut remaining, UPDATE)?;
+            PackageCommandKind::Update
         };
+        let digest = remaining
+            .get(..64)
+            .and_then(|row| std::str::from_utf8(row).ok())
+            .and_then(crate::hex_digest)
+            .ok_or(PackagePublicationError::InvalidJournal(
+                "invalid proposal digest",
+            ))?;
+        remaining = &remaining[64..];
+        consume(&mut remaining, b"\n")?;
+        let proposal = ReviewedProposal { kind, digest };
         let before_build = read_required(&mut remaining, BEFORE_BUILD, &limits)?;
         let after_build = read_required(&mut remaining, AFTER_BUILD, &limits)?;
         consume(&mut remaining, BEFORE_LOCK)?;

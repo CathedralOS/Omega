@@ -207,6 +207,7 @@ pub use references::reference_views::{
     reference_storage_region_source_compatible, reference_storage_source_compatible,
     scalar_reference_view_admits, shared_byte_descriptor_storage_matches,
     shared_descriptor_copy_matches, shared_direct_byte_descriptor_source, stored_reference_access,
+    successor_argument_carrier_matches,
 };
 pub use references::representation_geometry::{
     all_bit_patterns_are_valid, reference_view_compatible, reference_view_offset_is_zero,

@@ -832,19 +832,8 @@ pub(crate) mod empty_run {
                 boundary,
             )
             .map_err(TerminalInterpretError::ContentTransformationMismatch)?;
-            let result = operation.result.structural().ok_or(malformed())?;
-            if self.result_place_in_use(result.place)
-                || !result.qualification_establishments.is_empty()
-                || !self
-                    .loan_completions_for_operation(operation.id)?
-                    .is_empty()
-                || result.structural_type != contract.result.structural_type
-                || result.multiplicity != contract.result.multiplicity
-                || result.qualifications != contract.result.qualifications
-                || result.projected_qualifications != contract.result.projected_qualifications
-            {
-                return Err(malformed());
-            }
+            let result = self.require_fresh_access_result(operation)?;
+            super::validate_access_result_contract(result, contract.result, None)?;
             let owner = self.resolve_live_projection(source.place, &source.path, source.access)?;
             if crate::engine::custody::has_live_loan(self.reference_referents.as_map(), &owner) {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
@@ -971,10 +960,8 @@ pub(crate) mod extraction {
     use super::ProviderStorageBinding;
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::values::StructuralRuntimePlace;
-    use crate::engine::custody::bind_result_claim;
     use crate::engine::execution::{TerminalExecution, operation_kind};
     use crate::storage::record::storage::{ConstructorStorage, ConstructorValue};
-    use access_vocabulary::AccessPlanDiagnostic;
     use access_vocabulary::StableCapability;
     use std::collections::BTreeSet;
     use terminal_psi::{
@@ -1003,15 +990,7 @@ pub(crate) mod extraction {
             let [parameter, _] = boundary.structural_parameters.as_slice() else {
                 return Err(malformed());
             };
-            let result = operation.result.structural().ok_or(malformed())?;
-            if self.result_place_in_use(result.place)
-                || !result.qualification_establishments.is_empty()
-                || !self
-                    .loan_completions_for_operation(operation.id)?
-                    .is_empty()
-            {
-                return Err(malformed());
-            }
+            let result = self.require_fresh_access_result(operation)?;
             let program = std::sync::Arc::clone(&self.program);
             let AccessResultContract::MoveOut {
                 result: declaration,
@@ -1021,15 +1000,11 @@ pub(crate) mod extraction {
             else {
                 return Err(malformed());
             };
-            if result.structural_type != declaration.structural_type
-                || result.multiplicity != declaration.multiplicity
-                || result.qualifications != declaration.qualifications
-                || result.projected_qualifications != declaration.projected_qualifications
-            {
-                return Err(TerminalInterpretError::ContentTransformationMismatch(
-                    "extraction result differs from its boundary contract",
-                ));
-            }
+            super::validate_access_result_contract(
+                result,
+                declaration,
+                Some("extraction result differs from its boundary contract"),
+            )?;
             let [extent_field, value_field] = moved.fields.as_slice() else {
                 return Err(malformed());
             };
@@ -1088,19 +1063,16 @@ pub(crate) mod extraction {
             }
             let (initialized, custody, compatibility) =
                 self.live_resident_custody(binding.resident)?;
-            if initialized.schema != plan.schema
-                || custody.value.structural_type != plan.schema
-                || initialized.schema_identity != plan.schema_identity
-                || initialized.policy_identity != plan.policy_identity
-                || initialized.policy_plan_machine_identity != plan.policy_plan_machine_identity
-                || !initialized.storage.same_custody(&plan.storage)
-                || initialized.placement != plan.placement
-                || initialized.image_fields != plan.image_fields
-            {
+            if custody.value.structural_type != plan.schema {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(
                     "extraction changed the original resident policy or schema",
                 ));
             }
+            super::validate_resident_plan_matches(
+                initialized,
+                plan,
+                "extraction changed the original resident policy or schema",
+            )?;
             let (allocation, profile, base) =
                 self.provider_storage.live_provider_allocation(&binding)?;
             if !self.provider_storage_geometry_matches(
@@ -1117,21 +1089,13 @@ pub(crate) mod extraction {
             if plan.placement.layout().size != Some(required) || required > binding.length {
                 return Err(malformed());
             }
-            let loan = allocation
-                .extent
-                .loan(binding.offset, binding.length)
-                .map_err(|diagnostic| TerminalInterpretError::ResourceProfile {
-                    boundary: plan.boundary,
-                    diagnostic: AccessPlanDiagnostic(format!(
-                        "extraction extent loan: {diagnostic}"
-                    )),
-                })?;
-            let supplied = profile.restrict_to_loan(&loan).map_err(|diagnostic| {
-                TerminalInterpretError::ResourceProfile {
-                    boundary: plan.boundary,
-                    diagnostic,
-                }
-            })?;
+            let supplied = super::restrict_allocation_profile(
+                allocation,
+                profile,
+                &binding,
+                plan.boundary,
+                "extraction extent loan",
+            )?;
             if supplied.identity() != observed_profile.identity() {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(
                     "extraction profile differs from the original admitted allocation supply",
@@ -1236,18 +1200,14 @@ pub(crate) mod extraction {
                 completion_receipts,
                 &boundary.structural_parameters,
             )?;
-            for binding in &result.claims {
-                if !self.constructor_claim_is_active(result, &binding.path, &selected)? {
-                    continue;
-                }
-                if !expected_claims.remove(&binding.path) {
-                    return Err(TerminalInterpretError::ClaimTransferMismatch);
-                }
-                bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
-            }
-            if !expected_claims.is_empty() {
-                return Err(TerminalInterpretError::ClaimTransferMismatch);
-            }
+            self.bind_expected_access_claims(result, &mut expected_claims, &selected, |binding| {
+                crate::engine::custody::bind_result_claim(
+                    &mut claims,
+                    binding,
+                    result.place,
+                    result.multiplicity,
+                )
+            })?;
             let mut frontier = self.live_affine_frontier.clone();
             let mut consumed = Vec::new();
             if !self.stage_constructor_operand(source, &mut frontier, &mut consumed)? {
@@ -1506,13 +1466,8 @@ pub(crate) mod field_access {
             let needs_read = write.is_none() || represented_bits != footprint.length_bytes() * 8;
             let (allocation, profile, _) =
                 self.provider_storage.live_provider_allocation(&binding)?;
-            let loan = allocation
-                .extent
-                .loan(binding.offset, binding.length)
-                .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
-            let actual = profile
-                .restrict_to_loan(&loan)
-                .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
+            let actual =
+                super::restrict_allocation_profile_for_access(allocation, profile, &binding)?;
             if descriptor.observation() == ObservationModel::Stable {
                 access_admission::require_stable_region_supply(
                     &actual,
@@ -1746,20 +1701,27 @@ pub(crate) mod initialization {
                     available: binding.length,
                 }));
             }
-            let Ok(compatibility) = validate_initialization_resources(placement, &supplied) else {
-                return Ok(Err(InitializationRejection::IncompatibleSupply));
-            };
             let base = allocation
                 .extent
                 .base()
                 .checked_add(binding.offset)
                 .ok_or(malformed())?;
-            let congruence = compatibility.placement().base_congruence();
-            if !congruence.admits(base) {
-                return Ok(Err(InitializationRejection::Misaligned {
-                    modulus: congruence.modulus(),
-                    residue: congruence.residue(),
-                }));
+            let check_profile = |candidate: &ValidatedResourceProfile| {
+                let Ok(compatibility) = validate_initialization_resources(placement, candidate)
+                else {
+                    return Err(InitializationRejection::IncompatibleSupply);
+                };
+                let congruence = compatibility.placement().base_congruence();
+                if !congruence.admits(base) {
+                    return Err(InitializationRejection::Misaligned {
+                        modulus: congruence.modulus(),
+                        residue: congruence.residue(),
+                    });
+                }
+                Ok(compatibility)
+            };
+            if let Err(rejection) = check_profile(&supplied) {
+                return Ok(Err(rejection));
             }
             let Ok(loan) = allocation.extent.loan_mut(binding.offset, binding.length) else {
                 return Ok(Err(InitializationRejection::IncompatibleSupply));
@@ -1767,16 +1729,10 @@ pub(crate) mod initialization {
             let Ok(admitted) = profile.restrict_to_loan(&loan) else {
                 return Ok(Err(InitializationRejection::IncompatibleSupply));
             };
-            let Ok(compatibility) = validate_initialization_resources(placement, &admitted) else {
-                return Ok(Err(InitializationRejection::IncompatibleSupply));
+            let compatibility = match check_profile(&admitted) {
+                Ok(compatibility) => compatibility,
+                Err(rejection) => return Ok(Err(rejection)),
             };
-            let congruence = compatibility.placement().base_congruence();
-            if !congruence.admits(base) {
-                return Ok(Err(InitializationRejection::Misaligned {
-                    modulus: congruence.modulus(),
-                    residue: congruence.residue(),
-                }));
-            }
             Ok(Ok(PreparedProviderImage {
                 binding,
                 image,
@@ -1873,14 +1829,8 @@ pub(crate) mod lifecycle {
             let [extent, original, _profile] = structural_arguments.as_slice() else {
                 return Err(malformed());
             };
-            let result = operation.result.structural().ok_or(malformed())?;
-            if self.result_place_in_use(result.place)
-                || !result.qualification_establishments.is_empty()
-                || !self
-                    .loan_completions_for_operation(operation.id)?
-                    .is_empty()
-                || prepared.binding.resident != arena::Handle::default()
-            {
+            let result = self.require_fresh_access_result(operation)?;
+            if prepared.binding.resident != arena::Handle::default() {
                 return Err(malformed());
             }
             let program = std::sync::Arc::clone(&self.program);
@@ -1893,15 +1843,11 @@ pub(crate) mod lifecycle {
             else {
                 return Err(malformed());
             };
-            if result.structural_type != declaration.structural_type
-                || result.multiplicity != declaration.multiplicity
-                || result.qualifications != declaration.qualifications
-                || result.projected_qualifications != declaration.projected_qualifications
-            {
-                return Err(TerminalInterpretError::ContentTransformationMismatch(
-                    "placement initialization result differs from its boundary contract",
-                ));
-            }
+            super::validate_access_result_contract(
+                result,
+                declaration,
+                Some("placement initialization result differs from its boundary contract"),
+            )?;
             let [field] = ready.fields.as_slice() else {
                 return Err(malformed());
             };
@@ -2050,20 +1996,15 @@ pub(crate) mod lifecycle {
             let selected = |region: &StructuralAffineDiscard| {
                 storage.case_at_projection(self, &value, &region.path)
             };
-            let mut received = false;
-            for binding in &result.claims {
-                if !self.constructor_claim_is_active(result, &binding.path, &selected)? {
-                    continue;
-                }
-                if received || binding.path != destination_path {
-                    return Err(TerminalInterpretError::ClaimTransferMismatch);
-                }
-                received = true;
-                bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
-            }
-            if !received {
-                return Err(TerminalInterpretError::ClaimTransferMismatch);
-            }
+            let mut expected = BTreeSet::from([destination_path]);
+            self.bind_expected_access_claims(result, &mut expected, &selected, |binding| {
+                crate::engine::custody::bind_result_claim(
+                    &mut claims,
+                    binding,
+                    result.place,
+                    result.multiplicity,
+                )
+            })?;
             self.stage_result_affine_frontier(result, &mut frontier, &selected)?;
             let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
             let storage = storage.into_detached()?;
@@ -2163,15 +2104,11 @@ pub(crate) mod lifecycle {
                     } => (result, rejected, returned, failures),
                     _ => return Err(malformed()),
                 };
-            if result.structural_type != declaration.structural_type
-                || result.multiplicity != declaration.multiplicity
-                || result.qualifications != declaration.qualifications
-                || result.projected_qualifications != declaration.projected_qualifications
-            {
-                return Err(TerminalInterpretError::ContentTransformationMismatch(
-                    "placement rejection result differs from its boundary contract",
-                ));
-            }
+            super::validate_access_result_contract(
+                result,
+                declaration,
+                Some("placement rejection result differs from its boundary contract"),
+            )?;
             let [returned_field, reason_field] = rejected.fields.as_slice() else {
                 return Err(malformed());
             };
@@ -2570,7 +2507,8 @@ pub(crate) mod profile_values {
                 return Err(malformed());
             }
             let stored = self
-                .execution.case_at(&StructuralRuntimePlace::from(&self.value))
+                .execution
+                .case_at(&StructuralRuntimePlace::from(&self.value))
                 .ok_or(malformed())?;
             if stored.structural_type != self.value.structural_type {
                 return Err(malformed());
@@ -2879,7 +2817,6 @@ pub(crate) mod relocation {
     use crate::boundary::values::{
         StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue,
     };
-    use crate::engine::custody::bind_result_claim;
     use crate::engine::execution::{TerminalExecution, operation_kind};
     use crate::storage::byte_sequences::storage::ByteSequenceStorage;
     use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
@@ -2972,18 +2909,11 @@ pub(crate) mod relocation {
             }
             if count != 0 {
                 let (initialized, _, _) = self.live_resident_custody(source_binding.resident)?;
-                if initialized.schema != plan.schema
-                    || initialized.schema_identity != plan.schema_identity
-                    || initialized.policy_identity != plan.policy_identity
-                    || initialized.policy_plan_machine_identity != plan.policy_plan_machine_identity
-                    || !initialized.storage.same_custody(&plan.storage)
-                    || initialized.placement != plan.placement
-                    || initialized.image_fields != plan.image_fields
-                {
-                    return Err(TerminalInterpretError::ContentTransformationMismatch(
-                        "relocation changed the retained cell policy or schema",
-                    ));
-                }
+                super::validate_resident_plan_matches(
+                    initialized,
+                    plan,
+                    "relocation changed the retained cell policy or schema",
+                )?;
             }
             let (source_allocation, source_admission, _) = self
                 .provider_storage
@@ -3010,37 +2940,20 @@ pub(crate) mod relocation {
                     InitializationRejection::IncompatibleSupply,
                 );
             }
-            let source_loan = source_allocation
-                .extent
-                .loan(source_binding.offset, source_binding.length)
-                .map_err(|error| TerminalInterpretError::ResourceProfile {
-                    boundary: plan.boundary,
-                    diagnostic: access_vocabulary::AccessPlanDiagnostic(format!(
-                        "relocation source loan: {error}"
-                    )),
-                })?;
-            let destination_loan = destination_allocation
-                .extent
-                .loan(destination_binding.offset, destination_binding.length)
-                .map_err(|error| TerminalInterpretError::ResourceProfile {
-                    boundary: plan.boundary,
-                    diagnostic: access_vocabulary::AccessPlanDiagnostic(format!(
-                        "relocation destination loan: {error}"
-                    )),
-                })?;
-            let admitted_source =
-                source_admission
-                    .restrict_to_loan(&source_loan)
-                    .map_err(|diagnostic| TerminalInterpretError::ResourceProfile {
-                        boundary: plan.boundary,
-                        diagnostic,
-                    })?;
-            let admitted_destination = destination_admission
-                .restrict_to_loan(&destination_loan)
-                .map_err(|diagnostic| TerminalInterpretError::ResourceProfile {
-                    boundary: plan.boundary,
-                    diagnostic,
-                })?;
+            let admitted_source = super::restrict_allocation_profile(
+                source_allocation,
+                source_admission,
+                &source_binding,
+                plan.boundary,
+                "relocation source loan",
+            )?;
+            let admitted_destination = super::restrict_allocation_profile(
+                destination_allocation,
+                destination_admission,
+                &destination_binding,
+                plan.boundary,
+                "relocation destination loan",
+            )?;
             let selected = access_admission::validate_run_relocation_resources(
                 &plan.placement,
                 count,
@@ -3077,15 +2990,7 @@ pub(crate) mod relocation {
             )?;
             drop(source_bytes);
 
-            let result = operation.result.structural().ok_or(malformed())?;
-            if self.result_place_in_use(result.place)
-                || !result.qualification_establishments.is_empty()
-                || !self
-                    .loan_completions_for_operation(operation.id)?
-                    .is_empty()
-            {
-                return Err(malformed());
-            }
+            let result = self.require_fresh_access_result(operation)?;
             let AccessResultContract::Relocate {
                 result: declaration,
                 ready,
@@ -3096,15 +3001,11 @@ pub(crate) mod relocation {
             else {
                 return Err(malformed());
             };
-            if result.structural_type != declaration.structural_type
-                || result.multiplicity != declaration.multiplicity
-                || result.qualifications != declaration.qualifications
-                || result.projected_qualifications != declaration.projected_qualifications
-            {
-                return Err(TerminalInterpretError::ContentTransformationMismatch(
-                    "relocation result differs from its contract",
-                ));
-            }
+            super::validate_access_result_contract(
+                result,
+                declaration,
+                Some("relocation result differs from its contract"),
+            )?;
             let [ready_field] = ready.fields.as_slice() else {
                 return Err(malformed());
             };
@@ -3199,18 +3100,14 @@ pub(crate) mod relocation {
                 &boundary.structural_parameters,
             )?;
             let mut expected = BTreeSet::from([run_path, vacated_path]);
-            for binding in &result.claims {
-                if !self.constructor_claim_is_active(result, &binding.path, &selected)? {
-                    continue;
-                }
-                if !expected.remove(&binding.path) {
-                    return Err(TerminalInterpretError::ClaimTransferMismatch);
-                }
-                bind_result_claim(&mut claims, binding, result.place, result.multiplicity)?;
-            }
-            if !expected.is_empty() {
-                return Err(TerminalInterpretError::ClaimTransferMismatch);
-            }
+            self.bind_expected_access_claims(result, &mut expected, &selected, |binding| {
+                crate::engine::custody::bind_result_claim(
+                    &mut claims,
+                    binding,
+                    result.place,
+                    result.multiplicity,
+                )
+            })?;
             let mut frontier = self.live_affine_frontier.clone();
             let mut consumed = Vec::new();
             for argument in [source, destination] {
@@ -3696,22 +3593,14 @@ pub(crate) mod value_image {
                 &self,
                 root: StructuralTypeId,
             ) -> Result<(u64, u64), TerminalInterpretError> {
-                let types = self.execution.structural_types();
-                ReferenceStorageGeometry::new(types.values(), unresolved)
-                    .with_target_carriers(self.available_carriers())
-                    .layout(root)
-                    .map_err(|error| self.geometry_error(error))
+                self.map_geometry_err(query_geometry!(self, layout(root)))
             }
 
             pub(crate) fn sum_layout(
                 &self,
                 root: StructuralTypeId,
             ) -> Result<layout_plans::ConventionalSumGeometry, TerminalInterpretError> {
-                let types = self.execution.structural_types();
-                ReferenceStorageGeometry::new(types.values(), unresolved)
-                    .with_target_carriers(self.available_carriers())
-                    .sum_layout(root)
-                    .map_err(|error| self.geometry_error(error))
+                self.map_geometry_err(query_geometry!(self, sum_layout(root)))
             }
 
             pub(crate) fn view_source_compatible(
@@ -3720,10 +3609,7 @@ pub(crate) mod value_image {
                 path: &[StructuralPathSegment],
                 reference: StructuralTypeId,
             ) -> bool {
-                let types = self.execution.structural_types();
-                ReferenceStorageGeometry::new(types.values(), unresolved)
-                    .with_target_carriers(self.available_carriers())
-                    .view_source_compatible(root, path, reference, None)
+                query_geometry!(self, view_source_compatible(root, path, reference, None))
             }
 
             pub(crate) fn location_alignment_limit(
@@ -3731,10 +3617,7 @@ pub(crate) mod value_image {
                 root: StructuralTypeId,
                 path: &[StructuralPathSegment],
             ) -> Option<u64> {
-                let types = self.execution.structural_types();
-                ReferenceStorageGeometry::new(types.values(), unresolved)
-                    .with_target_carriers(self.available_carriers())
-                    .location_alignment_limit(root, path)
+                query_geometry!(self, location_alignment_limit(root, path))
             }
 
             pub(crate) fn region(
@@ -3742,12 +3625,26 @@ pub(crate) mod value_image {
                 root: StructuralTypeId,
                 path: &[StructuralPathSegment],
             ) -> Option<ReferenceStorageRegion> {
-                let types = self.execution.structural_types();
-                ReferenceStorageGeometry::new(types.values(), unresolved)
-                    .with_target_carriers(self.available_carriers())
-                    .region(root, path)
+                query_geometry!(self, region(root, path))
+            }
+
+            fn map_geometry_err<T>(
+                &self,
+                result: Result<T, StorageGeometryError>,
+            ) -> Result<T, TerminalInterpretError> {
+                result.map_err(|error| self.geometry_error(error))
             }
         }
+
+        macro_rules! query_geometry {
+            ($self:expr, $method:ident($($arg:expr),* $(,)?)) => {{
+                let types = $self.execution.structural_types();
+                ReferenceStorageGeometry::new(types.values(), unresolved)
+                    .with_target_carriers($self.available_carriers())
+                    .$method($($arg),*)
+            }};
+        }
+        use query_geometry;
 
         fn unresolved(application: ScalarApplicationId) -> Result<u64, StorageGeometryError> {
             Err(StorageGeometryError::UnresolvedExtent(application))
@@ -4277,13 +4174,8 @@ pub(crate) mod view {
                     available: binding.length,
                 }));
             }
-            let loan = allocation
-                .extent
-                .loan(binding.offset, binding.length)
-                .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
-            let admitted = profile
-                .restrict_to_loan(&loan)
-                .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
+            let admitted =
+                super::restrict_allocation_profile_for_access(allocation, profile, &binding)?;
             let mut actual = None;
             for profile in [supplied, &admitted] {
                 let Ok(compatibility) =
@@ -4412,7 +4304,125 @@ impl RuntimeProviderStorage {
     }
 }
 
+pub(crate) fn validate_access_result_contract(
+    result: &terminal_psi::StructuralOperationResult,
+    declaration: &terminal_psi::BoundaryStructuralResultDeclaration,
+    mismatch: Option<&'static str>,
+) -> Result<(), TerminalInterpretError> {
+    if result.structural_type != declaration.structural_type
+        || result.multiplicity != declaration.multiplicity
+        || result.qualifications != declaration.qualifications
+        || result.projected_qualifications != declaration.projected_qualifications
+    {
+        return Err(match mismatch {
+            Some(message) => TerminalInterpretError::ContentTransformationMismatch(message),
+            None => malformed(),
+        });
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_resident_plan_matches(
+    initialized: &TerminalAccessLifecyclePlan,
+    plan: &TerminalAccessLifecyclePlan,
+    mismatch: &'static str,
+) -> Result<(), TerminalInterpretError> {
+    if initialized.schema != plan.schema
+        || initialized.schema_identity != plan.schema_identity
+        || initialized.policy_identity != plan.policy_identity
+        || initialized.policy_plan_machine_identity != plan.policy_plan_machine_identity
+        || !initialized.storage.same_custody(&plan.storage)
+        || initialized.placement != plan.placement
+        || initialized.image_fields != plan.image_fields
+    {
+        return Err(TerminalInterpretError::ContentTransformationMismatch(
+            mismatch,
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn restrict_allocation_profile(
+    allocation: &ProviderByteAllocation,
+    profile: &AdmittedResourceProfile,
+    binding: &ProviderStorageBinding,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+    loan_context: &str,
+) -> Result<access_admission::ValidatedResourceProfile, TerminalInterpretError> {
+    let loan = allocation
+        .extent
+        .loan(binding.offset, binding.length)
+        .map_err(|diagnostic| TerminalInterpretError::ResourceProfile {
+            boundary,
+            diagnostic: access_vocabulary::AccessPlanDiagnostic(format!(
+                "{loan_context}: {diagnostic}"
+            )),
+        })?;
+    profile
+        .restrict_to_loan(&loan)
+        .map_err(|diagnostic| TerminalInterpretError::ResourceProfile {
+            boundary,
+            diagnostic,
+        })
+}
+
+pub(crate) fn restrict_allocation_profile_for_access(
+    allocation: &ProviderByteAllocation,
+    profile: &AdmittedResourceProfile,
+    binding: &ProviderStorageBinding,
+) -> Result<access_admission::ValidatedResourceProfile, TerminalInterpretError> {
+    let loan = allocation
+        .extent
+        .loan(binding.offset, binding.length)
+        .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))?;
+    profile
+        .restrict_to_loan(&loan)
+        .map_err(|reason| TerminalInterpretError::AccessReference(reason.to_string()))
+}
+
 impl TerminalExecution<'_> {
+    pub(crate) fn require_fresh_access_result<'a>(
+        &self,
+        operation: &'a terminal_psi::Operation,
+    ) -> Result<&'a terminal_psi::StructuralOperationResult, TerminalInterpretError> {
+        let result = operation.result.structural().ok_or(malformed())?;
+        if self.result_place_in_use(result.place)
+            || !result.qualification_establishments.is_empty()
+            || !self
+                .loan_completions_for_operation(operation.id)?
+                .is_empty()
+        {
+            return Err(malformed());
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn bind_expected_access_claims(
+        &self,
+        result: &terminal_psi::StructuralOperationResult,
+        expected: &mut std::collections::BTreeSet<Vec<terminal_psi::StructuralPathSegment>>,
+        selected: &impl Fn(
+            &terminal_psi::StructuralAffineDiscard,
+        ) -> Option<semantic_vocabulary::StructuralCaseId>,
+        mut bind: impl FnMut(
+            &terminal_psi::StructuralResultClaimBinding,
+        ) -> Result<(), TerminalInterpretError>,
+    ) -> Result<(), TerminalInterpretError> {
+        for binding in &result.claims {
+            if !self.constructor_claim_is_active(result, &binding.path, selected)? {
+                continue;
+            }
+            if !expected.remove(&binding.path) {
+                return Err(TerminalInterpretError::ClaimTransferMismatch);
+            }
+            bind(binding)?;
+        }
+        if !expected.is_empty() {
+            return Err(TerminalInterpretError::ClaimTransferMismatch);
+        }
+        Ok(())
+    }
+
     pub(crate) fn live_resident_custody(
         &self,
         resident: arena::Handle<ResidentStorageSlot>,

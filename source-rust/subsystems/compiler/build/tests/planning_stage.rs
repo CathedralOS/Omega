@@ -561,6 +561,7 @@ machine build(builder: @mutable Build) {
 "#;
     std::fs::write(&entry, source).unwrap();
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("authored").unwrap(),
         source: BuildDependencySource::Path("implementation".into()),
     }];
@@ -886,4 +887,103 @@ public machine main() reaches |streams|::StandardOutput {
             .any(|d| d.message.contains("SandboxOutput") && d.message.contains("provider")),
         "{rejected:?}"
     );
+}
+
+#[test]
+fn a_product_reads_source_only_from_the_staging_directory_its_invoker_selected() {
+    use package_compilation::build_execution::BuildSnapshotRequest;
+    use platform_custody::temporary_directory::TemporaryDirectory;
+
+    configure_library();
+    let root = TemporaryDirectory::create("generated-from-staging", false).unwrap();
+    let profile = TargetProfile::LinuxX64;
+    let entry = root.path().join("build.omg");
+    std::fs::write(&entry, r#"
+        use main.omg as app;
+        machine build(plan: @mutable BuildPlan) {
+            let file: BuildPath = BuildOutput::resolve(@plan.output, "generated.omg");
+            let writer: i32 = BuildOutput::create(@mutable plan.output, file, 0);
+            _ = BuildOutput::write(@mutable plan.output, writer, "public machine answer() -> u32 { 17u32 }");
+            _ = BuildOutput::close(@mutable plan.output, writer);
+            plan.product = BuildProduct::Application { name: "from_staging" };
+            Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+        }
+    "#).unwrap();
+    std::fs::write(
+        root.path().join("main.omg"),
+        r#"
+        use generated.omg;
+        public machine main() crashes Trap {
+            transition |generated|::answer() == 17u32 {
+                true -> done(),
+                false -> wrong()
+            }
+            machine done() {}
+            machine wrong() crashes Trap { crash Trap; }
+        }
+    "#,
+    )
+    .unwrap();
+    let project = begin_local_project_preparation(&entry, &[profile], true).unwrap();
+    let acquired = project.acquire_root().unwrap();
+    for selected in [false, true] {
+        let mut snapshot = BuildSnapshotRequest::for_activation(false);
+        if selected {
+            snapshot = snapshot.with_product_source_directory(Vec::new()).unwrap();
+        }
+        let prepared = prepare(
+            PlanningRequest {
+                root: &entry,
+                sources: PlanningSources::Captured(acquired.source_capture()),
+                execution: BuildExecutionInputs {
+                    snapshot: Some(snapshot),
+                    ..Default::default()
+                },
+                artifact_only: false,
+            },
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        let mut stage = interpret(prepared, &mut ()).unwrap();
+        let declaration = acquired.declare_build(stage.returned()).unwrap();
+        let subject = declaration.identity();
+        let ExecutedSourceResolution::Complete(graph) = declaration.resolve().unwrap() else {
+            panic!("the application registers no dependencies");
+        };
+        let inputs = graph
+            .join_source_result(subject, &mut stage.source_result().unwrap())
+            .unwrap();
+        let result = stage.open_product(Some(&inputs));
+        if selected {
+            let product = result.unwrap();
+            let observed = product
+                .evaluated()
+                .configuration
+                .observation_summary
+                .as_ref()
+                .unwrap();
+            let tree = observed
+                .product_source_tree()
+                .expect("the caller selected private staging");
+            assert!(tree.sealed_entry(b"generated.omg").is_some());
+            let stage = product.product_stage(&[profile]).unwrap();
+            compiler::compile(
+                compiler::CompileRequest::Psi(stage.source()),
+                Default::default(),
+            )
+            .unwrap();
+        } else {
+            let diagnostics = result
+                .err()
+                .expect("an ordinary scratch file must stay private")
+                .into_diagnostics();
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|d| d.message.contains("generated.omg")),
+                "{diagnostics:?}"
+            );
+        }
+    }
 }

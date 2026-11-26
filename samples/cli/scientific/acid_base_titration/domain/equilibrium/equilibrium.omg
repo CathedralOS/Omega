@@ -1,15 +1,14 @@
-use omega\language\core\F64::from_i32;
-use domain\input;
-use domain\input\Input;
+use domain/input/input.omg;
+use {omega}/language/core/float_operations.omg;
 public data Equilibrium { hydrogen: f64; hydroxide: f64; species: [f64; 3]; total: f64; counterion: f64; closure: f64; charge: f64; ph: f64; }
 // Positive H: charge is strictly increasing because protonation increases
 // with H and Kw/H decreases. The domain brackets the unique physical root.
-public machine solve(input: @Input, volume: f64, result: @mutable Equilibrium) {
+public machine solve(input: @|input|::Input, volume: f64, result: @mutable Equilibrium) {
     let dilution: f64 = input.values[0] + volume;
     result.total = input.values[0] * input.values[1] / dilution;
     result.counterion = volume * input.values[5] / dilution;
     transition { _ -> bisect(input, result, 0.00000000000000000001, 10.0, 0) }
-    machine bisect(input: @Input, result: @mutable Equilibrium, lower: f64, upper: f64, iteration: i32 in Wrapping) {
+    machine bisect(input: @|input|::Input, result: @mutable Equilibrium, lower: f64, upper: f64, iteration: i32 in Wrapping) {
         let hydrogen: f64 = lower + (upper - lower) * 0.5;
         species(input, result, hydrogen);
         transition iteration < 160 {
@@ -17,7 +16,7 @@ public machine solve(input: @Input, volume: f64, result: @mutable Equilibrium) {
             _ -> finish(result)
         }
     }
-    machine direction(input: @Input, result: @mutable Equilibrium, lower: f64, upper: f64, hydrogen: f64, iteration: i32 in Wrapping) {
+    machine direction(input: @|input|::Input, result: @mutable Equilibrium, lower: f64, upper: f64, hydrogen: f64, iteration: i32 in Wrapping) {
         transition result.charge > 0.0 {
             true -> bisect(input, result, lower, hydrogen, iteration + 1),
             _ -> bisect(input, result, hydrogen, upper, iteration + 1)
@@ -28,7 +27,7 @@ public machine solve(input: @Input, volume: f64, result: @mutable Equilibrium) {
         result.ph = 0.0 - logarithm(result.hydrogen) / 2.302585092994045684;
     }
 }
-machine species(input: @Input, result: @mutable Equilibrium, hydrogen: f64) {
+machine species(input: @|input|::Input, result: @mutable Equilibrium, hydrogen: f64) {
     let first: f64 = input.values[2] * hydrogen;
     let second: f64 = input.values[2] * input.values[3];
     let neutral: f64 = hydrogen * hydrogen;
@@ -55,7 +54,7 @@ machine logarithm(value: f64) -> f64 {
     }
     machine sum(term: f64, square: f64, index: i32 in Wrapping, accumulated: f64) -> f64 {
         transition index < 49 {
-            true -> sum(term * square, square, index + 2, accumulated + 2.0 * term / F64::from_i32(index as i32)),
+            true -> sum(term * square, square, index + 2, accumulated + 2.0 * term / |float_operations|::F64::from_i32(index as i32)),
             _ -> accumulated
         }
     }

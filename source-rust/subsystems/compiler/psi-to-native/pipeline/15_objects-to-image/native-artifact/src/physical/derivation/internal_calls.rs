@@ -5,7 +5,6 @@ call-graph origins to an installed provider settlement plan.
 */
 
 use crate::BoundaryInternalCallCustody;
-use crate::BoundaryTraitSettlementParts;
 use crate::BoundaryTraitSettlementRole;
 use crate::NativePhysicalChild;
 use crate::NativePhysicalOccurrence;
@@ -264,22 +263,14 @@ pub(crate) fn derive_boundary_internal_call_child(
     let target_vocabulary::NativeCallOrigin::InstalledProvider {
         boundary: selected_boundary,
         provider,
-        assumption,
         completion_receipts: retained_receipts,
         ..
     } = &record.source
     else {
         return Err("installed provider internal call lost its exact selected origin");
     };
-    if assumption
-        .as_ref()
-        .is_some_and(|row| !plan.matches_assumption(module, requirement_identity, row))
-        || selected_boundary != boundary
-        || assumption
-            .as_ref()
-            .map_or(provider.boundary != *boundary, |row| {
-                !row.matches(*boundary, provider)
-            })
+    if selected_boundary != boundary
+        || provider.boundary != *boundary
         || provider.candidate != call.target()
         || retained_receipts != completion_receipts
     {
@@ -293,16 +284,7 @@ pub(crate) fn derive_boundary_internal_call_child(
     let [conformance] = conformances.as_slice() else {
         return Err("installed provider internal call cannot rejoin one provider conformance");
     };
-    let supplied_requirement = if let Some(assumption) = assumption {
-        module
-            .boundary_machine(assumption.selected_requirement)
-            .and_then(|row| module.identities.text(row.identity))
-            .filter(|identity| !identity.is_empty())
-            .ok_or("installed provider internal call lost its supplied requirement")?
-    } else {
-        requirement_identity
-    };
-    if module.identities.text(conformance.requirement_identity) != Some(supplied_requirement) {
+    if module.identities.text(conformance.requirement_identity) != Some(requirement_identity) {
         return Err("installed provider internal call changed its requirement");
     }
     let callee = object
@@ -396,7 +378,6 @@ pub(crate) fn derive_boundary_internal_call_child(
                 .text(conformance.candidate_identity)
                 .unwrap_or_default(),
             &custody,
-            plan.assumption_closure(),
         );
         let role = BoundaryTraitSettlementRole::InstalledProviderInternalCall {
             boundary: *boundary,
@@ -413,17 +394,14 @@ pub(crate) fn derive_boundary_internal_call_child(
                 .to_string(),
             call: custody,
         };
-        PhysicalChildParent::BoundaryTraitSettlement(
-            BoundaryTraitSettlementParts {
-                occurrence: *occurrence,
-                requirement_identity: requirement_identity.to_owned(),
-                selected_supply: plan.plan_digest().into(),
-                target,
-                role,
-                identity: parent_identity,
-            }
-            .into(),
-        )
+        PhysicalChildParent::BoundaryTraitSettlement(crate::physical::BoundaryTraitSettlement {
+            occurrence: *occurrence,
+            requirement_identity: requirement_identity.to_owned(),
+            selected_supply: plan.plan_digest().into(),
+            target,
+            role,
+            identity: parent_identity,
+        })
     };
     Ok(Some(
         boundary_physical_child_parts(

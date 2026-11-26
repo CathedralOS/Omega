@@ -1,21 +1,20 @@
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-use omega\language\core\F64::from_i32;
-use omega\language\core\narrow_u64_to_i32_saturating;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Input {
  values: [f64; 67]; count: u64 in Wrapping; bytes: u64 in Wrapping; length: u64 in Wrapping;
  token: [i32 in Wrapping; 64]; valid: bool;
 }
 public machine read(input: @mutable Input)
-invokes Console reaches StandardInput blocks crashes Trap {
+invokes |console|::Console reaches |process_authority|::StandardInput blocks crashes Trap {
  input.count = 0; input.bytes = 0; input.length = 0; input.valid = true;
  transition { _ -> receive(input) }
  machine receive(input: @mutable Input) {
-  transition block Console::read_byte() {
-   ByteRead::Error -> invalid(input),
-   ByteRead::Eof -> finish(input),
-   ByteRead::Byte { value } -> bound(input, value as i32 +Wrapping)
+  transition block |console|::Console::read_byte() {
+   |console|::ByteRead::Error -> invalid(input),
+   |console|::ByteRead::Eof -> finish(input),
+   |console|::ByteRead::Byte { value } -> bound(input, value as i32 +Wrapping)
   }
  }
  machine bound(input: @mutable Input, value: i32 in Wrapping) {
@@ -69,14 +68,14 @@ machine input_flush(input: @mutable Input) {
   }
  }
  machine digit(input: @mutable Input, index: u64 in Wrapping, value: f64, negative: bool, dot: bool, digits: u64 in Wrapping, fraction: u64 in Wrapping, byte: i32 in Wrapping) {
-  let next: f64 = value * 10.0 + F64::from_i32(byte - 48);
+  let next: f64 = value * 10.0 + |float_operations|::F64::from_i32(byte - 48);
   transition dot {
    true -> mantissa(input, index + 1, next, negative, dot, digits + 1, fraction + 1),
    false -> mantissa(input, index + 1, next, negative, dot, digits + 1, fraction)
   }
  }
  machine end_mantissa(input: @mutable Input, value: f64, negative: bool, digits: u64 in Wrapping, fraction: u64 in Wrapping) {
-  transition digits > 0 { true -> scale(input, value, negative, 0 - (narrow_u64_to_i32_saturating(fraction as u64) as i32 +Wrapping)), false -> invalid(input) }
+  transition digits > 0 { true -> scale(input, value, negative, 0 - (|numeric_conversion|::narrow_u64_to_i32_saturating(fraction as u64) as i32 +Wrapping)), false -> invalid(input) }
  }
  machine exponent_sign(input: @mutable Input, index: u64 in Wrapping, value: f64, negative: bool, fraction: u64 in Wrapping) {
   transition index < input.length && index < 64 { true -> exponent_start(input, index, value, negative, fraction), false -> invalid(input) }
@@ -102,7 +101,7 @@ machine input_flush(input: @mutable Input) {
   transition digits > 0 && power <= 1000 { true -> signed_power(input, value, negative, fraction, minus, power), false -> invalid(input) }
  }
  machine signed_power(input: @mutable Input, value: f64, negative: bool, fraction: u64 in Wrapping, minus: bool, power: i32 in Wrapping) {
-  transition minus { true -> scale(input, value, negative, 0 - power - (narrow_u64_to_i32_saturating(fraction as u64) as i32 +Wrapping)), false -> scale(input, value, negative, power - (narrow_u64_to_i32_saturating(fraction as u64) as i32 +Wrapping)) }
+  transition minus { true -> scale(input, value, negative, 0 - power - (|numeric_conversion|::narrow_u64_to_i32_saturating(fraction as u64) as i32 +Wrapping)), false -> scale(input, value, negative, power - (|numeric_conversion|::narrow_u64_to_i32_saturating(fraction as u64) as i32 +Wrapping)) }
  }
  machine scale(input: @mutable Input, value: f64, negative: bool, power: i32 in Wrapping) {
   transition { power > 0 -> scale(input, value * 10.0, negative, power - 1), power < 0 -> scale(input, value / 10.0, negative, power + 1), _ -> signed_value(input, value, negative) }

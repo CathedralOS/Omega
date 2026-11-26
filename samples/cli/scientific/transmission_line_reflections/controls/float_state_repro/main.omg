@@ -1,4 +1,4 @@
-use omega\language\core\I64::from_f64;
+use {omega}/language/core/float_operations.omg;
 
 // Complete executable reproduction of the state-contract lowering provision.
 // The ordinary checked guard establishes the same authored arrival contract.
@@ -10,7 +10,7 @@ machine bounded_integer(value: f64) -> i64 {
     machine bounded(value: f64) -> i64
     requires value == value && value >= -100.0 && value <= 100.0
     {
-        let converted: i64 = I64::from_f64(value);
+        let converted: i64 = |float_operations|::I64::from_f64(value);
         transition { _ -> (converted) }
     }
     machine rejected() -> i64 { transition { _ -> (0) } }

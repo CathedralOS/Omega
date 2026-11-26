@@ -1,0 +1,12 @@
+// Lane zero corresponds to the first element in memory. Ordinary fixed arrays
+// carry the extent proof across loads and stores, including partial rows.
+public data Lanes<T, const N: u64> {
+    values: [T; N];
+}
+
+public data Rows4x4 {
+    row0: Lanes<i16, 8>;
+    row1: Lanes<i16, 8>;
+    row2: Lanes<i16, 8>;
+    row3: Lanes<i16, 8>;
+}

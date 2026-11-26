@@ -1,3 +1,2 @@
-checked compilation failed for package `invalid_product_in_build`
-build.omg names product dependency `kit` (package `scope_kernel`
-a build import may only select build dependencies. The invoker must supply `kit` as a Build library before the Build starts.
+Build import `{scope_kernel}/main.omg as kit` has no supplied source
+build.omg:1:5

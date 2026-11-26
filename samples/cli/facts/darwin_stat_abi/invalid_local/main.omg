@@ -1,28 +1,23 @@
 // The shared Darwin stat representation preserves all SDK fields, signed carriers and its complete 144-byte extent through C exchange and transport.
 // Expected exit: 0
-use omega\language\core\FixedLayout;
-use omega\language\core\LayoutPlan;
-use omega\language\core\LayoutStorage;
-use omega\language\core\LayoutTarget;
-use omega\language\core\Schema;
-use omega\language\core\CAbiPolicy;
-use omega\language\core\narrow_i32_to_u32_wrapping;
-use omega\language\core\widen_u32_to_u64;
-use system\targets\macos_arm64\filesystem_abi;
+use {omega}/language/core/c_layout.omg;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {system}/macos_arm64_filesystem_abi.omg;
 
 public boundary trait StatExchange {
-    machine fill(value: @mutable DarwinStat) reaches none crashes none;
-    machine check(value: @DarwinStat) -> u64 reaches none crashes none;
+    machine fill(value: @mutable |macos_arm64_filesystem_abi|::DarwinStat) reaches none crashes none;
+    machine check(value: @|macos_arm64_filesystem_abi|::DarwinStat) -> u64 reaches none crashes none;
     machine extent() -> u64 reaches none crashes none;
     machine alignment() -> u64 reaches none crashes none;
 }
-OtherPolicy satisfies FixedLayout<DarwinStatRecord> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
-        CAbiPolicy::<DarwinStatRecord>::plan(schema, target)
+OtherPolicy satisfies |layout|::FixedLayout<|macos_arm64_filesystem_abi|::DarwinStatRecord> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan reaches none terminates {
+        |c_layout|::CAbiPolicy::<|macos_arm64_filesystem_abi|::DarwinStatRecord>::plan(schema, target)
     }
 }
 machine main() reaches StatExchange crashes Trap {
-    let mutable record: DarwinStat;
+    let mutable record: |macos_arm64_filesystem_abi|::DarwinStat;
     record.dev = 0i32;
     record.mode = 0u16;
     record.nlink = 0u16;
@@ -47,8 +42,8 @@ machine main() reaches StatExchange crashes Trap {
     record.spare[0] = 0i64;
     record.spare[1] = 0i64;
     StatExchange::fill(@mutable record);
-    let transported: LayoutStorage<DarwinStatRecord, OtherPolicy> = record;
-    transition transported.dev == -2147483647i32 && transported.mode == 33188u16 && transported.nlink == 3u16 && transported.ino == 4294967298u64 && transported.uid == 123u32 && transported.gid == 456u32 && transported.rdev == -123456789i32 && transported.atime.seconds == -17i64 && transported.atime.nanoseconds == 123456789i64 && transported.mtime.seconds == 42i64 && transported.mtime.nanoseconds == 987654321i64 && transported.ctime.seconds == -9i64 && transported.ctime.nanoseconds == 111111111i64 && transported.btime.seconds == 77i64 && transported.btime.nanoseconds == 222222222i64 && transported.size == 8589934593i64 && transported.blocks == 123456i64 && transported.blksize == 4096i32 && transported.flags == 2147483649u32 && transported.generation == 2882400001u32 && transported.reserved == -314159i32 && transported.spare[0] == -4294967297i64 && transported.spare[1] == 68719476737i64 && StatExchange::check(@transported) == 0u64 && StatExchange::extent() == size_of::<DarwinStat>() && StatExchange::alignment() == align_of::<DarwinStat>() && size_of::<DarwinStat>() == 144u64 && align_of::<DarwinStat>() == 8u64 && widen_u32_to_u64(narrow_i32_to_u32_wrapping(transported.dev)) == 2147483649u64 && widen_u32_to_u64(narrow_i32_to_u32_wrapping(transported.rdev)) == 4171510507u64 { true -> done(), _ -> bad() }
+    let transported: |layout|::LayoutStorage<|macos_arm64_filesystem_abi|::DarwinStatRecord, OtherPolicy> = record;
+    transition transported.dev == -2147483647i32 && transported.mode == 33188u16 && transported.nlink == 3u16 && transported.ino == 4294967298u64 && transported.uid == 123u32 && transported.gid == 456u32 && transported.rdev == -123456789i32 && transported.atime.seconds == -17i64 && transported.atime.nanoseconds == 123456789i64 && transported.mtime.seconds == 42i64 && transported.mtime.nanoseconds == 987654321i64 && transported.ctime.seconds == -9i64 && transported.ctime.nanoseconds == 111111111i64 && transported.btime.seconds == 77i64 && transported.btime.nanoseconds == 222222222i64 && transported.size == 8589934593i64 && transported.blocks == 123456i64 && transported.blksize == 4096i32 && transported.flags == 2147483649u32 && transported.generation == 2882400001u32 && transported.reserved == -314159i32 && transported.spare[0] == -4294967297i64 && transported.spare[1] == 68719476737i64 && StatExchange::check(@transported) == 0u64 && StatExchange::extent() == size_of::<|macos_arm64_filesystem_abi|::DarwinStat>() && StatExchange::alignment() == align_of::<|macos_arm64_filesystem_abi|::DarwinStat>() && size_of::<|macos_arm64_filesystem_abi|::DarwinStat>() == 144u64 && align_of::<|macos_arm64_filesystem_abi|::DarwinStat>() == 8u64 && |numeric_conversion|::widen_u32_to_u64(|numeric_conversion|::narrow_i32_to_u32_wrapping(transported.dev)) == 2147483649u64 && |numeric_conversion|::widen_u32_to_u64(|numeric_conversion|::narrow_i32_to_u32_wrapping(transported.rdev)) == 4171510507u64 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

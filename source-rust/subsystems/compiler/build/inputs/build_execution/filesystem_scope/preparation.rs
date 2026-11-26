@@ -210,6 +210,8 @@ pub fn prepare_filesystem_scope(
             }
             .with_named_inputs(build_snapshot.inputs())
             .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
+        build_machine_filesystem_scope.directories = build_snapshot.directories().clone();
+        build_machine_filesystem_scope.product_source_directory = build_snapshot.product_source_directory().map(<[u8]>::to_vec);
     }
     Ok(build_machine_filesystem_scope)
 }

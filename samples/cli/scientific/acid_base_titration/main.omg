@@ -1,43 +1,36 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/equilibrium/equilibrium.omg;
+use domain/input/input.omg;
+use domain/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Ideal diprotic acid titration; supplied finite bounded stdin.
 // Expected exit: 0.
 // Expected output contains: status=ok
-use system\Console;
-use domain\input;
-use domain\input\Reader;
-use domain\input\Input;
-use domain\input\read_input;
-use domain\equilibrium;
-use domain\equilibrium\Equilibrium;
-use domain\equilibrium\solve;
-use domain\report;
-use domain\report\report;
-data Main { reader: Reader; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+data Main { reader: |input|::Reader; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     main.reader.consumed = 0;
-    let mutable input: Input;
-    let valid: bool = block read_input(@mutable main.reader, @mutable input);
+    let mutable input: |input|::Input;
+    let valid: bool = block |input|::read_input(@mutable main.reader, @mutable input);
     transition valid { true -> rows(main, @input, 6), _ -> invalid(main) }
-    machine rows(main: @mutable Main, input: @Input, position: i32 in Wrapping) {
+    machine rows(main: @mutable Main, input: @|input|::Input, position: i32 in Wrapping) {
         transition position >= 6 && position < 22 && position < input.count {
             true -> row(main, input, position),
             _ -> done(main)
         }
     }
-    machine row(main: @mutable Main, input: @Input, position: i32 in Wrapping) {
-        let mutable result: Equilibrium;
-        solve(input, input.values[position], @mutable result);
-        report(input.values[position], @result);
+    machine row(main: @mutable Main, input: @|input|::Input, position: i32 in Wrapping) {
+        let mutable result: |equilibrium|::Equilibrium;
+        |equilibrium|::solve(input, input.values[position], @mutable result);
+        |report|::report(input.values[position], @result);
         transition { _ -> rows(main, input, position + 1) }
     }
-    machine done(main: @mutable Main) { Console::write_line("status=ok"); ProcessExit::exit_process(0); }
-    machine invalid(main: @mutable Main) { Console::write_line("error=input: bounded ideal-equilibrium domain or decimal packet refused"); ProcessExit::exit_process(2); }
+    machine done(main: @mutable Main) { |console|::Console::write_line("status=ok"); |process_exit|::ProcessExit::exit_process(0); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("error=input: bounded ideal-equilibrium domain or decimal packet refused"); |process_exit|::ProcessExit::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

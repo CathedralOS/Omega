@@ -1,63 +1,17 @@
 use {omega}/build/dependency.omg;
-use build_support;
+use {omega}/language/core/filesystem_authority.omg as authority;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "acquired_generator_completed_output_set");
-    let mutable generator_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "generator" });
-    |dependency|::with_alias(@mutable generator_dependency, "generator");
-    let generator_registration: DependencyRegistration = Build::build_dependency(builder, generator_dependency);
-    let mutable runtime_generator_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "generator" });
-    |dependency|::with_alias(@mutable runtime_generator_dependency, "runtime_generator");
-    let runtime_generator_registration: DependencyRegistration = Build::dependency(builder, runtime_generator_dependency);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-
-    let companion: RequiredOutput = BuildOutput::require(@mutable builder.output, "companion.txt");
-    let source: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated.omg");
-    let template_path: BuildPath = BuildSource::resolve(@builder.source, "template.txt");
-    let reader: i32 = BuildSource::open(@builder.source, template_path, 0);
-    let mutable template: [u8; 6];
-    let count: i64 = BuildSource::read(@builder.source, reader, @mutable template[..], 6);
-    _ = BuildSource::close(@builder.source, reader);
-    transition count == 6 && build_support\generated_value() == 7 {
-        true -> generate(builder, companion, source, @template),
-        _ -> failed(builder, companion, source)
-    }
-    machine generate(builder: @mutable Build, companion: RequiredOutput, source: RequiredOutput, template: @[u8; 6]) {
-        // The local helper receives only these six captured bytes, not the
-        // source capability or the caller's host paths.
-        let bytes: [u8; 6] = build_support\generate_companion(template);
-        let companion_path: BuildPath = BuildOutput::resolve(@builder.output, "companion.txt");
-        let companion_writer: i32 = BuildOutput::create(@mutable builder.output, companion_path, 0);
-        _ = BuildOutput::write(@mutable builder.output, companion_writer, @bytes[..]);
-        _ = BuildOutput::close(@mutable builder.output, companion_writer);
-        let companion_completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, companion, companion_path);
-        settle(builder, companion_completion);
-
-        let generated: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
-        let source_writer: i32 = BuildOutput::create(@mutable builder.output, generated, 0);
-        let declaration: [u8; 34] = build_support\generate_declaration();
-        _ = BuildOutput::write(@mutable builder.output, source_writer, @declaration[..]);
-        _ = BuildOutput::close(@mutable builder.output, source_writer);
-        Build::include_source(builder, "generated.omg", @declaration[..]);
-        let source_completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, source, generated);
-        settle(builder, source_completion);
-    }
-    machine failed(builder: @mutable Build, companion: RequiredOutput, source: RequiredOutput) {
-        BuildOutput::fail(@mutable builder.output, companion, "captured template or acquired helper failed");
-        BuildOutput::fail(@mutable builder.output, source, "generation did not run");
-    }
-}
-
-machine settle(builder: @mutable Build, completion: OutputCompletion) {
-    transition completion {
-        OutputCompletion::Sealed { receipt } -> sealed(builder),
-        OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
-    }
-    machine sealed(builder: @mutable Build) {}
-    machine failed(builder: @mutable Build, obligation: RequiredOutput) {
-        BuildOutput::fail(@mutable builder.output, obligation, "generated output did not seal");
-    }
+machine build(plan: @mutable BuildPlan) {
+    let mutable generator: DependencyDescription = |dependency|::from_source(Source::Path { location: "generator" });
+    |dependency|::with_alias(@mutable generator, "generator");
+    _ = |dependency|::add(plan, generator);
+    let allowed: [BoundaryServiceReference; 4] = [
+        Build::service::<|authority|::FilesystemContentRead>(plan),
+        Build::service::<|authority|::FilesystemContentWrite>(plan),
+        Build::service::<|authority|::FilesystemMetadataMutation>(plan),
+        Build::service::<|authority|::FilesystemNamespaceMutation>(plan)
+    ];
+    let system: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
+    _ = |dependency|::add(plan, system, @allowed[..]);
+    plan.product = BuildProduct::InterpretedBuild { entry: "outputs.omg" };
 }

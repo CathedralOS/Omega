@@ -1,4 +1,4 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_subsystem_call");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_subsystem_call" };
     builder.subsystem = Subsystem::Unspecified(7);
 }

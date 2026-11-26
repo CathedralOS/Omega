@@ -12,9 +12,6 @@
 mod address;
 mod materialize;
 pub(crate) use address::LocalSnapshotAddress;
-pub(super) use address::{
-    is_legacy_snapshot_name, legacy_snapshot_publication_name, snapshot_lock_name,
-};
 #[cfg(test)]
 use materialize::materialize_local_snapshot;
 use materialize::materialize_local_snapshot_from_open_parent;

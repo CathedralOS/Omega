@@ -314,7 +314,7 @@ subject obligations. Distinct selections on the same subject reject before
 lowering; repeated identical selections produce one invocation, not a sequence
 per domain. Field cleanup remains independently structural. Erasure retains the
 selected plan and its obligations. Authored early disposal
-uses the ordinary consuming `omega\core\drop(value)` call. The cleanup plan
+uses the ordinary consuming `|drop|::drop(value)` call. The cleanup plan
 keeps Type-side discharge eligibility, logical prerequisites, operational
 reach/effects/work, and derived guarantees separate.
 

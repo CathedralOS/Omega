@@ -58,7 +58,8 @@ pub struct BuildSourceAcquisitions<'operation> {
     locked_activations: bool,
     pub(crate) local_members: Option<Arc<LocalWorkspaceMembers>>,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
-    sources: Vec<AcquiredBuildSource>,
+    pub(super) sources: Vec<AcquiredBuildSource>,
+    pub(super) bundled: Option<super::bundled::BundledPackages>,
     pub(super) workspaces: Vec<super::workspace_acquisition::ExecutedWorkspace>,
 }
 
@@ -96,6 +97,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             local_members: None,
             git_sources: Vec::new(),
             sources: Vec::new(),
+            bundled: None,
             workspaces: Vec::new(),
         }
     }
@@ -170,13 +172,6 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         self.retain_source(acquired)
     }
 
-    pub fn acquire(
-        &mut self,
-        pending: PendingBuildSource,
-    ) -> Result<BuildSourceAcquisition, String> {
-        self.acquire_or_reuse(pending, None)
-    }
-
     pub(crate) fn acquire_or_reuse(
         &mut self,
         pending: PendingBuildSource,
@@ -238,22 +233,6 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         )
     }
 
-    pub fn acquire_completed(
-        &mut self,
-        requester: &AcquiredBuildSource,
-        result: &build_execution::BuildSourceResult<'_>,
-        purpose: build_declarations::DependencyPurpose,
-        ordinal: usize,
-    ) -> Result<AcquiredSourceSelection, String> {
-        if result
-            .frozen_dependencies()
-            .contains_key(&(purpose, ordinal))
-        {
-            return Err("a frozen binding requires its already settled source".into());
-        }
-        self.acquire_requests(requester, result.requests(), purpose, ordinal)
-    }
-
     pub(crate) fn acquire_requests<'request>(
         &mut self,
         requester: &AcquiredBuildSource,
@@ -309,6 +288,19 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         request: &DependencySourceRequest,
     ) -> Result<AcquiredSourceSelection, String> {
         let acquired = match request {
+            DependencySourceRequest::Bundled { name, .. } => {
+                self.acquire_bundled(name, requester.limits)?
+            }
+            DependencySourceRequest::Path { location, .. }
+                if let SourceLineage::Bundled { library, directory } = requester.lineage =>
+            {
+                let catalog = self
+                    .bundled
+                    .as_ref()
+                    .ok_or("bundled source has no installed package catalog")?;
+                let name = catalog.relative_name(library, directory, location)?;
+                self.acquire_bundled(&name, requester.limits)?
+            }
             DependencySourceRequest::Path { location, .. } => {
                 if let SourceLineage::ExternalLocal(lineage) = requester.lineage {
                     let root = super::external_local_dependency_root(
@@ -361,12 +353,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
                     &acquired.lineage == source.lineage()
                         && acquired.navigation == super::PackageSourceNavigation::Root
                 }) {
-                    let resolution = ImmutableSourceResolution::git(
-                        GitCommitId::parse_hex(source.commit())
-                            .map_err(|error| error.to_string())?,
-                        GitTreeId::parse_hex(source.tree()).map_err(|error| error.to_string())?,
-                    )
-                    .map_err(|error| error.to_string())?;
+                    let resolution = git_resolution(source.commit(), source.tree())?;
                     if existing.resolution != resolution
                         || super::PackageSourceMaterialization::from_local(
                             existing.capture.normalized(),
@@ -475,6 +462,7 @@ pub(crate) struct SourceAcquisitionOrigin<'source> {
 #[derive(Clone)]
 pub struct AcquiredBuildSource {
     pub(super) capture: CapturedLocalSource,
+    pub(super) successor_capture: Option<CapturedLocalSource>,
     pub(super) lineage: SourceLineage,
     pub(super) limits: LocalSourceLimits,
     pub(super) resolution: ImmutableSourceResolution,
@@ -568,10 +556,12 @@ impl AcquiredBuildSource {
     }
 
     pub fn entry_path(&self) -> std::path::PathBuf {
-        super::package_entry(
-            self.capture.canonical_live_root(),
-            Some(self.capture.tree()),
-        )
+        let filename = if self.capture.tree().is_file(Path::new("build.omg")) {
+            "build.omg"
+        } else {
+            "main.omg"
+        };
+        self.capture.canonical_live_root().join(filename)
     }
 
     pub fn capture_local(
@@ -625,6 +615,7 @@ impl AcquiredBuildSource {
             source_context: context,
         };
         Ok(Self {
+            successor_capture: None,
             capture,
             lineage,
             limits,
@@ -658,12 +649,9 @@ impl AcquiredBuildSource {
         if capture.normalized().content_identity != source.content_identity() {
             return Err("captured Git source differs from its authenticated snapshot".into());
         }
-        let resolution = ImmutableSourceResolution::git(
-            GitCommitId::parse_hex(source.commit()).map_err(|error| error.to_string())?,
-            GitTreeId::parse_hex(source.tree()).map_err(|error| error.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
+        let resolution = git_resolution(source.commit(), source.tree())?;
         Ok(Self {
+            successor_capture: None,
             capture,
             lineage: source.lineage().clone(),
             limits: source.source_limits(),
@@ -675,14 +663,16 @@ impl AcquiredBuildSource {
     }
 
     pub fn source_capture(&self) -> &CapturedLocalSource {
-        &self.capture
+        self.successor_capture.as_ref().unwrap_or(&self.capture)
     }
 
-    pub fn bind_returned_build(
-        &self,
-        returned: &build_execution::ReturnedBuild,
-    ) -> Result<package_compilation::PackageSourceBinding, String> {
-        self.declare_build(returned)?.source_binding()
+    pub(crate) fn follow_successor(
+        &mut self,
+        successor: &project_build::PreparedSuccessor,
+    ) -> Result<(), String> {
+        let next = successor.capture_for(self.source_capture())?;
+        self.successor_capture = (next != &self.capture).then(|| next.clone());
+        Ok(())
     }
 
     /// A source continuation may name this acquired package after its Build
@@ -712,7 +702,7 @@ impl AcquiredBuildSource {
         let entries = returned.require_source_acquisition(self.source_capture())?;
         let mut source =
             self.declare_requests(returned.declaration(), returned.source_requests())?;
-        source.frozen = returned.frozen_dependencies();
+        source.backings = returned.dependency_backings();
         source.custody.build_entries = entries.clone();
         Ok(source)
     }
@@ -723,7 +713,7 @@ impl AcquiredBuildSource {
     ) -> Result<DeclaredBuildSource, String> {
         let entries = result.require_source_acquisition(self.source_capture())?;
         let mut source = self.declare_requests(result.declaration(), result.source_requests())?;
-        source.frozen = result.frozen_dependencies();
+        source.backings = result.dependency_backings();
         source.custody.build_entries = entries.clone();
         Ok(source)
     }
@@ -741,6 +731,18 @@ impl AcquiredBuildSource {
                 return Err("a workspace declaration does not name a Product source owner".into());
             }
         };
+        if let PackageRootSourceRequest::Bundled { name: requested } = &self.root_request
+            && (!matches!(
+                declaration,
+                build_declarations::BuildDeclaration::Package(_)
+            ) || name.as_str() != requested.as_str())
+        {
+            return Err(format!(
+                "bundled package requested as {} must return a Package with that name; its Build declared {}",
+                requested.as_str(),
+                name.as_str()
+            ));
+        }
         if let super::PackageSourceSelectionEvidence::GitWorkspace(evidence) = &self.selection
             && name != evidence.plan().selected_member().package_name()
         {
@@ -751,18 +753,35 @@ impl AcquiredBuildSource {
             PackageKey::new(name.clone().into(), self.lineage.clone()),
             declaration.kind(),
             self.resolution.clone(),
-            super::PackageSourceMaterialization::from_local(self.capture.normalized()),
-            self.capture.canonical_live_root().to_path_buf(),
+            super::PackageSourceMaterialization::from_local(self.source_capture().normalized()),
+            self.source_capture().canonical_live_root().to_path_buf(),
             self.navigation.clone(),
             self.selection.clone(),
             self.limits,
             requests,
         )
-        .with_captured_source(std::sync::Arc::clone(self.capture.tree()));
+        .with_captured_source(std::sync::Arc::clone(self.source_capture().tree()))
+        .with_preparing_source(
+            self.successor_capture
+                .as_ref()
+                .map(|_| self.capture.clone()),
+        );
         Ok(DeclaredBuildSource {
-            frozen: Default::default(),
+            backings: Default::default(),
             custody,
             root_request: self.root_request.clone(),
         })
     }
+}
+
+/// The immutable resolution an authenticated Git snapshot names.
+pub(super) fn git_resolution(
+    commit: &str,
+    tree: &str,
+) -> Result<ImmutableSourceResolution, String> {
+    ImmutableSourceResolution::git(
+        GitCommitId::parse_hex(commit).map_err(|error| error.to_string())?,
+        GitTreeId::parse_hex(tree).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())
 }

@@ -50,7 +50,7 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
     )
     .unwrap();
     let root = graph.package_root(app).unwrap();
-    let imports = "use kit/math/v.omg as local; use {kit}/math/v.omg as dep; use {kit}/other/v.omg as absent; use {lib}/math/v.omg as indirect;";
+    let imports = "use kit/math/v.omg as local; use {kit}/math/v.omg as dep; use {kit}/other/v.omg as absent; use {lib}/math/v.omg as indirect; use {omega}/language/core/layout.omg;";
     let parsed = SourceInput(
         [source_admission::LoadedSource {
             source_id: source_text::SourceId(1),
@@ -65,7 +65,27 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
     .append(&mut SourceSyntax::default(), &mut CompileTimings::default())
     .unwrap();
     let unit = &parsed.sources.span_or_empty(parsed.batch)[0];
-    let rooted = FileImport::from(unit, &unit.imports[1]).unwrap();
+    let core = crate::source_imports::bundled_core_root().unwrap();
+    let capture = CapturedSourceTree::new([(
+        PathBuf::from("layout.omg"),
+        CapturedSourceNode::File {
+            bytes: Arc::from(b"public data Layout {}".as_slice()),
+            executable: false,
+        },
+    )])
+    .unwrap();
+    let mut filesystem = SourceFileSystem::new();
+    filesystem.mount_exact_capture(core.clone(), Arc::new(capture)).unwrap();
+    let import = |index: usize| FileImport::from(unit, &unit.imports[index]).unwrap().unwrap();
+    assert!(matches!(
+        import(4).standalone(None, None, &filesystem).unwrap(),
+        FileSelection::Selected(file) if file.path == core.join("layout.omg")
+    ));
+    for index in [0, 1] {
+        let errors = import(index).standalone(None, Some(&graph), &filesystem).err().unwrap();
+        assert!(errors[0].message.contains("no admitted package root"));
+    }
+    let rooted = FileImport::from(unit, &unit.imports[1]).unwrap().unwrap();
     assert!(matches!(
         rooted
             .reconciled(
@@ -79,7 +99,7 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
         FileSelection::Unbound
     ));
     let resolve = |index: usize| -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
-        let file = FileImport::from(unit, &unit.imports[index]).unwrap();
+        let file = FileImport::from(unit, &unit.imports[index])?.expect("fixture selects a file");
         let selected = file.reconciled(
             &graph,
             Some(app),

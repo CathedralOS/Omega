@@ -3,7 +3,7 @@
 //! Allocate them after lowering so exact-place order is independent of when a
 //! body or a callee's clause first demands the leaf.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use arena::NumericId;
 use semantic_vocabulary::{
@@ -15,6 +15,9 @@ use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, ExactPlaceId, ProgramPoint};
 
 use super::Lowering;
+
+#[path = "places_contents/formal_fields.rs"]
+mod formal_fields;
 
 struct Observation {
     root: PlaceId,
@@ -160,6 +163,61 @@ impl Lowering<'_> {
         Ok(())
     }
 
+    /// A scalar-returning, call-free reader only observes the elements selected
+    /// by its body and by the structural predicates on those values. Preserve
+    /// the full inventory when a runtime selector, structural handoff, or
+    /// formation can concern other elements.
+    fn read_only_default_indices(
+        &self,
+        machine: &terminal_psi::TerminalMachine,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+    ) -> Option<BTreeSet<u64>> {
+        if machine.result.structural().is_some()
+            || !machine.contract.requires.is_empty()
+            || !machine.contract.ensures.is_empty()
+            || !self.invariants.is_empty()
+            || machine.operations().any(|op| {
+                terminal_semantics::structural_qualifications::operation_writes_default_storage(
+                    &op.kind,
+                ) || op.kind.declared_invocation().is_some()
+                    || matches!(
+                        op.kind,
+                        terminal_psi::OperationKind::EstablishZeroedStructural {}
+                    )
+            })
+        {
+            return None;
+        }
+        let mut indices = BTreeSet::new();
+        for place in self.tables.places.values() {
+            let PlaceOrigin::Projection { segment, .. } = place.origin else {
+                continue;
+            };
+            match segment {
+                Segment::FixedIndex(index) => {
+                    indices.insert(index);
+                }
+                Segment::Field(_) | Segment::Case(_) | Segment::Extent | Segment::Referent => {}
+                _ => return None,
+            }
+        }
+        for clause in types.iter().flat_map(|ty| &ty.requires).chain(
+            self.qualifications
+                .structural
+                .iter()
+                .filter_map(|d| d.predicate.as_ref().map(|p| &p.proposition)),
+        ) {
+            for observation in Observation::in_clause(clause) {
+                for segment in observation.path {
+                    if let CanonicalStructuralPathSegment::FixedIndex(index) = segment {
+                        indices.insert(index);
+                    }
+                }
+            }
+        }
+        Some(indices)
+    }
+
     /// Named qualifications and type defaults name the same current storage
     /// that restoration checks inspect. Inventory those clauses before sealing
     /// snapshot identities; preparing a question supplies no proof of it.
@@ -174,8 +232,28 @@ impl Lowering<'_> {
             let requirements =
                 DefaultRequirements::new(types, &self.qualifications.structural, machine)
                     .map_err(|error| self.internal(error.detail))?;
+            let observations = std::cell::OnceCell::new();
             let declared = requirements
-                .declared()
+                .declared(|root, path, length| {
+                    let (indices, fields) = observations.get_or_init(|| {
+                        // A state entry can carry an explicit true invariant,
+                        // which has no storage operands.
+                        let unconditional = self
+                            .invariants
+                            .iter()
+                            .all(|invariant| invariant.predicate == Proposition::Truth);
+                        (
+                            self.read_only_default_indices(machine, types),
+                            formal_fields::observed(machine, types, unconditional, self.signatures),
+                        )
+                    });
+                    if fields.excludes(root, path) {
+                        return Some(Vec::new());
+                    }
+                    indices
+                        .as_ref()
+                        .map(|set| set.range(..length).copied().collect())
+                })
                 .map_err(|error| self.internal(error.detail))?;
             let mut inventory = Vec::with_capacity(declared.len());
             let mut clauses = Vec::new();
@@ -357,13 +435,30 @@ impl Lowering<'_> {
             .map(|operation| operation.id)
             .collect();
         call_operations.sort_unstable();
+        let mut overwrites: Vec<_> = self
+            .tables
+            .writes
+            .values()
+            .filter_map(|write| {
+                let (Content::Overwritten, ProgramPoint::AfterOperation(call)) =
+                    (write.content, write.at)
+                else {
+                    return None;
+                };
+                call_operations
+                    .binary_search(&call)
+                    .is_ok()
+                    .then_some((write.place, call))
+            })
+            .collect();
+        overwrites.sort_unstable();
         for slot in 0..self.demanded_contents.len() {
             let Some(scalar_type) = self.demanded_contents[slot] else {
                 continue;
             };
             let leaf = ExactPlaceId::new(slot as u64 + 1)
                 .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
-            let (named_entry, calls) = self.snapshot_boundaries(machine, leaf, &call_operations)?;
+            let (named_entry, calls) = self.snapshot_boundaries(machine, leaf, &overwrites)?;
             if named_entry {
                 self.value(
                     scalar_type,
@@ -391,7 +486,7 @@ impl Lowering<'_> {
             };
             let sum = ExactPlaceId::new(slot as u64 + 1)
                 .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
-            let (named_entry, calls) = self.snapshot_boundaries(machine, sum, &call_operations)?;
+            let (named_entry, calls) = self.snapshot_boundaries(machine, sum, &overwrites)?;
             let mut cases: Vec<_> = self
                 .record_type(sum_type)?
                 .cases()
@@ -431,7 +526,7 @@ impl Lowering<'_> {
         &self,
         machine: &terminal_psi::TerminalMachine,
         place: ExactPlaceId,
-        call_operations: &[OperationId],
+        overwrites: &[(ExactPlaceId, OperationId)],
     ) -> Checked<(bool, Vec<OperationId>)> {
         let mut at = place;
         let mut calls = Vec::<OperationId>::new();
@@ -442,19 +537,13 @@ impl Lowering<'_> {
                 .places
                 .get(at)
                 .ok_or_else(|| self.internal("a demanded storage leaf has no place row"))?;
-            for write in &row.writes {
-                let write = self
-                    .tables
-                    .writes
-                    .get(*write)
-                    .ok_or_else(|| self.internal("a storage write has no row"))?;
-                if let (Content::Overwritten, ProgramPoint::AfterOperation(call)) =
-                    (write.content, write.at)
-                    && call_operations.binary_search(&call).is_ok()
-                {
-                    calls.push(call);
-                }
-            }
+            let start = overwrites.partition_point(|(place, _)| *place < at);
+            calls.extend(
+                overwrites[start..]
+                    .iter()
+                    .take_while(|(place, _)| *place == at)
+                    .map(|(_, call)| *call),
+            );
             match row.origin {
                 PlaceOrigin::Root(root) => break root,
                 PlaceOrigin::Projection { parent, segment } => {

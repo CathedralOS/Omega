@@ -3,9 +3,9 @@
 // typed fields without re-parsing or cloning a second subject.
 
 use super::{
-    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
-    CanonicalRootSourceSelection, CanonicalSourceClosureSubject,
-    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
+    CanonicalDependencySourceSelection, CanonicalRootSourceSelection,
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectError,
+    CanonicalSourceClosureSubjectLimits,
 };
 use crate::declarations::dependencies::read::DependencyProjections;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
@@ -95,7 +95,7 @@ impl CanonicalSourceClosureSubject {
                 requester: selection.requester().clone(),
                 purpose: selection.purpose(),
                 dependency_index: selection.dependency_index(),
-                request: CanonicalDependencySourceRequest::from(selection.request()),
+                request: selection.request().clone(),
                 alias: selection.alias().clone(),
                 selected: selection.selected().clone(),
             })

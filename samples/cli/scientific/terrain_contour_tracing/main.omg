@@ -1,82 +1,74 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use system\LineReadResult;
-use omega\language\core\widen_u8_to_i32;
-use terrain\model;
-use terrain\crossings;
-use terrain\crossings\crossings;
-use terrain\extract;
-use terrain\extract\extract;
-use terrain\stitch;
-use terrain\stitch\stitch;
-use reporting\report;
-use reporting\report\Main;
-use reporting\report\report;
+use reporting/report/report.omg;
+use terrain/crossings/crossings.omg;
+use terrain/extract/extract.omg;
+use terrain/stitch/stitch.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 // One bounded record: level, policy, nine row-major elevations, optional LF.
 // Examples: 10000020000 is a closed hill; 10000000000 is flat.
-machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let observed: LineReadResult = block Console::read_line(@mutable context.input[..]);
+machine main(context: @mutable |report|::Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let observed: |console|::LineReadResult = block |console|::Console::read_line(@mutable context.input[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> line(context, count),
-        LineReadResult::EndOfInput { count } -> eof(context, count),
+        |console|::LineReadResult::LineComplete { count } -> line(context, count),
+        |console|::LineReadResult::EndOfInput { count } -> eof(context, count),
         _ -> invalid(context)
     }
-    machine line(context: @mutable Main, count: u64) {
+    machine line(context: @mutable |report|::Main, count: u64) {
         transition count == 12 && context.input[11] == 10 { true -> header(context), false -> invalid(context) }
     }
-    machine eof(context: @mutable Main, count: u64) {
+    machine eof(context: @mutable |report|::Main, count: u64) {
         transition count == 11 { true -> header(context), false -> invalid(context) }
     }
-    machine header(context: @mutable Main) {
+    machine header(context: @mutable |report|::Main) {
         transition context.input[0] >= 48 && context.input[0] <= 57 && context.input[1] >= 48 && context.input[1] <= 49 {
             true -> decode_header(context),
             false -> invalid(context)
         }
     }
-    machine decode_header(context: @mutable Main) {
-        context.terrain.level = (widen_u8_to_i32(context.input[0]) as i32 +Wrapping) - 48;
-        context.terrain.policy = (widen_u8_to_i32(context.input[1]) as i32 +Wrapping) - 48;
+    machine decode_header(context: @mutable |report|::Main) {
+        context.terrain.level = (|numeric_conversion|::widen_u8_to_i32(context.input[0]) as i32 +Wrapping) - 48;
+        context.terrain.policy = (|numeric_conversion|::widen_u8_to_i32(context.input[1]) as i32 +Wrapping) - 48;
         transition { _ -> digit(context, 0) }
     }
-    machine digit(context: @mutable Main, index: u64) {
+    machine digit(context: @mutable |report|::Main, index: u64) {
         transition index < 9 { true -> check_digit(context, index), false -> compute(context) }
     }
-    machine check_digit(context: @mutable Main, index: u64) requires index < 9 {
+    machine check_digit(context: @mutable |report|::Main, index: u64) requires index < 9 {
         transition context.input[index + 2] >= 48 && context.input[index + 2] <= 57 { true -> decode(context, index), false -> invalid(context) }
     }
-    machine decode(context: @mutable Main, index: u64) requires index < 9 {
-        let height: i32 in Wrapping = (widen_u8_to_i32(context.input[index + 2]) as i32 +Wrapping) - 48;
+    machine decode(context: @mutable |report|::Main, index: u64) requires index < 9 {
+        let height: i32 in Wrapping = (|numeric_conversion|::widen_u8_to_i32(context.input[index + 2]) as i32 +Wrapping) - 48;
         transition height != context.terrain.level { true -> store(context, index, height), false -> invalid(context) }
     }
-    machine store(context: @mutable Main, index: u64, height: i32 in Wrapping) requires index < 9 {
+    machine store(context: @mutable |report|::Main, index: u64, height: i32 in Wrapping) requires index < 9 {
         context.terrain.heights[index] = height;
         transition { _ -> digit(context, index + 1) }
     }
-    machine compute(context: @mutable Main) {
-        extract(@context.terrain, @mutable context.graph);
-        crossings(@context.terrain, @mutable context.graph);
-        stitch(@mutable context.graph, @mutable context.paths);
+    machine compute(context: @mutable |report|::Main) {
+        |extract|::extract(@context.terrain, @mutable context.graph);
+        |crossings|::crossings(@context.terrain, @mutable context.graph);
+        |stitch|::stitch(@mutable context.graph, @mutable context.paths);
         transition context.graph.valid && context.paths.valid { true -> output(context), false -> failed(context) }
     }
-    machine output(context: @mutable Main) {
-        report(context);
-        ProcessExit::exit_process(0);
+    machine output(context: @mutable |report|::Main) {
+        |report|::report(context);
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine invalid(context: @mutable Main) {
-        Console::write_line("INVALID terrain record");
-        ProcessExit::exit_process(64);
+    machine invalid(context: @mutable |report|::Main) {
+        |console|::Console::write_line("INVALID terrain record");
+        |process_exit|::ProcessExit::exit_process(64);
     }
-    machine failed(context: @mutable Main) {
-        Console::write_line("INVARIANT contour graph");
-        ProcessExit::exit_process(70);
+    machine failed(context: @mutable |report|::Main) {
+        |console|::Console::write_line("INVARIANT contour graph");
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable entry_storage: Main;
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable entry_storage: |report|::Main;
     block main(@mutable entry_storage);
 }

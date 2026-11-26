@@ -363,7 +363,6 @@ fn validate_original(
             .physical,
     )?;
     if let Some(original) = original {
-        source::retained_source_validation::admit(replay, original)?;
         source::retained_source_validation::establish_geometry(replay, original)?;
     }
     if source.emission_facts().physical.termination.is_err() {

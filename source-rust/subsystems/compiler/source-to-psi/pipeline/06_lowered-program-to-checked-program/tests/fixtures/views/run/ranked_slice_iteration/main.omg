@@ -1,3 +1,4 @@
+use {omega}/language/core/nat.omg;
 // Expected exit: 0
 // Measured loops pass both scalar values and the remaining borrowed bytes.
 machine checksum(bytes: @[u8], accumulated: u8) -> u8
@@ -8,7 +9,7 @@ terminates by bytes -> Slice::Length {
     }
 }
 machine parity(remaining: u32, odd: bool) -> bool
-terminates by remaining -> Nat::Descending {
+terminates by remaining -> |nat|::Nat::Descending {
     transition remaining > 0 {
         true -> parity(remaining - 1, !odd),
         false -> odd

@@ -1,27 +1,27 @@
 // Fact: A transparent generic alias retains its underlying case identity and payload type through qualified construction and matching.
 // Expected exit: 0
-use leaf\choices;
-machine inspect(value: leaf\choices\Chosen<u64>) -> u64 {
+use {leaf}/choices/choices.omg;
+machine inspect(value: |choices|::Chosen<u64>) -> u64 {
     transition value {
-        leaf\choices\Chosen::Some { value } -> (value),
-        leaf\choices\Chosen::Empty -> (17u64)
+        |choices|::Chosen::Some { value } -> (value),
+        |choices|::Chosen::Empty -> (17u64)
     }
 }
-machine relay(pick: bool, value: u64) -> leaf\choices\Chosen<u64> {
+machine relay(pick: bool, value: u64) -> |choices|::Chosen<u64> {
     transition { _ -> onward(pick, value) }
-    machine onward(pick: bool, value: u64) -> leaf\choices\Chosen<u64> {
+    machine onward(pick: bool, value: u64) -> |choices|::Chosen<u64> {
         transition pick {
-            true -> leaf\choices\Chosen::Some { value: value },
-            false -> leaf\choices\Chosen::Empty
+            true -> |choices|::Chosen::Some { value: value },
+            false -> |choices|::Chosen::Empty
         }
     }
 }
 machine main() crashes Trap {
-    let scalar: leaf\choices\Scalar<u64> = leaf\choices\Scalar { value: 42u64 };
-    let carried: u64 = match scalar { leaf\choices\Scalar { value } -> value };
-    let via_alias: leaf\choices\Chosen<u64> = relay(true, carried);
-    let explicit: leaf\choices\Choice<u64> = via_alias;
-    let alias_again: leaf\choices\Chosen<u64> = explicit;
+    let scalar: |choices|::Scalar<u64> = |choices|::Scalar { value: 42u64 };
+    let carried: u64 = match scalar { |choices|::Scalar { value } -> value };
+    let via_alias: |choices|::Chosen<u64> = relay(true, carried);
+    let explicit: |choices|::Choice<u64> = via_alias;
+    let alias_again: |choices|::Chosen<u64> = explicit;
     transition inspect(alias_again) == 42u64 && inspect(relay(false, carried)) == 17u64 {
         true -> done(),
         false -> bad()

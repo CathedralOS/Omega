@@ -22,7 +22,7 @@ pub use filesystem_authority::{
     FilesystemOperationResult as BuildFilesystemOperationResult,
 };
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 83;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 85;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BuildActivation {
@@ -45,19 +45,21 @@ impl BuildActivation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildFilesystemRoot {
-    Source,
-    Output,
-    NamedInput(u32), // Compiler-issued root joined to the observation's named inventory.
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildFilesystemAuthorizedPath {
     pub(crate) operand_ordinal: u8,
     pub(crate) access: BuildFilesystemGrantAccess,
     pub(crate) root: BuildFilesystemRoot,
     pub(crate) relative_path: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildFilesystemRoot {
+    Source,
+    Output,
+    NamedInput(u32), // Compiler-issued root joined to the observation's named inventory.
+    /// Relative to the guest root among this activation's live directory grants.
+    MappedDirectories,
 }
 
 impl BuildFilesystemAuthorizedPath {
@@ -157,6 +159,7 @@ pub struct BuildObservationSummary {
     pub(crate) activation: BuildActivation,
     pub(crate) captured_source_inventory: Option<BuildCapturedSourceInventory>,
     pub(crate) named_input_inventories: Vec<BuildNamedInputInventory>,
+    pub(super) product_source_tree: Option<BuildStagedOutputTree>,
     pub(super) generated_sources: Vec<build_output::PackageGeneratedSource>,
     pub(crate) required_output_settlements: Vec<BuildRequiredOutputSettlement>, // Completed `BuildOutput::require` obligations in issue order.
     pub(crate) staged_output_tree: Option<BuildStagedOutputTree>,
@@ -166,6 +169,7 @@ pub struct BuildObservationSummary {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildRequiredOutputSettlement {
     pub(crate) relative_path: Vec<u8>,
+    pub(super) staged_file: Vec<u8>,
     pub(crate) sealed_attempt_ordinal: u64,
 }
 
@@ -216,6 +220,10 @@ impl BuildObservationSummary {
 
     pub fn build_log(&self) -> &[u8] {
         &self.build_log
+    }
+
+    pub fn product_source_tree(&self) -> Option<&BuildStagedOutputTree> {
+        self.product_source_tree.as_ref()
     }
 
     pub fn generated_sources(&self) -> &[build_output::PackageGeneratedSource] {

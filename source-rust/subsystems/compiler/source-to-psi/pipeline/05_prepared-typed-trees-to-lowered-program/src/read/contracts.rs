@@ -287,8 +287,30 @@ impl Program<'_> {
         use crate::source_state::proposition::{PropositionBody, PropositionFormula};
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let typed = self.typed;
+        let mut proposition_symbol = application.proposition;
+        if typed
+            .proposition_definition_by_symbol(proposition_symbol)
+            .is_none()
+        {
+            let mut current = Some(&*self.source_scope);
+            while let Some(scope) = current {
+                if let Some((_, actual)) = scope
+                    .substitutions
+                    .iter()
+                    .find(|(symbol, _)| *symbol == proposition_symbol)
+                {
+                    if let crate::source_state::types::TypeReferenceNode::Named { symbol, .. } =
+                        typed.type_reference_table.type_reference(*actual)
+                    {
+                        proposition_symbol = *symbol;
+                    }
+                    break;
+                }
+                current = scope.parent.as_deref();
+            }
+        }
         let definition = typed
-            .proposition_definition_by_symbol(application.proposition)
+            .proposition_definition_by_symbol(proposition_symbol)
             .ok_or_else(|| unserved("named proposition without its declaration"))?;
         let PropositionBody::Transparent { proposition } = &definition.body else {
             return Err(unserved("named proposition declared without a formula"));
@@ -441,9 +463,7 @@ impl Program<'_> {
                 None => self.runtime_membership_clause(id, scope, membership),
             };
         }
-        if let ProofFact::Proposition(application) = fact
-            && self.mathematical
-        {
+        if let ProofFact::Proposition(application) = fact {
             return self.named_proposition(id, scope, application).map(Some);
         }
         let expression = self.fact(id, fact)?;

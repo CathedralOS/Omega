@@ -210,13 +210,9 @@ impl<'a> Storage<'a> {
                 // loan. Use that backing for reads and overlapping writes.
                 let backed = self.backing(references, &leaf, block, 0, concerns)?;
                 self.observations[index(block.get())]
+                    .at_entry
                     .entry(backed.place)
-                    .or_default()
-                    .push(Observation {
-                        point: ProgramPoint::BlockEntry(block),
-                        position: 0,
-                        value,
-                    });
+                    .or_insert(value);
             }
         }
         Ok(())
@@ -552,10 +548,12 @@ impl EntryOwner<'_, '_> {
             .ok_or(crate::Unbound::Unproved(
                 "no operation names the field, so its entry content has no value identity",
             ))?;
-        let held_type =
-            terminal_check_tables::row(&self.tables.values, held, storage.machine, concerns)
-                .map_err(crate::Unbound::Refused)?
-                .scalar_type;
+        let held_type = self
+            .tables
+            .values
+            .checked(held, storage.machine, concerns)
+            .map_err(crate::Unbound::Refused)?
+            .scalar_type;
         if held_type != scalar_type {
             return Err(crate::Unbound::Unsupported(
                 "a formal's field holds a value of another type than its clause term",

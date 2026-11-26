@@ -2,13 +2,9 @@
 // Expected exit: 0
 // Place: match_join.
 
-use omega\language\core\CompactBinary;
-use omega\language\core\CompactBinary\encode;
-use omega\language\core\CompactBinary\scalar_field;
-use omega\language\core\EncodeContext;
-use omega\language\core\EncodeResult;
-use omega\language\core\EncodedField;
-use omega\language\core\reflect;
+use {omega}/language/core/CompactBinary/compact_binary.omg;
+use {omega}/language/core/reflect/reflect.omg;
+use {omega}/language/core/wire.omg;
 
 data Value { #0 value: u64; }
 data Counter<'a> { slot: @'a mutable u64; }
@@ -53,14 +49,14 @@ machine main() crashes Trap {
 }
 
 // The value owner authorizes field visits; the core library writes the bytes.
-machine packet_fields(value: @Value, context: @mutable EncodeContext) {
-    reflect\visit_runtime_fields::<Value, CompactBinary\scalar_field>(value, context);
+machine packet_fields(value: @Value, context: @mutable |wire|::EncodeContext) {
+    |reflect|::visit_runtime_fields::<Value, |compact_binary|::scalar_field>(value, context);
 }
 machine encode_packet<const N: u64>(value: @Value, out: @mutable [u8; N], written: @mutable u64) {
     let mutable scratch: [u8; N];
-    let mutable fields: [EncodedField; 1];
-    transition CompactBinary\encode::<Value, packet_fields>(value, @mutable out[..], @mutable scratch[..], @mutable fields[..], 10000u64) {
-        EncodeResult::Encoded { next } -> finish(written, next),
+    let mutable fields: [|wire|::EncodedField; 1];
+    transition |compact_binary|::encode::<Value, packet_fields>(value, @mutable out[..], @mutable scratch[..], @mutable fields[..], 10000u64) {
+        |wire|::EncodeResult::Encoded { next } -> finish(written, next),
         _ -> finish(written, 0u64)
     }
     machine finish(written: @mutable u64, next: u64) { $written = next; }

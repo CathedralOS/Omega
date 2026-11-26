@@ -1,2 +1,2 @@
 this call has no visible declaration in its source scope
-main.omg:2:20
+main.omg:2:12

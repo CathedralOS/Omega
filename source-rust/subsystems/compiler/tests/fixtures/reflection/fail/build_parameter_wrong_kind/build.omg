@@ -1,14 +1,14 @@
+use main.omg as app;
+use {api}/main.omg as api;
 use {omega}/build/dependency.omg;
-use omega\language\core\reflect;
-use omega\language\core\reflect\ParameterInfo;
-use omega\language\core\reflect\FieldInfo;
+use {omega}/language/core/reflect/reflect.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_parameter_description");
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../run/build_parameter_description/library" });
     |dependency|::with_alias(@mutable description, "api");
     let registration: DependencyRegistration = Build::dependency(builder, description);
-    let parameter: ParameterInfo = reflect\parameter(api\Table::invoke);
-    let field: FieldInfo = reflect\field(api\Table::invoke);
+    let parameter: |reflect|::ParameterInfo = |reflect|::parameter(|api|::Table::invoke);
+    let field: |reflect|::FieldInfo = |reflect|::field(|api|::Table::invoke);
     transition parameter.declaration_position == 1u64 && field.declaration_position == 1u64
         && field.name == "invoke" && parameter.parameter_identity != ""
         && parameter.requirement_application != "" && field.owner_application != ""
@@ -17,10 +17,10 @@ machine build(builder: @mutable Build) {
         false -> reject()
     }
     machine accept(builder: @mutable Build) {
-        Build::bind(builder, linux_x86_64::ProgramEntry, main);
-        Build::bind(builder, linux_arm64::ProgramEntry, main);
-        Build::bind(builder, macos_arm64::ProgramEntry, main);
-        Build::bind(builder, windows_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+        Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+        Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     }
     machine reject() crashes Trap { crash Trap; }
 }

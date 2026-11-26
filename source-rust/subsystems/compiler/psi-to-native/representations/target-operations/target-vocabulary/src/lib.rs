@@ -18,7 +18,6 @@ belong with these records; this crate contains no prepared instruction graph.
 
 pub use calling_conventions::MachineRegister;
 pub use operation_evidence::completion_claims::CompletionClaimSource;
-pub use operation_evidence::provider_calls::InstalledAssumedBindingEvidence;
 pub use operation_operands::values::{AbstractResult, ValueBinding};
 
 pub mod calls;
@@ -46,11 +45,12 @@ pub use boundary::{
     HostedReadByteRealization, HostedWriteByteI32Realization, IeeeFloatArithmeticOperation,
     IeeeFloatBinaryOperation, IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection,
     IeeeFloatToIntegerDomain, LinuxWriteLineRealization, MetadataOnlyPortRealization,
-    NativeBindingExecution, NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
-    NormalizedForeignCallMechanism, NormalizedForeignExecution, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
-    ProviderPlanReportIdentity, conventional_atomic_once_layout,
-    conventional_atomic_once_layout_closed, conventional_float_class_layout,
+    NativeBindingExecution, NativeBindingStack, NearestIeeeFloatArithmeticRealization,
+    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignExecution,
+    NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument,
+    NormalizedSystemCallBinding, ProviderExecutionBinding, ProviderPlanReportIdentity,
+    TableBindingSource, conventional_atomic_once_layout, conventional_atomic_once_layout_closed,
+    conventional_float_class_layout,
 };
 pub use descriptor_input::DescriptorInputGuard;
 pub mod operation_records;

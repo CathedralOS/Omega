@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "private_issuer_provider_result");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "private_issuer_provider_result" };
     Build::select_provider::<Source, CheckedSource>(builder, linux_arm64);
     Build::select_provider::<Source, CheckedSource>(builder, linux_x86_64);
     Build::select_provider::<Source, CheckedSource>(builder, macos_arm64);

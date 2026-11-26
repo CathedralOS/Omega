@@ -6,15 +6,13 @@
 // old/new pair under `CounterNetwork` gets its own
 // non-aliased requirement identity.
 //
-//   * `use omega\language\core\format_lineage` — the
-//     system lineage trait via a path dependency.
+//   * `{omega}/language/core/format_lineage.omg` declares the core lineage trait.
 //   * Two `satisfies` rows differing only in the
 //     lineage marker type.
 //
-// Compile-checked only: path-depends on
-// source/library/system; run a check target, not native.
+// Compile-check this probe with its bundled system dependency.
 
-use omega\language\core\FormatMigration;
+use {omega}/language/core/format_lineage.omg;
 
 data CounterDisk {
 }
@@ -34,7 +32,7 @@ data Counter {
 machine counter_v1_to_current(
     old: CounterV1,
     out: @mutable Counter
-) satisfies FormatMigration<CounterDisk, CounterV1, Counter>::migrate {
+) satisfies |format_lineage|::FormatMigration<CounterDisk, CounterV1, Counter>::migrate {
     out.counter = old.counter;
     out.timestamp = 0;
 }
@@ -42,7 +40,7 @@ machine counter_v1_to_current(
 machine network_counter_v1_to_current(
     old: CounterV1,
     out: @mutable Counter
-) satisfies FormatMigration<CounterNetwork, CounterV1, Counter>::migrate {
+) satisfies |format_lineage|::FormatMigration<CounterNetwork, CounterV1, Counter>::migrate {
     out.counter = old.counter;
     out.timestamp = 1;
 }

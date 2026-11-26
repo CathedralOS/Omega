@@ -7,12 +7,11 @@
 // `u64 in Wrapping` fields (index operands must be simple names), and every
 // index op sits in a parameterless state entered by a transition that
 // restates the bounds (`field < extent`). Callers stage at most 8,192 input
-// bytes into `msg[..msg_n]` and call `sha256\digest(@mutable state)`; the
+// bytes into `msg[..msg_n]` and call `|sha256|::digest(@mutable state)`; the
 // 32-byte digest lands in `out32`. A longer `msg_n`, or any other failed guard,
 // sets `bad` and leaves `out32` all zero.
 
-use omega\language\core\narrow_u32_to_u8_wrapping;
-use omega\language\core\narrow_u64_to_u8_wrapping;
+use {omega}/language/core/numeric_conversion.omg as convert;
 
 public data Sha256 {
     bad: bool;
@@ -368,7 +367,7 @@ public machine digest(sha256: @mutable Sha256) {
         }
     }
     machine apply_l(sha256: @mutable Sha256) {
-        sha256.tail[sha256.q0 as u64] = narrow_u64_to_u8_wrapping((sha256.bit_len >> sha256.q2) as u64);
+        sha256.tail[sha256.q0 as u64] = |convert|::narrow_u64_to_u8_wrapping((sha256.bit_len >> sha256.q2) as u64);
         sha256.i = sha256.i + 1;
         transition { _ -> write_len_loop(sha256) }
     }
@@ -460,10 +459,10 @@ public machine digest(sha256: @mutable Sha256) {
     }
     machine apply_o(sha256: @mutable Sha256) {
         let word: u32 in Wrapping = sha256.h[sha256.w0 as u64];
-        sha256.out32[sha256.o0 as u64] = narrow_u32_to_u8_wrapping((word >> 24) as u32);
-        sha256.out32[sha256.o1 as u64] = narrow_u32_to_u8_wrapping((word >> 16) as u32);
-        sha256.out32[sha256.o2 as u64] = narrow_u32_to_u8_wrapping((word >> 8) as u32);
-        sha256.out32[sha256.o3 as u64] = narrow_u32_to_u8_wrapping(word as u32);
+        sha256.out32[sha256.o0 as u64] = |convert|::narrow_u32_to_u8_wrapping((word >> 24) as u32);
+        sha256.out32[sha256.o1 as u64] = |convert|::narrow_u32_to_u8_wrapping((word >> 16) as u32);
+        sha256.out32[sha256.o2 as u64] = |convert|::narrow_u32_to_u8_wrapping((word >> 8) as u32);
+        sha256.out32[sha256.o3 as u64] = |convert|::narrow_u32_to_u8_wrapping(word as u32);
         sha256.i = sha256.i + 1;
         transition { _ -> write_loop(sha256) }
     }

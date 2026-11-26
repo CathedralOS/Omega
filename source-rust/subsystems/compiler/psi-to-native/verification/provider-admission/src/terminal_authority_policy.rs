@@ -216,9 +216,9 @@ pub fn terminal_authority_policy_with_rows(
             }
             TerminalMechanismIdentity::NormalizedForeign(_) => {}
             TerminalMechanismIdentity::Table {
-                calling, provider, ..
+                calling, authority, ..
             } => {
-                if calling.is_zero() || provider.as_bytes() == &[0; 32] {
+                if calling.is_zero() || authority.commitment() == &[0; 32] {
                     return Err(
                         TerminalAuthorityPolicyBuildError::EmptyImplementationContract(
                             row.mechanism,

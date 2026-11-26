@@ -35,11 +35,15 @@ a file in a subdirectory. In `use {geometry}/math/vector.omg as vec;`, the
 active dependency scope supplies the root `geometry`. Local `geometry/x.omg`
 and rooted `{geometry}/x.omg` address distinct sources. The toolchain supplies
 `{omega}/language/core/` in both checked build and product contexts.
+For example, `use {omega}/language/core/foundation.omg as proof;` exposes
+`|proof|::Identity` and `|proof|::Type` through an ordinary file-local alias.
+The [five mathematical declarations](../proofs/mathematical_bindings.md#importing-the-mathematical-foundation)
+use this same lookup rule.
 
 Match the slash-separated logical filename exactly. Components may contain a
-hyphen. Empty components, `.`, `..`, absolute host paths, directories and
-missing files reject. The filename includes its final literal `.omg`; there
-is no basename search or implied index file. A stem that is not a legal
+hyphen. Empty components, `.`, `..`, absolute host paths and directory spellings
+reject. The filename includes its final literal `.omg`. There is no basename
+search or implied index file. A stem that is not a legal
 namespace identifier requires an explicit legal alias, for example
 `use math/asdf-whatever.omg as whatever;`. Never normalize a hyphen to an
 underscore when binding an alias. Duplicate aliases in one file reject at
@@ -57,10 +61,16 @@ Existing compound tokens retain their lexical meaning. Write
 Similarly, `offset + |limits|::BASE` keeps plus separate from `+|`.
 
 Each import selects a file without executing code or acquiring dependencies.
-The compiler resolves Build imports against the bindings its caller supplied
-before the entry runs, including imports used only in conditional code.
-Unused valid imports retain ordinary warning behavior. Product imports resolve
-in the Product compilation against its frozen inputs.
+Each stage resolves the aliases it needs for checking against its own
+frozen files and package bindings. A required target that is missing or
+names a directory rejects that stage. A well-formed import may remain
+unresolved in stages that do not use it. Syntax and duplicate-alias checks
+still apply in every parsed file.
+
+At the end of the build, warn once for each import declaration unused by
+every stage compiled in that invocation, even if its target is missing.
+Count a use by a successor compiling the same declaration. Reporting the
+warning requires no final lookup of the unused target.
 [Checked Build stages](../build/scoped_execution.md#checked-build-stages)
 
 Dependency authority is context-specific. Build entry/local-helper imports use
@@ -128,7 +138,7 @@ competing declarations.
 
 Named decision: `role-separated-builtin-type-names`, ratified 2026-11-13.
 
-Compiler-defined type names, such as `bool`, `f32`, `f64`, `addr` and the
+Compiler-defined type names, such as `bool`, `f32`, `f64`, `address` and the
 integer family, exist only in the type role. The integer family is open-ended:
 `i`, `u`, and every `i` or `u` followed by decimal digits, whether or not the
 digits form a valid width. `u0` is a family spelling and an invalid type. A
@@ -140,7 +150,7 @@ builtin type spelling. Value and universe-level binders may use those spellings.
 | Introduced name | May use a builtin type spelling |
 | --- | --- |
 | A value: local, machine or state parameter, field, pattern binding, value constant, generic value binder, machine, named implementation | Yes. It does not affect type lookup. |
-| A universe level: a binder declared with `core\Level` | Yes. It introduces a name in level expressions. |
+| A universe level: a binder declared with `\|proof\|::Level` | Yes. It introduces a name in level expressions. |
 | A type: data declaration, trait schema, type alias, generic type binder | No. It would compete with the builtin type, and rejects where it is introduced. |
 | A namespace: file import alias | No, for the same reason. |
 
@@ -153,8 +163,8 @@ Each use resolves by its role, determined before any operation is chosen:
 - A generic argument takes its role from the selected declaration's binder: a
   type binder reads a type and `const N: u64` reads a value. Lookup never tries
   alternative roles to find one that checks. A universe-level argument reads a
-  level expression. In `<u: core\Level, A: core\Type<u>>`, the argument to
-  `core\Type` reads the bound level. Type lookup still applies the ordinary
+  level expression. In `<u: |proof|::Level, A: |proof|::Type<u>>`, the argument to
+  `|proof|::Type` reads the bound level. Type lookup still applies the ordinary
   integer-family spelling and width rules.
 - Where an operand could be either, as in a type equality, a value binding
   takes the value role and a type/value mixture rejects. With a parameter

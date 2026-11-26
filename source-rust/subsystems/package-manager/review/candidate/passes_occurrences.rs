@@ -335,43 +335,24 @@ impl<'pass> PackageReviewRound<'pass> {
                     dependency_review.ok_or(PackageCompilationInputError::MissingBuildHandoff {
                         package: dependency.identity(),
                     });
-                let review = review.map_err(|error| {
-                    CompileResolvedPackageReviewsError::new(
-                        crate::review::CompileResolvedPackageReviewCause::CompilationInputs {
-                            package: key.clone(),
-                            errors: vec![error],
-                        },
-                    )
-                })?;
+                let review = review.map_err(|error| refused(vec![error]))?;
                 let custody = closure
                     .custody(dependency)
                     .ok_or(PackageCompilationInputError::ForeignBuildHandoff {
                         package: dependency.identity(),
                     })
-                    .map_err(|error| {
-                        CompileResolvedPackageReviewsError::new(
-                            crate::review::CompileResolvedPackageReviewCause::CompilationInputs {
-                                package: key.clone(),
-                                errors: vec![error],
-                            },
-                        )
-                    })?;
+                    .map_err(|error| refused(vec![error]))?;
                 let bundle = review.build_handoff();
                 if review.resolution() != custody.resolution()
                     || bundle.package() != dependency.identity()
                     || bundle.source_consumption_commitment()
                         != review.source_consumption_commitment()
                 {
-                    return Err(CompileResolvedPackageReviewsError::new(
-                        crate::review::CompileResolvedPackageReviewCause::CompilationInputs {
-                            package: key.clone(),
-                            errors: vec![
-                                PackageCompilationInputError::BuildHandoffCustodyMismatch {
-                                    package: dependency.identity(),
-                                },
-                            ],
+                    return Err(refused(vec![
+                        PackageCompilationInputError::BuildHandoffCustodyMismatch {
+                            package: dependency.identity(),
                         },
-                    ));
+                    ]));
                 }
                 if dependency_purpose.is_product()
                     && bundle.target() == occurrence.checked_target
@@ -396,14 +377,7 @@ impl<'pass> PackageReviewRound<'pass> {
             .and_then(|inputs| {
                 inputs.with_independent_component_descriptions(component_descriptions)
             })
-            .map_err(|errors| {
-                CompileResolvedPackageReviewsError::new(
-                    crate::review::CompileResolvedPackageReviewCause::CompilationInputs {
-                        package: key.clone(),
-                        errors,
-                    },
-                )
-            })?;
+            .map_err(refused)?;
         let is_dependency = key != closure.graph().root();
         let build_snapshot = if is_dependency {
             None
@@ -444,15 +418,18 @@ impl<'pass> PackageReviewRound<'pass> {
         // Source and snapshot identity can match even if this Build's restricted
         // grants, observations, generated source or provider decisions changed.
         if occurrence.resolution != review.resolution()
-            || product.reviewed_build_requests(checked_target)
-                .map_err(|diagnostics| occurrence.compilation_error(self.execution_profile, diagnostics.into()))?
+            || product
+                .reviewed_build_requests(checked_target)
+                .map_err(|diagnostics| {
+                    occurrence.compilation_error(self.execution_profile, diagnostics.into())
+                })?
                 != review.restricted_build_requests()
             || evaluated.configuration.evaluation_usage != review.build_evaluation_usage()
             || evaluated.configuration.observation_summary.as_ref()
                 != review.build_observation_summary()
-            || product.reviewed_preparations()
-                .map_err(|diagnostics| occurrence.compilation_error(self.execution_profile, diagnostics.into()))?
-                != review.preparations()
+            || product.reviewed_preparations().map_err(|diagnostics| {
+                occurrence.compilation_error(self.execution_profile, diagnostics.into())
+            })? != review.preparations()
             || &product
                 .build_handoff(checked_target)
                 .map_err(|failure| occurrence.compilation_error(self.execution_profile, failure))?

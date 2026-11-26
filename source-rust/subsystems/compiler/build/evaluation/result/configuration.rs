@@ -3,8 +3,7 @@ use behavior_exclusion_requests::AuthoredBehaviorExclusion;
 use checked_program_to_psi::provider_choice_inputs::{NativeBuildSupply, ProviderSelection};
 use normalized_build_settings::EvaluatedBuildSettings;
 use source_declarations::source_selections::{
-    AssumedBindingContract, RootBinding, ServiceAuditRegistration, TestGroupRegistration,
-    WireCompatibilityDemand,
+    RootBinding, ServiceAuditRegistration, TestGroupRegistration, WireCompatibilityDemand,
 };
 use symbols::root_grants::AuthoredRootGrant;
 use typed_trees::source_state::opaque_representations::OpaqueRepresentationSelection;
@@ -18,7 +17,6 @@ pub struct BuildConfig {
     pub native_bindings: Vec<NativeBuildSupply>,
     pub native_binding_evaluation:
         Option<std::sync::Arc<evaluation_receipts::NativeBuildEvaluation>>,
-    pub assumed_bindings: Vec<AssumedBindingContract>,
     pub opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     pub wire_compatibility_demands: Vec<WireCompatibilityDemand>,
     pub root_bindings: Vec<RootBinding>,
@@ -50,11 +48,13 @@ impl ExecutedBuildEntry {
 
 #[derive(Clone)]
 pub struct ComputedBuildConfig {
+    pub enabled_unsafe_atoms:
+        std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     /// Published programs in execution order. Review can read their checked
     /// contracts without keeping the compiler's source trees alive.
     pub accepted_builds: Vec<terminal_codec::RetainedTerminalCode>,
-    /// The completed preparations and exact calls at which this Build resumed.
-    pub execution_history: std::sync::Arc<evaluation_receipts::BuildExecutionHistory>,
+    /// The dependencies this checked Build activation waited for, in execution order.
+    pub dependency_preparations: std::sync::Arc<evaluation_receipts::DependencyPreparations>,
     pub config: BuildConfig,
     pub root_binding_requests: Vec<source_declarations::declaration_selection::ProductEntryBinding>,
     pub declared_product_selections:
@@ -81,8 +81,9 @@ pub struct ComputedBuildConfig {
 impl PartialEq for ComputedBuildConfig {
     fn eq(&self, other: &Self) -> bool {
         let Self {
+            enabled_unsafe_atoms,
             accepted_builds: _,
-            execution_history,
+            dependency_preparations,
             config,
             root_binding_requests,
             declared_product_selections,
@@ -97,7 +98,8 @@ impl PartialEq for ComputedBuildConfig {
             executed_entry,
             generated_sources,
         } = self;
-        execution_history == &other.execution_history
+        enabled_unsafe_atoms == &other.enabled_unsafe_atoms
+            && dependency_preparations == &other.dependency_preparations
             && config == &other.config
             && root_binding_requests == &other.root_binding_requests
             && declared_product_selections == &other.declared_product_selections
@@ -122,8 +124,9 @@ impl std::fmt::Debug for ComputedBuildConfig {
         // in the retained source judgment.
         formatter
             .debug_struct("ComputedBuildConfig")
+            .field("enabled_unsafe_atoms", &self.enabled_unsafe_atoms)
             .field("accepted_builds", &self.accepted_builds.len())
-            .field("execution_history", &self.execution_history)
+            .field("dependency_preparations", &self.dependency_preparations)
             .field("config", &self.config)
             .field("root_binding_requests", &self.root_binding_requests)
             .field(

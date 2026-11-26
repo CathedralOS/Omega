@@ -4,7 +4,8 @@ mod returns;
 
 use semantic_vocabulary::{
     ClaimId, ContentAlgebraKind, ContentConservation, ContentPlaceVersion,
-    ContentProjectionExpression, ContentTerm, EdgeId, PlaceId, Proposition, StructuralDomainId,
+    ContentProjectionExpression, ContentProjectionIdentity, ContentStructuralPlace, ContentTerm,
+    EdgeId, PlaceId, Proposition, StructuralDomainId,
 };
 use terminal_psi::{StructuralAccess, StructuralArgument, TerminalMachine, TerminalModule};
 
@@ -47,23 +48,18 @@ pub(crate) fn require_decomposition_laws(
             let Proposition::ContentConservation(law) = &clause.proposition else {
                 return false;
             };
-            // The canonical term order puts a projection before a separation.
-            let (ContentTerm::Projection { projection, subject: entry }, ContentTerm::Separate(parts)) =
-                (law.left(), law.right())
-            else {
-                return false;
-            };
-            *projection == owner.identity
-                && *law.algebra() == owner.algebra
-                && entry.version == ContentPlaceVersion::Entry
-                && entry.root == formal.place
-                && entry.segments.is_empty()
-                && parts.len() >= 2
-                && parts.iter().all(|part| {
-                    matches!(part, ContentTerm::Projection { projection, subject: piece }
-                        if *projection == owner.identity && piece.version == ContentPlaceVersion::Current
-                            && piece.root == result.place && !piece.segments.is_empty())
-                })
+            Exchange::read(law).is_some_and(|exchange| {
+                exchange.projection == owner.identity
+                    && *law.algebra() == owner.algebra
+                    && exchange
+                        .inputs
+                        .iter()
+                        .any(|input| input.root == formal.place)
+                    && exchange
+                        .outputs
+                        .iter()
+                        .all(|output| output.root == result.place)
+            })
         });
         if !covered {
             return Err(
@@ -79,10 +75,58 @@ pub(super) fn is_interval_partition(law: &ContentConservation) -> bool {
         && matches!(law.right(), ContentTerm::Separate(_))
 }
 
+/// The term order is canonical. Entry/current ownership determines the
+/// direction, so the same equation describes splitting and joining.
+struct Exchange<'a> {
+    projection: ContentProjectionIdentity,
+    inputs: Vec<&'a ContentStructuralPlace>,
+    outputs: Vec<&'a ContentStructuralPlace>,
+}
+
+impl<'a> Exchange<'a> {
+    fn read(law: &'a ContentConservation) -> Option<Self> {
+        let (
+            ContentTerm::Projection {
+                projection,
+                subject,
+            },
+            ContentTerm::Separate(parts),
+        ) = (law.left(), law.right())
+        else {
+            return None;
+        };
+        if !is_interval_partition(law) || parts.len() < 2 {
+            return None;
+        }
+        let pieces = parts
+            .iter()
+            .map(|term| match term {
+                ContentTerm::Projection {
+                    projection: id,
+                    subject: piece,
+                } if id == projection && piece.version != subject.version => Some(piece),
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let (inputs, outputs) = match subject.version {
+            ContentPlaceVersion::Entry => (vec![subject], pieces),
+            ContentPlaceVersion::Current => (pieces, vec![subject]),
+        };
+        inputs
+            .iter()
+            .all(|place| place.segments.is_empty())
+            .then_some(Self {
+                projection: *projection,
+                inputs,
+                outputs,
+            })
+    }
+}
+
 pub(crate) type Casts = std::collections::BTreeSet<(EdgeId, PlaceId, StructuralDomainId)>;
 
 pub(super) struct Proof {
-    pub(super) input: ClaimId,
+    pub(super) inputs: Vec<ClaimId>,
     domain: StructuralDomainId,
     arrivals: std::collections::BTreeSet<(EdgeId, PlaceId)>,
 }
@@ -112,50 +156,59 @@ pub(crate) fn checked_casts(
     Ok(casts)
 }
 
-/// A partition transfers one entry claim to all returned pieces bearing its
-/// projection. Geometry comes from the checked field initializers and actual
-/// control-flow arrivals. The source guarantee only names the terms to check.
+/// Derive the geometry from the field initializers on each actual return.
+/// The equation identifies which owned inputs and result fields to compare.
 pub(super) fn checked_return(
     module: &TerminalModule,
     machine: &TerminalMachine,
     law: &ContentConservation,
 ) -> Result<Proof, &'static str> {
-    let (
-        ContentTerm::Projection {
-            projection,
-            subject: entry,
-        },
-        ContentTerm::Separate(pieces),
-    ) = (law.left(), law.right())
-    else {
-        return Err("partition needs an entry projection and separated result pieces");
-    };
-    if law.algebra().kind != ContentAlgebraKind::IntervalSet
-        || entry.version != ContentPlaceVersion::Entry
-        || !entry.segments.is_empty()
-    {
-        return Err("partition requires an interval projection on its original input");
-    }
-    let claim = crate::exactly_one::exactly_one(machine.content_entry_claims.iter(), |binding| {
-        binding.input == *entry
-            && binding
-                .projections
-                .iter()
-                .any(|p| p.projection == *projection && p.algebra == *law.algebra())
-    })
-    .ok_or("partition needs the one consumed entry carrying its exact projection")?;
-    let input = machine
-        .structural_parameter(entry.root)
-        .filter(|formal| formal.access == StructuralAccess::Owned)
-        .ok_or("partition input is not an owned formal")?;
+    let exchange = Exchange::read(law).ok_or(
+        "partition requires an interval projection between owned inputs and returned pieces",
+    )?;
+    let projection = exchange.projection;
+    let carrier = machine
+        .structural_parameter(exchange.inputs[0].root)
+        .ok_or("partition input must name an owned formal")?
+        .structural_type;
     let domain =
         crate::exactly_one::exactly_one(module.types.structural_domains.iter(), |domain| {
-            domain.carrier == input.structural_type
+            domain.carrier == carrier
                 && domain.content_projection.as_ref().is_some_and(|owner| {
-                    owner.identity == *projection && owner.algebra == *law.algebra()
+                    owner.identity == projection && owner.algebra == *law.algebra()
                 })
         })
         .ok_or("partition input has no exact owner interval projection")?;
+    let mut inputs = Vec::with_capacity(exchange.inputs.len());
+    let mut claims = Vec::with_capacity(exchange.inputs.len());
+    for entry in exchange.inputs {
+        let formal = machine
+            .structural_parameter(entry.root)
+            .filter(|formal| {
+                formal.access == StructuralAccess::Owned
+                    && formal.structural_type == domain.carrier
+                    && formal.qualifications.contains(&domain.id)
+            })
+            .ok_or("partition input must own the projection on its exact carrier")?;
+        let claim =
+            crate::exactly_one::exactly_one(machine.content_entry_claims.iter(), |binding| {
+                binding.input == *entry
+                    && binding
+                        .projections
+                        .iter()
+                        .any(|p| p.projection == projection && p.algebra == *law.algebra())
+            })
+            .ok_or("partition needs the consumed entry carrying its exact projection")?;
+        inputs.push(formal.place);
+        claims.push(claim.claim);
+    }
+    inputs.sort_unstable();
+    claims.sort_unstable();
+    if inputs.windows(2).any(|pair| pair[0] == pair[1])
+        || claims.windows(2).any(|pair| pair[0] == pair[1])
+    {
+        return Err("partition consumes the same entry claim more than once");
+    }
     let Some(ContentProjectionExpression::IntervalSet(intervals)) = domain
         .content_projection
         .as_ref()
@@ -172,19 +225,9 @@ pub(super) fn checked_return(
         .ok_or("partition has no owned result")?;
     let mut output = Vec::new();
     let mut canonical = std::collections::BTreeSet::new();
-    for piece in pieces {
-        let ContentTerm::Projection {
-            projection: owner,
-            subject,
-        } = piece
-        else {
-            return Err("partition result is not a projection");
-        };
-        if owner != projection
-            || subject.version != ContentPlaceVersion::Current
-            || subject.root != result.place
-        {
-            return Err("partition changes the owner projection or returned subject");
+    for subject in exchange.outputs {
+        if subject.root != result.place {
+            return Err("partition changes its returned subject");
         }
         let path = super::structural_path(
             module.types.structural_types.iter(),
@@ -204,18 +247,20 @@ pub(super) fn checked_return(
         }
         output.push(path);
     }
-    let declared = result
+    let mut declared = result
         .projected_qualifications
         .iter()
         .filter(|q| q.domain == domain.id)
         .map(|q| q.path.clone())
         .collect::<std::collections::BTreeSet<_>>();
+    if result.qualifications.contains(&domain.id) {
+        declared.insert(Vec::new());
+    }
     let unaccounted = machine.membership_ensures.iter().any(|fact| matches!(fact,
         terminal_psi::RuntimeDomainMembership::Structural { root, path, version: ContentPlaceVersion::Current, domain: id }
         if *root == result.place && *id == domain.id && !canonical.contains(path)
     ));
     if unaccounted
-        || result.qualifications.contains(&domain.id)
         || output
             .iter()
             .cloned()
@@ -224,9 +269,9 @@ pub(super) fn checked_return(
     {
         return Err("partition must cover every returned occurrence of its domain");
     }
-    let arrivals = returns::check(module, machine, entry.root, &output, interval)?;
+    let arrivals = returns::check(module, machine, &inputs, &output, interval)?;
     Ok(Proof {
-        input: claim.claim,
+        inputs: claims,
         domain: domain.id,
         arrivals,
     })

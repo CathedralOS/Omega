@@ -3,7 +3,7 @@
 
 use super::{
     MAXIMUM_POLICY_TEXT_BYTES,
-    framing::{Reader, Writer},
+    framing::{LOCK, Reader, Writer},
 };
 use crate::hex_digest;
 use crate::lock::{PackageAcceptanceRow, PackageLockError as Error, PackagePolicyAcceptance};
@@ -13,7 +13,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
 pub(in crate::lockfile) fn write(policy: &PackagePolicyAcceptance) -> Result<String, Error> {
-    let mut writer = Writer::new(MAXIMUM_POLICY_TEXT_BYTES);
+    let mut writer = Writer::new(&LOCK, MAXIMUM_POLICY_TEXT_BYTES);
     writer.row("acceptance_schema", PACKAGE_POLICY_ROW_VERSION)?;
     writer.row("rows", policy.rows.len())?;
     for row in &policy.rows {
@@ -32,7 +32,7 @@ pub(in crate::lockfile) fn read(
     maximum_rows: usize,
     maximum_owned: usize,
 ) -> Result<(PackagePolicyAcceptance, usize), Error> {
-    let mut reader = Reader::new(text);
+    let mut reader = Reader::new(&LOCK, text);
     let schema_version = reader.count("acceptance_schema", usize::MAX)?;
     if schema_version != usize::from(PACKAGE_POLICY_ROW_VERSION) {
         return Err(Error::UnsupportedVersion);
@@ -55,7 +55,6 @@ pub(in crate::lockfile) fn read(
             "external_supply" => PackagePolicyRowKind::ExternalSupply,
             "dangerous_capability" => PackagePolicyRowKind::DangerousCapability,
             "restricted_build_request" => PackagePolicyRowKind::RestrictedBuildRequest,
-            "assumed_binding_contract" => PackagePolicyRowKind::AssumedBindingContract,
             "service_audit" => PackagePolicyRowKind::ServiceAudit,
             "native_binding" => PackagePolicyRowKind::NativeBinding,
             "component_assumption" => PackagePolicyRowKind::ComponentAssumption,
@@ -108,5 +107,18 @@ mod tests {
                 assert!(error.to_string().contains("omega packages update"));
             }
         }
+    }
+
+    #[test]
+    fn a_retired_binding_contract_is_rejected_even_with_the_current_row_schema() {
+        let row = format!(
+            "acceptance_schema {PACKAGE_POLICY_ROW_VERSION}\nrows 1\nrow terminal_permission\nkey {}\nmeaning 2\nx\nend_acceptance\n",
+            "00".repeat(32),
+        );
+        let package = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let read_row = |text: &str| read(text, package, TargetProfile::WindowsX64, 1, 4096);
+        assert!(read_row(&row).is_ok());
+        let retired = row.replace("terminal_permission", "assumed_binding_contract");
+        assert!(matches!(read_row(&retired), Err(Error::InvalidFraming)));
     }
 }

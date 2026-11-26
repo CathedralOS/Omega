@@ -1,5 +1,5 @@
-use a\main;
+use {a}/main.omg as a;
 
 machine entry() -> i32 {
-    va()
+    |a|::va()
 }

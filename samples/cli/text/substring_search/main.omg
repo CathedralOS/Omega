@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Naive substring search: find the index of the first occurrence of `pat` in `text`, or -1 if
 // absent. For "abracadabra" / "cad" the match is at index 4. Two nested scans over carriers: an
 // outer position `i`, and an inner pattern index `j` with a running text index `k` (kept
@@ -18,8 +19,6 @@ requires
 domain [u8; 3]::Utf8
 requires
     valid_utf8(self);
-use system\Console;
-use omega\language\core\narrow_u32_to_i32_trapping;
 
 data Main {
     text: [u8; 11] in Utf8;
@@ -33,8 +32,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("substring_search: naive search finds cad inside abracadabra");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("substring_search: naive search finds cad inside abracadabra");
     main.text = "abracadabra";
     main.pat = "cad";
     main.i = 0;
@@ -84,7 +83,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> block inner(main) }
     }
     machine matched(main: @mutable Main) {
-        main.found = narrow_u32_to_i32_trapping(main.i as u32) as i32 +Wrapping;
+        main.found = |numeric_conversion|::narrow_u32_to_i32_trapping(main.i as u32) as i32 +Wrapping;
         transition { _ -> block done(main) }
     }
     machine mismatch(main: @mutable Main) {
@@ -92,15 +91,15 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> block outer(main) }
     }
     machine done(main: @mutable Main) {
-        Console::write_line("result: the match index, 4 for cad in abracadabra (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.found as i32);
+        |console|::Console::write_line("result: the match index, 4 for cad in abracadabra (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.found as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

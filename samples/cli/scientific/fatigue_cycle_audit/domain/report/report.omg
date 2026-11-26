@@ -1,60 +1,59 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use domain\cycles;
-use domain\cycles\Audit;
+use domain/cycles/cycles.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 public data Report {}
 
 // Fixed-width decimal columns avoid floating projection and preserve exact
 // rational numerators. Every reachable number is below 10000.
-machine number(number: u64 in Wrapping) reaches StandardOutput {
-    Console::write_byte(((number / 1000) % 10 + 48) as i32);
-    Console::write_byte(((number / 100) % 10 + 48) as i32);
-    Console::write_byte(((number / 10) % 10 + 48) as i32);
-    Console::write_byte((number % 10 + 48) as i32);
+machine number(number: u64 in Wrapping) reaches |process_authority|::StandardOutput {
+    |console|::Console::write_byte(((number / 1000) % 10 + 48) as i32);
+    |console|::Console::write_byte(((number / 100) % 10 + 48) as i32);
+    |console|::Console::write_byte(((number / 10) % 10 + 48) as i32);
+    |console|::Console::write_byte((number % 10 + 48) as i32);
 }
 
-public machine write(audit: @mutable Audit) reaches StandardOutput {
-    Console::write_line("range,half_units,damage_numerator,damage_denominator,cumulative_numerator");
+public machine write(audit: @mutable |cycles|::Audit) reaches |process_authority|::StandardOutput {
+    |console|::Console::write_line("range,half_units,damage_numerator,damage_denominator,cumulative_numerator");
     audit.index = 0;
     audit.current = 0;
     transition { _ -> loop(audit) }
-    machine loop(audit: @mutable Audit) {
+    machine loop(audit: @mutable |cycles|::Audit) {
         transition audit.index < audit.cycle_count && audit.index < 16 { true -> row(audit), false -> total(audit) }
     }
-    machine row(audit: @mutable Audit) {
+    machine row(audit: @mutable |cycles|::Audit) {
         audit.range = audit.ranges[audit.index];
         audit.weight = audit.weights[audit.index];
         audit.middle = audit.range * audit.weight;
         transition audit.exponent == 2 { true -> square(audit), false -> emit(audit) }
     }
-    machine square(audit: @mutable Audit) {
+    machine square(audit: @mutable |cycles|::Audit) {
         audit.middle = audit.middle * audit.range;
         transition { _ -> emit(audit) }
     }
-    machine emit(audit: @mutable Audit) {
+    machine emit(audit: @mutable |cycles|::Audit) {
         audit.current = audit.current + audit.middle;
         number(audit.range);
-        Console::write_byte(44);
+        |console|::Console::write_byte(44);
         number(audit.weight);
-        Console::write_byte(44);
+        |console|::Console::write_byte(44);
         number(audit.middle);
-        Console::write_byte(44);
+        |console|::Console::write_byte(44);
         number(audit.denominator);
-        Console::write_byte(44);
+        |console|::Console::write_byte(44);
         number(audit.current);
-        Console::write_byte(10);
+        |console|::Console::write_byte(10);
         transition audit.index < 16 { true -> next(audit), false -> total(audit) }
     }
-    machine next(audit: @mutable Audit) {
+    machine next(audit: @mutable |cycles|::Audit) {
         audit.index = audit.index + 1;
         transition { _ -> loop(audit) }
     }
-    machine total(audit: @mutable Audit) {
-        Console::write("total,");
+    machine total(audit: @mutable |cycles|::Audit) {
+        |console|::Console::write("total,");
         number(audit.total);
-        Console::write_byte(44);
+        |console|::Console::write_byte(44);
         number(audit.denominator);
-        Console::write_byte(10);
+        |console|::Console::write_byte(10);
     }
 }

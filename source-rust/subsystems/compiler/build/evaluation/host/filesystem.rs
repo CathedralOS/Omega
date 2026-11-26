@@ -14,11 +14,13 @@ through suspension without holding the host's obligation table or filesystem
 lock.
 */
 
+mod file_result;
+
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::FilesystemGrantRootIdentity;
 use package_compilation::build_execution::{
-    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildFilesystemEffects,
-    BuildFilesystemRuntime, BuildMachineFilesystemScope,
+    BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildDirectoryMappings,
+    BuildFilesystemEffects, BuildFilesystemRuntime, BuildMachineFilesystemScope, DirectoryAccess,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_compiler::publication::{
@@ -37,9 +39,13 @@ struct Marker {
     _storage: EvaluationStorageLease,
 }
 
-enum MarkerKind {
-    Source(FilesystemGrantRootIdentity),
+enum MarkerKind {    Source(FilesystemGrantRootIdentity),
     Path(FilesystemGrantRootIdentity, Vec<u8>),
+    Directory {
+        previous: Option<usize>,
+        grants: BuildDirectoryMappings,
+        _rows: Option<EvaluationStorageLease>,
+    },
     Obligation(usize),
     Receipt,
 }
@@ -49,7 +55,15 @@ struct FilesystemActivation {
     markers: Vec<Marker>,
 }
 
+pub(crate) fn installed_operation(action: Operation) -> bool {
+    matches!(
+        action,
+        Operation::ReadAll | Operation::WriteAll | Operation::CreateDirectory
+    )
+}
+
 struct FilesystemFacets {
+    directories: TerminalStructuralValue,
     source: TerminalStructuralValue,
     inputs: TerminalStructuralValue,
     output: TerminalStructuralValue,
@@ -59,6 +73,10 @@ pub(crate) struct TerminalBuildFilesystemHost {
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildFilesystemCall]>,
     facets: Option<FilesystemFacets>,
+    file_results: Vec<(
+        semantic_vocabulary::BoundaryMachineId,
+        file_result::FileResult,
+    )>,
     account: EvaluationInvocationAccount,
     machine_name: String,
     activation: Mutex<Option<FilesystemActivation>>,
@@ -69,6 +87,7 @@ impl TerminalBuildFilesystemHost {
         produced: &source_compiler::publication::ProducedTerminalProgram,
         original: &TerminalStructuralValue,
         original_output: &TerminalStructuralValue,
+        imports: &[semantic_vocabulary::BoundaryMachineId],
         account: &EvaluationInvocationAccount,
         scope: &BuildMachineFilesystemScope,
         machine_name: &str,
@@ -79,21 +98,46 @@ impl TerminalBuildFilesystemHost {
             .build_filesystem()
             .calls_for(artifact)
             .ok_or("Build filesystem calls lost their invocation custody")?;
-        let activation = if calls.is_empty() && !program_files {
-            None
-        } else {
+        let mut file_results = Vec::new();
+        for &id in imports {
+            let Some(call) = calls.iter().find(|call| call.site.boundary == id) else {
+                continue;
+            };
+            if !installed_operation(call.action) {
+                continue;
+            }
+            let boundary = artifact
+                .module()
+                .boundary_machine(id)
+                .ok_or("missing installed filesystem boundary")?;
+            let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
+                return Err("filesystem operation lost its declared result".into());
+            };
+            let shape = file_result::FileResult::admit(
+                artifact.module(),
+                result.structural_type,
+                call.action == Operation::ReadAll,
+            )?;
+            file_results.push((id, shape));
+        }
+        let needs_facets = calls.iter().any(|call| !installed_operation(call.action));
+        let activation = if needs_facets || !file_results.is_empty() || program_files {
             Some(FilesystemActivation {
                 runtime: scope.begin_filesystem_runtime(account.clone())?,
                 markers: Vec::new(),
             })
+        } else {
+            None
         };
         Ok(Arc::new(Self {
+            file_results,
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
-            facets: if calls.is_empty() {
+            facets: if !needs_facets {
                 None
             } else {
                 Some(FilesystemFacets {
+                    directories: crate::host::requests::build_facet(artifact, original, "directories")?,
                     source: crate::host::requests::build_facet(artifact, original, "source")?,
                     inputs: crate::host::requests::build_facet(artifact, original, "inputs")?,
                     output: original_output.clone(),
@@ -103,6 +147,10 @@ impl TerminalBuildFilesystemHost {
             machine_name: machine_name.to_owned(),
             activation: Mutex::new(activation),
         }))
+    }
+
+    pub(super) fn program_file_account(&self) -> &EvaluationInvocationAccount {
+        &self.account
     }
 
     pub(super) fn with_program_files<T>(
@@ -117,6 +165,70 @@ impl TerminalBuildFilesystemHost {
             .as_mut()
             .ok_or("this activation has no program filesystem backing")?;
         operation(&mut activation.runtime)
+    }
+
+    pub(crate) fn successor_directory(
+        &self,
+        value: &TerminalStructuralValue,
+    ) -> Result<package_compilation::build_execution::SuccessorDirectory, String> {
+        let shared = self
+            .activation
+            .lock()
+            .map_err(|_| "Build filesystem activation lock was poisoned")?;
+        let activation = shared
+            .as_ref()
+            .ok_or("no filesystem view was issued by this Build")?;
+        let MarkerKind::Path(root, relative) = &marker(&activation.markers, value)?.kind else {
+            return Err(
+                "successor package_root requires a directory path issued by this Build".into(),
+            );
+        };
+        activation.runtime.successor_directory(*root, relative)
+    }
+
+    pub(crate) fn successor_directories(
+        &self,
+        selected: Option<&TerminalStructuralValue>,
+    ) -> Result<BuildDirectoryMappings, String> {
+        let mut mappings = BuildDirectoryMappings::default();
+        let Some(value) = selected else {
+            return Ok(mappings);
+        };
+        let guard = self
+            .activation
+            .lock()
+            .map_err(|_| "Build filesystem lock was poisoned")?;
+        let Some(activation) = guard.as_ref() else {
+            return Ok(mappings);
+        };
+        if self
+            .facets
+            .as_ref()
+            .is_none_or(|facets| &facets.directories == value)
+        {
+            return Ok(mappings);
+        }
+        let mut item = marker(&activation.markers, value)?;
+        loop {
+            let MarkerKind::Directory {
+                previous, grants, ..
+            } = &item.kind
+            else {
+                return Err(
+                    "returned Build directories require a list issued by this activation".into(),
+                );
+            };
+            for (guest, mapping) in grants.entries() {
+                mappings
+                    .insert(guest, mapping.backing().clone(), mapping.access())
+                    .map_err(|error| {
+                        format!("invalid successor directory mapping {guest}: {error}")
+                    })?;
+            }
+            let Some(index) = previous else { break };
+            item = &activation.markers[*index];
+        }
+        Ok(mappings)
     }
 
     pub(crate) fn adapter(
@@ -213,14 +325,22 @@ impl FilesystemAdapter {
         else {
             return Err("not a Build filesystem boundary call".into());
         };
-        let action = self
+        let call = self
             .host
             .calls
             .iter()
             .find(|call| crate::host::is_call_at(effect, call.site))
-            .map(|call| call.action)
             .ok_or("filesystem call has no source-issued protocol custody")?;
-        if !buffers.is_empty() && action != Operation::Read {
+        let action = call.action;
+        let file_result = || {
+            self.host
+                .file_results
+                .iter()
+                .find(|(id, _)| *id == call.site.boundary)
+                .map(|(_, shape)| shape)
+                .ok_or("missing admitted filesystem result")
+        };
+        if !buffers.is_empty() && !matches!(action, Operation::Read | Operation::ReadAll) {
             return Err("unexpected mutable filesystem operand".into());
         }
         let structural = |position: usize| {
@@ -251,18 +371,16 @@ impl FilesystemAdapter {
         let activation = guard
             .as_mut()
             .ok_or("Build filesystem activation is absent or already settled")?;
-        let FilesystemActivation {
-            runtime,
-            markers,
-        } = activation;
-        let facets = self
-            .host
-            .facets
-            .as_ref()
-            .ok_or("Build filesystem facets were not admitted")?;
+        let FilesystemActivation { runtime, markers } = activation;
+        let facets = || {
+            self.host
+                .facets
+                .as_ref()
+                .ok_or("Build filesystem facets were not admitted")
+        };
         let output = || -> Result<(), String> {
             let receiver = structural(0)?;
-            if receiver == &facets.output {
+            if receiver == &facets()?.output {
                 Ok(())
             } else {
                 Err(
@@ -292,7 +410,7 @@ impl FilesystemAdapter {
                     BUILD_OUTPUT_ROOT_IDENTITY
                 };
                 let path = bytes(1)?;
-                runtime.resolve(root, path)?;
+                runtime.resolve_view(root, path)?;
                 mint(markers, &self.host.account, result, path.len(), || {
                     let mut retained = Vec::new();
                     retained
@@ -302,8 +420,27 @@ impl FilesystemAdapter {
                     Ok(MarkerKind::Path(root, retained))
                 })
             }
+            Operation::MapDirectory | Operation::ForwardDirectory => {
+                let prefix = structural(0)?;
+                let previous = markers.iter().position(|marker| marker.value == *prefix && matches!(marker.kind, MarkerKind::Directory { .. }));
+                let guest = std::str::from_utf8(bytes(2)?).map_err(|_| "guest directory is not UTF-8")?;
+                let Some(TerminalScalarValue::Boolean(writable)) = arguments.first() else { return Err("directory mapping requires a Boolean access choice".into()) };
+                let access = if *writable { DirectoryAccess::ReadWrite } else { DirectoryAccess::ReadOnly };
+                let (grants, storage, retained) = if action == Operation::ForwardDirectory {
+                    let from = std::str::from_utf8(bytes(1)?).map_err(|_| "current guest directory is not UTF-8")?;
+                    let (grants, storage) = runtime.forward_directory(from, guest, access)?;
+                    (grants, Some(storage), 0)
+                } else {
+                    let (root, relative) = path(1)?;
+                    let view = runtime.runtime_directory(root, relative, access)?;
+                    let mut grants = BuildDirectoryMappings::default();
+                    grants.insert(guest, view, access).map_err(|error| format!("invalid successor directory mapping {guest}: {error}"))?;
+                    (grants, None, guest.len() + relative.len())
+                };
+                mint(markers, &self.host.account, result, retained, || Ok(MarkerKind::Directory { previous, grants, _rows: storage }))
+            }
             Operation::NamedInput => {
-                if structural(0)? != &facets.inputs {
+                if structural(0)? != &facets()?.inputs {
                     return Err(
                         "named input lookup requires the original compiler-issued inputs facet"
                             .into(),
@@ -321,6 +458,27 @@ impl FilesystemAdapter {
                     return Err("BuildPath belongs to another input root".into());
                 }
                 integer_result(i64::from(runtime.open(root, relative, descriptor()?)?), 32)
+            }
+            Operation::WriteAll | Operation::CreateDirectory => {
+                let path = bytes(0)?;
+                let written = if action == Operation::WriteAll {
+                    runtime.write_private_file(path, bytes(1)?)?
+                } else {
+                    runtime.create_directory(path)?
+                };
+                file_result()?
+                    .finish(written.map(|()| None))
+            }
+            Operation::ReadAll => {
+                let [buffer] = buffers else {
+                    return Err("read_all requires one mutable byte view".into());
+                };
+                if buffer.argument_index() != 1 {
+                    return Err("read_all buffer has the wrong argument position".into());
+                }
+                let read = runtime.read_file(bytes(0)?, buffer.bytes_mut(), unsigned(integer(0)?)?)?;
+                file_result()?
+                    .finish(read.map(Some))
             }
             Operation::Read => {
                 let root = self.host.source_root(markers, structural(0)?)?;

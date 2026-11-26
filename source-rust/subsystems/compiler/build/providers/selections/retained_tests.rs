@@ -3,65 +3,20 @@ use provider_plans::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceReceiverApplication,
 };
 
-fn selected_plan() -> ProviderPlan {
-    let mut plan = ProviderPlan {
-        name: "selected-provider".into(),
-        provider_type: "Provider".into(),
-        target: "linux_x86_64".into(),
-        ..ProviderPlan::default()
-    };
-    plan.provider_application = plan.identities.intern("Provider<opaque>");
-    let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
-    declaration.trait_name = declaration.identities.intern("Boundary");
-    let requirement = declaration.identities.intern("Boundary::consume(opaque)");
-    let application = declaration.identities.intern("Boundary<opaque>");
-    let argument = declaration.identities.intern("opaque");
-    declaration
-        .receiver_applications
-        .push(ServiceReceiverApplication {
-            application,
-            trait_name: declaration.trait_name,
-            trait_package_identity: None,
-            argument_identities: vec![argument],
-            lifetime_argument_identities: Vec::new(),
-            requirement_identities: vec![requirement],
-        });
-    declaration.methods.push(ServiceMethod {
-        name: "consume".into(),
-        requirement_owner: "Boundary".into(),
-        requirement_identity: requirement,
-        ..ServiceMethod::default()
-    });
-    let requirement_identity = plan.identities.intern("Boundary::consume(opaque)");
-    let machine_identity = plan.identities.intern("Provider::consume(opaque)");
-    plan.rows.push(ProviderPlanRow {
-        method: "consume".into(),
-        requirement_identity,
-        declared_requirement_identity: requirement_identity,
-        calling_signature: None,
-        requirement_lifetime_partition: Vec::new(),
-        admitted_same_stack_bytes: 0,
-        binding: ProviderBinding::CheckedAdapter {
-            machine_identity,
-            machine_package_identity: None,
-        },
-    });
-    assert!(plan.validate_against_schema().is_empty());
-    plan
-}
+include!("../plans/selected_plan_fixture.rs");
 
 #[test]
-fn selection_identity_matches_the_published_v5_digest() {
+fn selection_identity_matches_the_published_v6_digest() {
     let empty = crate::SelectedProviderPlanFacts::default();
     let selected =
         crate::SelectedProviderPlanFacts::from_selected_plans(vec![selected_plan()]).unwrap();
     assert_eq!(
         wire::digest_encoder::hex(empty.identity_digest().as_bytes()),
-        "5fd283d75ebc3288b6e892e67dc77b6ae97be22b545e9e9f3938dbf0b4afabad"
+        "ec730138e882da5a89e820e855d4a91b275d9e7bd579dfecf770f41c4769a7f2"
     );
     assert_eq!(
         wire::digest_encoder::hex(selected.identity_digest().as_bytes()),
-        "c66b6ff7585159796739c513cc37c20702349603aa1e032ccc6e00bff02d7591"
+        "52ee599c657b697f0630f6e4df6b527f4b753d6a1221962ba8dd53a5536ff876"
     );
 }
 

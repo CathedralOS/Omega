@@ -1,13 +1,9 @@
-use omega\language\core\StandardOutput;
-use domain\input;
-use domain\input\Reader;
-use domain\model;
-use domain\model\Table;
-use domain\model\Logrank;
-use omega\language\core\narrow_i32_to_u32_wrapping;
-use omega\language\core\narrow_i64_to_i32_wrapping;
-use system\Console;
-use omega\language\core\I64::from_f64;
+use domain/input/input.omg;
+use domain/model/model.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // The measured extent is supplied by a checked contract, independently of the
 // array's capacity. This reusable view accessor also accepts empty slices.
@@ -18,92 +14,92 @@ machine row_value(values: @[f64], index: u32) -> f64 {
 }
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
-public machine integer(reader: @mutable Reader, value: i64)
-reaches StandardOutput
-invokes Console
+public machine integer(reader: @mutable |input|::Reader, value: i64)
+reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     let widened: i64 = value;
     transition widened < 0 {
         true -> negative(reader, widened),
         _ -> digits(reader, widened)
     }
-    machine negative(reader: @mutable Reader, value: i64) {
-        Console::write_byte(45);
+    machine negative(reader: @mutable |input|::Reader, value: i64) {
+        |console|::Console::write_byte(45);
         let absolute: i64 in Wrapping = 0 - (value as i64 +Wrapping);
         transition { _ -> digits(reader, absolute as i64) }
     }
-    machine digits(reader: @mutable Reader, value: i64) {
+    machine digits(reader: @mutable |input|::Reader, value: i64) {
         transition { _ -> seek(reader, value as i64 +Wrapping, 1) }
     }
-    machine seek(reader: @mutable Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine seek(reader: @mutable |input|::Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 && divisor <= value / 10 {
             true -> seek(reader, value, divisor * 10),
             _ -> ready(reader, value, divisor)
         }
     }
-    machine ready(reader: @mutable Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine ready(reader: @mutable |input|::Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
             true -> emit(reader, value, divisor),
             _ -> {}
         }
     }
-    machine emit(reader: @mutable Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
+    machine emit(reader: @mutable |input|::Reader, value: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;
-        Console::write_byte(narrow_i64_to_i32_wrapping(byte as i64));
+        |console|::Console::write_byte(|numeric_conversion|::narrow_i64_to_i32_wrapping(byte as i64));
         transition divisor > 1 {
             true -> ready(reader, value, divisor / 10),
             _ -> {}
         }
     }
 }
-machine real(reader: @mutable Reader, value: f64) reaches StandardOutput {
-    let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0 + 0.5);
+machine real(reader: @mutable |input|::Reader, value: f64) reaches |process_authority|::StandardOutput {
+    let scaled: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000000000.0 + 0.5);
     let amount: i64 in Wrapping = scaled as -Saturating +Wrapping;
     integer(reader, (amount / 1000000000000) as i64);
-    Console::write_byte(46);
+    |console|::Console::write_byte(46);
     transition { _ -> fraction(reader, amount % 1000000000000, 100000000000) }
-    machine fraction(reader: @mutable Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping) {
+    machine fraction(reader: @mutable |input|::Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 { true -> digit(reader, amount, divisor), false -> {} }
     }
-    machine digit(reader: @mutable Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping)
+    machine digit(reader: @mutable |input|::Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
     {
-        Console::write_byte(narrow_i64_to_i32_wrapping(((amount / divisor) % 10 + 48) as i64));
+        |console|::Console::write_byte(|numeric_conversion|::narrow_i64_to_i32_wrapping(((amount / divisor) % 10 + 48) as i64));
         transition { _ -> fraction(reader, amount, divisor / 10) }
     }
 }
-public machine report(reader: @mutable Reader, group: i32 in Wrapping, table: @Table) reaches StandardOutput
-invokes Console
+public machine report(reader: @mutable |input|::Reader, group: i32 in Wrapping, table: @|model|::Table) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write("TABLE "); integer(reader, group as i64); Console::write_line("");
+    |console|::Console::write("TABLE "); integer(reader, group as i64); |console|::Console::write_line("");
     transition { _ -> row(reader, table, 0) }
-    machine row(reader: @mutable Reader, table: @Table, index: i32 in Wrapping) {
+    machine row(reader: @mutable |input|::Reader, table: @|model|::Table, index: i32 in Wrapping) {
         transition index >= 0 && index < 32 && index < table.count {
             true -> emit(reader, table, index),
             false -> median(reader, table)
         }
     }
-    machine emit(reader: @mutable Reader, table: @Table, index: i32 in Wrapping)
+    machine emit(reader: @mutable |input|::Reader, table: @|model|::Table, index: i32 in Wrapping)
     requires index >= 0 && index < 32
     {
-        let position: u32 = narrow_i32_to_u32_wrapping(index as i32) as u32;
-        Console::write("ROW "); real(reader, row_value(@table.time[..], position)); Console::write(" ");
-        integer(reader, table.risk[index] as i64); Console::write(" ");
-        integer(reader, table.event[index] as i64); Console::write(" ");
-        integer(reader, table.censor[index] as i64); Console::write(" ");
-        real(reader, row_value(@table.survival[..], position)); Console::write(" ");
-        real(reader, row_value(@table.variance[..], position)); Console::write(" ");
-        integer(reader, table.zero[index] as i64); Console::write_line("");
+        let position: u32 = |numeric_conversion|::narrow_i32_to_u32_wrapping(index as i32) as u32;
+        |console|::Console::write("ROW "); real(reader, row_value(@table.time[..], position)); |console|::Console::write(" ");
+        integer(reader, table.risk[index] as i64); |console|::Console::write(" ");
+        integer(reader, table.event[index] as i64); |console|::Console::write(" ");
+        integer(reader, table.censor[index] as i64); |console|::Console::write(" ");
+        real(reader, row_value(@table.survival[..], position)); |console|::Console::write(" ");
+        real(reader, row_value(@table.variance[..], position)); |console|::Console::write(" ");
+        integer(reader, table.zero[index] as i64); |console|::Console::write_line("");
         transition { _ -> row(reader, table, index + 1) }
     }
-    machine median(reader: @mutable Reader, table: @Table) {
-        Console::write("MEDIAN "); integer(reader, table.median_status as i64); Console::write(" "); real(reader, table.median); Console::write(" "); integer(reader, table.count as i64); Console::write_line("");
+    machine median(reader: @mutable |input|::Reader, table: @|model|::Table) {
+        |console|::Console::write("MEDIAN "); integer(reader, table.median_status as i64); |console|::Console::write(" "); real(reader, table.median); |console|::Console::write(" "); integer(reader, table.count as i64); |console|::Console::write_line("");
     }
 }
-public machine logrank_report(reader: @mutable Reader, result: @Logrank) reaches StandardOutput
-invokes Console
+public machine logrank_report(reader: @mutable |input|::Reader, result: @|model|::Logrank) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write("LOGRANK "); real(reader, result.observed); Console::write(" "); real(reader, result.expected); Console::write(" "); real(reader, result.variance); Console::write(" "); real(reader, result.statistic); Console::write(" "); integer(reader, result.status as i64); Console::write_line("");
+    |console|::Console::write("LOGRANK "); real(reader, result.observed); |console|::Console::write(" "); real(reader, result.expected); |console|::Console::write(" "); real(reader, result.variance); |console|::Console::write(" "); real(reader, result.statistic); |console|::Console::write(" "); integer(reader, result.status as i64); |console|::Console::write_line("");
 }

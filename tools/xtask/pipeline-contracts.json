@@ -4609,7 +4609,7 @@
       "kind": "producer",
       "meaning": "Advance driver-owned target selection and transfer its completed data to checked compilation.",
       "producer": "target-bound program planning",
-      "signature": "6a725878580d0a221b253db34183e30b0ebae1dd0dbcd852d431ab30256f1604"
+      "signature": "b29a722d871bf787421cbfa36db9784734e1491e3ac89913c196486c70aa0c63"
     },
     {
       "consumers": [
@@ -4663,7 +4663,7 @@
       "kind": "producer",
       "meaning": "Build a target-local provider proposal from admitted plans and the exact effective artifact identity.",
       "producer": "target-bound program planning",
-      "signature": "bee924ad7ce960060d49f66e5c50eb0e721ac31df2747aea2ec8fd8d5e9b6bfe"
+      "signature": "16ec7c31cb3074c013ed17b98fbf519e76c8009878a5dc72f153ca4f7d90e0f3"
     },
     {
       "consumers": [
@@ -4729,9 +4729,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/selected_execution.rs",
       "item": "impl:SelectedProviderResult::implementation#1",
       "kind": "carried_record",
-      "meaning": "Read the frozen target, entry, fold, trust inputs and provider realization retained by the checked or published compilation.",
+      "meaning": "Read the frozen target, entry, fold and provider realization retained by the checked or published compilation.",
       "producer": "target-bound program planning",
-      "signature": "c78e8b893dfbcd56365c7b3186eb7cb36089150da18281df00e846a215b21f3e"
+      "signature": "64fdb26ab1063d3f311107d05b031ad48fb86782cb4242c6862dd520acdfb877"
     },
     {
       "consumers": [
@@ -4862,19 +4862,6 @@
       "meaning": "Read the selected deployment or the unscoped state.",
       "producer": "03 native program planning",
       "signature": "1f2e05b6976d18e5454a641fb73ca90a03cf36bf68414acf678f55ad45990e2d"
-    },
-    {
-      "consumers": [
-        "compiler target settlement",
-        "checked and published compilations",
-        "native entry planning and package review"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/selected_execution.rs",
-      "item": "impl:SelectedProviderResult::method:trust_evidence#1",
-      "kind": "carried_record",
-      "meaning": "Project program, target, selected plans and native binding evidence for independent root grant verification.",
-      "producer": "03 native program planning",
-      "signature": "5bc41f5c433f3432452997ae303af89b3c15d16464ca9b2824d4a02f278d2641"
     },
     {
       "consumers": [
@@ -7757,11 +7744,11 @@
         "independent native validation"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "use:fragment_emission :: { FunctionFragmentEmissionError , FunctionFragmentEmissionManifest , FunctionFragmentEmissionManifestDecodeError , FunctionFragmentEmissionStage , FunctionFragmentEmissionStatistics , FunctionFragmentEmissionUnavailableData , StagedOptimizedFunctionFragmentEmissionSource , }#1",
+      "item": "use:fragment_emission :: { FunctionFragmentEmissionError , FunctionFragmentEmissionManifest , FunctionFragmentEmissionStage , FunctionFragmentEmissionStatistics , FunctionFragmentEmissionUnavailableData , StagedOptimizedFunctionFragmentEmissionSource , }#1",
       "kind": "definition",
       "meaning": "Emit function-relative bytes and fixups from the resolved machine layout.",
       "producer": "function placement",
-      "signature": "d8704e37a8f1079457b6ca39d85a7d6d0657148a1685e27a0cf5cfe245cc8141"
+      "signature": "0739aa1c6a1cec30770d0fe8677eb833cbc117b9169b06a67e22aab0d1aed3fe"
     },
     {
       "consumers": [
@@ -7794,11 +7781,11 @@
         "object construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "use:text_placement :: { FunctionFragmentTextSectionManifest , FunctionFragmentTextSectionManifestDecodeError , FunctionFragmentTextSectionStage , FunctionFragmentTextSectionStatistics , FunctionFragmentTextSectionUnavailableData , FunctionPlacement , RelocationFreeTextSectionPlacementError , StagedOptimizedFixedFrameTextSection , validate_optimized_fixed_frame_text_section , }#1",
+      "item": "use:text_placement :: { FunctionFragmentTextSectionManifest , FunctionFragmentTextSectionStage , FunctionFragmentTextSectionStatistics , FunctionFragmentTextSectionUnavailableData , FunctionPlacement , RelocationFreeTextSectionPlacementError , StagedOptimizedFixedFrameTextSection , validate_optimized_fixed_frame_text_section , }#1",
       "kind": "definition",
       "meaning": "Expose placed text, placement replay and the text validator.",
       "producer": "function placement",
-      "signature": "2fc77878950ca96258df4213a5f107ab19788ef41a66e135617cde21e8862db7"
+      "signature": "2f7dc6ee670ac84ff0ed923ebee947f36d6224dd426097cee471feb3d57b607f"
     },
     {
       "consumers": [
@@ -9398,18 +9385,6 @@
     },
     {
       "consumers": [
-        "target preparation",
-        "published-object verification"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs",
-      "item": "BoundaryOriginFacts::field:assumed_bindings#1",
-      "kind": "carried_record",
-      "meaning": "The installed assumed-binding evidence attached to the admitted lowering input.",
-      "producer": "optimization and lowering admission",
-      "signature": "773a940692b792a7cef135223a57d9fe223adfb18ce503bf3fa0963a66db4fbc"
-    },
-    {
-      "consumers": [
         "03 target preparation",
         "published-object verification"
       ],
@@ -9603,7 +9578,7 @@
       "kind": "definition",
       "meaning": "Reads the admitted program entry, installed assumptions, target context and module from one original lowering input.",
       "producer": "03 optimization and lowering admission",
-      "signature": "14ad73e82b332abf42531861ba703cd1fb32dcac3d2608d1c18d1a330a747d1a"
+      "signature": "fcb87d0101e16d6221c6de955e0a19df4937407f971a931a981863121b2a5fd0"
     },
     {
       "consumers": [
@@ -9615,7 +9590,7 @@
       "kind": "definition",
       "meaning": "Reads the admitted program entry, installed assumptions, target context and module from one original lowering input.",
       "producer": "03 optimization and lowering admission",
-      "signature": "ff52095bbbc1e79a8b52e7adb93f4f70fe150f59f589b4a73cbf24f21d115bbc"
+      "signature": "1cda64b76fac19b4b0dfb081023f9c8947058e99f3e4aef965dfabaffd25f204"
     },
     {
       "consumers": [
@@ -9737,7 +9712,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs",
       "item": "impl:TargetOperationsForReplay::method:boundary_origins#1",
       "kind": "definition",
-      "meaning": "Projects the program-entry origin, installed assumed bindings, selected deployment and module from the archived lowering evidence.",
+      "meaning": "Projects the program-entry origin, selected deployment and module from the archived lowering evidence.",
       "producer": "03 optimization and lowering admission",
       "signature": "9e8f726b110f3c8b233be64729968f4632d04f5b8798fe7b03e83b6c78fc43c1"
     },
@@ -9821,7 +9796,7 @@
       "kind": "carried_record",
       "meaning": "Borrowed original boundary evidence shared by target preparation and independent replay.",
       "producer": "optimization and lowering admission",
-      "signature": "8732ee8382b23060dc71415872a8c1e50c8859653aae124aabab00ef076f0933"
+      "signature": "defe6fa12b963fedadf97daea1e8014e0c443e2db65c8f353a95372c3926df14"
     },
     {
       "consumers": [
@@ -16214,19 +16189,6 @@
         "received provider installation and package admission"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/verification/target-providers/target_providers.rs",
-      "item": "TerminalTargetProviderSelection::field:assumed_bindings#1",
-      "kind": "carried_record",
-      "meaning": "Admitted identity-bearing assumptions in the target provider installation.",
-      "producer": "provider plan correspondence",
-      "signature": "8678509821e69814b328cbadebb4fc6496a376470e4ea6e4e576099359e878fb"
-    },
-    {
-      "consumers": [
-        "target-specific provider demand issuance",
-        "RealizedTargetSupply::close_folded_entry",
-        "received provider installation and package admission"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/target-providers/target_providers.rs",
       "item": "TerminalTargetProviderSelection::field:checked_candidates#1",
       "kind": "carried_record",
       "meaning": "Canonical checked provider candidates available in this proposal.",
@@ -16255,9 +16217,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/verification/target-providers/target_providers.rs",
       "item": "function:admit_checked_roster#1",
       "kind": "checker",
-      "meaning": "Admit checked roster, assumed bindings, synchronous invocation cycles and folded constant dependencies for this artifact.",
+      "meaning": "Admit checked roster, synchronous invocation cycles and folded constant dependencies for this artifact.",
       "producer": "provider plan correspondence",
-      "signature": "080c8abd05bcd4dc406711d766b2fc6575f8fc1bbb8f4b52a22e77b9e3ab412c"
+      "signature": "9ead38eb502874842e768aeb001a45610084c5277ce2292008a94dad1082810f"
     },
     {
       "consumers": [
@@ -16414,7 +16376,7 @@
       "kind": "checker",
       "meaning": "Reject cycles of actual synchronous calls through admitted provider candidates and assumed-supplier identities.",
       "producer": "provider plan correspondence",
-      "signature": "a4fe08198f4c2b2c4da56e9156f8f3294a7b4e46220c3a99dfb2b20ae06f8df2"
+      "signature": "b2ca7ee943d796f7f194efc5132fd055eaddbb7682a953806a9ade216e27c915"
     },
     {
       "consumers": [
@@ -16453,7 +16415,7 @@
       "kind": "definition",
       "meaning": "Group the checked operations and read-only accessors declared for TerminalTargetProviderSelection.",
       "producer": "provider plan correspondence",
-      "signature": "a4fd807a32e3dad2537d1a8c2c609bdadf3506c0660764e4528a03f44f498785"
+      "signature": "9384c4d50b3630daa04344dce7bdaae273ca050670141904fed33c1f935df08a"
     },
     {
       "consumers": [
@@ -16466,7 +16428,7 @@
       "kind": "checker",
       "meaning": "Authenticate the selected target provider installation against canonical artifact, candidates and normalized plan inputs.",
       "producer": "provider plan correspondence",
-      "signature": "158c68277c67a9dc54f7474563569ce4a9656a7d5d5edfb864b4963f2477f036"
+      "signature": "8eb37c61fd5b887331e53a20146f3a2264c79f62777377ce081b7a5f9f291e79"
     },
     {
       "consumers": [
@@ -16479,7 +16441,7 @@
       "kind": "producer",
       "meaning": "Join admitted native plans to the canonical provider candidate roster carried by this target artifact.",
       "producer": "provider plan correspondence",
-      "signature": "6ca95ccd5937eb25c225aeb4acdb453a2be5995bd4b1fae5c086a5af30adae9e"
+      "signature": "add4eacf3e8ff769d9a7a9260cdd739b44ece2e325f9110f9477e249891849f7"
     },
     {
       "consumers": [
@@ -16581,20 +16543,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/verification/target-providers/target_providers.rs",
       "item": "struct:TerminalTargetProviderSelection#1",
       "kind": "carried_record",
-      "meaning": "The exact provider plans, checked candidates and assumed bindings supplied for installation.",
+      "meaning": "The exact provider plans and checked candidates supplied for installation.",
       "producer": "provider plan correspondence",
-      "signature": "4989dc0e5e36dec77bf625f8170a32906bc32694a7c73f6c5226e52b717105a9"
-    },
-    {
-      "consumers": [
-        "Rust test harness"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/target-providers/target_providers.rs",
-      "item": "tests::function:an_uncalled_closed_invocation_still_forms_a_selected_cycle#1",
-      "kind": "test_support",
-      "meaning": "Exercise an uncalled closed invocation still forms a selected cycle against the canonical provider fixture.",
-      "producer": "provider correspondence tests",
-      "signature": "eb5576c807f3ffa809c58ba96eea602d5328c9094ebad6ac873e26eaf31e76d4"
+      "signature": "ee177bc65fa250f0e3c539322832c69d2389f062ab00ac66308bfee460067af2"
     },
     {
       "consumers": [
@@ -16704,7 +16655,7 @@
       "kind": "test_support",
       "meaning": "Exercise invocation rows consume all closed headers instead of the open template against the canonical provider fixture.",
       "producer": "provider correspondence tests",
-      "signature": "207b838bfb64cb6967100a240c28c7eea633752a32993f730e549814789e7feb"
+      "signature": "98c587e0bd98417776bc0f1947c29f6ecd2c17c9d22e1a68e7dce818a982bdda"
     },
     {
       "consumers": [
@@ -16818,170 +16769,38 @@
     },
     {
       "consumers": [
-        "checked compilation",
-        "executable publication"
+        "Rust test harness"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:bindings#1",
-      "kind": "carried_record",
-      "meaning": "Evaluated Build occurrences admitted for these native boundary declarations.",
-      "producer": "provider correspondence verifier",
-      "signature": "9fbb3c8f61e1ea62fcca19a3303d1ed2e63f77f4a2096a09d177c3f9033071a6"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:identities#1",
-      "kind": "carried_record",
-      "meaning": "Identity table interpreting the selected native binding receipts.",
-      "producer": "provider correspondence verifier",
-      "signature": "a434ad0478d155bcc027f28b50ec15ca931e4228712501aa4de9afa2f59a4fb6"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:leaves#1",
-      "kind": "carried_record",
-      "meaning": "Native boundary declarations and callables selected on the target.",
-      "producer": "provider correspondence verifier",
-      "signature": "22e6a44497ca6d92cf0d1571d6dce7810aad0d4bc69369b572fd06ca6b425d37"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:plans#1",
-      "kind": "carried_record",
-      "meaning": "Admitted provider plans used to resolve a grant against an exact application.",
-      "producer": "provider correspondence verifier",
-      "signature": "113f4f5d3d846f7f18b7d25eebab4362149c0773a62c54bb4becda9cd656c8a4"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:program#1",
-      "kind": "carried_record",
-      "meaning": "Exact Terminal identity for which native requirement evidence was admitted.",
-      "producer": "provider correspondence verifier",
-      "signature": "a4534e4eaf128a1d65d25b19dd08fa7604c91710efa55dcbd967f6889a74b84f"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "SelectedTrustEvidence::field:target#1",
-      "kind": "carried_record",
-      "meaning": "The chosen native target for resolving boundary grants.",
-      "producer": "provider correspondence verifier",
-      "signature": "0ab6f7348715dc42e072c8a0ea916299bc421274b6d734c7d368b5040dbd47c4"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "impl:SelectedTrustEvidence < '_ >::implementation#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/mod.rs",
+      "item": "module:tests#1",
       "kind": "definition",
-      "meaning": "Verify root grants against the provider plans and native leaves selected for this target.",
+      "meaning": "Unit tests for matching authored provider grants to the selected plans.",
       "producer": "provider correspondence verifier",
-      "signature": "855624f12f92a158da5d3dbdd8c1be60e5a83169a3a45998cd98c95189b9bf66"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "impl:SelectedTrustEvidence < '_ >::method:admit_root_grants#1",
-      "kind": "checker",
-      "meaning": "Join selected provider plans and native evidence to the authored root obligations.",
-      "producer": "provider correspondence verifier",
-      "signature": "ec534c7c6b2d3435788fe278c1312914e9da9b177ca2a19500dd76c46e6b5529"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "impl:SelectedTrustEvidence < '_ >::method:native_grant_evidence#1",
-      "kind": "checker",
-      "meaning": "Match a boundary grant to one selected declaration and callable on the exact published program.",
-      "producer": "provider correspondence verifier",
-      "signature": "aaef3d7519a3c49ce95e5bb2b5b4ac4548eb81acca3322e8f9e4d96835c7ce04"
+      "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
     },
     {
       "consumers": [
         "package review of Build provider grants",
         "locked root provider admission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "use:super :: provider_grants :: selected_provider_grants#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/mod.rs",
+      "item": "module:provider_grants#1",
+      "kind": "checker",
+      "meaning": "Resolve authored provider grants against the selected target plans.",
+      "producer": "provider correspondence verifier",
+      "signature": "3eed337d398696b1937020fcbe7f820e92c7f202b330b028fc6bde46a3df3462"
+    },
+    {
+      "consumers": [
+        "package review of Build provider grants",
+        "locked root provider admission"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/mod.rs",
+      "item": "use:provider_grants :: selected_provider_grants#1",
       "kind": "checker",
       "meaning": "Resolve each Build provider grant to its unique declaration, package and application in the selected plans.",
       "producer": "provider correspondence verifier",
-      "signature": "a2a3013bed3c11eb2315cd4799d88de53a8bcde619bd863c0cc8126898156bae"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "impl:SelectedTrustEvidence < '_ >::native_grant_evidence::function:key#1",
-      "kind": "definition",
-      "meaning": "Sort and search selected native declarations by their full declaration and callable identities.",
-      "producer": "provider correspondence verifier",
-      "signature": "7022e8c17aebf351dec1a982ccaf6d67a22eaa41566a0a7624a50d1df6de6655"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "struct:SelectedTrustEvidence#1",
-      "kind": "carried_record",
-      "meaning": "Read-only selected native evidence used to verify authored grants.",
-      "producer": "provider correspondence verifier",
-      "signature": "aa1e546f096ca6691109a0fbc669a1af4ba79e4e6a599452dbb1a97b94df1d02"
-    },
-    {
-      "consumers": [
-        "checked compilation",
-        "executable publication"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "use:diagnostics :: Diagnostic#1",
-      "kind": "definition",
-      "meaning": "Uses diagnostics::Diagnostic in this boundary operation.",
-      "producer": "provider correspondence verifier",
-      "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
-    },
-    {
-      "consumers": [
-        "root grant admission"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
-      "item": "impl:SelectedTrustEvidence < '_ >::native_grant_evidence::use:symbols :: root_grants :: RootGrantSubject#1",
-      "kind": "definition",
-      "meaning": "Compare the native grant against the package’s root grant subject.",
-      "producer": "selected provider trust verification",
-      "signature": "dc1156ef46664e6302c444477f974a8849fa603a943c62c81c51fcf41e5ef26a"
+      "signature": "805aa14f4b90ff4043617dcf78bc01e2fc7cbaf3154458d61baba0a1424d56bd"
     },
     {
       "consumers": [
@@ -20329,7 +20148,7 @@
       "kind": "producer",
       "meaning": "Follow the interpreter entry into its selected checked provider bodies and admit their exact boundary-to-machine installation for this published artifact.",
       "producer": "Psi logical provider reach",
-      "signature": "9a38b4858695465b01bbef34e1d916514f5c9777ceb3d52ddb8acbb629a93cd4"
+      "signature": "adebf54021332a26de23ef189479140b87076019ba5d531f48e3d86d29d55025"
     },
     {
       "consumers": [
@@ -20572,11 +20391,11 @@
         "target provider selection"
       ],
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
-      "item": "NativeBuildEvaluation::field:execution_history#1",
+      "item": "NativeBuildEvaluation::field:dependency_preparations#1",
       "kind": "carried_record",
-      "meaning": "Share the ordered history that links earlier checked programs and prepared dependencies to this evaluation.",
+      "meaning": "Retain the dependencies this invocation prepared, in order.",
       "producer": "native binding Build evaluation",
-      "signature": "59aeb2435d6a2d0ff6f01abee8514f7ca5c663dc85d1a35371d8fb076a95831b"
+      "signature": "a89f8f4b180de6383b8f5c53219392837f491b8dbdf17fca60935809e712e44a"
     },
     {
       "consumers": [
@@ -20598,7 +20417,7 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "NativeBuildEvaluation::field:terminal_code#1",
       "kind": "carried_record",
-      "meaning": "Portable program identity of the Build invocation that produced the binding.",
+      "meaning": "Identify the single checked program executed by this activation.",
       "producer": "native binding Build evaluation",
       "signature": "688893832fb04c6dddef16066ee955c1b3dfb994307bc0f71577634e3cbb43ca"
     },
@@ -20620,11 +20439,23 @@
         "target provider selection"
       ],
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "item": "const:EVALUATION_RECORD_TAG#1",
+      "kind": "definition",
+      "meaning": "Identify the receipt layout before reading measured usage and preparation records.",
+      "producer": "native binding Build evaluation",
+      "signature": "68cb629d15fbf607f4ff975c4d7a31118250284879df7549ce82dd0ceb364766"
+    },
+    {
+      "consumers": [
+        "package review",
+        "target provider selection"
+      ],
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "impl:NativeBuildEvaluation::implementation#1",
       "kind": "definition",
       "meaning": "Construct and validate a measured Build receipt and compute its identity from the recorded execution.",
       "producer": "native binding Build evaluation",
-      "signature": "dc5a90ec3a3f899ec62706c63d7b3f4efe48e7f4a935577b6738ee51c262e25d"
+      "signature": "32e567c6c4f37d4fce992d1c0ece2dfccb447897fdda9b453961aa88247fe2d5"
     },
     {
       "consumers": [
@@ -20634,9 +20465,9 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "impl:NativeBuildEvaluation::method:from_execution#1",
       "kind": "producer",
-      "meaning": "Construct a receipt only after its ordered history ends at the supplied final program and the usage counters validate.",
+      "meaning": "Construct the receipt with its checked program, measured charges, observations and ordered preparations.",
       "producer": "native binding Build evaluation",
-      "signature": "66bb5bfbaec4fd8a9636cad3ebe695cd91939e25108593415de9793deea4ff91"
+      "signature": "aa8f77672474af2627fe3f62d75c7c06eaf800191c9ec6cbc463ca0439f6fed9"
     },
     {
       "consumers": [
@@ -20646,7 +20477,7 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "impl:NativeBuildEvaluation::method:from_observation_digest#1",
       "kind": "producer",
-      "meaning": "Construct a single-program receipt with an empty history from validated usage and the observation digest.",
+      "meaning": "Construct a receipt for an invocation that requested no dependency preparation.",
       "producer": "native binding Build evaluation",
       "signature": "d4869c14ce75bfef5089b8cf28c250fd15aeb315656ca2b75e95a0f2fd5fd2bd"
     },
@@ -20658,9 +20489,9 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "impl:NativeBuildEvaluation::method:identity_digest#1",
       "kind": "producer",
-      "meaning": "Hash the ordered history for staged execution and preserve the existing single-program identity alongside the program, usage and observations.",
+      "meaning": "Commit to the checked program, its usage, the observed effects and the dependencies prepared in order.",
       "producer": "native binding Build evaluation",
-      "signature": "4ced906c5943d87b1a8a3955c704488ae5da0340a6ae58c2523683d156d5f185"
+      "signature": "0f5f786a9faf3dfc9bb4537dea7f28f72dc912e45fe0168285a6ae4ccd233009"
     },
     {
       "consumers": [
@@ -20670,9 +20501,9 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "impl:NativeBuildEvaluation::method:validate#1",
       "kind": "checker",
-      "meaning": "Require a coherent history ending at this receipt's program and a valid invocation measurement.",
+      "meaning": "Validate the usage recorded for this completed activation.",
       "producer": "native binding Build evaluation",
-      "signature": "e5baa05e511445c2a333fd8f90129cd1c5412069fac9b18ebb12489b694377f3"
+      "signature": "330a0c3ba708ea6ce833d8f5ec868dd5b8db4dfc3b36f4c3a7a3f86f5652626a"
     },
     {
       "consumers": [
@@ -20682,9 +20513,9 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "impl:Record for NativeBuildEvaluation::implementation#1",
       "kind": "definition",
-      "meaning": "Define how the package record codec writes and recovers both forms of the evaluation receipt.",
+      "meaning": "Store one fixed receipt layout for every completed Build.",
       "producer": "Build receipt codec",
-      "signature": "53597acb53b1cce7251179cb871025a11e4eabba5fc9b09a4b564b209ce4baad"
+      "signature": "ecffec3d3e6f2e935162b7c5dfe9b95260cdab2f2d31152400a423882de96385"
     },
     {
       "consumers": [
@@ -20693,9 +20524,9 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "impl:Record for NativeBuildEvaluation::method:read#1",
       "kind": "checker",
-      "meaning": "Recognize the extended record, reject empty extended histories, account for legacy allocation, and validate the reconstructed receipt.",
+      "meaning": "Require the current layout and validate invocation usage before returning the receipt.",
       "producer": "Build receipt codec",
-      "signature": "3944ebfbf1b938b8e3a43851f66c6a6a15a86d32f0550041e4dbc1d9da176526"
+      "signature": "6ad626d3af7717912c2f2ca77756302074ca7ea76e0ad117c9c09bbe9f24154d"
     },
     {
       "consumers": [
@@ -20704,9 +20535,9 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "impl:Record for NativeBuildEvaluation::method:write#1",
       "kind": "producer",
-      "meaning": "Write the original three fields for an empty history or signal an extended record and write the staged history with the real usage version.",
+      "meaning": "Store checked code, layout tag, usage, observations and preparations in that order.",
       "producer": "Build receipt codec",
-      "signature": "c471254d6d68fb25a8b3fcb539c19a25771f7b24d78d6b448afc1b681c338c29"
+      "signature": "0f1e39b37b99616d8c0a45f2fa5df36b5ee1d9cbcf5691e5d797aa892dd75617"
     },
     {
       "consumers": [
@@ -20714,11 +20545,23 @@
         "target provider selection"
       ],
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
-      "item": "module:history#1",
+      "item": "module:dependencies#1",
       "kind": "definition",
-      "meaning": "Keep the ordered execution history in the receipt crate shared by Build and package consumers.",
+      "meaning": "Own the ordered dependency preparations observed by one checked Build.",
       "producer": "native binding Build evaluation",
-      "signature": "b7d67da80ac71f9f6ed7091042b5a917cb2e06cf4c151aee194a43c608ab03f9"
+      "signature": "fa767ff5b09352f8cdd6993b994d3e3b79f12f03d6f4c77751bf2462e71328e3"
+    },
+    {
+      "consumers": [
+        "package review",
+        "target provider selection"
+      ],
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
+      "item": "module:tests#1",
+      "kind": "definition",
+      "meaning": "Exercise receipt storage, validation and identity against a recorded invocation.",
+      "producer": "native binding Build evaluation",
+      "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
     },
     {
       "consumers": [
@@ -20740,9 +20583,9 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "struct:NativeBuildEvaluation#1",
       "kind": "carried_record",
-      "meaning": "Carry the final checked program, ordered preparations and resumptions, invocation usage and observed input digest of a completed Build.",
+      "meaning": "Carry the checked program, ordered dependency preparations, measured usage and observed input digest of one completed Build.",
       "producer": "native binding Build evaluation",
-      "signature": "3d68931d0fda7e62ce5ec20c5db161a654d1af5ea99164ed41c7932c8e0d3ab9"
+      "signature": "d74e95e49c9a92a419d10560f826739d1854d9124e0c86456227f04102e6ac5b"
     },
     {
       "consumers": [
@@ -20750,11 +20593,11 @@
         "native binding evaluation receipts"
       ],
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
-      "item": "use:history :: { BuildCallSite , BuildExecutionHistory , BuildExecutionStep }#1",
+      "item": "use:dependencies :: DependencyPreparations#1",
       "kind": "definition",
-      "meaning": "Publish the execution step, ordered history and machine-local call site as the receipt's public data types.",
+      "meaning": "Expose the ordered preparations carried with an evaluated Build.",
       "producer": "native binding Build evaluation",
-      "signature": "db358ca8999e93042ca3f78c1251632c10bb54a6a1b03469922310e20b20d93d"
+      "signature": "04f144cc1945c7f1bb889641a1b6723ad755837ff35c29770331f4a6f61fcabc"
     },
     {
       "consumers": [
@@ -20764,7 +20607,7 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "use:record_storage :: Record#1",
       "kind": "definition",
-      "meaning": "Use the package record reader and writer for both legacy evaluation records and staged records.",
+      "meaning": "Read and write a completed Build using the package record format.",
       "producer": "Build receipt codec",
       "signature": "a63fcfc393fbf506286b497e81f333b78ec63786c8b9289a2cf6ccd7fb84a93c"
     },
@@ -20776,7 +20619,7 @@
       "file": "source-rust/subsystems/compiler/build/evaluation/receipts/native_binding.rs",
       "item": "use:std :: sync :: Arc#1",
       "kind": "definition",
-      "meaning": "Share one immutable execution history across the completed Build and its native binding receipts.",
+      "meaning": "Share immutable dependency preparations between a completed Build and its native binding receipts.",
       "producer": "native binding Build evaluation",
       "signature": "7f756560eebd15dcf9a51d4078bc1ef2e1fa6a662fdc601c323d1ec347442c70"
     },
@@ -20785,20 +20628,8 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "BuildExecutionHistory::field:steps#1",
-      "kind": "carried_record",
-      "meaning": "Keep events in the order they occurred so two routes to the same final program can have distinct receipts.",
-      "producer": "Build evaluation",
-      "signature": "4cab87033079cb3f6d66a1598f5bd8c6ae7c2b795332fd354221ad3004f7e19d"
-    },
-    {
-      "consumers": [
-        "computed Build configuration",
-        "native binding evaluation receipts"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "BuildExecutionStep::Prepared::field:child_build_source#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "DependencyPreparation::field:child_build_source#1",
       "kind": "carried_record",
       "meaning": "Record the evaluated child Build's source consumption commitment when available.",
       "producer": "Build evaluation",
@@ -20809,8 +20640,8 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "BuildExecutionStep::Prepared::field:handoff#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "DependencyPreparation::field:handoff#1",
       "kind": "carried_record",
       "meaning": "Record the prepared package's optional Build handoff commitment alongside its acquired inputs.",
       "producer": "Build evaluation",
@@ -20821,8 +20652,8 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "BuildExecutionStep::Prepared::field:inputs#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "DependencyPreparation::field:inputs#1",
       "kind": "carried_record",
       "meaning": "Commit to the acquired dependency's package review inputs using the package compiler's review-cache digest.",
       "producer": "Build evaluation",
@@ -20833,8 +20664,8 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "BuildExecutionStep::Prepared::field:package#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "DependencyPreparation::field:package#1",
       "kind": "carried_record",
       "meaning": "Retain the package key that satisfied the awaited registration.",
       "producer": "Build evaluation",
@@ -20845,8 +20676,8 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "BuildExecutionStep::Prepared::field:purpose#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "DependencyPreparation::field:purpose#1",
       "kind": "carried_record",
       "meaning": "Identify whether the prepared registration belongs to the Build or Product dependency scope.",
       "producer": "Build evaluation",
@@ -20857,8 +20688,8 @@
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "BuildExecutionStep::Prepared::field:request_ordinal#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "DependencyPreparation::field:request_ordinal#1",
       "kind": "carried_record",
       "meaning": "Identify the registration within its dependency scope that the running Build awaited.",
       "producer": "Build evaluation",
@@ -20866,210 +20697,94 @@
     },
     {
       "consumers": [
-        "Build activation resumption",
+        "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "BuildExecutionStep::Resumed::field:calls#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "DependencyPreparations::field:preparations#1",
       "kind": "carried_record",
-      "meaning": "Retain each matching old and new call site in order from the entry to the preparation that completed.",
+      "meaning": "Preserve the order of dependency waits observed by this activation.",
       "producer": "Build evaluation",
-      "signature": "19417e6e6b5d3e6989577f6fddccc585e7582ffb1ff04a01050c3cb75dfc7328"
-    },
-    {
-      "consumers": [
-        "Build activation resumption",
-        "native binding evaluation receipts"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "BuildExecutionStep::Resumed::field:previous#1",
-      "kind": "carried_record",
-      "meaning": "Identify the checked program that actually parked at the selected call stack.",
-      "producer": "Build evaluation",
-      "signature": "87fe42dd51b7d8eab2167acf6c9a9b42b717c7b8cba13aa123dcff9c1c854f88"
-    },
-    {
-      "consumers": [
-        "Build activation resumption",
-        "native binding evaluation receipts"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "BuildExecutionStep::Resumed::field:successor#1",
-      "kind": "carried_record",
-      "meaning": "Identify the checked program that took custody of the parked invocation.",
-      "producer": "Build evaluation",
-      "signature": "0c86eeae2a6bb1ed522bb92362b8bcaed5d74531da97ec3b6ef76019ec674d3b"
-    },
-    {
-      "consumers": [
-        "Build activation resumption",
-        "native binding evaluation receipts"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "alias:BuildCallSite#1",
-      "kind": "definition",
-      "meaning": "Pair a machine with an operation so the same operation number in two machines denotes distinct call sites.",
-      "producer": "Build evaluation",
-      "signature": "cae850ff60e1520aadf92b71deeeff304ff21c50b464e51014f24b139bc53d9a"
+      "signature": "ce00e56b00d48677d1d6f736744cd31f4d75bcba36e196fabd7daec451158e4b"
     },
     {
       "consumers": [
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "enum:BuildExecutionStep#1",
-      "kind": "carried_record",
-      "meaning": "Record the dependency actually prepared or the checked program transition actually taken, in execution order.",
-      "producer": "Build evaluation",
-      "signature": "405940da6732b7e8172693fc375a67e44ff6e2426ce03d9e4658cb888afd4349"
-    },
-    {
-      "consumers": [
-        "Build execution history decoder"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "impl:BuildExecutionHistory::from_bytes::const:MIN_EVENT_BYTES#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "impl:DependencyPreparations::implementation#1",
       "kind": "definition",
-      "meaning": "Bound the event count by the smallest valid event encoding before reserving decoder storage.",
-      "producer": "Build receipt codec",
-      "signature": "3267cdae4b71e041b47f6d9b495b87f2a9cba17772d3c8755ff1d3940718a0af"
+      "meaning": "Record the completion of waits and contribute their identity to the receipt.",
+      "producer": "Build evaluation",
+      "signature": "aab088354720afc8ed36074895da70ba901af6eacbde326ea5e6c050c9ec2975"
     },
     {
       "consumers": [
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "impl:BuildExecutionHistory::implementation#1",
-      "kind": "definition",
-      "meaning": "Build the ordered receipt, validate its program chain and encode the same fields for package output and the receipt digest.",
-      "producer": "Build evaluation",
-      "signature": "8c73508b2ee2eb757e06e63f0b49ba79743ce667ca0fd5d5c3388fe06e375848"
-    },
-    {
-      "consumers": [
-        "native binding receipt validation"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "impl:BuildExecutionHistory::method:ends_with#1",
-      "kind": "checker",
-      "meaning": "Check each recorded transition has callers and follows its predecessor, then match the last successor to the completed program.",
-      "producer": "native binding Build evaluation",
-      "signature": "17528c1c9a78d87d2b52b73b46c8c6836f9d6d97399c6b438bae5560584797a8"
-    },
-    {
-      "consumers": [
-        "package native output decoder"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "impl:BuildExecutionHistory::method:from_bytes#1",
-      "kind": "checker",
-      "meaning": "Decode the exact history length, event tags, dependency identities and nonempty call paths, checking chain continuity and complete input consumption.",
-      "producer": "Build receipt codec",
-      "signature": "e290e5057e5fcb3b3f4fb1423b76362a61d889ddd78cc8f21eb4021bf9fbb8dd"
-    },
-    {
-      "consumers": [
-        "Build execution history resumption"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "impl:BuildExecutionHistory::method:last_program#1",
-      "kind": "definition",
-      "meaning": "Find the most recent successor across intervening preparations so the next resumption must start there.",
-      "producer": "Build evaluation",
-      "signature": "f998f8ab3031b86ad1996b67afbc47fe5583fc3e4dcbbf6159a445aacaf36b72"
-    },
-    {
-      "consumers": [
-        "computed Build configuration",
-        "native binding evaluation receipts"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "impl:BuildExecutionHistory::method:prepared#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "impl:DependencyPreparations::method:prepared#1",
       "kind": "producer",
       "meaning": "Append the completed dependency request with its purpose, ordinal, package and available source and handoff commitments.",
       "producer": "Build evaluation",
-      "signature": "c8947b261ced8296df62e7fd0e268911379bdec0af8df4a60b3baf1fddaf460b"
-    },
-    {
-      "consumers": [
-        "Build activation resumption",
-        "native binding evaluation receipts"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "impl:BuildExecutionHistory::method:resumed#1",
-      "kind": "producer",
-      "meaning": "Append a checked program transition only when it has a call path and continues the last recorded program.",
-      "producer": "Build evaluation",
-      "signature": "9b9c8917e4833fbda5650e4f29b972f549abace052def056e5df68ccb8834865"
-    },
-    {
-      "consumers": [
-        "package native output codec",
-        "native binding evaluation receipts"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "impl:BuildExecutionHistory::method:steps#1",
-      "kind": "definition",
-      "meaning": "Expose the recorded events in execution order without copying or permitting mutation.",
-      "producer": "Build evaluation",
-      "signature": "a63b7d2840e08467ce13756434cd31676f91bafd2eb633318499165215224e3c"
+      "signature": "3c02cc4c3fe5f752d592acdda111a8aaa02cbbe0c69063a0b3687a564858efde"
     },
     {
       "consumers": [
         "package native output codec",
         "native binding receipt identity"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "impl:BuildExecutionHistory::method:write_bytes#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "impl:DependencyPreparations::method:write_identity#1",
       "kind": "producer",
-      "meaning": "Emit the ordered tagged events, evidence and paired call sites in the encoding shared by package output and receipt hashing.",
+      "meaning": "Commit to every preparation in order, including the presence and content of optional child receipts and handoffs.",
       "producer": "Build receipt codec",
-      "signature": "2d1833b4c5b419f86397764d01945a8ebf6b42940d3f37f0aca33a92a454cb0e"
+      "signature": "3f7255a80571b63eabe233b14d8e29f793c40ac6cb14083b6d376c6d8bbc12ed"
     },
     {
       "consumers": [
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "struct:BuildExecutionHistory#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "struct:DependencyPreparation#1",
       "kind": "carried_record",
-      "meaning": "Keep the ordered preparations and resumptions of one Build beside its completed configuration and native binding receipt.",
+      "meaning": "Identify a completed dependency preparation and commit to its immutable inputs and optional outputs.",
       "producer": "Build evaluation",
-      "signature": "b122e6f6c315308f7e5ee1ea59e761597bb5349bafbf8601eaf925f0bddc1d72"
-    },
-    {
-      "consumers": [
-        "Build activation resumption",
-        "native binding evaluation receipts"
-      ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "use:psi_program_identity :: { SemanticFingerprint , TerminalPsiIdentity , VocabularyMarker }#1",
-      "kind": "definition",
-      "meaning": "Use the checked program fingerprint and vocabulary marker to identify both sides of a resumption.",
-      "producer": "Build evaluation",
-      "signature": "14256243a1ceb0db48c6f40bf17343c39fcf504d37aa202f1ec880e7c1f8dd1e"
+      "signature": "901e00e0567d8e60a3be14ed9c4ab8b5c5809c0a17f44dcee0668c006fe05cb4"
     },
     {
       "consumers": [
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "use:semantic_vocabulary :: { MachineId , OperationId , PackageKeyIdentity }#1",
-      "kind": "definition",
-      "meaning": "Name the acquired package and the original and successor call instructions with their owning compiler identities.",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "struct:DependencyPreparations#1",
+      "kind": "carried_record",
+      "meaning": "Retain the ordered preparations made by one checked Build.",
       "producer": "Build evaluation",
-      "signature": "7a54cc63146df9d55fb5c686114dfeb5dd61e1e1eaaef7ff1d642ad593e54c65"
+      "signature": "f2e18cca08791298328f0ee977ab8a780ea3de3e89b8f0443608ba8053939080"
     },
     {
       "consumers": [
         "computed Build configuration",
         "native binding evaluation receipts"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "use:semantic_vocabulary :: PackageKeyIdentity#1",
+      "kind": "definition",
+      "meaning": "Carry the exact resolved package selected by the registration.",
+      "producer": "Build evaluation",
+      "signature": "5f6b93c818e315f632b0164ef0b953b753e7a8814efee04ef44074a60ff641f5"
+    },
+    {
+      "consumers": [
+        "computed Build configuration",
+        "native binding evaluation receipts"
+      ],
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
       "item": "use:source_provenance :: DependencyScope#1",
       "kind": "definition",
       "meaning": "Use the same Build and Product dependency purposes that source admission applied to the registration.",
@@ -21081,12 +20796,12 @@
         "package native output codec",
         "native binding receipt identity"
       ],
-      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
-      "item": "use:wire :: cursor :: Cursor#1",
+      "file": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
+      "item": "use:wire :: digest_encoder :: DomainDigestEncoder#1",
       "kind": "definition",
-      "meaning": "Read counted history and call-path entries within the bytes supplied by the package codec.",
+      "meaning": "Frame dependency preparation fields for the evaluation identity.",
       "producer": "Build receipt codec",
-      "signature": "2d2400ff9f0c64ce718bb401013683ea3f85c00691279d082ef4f2a4cc2dd9e5"
+      "signature": "6bd27a41c5515ca15d49f339c981549008b64b31d47e127c596e8842a19b1076"
     },
     {
       "consumers": [
@@ -22472,7 +22187,7 @@
       "kind": "definition",
       "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
       "producer": "native body object publication",
-      "signature": "c2ccf18610c98aa9772a69f864288d86c16d85ac1d222a0eab9b7a3fd2a01784"
+      "signature": "119213c4c8d131631c31d78047018a6428c44358aaaa3711d2768a368fdc4555"
     },
     {
       "consumers": [
@@ -22484,7 +22199,7 @@
       "kind": "producer",
       "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
       "producer": "native body object publication",
-      "signature": "eb6de8138510131afd040e1998fb332e6384c99d4488f9448adb263b390eb133"
+      "signature": "b6a68c7f7c4288f21f07e453f1fd510e670e22517de0d1dd7d555b7536c76bf5"
     },
     {
       "consumers": [
@@ -23025,7 +22740,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/selected.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/src/trust/mod.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
@@ -23142,7 +22857,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/build/evaluation/receipts/history.rs",
+      "path": "source-rust/subsystems/compiler/build/evaluation/receipts/dependencies.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",

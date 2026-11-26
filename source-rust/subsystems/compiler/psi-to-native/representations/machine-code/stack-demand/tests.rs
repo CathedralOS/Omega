@@ -114,3 +114,39 @@ fn missing_cyclic_and_unaccounted_calls_never_become_zero_demand() {
         })
     );
 }
+
+#[test]
+fn a_foreign_stack_promise_is_bound_to_its_selected_execution_and_composes_with_the_caller() {
+    use target::TargetProfile;
+    use target_vocabulary::{NativeBindingExecution, NativeBindingStack};
+
+    let execution = NativeBindingExecution::from_commitments([3; 32], [4; 32], [5; 32]).unwrap();
+    let profile = TargetProfile::UefiX64;
+    assert!(NativeBindingStack::for_requirement(profile, execution, 0).is_err());
+    let bound = NativeBindingStack::for_requirement(profile, execution, 96).unwrap();
+    let another_calling =
+        NativeBindingExecution::from_commitments([3; 32], [4; 32], [6; 32]).unwrap();
+    assert_ne!(
+        bound.commitment(),
+        NativeBindingStack::for_requirement(profile, another_calling, 96)
+            .unwrap()
+            .commitment()
+    );
+
+    let mut program = program();
+    program.functions[1]
+        .foreign_calls
+        .push(PhysicalForeignStackCall {
+            owner: CallSiteOwner::Operation(OperationId::new(4).unwrap()),
+            caller_live_bytes: 80,
+            extent: ForeignStackExtent::from_native_binding(bound, execution.receipt()),
+            invoked_callbacks: vec![],
+        });
+    let demand = derive_physical_stack_demand(&program, machine(1), vec![]).unwrap();
+    assert_eq!(demand.ceiling_bytes(), Some(48 + 80 + 96));
+    assert!(demand.admitted_contribution_commitments().contains(
+        &provider_stack_contribution::SameStackContributionCommitment::from_digest(
+            bound.commitment()
+        )
+    ));
+}

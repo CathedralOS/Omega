@@ -51,12 +51,11 @@ pub use evidence::{
     relaxation, relaxation_identity,
 };
 pub use text_section::{
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
-    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
-    FunctionFragmentTextSectionUnavailableData, InternalMachineCallResolutionKind,
-    InternalMachineCallResolutionState, NormalizedForeignCallResolutionKind,
-    NormalizedForeignCallResolutionState, PlacedBlockSpan, PlacedFunctionFragment,
-    PlacedInstructionSpan, PlacedInternalMachineCallResolution,
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
+    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
+    InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
+    NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState, PlacedBlockSpan,
+    PlacedFunctionFragment, PlacedInstructionSpan, PlacedInternalMachineCallResolution,
     PlacedNormalizedForeignCallResolution, RelocationFreeTextSectionPlacement,
     TextSectionPlacementPolicy, TextSectionRelocationRequirements,
     relocation_free_text_section_identity,

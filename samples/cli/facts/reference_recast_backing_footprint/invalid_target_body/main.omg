@@ -23,12 +23,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedObserve {
-    machine observe(view: @Pair, original: addr) -> bool
+    machine observe(view: @Pair, original: address) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Observe satisfies SelectedObserve {
-    machine observe(view: @Pair, original: addr) -> bool
+    machine observe(view: @Pair, original: address) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -37,7 +37,7 @@ X86Observe satisfies SelectedObserve {
 }
 
 ArmObserve satisfies SelectedObserve {
-    machine observe(view: @Pair, original: addr) -> bool
+    machine observe(view: @Pair, original: address) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -48,7 +48,7 @@ ArmObserve satisfies SelectedObserve {
 
 machine probe() -> bool {
     let mutable bytes: [u8; 4] = [11, 23, 37, 41];
-    let original: addr = address_of(@bytes[1]);
+    let original: address = address_of(@bytes[1]);
     let view: @Pair = @bytes[1] as @Pair;
     bytes[2] = 99;
     SelectedObserve::observe(view, original)

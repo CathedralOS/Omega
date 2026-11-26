@@ -3,8 +3,8 @@
 // direct self-edge on the root directory itself conflicts.
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_subdir_edge");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_subdir_edge" };
     let mutable selfsub_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "sub" });
     |dependency|::with_alias(@mutable selfsub_dependency, "selfsub");
     let selfsub_registration: DependencyRegistration = Build::dependency(builder, selfsub_dependency);

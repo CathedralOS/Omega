@@ -27,6 +27,7 @@ pub enum ExecutionSelection {
 }
 
 pub struct RunRequest {
+    pub run_directories: platform_custody::directory_mappings::DirectoryMappings,
     pub build_snapshot: Option<BuildSnapshotRequest>,
     pub private_entry_ram: Vec<psi_entry_memory::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
@@ -62,6 +63,7 @@ pub enum TerminalOutcome {
 
 #[derive(Debug)]
 pub enum RunError {
+    InvalidRequest(&'static str),
     TemporaryStorage(std::io::Error),
     StandardInput(std::io::Error),
     ReferenceOutput(std::io::Error),
@@ -76,6 +78,7 @@ pub enum RunError {
 impl std::fmt::Display for RunError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidRequest(reason) => formatter.write_str(reason),
             Self::TemporaryStorage(error) => {
                 write!(formatter, "cannot create run output directory: {error}")
             }
@@ -132,6 +135,11 @@ pub fn run_project(
     request: RunRequest,
     present_test: impl FnMut(&str),
 ) -> Result<RunOutcome, RunError> {
+    if request.selection != ExecutionSelection::Terminal && !request.run_directories.is_empty() {
+        return Err(RunError::InvalidRequest(
+            "Product directory mappings require the Psi engine",
+        ));
+    }
     let psi_work_budget = request
         .psi_work_budget
         .map_or(DEFAULT_PSI_WORK_ALLOWANCE, std::num::NonZeroU64::get);
@@ -151,7 +159,13 @@ pub fn run_project(
         present_test,
     )?;
     if request.selection == ExecutionSelection::Terminal {
-        return run_terminal(report, request.keep_artifacts, build_dir, psi_work_budget);
+        return run_terminal(
+            report,
+            request.keep_artifacts,
+            build_dir,
+            psi_work_budget,
+            request.run_directories,
+        );
     }
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
@@ -205,6 +219,7 @@ fn run_terminal(
     keep_artifacts: bool,
     build_dir: PathBuf,
     psi_work_budget: u64,
+    directories: platform_custody::directory_mappings::DirectoryMappings,
 ) -> Result<RunOutcome, RunError> {
     if keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
@@ -213,6 +228,7 @@ fn run_terminal(
         &report,
         Some(Box::new(std::io::stdin())),
         psi_work_budget,
+        directories,
     ));
     if keep_artifacts && let TerminalOutcome::Completed(observation) = &outcome {
         retain_terminal_observation(&build_dir, observation, psi_work_budget)?;

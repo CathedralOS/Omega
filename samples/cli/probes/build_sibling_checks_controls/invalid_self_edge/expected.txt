@@ -1,0 +1,1 @@
+product dependency row 0 of package `invalid_self_edge` selected `invalid_self_edge` with non-package role Application

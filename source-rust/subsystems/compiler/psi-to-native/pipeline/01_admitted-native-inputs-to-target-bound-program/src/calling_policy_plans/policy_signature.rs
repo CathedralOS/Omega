@@ -379,17 +379,41 @@ fn build_boundary_value_field(field: BoundaryValueField) -> BuildTimeValue {
 pub fn validate_calling_policy_result(
     result: BoundaryPlanResult,
     signature: &CallingPolicySignature,
-) -> Result<ValidatedBoundaryEntryPlan, String> {
+    dispatch: Option<calling_conventions::NativeParameterId>,
+) -> Result<(ValidatedBoundaryEntryPlan, Option<u32>), String> {
     let native_formals = signature.native_parameters()?;
     let BoundaryPlanResult::Accepted(plan) = result else {
         return validate_boundary_plan_result(result, &CallSignature::default())
+            .map(|plan| (plan, None))
             .map_err(|diagnostic| diagnostic.to_string());
     };
-    if plan.call.parameters.len() != native_formals.len() {
+    let dispatch_only = dispatch
+        .map(|identity| {
+            match native_formals
+                .iter()
+                .find(|parameter| parameter.identity == identity)
+                .map(|parameter| parameter.origin)
+            {
+                Some(BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal }) => {
+                    Ok(formal_ordinal)
+                }
+                _ => Err(invalid_authored_plan(
+                    "dispatch must select a semantic formal from this requirement".into(),
+                )),
+            }
+        })
+        .transpose()?;
+    let projection = calling_conventions::NativeCallProjection::new(
+        native_formals,
+        signature.geometry.parameters.len(),
+        dispatch_only,
+    )?;
+    let passed_count = projection.parameters().count();
+    if plan.call.parameters.len() != passed_count {
         return Err(invalid_authored_plan(format!(
             "plan places {} parameters for a boundary signature with {} native parameters",
             plan.call.parameters.len(),
-            native_formals.len()
+            passed_count
         )));
     }
     if plan.call.result.is_some() != signature.geometry.result.is_some() {
@@ -401,7 +425,7 @@ pub fn validate_calling_policy_result(
         .call
         .parameters
         .iter()
-        .zip(native_formals.iter())
+        .zip(projection.parameters())
         .enumerate()
     {
         let validation = match native_parameter.shape {
@@ -440,10 +464,12 @@ pub fn validate_calling_policy_result(
     let classified = CallSignature::of_placements(&plan.call.parameters, plan.call.result.as_ref());
     if signature.callbacks.demands.is_empty() && signature.callbacks.binders.is_empty() {
         return validate_boundary_plan_result(BoundaryPlanResult::Accepted(plan), &classified)
+            .map(|plan| (plan, dispatch_only))
             .map_err(|diagnostic| diagnostic.to_string());
     }
     let context = &signature.callbacks;
     validate_boundary_entry_plan_with_callback_materializations(plan, &classified, context)
+        .map(|plan| (plan, dispatch_only))
         .map_err(|diagnostic| diagnostic.to_string())
 }
 
@@ -488,13 +514,13 @@ mod tests {
         .expect("empty ordinary signature")
         .plan()
         .clone();
-        validate_calling_policy_result(BoundaryPlanResult::Accepted(plan.clone()), &signature)
+        validate_calling_policy_result(BoundaryPlanResult::Accepted(plan.clone()), &signature, None)
             .expect("a signature with no callback obligations remains valid");
         signature.callbacks.binders.push(CallbackBinderRequirement {
             binder,
             requirement,
         });
-        let error = validate_calling_policy_result(BoundaryPlanResult::Accepted(plan), &signature)
+        let error = validate_calling_policy_result(BoundaryPlanResult::Accepted(plan), &signature, None)
             .expect_err("a nominal binder requires its materialization even with no demands");
         assert!(error.contains("omits a nominal callback binder"), "{error}");
     }
@@ -622,19 +648,50 @@ mod tests {
                 binder,
                 destination,
             });
-        validate_calling_policy_result(BoundaryPlanResult::Accepted(plan.clone()), &signature)
+        validate_calling_policy_result(BoundaryPlanResult::Accepted(plan.clone()), &signature, None)
             .expect("native-only callback remains placed");
+
+        for invalid in [callback, NativeParameterId::new(15).unwrap()] {
+            let error = validate_calling_policy_result(
+                BoundaryPlanResult::Accepted(plan.clone()),
+                &signature,
+                Some(invalid),
+            )
+            .expect_err("a private callback or absent parameter cannot locate a function table");
+            assert!(
+                error.contains("dispatch must select a semantic formal"),
+                "{error}"
+            );
+        }
+        let mut only_callback = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::Aapcs64,
+            &CallSignature {
+                parameters: vec![word],
+                result: None,
+            },
+        )
+        .unwrap()
+        .plan()
+        .clone();
+        only_callback.call.callback_materializations = plan.call.callback_materializations.clone();
+        let (_, dispatch_only) = validate_calling_policy_result(
+            BoundaryPlanResult::Accepted(only_callback),
+            &signature,
+            Some(semantic),
+        )
+        .expect("the table stays available for lookup with just the callback passed to the callee");
+        assert_eq!(dispatch_only, Some(0));
 
         let mut omitted = plan.clone();
         omitted.call.callback_materializations.clear();
         assert!(
-            validate_calling_policy_result(BoundaryPlanResult::Accepted(omitted), &signature)
+            validate_calling_policy_result(BoundaryPlanResult::Accepted(omitted), &signature, None)
                 .is_err(),
             "lost callback demand"
         );
         plan.call.parameters[1].shape = ValueShape::integer(4, 4);
         assert!(
-            validate_calling_policy_result(BoundaryPlanResult::Accepted(plan), &signature)
+            validate_calling_policy_result(BoundaryPlanResult::Accepted(plan), &signature, None)
                 .unwrap_err()
                 .contains("target function-pointer ABI shape")
         );

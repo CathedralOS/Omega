@@ -1,7 +1,9 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "normal_return_expression_statement_is_not_return");
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+use main.omg as app;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "normal_return_expression_statement_is_not_return" };
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }

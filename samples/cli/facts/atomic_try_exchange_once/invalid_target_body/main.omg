@@ -1,16 +1,16 @@
 // Expected exit: 0.
 // A non-observing single attempt returns the proposed u32 on failure and the displaced u32 on commit.
-use omega\language\core\AtomicTryExchangeOnceOutcome;
+use {omega}/language/core/layout.omg;
 
 data Cells { selected: AtomicU32; untouched: AtomicU32; }
 
 boundary trait SelectedAttempt {
-    machine attempt(cells: @Cells, expected: u32) -> AtomicTryExchangeOnceOutcome<u32> reaches none crashes none;
+    machine attempt(cells: @Cells, expected: u32) -> |layout|::AtomicTryExchangeOnceOutcome<u32> reaches none crashes none;
 }
 
 SingleAttempt satisfies SelectedAttempt {
-    machine attempt(cells: @Cells, expected: u32) -> AtomicTryExchangeOnceOutcome<u32> reaches none {
-        let outcome: AtomicTryExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(expected, 99, ReceivePublish, Receive);
+    machine attempt(cells: @Cells, expected: u32) -> |layout|::AtomicTryExchangeOnceOutcome<u32> reaches none {
+        let outcome: |layout|::AtomicTryExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(expected, 99, ReceivePublish, Receive);
         outcome
     }
 }
@@ -18,22 +18,22 @@ SingleAttempt satisfies SelectedAttempt {
 machine probe(cells: @Cells) -> bool {
     cells.selected.store(10, NoOrdering);
     cells.untouched.store(17, NoOrdering);
-    let outcome: AtomicTryExchangeOnceOutcome<u32> = SelectedAttempt::attempt(cells, 10);
+    let outcome: |layout|::AtomicTryExchangeOnceOutcome<u32> = SelectedAttempt::attempt(cells, 10);
     transition outcome {
-        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false),
-        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && cells.selected.load(NoOrdering) == 99 && cells.untouched.load(NoOrdering) == 17),
-        AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
+        |layout|::AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false),
+        |layout|::AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && cells.selected.load(NoOrdering) == 99 && cells.untouched.load(NoOrdering) == 17),
+        |layout|::AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
     }
 }
 
 machine mismatch(cells: @Cells) -> bool {
     cells.selected.store(10, NoOrdering);
     cells.untouched.store(17, NoOrdering);
-    let outcome: AtomicTryExchangeOnceOutcome<u32> = SelectedAttempt::attempt(cells, 9);
+    let outcome: |layout|::AtomicTryExchangeOnceOutcome<u32> = SelectedAttempt::attempt(cells, 9);
     transition outcome {
-        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17),
-        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false),
-        AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (false)
+        |layout|::AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17),
+        |layout|::AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false),
+        |layout|::AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (false)
     }
 }
 

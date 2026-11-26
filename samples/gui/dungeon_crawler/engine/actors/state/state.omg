@@ -1,11 +1,7 @@
-use configuration\ROOM_WIDTH;
-use configuration\ROOM_HEIGHT;
-use configuration\MAX_MOVEMENT_STEP;
-use configuration\ATTACK_FRAMES;
-use configuration\INVULNERABILITY_FRAMES;
+use configuration/configuration.omg;
 
 public data Position [copy]
-requires x >= 0 && x < ROOM_WIDTH, y >= 0 && y < ROOM_HEIGHT {
+requires x >= 0 && x < |configuration|::ROOM_WIDTH, y >= 0 && y < |configuration|::ROOM_HEIGHT {
     x: i32;
     y: i32;
 }
@@ -33,11 +29,11 @@ public data Traversal [copy] {
 
 public data Actor<const Rooms: u64> [copy]
 requires Rooms >= 1, room < Rooms, facing >= 0 && facing < 4,
-    speed >= 0 && speed <= MAX_MOVEMENT_STEP {
+    speed >= 0 && speed <= |configuration|::MAX_MOVEMENT_STEP {
     position: Position;
     vitality: Vitality;
-    attack: Countdown<ATTACK_FRAMES>;
-    immunity: Countdown<INVULNERABILITY_FRAMES>;
+    attack: Countdown<|configuration|::ATTACK_FRAMES>;
+    immunity: Countdown<|configuration|::INVULNERABILITY_FRAMES>;
     room: u64;
     facing: i32;
     speed: i32;

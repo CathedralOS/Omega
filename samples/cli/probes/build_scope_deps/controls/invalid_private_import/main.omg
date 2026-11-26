@@ -1,4 +1,5 @@
-use kit\main;
-machine entry() -> i32 {
-    hidden()
+use {scope_kernel}/main.omg as kit;
+
+public machine main() {
+    _ = |kit|::hidden();
 }

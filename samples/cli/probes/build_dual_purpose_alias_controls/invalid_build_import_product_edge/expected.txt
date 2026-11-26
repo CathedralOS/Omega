@@ -1,0 +1,2 @@
+Build import `{kit}/main.omg as kit` has no supplied source
+build.omg:2:5

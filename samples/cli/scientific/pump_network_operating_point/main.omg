@@ -1,53 +1,46 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use platform\input;
-use platform\input\Input;
-use platform\input\read;
-use domain\network;
-use domain\network\Network;
-use domain\network\valid;
-use domain\solver;
-use domain\solver\Solver;
-use domain\solver\solve;
-use system\Console;
+use domain/network/network.omg;
+use domain/solver/solver.omg;
+use platform/input/input.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 // Explicit build entry; EOF is a valid record terminator. No pause prompt.
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable input: Input;
-    _ = block read(@mutable input);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable input: |input|::Input;
+    _ = block |input|::read(@mutable input);
     transition input.accepted {
         true -> model(input),
         false -> invalid()
     }
-    machine model(input: Input) {
-        let network: Network = Network {
+    machine model(input: |input|::Input) {
+        let network: |network|::Network = |network|::Network {
             a: input.values[0], b: input.values[1], c: input.values[2],
             d: input.values[3], r1: input.values[4], r2: input.values[5],
             elevation: input.values[6], maximum: input.values[7], demand: input.values[8]
         };
-        transition valid(@network) {
+        transition |network|::valid(@network) {
             true -> operating(network),
             false -> invalid()
         }
     }
-    machine operating(network: Network) {
-        let mutable solver: Solver;
+    machine operating(network: |network|::Network) {
+        let mutable solver: |solver|::Solver;
         solver.network = network;
-        solve(@mutable solver);
+        |solver|::solve(@mutable solver);
         transition solver.feasible > 0 {
             true -> success(),
             false -> infeasible()
         }
     }
-    machine success() { ProcessExit::exit_process(0); }
-    machine infeasible() { Console::write_line("INFEASIBLE"); ProcessExit::exit_process(2); }
-    machine invalid() { Console::write_line("INVALID_INPUT"); ProcessExit::exit_process(64); }
+    machine success() { |process_exit|::ProcessExit::exit_process(0); }
+    machine infeasible() { |console|::Console::write_line("INFEASIBLE"); |process_exit|::ProcessExit::exit_process(2); }
+    machine invalid() { |console|::Console::write_line("INVALID_INPUT"); |process_exit|::ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -26,7 +26,9 @@ and does not change this rule.
 Named decision: `no-data-code-attachment`, ratified 2026-10-22. A data declaration
 is not a machine owner or namespace. Declaring a machine under a data carrier,
 such as `machine Counter::increment`, is retired even with an explicit parameter.
-Use `\` to name a machine in a module. Use `::` for a trait requirement, named
+Import the declaring file to call one of its machines. For example,
+`use counter.omg;` makes the free machine `|counter|::increment` selectable.
+Use `::` within a declaration path for a trait requirement, named
 implementation member, domain operator or lexically visible nested declaration. Package visibility and exact
 declaration identity remain independent of the types of explicit arguments.
 

@@ -1,22 +1,16 @@
 use access_admission::test_support::*;
 
 mod field_regions {
-    use access_admission::AccessFields;
-    use access_admission::ValidatedPlacement;
-    use access_admission::validate_access_resources;
-    use access_admission::validate_placement;
-    use access_admission::validate_resource_profile;
-    use access_vocabulary::AccessExposure;
-    use access_vocabulary::AccessOperation;
-    use access_vocabulary::AtomicCapability;
-    use access_vocabulary::BorrowPolarity;
-    use access_vocabulary::BoundaryReach;
-    use access_vocabulary::ExternalCapability;
-    use access_vocabulary::FieldAccess;
-    use access_vocabulary::PeerWritability;
-    use access_vocabulary::ResourceProfile;
-    use access_vocabulary::ResourceRegion;
-    use access_vocabulary::StableCapability;
+    use access_admission::{
+        AccessFields, ValidatedPlacement, validate_access_resources, validate_placement,
+        validate_resource_profile,
+    };
+    use access_vocabulary::{
+        AccessExposure, AccessOperation, AccessPermissions, AtomicCapability, BorrowPolarity,
+        BoundaryReach, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
+        ObservationModel, PeerWritability, ResourceProfile, ResourceRegion, StableCapability,
+        TransferRule,
+    };
     use layout_plans::LayoutPlacementReport;
     use layout_plans::test_support::{layout_field_entry, layout_report};
     use storage_access::AccessAuthorization;
@@ -26,8 +20,8 @@ mod field_regions {
             byte_length,
             byte_alignment: 8,
             transfer_width_bits: 64,
-            observation: access_vocabulary::ObservationModel::Stable,
-            permissions: access_vocabulary::AccessPermissions {
+            observation: ObservationModel::Stable,
+            permissions: AccessPermissions {
                 read,
                 write,
                 ..Default::default()
@@ -53,12 +47,20 @@ mod field_regions {
             .expect("structural page region")
     }
 
+    fn region(offset: u64, length: u64, stable: StableCapability) -> ResourceRegion {
+        ResourceRegion {
+            offset,
+            length,
+            peer: PeerWritability::Exclusive,
+            stable,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach::default(),
+        }
+    }
+
     #[test]
     fn external_region_requires_complete_exact_leaf_supply() {
-        use access_vocabulary::AccessPermissions;
-        use access_vocabulary::ExternalReadBehavior;
-        use access_vocabulary::ObservationModel;
-        use access_vocabulary::TransferRule;
         let demand = FieldAccess::Region {
             byte_length: 4096,
             byte_alignment: 8,
@@ -212,18 +214,6 @@ mod field_regions {
         );
     }
 
-    fn region(offset: u64, length: u64, stable: StableCapability) -> ResourceRegion {
-        ResourceRegion {
-            offset,
-            length,
-            peer: PeerWritability::Exclusive,
-            stable,
-            external: ExternalCapability::None,
-            atomic: AtomicCapability::None,
-            reach: BoundaryReach::default(),
-        }
-    }
-
     #[test]
     fn page_region_retains_one_key_but_no_primitive_transfer() {
         let plan = page_plan(true, true, 4096);
@@ -316,6 +306,7 @@ mod field_regions {
 
     #[test]
     fn projected_transfer_keeps_parent_range_permissions_and_source_borrow() {
+        use BorrowPolarity::{Exclusive, Shared};
         let plan = page_plan(true, true, 4096);
         let key = plan.access().plan().key_at(0).expect("parent field");
         for offset in [8, 4096] {
@@ -325,8 +316,8 @@ mod field_regions {
                     key,
                     offset,
                     64,
-                    BorrowPolarity::Exclusive,
-                    BorrowPolarity::Exclusive,
+                    Exclusive,
+                    Exclusive,
                     AccessOperation::Write,
                 )
                 .expect("first and last whole leaf");
@@ -334,44 +325,29 @@ mod field_regions {
             assert_eq!(authorized.descriptor().container_byte_offset(), offset);
             assert_eq!(authorized.descriptor().effect_footprint().length_bytes(), 8);
         }
-        for (offset, width) in [(0, 64), (4104, 64), (9, 64), (8, 32768), (8, 0), (8, 12)] {
+        for (offset, width, cur, src) in [
+            (0, 64, Exclusive, Exclusive),
+            (4104, 64, Exclusive, Exclusive),
+            (9, 64, Exclusive, Exclusive),
+            (8, 32768, Exclusive, Exclusive),
+            (8, 0, Exclusive, Exclusive),
+            (8, 12, Exclusive, Exclusive),
+            (8, 64, Exclusive, Shared),
+            (8, 64, Shared, Exclusive),
+        ] {
             assert!(
                 plan.access()
                     .authorize_region_projection(
                         key,
                         offset,
                         width,
-                        BorrowPolarity::Exclusive,
-                        BorrowPolarity::Exclusive,
-                        AccessOperation::Write,
+                        cur,
+                        src,
+                        AccessOperation::Write
                     )
                     .is_err()
             );
         }
-        assert!(
-            plan.access()
-                .authorize_region_projection(
-                    key,
-                    8,
-                    64,
-                    BorrowPolarity::Exclusive,
-                    BorrowPolarity::Shared,
-                    AccessOperation::Write,
-                )
-                .is_err()
-        );
-        assert!(
-            plan.access()
-                .authorize_region_projection(
-                    key,
-                    8,
-                    64,
-                    BorrowPolarity::Shared,
-                    BorrowPolarity::Exclusive,
-                    AccessOperation::Write,
-                )
-                .is_err()
-        );
         let read_only = page_plan(true, false, 4096);
         let read_key = read_only
             .access()
@@ -385,29 +361,30 @@ mod field_regions {
                     read_key,
                     8,
                     64,
-                    BorrowPolarity::Exclusive,
-                    BorrowPolarity::Exclusive,
-                    AccessOperation::Write,
+                    Exclusive,
+                    Exclusive,
+                    AccessOperation::Write
                 )
                 .is_err()
         );
         assert!(
             read_only
                 .access()
-                .authorize_region_projection(
-                    read_key,
-                    8,
-                    64,
-                    BorrowPolarity::Shared,
-                    BorrowPolarity::Shared,
-                    AccessOperation::Read,
-                )
+                .authorize_region_projection(read_key, 8, 64, Shared, Shared, AccessOperation::Read)
                 .is_ok()
         );
     }
 
     #[test]
     fn destructive_region_cannot_overlap_another_accessible_field() {
+        let ext_region = |permissions: AccessPermissions| FieldAccess::Region {
+            byte_length: 16,
+            byte_alignment: 8,
+            transfer_width_bits: 64,
+            observation: ObservationModel::External,
+            permissions,
+            exposure: AccessExposure::Exported,
+        };
         for other_offset in [8, 16] {
             let layout = layout_report(
                 vec![
@@ -427,37 +404,23 @@ mod field_regions {
             access
                 .set(
                     access.key_at(0).unwrap(),
-                    FieldAccess::Region {
-                        byte_length: 16,
-                        byte_alignment: 8,
-                        transfer_width_bits: 64,
-                        observation: access_vocabulary::ObservationModel::External,
-                        permissions: access_vocabulary::AccessPermissions {
-                            take: true,
-                            ..Default::default()
-                        },
-                        exposure: AccessExposure::Exported,
-                    },
+                    ext_region(AccessPermissions {
+                        take: true,
+                        ..Default::default()
+                    }),
                 )
                 .unwrap();
             for other in [
                 FieldAccess::External {
                     transfer_width_bits: 64,
-                    read: access_vocabulary::ExternalRead::Read,
+                    read: ExternalRead::Read,
                     write: false,
                     exposure: AccessExposure::Exported,
                 },
-                FieldAccess::Region {
-                    byte_length: 16,
-                    byte_alignment: 8,
-                    transfer_width_bits: 64,
-                    observation: access_vocabulary::ObservationModel::External,
-                    permissions: access_vocabulary::AccessPermissions {
-                        read: true,
-                        ..Default::default()
-                    },
-                    exposure: AccessExposure::Exported,
-                },
+                ext_region(AccessPermissions {
+                    read: true,
+                    ..Default::default()
+                }),
             ] {
                 access.set(access.key_at(1).unwrap(), other).unwrap();
                 let result =
@@ -475,19 +438,13 @@ mod plan_validation {
     use super::{
         access_plan, field_key, reach, uart_access_fields, uart_access_source, uart_layout,
     };
-    use access_admission::AccessFieldEntry;
-    use access_admission::AccessFields;
-    use access_admission::validate_access_fields;
-    use access_admission::validate_placement;
-    use access_vocabulary::AccessExposure;
-    use access_vocabulary::AccessOperation;
-    use access_vocabulary::AtomicPermissions;
-    use access_vocabulary::BorrowPolarity;
-    use access_vocabulary::BoundaryReach;
-    use access_vocabulary::BoundaryServiceReachId;
-    use access_vocabulary::ExternalRead;
-    use access_vocabulary::FieldAccess;
-    use access_vocabulary::ObservationModel;
+    use access_admission::{
+        AccessFieldEntry, AccessFields, validate_access_fields, validate_placement,
+    };
+    use access_vocabulary::{
+        AccessExposure, AccessOperation, AtomicPermissions, BorrowPolarity, BoundaryReach,
+        BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel,
+    };
     use layout_plans::test_support::{layout_field_entry, layout_report};
     use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
     use storage_access::AccessAuthorization;
@@ -608,34 +565,6 @@ mod plan_validation {
                 .expect("identity test plan")
                 .identity()
         };
-        let stable_read = super::stable_word32_read(AccessExposure::Exported);
-        let mut stable_write = stable_read.clone();
-        let FieldAccess::Stable { read, write, .. } = &mut stable_write else {
-            unreachable!()
-        };
-        *read = false;
-        *write = true;
-        let mut wider = stable_read.clone();
-        let FieldAccess::Stable {
-            transfer_width_bits,
-            ..
-        } = &mut wider
-        else {
-            unreachable!()
-        };
-        *transfer_width_bits = 64;
-        let mut private = stable_read.clone();
-        let FieldAccess::Stable { exposure, .. } = &mut private else {
-            unreachable!()
-        };
-        *exposure = AccessExposure::BindingPrivate;
-        let external = FieldAccess::External {
-            transfer_width_bits: 32,
-            read: ExternalRead::Read,
-            write: false,
-            exposure: AccessExposure::Exported,
-        };
-
         let commitment = |access: FieldAccess| {
             validate_placement(
                 layout.clone(),
@@ -646,7 +575,28 @@ mod plan_validation {
             .content_interpretation()
             .commitment()
         };
-        let policies = [stable_read, stable_write, wider, private, external];
+        let policies = [
+            super::stable_word32_read(AccessExposure::Exported),
+            FieldAccess::Stable {
+                transfer_width_bits: 32,
+                read: false,
+                write: true,
+                exposure: AccessExposure::Exported,
+            },
+            FieldAccess::Stable {
+                transfer_width_bits: 64,
+                read: true,
+                write: false,
+                exposure: AccessExposure::Exported,
+            },
+            super::stable_word32_read(AccessExposure::BindingPrivate),
+            FieldAccess::External {
+                transfer_width_bits: 32,
+                read: ExternalRead::Read,
+                write: false,
+                exposure: AccessExposure::Exported,
+            },
+        ];
         let identities = policies.clone().map(validate);
         let interpretations = policies.map(commitment);
         for (index, identity) in identities.iter().enumerate() {
@@ -694,13 +644,14 @@ mod plan_validation {
 
     #[test]
     fn uart_access_plan_validates_geometry_and_borrow_polarity() {
+        use BorrowPolarity::{Exclusive, Shared};
         let plan = uart_access_fields();
 
         let status = plan
             .authorize(
                 field_key(&plan, "status"),
-                BorrowPolarity::Shared,
-                BorrowPolarity::Shared,
+                Shared,
+                Shared,
                 AccessOperation::Read,
             )
             .expect("shared snapshot read");
@@ -711,9 +662,14 @@ mod plan_validation {
             status.descriptor().observation(),
             ObservationModel::External
         );
-        assert_eq!(status.current_borrow(), BorrowPolarity::Shared);
-        assert_eq!(status.source_loan(), BorrowPolarity::Shared);
-        assert_eq!(status.operation(), AccessOperation::Read);
+        assert_eq!(
+            (
+                status.current_borrow(),
+                status.source_loan(),
+                status.operation()
+            ),
+            (Shared, Shared, AccessOperation::Read)
+        );
         assert_eq!(plan.field_descriptors().len(), 3);
         let control = plan
             .field_descriptor(field_key(&plan, "control"))
@@ -724,11 +680,7 @@ mod plan_validation {
                 .logical_extent()
                 .fragments()
                 .iter()
-                .map(|fragment| (
-                    fragment.layout_bit_offset(),
-                    fragment.source_bit_offset(),
-                    fragment.width_bits()
-                ))
+                .map(|f| (f.layout_bit_offset(), f.source_bit_offset(), f.width_bits()))
                 .collect::<Vec<_>>(),
             [(64, 0, 8)]
         );
@@ -743,24 +695,24 @@ mod plan_validation {
         assert!(
             plan.authorize(
                 field_key(&plan, "transmit"),
-                BorrowPolarity::Shared,
-                BorrowPolarity::Exclusive,
-                AccessOperation::Write,
+                Shared,
+                Exclusive,
+                AccessOperation::Write
             )
             .is_err()
         );
         plan.authorize(
             field_key(&plan, "transmit"),
-            BorrowPolarity::Exclusive,
-            BorrowPolarity::Exclusive,
+            Exclusive,
+            Exclusive,
             AccessOperation::Write,
         )
         .expect("exclusive whole write");
         assert!(
             plan.authorize(
                 field_key(&plan, "control"),
-                BorrowPolarity::Exclusive,
-                BorrowPolarity::Exclusive,
+                Exclusive,
+                Exclusive,
                 AccessOperation::CompoundMutation,
             )
             .is_err(),
@@ -770,6 +722,7 @@ mod plan_validation {
 
     #[test]
     fn stable_compound_mutation_is_derived_from_permissions_and_borrow() {
+        use BorrowPolarity::{Exclusive, Shared};
         let layout = uart_layout();
         let plan = validate_access_fields(
             access_plan(
@@ -787,32 +740,20 @@ mod plan_validation {
             &layout,
         )
         .expect("stable read-write plan");
+        let status = field_key(&plan, "status");
         plan.authorize(
-            field_key(&plan, "status"),
-            BorrowPolarity::Exclusive,
-            BorrowPolarity::Exclusive,
+            status,
+            Exclusive,
+            Exclusive,
             AccessOperation::CompoundMutation,
         )
         .expect("exclusive stable read-write access derives compound mutation");
-        assert!(
-            plan.authorize(
-                field_key(&plan, "status"),
-                BorrowPolarity::Shared,
-                BorrowPolarity::Exclusive,
-                AccessOperation::CompoundMutation,
-            )
-            .is_err()
-        );
-        assert!(
-            plan.authorize(
-                field_key(&plan, "status"),
-                BorrowPolarity::Exclusive,
-                BorrowPolarity::Shared,
-                AccessOperation::CompoundMutation,
-            )
-            .is_err(),
-            "an exclusive current borrow cannot upgrade a shared source loan"
-        );
+        for (cur, src) in [(Shared, Exclusive), (Exclusive, Shared)] {
+            assert!(
+                plan.authorize(status, cur, src, AccessOperation::CompoundMutation)
+                    .is_err()
+            );
+        }
 
         let plan = validate_access_fields(
             access_plan(
@@ -828,8 +769,8 @@ mod plan_validation {
         assert!(
             plan.authorize(
                 field_key(&plan, "status"),
-                BorrowPolarity::Exclusive,
-                BorrowPolarity::Exclusive,
+                Exclusive,
+                Exclusive,
                 AccessOperation::CompoundMutation,
             )
             .is_err()
@@ -863,20 +804,15 @@ mod plan_validation {
 
     #[test]
     fn destructive_access_requires_one_whole_snapshot_accessor() {
+        let take_word32 = FieldAccess::External {
+            transfer_width_bits: 32,
+            read: ExternalRead::Take,
+            write: false,
+            exposure: AccessExposure::Exported,
+        };
         let layout = uart_layout();
         let error = validate_access_fields(
-            access_plan(
-                &layout,
-                &[(
-                    "control",
-                    FieldAccess::External {
-                        transfer_width_bits: 32,
-                        read: ExternalRead::Take,
-                        write: false,
-                        exposure: AccessExposure::Exported,
-                    },
-                )],
-            ),
+            access_plan(&layout, &[("control", take_word32.clone())]),
             &layout,
         )
         .expect_err("a narrow field cannot independently consume its container");
@@ -900,15 +836,7 @@ mod plan_validation {
             access_plan(
                 &aliased_layout,
                 &[
-                    (
-                        "snapshot",
-                        FieldAccess::External {
-                            transfer_width_bits: 32,
-                            read: ExternalRead::Take,
-                            write: false,
-                            exposure: AccessExposure::Exported,
-                        },
-                    ),
+                    ("snapshot", take_word32),
                     (
                         "status",
                         super::stable_word32_read(AccessExposure::Exported),
@@ -987,28 +915,21 @@ mod plan_validation {
     #[test]
     fn multi_container_fragments_are_not_one_access() {
         let layout = layout_report(
-            vec![
-                layout_field_entry(
-                    "entry",
-                    LayoutPlacementReport::Bits {
-                        container: 0,
-                        container_width: 32,
-                        destination_lsb: 0,
-                        source_lsb: 0,
-                        width: 16,
-                    },
-                ),
-                layout_field_entry(
-                    "entry",
-                    LayoutPlacementReport::Bits {
-                        container: 4,
-                        container_width: 32,
-                        destination_lsb: 0,
-                        source_lsb: 16,
-                        width: 16,
-                    },
-                ),
-            ],
+            [(0, 0), (4, 16)]
+                .into_iter()
+                .map(|(container, source_lsb)| {
+                    layout_field_entry(
+                        "entry",
+                        LayoutPlacementReport::Bits {
+                            container,
+                            container_width: 32,
+                            destination_lsb: 0,
+                            source_lsb,
+                            width: 16,
+                        },
+                    )
+                })
+                .collect(),
             None,
             Some(8),
             4,

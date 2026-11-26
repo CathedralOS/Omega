@@ -1356,9 +1356,8 @@ impl<'a> Storage<'a> {
                                     continue;
                                 }
                                 super::Reached::Value(value) => {
-                                    let actual = terminal_check_tables::row(
-                                        &tables.values,
-                                        value,
+                                    let actual = tables.values.checked(
+value,
                                         self.machine,
                                         concerns,
                                     )?;

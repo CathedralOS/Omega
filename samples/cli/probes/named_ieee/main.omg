@@ -5,17 +5,13 @@
 // `sqrt` rounds to nearest, ties to even.
 //
 //   * `F64::negate`, `F32::minimum`, `F64::maximum`, `F64::sqrt`,
-//     `F32::sqrt` via core\float_operations (depend-free import).
+//     `F32::sqrt` via {omega}/language/core/float_operations.omg (depend-free import).
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-use omega\language\core\F32::square_root;
-use omega\language\core\F64::maximum;
-use omega\language\core\F64::minimum;
-use omega\language\core\F64::negate;
-use omega\language\core\F64::square_root;
+use {omega}/language/core/float_operations.omg;
 
 data Main {
     zero: f64;
@@ -27,15 +23,15 @@ machine Main::main(main: @mutable Main) {
     main.hits = 0;
     main.zero = 0.0;
     main.one = 1.0;
-    let neg_zero: f64 = F64::negate(0.0);
+    let neg_zero: f64 = |float_operations|::F64::negate(0.0);
     let inv: f64 = 1.0 / neg_zero;
     let nan: f64 = main.zero / main.zero;
-    let m1: f64 = F64::minimum(nan, main.one);
-    let m2: f64 = F64::minimum(main.one, nan);
-    let m3: f64 = F64::minimum(0.0, neg_zero);
-    let x1: f64 = F64::maximum(neg_zero, 0.0);
-    let r64: f64 = F64::square_root(2.0);
-    let r32: f32 = F32::square_root(2.0f32);
+    let m1: f64 = |float_operations|::F64::minimum(nan, main.one);
+    let m2: f64 = |float_operations|::F64::minimum(main.one, nan);
+    let m3: f64 = |float_operations|::F64::minimum(0.0, neg_zero);
+    let x1: f64 = |float_operations|::F64::maximum(neg_zero, 0.0);
+    let r64: f64 = |float_operations|::F64::square_root(2.0);
+    let r32: f32 = |float_operations|::F32::square_root(2.0f32);
     transition inv < 0.0 && m1 == 1.0 && m2 != m2 && m3 == neg_zero && x1 == 0.0
         && r64 > 1.4142135623730950 && r64 < 1.4142135623730952
         && r32 > 1.4142135f32 && r32 < 1.4142136f32 {

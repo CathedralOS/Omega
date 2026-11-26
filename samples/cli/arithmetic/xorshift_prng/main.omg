@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Xorshift32 -- George Marsaglia's classic pseudo-random number generator, the
 // canonical "real algorithm" built purely from bitwise XOR and bit shifts. The
 // state transform is three xor-shift rounds:
@@ -15,7 +15,6 @@ use omega\language\core\ProcessExit;
 // constant 2463534242 (0x9E3779B9), one step yields 0x...63; the low byte is 99.
 // Expected exit: 99.
 
-use system\Console;
 
 data Main {
     state: u32 in Wrapping;
@@ -24,8 +23,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("xorshift_prng: one xorshift32 step from Marsaglia's classic seed");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("xorshift_prng: one xorshift32 step from Marsaglia's classic seed");
     main.state = 2463534242 as +Wrapping;
 
     main.scratch = main.state << 13;
@@ -43,15 +42,15 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     transition { _ -> block emit(main) }
 
     machine emit(main: @mutable Main) {
-        Console::write_line("result: the draw's low byte, 99 for this seed (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.output);
+        |console|::Console::write_line("result: the draw's low byte, 99 for this seed (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.output);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

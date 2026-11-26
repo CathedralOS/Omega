@@ -1,19 +1,17 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\narrow_i64_to_i32_saturating;
-use omega\language\core\narrow_u64_to_i64_saturating;
-use model\records;
-use model\records\EchoResult;
+use model/records/records.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 // Decimal output is authored here rather than relying on a numeric library.
-public machine write_number(value: i64 in Saturating) reaches StandardOutput
-invokes Console
+public machine write_number(value: i64 in Saturating) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition value < 0 {
         true -> negative(value),
         false -> digit(value, 1000000000, false)
     }
     machine negative(value: i64 in Saturating) {
-        Console::write("-");
+        |console|::Console::write("-");
         transition { _ -> digit(0 - value, 1000000000, false) }
     }
     machine digit(value: i64 in Saturating, place: i64 in Saturating, started: bool)
@@ -26,7 +24,7 @@ invokes Console
         }
     }
     machine emit(value: i64 in Saturating, place: i64 in Saturating, number: i64 in Saturating) {
-        Console::write_byte(narrow_i64_to_i32_saturating((number + 48) as i64));
+        |console|::Console::write_byte(|numeric_conversion|::narrow_i64_to_i32_saturating((number + 48) as i64));
         transition { _ -> next(value, place, true) }
     }
     machine next(value: i64 in Saturating, place: i64 in Saturating, started: bool) {
@@ -38,28 +36,28 @@ invokes Console
     }
     machine done() {}
 }
-public machine write_echo(index: u64 in Saturating, result: EchoResult) reaches StandardOutput
-invokes Console
+public machine write_echo(index: u64 in Saturating, result: |records|::EchoResult) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write("echo ");
-    write_number(narrow_u64_to_i64_saturating(index as u64) as i64 +Saturating);
-    Console::write(" ");
+    |console|::Console::write("echo ");
+    write_number(|numeric_conversion|::narrow_u64_to_i64_saturating(index as u64) as i64 +Saturating);
+    |console|::Console::write(" ");
     transition {
         result.matches == 0 -> unmatched(),
         result.matches > 1 -> ambiguous(result),
         result.order == 1 -> primary(result),
         _ -> multiple(result)
     }
-    machine unmatched() { Console::write_line("unmatched"); }
-    machine ambiguous(result: EchoResult) {
-        Console::write("ambiguous paths="); write_number(result.matches); Console::write_line("");
+    machine unmatched() { |console|::Console::write_line("unmatched"); }
+    machine ambiguous(result: |records|::EchoResult) {
+        |console|::Console::write("ambiguous paths="); write_number(result.matches); |console|::Console::write_line("");
     }
-    machine primary(result: EchoResult) {
-        Console::write("primary layer="); write_number(result.layer);
-        Console::write(" thickness_um="); write_number(result.thickness); Console::write_line("");
+    machine primary(result: |records|::EchoResult) {
+        |console|::Console::write("primary layer="); write_number(result.layer);
+        |console|::Console::write(" thickness_um="); write_number(result.thickness); |console|::Console::write_line("");
     }
-    machine multiple(result: EchoResult) {
-        Console::write("multiple layer="); write_number(result.layer);
-        Console::write(" order="); write_number(result.order); Console::write_line("");
+    machine multiple(result: |records|::EchoResult) {
+        |console|::Console::write("multiple layer="); write_number(result.layer);
+        |console|::Console::write(" order="); write_number(result.order); |console|::Console::write_line("");
     }
 }

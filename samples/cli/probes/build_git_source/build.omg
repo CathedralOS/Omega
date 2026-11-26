@@ -1,3 +1,3 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_git_source");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_git_source" };
 }

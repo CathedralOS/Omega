@@ -89,7 +89,7 @@ reaches |process|::ProcessExit + |authority|::DirectoryEnumeration + |authority|
 
     machine audit_time(context: @mutable Main, passed: i32 in Wrapping, meta: |fs|::Metadata) {
         let next_passed: i32 in Wrapping = passed + 1;
-        // 8. The vault's modified time BRIDGES into system\time: a just-written
+        // 8. The vault's modified time BRIDGES into {system}/time.omg: a just-written
         // file is never in the future, so duration_since(now) must be Ok.
         let modified: |time|::SystemTime = |time|::system_time_from_unix_seconds(meta.modified_secs);
         let now_keep: |time|::SystemTime = |time|::system_time_now();
