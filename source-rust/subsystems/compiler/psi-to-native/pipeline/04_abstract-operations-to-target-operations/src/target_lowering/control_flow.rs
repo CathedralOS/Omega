@@ -2959,6 +2959,8 @@ pub(crate) fn lower(
     for operation in function.operations() {
         let established = match operation {
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
+            | AbstractOperation::PackedIntegerUnary { result, .. }
+            | AbstractOperation::PackedIntegerBinary { result, .. }
             | AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishStructuralArray { result, .. }
             | AbstractOperation::EstablishByteSequenceConcatenation { result, .. }

@@ -255,10 +255,10 @@ pub mod source_identity {
                 None,
                 canonical_path_components(&source.path, &source.path)?,
             ),
-            SourceOrigin::ToolchainContract if is_virtual_toolchain_path(&source.path) => {
-                return Err("closed toolchain contracts require an owned source path".into());
+            SourceOrigin::ToolchainContract | SourceOrigin::ToolchainLibrary if is_virtual_toolchain_path(&source.path) => {
+                return Err("installed toolchain files require an owned source path".into());
             }
-            SourceOrigin::Toolchain | SourceOrigin::ToolchainContract => {
+            SourceOrigin::Toolchain | SourceOrigin::ToolchainContract | SourceOrigin::ToolchainLibrary => {
                 let namespace = source
                     .package_root
                     .file_name()

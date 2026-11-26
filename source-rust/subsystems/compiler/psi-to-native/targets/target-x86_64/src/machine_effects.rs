@@ -35,6 +35,28 @@ mod memory {
     macro_rules! declared_semantics {
         () => {
             Semantic::AccessorScalarAccess(_)
+                | Semantic::PackedAddI16x8
+                | Semantic::PackedSubI16x8
+                | Semantic::PackedShuffleI16x8
+                | Semantic::PackedShuffleGeneralI16x8
+                | Semantic::PackedShiftRightArithmeticI16x8
+                | Semantic::PackedWidenU8x8ToI16x8
+                | Semantic::PackedNarrowI16x8ToU8x8Saturating
+                | Semantic::PackedLoadI16x4ZeroExtend
+                | Semantic::PackedWidenU8x4ToI16x8
+                | Semantic::PackedNarrowI16x8ToU8x4Saturating
+                | Semantic::PackedAddU8x16
+                | Semantic::PackedMinI16x8
+                | Semantic::PackedCmpGtI16x8
+                | Semantic::PackedBitAndI16x8
+                | Semantic::PackedBitAndNotI16x8
+                | Semantic::PackedAbsI16x8
+                | Semantic::PackedLoad128
+                | Semantic::PackedStore128
+                | Semantic::PackedLoad64ZeroExtend
+                | Semantic::PackedStore64
+                | Semantic::PackedLoad32ZeroExtend
+                | Semantic::PackedStore32
                 | Semantic::CopyBytes
                 | Semantic::ZeroBytes
                 | Semantic::LoadEncodedScalar
@@ -97,6 +119,180 @@ mod memory {
                 crate::encoder_resolved(7, Some(9)),
             ),
 
+            Semantic::PackedAddI16x8
+            | Semantic::PackedSubI16x8
+            | Semantic::PackedAddU8x16
+            | Semantic::PackedMinI16x8
+            | Semantic::PackedCmpGtI16x8
+            | Semantic::PackedBitAndI16x8
+            | Semantic::PackedBitAndNotI16x8 => (
+                MachineMemoryEffect::PackedBinary16BytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1, 2],
+                vec![],
+                MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
+                    left_pointer_operand: 0,
+                    right_pointer_operand: 1,
+                    destination_pointer_operand: 2,
+                },
+                crate::encoder_resolved(16, Some(22)),
+            ),
+            Semantic::PackedShuffleI16x8 => (
+                MachineMemoryEffect::PackedBinary16BytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1, 2],
+                vec![],
+                MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
+                    left_pointer_operand: 0,
+                    right_pointer_operand: 1,
+                    destination_pointer_operand: 2,
+                },
+                crate::encoder_resolved(16, Some(26)),
+            ),
+            Semantic::PackedShuffleGeneralI16x8 => (
+                MachineMemoryEffect::PackedBinary16BytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1, 2],
+                vec![3],
+                MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
+                    left_pointer_operand: 0,
+                    right_pointer_operand: 1,
+                    destination_pointer_operand: 2,
+                },
+                crate::encoder_resolved(92, Some(114)),
+            ),
+            Semantic::PackedShiftRightArithmeticI16x8 | Semantic::PackedAbsI16x8 => (
+                MachineMemoryEffect::PackedUnary16To16BytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![],
+                MachineEncodedMemoryEffect::PackedUnary16To16BytesV1 {
+                    source_pointer_operand: 0,
+                    destination_pointer_operand: 1,
+                },
+                crate::encoder_resolved(13, Some(17)),
+            ),
+            Semantic::PackedWidenU8x8ToI16x8 => (
+                MachineMemoryEffect::PackedUnary8To16BytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![],
+                MachineEncodedMemoryEffect::PackedUnary8To16BytesV1 {
+                    source_pointer_operand: 0,
+                    destination_pointer_operand: 1,
+                },
+                crate::encoder_resolved(16, Some(20)),
+            ),
+            Semantic::PackedNarrowI16x8ToU8x8Saturating => (
+                MachineMemoryEffect::PackedUnary16To8BytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![],
+                MachineEncodedMemoryEffect::PackedUnary16To8BytesV1 {
+                    source_pointer_operand: 0,
+                    destination_pointer_operand: 1,
+                },
+                crate::encoder_resolved(12, Some(16)),
+            ),
+            Semantic::PackedLoadI16x4ZeroExtend => (
+                MachineMemoryEffect::PackedUnary8To16BytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![],
+                MachineEncodedMemoryEffect::PackedUnary8To16BytesV1 {
+                    source_pointer_operand: 0,
+                    destination_pointer_operand: 1,
+                },
+                crate::encoder_resolved(8, Some(12)),
+            ),
+            Semantic::PackedWidenU8x4ToI16x8 => (
+                MachineMemoryEffect::PackedUnary4To16BytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![],
+                MachineEncodedMemoryEffect::PackedUnary4To16BytesV1 {
+                    source_pointer_operand: 0,
+                    destination_pointer_operand: 1,
+                },
+                crate::encoder_resolved(16, Some(20)),
+            ),
+            Semantic::PackedNarrowI16x8ToU8x4Saturating => (
+                MachineMemoryEffect::PackedUnary16To4BytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![],
+                MachineEncodedMemoryEffect::PackedUnary16To4BytesV1 {
+                    source_pointer_operand: 0,
+                    destination_pointer_operand: 1,
+                },
+                crate::encoder_resolved(12, Some(16)),
+            ),
+            Semantic::PackedLoad128 => (
+                MachineMemoryEffect::PackedVectorLoadBytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0],
+                vec![1],
+                MachineEncodedMemoryEffect::PackedVectorLoadBytesV1 {
+                    pointer_operand: 0,
+                    byte_count: 16,
+                },
+                crate::encoder_resolved(4, Some(10)),
+            ),
+            Semantic::PackedStore128 => (
+                MachineMemoryEffect::PackedVectorStoreBytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![],
+                MachineEncodedMemoryEffect::PackedVectorStoreBytesV1 {
+                    pointer_operand: 0,
+                    byte_count: 16,
+                },
+                crate::encoder_resolved(4, Some(10)),
+            ),
+            Semantic::PackedLoad64ZeroExtend => (
+                MachineMemoryEffect::PackedVectorLoadBytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0],
+                vec![1],
+                MachineEncodedMemoryEffect::PackedVectorLoadBytesV1 {
+                    pointer_operand: 0,
+                    byte_count: 8,
+                },
+                crate::encoder_resolved(4, Some(10)),
+            ),
+            Semantic::PackedStore64 => (
+                MachineMemoryEffect::PackedVectorStoreBytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![],
+                MachineEncodedMemoryEffect::PackedVectorStoreBytesV1 {
+                    pointer_operand: 0,
+                    byte_count: 8,
+                },
+                crate::encoder_resolved(4, Some(10)),
+            ),
+            Semantic::PackedLoad32ZeroExtend => (
+                MachineMemoryEffect::PackedVectorLoadBytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0],
+                vec![1],
+                MachineEncodedMemoryEffect::PackedVectorLoadBytesV1 {
+                    pointer_operand: 0,
+                    byte_count: 4,
+                },
+                crate::encoder_resolved(4, Some(10)),
+            ),
+            Semantic::PackedStore32 => (
+                MachineMemoryEffect::PackedVectorStoreBytesV1,
+                MachineTrapBehavior::MayArchitecturalFaultV1,
+                vec![0, 1],
+                vec![],
+                MachineEncodedMemoryEffect::PackedVectorStoreBytesV1 {
+                    pointer_operand: 0,
+                    byte_count: 4,
+                },
+                crate::encoder_resolved(4, Some(10)),
+            ),
             Semantic::CopyBytes => (
                 MachineMemoryEffect::CopyBytesV1,
                 MachineTrapBehavior::MayArchitecturalFaultV1,
@@ -532,14 +728,10 @@ mod scalar_call {
                         encoded.control = MachineEncodedControlEffect::SupervisorCallV1;
                     }
                     if let Some((_, byte_offset)) = table {
-                        let position =
-                            selected_instructions::calls::constraints::foreign_argument_registers(
-                                &record.call,
-                            )
-                            .iter()
-                            .position(|(parameter, _)| *parameter == 0)?;
+                        use selected_instructions::calls::constraints::table_pointer_register_operand;
+                        let pointer_operand = table_pointer_register_operand(&record.call)?;
                         encoded.memory = MachineEncodedMemoryEffect::ReadTableFieldV1 {
-                            pointer_operand: u16::try_from(position).ok()?,
+                            pointer_operand,
                             byte_offset,
                         };
                         encoded.control = MachineEncodedControlEffect::IndirectExternalCallV1;
@@ -995,11 +1187,18 @@ fn encoded_effects(
             effects
         }
         Semantic::MaterializeI64 if variant == 1 => clobber_flags(vec![], vec![0]),
-        Semantic::MaterializeI64 | Semantic::ImageAddress => plain(vec![], vec![0]),
+        Semantic::MaterializeI64 | Semantic::ImageAddress | Semantic::PackedMaterializeZero => {
+            plain(vec![], vec![0])
+        }
         Semantic::Float32ToBits
         | Semantic::Float64ToBits
         | Semantic::BitsToFloat32
         | Semantic::BitsToFloat64
+        | Semantic::PackedFromGpr64ZeroExtend
+        | Semantic::PackedShiftRightArithmeticI16x8Reg
+        | Semantic::PackedWidenU8x8ToI16x8Reg
+        | Semantic::PackedNarrowI16x8ToU8x8SaturatingReg
+        | Semantic::PackedAbsI16x8Reg
         | Semantic::CopyI64
         | Semantic::ZeroExtendU8
         | Semantic::ZeroExtendU16
@@ -1010,9 +1209,18 @@ fn encoded_effects(
         | Semantic::BitwiseNotI64
         | Semantic::ExactAddI64Immediate
         | Semantic::ExactSubtractI64Immediate => plain(vec![0], vec![1]),
-        Semantic::ByteViewAddress | Semantic::WrappingAddI64 | Semantic::ExactAddI64 => {
-            plain(vec![0, 1], vec![2])
-        }
+        Semantic::ByteViewAddress
+        | Semantic::WrappingAddI64
+        | Semantic::ExactAddI64
+        | Semantic::PackedFromGpr64Pair
+        | Semantic::PackedAddI16x8Reg
+        | Semantic::PackedSubI16x8Reg
+        | Semantic::PackedShuffleI16x8Reg
+        | Semantic::PackedAddU8x16Reg
+        | Semantic::PackedMinI16x8Reg
+        | Semantic::PackedCmpGtI16x8Reg
+        | Semantic::PackedBitAndI16x8Reg
+        | Semantic::PackedBitAndNotI16x8Reg => plain(vec![0, 1], vec![2]),
         Semantic::ExactDivideU64 => {
             let mut effects = clobber_flags(vec![0, 1, 3], vec![2]);
             effects.implicit_unit_clobbers = units_of(&["rdx", "condition_flags"]);
@@ -1170,6 +1378,21 @@ fn size(semantic: Semantic) -> Size {
         Semantic::CompareI64Immediate => Size::ExactBytes(7),
         Semantic::Float32ToBits | Semantic::BitsToFloat32 => crate::encoder_resolved(4, Some(5)),
         Semantic::Float64ToBits | Semantic::BitsToFloat64 => Size::ExactBytes(5),
+        Semantic::PackedMaterializeZero
+        | Semantic::PackedAddI16x8Reg
+        | Semantic::PackedSubI16x8Reg
+        | Semantic::PackedNarrowI16x8ToU8x8SaturatingReg
+        | Semantic::PackedAddU8x16Reg
+        | Semantic::PackedMinI16x8Reg
+        | Semantic::PackedCmpGtI16x8Reg
+        | Semantic::PackedBitAndI16x8Reg
+        | Semantic::PackedBitAndNotI16x8Reg => crate::encoder_resolved(4, Some(5)),
+        Semantic::PackedFromGpr64ZeroExtend
+        | Semantic::PackedWidenU8x8ToI16x8Reg
+        | Semantic::PackedAbsI16x8Reg => Size::ExactBytes(5),
+        Semantic::PackedFromGpr64Pair => Size::ExactBytes(11),
+        Semantic::PackedShiftRightArithmeticI16x8Reg => crate::encoder_resolved(5, Some(6)),
+        Semantic::PackedShuffleI16x8Reg => crate::encoder_resolved(4, Some(10)),
         Semantic::ZeroExtendU8
         | Semantic::ZeroExtendU16
         | Semantic::SignExtendI8

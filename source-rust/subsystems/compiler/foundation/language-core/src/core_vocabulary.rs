@@ -39,6 +39,7 @@ pub enum CoreVocabulary {
     FloatBinary64,
     OpaqueRepresentation,
     PrivateCallbackSlot,
+    AccessCustody,
     FixedLayoutPlan,
     /// The `MachineControl` service in core `assembly.omg`.
     MachineControlService,
@@ -50,6 +51,7 @@ pub enum CoreVocabulary {
     StandardInputService,
     StandardOutputService,
     ProcessExitService,
+    NetworkService,
     /// One of core `filesystem_authority.omg`'s capability-only services.
     FilesystemService(FilesystemService),
     /// A private segment-selector primitive in core `code_segment.omg` or
@@ -273,6 +275,12 @@ const ROWS: &[CoreVocabularyRow] = &[
         CoreVocabulary::ProofNatural,
     ),
     row(
+        "network_authority.omg",
+        "Network",
+        BundledFile::CoreNetworkAuthority,
+        CoreVocabulary::NetworkService,
+    ),
+    row(
         "filesystem_authority.omg",
         "FilesystemContentRead",
         BundledFile::CoreFilesystemAuthority,
@@ -349,6 +357,12 @@ const ROWS: &[CoreVocabularyRow] = &[
         "PrivateCallbackSlot",
         BundledFile::CoreLayout,
         CoreVocabulary::PrivateCallbackSlot,
+    ),
+    row(
+        "layout.omg",
+        "AccessCustody",
+        BundledFile::CoreLayout,
+        CoreVocabulary::AccessCustody,
     ),
     row(
         "layout.omg",

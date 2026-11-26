@@ -29,16 +29,7 @@ and exits 0 only when both hold. Only the transport of the two operands changes.
 Each positive place is an application that exits 0 in both Terminal Psi and native execution:
 
 ```sh
-omega run --both samples/cli/facts/bounded_products/main.omg
-omega run --both samples/cli/facts/bounded_products/local/main.omg
-omega run --both samples/cli/facts/bounded_products/field/main.omg
-omega run --both samples/cli/facts/bounded_products/parameter/main.omg
-omega run --both samples/cli/facts/bounded_products/call_result/main.omg
-omega run --both samples/cli/facts/bounded_products/match_join/main.omg
-omega run --both samples/cli/facts/bounded_products/const_name/main.omg
-omega run --both samples/cli/facts/bounded_products/other_state/main.omg
-omega run --both samples/cli/facts/bounded_products/other_machine/main.omg
-omega run --both samples/cli/facts/bounded_products/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/bounded_products
 ```
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.

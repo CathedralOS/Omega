@@ -1,0 +1,18 @@
+[package]
+name = "build-program-launch"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+bounded-process = { path = "../../../../../../foundation/bounded-process" }
+platform-custody = { path = "../../../../../../foundation/filesystem" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[[test]]
+name = "confined"
+harness = false

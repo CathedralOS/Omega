@@ -809,6 +809,26 @@ pub struct PayloadMembershipContract {
 }
 
 impl PayloadMembershipContract {
+    /// A move transports the selected place's declared qualifications. Predicate
+    /// facts available while checking a transfer do not add displayed domains.
+    pub fn move_preserves_qualifications(
+        &self,
+        path: &[terminal_psi::StructuralPathSegment],
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> bool {
+        let (whole, projected) = StructuralPathQualification::select(
+            &self.qualifications,
+            &self.projected_qualifications,
+            path,
+        );
+        whole
+            .iter()
+            .all(|domain| result.qualifications.contains(domain))
+            && projected
+                .iter()
+                .all(|row| result.projected_qualifications.contains(row))
+    }
+
     pub fn presented(
         mut self,
         types: &[StructuralTypeDeclaration],

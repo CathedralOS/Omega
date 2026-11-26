@@ -1,5 +1,0 @@
-use {kit}/main.omg as kit;
-
-machine entry() -> i32 {
-    |kit|::value()
-}

@@ -164,7 +164,10 @@ fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> 
             TypeReferenceNode::ConstExpression(_)
                 if !typed
                     .constant_recipe_for_const_application(reference)
-                    .is_valid() =>
+                    .is_valid()
+                    && typed_trees::source_state::domain::index_argument_is_closed(
+                        typed, reference,
+                    ) =>
             {
                 types.push((reference, DeferredRequest::TypeExpressionEvaluation));
             }
@@ -417,19 +420,6 @@ impl PreCheckEvaluation {
         }
         Ok(())
     }
-    pub fn record_extension(
-        &self,
-        wire_schema_frontier: usize,
-        typed: &mut TypedTrees,
-    ) -> Result<(), Vec<Diagnostic>> {
-        if wire_schema_frontier > typed.wire_schemas().len() {
-            return Err(vec![Diagnostic::error(
-                "source extension lost its original wire-schema frontier",
-            )]);
-        }
-        defer_source_jobs(typed)?;
-        self.require_rejoined_authority()
-    }
 }
 impl Record for PreCheckEvaluation {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
@@ -501,12 +491,6 @@ mod tests {
         assert_eq!(
             error[0].message,
             "source normalization authority has not been rejoined"
-        );
-
-        let error = restored.record_extension(1, &mut typed).unwrap_err();
-        assert_eq!(
-            error[0].message,
-            "source extension lost its original wire-schema frontier"
         );
 
         restored

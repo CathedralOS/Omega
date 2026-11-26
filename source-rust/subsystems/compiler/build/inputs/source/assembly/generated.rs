@@ -1,8 +1,8 @@
-//! Attach the generated source of each admitted dependency under its recorded custody.
+//! Admit the frozen files before resolving any imports in the receiving compilation.
 
 use crate::PackageCompilationInputs;
 use crate::source::source_imports::{
-    GeneratedSourceExtension, ImportQueue, SourceStorage, discover_imports_with_packages,
+    ImportQueue, PackageImportPhase, SourceStorage, discover_package_imports,
 };
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
@@ -10,60 +10,18 @@ use source_admission::{SourceContents, SourceOrigin, SourceResolutionStratum};
 use source_compiler::SourceInput;
 use std::sync::Arc;
 
-impl GeneratedSourceExtension {
-    pub fn prepare_source_request(
-        self,
-        base_sources: &Arc<source_compiler::representations::source_inputs::SourceMap>,
-        inputs: &PackageCompilationInputs,
-        timings: &mut CompileTimings,
-    ) -> Result<source_compiler::SourceExtensionRequest, Vec<Diagnostic>> {
-        let (sources, custody) = self.into_source_inputs(base_sources)?;
-        let first = custody
-            .first()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "generated-source handoff has no selected source",
-                )]
-            })?
-            .0;
-        let mut generated_sources = Vec::with_capacity(custody.len());
-        for (source_id, _) in &custody {
-            let source = sources.get(*source_id).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "admitted generated source has no retained source instance",
-                )]
-            })?;
-            generated_sources.push(source_admission::LoadedSource {
-                source_id: *source_id,
-                path: source.path.clone(),
-                source: source.source.clone(),
-                origin: Some(source.origin),
-                scope: source.dependency_scope,
-            });
-        }
-        let mut syntax = source_compiler::SourceSyntax::new(first);
-        let parsed =
-            SourceInput(generated_sources.into_iter().collect()).append(&mut syntax, timings)?;
-        let top_level_bindings =
-            crate::source::source_imports::generated_file_imports(&parsed, &sources, inputs)?;
-        Ok(source_compiler::SourceExtensionRequest::new(
-            syntax,
-            sources,
-            top_level_bindings,
-        ))
-    }
-}
-
-pub(super) fn append_dependency_build_handoffs_to_storage(
+pub(super) fn admit_generated_files(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
     package_inputs: &PackageCompilationInputs,
+    own_files: &[build_output::PackageGeneratedSource],
     source_scope: source_provenance::DependencyScope,
     timings: &mut CompileTimings,
     catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
 ) -> Result<Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
-    let entries = crate::source::source_imports::admit_dependency_build_handoffs(
+    let entries = crate::source::source_imports::collect_generated_files(
         package_inputs,
+        own_files,
         source_scope,
     )?;
 
@@ -72,53 +30,36 @@ pub(super) fn append_dependency_build_handoffs_to_storage(
     }
 
     let mut retained = Vec::with_capacity(entries.len());
+    let mut files = Vec::with_capacity(entries.len());
     for entry in entries {
-        let text = entry.source_text()?;
-        let entry_base = entry.authored_base(package_inputs, &mut source_storage.package_roots)?;
-        let crate::source::source_imports::DependencyGeneratedSource {
-            logical_path,
-            source,
-            package,
-            scope,
-        } = entry;
+        let source = Arc::from(entry.source_text()?);
         let admitted = source_storage.admit_source(
-            SourceContents {
-                path: logical_path,
-                source: Arc::from(text),
-                scope,
-            },
+            SourceContents { path: entry.logical_path, source, scope: entry.scope },
             Some(SourceOrigin::User),
-            SourceResolutionStratum::DependencyActivationExtension,
+            entry.stratum,
             catalogue,
         )?;
-        let source_id = admitted.source_id;
-        let parsed = SourceInput([admitted].into_iter().collect()).append(
-            &mut source_storage.syntax_trees,
-            timings,
-        )?;
-        let discovered = discover_imports_with_packages(
+        retained.push((admitted.source_id, entry.source.clone()));
+        files.push(admitted);
+    }
+    if !files.is_empty() {
+        let parsed = SourceInput(files.into_iter().collect())
+            .append(&mut source_storage.syntax_trees, timings)?;
+        let (discovered, _) = discover_package_imports(
             &parsed,
             package_inputs,
-            Some(package),
-            &mut source_storage.resolved_imports,
-            &source_storage.toolchain_contract_custody,
-            &mut source_storage.package_roots,
-            &source_storage.filesystem,
+            PackageImportPhase::FrozenView,
+            source_storage,
         )?;
         imports.enqueue(discovered)?;
-        imports.enqueue(entry_base)?;
         source_storage.attach_parsed(parsed);
-        retained.push((source_id, source.clone()));
     }
     Ok(retained)
 }
 
 /// Admits, into the Build scope of a stage, the source each prepared build
 /// dependency's own Build generated. The generated units are part of the
-/// package the stage may call, in the stratum a dependency's generated
-/// source always has: visible to other packages, and not to the dependency's
-/// own authored source. The package's authored units are enqueued with them,
-/// because generated code selects its package's authored declarations.
+/// package the stage may call. Their imports select any needed authored files.
 pub(super) fn append_stage_generated_sources(
     storage: &mut SourceStorage,
     imports: &mut ImportQueue,
@@ -126,7 +67,6 @@ pub(super) fn append_stage_generated_sources(
     timings: &mut CompileTimings,
     catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
 ) -> Result<Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
-    use crate::source::source_imports::LogicalSourceDiscovery as _;
     let mut retained = Vec::new();
     // Two aliases may name one package. Its generated source is admitted once.
     let mut admitted = Vec::new();
@@ -150,7 +90,7 @@ pub(super) fn append_stage_generated_sources(
             .to_path_buf();
         for generated in handoff.sources() {
             let logical_path =
-                crate::source::source_imports::dependency_generated_source_logical_path(
+                crate::source::source_imports::generated_file_path(
                     &package_root,
                     generated,
                 )?;
@@ -185,24 +125,6 @@ pub(super) fn append_stage_generated_sources(
             storage.attach_parsed(parsed);
             retained.push((source_id, generated.clone()));
         }
-        let excluded = dependency
-            .inputs
-            .packages()
-            .filter(|(owner, root)| *owner != package && root.starts_with(&package_root))
-            .map(|(_, root)| root.to_path_buf())
-            .collect();
-        let authored = storage.package_roots.select_owned(
-            &package_root,
-            &[],
-            &storage.filesystem,
-            excluded,
-        )?;
-        imports.enqueue(
-            authored
-                .into_iter()
-                .map(|path| (path, source_provenance::DependencyScope::Build))
-                .collect(),
-        )?;
     }
     Ok(retained)
 }

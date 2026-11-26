@@ -663,7 +663,7 @@ fn a_static_machine_must_declare_the_lifetime_its_signature_uses() {
     assert_eq!(verdict(&bound), "accepted");
 }
 
-/// The toolchain's `dependency::from_source` and the call that consumes its
+/// The toolchain's `|dependency|::from_source` and the call that consumes its
 /// result: data applied at the machine's lifetime is the declaration's one
 /// record, a literal fills a stored view, and a stored view is passed to a
 /// view formal beside its sibling fields.
@@ -712,7 +712,7 @@ machine whole_source(source: @Source, description: Description) {{ }}
 }
 
 /// A machine's lifetime applied to data makes the data's stored views views
-/// of that lifetime, so `dependency::with_alias` stores a view of its own
+/// of that lifetime, so `|dependency|::with_alias` stores a view of its own
 /// lifetime into a description at it. Data applied at another lifetime does
 /// not take it.
 #[test]

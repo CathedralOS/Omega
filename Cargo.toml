@@ -24,6 +24,7 @@ members = [
     "source-rust/subsystems/compiler/build/evaluation/authority/consent",
     "source-rust/subsystems/compiler/build/evaluation/authority/admission",
     "source-rust/subsystems/compiler/build/evaluation/authority/filesystem",
+    "source-rust/subsystems/compiler/build/evaluation/authority/program",
     "source-rust/subsystems/compiler/build/evaluation/invocations",
     "source-rust/subsystems/compiler/build/evaluation/receipts",
     "source-rust/subsystems/compiler/build/evaluation/scalars",

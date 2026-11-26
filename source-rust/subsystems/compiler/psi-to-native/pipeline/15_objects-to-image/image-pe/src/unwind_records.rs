@@ -249,6 +249,14 @@ fn decode_x64_info(pe: &PeView<'_>, info: u32) -> Result<X64Info, String> {
                 saved.push((x64_register(operand)?, u64::from(extra(2)?)));
                 3
             }
+            8 => {
+                saved.push((MachineRegister::X86Xmm(operand), u64::from(extra(1)?) * 16));
+                2
+            }
+            9 => {
+                saved.push((MachineRegister::X86Xmm(operand), u64::from(extra(2)?)));
+                3
+            }
             _ => return Err(format!("x64 unwind operation {operation} is not expected")),
         };
     }

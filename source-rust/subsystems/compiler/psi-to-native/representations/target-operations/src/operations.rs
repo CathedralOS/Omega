@@ -446,6 +446,19 @@ pub enum TargetUnitOperation {    InstallStaticInterrupt {
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    PackedIntegerUnary {
+        psi_operation: OperationId,
+        result_home: TargetStructuralHomeRequirement,
+        operation: semantic_vocabulary::PackedIntegerUnaryOperation,
+        source: terminal_psi::StructuralArgument,
+    },
+    PackedIntegerBinary {
+        psi_operation: OperationId,
+        result_home: TargetStructuralHomeRequirement,
+        operation: semantic_vocabulary::PackedIntegerBinaryOperation,
+        left: terminal_psi::StructuralArgument,
+        right: terminal_psi::StructuralArgument,
+    },
     EstablishScalarArray {
         psi_operation: OperationId,
         result_home: TargetStructuralHomeRequirement,
@@ -693,6 +706,16 @@ impl TargetUnitOperation {
                 ..
             }
             | Self::AccessLifecycle {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::PackedIntegerUnary {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::PackedIntegerBinary {
                 psi_operation,
                 result_home,
                 ..

@@ -1,36 +1,32 @@
-use posix_filesystem_host.omg as raw_fs;
-use filesystem_host.omg as paths;
 use calling.omg as abi;
+use filesystem_host.omg as paths;
 use posix_byte_view_calling.omg as byte_views;
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\DirectoryEnumeration;
-use omega\language\core\FilesystemNamespaceMutation;
+use posix_filesystem_host.omg as raw_fs;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/math.omg;
+
 // Linux POSIX filesystem service over direct system calls. The kernel
 // already returns the negated `errno` on failure, which is the trait's own
 // convention, so adapters pass results through. Paths are terminated into
 // local buffers; ordinary transfers lend caller byte-view backing directly.
 // The kernel-shaped requirements are declared once here; linux_arm64
 // satisfies the same requirements with its own system call numbers.
-use omega\language\core\min_u64;
 
 // This native requirement application fixes its kernel calling convention.
 boundary trait PosixFilesystemLinuxX86ByteViews: |abi|::Calling<|byte_views|::LinuxX86ByteViewCalling> {
-    machine read(fd: i32, buffer: @mutable [u8]) -> i64 reaches FilesystemContentRead crashes none;
-    machine write(fd: i32, bytes: @[u8]) -> i64 reaches FilesystemContentWrite crashes none;
-    machine pread64(fd: i32, buffer: @mutable [u8], offset: i64) -> i64 reaches FilesystemContentRead crashes none;
-    machine pwrite64(fd: i32, bytes: @[u8], offset: i64) -> i64 reaches FilesystemContentWrite crashes none;
-    machine readlinkat(dirfd: i32, path: @[u8; 4096], buffer: @mutable [u8]) -> i64 reaches FilesystemMetadataQuery crashes none;
-    machine getdents64(fd: i32, buffer: @mutable [u8]) -> i64 reaches DirectoryEnumeration crashes none;
+    machine read(fd: i32, buffer: @mutable [u8]) -> i64 reaches |authority|::FilesystemContentRead crashes none;
+    machine write(fd: i32, bytes: @[u8]) -> i64 reaches |authority|::FilesystemContentWrite crashes none;
+    machine pread64(fd: i32, buffer: @mutable [u8], offset: i64) -> i64 reaches |authority|::FilesystemContentRead crashes none;
+    machine pwrite64(fd: i32, bytes: @[u8], offset: i64) -> i64 reaches |authority|::FilesystemContentWrite crashes none;
+    machine readlinkat(dirfd: i32, path: @[u8; 4096], buffer: @mutable [u8]) -> i64 reaches |authority|::FilesystemMetadataQuery crashes none;
+    machine getdents64(fd: i32, buffer: @mutable [u8]) -> i64 reaches |authority|::DirectoryEnumeration crashes none;
 }
 
 // Providers call the exact `PosixFilesystemLinux` leaves; each
 // `PosixFilesystemHost` requirement publishes this trait through `invokes`.
 boundary trait PosixFilesystemLinux {
     machine openat(dirfd: i32, path: @[u8; 4096], flags: i32, mode: i32) -> i32
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     crashes none;
     machine close(fd: i32) -> i32
     reaches none
@@ -39,41 +35,41 @@ boundary trait PosixFilesystemLinux {
     reaches none
     crashes none;
     machine mkdirat(dirfd: i32, path: @[u8; 4096], mode: i32) -> i32
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     crashes none;
     // The kernel reads each NUL-terminated path, and `utimensat` reads two
     // timespecs, past the first byte. Every leaf therefore lends the whole
     // buffer the caller already built, the same extent `openat` publishes; a
     // one-byte address would not carry that extent to a host adapter.
     machine unlinkat(dirfd: i32, path: @[u8; 4096], flags: i32) -> i32
-    reaches FilesystemNamespaceMutation
+    reaches |authority|::FilesystemNamespaceMutation
     crashes none;
     machine fchmodat(dirfd: i32, path: @[u8; 4096], mode: u32) -> i32
-    reaches FilesystemMetadataMutation
+    reaches |authority|::FilesystemMetadataMutation
     crashes none;
     machine fchmod(fd: i32, mode: u32) -> i32
-    reaches FilesystemMetadataMutation
+    reaches |authority|::FilesystemMetadataMutation
     crashes none;
     machine renameat(from_dirfd: i32, from: @[u8; 4096], to_dirfd: i32, to: @[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation
+    reaches |authority|::FilesystemNamespaceMutation
     crashes none;
     machine linkat(from_dirfd: i32, from: @[u8; 4096], to_dirfd: i32, to: @[u8; 4096], flags: i32) -> i32
-    reaches FilesystemNamespaceMutation
+    reaches |authority|::FilesystemNamespaceMutation
     crashes none;
     machine symlinkat(target: @[u8; 4096], link_dirfd: i32, link: @[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation
+    reaches |authority|::FilesystemNamespaceMutation
     crashes none;
     machine newfstatat(dirfd: i32, path: @[u8; 4096], buffer: @mutable [u8; 144], flags: i32) -> i32
-    reaches FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataQuery
     crashes none;
     machine fstat(fd: i32, buffer: @mutable [u8; 144]) -> i32
-    reaches FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataQuery
     crashes none;
     machine ftruncate(fd: i32, length: i64) -> i32
-    reaches FilesystemContentWrite + FilesystemMetadataMutation
+    reaches |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation
     crashes none;
     machine utimensat(dirfd: i32, path: u64, times: @[u8; 32], flags: i32) -> i32
-    reaches FilesystemMetadataMutation
+    reaches |authority|::FilesystemMetadataMutation
     crashes none;
     machine fsync(fd: i32) -> i32
     reaches none
@@ -88,15 +84,15 @@ boundary trait PosixFilesystemLinux {
     reaches none
     crashes none;
     machine fchownat(dirfd: i32, path: @[u8; 4096], uid: i32, gid: i32, flags: i32) -> i32
-    reaches FilesystemMetadataMutation
+    reaches |authority|::FilesystemMetadataMutation
     crashes none;
     machine fchown(fd: i32, uid: i32, gid: i32) -> i32
-    reaches FilesystemMetadataMutation
+    reaches |authority|::FilesystemMetadataMutation
     crashes none;
 }
 machine linux_x86_64_posix_open(path: @[u8] in |paths|::Path, flags: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::open
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
@@ -113,7 +109,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 machine linux_x86_64_posix_open_create(path: @[u8] in |paths|::Path, flags: i32, mode: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::open_create
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
@@ -130,7 +126,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 machine linux_x86_64_posix_create(path: @[u8] in |paths|::Path, mode: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::create
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
@@ -147,30 +143,30 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 machine linux_x86_64_posix_read(fd: i32, buffer: @mutable [u8], count: u64) -> i64
     satisfies |raw_fs|::PosixFilesystemHost::read
-reaches FilesystemContentRead
+reaches |authority|::FilesystemContentRead
 {
-    let capacity: u64 = min_u64(count, buffer.length);
+    let capacity: u64 = |math|::min_u64(count, buffer.length);
     PosixFilesystemLinuxX86ByteViews::read(fd, @mutable buffer[0..capacity])
 }
 
 machine linux_x86_64_posix_write(fd: i32, bytes: @[u8]) -> i64
     satisfies |raw_fs|::PosixFilesystemHost::write
-reaches FilesystemContentWrite
+reaches |authority|::FilesystemContentWrite
 {
     PosixFilesystemLinuxX86ByteViews::write(fd, bytes)
 }
 
 machine linux_x86_64_posix_read_at(fd: i32, buffer: @mutable [u8], count: u64, offset: i64) -> i64
     satisfies |raw_fs|::PosixFilesystemHost::read_at
-reaches FilesystemContentRead
+reaches |authority|::FilesystemContentRead
 {
-    let capacity: u64 = min_u64(count, buffer.length);
+    let capacity: u64 = |math|::min_u64(count, buffer.length);
     PosixFilesystemLinuxX86ByteViews::pread64(fd, @mutable buffer[0..capacity], offset)
 }
 
 machine linux_x86_64_posix_write_at(fd: i32, bytes: @[u8], offset: i64) -> i64
     satisfies |raw_fs|::PosixFilesystemHost::write_at
-reaches FilesystemContentWrite
+reaches |authority|::FilesystemContentWrite
 {
     PosixFilesystemLinuxX86ByteViews::pwrite64(fd, bytes, offset)
 }
@@ -185,7 +181,7 @@ machine linux_x86_64_posix_close(fd: i32) -> i32
 
 machine linux_x86_64_posix_remove(path: @[u8] in |paths|::Path) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::remove
-reaches FilesystemNamespaceMutation
+reaches |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
@@ -210,7 +206,7 @@ machine linux_x86_64_posix_seek(fd: i32, offset: i64, whence: i32) -> i64
 
 machine linux_x86_64_posix_create_dir(path: @[u8] in |paths|::Path, mode: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::create_dir
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
@@ -227,7 +223,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 
 machine linux_x86_64_posix_remove_dir(path: @[u8] in |paths|::Path) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::remove_dir
-reaches FilesystemNamespaceMutation
+reaches |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
@@ -244,7 +240,7 @@ reaches FilesystemNamespaceMutation
 
 machine linux_x86_64_posix_create_dir_name(name: @[u8], mode: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::create_dir_name
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(name, @mutable terminated[..]);
@@ -261,7 +257,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 
 machine linux_x86_64_posix_open_at(dirfd: i32, name: @[u8], flags: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::open_at
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(name, @mutable terminated[..]);
@@ -278,7 +274,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 machine linux_x86_64_posix_unlink_at(dirfd: i32, name: @[u8], flags: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::unlink_at
-reaches FilesystemNamespaceMutation
+reaches |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(name, @mutable terminated[..]);
@@ -295,7 +291,7 @@ reaches FilesystemNamespaceMutation
 
 machine linux_x86_64_posix_set_permissions(path: @[u8] in |paths|::Path, mode: u32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::set_permissions
-reaches FilesystemMetadataMutation
+reaches |authority|::FilesystemMetadataMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
@@ -312,7 +308,7 @@ reaches FilesystemMetadataMutation
 
 machine linux_x86_64_posix_set_file_permissions(fd: i32, mode: u32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::set_file_permissions
-reaches FilesystemMetadataMutation
+reaches |authority|::FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemLinux::fchmod(fd, mode);
     outcome
@@ -320,7 +316,7 @@ reaches FilesystemMetadataMutation
 
 machine linux_x86_64_posix_rename(from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::rename
-reaches FilesystemNamespaceMutation
+reaches |authority|::FilesystemNamespaceMutation
 {
     let mutable first: [u8; 4096];
     let mutable second: [u8; 4096];
@@ -339,7 +335,7 @@ reaches FilesystemNamespaceMutation
 
 machine linux_x86_64_posix_hard_link(original: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::hard_link
-reaches FilesystemNamespaceMutation
+reaches |authority|::FilesystemNamespaceMutation
 {
     let mutable first: [u8; 4096];
     let mutable second: [u8; 4096];
@@ -358,7 +354,7 @@ reaches FilesystemNamespaceMutation
 
 machine linux_x86_64_posix_symlink(target: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::symlink
-reaches FilesystemNamespaceMutation
+reaches |authority|::FilesystemNamespaceMutation
 {
     let mutable first: [u8; 4096];
     let mutable second: [u8; 4096];
@@ -377,30 +373,30 @@ reaches FilesystemNamespaceMutation
 
 machine linux_x86_64_posix_read_link(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> i64
     satisfies |raw_fs|::PosixFilesystemHost::read_link
-reaches FilesystemMetadataQuery
+reaches |authority|::FilesystemMetadataQuery
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     transition fits { true -> transfer(terminated, buffer, count), _ -> -36 }
     machine transfer(terminated: [u8; 4096], buffer: @mutable [u8], count: u64) -> i64 {
         // readlinkat's bufsiz is a signed int, not an arbitrary staging limit.
-        let capacity: u64 = min_u64(min_u64(count, buffer.length), 2147483647);
+        let capacity: u64 = |math|::min_u64(|math|::min_u64(count, buffer.length), 2147483647);
         PosixFilesystemLinuxX86ByteViews::readlinkat(-100, @terminated, @mutable buffer[0..capacity])
     }
 }
 
 machine linux_x86_64_posix_read_dir(fd: i32, buffer: @mutable [u8], count: u64, position: @mutable i64) -> i64
     satisfies |raw_fs|::PosixFilesystemHost::read_dir
-reaches DirectoryEnumeration
+reaches |authority|::DirectoryEnumeration
 {
     // The directory callback's remaining-count field is a signed int.
-    let capacity: u64 = min_u64(min_u64(count, buffer.length), 2147483647);
+    let capacity: u64 = |math|::min_u64(|math|::min_u64(count, buffer.length), 2147483647);
     PosixFilesystemLinuxX86ByteViews::getdents64(fd, @mutable buffer[0..capacity])
 }
 
 machine linux_x86_64_posix_remove_name(path: @[u8]) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::remove_name
-reaches FilesystemNamespaceMutation
+reaches |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path, @mutable terminated[..]);
@@ -417,7 +413,7 @@ reaches FilesystemNamespaceMutation
 
 machine linux_x86_64_posix_remove_dir_name(path: @[u8]) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::remove_dir_name
-reaches FilesystemNamespaceMutation
+reaches |authority|::FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path, @mutable terminated[..]);
@@ -434,14 +430,14 @@ reaches FilesystemNamespaceMutation
 
 machine linux_x86_64_posix_read_metadata(path: @[u8] in |paths|::Path, buffer: @mutable [u8; 144]) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::read_metadata
-reaches FilesystemMetadataQuery
+reaches |authority|::FilesystemMetadataQuery
 {
     linux_x86_64_posix_query_metadata_at(-100, path as - |paths|::Path, buffer, 0)
 }
 
 machine linux_x86_64_posix_read_file_metadata(fd: i32, buffer: @mutable [u8; 144]) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::read_file_metadata
-reaches FilesystemMetadataQuery
+reaches |authority|::FilesystemMetadataQuery
 {
     query(fd, buffer)
     machine query(fd: i32, buffer: @mutable [u8; 144]) -> i32 {
@@ -451,20 +447,20 @@ reaches FilesystemMetadataQuery
 
 machine linux_x86_64_posix_read_symlink_metadata(path: @[u8] in |paths|::Path, buffer: @mutable [u8; 144]) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::read_symlink_metadata
-reaches FilesystemMetadataQuery
+reaches |authority|::FilesystemMetadataQuery
 {
     linux_x86_64_posix_query_metadata_at(-100, path as - |paths|::Path, buffer, 256)
 }
 
 machine linux_x86_64_posix_read_metadata_at(directory_descriptor: i32, name: @[u8], buffer: @mutable [u8; 144], flags: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::read_metadata_at
-reaches FilesystemMetadataQuery
+reaches |authority|::FilesystemMetadataQuery
 {
     linux_x86_64_posix_query_metadata_at(directory_descriptor, name, buffer, flags)
 }
 
 machine linux_x86_64_posix_query_metadata_at(directory_descriptor: i32, name: @[u8], buffer: @mutable [u8; 144], flags: i32) -> i32
-reaches FilesystemMetadataQuery
+reaches |authority|::FilesystemMetadataQuery
 {
     prepare(directory_descriptor, name, buffer, flags)
     machine prepare(directory_descriptor: i32, name: @[u8], buffer: @mutable [u8; 144], flags: i32) -> i32
@@ -481,7 +477,7 @@ reaches FilesystemMetadataQuery
 
 machine linux_x86_64_posix_set_len(fd: i32, length: i64) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::set_len
-reaches FilesystemContentWrite + FilesystemMetadataMutation
+reaches |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemLinux::ftruncate(fd, length);
     outcome
@@ -489,7 +485,7 @@ reaches FilesystemContentWrite + FilesystemMetadataMutation
 
 machine linux_x86_64_posix_set_file_times(fd: i32, times: @[u8; 32]) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::set_file_times
-reaches FilesystemMetadataMutation
+reaches |authority|::FilesystemMetadataMutation
 {
     update(fd, times)
     machine update(fd: i32, times: @[u8; 32]) -> i32 {
@@ -532,7 +528,7 @@ machine linux_x86_64_posix_lock_file(fd: i32, operation: i32) -> i32
 
 machine linux_x86_64_posix_change_owner(path: @[u8] in |paths|::Path, uid: i32, gid: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::change_owner
-reaches FilesystemMetadataMutation
+reaches |authority|::FilesystemMetadataMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
@@ -549,7 +545,7 @@ reaches FilesystemMetadataMutation
 
 machine linux_x86_64_posix_change_owner_no_follow(path: @[u8] in |paths|::Path, uid: i32, gid: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::change_owner_no_follow
-reaches FilesystemMetadataMutation
+reaches |authority|::FilesystemMetadataMutation
 {
     let mutable terminated: [u8; 4096];
     let fits: bool = |raw_fs|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
@@ -566,7 +562,7 @@ reaches FilesystemMetadataMutation
 
 machine linux_x86_64_posix_change_file_owner(fd: i32, uid: i32, gid: i32) -> i32
     satisfies |raw_fs|::PosixFilesystemHost::change_file_owner
-reaches FilesystemMetadataMutation
+reaches |authority|::FilesystemMetadataMutation
 {
     let outcome: i32 = PosixFilesystemLinux::fchown(fd, uid, gid);
     outcome

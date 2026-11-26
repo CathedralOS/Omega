@@ -3743,6 +3743,10 @@ pub(crate) mod execution {
                                             self.release_reference(operation, source, path)?;
                                             OperationFlow::Advance
                                         }
+                                        OperationKind::PackedIntegerBinary { .. } | OperationKind::PackedIntegerUnary { .. } => {
+                                            self.execute_packed_integer(operation)?;
+                                            OperationFlow::Advance
+                                        }
                                         OperationKind::EstablishScalarArray { ref elements } => {
                                             self.execute_scalar_array_establishment(operation, elements)?;
                                             OperationFlow::Advance

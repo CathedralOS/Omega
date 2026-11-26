@@ -30,16 +30,7 @@ Every place performs the same operation: compute the unsigned division remainder
 Root `main.omg` and all nine place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry `expected_native_exit.txt` (`0`). Run any positive directly:
 
 ```sh
-omega run --both samples/cli/facts/unsigned_division_remainder/main.omg
-omega run --both samples/cli/facts/unsigned_division_remainder/local/main.omg
-omega run --both samples/cli/facts/unsigned_division_remainder/field/main.omg
-omega run --both samples/cli/facts/unsigned_division_remainder/parameter/main.omg
-omega run --both samples/cli/facts/unsigned_division_remainder/call_result/main.omg
-omega run --both samples/cli/facts/unsigned_division_remainder/match_join/main.omg
-omega run --both samples/cli/facts/unsigned_division_remainder/const_name/main.omg
-omega run --both samples/cli/facts/unsigned_division_remainder/other_state/main.omg
-omega run --both samples/cli/facts/unsigned_division_remainder/other_machine/main.omg
-omega run --both samples/cli/facts/unsigned_division_remainder/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/unsigned_division_remainder
 ```
 
 Each place has an `invalid/` twin that computes `499u64 % 200u64` (yielding remainder `99u64`), causing exact subtraction `diff: u64 = rem - 100u64` to underflow. The control must reject with `may overflow `u64``. Check each twin with:

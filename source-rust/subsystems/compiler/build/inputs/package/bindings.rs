@@ -18,8 +18,10 @@ use terminal_psi::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageSourceBinding {
+    pub(super) build_entries: super::PackageBuildEntries,
     pub(super) identity: PackageKeyIdentity,
     pub(super) canonical_name: String,
+    pub(super) resolution: Option<[u8; 32]>,
     pub(super) source_root: PathBuf,
     pub(super) canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
     pub(super) captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
@@ -33,8 +35,10 @@ impl PackageSourceBinding {
         source_root: PathBuf,
     ) -> Self {
         Self {
+            build_entries: Default::default(),
             identity,
             canonical_name: canonical_name.into(),
+            resolution: None,
             source_root,
             canonical_source_metadata: None,
             captured_source: None,
@@ -42,10 +46,32 @@ impl PackageSourceBinding {
         }
     }
 
+    pub fn with_build_entries(
+        mut self,
+        entries: super::PackageBuildEntries,
+    ) -> Result<Self, String> {
+        let tree = self
+            .captured_source
+            .as_deref()
+            .ok_or("entered Build files require a captured package")?;
+        entries.require_capture(tree)?;
+        self.build_entries = entries;
+        Ok(self)
+    }
+
+    pub fn with_resolution(
+        mut self,
+        resolution: &source_acquisition::ImmutableSourceResolution,
+    ) -> Self {
+        self.resolution = Some(resolution.identity_digest());
+        self
+    }
+
     pub fn with_captured_source(
         mut self,
         tree: Arc<source_capture::CapturedSourceTree>,
     ) -> Result<Self, String> {
+        self.build_entries.require_capture(&tree)?;
         let input = source_snapshot::retained_source_input(&tree)?;
         self.canonical_source_metadata = None;
         self.captured_source = Some(tree);
@@ -68,6 +94,10 @@ impl PackageSourceBinding {
 
     pub fn canonical_name(&self) -> &str {
         &self.canonical_name
+    }
+
+    pub fn build_entries(&self) -> &super::PackageBuildEntries {
+        &self.build_entries
     }
 
     pub fn source_root(&self) -> &Path {

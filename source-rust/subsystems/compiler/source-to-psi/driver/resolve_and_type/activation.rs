@@ -138,11 +138,6 @@ pub(super) fn select_retained_source(
     for source in request.frontends.snapshots()? {
         let typing = &source.typing;
         let source_context = &source.context;
-        // Earlier compilers could save a checked prefix under the complete
-        // source's identity. Check that source afresh instead of reusing it.
-        if typing.typed().is_legacy_build_prefix() {
-            continue;
-        }
         let Some(previous) = typing.typed().symbols.source_map() else {
             continue;
         };

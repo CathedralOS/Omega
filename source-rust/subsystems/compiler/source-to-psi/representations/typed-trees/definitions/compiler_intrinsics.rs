@@ -15,7 +15,9 @@ use crate::source_state::type_identity::identity_context::{
 use crate::source_state::type_identity::{LifetimeParameterIdentity, NormalizedTypeIdentity};
 use application_identity::type_identity::vocabulary::Spelled;
 use diagnostics::Diagnostic;
-use language_core::sealed_intrinsics::{CompilerPrimitive, SealedIntrinsic};
+use language_core::sealed_intrinsics::{
+    CompilerPrimitive, PackedIntegerPrimitive, SealedIntrinsic,
+};
 use std::cell::Cell;
 use symbols::SymbolHandle;
 
@@ -58,6 +60,13 @@ impl TypedTrees {
                 "sealed byte observation differs from its complete pure shared-byte declaration",
             ));
         }
+        if let CompilerPrimitive::PackedInteger(primitive) = operation
+            && !packed_integer_header(self, machine, primitive)
+        {
+            return Err(Diagnostic::error(
+                "sealed packed arithmetic differs from its array, immediate or effect contract",
+            ));
+        }
         normalized_schema(self, machine)
             .map(|schema| Some((operation, schema)))
             .ok_or_else(|| {
@@ -73,41 +82,10 @@ impl TypedTrees {
 // returns bool, and always completes without effects. Check the complete typed
 // declaration as well as its file.
 fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
-    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
     use crate::source_state::types::TypeReferenceNode;
-    if !program.symbols.symbols().nodes().is_valid(machine.symbol)
-        || program.symbols.name(machine.symbol) != machine.name.as_str()
-        || !machine.is_public
-        || machine.interface_exposure != AuthoredDeclarationSelectionExposure::PublicInterface
-        || machine.purpose != crate::source_state::machine::MachinePurpose::Runtime
-        || machine.spelling.is_some()
-        || machine.admitted_same_stack_bytes != 0
-        || machine.assembly_target_requirement
-            != language_core::inline_assembly::AsmTargetApplicability::Any
-        || machine.type_parameters != arena::HandleSpan::empty()
-        || machine.lifetime_parameters.len() != 1
-        || machine.contracts != arena::HandleSpan::empty()
-        || !machine.declares_no_crash_route
-        || machine.suspends
-        || machine.blocks
-        || !machine.suspends_keyword_source_spans.is_empty()
-        || !machine.blocks_keyword_source_spans.is_empty()
-        || machine.service_reach_row != crate::source_tables::ServiceReachRowTable::EMPTY_ROW
-        || !matches!(&machine.termination_plan.interface, source_declarations::TerminationInterface::Published(
-            source_declarations::TerminationGuarantee::Terminates { premises }) if premises.is_empty())
-    {
-        return false;
-    }
-    let Some([entry]) = schema_span(|span| program.machine_states.span(span), machine.states)
-        .and_then(|rows| rows.as_array())
-    else {
+    let Some(entry) = pure_runtime_entry(program, machine, 1, 0) else {
         return false;
     };
-    if entry.statement_nodes != arena::HandleSpan::empty()
-        || entry.contracts != arena::HandleSpan::empty()
-    {
-        return false;
-    }
     let Some([formal]) = schema_span(|span| program.state_parameters.span(span), entry.parameters)
         .and_then(|rows| rows.as_array())
     else {
@@ -172,6 +150,182 @@ fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
         if program.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U8))
         && matches!(table.type_reference(entry.return_type), TypeReferenceNode::Named { symbol, .. }
         if program.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::Bool))
+}
+
+fn pure_runtime_entry<'p>(
+    program: &'p TypedTrees,
+    machine: &Machine,
+    lifetime_count: usize,
+    const_count: usize,
+) -> Option<&'p crate::source_state::state::State> {
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+    if !program.symbols.symbols().nodes().is_valid(machine.symbol)
+        || program.symbols.name(machine.symbol) != machine.name.as_str()
+        || !machine.is_public
+        || machine.interface_exposure != AuthoredDeclarationSelectionExposure::PublicInterface
+        || machine.purpose != crate::source_state::machine::MachinePurpose::Runtime
+        || machine.spelling.is_some()
+        || machine.admitted_same_stack_bytes != 0
+        || machine.assembly_target_requirement
+            != language_core::inline_assembly::AsmTargetApplicability::Any
+        || machine.type_parameters.len() != const_count
+        || machine.lifetime_parameters.len() != lifetime_count
+        || (const_count == 0 && machine.contracts != arena::HandleSpan::empty())
+        || !machine.declares_no_crash_route
+        || machine.suspends
+        || machine.blocks
+        || !machine.suspends_keyword_source_spans.is_empty()
+        || !machine.blocks_keyword_source_spans.is_empty()
+        || machine.service_reach_row != crate::source_tables::ServiceReachRowTable::EMPTY_ROW
+        || !matches!(&machine.termination_plan.interface, source_declarations::TerminationInterface::Published(
+            source_declarations::TerminationGuarantee::Terminates { premises }) if premises.is_empty())
+    {
+        return None;
+    }
+    let [entry] = schema_span(|span| program.machine_states.span(span), machine.states)
+        .and_then(|rows| rows.as_array())?;
+    if entry.statement_nodes != arena::HandleSpan::empty()
+        || (const_count == 0 && entry.contracts != arena::HandleSpan::empty())
+    {
+        return None;
+    }
+    Some(entry)
+}
+
+fn packed_integer_header(
+    program: &TypedTrees,
+    machine: &Machine,
+    primitive: PackedIntegerPrimitive,
+) -> bool {
+    use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+    let Some(entry) =
+        pure_runtime_entry(program, machine, primitive.inputs(), primitive.immediates())
+    else {
+        return false;
+    };
+    let table = &program.type_reference_table;
+    let i16_atom =
+        symbols::BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::signed(16));
+    let u8_atom = symbols::BuiltinTypeAtom::U8;
+    let lane_array = |reference: TypeReferenceHandle, element_atom, expected_length: usize| {
+        table.contains_type_reference(reference)
+            && matches!(
+            table.type_reference(reference),
+            TypeReferenceNode::FixedArray { element_type, length: FixedArrayLength::Literal(length) }
+                if *length == expected_length
+                    && table.contains_type_reference(*element_type)
+                    && matches!(table.type_reference(*element_type), TypeReferenceNode::Named { symbol, .. }
+                        if program.symbols.builtin_type_atom(*symbol) == Some(element_atom)))
+    };
+    let Some(formals) = schema_span(|span| program.state_parameters.span(span), entry.parameters)
+    else {
+        return false;
+    };
+    let (input, input_lanes): (_, usize) = match primitive {
+        PackedIntegerPrimitive::WrappingAddU8x16 => (u8_atom, 16),
+        PackedIntegerPrimitive::WidenU8x8ToI16x8 => (u8_atom, 8),
+        PackedIntegerPrimitive::WidenU8x4ToI16x8 => (u8_atom, 4),
+        PackedIntegerPrimitive::LoadI16x4ZeroExtend => (i16_atom, 4),
+        _ => (i16_atom, 8),
+    };
+    let (result, result_lanes): (_, usize) = match primitive {
+        PackedIntegerPrimitive::WrappingAddU8x16 => (u8_atom, 16),
+        PackedIntegerPrimitive::NarrowI16x8ToU8x8Saturating => (u8_atom, 8),
+        PackedIntegerPrimitive::NarrowI16x8ToU8x4Saturating => (u8_atom, 4),
+        _ => (i16_atom, 8),
+    };
+    if !packed_immediate_contracts(program, machine, entry) {
+        return false;
+    }
+    lane_array(entry.return_type, result, result_lanes)
+        && formals.len() == primitive.inputs()
+        && formals.iter().enumerate().all(|(ordinal, formal)| {
+            if formal.is_const
+                || formal.is_mutable
+                || formal.relevance != language_core::BindingRelevance::Relevant
+                || !table.contains_type_reference(formal.type_reference)
+            {
+                return false;
+            }
+            let TypeReferenceNode::Reference {
+                access: language_core::ReferenceAccess::Shared,
+                referee,
+                lifetime: Some(lifetime),
+            } = table.type_reference(formal.type_reference)
+            else {
+                return false;
+            };
+            let owner = table.operand_lifetime_owner(formal.type_reference);
+            let expected = LifetimeParameterIdentity {
+                declaration: machine.symbol,
+                ordinal,
+            };
+            let retained = table.operand_lifetimes(formal.type_reference);
+            lane_array(*referee, input, input_lanes)
+                && (!owner.is_valid() || owner == machine.symbol)
+                && (retained.is_empty() || retained == [expected])
+                && crate::source_state::type_identity::lifetime_parameter_identity(
+                    program,
+                    machine.symbol,
+                    lifetime.as_str(),
+                ) == Some(expected)
+        })
+}
+
+// An immediate is a u64 binder with exactly one declared upper bound. This
+// authenticates each clause before lowering discharges it with the supplied value.
+fn packed_immediate_contracts(
+    program: &TypedTrees,
+    machine: &Machine,
+    entry: &crate::source_state::state::State,
+) -> bool {
+    use crate::source_state::expression::{BinaryOperator, ExpressionNode};
+    use crate::source_state::types::TypeReferenceNode;
+    let table = &program.expression_table;
+    let mut clauses = program
+        .machine_contracts(machine)
+        .iter()
+        .chain(program.state_contracts(entry));
+    for parameter in program.machine_type_parameters(machine) {
+        let TypeParameterKind::Const { type_reference } = parameter.kind else {
+            return false;
+        };
+        if !program
+            .type_reference_table
+            .contains_type_reference(type_reference)
+            || !matches!(program.type_reference_table.type_reference(type_reference), TypeReferenceNode::Named { symbol, .. }
+                if program.symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U64))
+        {
+            return false;
+        }
+        let Some(clause) = clauses.next() else {
+            return false;
+        };
+        if clause.kind != SignatureContractKind::Requires || clause.binding.is_some() {
+            return false;
+        }
+        let Some([ProofFact::Expression(term)]) =
+            schema_span(|span| program.proof_facts.span(span), clause.facts)
+                .and_then(|rows| rows.as_array())
+        else {
+            return false;
+        };
+        if !table.expression_is_valid(*term) {
+            return false;
+        }
+        let ExpressionNode::Binary(lt) = table.expression(*term) else {
+            return false;
+        };
+        if lt.operator != BinaryOperator::Less
+            || !table.expression_is_valid(lt.left)
+            || !table.expression_is_valid(lt.right)
+            || !matches!(table.expression(lt.left), ExpressionNode::Name(name) if name.symbol == parameter.symbol)
+            || !matches!(table.expression(lt.right), ExpressionNode::Integer(limit) if limit.value_u64() == Some(16))
+        {
+            return false;
+        }
+    }
+    clauses.next().is_none()
 }
 
 // Schema coordinates use the existing canonical identity interner. They are
@@ -289,7 +443,8 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         contracts: _,
         states: _,
     } = machine;
-    if purpose.is_active_case_visitor() || lexical_region_origin.is_some()
+    if purpose.is_active_case_visitor()
+        || lexical_region_origin.is_some()
         || attached_data.is_some()
         || attached_data_symbol.is_valid()
         || attached_domain_symbol.is_valid()
@@ -677,7 +832,9 @@ mod tests {
                     .insert(ExpressionNode::Member(TableMemberExpression {
                         receiver: result,
                         selection: MemberSelection::CollectionMeasure(CollectionMeasure::Length),
-                        member: Identifier::generated(CollectionMeasure::Length.authored_spelling()),
+                        member: Identifier::generated(
+                            CollectionMeasure::Length.authored_spelling(),
+                        ),
                         case_variant: None,
                     }));
             let mut members = arena::HandleSpan::empty();

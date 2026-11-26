@@ -151,6 +151,7 @@ struct BuildPreparations {
 
 /// Only the Build that returned this entry can issue its source view and incoming bindings.
 pub struct PreparedSuccessor {
+    source_owner: Option<package_compilation::CompletedAnonymousSource>,
     providers: source_compiler::InterpretedProviderSelections,
     capture: package_compilation::CapturedLocalSource,
     path: std::path::PathBuf,
@@ -167,24 +168,19 @@ impl PreparedSuccessor {
 impl ReturnedPlanningStage {
     pub fn finish_successor(
         self,
-        capture: &package_compilation::CapturedLocalSource,
         libraries: Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
     ) -> Result<PreparedSuccessor, CompileFailure> {
-        self.returned
-            .require_source_acquisition(capture)
-            .map_err(refusal)?;
-        let entry = self
-            .returned
-            .successor_entry()
-            .cloned()
-            .ok_or_else(|| refusal("only a preparing Build can supply a successor".into()))?;
+        let (entry, capture) = self.returned.successor_source().map_err(refusal)?;
+        let entry = entry.clone();
+        let capture = capture.clone();
         let path = capture.canonical_live_root().join(entry.as_str());
         let mut preparations = self.preparations;
         let evaluated = self
             .evaluation
             .complete_successor(self.returned, &libraries)?;
         let mut source = self.source;
-        let providers = source.successor_provider_selections(&entry, &libraries, &evaluated)?;
+        let (providers, source_owner) =
+            source.successor_provider_selections(&entry, &libraries, &evaluated)?;
         if preparations.entries.iter().any(|(file, inputs, choices)| {
             file == &path && inputs == &libraries && choices == &providers
         }) {
@@ -199,8 +195,9 @@ impl ReturnedPlanningStage {
             .entries
             .push((path.clone(), libraries.clone(), providers.clone()));
         Ok(PreparedSuccessor {
+            source_owner,
             providers,
-            capture: capture.clone(),
+            capture,
             path,
             preparations,
             libraries,

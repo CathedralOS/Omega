@@ -16,7 +16,8 @@ including parsing and rewriting. The CLI routes each implemented action to its
 owner.
 
 ```text
-omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
+omega [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
+omega --check [--floor-only] [--verify] [--validator <ExactName>]... [--every-validator] [<root.omg>]
 omega build [--allow Network] [--allow ProgramLaunch] [--program <identity> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <milliseconds>]]... [--compare-tests] <root.omg>
 omega run [--engine native|psi] [--target <name>] <root.omg>
 omega source parse [--] <file>
@@ -79,11 +80,31 @@ action-first audit and hyphenated inspection commands are not compatibility
 aliases. The implementation migration must update callers, diagnostics, tests,
 guides and command examples together.
 
+## Local Build inputs
+
+By default, a local Build can read its entry and the package-local source files
+admitted to compile it. To read an asset, include it in the invocation inventory.
+For example, a package with a Build entry, one helper, and a lookup table can use the following invocation.
+
+```text
+omega build --build-input build.omg --build-input helper.omg --build-input table.txt build.omg
+```
+
+Each `--build-input` names a required file or subtree. An
+`--optional-build-input` records whether that path exists. An explicit inventory
+must include all required source files. Without that list, the compiler retains
+the local package snapshot for resolution and its package capture limits apply.
+A dependency receives its sealed package snapshot unless its caller supplies
+another filesystem view. [Build source capture](scoped_execution.md#snapshot-and-staging-protocol)
+and [local package capture](../packages/sources.md#local-source-capture).
+
 ## Build-first entry selection
 
 `omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in `omega\core`.
 A build requests the product artifact. A run requests execution under the
 [engine and target rules](embedding.md#standalone-execution-selection).
+Building a package checks its source, runs its registered tests and publishes
+its declared Build outputs. Only an executable Product requires a program entry.
 
 1. Look for a free `machine build` in the named file. If present, bind it as the
    [build entry](declarations.md#project-role), including when the file also

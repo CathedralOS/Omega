@@ -1471,6 +1471,8 @@ mod compare_byte_sequences {
         }
     }
 }
+mod packed_integer;
+
 mod copy_bytes {
     use super::{
         MachineAlternativeFamily as Family, MachineAlternativeKey, MachineEncodedMemoryEffect,
@@ -15955,9 +15957,9 @@ mod normalized_foreign_call {
                 encode_x86_64_selected_table_call_form, validate_x86_64_selected_table_call_form,
             };
             for windows in [false, true] {
-                for byte_offset in [0, 8, 65_536] {
+                for (table_operand, byte_offset) in [(0, 0), (1, 8), (1, 65_536)] {
                     let (_, _, alternative, operands, accesses, _, mut record) =
-                        inputs(windows, 1, 1);
+                        inputs(windows, 2, 1);
                     let same_stack_contribution = record
                         .call
                         .binding
@@ -15972,6 +15974,7 @@ mod normalized_foreign_call {
                                 target::TargetProfile::LinuxX64
                             },
                             byte_offset,
+                            table_operand,
                             dispatch_only: false,
                             same_stack_contribution,
                         };
@@ -15983,6 +15986,18 @@ mod normalized_foreign_call {
                     )
                     .unwrap();
                     assert_eq!(encoded.bytes.len(), 10);
+                    assert_eq!(
+                        encoded.footprint().encoded.memory,
+                        super::super::MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                            pointer_operand: table_operand as u16,
+                            byte_offset,
+                        }
+                    );
+                    let argument_registers = if windows { [1, 2] } else { [7, 6] };
+                    assert_eq!(
+                        encoded.bytes[2],
+                        0x98 | argument_registers[table_operand as usize]
+                    );
                     assert_eq!(&encoded.bytes[3..7], &byte_offset.to_le_bytes());
                     assert_eq!(&encoded.bytes[7..], &[0x41, 0xff, 0xd3]);
                     for position in 0..encoded.bytes.len() {
@@ -16043,6 +16058,7 @@ mod normalized_foreign_call {
                                 target::TargetProfile::LinuxX64
                             },
                             byte_offset: 16,
+                            table_operand: wire_count as u32,
                             dispatch_only: true,
                             same_stack_contribution,
                         };
@@ -16073,8 +16089,8 @@ mod normalized_foreign_call {
                     assert_eq!(
                         selected_instructions::calls::constraints::foreign_argument_registers(
                             &record.call
-                        )[0],
-                        (0, calling_conventions::MachineRegister::X86R11)
+                        )[wire_count],
+                        (wire_count, calling_conventions::MachineRegister::X86R11)
                     );
                     for position in 0..encoded.bytes.len() {
                         let mut corrupted = encoded.bytes.clone();
@@ -22010,6 +22026,48 @@ pub fn encode_x86_64_selected_form(
     if kind == SelectedInstructionKind::CopyBytes {
         return copy_bytes::encode(physical, alternative, operands, 0);
     }
+    if matches!(
+        kind,
+        SelectedInstructionKind::PackedAddI16x8
+            | SelectedInstructionKind::PackedSubI16x8
+            | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+            | SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating
+            | SelectedInstructionKind::PackedLoadI16x4ZeroExtend
+            | SelectedInstructionKind::PackedWidenU8x4ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+            | SelectedInstructionKind::PackedLoad128 { .. }
+            | SelectedInstructionKind::PackedStore128 { .. }
+            | SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore64 { .. }
+            | SelectedInstructionKind::PackedLoad32ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore32 { .. }
+            | SelectedInstructionKind::PackedMaterializeZero
+            | SelectedInstructionKind::PackedFromGpr64ZeroExtend
+            | SelectedInstructionKind::PackedFromGpr64Pair
+            | SelectedInstructionKind::PackedAddI16x8Reg
+            | SelectedInstructionKind::PackedSubI16x8Reg
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
+            | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+            | SelectedInstructionKind::PackedAddU8x16
+            | SelectedInstructionKind::PackedMinI16x8
+            | SelectedInstructionKind::PackedCmpGtI16x8
+            | SelectedInstructionKind::PackedBitAndI16x8
+            | SelectedInstructionKind::PackedBitAndNotI16x8
+            | SelectedInstructionKind::PackedAbsI16x8
+            | SelectedInstructionKind::PackedAddU8x16Reg
+            | SelectedInstructionKind::PackedMinI16x8Reg
+            | SelectedInstructionKind::PackedCmpGtI16x8Reg
+            | SelectedInstructionKind::PackedBitAndI16x8Reg
+            | SelectedInstructionKind::PackedBitAndNotI16x8Reg
+            | SelectedInstructionKind::PackedAbsI16x8Reg
+    ) {
+        return packed_integer::encode(physical, kind, alternative, operands);
+    }
     if kind == SelectedInstructionKind::ZeroBytes {
         return zero_bytes::encode(physical, alternative, operands);
     }
@@ -22060,6 +22118,48 @@ pub fn validate_x86_64_selected_form_encoding(
     }
     if kind == SelectedInstructionKind::CopyBytes {
         return copy_bytes::validate(physical, alternative, operands, 0, bytes);
+    }
+    if matches!(
+        kind,
+        SelectedInstructionKind::PackedAddI16x8
+            | SelectedInstructionKind::PackedSubI16x8
+            | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+            | SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating
+            | SelectedInstructionKind::PackedLoadI16x4ZeroExtend
+            | SelectedInstructionKind::PackedWidenU8x4ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+            | SelectedInstructionKind::PackedLoad128 { .. }
+            | SelectedInstructionKind::PackedStore128 { .. }
+            | SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore64 { .. }
+            | SelectedInstructionKind::PackedLoad32ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore32 { .. }
+            | SelectedInstructionKind::PackedMaterializeZero
+            | SelectedInstructionKind::PackedFromGpr64ZeroExtend
+            | SelectedInstructionKind::PackedFromGpr64Pair
+            | SelectedInstructionKind::PackedAddI16x8Reg
+            | SelectedInstructionKind::PackedSubI16x8Reg
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
+            | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+            | SelectedInstructionKind::PackedAddU8x16
+            | SelectedInstructionKind::PackedMinI16x8
+            | SelectedInstructionKind::PackedCmpGtI16x8
+            | SelectedInstructionKind::PackedBitAndI16x8
+            | SelectedInstructionKind::PackedBitAndNotI16x8
+            | SelectedInstructionKind::PackedAbsI16x8
+            | SelectedInstructionKind::PackedAddU8x16Reg
+            | SelectedInstructionKind::PackedMinI16x8Reg
+            | SelectedInstructionKind::PackedCmpGtI16x8Reg
+            | SelectedInstructionKind::PackedBitAndI16x8Reg
+            | SelectedInstructionKind::PackedBitAndNotI16x8Reg
+            | SelectedInstructionKind::PackedAbsI16x8Reg
+    ) {
+        return packed_integer::validate(physical, kind, alternative, operands, bytes);
     }
     if kind == SelectedInstructionKind::ZeroBytes {
         return zero_bytes::validate(physical, alternative, operands, bytes);

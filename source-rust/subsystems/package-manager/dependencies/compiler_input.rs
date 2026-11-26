@@ -66,11 +66,13 @@ impl<'closure> PackageCompilationScope<'closure> {
                     custody.key().identity(),
                     custody.key().name().as_str(),
                     custody.snapshot_root().to_path_buf(),
-                );
+                )
+                .with_resolution(custody.resolution());
                 if custody.key() == root {
                     if let Some(captured) = root_binding.as_ref().filter(|captured| {
                         captured.identity() == binding.identity()
                             && captured.source_root() == binding.source_root()
+                            && captured.build_entries() == &custody.build_entries
                     }) {
                         return Ok(captured.clone());
                     }
@@ -81,6 +83,7 @@ impl<'closure> PackageCompilationScope<'closure> {
                     if let Some(tree) = custody.captured_source() {
                         binding
                             .with_captured_source(std::sync::Arc::clone(tree))
+                            .and_then(|binding| binding.with_build_entries(custody.build_entries.clone()))
                             .map_err(|reason| PackageCompilationInputError::InvalidSourceRoot {
                                 identity: custody.key().identity(),
                                 path: custody.snapshot_root().to_path_buf(),
@@ -185,6 +188,7 @@ fn binding_with_canonical_source_metadata(
     if let Some(tree) = custody.captured_source() {
         return binding
             .with_captured_source(std::sync::Arc::clone(tree))
+            .and_then(|binding| binding.with_build_entries(custody.build_entries.clone()))
             .map_err(invalid);
     }
     binding.with_canonical_source_metadata().map_err(invalid)

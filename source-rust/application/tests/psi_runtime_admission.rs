@@ -66,33 +66,30 @@ machine main() reaches ProcessExit + StandardInput {
 "#,
         &format!(
             r#"
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) {{
     Build::application(builder, "console_descriptor_eof");
-    let registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "{}" }}));
+    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
     Build::bind(builder, macos_arm64::ProgramEntry, main);
 }}
 "#,
             library.join("system").display()
         ),
     );
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "build.omg"])
-        .current_dir(&project)
-        .env("OMEGA_LIBRARY_ROOT", library)
-        .stdin(Stdio::null())
-        .output()
-        .expect("run the same finite input in both engines");
-    std::fs::remove_dir_all(&project).expect("clean staged project");
-
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-    );
-    assert!(output.status.success(), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["run", "--engine", engine, "build.omg"])
+            .current_dir(&project)
+            .env("OMEGA_LIBRARY_ROOT", &library)
+            .stdin(Stdio::null())
+            .output()
+            .expect("run the finite input");
+        let report = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "{report}");
+        assert!(report.lines().any(|line| line == expected), "{report}");
+        assert!(output.stdout.is_empty(), "{output:?}");
     }
+    std::fs::remove_dir_all(&project).expect("clean staged project");
 }
 
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
@@ -128,9 +125,10 @@ machine main() reaches StandardInput + ProcessExit crashes none {
 }
 "#,
         &format!(
-            r#"machine build(builder: @mutable Build) {{
+            r#"use {{omega}}/build/dependency.omg;
+machine build(builder: @mutable Build) {{
     Build::application(builder, "partial_read_error");
-    let registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "{}" }}));
+    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {{ location: "{}" }}));
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }}
 "#,

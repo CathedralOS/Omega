@@ -308,6 +308,7 @@ impl CheckedPrefix<'_> {
             IeeeFloatIntegerExact { source, .. } | IntegerIeeeFloatExact { source, .. } => {
                 self.clause_scalar(roots, source)?;
             }
+            IsMere(_) => return None,
         }
         Some(())
     }

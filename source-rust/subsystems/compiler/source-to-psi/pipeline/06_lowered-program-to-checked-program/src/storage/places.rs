@@ -608,6 +608,8 @@ enum Reached {
     Cycle,
     /// The one value every path supplies.
     Value(ValueId),
+    /// An erased scalar field term from `MachineTables::erased_field_terms`.
+    ErasedTerm(usize),
     /// An authenticated zero establishment supplies this scalar's zero,
     /// without inventing a scalar identity or structural availability.
     Zero(ScalarType),
@@ -1397,7 +1399,7 @@ impl<'a> Storage<'a> {
         // Entry observations occupy position zero. Install them before the
         // operation loop appends reads in position order for binary search.
         storage.initial_contents_are_declared(references, tables)?;
-        storage.log = storage.stores(references, value_types)?;
+        storage.log = storage.stores(references, tables, value_types)?;
         storage.cleanup_writes = crate::owned_cleanup::writes(module, lowered, references)?;
         storage.log_is_stated(tables)?;
         storage.cleanup_log_is_stated(tables)?;
@@ -1617,6 +1619,16 @@ impl<'a> Storage<'a> {
                     terminal_check_tables::row(&tables.values, value, self.machine, concerns)?
                         .scalar_type;
                 Some((ScalarTerm::value(value, scalar_type), scalar_type))
+            }
+            Reached::ErasedTerm(index) => {
+                let term = tables
+                    .erased_field_terms
+                    .get(index)
+                    .ok_or_else(|| self.foreign(concerns, "erased field term out of range"))?
+                    .term
+                    .clone();
+                let scalar_type = term.scalar_type();
+                Some((term, scalar_type))
             }
             Reached::Zero(scalar_type) => {
                 let term = match scalar_type {
@@ -2304,7 +2316,11 @@ impl<'a> Storage<'a> {
             ref field if field.atomic_cell_type().is_some() => Ok(Shape::Atomic(
                 field.atomic_cell_type().expect("checked atomic field"),
             )),
-            StructuralFieldType::Scalar(scalar_type) => Ok(Shape::Scalar(scalar_type)),
+            StructuralFieldType::Scalar(scalar_type)
+            | StructuralFieldType::Erased {
+                scalar: Some(scalar_type),
+                ..
+            } => Ok(Shape::Scalar(scalar_type)),
             StructuralFieldType::Structural(nested) => Ok(Shape::Typed(nested)),
             ref stored if is_stored_view(stored) => Ok(Shape::View),
             _ => Err(self.unsupported(concerns, "a field type outside plain data")),
@@ -3481,6 +3497,10 @@ impl<'a> Storage<'a> {
                     Reached::Value(*value)
                 }
                 (Stored::Value(_), _) => Reached::Unknown,
+                (Stored::ErasedScalar(index), Asked::Contents(_)) if beneath.is_empty() => {
+                    Reached::ErasedTerm(*index)
+                }
+                (Stored::ErasedScalar(_), _) => Reached::Unknown,
                 (Stored::Case(case), Asked::Case(_, excluded)) if beneath.is_empty() => {
                     case_selection(*case, excluded)
                 }
@@ -5064,6 +5084,7 @@ impl<'a> Storage<'a> {
             | Reached::Input(_)
             | Reached::ExcludedCase
             | Reached::Zero(_)
+            | Reached::ErasedTerm(_)
             | Reached::Extent(_)
             | Reached::Unestablished
             | Reached::Cycle
@@ -5407,6 +5428,12 @@ impl<'a> Storage<'a> {
                 &self.byte_field_argument(*source, path, *field, concerns)?,
                 concerns,
             )?]),
+            OperationKind::PackedIntegerBinary { left, right, .. } => {
+                Ok(vec![self.argument(left, concerns)?, self.argument(right, concerns)?])
+            }
+            OperationKind::PackedIntegerUnary { source, .. } => {
+                Ok(vec![self.argument(source, concerns)?])
+            }
             // Predicate and equality reads keep each operand's exact field
             // path, rather than treating its containing root as the view.
             OperationKind::ByteSequenceEqual { .. }

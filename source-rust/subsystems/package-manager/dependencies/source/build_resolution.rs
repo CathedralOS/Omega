@@ -49,7 +49,9 @@ impl DeclaredBuildSource {
             custody.key().name().as_str(),
             custody.snapshot_root().to_path_buf(),
         )
-        .with_captured_source(std::sync::Arc::clone(tree))
+        .with_resolution(custody.resolution())
+        .with_captured_source(std::sync::Arc::clone(tree))?
+        .with_build_entries(custody.build_entries.clone())
     }
 
     pub fn resolve(self) -> Result<ExecutedSourceResolution, String> {

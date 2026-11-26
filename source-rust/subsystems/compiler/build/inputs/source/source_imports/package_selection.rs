@@ -58,7 +58,7 @@ fn binding_advice(purpose: DependencyPurpose, alias: &str) -> String {
             format!("The invoker must supply `{alias}` as a Build library before the Build starts.")
         }
         DependencyPurpose::Product => format!(
-            "Register the Product dependency with `Build::dependency(builder, description)` in the requesting package's build.omg. If the package name differs from `{alias}`, set the alias with `dependency\\with_alias(@mutable description, \"{alias}\")` before registration."
+            "Register the Product dependency with `Build::dependency(builder, description)` in the requesting package's build.omg. If the package name differs from `{alias}`, import `use {{omega}}/build/dependency.omg;` and set the alias with `|dependency|::with_alias(@mutable description, \"{alias}\")` before registration."
         ),
     }
 }
@@ -101,7 +101,7 @@ impl ReconciledPackageImportRequest {
         packages: &PackageCompilationInputs,
     ) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
         let selected = self.expected_root.join(&self.relative_path);
-        self.reject_dependency_build_import(&selected)?;
+        self.reject_dependency_build_import(&selected, packages)?;
         self.reject_foreign_source_owner(&selected, packages)?;
         let resolved = super::files::captured_file(
             &self.expected_root,
@@ -112,7 +112,7 @@ impl ReconciledPackageImportRequest {
             && path != &selected
         {
             self.reject_foreign_source_owner(path, packages)?;
-            self.reject_dependency_build_import(path)?;
+            self.reject_dependency_build_import(path, packages)?;
         }
         Ok(resolved)
     }
@@ -168,7 +168,7 @@ impl ReconciledPackageImportRequest {
             .filter(|path| packages.package_for_source(path) == Some(self.package))
             .map(|path| {
                 self.reject_foreign_source_owner(&path, packages)?;
-                self.reject_dependency_build_import(&path)?;
+                self.reject_dependency_build_import(&path, packages)?;
                 Ok(path)
             })
             .collect()
@@ -188,9 +188,13 @@ impl ReconciledPackageImportRequest {
         Ok(())
     }
 
-    fn reject_dependency_build_import(&self, resolved: &Path) -> Result<(), Vec<Diagnostic>> {
+    fn reject_dependency_build_import(
+        &self,
+        resolved: &Path,
+        packages: &PackageCompilationInputs,
+    ) -> Result<(), Vec<Diagnostic>> {
         if self.dependency_build_forbidden
-            && resolved.file_name().and_then(|name| name.to_str()) == Some("build.omg")
+            && packages.dependency_build_file(self.package, resolved)
         {
             return Err(vec![Diagnostic::error(format!(
                 "package import in {} may not load dependency build file {}",

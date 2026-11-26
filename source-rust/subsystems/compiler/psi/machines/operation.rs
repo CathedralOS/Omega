@@ -93,6 +93,15 @@ pub enum OperationKind {    ActivateTaskRegister {
         selector: ValueId,
         scratch: StructuralArgument,
     },
+    PackedIntegerUnary {
+        operation: semantic_vocabulary::PackedIntegerUnaryOperation,
+        source: StructuralArgument,
+    },
+    PackedIntegerBinary {
+        operation: semantic_vocabulary::PackedIntegerBinaryOperation,
+        left: StructuralArgument,
+        right: StructuralArgument,
+    },
     ReadTaskRegister {
         service: ServiceId,
     },

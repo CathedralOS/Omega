@@ -6,6 +6,25 @@ use package_compilation::BuildSourcePublications;
 pub(crate) struct BuildRequestOutput {
     pub(crate) log: BuildLog,
     pub(crate) sources: BuildSourcePublications,
+    stream_bytes: u64,
+}
+
+impl BuildRequestOutput {
+    pub(super) fn write_stream(
+        &mut self,
+        bytes: &[u8],
+        limit: u64,
+        account: Option<&EvaluationInvocationAccount>,
+    ) -> Result<(), String> {
+        let consumed = self
+            .stream_bytes
+            .checked_add(u64::try_from(bytes.len()).map_err(|_| "Build stream size overflowed")?)
+            .filter(|total| *total <= limit)
+            .ok_or("Build diagnostic sink byte limit exceeded")?;
+        self.log.append(bytes, false, account)?;
+        self.stream_bytes = consumed;
+        Ok(())
+    }
 }
 
 #[derive(Default)]
@@ -15,16 +34,20 @@ pub(crate) struct BuildLog {
 }
 
 impl BuildLog {
-    pub(super) fn append_line(
+    pub(super) fn append(
         &mut self,
         bytes: &[u8],
+        newline: bool,
         account: Option<&EvaluationInvocationAccount>,
     ) -> Result<(), String> {
         let appended = bytes
             .len()
-            .checked_add(1)
+            .checked_add(usize::from(newline))
             .ok_or("Build log size overflowed")?;
         let count = u64::try_from(appended).map_err(|_| "Build log size overflowed")?;
+        if appended == 0 {
+            return Ok(());
+        }
         let storage = account
             .map(|account| {
                 let storage = account.reserve_site(0, 1, count)?;
@@ -43,7 +66,9 @@ impl BuildLog {
             self.storage.push(storage);
         }
         self.bytes.extend_from_slice(bytes);
-        self.bytes.push(b'\n');
+        if newline {
+            self.bytes.push(b'\n');
+        }
         Ok(())
     }
 

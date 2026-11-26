@@ -21,19 +21,38 @@ use super::{
 };
 use crate::{Unserved, refuse};
 
-pub(super) fn mathematical_sort(
+pub(super) enum DefinitionBinder {
+    Level(SymbolHandle),
+    Value(SymbolHandle, semantic_vocabulary::ScalarType),
+    Type(SymbolHandle),
+}
+
+pub(super) fn is_level_type_reference(
     typed: &crate::source_state::TypedTrees,
-    ty: crate::source_state::mathematical::MathematicalTypeHandle,
-) -> Option<FixedCoreDeclaration> {
-    if !typed.mathematical_types.is_valid(ty) {
-        return None;
-    }
-    let MathematicalType::Ordinary(reference) = typed.mathematical_type(ty) else {
-        return None;
-    };
+    reference: crate::source_state::types::TypeReferenceHandle,
+) -> bool {
     if !typed
         .type_reference_table
-        .contains_type_reference(*reference)
+        .contains_type_reference(reference)
+    {
+        return false;
+    }
+    matches!(
+        typed.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Named { symbol, .. }
+            if typed.symbols.fixed_core_declaration_for_symbol(*symbol)
+                == Some(FixedCoreDeclaration::Level)
+    )
+}
+
+pub(super) fn type_reference_sort_with_levels(
+    typed: &crate::source_state::TypedTrees,
+    reference: crate::source_state::types::TypeReferenceHandle,
+    level_binders: &[SymbolHandle],
+) -> Option<FixedCoreDeclaration> {
+    if !typed
+        .type_reference_table
+        .contains_type_reference(reference)
     {
         return None;
     }
@@ -42,7 +61,7 @@ pub(super) fn mathematical_sort(
         arguments,
         lifetime_arguments,
         ..
-    } = typed.type_reference_table.type_reference(*reference)
+    } = typed.type_reference_table.type_reference(reference)
     else {
         return None;
     };
@@ -67,13 +86,32 @@ pub(super) fn mathematical_sort(
     {
         return None;
     }
-    let TypeReferenceNode::ConstExpression(expression) =
-        typed.type_reference_table.type_reference(*argument)
-    else {
+    let valid_level = match typed.type_reference_table.type_reference(*argument) {
+        TypeReferenceNode::ConstExpression(expression) => {
+            typed.expression_table.expression_is_valid(*expression)
+                && matches!(
+                    typed.expression_table.expression(*expression),
+                    ExpressionNode::Integer(literal) if literal.value_u64() == Some(0)
+                )
+        }
+        TypeReferenceNode::Named { symbol, .. } => level_binders.contains(symbol),
+        _ => false,
+    };
+    valid_level.then_some(sort)
+}
+
+pub(super) fn mathematical_sort_with_levels(
+    typed: &crate::source_state::TypedTrees,
+    ty: crate::source_state::mathematical::MathematicalTypeHandle,
+    level_binders: &[SymbolHandle],
+) -> Option<FixedCoreDeclaration> {
+    if !typed.mathematical_types.is_valid(ty) {
+        return None;
+    }
+    let MathematicalType::Ordinary(reference) = typed.mathematical_type(ty) else {
         return None;
     };
-    (typed.expression_table.expression_is_valid(*expression)
-            && matches!(typed.expression_table.expression(*expression), ExpressionNode::Integer(literal) if literal.value_u64() == Some(0))).then_some(sort)
+    type_reference_sort_with_levels(typed, *reference, level_binders)
 }
 
 impl<'t> Program<'t> {
@@ -143,9 +181,17 @@ impl<'t> Program<'t> {
         if call.receiver.is_valid() || !call.evidence_arguments.is_empty() {
             return Err(unserved("open mathematical premise application"));
         }
-        // Each value binder stands for the static argument the call writes
-        // for it, which is bound before the ordinary formals.
-        let binders = self.definition_value_binders(id, definition)?;
+        // Each binder stands for the static argument the call writes for it,
+        // which is bound before the ordinary formals.
+        let binders = self.definition_binders(id, definition)?;
+        let level_binders: Vec<SymbolHandle> = binders
+            .iter()
+            .filter_map(|binder| match binder {
+                DefinitionBinder::Level(symbol) => Some(*symbol),
+                _ => None,
+            })
+            .collect();
+        let mut actual_inputs = MathematicalInputs::empty();
         let mut bound = if binders.is_empty() {
             if !call.machine_arguments.is_empty() {
                 return Err(unserved("open mathematical premise application"));
@@ -158,18 +204,66 @@ impl<'t> Program<'t> {
             )?;
             Vec::new()
         } else {
-            if call.machine_arguments.len() != binders.len() {
-                return Err(unserved(
-                    "mathematical premise without an argument for each binder",
-                ));
-            }
-            // A definition's application keeps no binding tuple: each
-            // argument is the binder's in written order, read as any static
-            // value at its carrier; a binder of the machine being read
-            // stands for its input (`bound_scalar_value`).
-            let mut bound = Vec::with_capacity(binders.len());
-            for (&(symbol, scalar), argument) in binders.iter().zip(&call.machine_arguments) {
-                bound.push((symbol, self.bound_scalar_value(id, scalar, argument, true)?));
+            // Leading `core\Level` binders may be elided at the call site
+            // (e.g. `IsMere(R(a, b))`). Every remaining binder receives an
+            // explicit static argument in written order.
+            let leading_levels = binders
+                .iter()
+                .take_while(|binder| matches!(binder, DefinitionBinder::Level(_)))
+                .count();
+            let elided = binders
+                .len()
+                .checked_sub(call.machine_arguments.len())
+                .filter(|&missing| missing <= leading_levels)
+                .ok_or_else(|| {
+                    unserved("mathematical premise without an argument for each binder")
+                })?;
+            let matched_binders = &binders[elided..];
+            let mut bound = Vec::with_capacity(matched_binders.len());
+            for (binder, argument) in matched_binders.iter().zip(&call.machine_arguments) {
+                match binder {
+                    DefinitionBinder::Level(_) => {
+                        let valid_level = argument
+                            .const_literal
+                            .as_ref()
+                            .is_some_and(|literal| literal.to_string() == "0")
+                            || (argument.symbol.is_valid()
+                                && self
+                                    .typed
+                                    .symbols
+                                    .symbols()
+                                    .nodes()
+                                    .is_valid(argument.symbol)
+                                && self.typed.symbols.get(argument.symbol).kind
+                                    == symbols::SymbolKind::TypeParameter);
+                        if !valid_level {
+                            return Err(unserved(
+                                "mathematical premise level binder without a level argument",
+                            ));
+                        }
+                    }
+                    DefinitionBinder::Value(symbol, scalar) => {
+                        bound.push((
+                            *symbol,
+                            self.bound_scalar_value(id, *scalar, argument, true)?,
+                        ));
+                    }
+                    DefinitionBinder::Type(symbol) => {
+                        if argument.const_literal.is_some()
+                            || (!argument.symbol.is_valid() && argument.application.is_none())
+                        {
+                            return Err(unserved(
+                                "mathematical premise type binder without a type argument",
+                            ));
+                        }
+                        if argument.symbol.is_valid()
+                            && let Some(logical) = scope.logical
+                            && let Some(body) = logical.type_argument(argument.symbol)
+                        {
+                            actual_inputs.bind_type(*symbol, body.clone());
+                        }
+                    }
+                }
             }
             bound
         };
@@ -208,7 +302,6 @@ impl<'t> Program<'t> {
             return Err(unserved("mathematical premise argument correspondence"));
         }
         bound.reserve(parameters.len());
-        let mut actual_inputs = MathematicalInputs::empty();
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if !self.typed.mathematical_types.is_valid(parameter.ty) {
                 return Err(unserved("mathematical premise input has no formed type"));
@@ -217,8 +310,8 @@ impl<'t> Program<'t> {
             else {
                 return Err(unserved("higher-order mathematical premise input"));
             };
-            if parameter.relevance == language_core::BindingRelevance::Erased
-                && mathematical_sort(self.typed, parameter.ty) == Some(FixedCoreDeclaration::Type)
+            if mathematical_sort_with_levels(self.typed, parameter.ty, &level_binders)
+                == Some(FixedCoreDeclaration::Type)
             {
                 // Form both endpoints even if the callee discards this type.
                 let actual = self
@@ -242,6 +335,8 @@ impl<'t> Program<'t> {
                             .map(|term| (parameter.symbol, term.clone()));
                         self.retain_call_arguments(id, scalars)?;
                     }
+                    MathematicalPredicateBody::Proposition(_)
+                        if parameter.relevance == language_core::BindingRelevance::Relevant => {}
                     MathematicalPredicateBody::Proposition(_) => {
                         return Err(unserved("erased type argument has no type formation"));
                     }
@@ -258,19 +353,14 @@ impl<'t> Program<'t> {
             let (term, actual) = self
                 .clause_term(id, scope, *argument, ClauseUse::Scalar(Some(scalar)))?
                 .scalar(id)?;
-            if actual
-                != crate::body::ValueType::Scalar(
-                    scalar,
-                    crate::body::Qualification::NONE,
-                )
-            {
+            if actual != crate::body::ValueType::Scalar(scalar, crate::body::Qualification::NONE) {
                 return Err(unserved("mathematical premise input carrier differs"));
             }
             bound.push((parameter.symbol, term));
         }
         let address = MathematicalAddressContext::of(scope);
         let expanding = scope.logical.map_or(&[][..], |logical| logical.expanding);
-        let expression =
+        let body =
             self.mathematical_predicate_definition(id, definition_index, address, expanding)?;
         let mut expanding = expanding.to_vec();
         expanding.push(definition.symbol);
@@ -284,7 +374,7 @@ impl<'t> Program<'t> {
             formal_fields: true,
             logical: Some(actual_inputs.scope(id, address, &expanding)),
         };
-        self.definition_body(id, &scope, definition, expression)
+        self.definition_body(id, &scope, definition, body)
     }
 
     fn definition_body(
@@ -292,8 +382,18 @@ impl<'t> Program<'t> {
         id: MachineId,
         scope: &ClauseScope<'_>,
         definition: &MathematicalDefinition,
-        expression: ExpressionHandle,
+        body: MathematicalBody,
     ) -> Checked<MathematicalPredicateBody> {
+        if let MathematicalBody::DependentArrow { binders, body } = body {
+            return self.dependent_arrow_body(id, scope, binders, body);
+        }
+        let MathematicalBody::Definition(expression) = body else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("uninterpreted mathematical premise theory"),
+            ));
+        };
         if self.predicate_result(definition) != Some(FixedCoreDeclaration::Type) {
             return self
                 .clause(id, scope, expression)
@@ -301,6 +401,100 @@ impl<'t> Program<'t> {
         }
         self.clause_term(id, scope, expression, ClauseUse::ProofRelevantType)?
             .type_body(id)
+    }
+
+    /// Reads the dependent-arrow body `(p: P) -> (q: P) -> core\Identity::<P>(p, q)`
+    /// of `IsMere`. When `P` is bound to a concrete proposition, produces
+    /// `Proposition::IsMere`; during declaration validation when `P` is a
+    /// type parameter slot, retains that slot.
+    fn dependent_arrow_body(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        binders: arena::HandleSpan<crate::source_state::mathematical::MathematicalParameter>,
+        body: ExpressionHandle,
+    ) -> Checked<MathematicalPredicateBody> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let typed = self.typed;
+        let arrow_binders = typed.mathematical_parameters(binders);
+        let mut arrow_iter = arrow_binders.iter();
+        let (Some(first), Some(second), None) =
+            (arrow_iter.next(), arrow_iter.next(), arrow_iter.next())
+        else {
+            return Err(unserved(
+                "dependent-arrow mathematical definition other than IsMere",
+            ));
+        };
+        let domain_symbol = |ty| match typed.mathematical_type(ty) {
+            MathematicalType::Ordinary(reference) => {
+                match typed.type_reference_table.type_reference(*reference) {
+                    TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let (Some(first_domain), Some(second_domain)) =
+            (domain_symbol(first.ty), domain_symbol(second.ty))
+        else {
+            return Err(unserved(
+                "dependent-arrow mathematical definition with non-named domain",
+            ));
+        };
+        if first_domain != second_domain {
+            return Err(unserved(
+                "dependent-arrow mathematical definition with distinct domains",
+            ));
+        }
+        let ExpressionNode::Call(call) = typed.expression_table.expression(body) else {
+            return Err(unserved(
+                "dependent-arrow mathematical definition body is not core\\Identity",
+            ));
+        };
+        if typed
+            .symbols
+            .fixed_core_declaration_for_symbol(call.target_symbol)
+            != Some(FixedCoreDeclaration::Identity)
+            || call.receiver.is_valid()
+            || !call.evidence_arguments.is_empty()
+            || call.machine_arguments.len() != 1
+            || call.machine_arguments[0].symbol != first_domain
+        {
+            return Err(unserved(
+                "dependent-arrow mathematical definition body is not core\\Identity::<P>(p, q)",
+            ));
+        }
+        let args = typed.expression_table.expression_handles(call.arguments);
+        let [left, right] = args else {
+            return Err(unserved(
+                "dependent-arrow core\\Identity must take two witnesses",
+            ));
+        };
+        let is_binder = |expr, expected| {
+            matches!(
+                typed.expression_table.expression(expr),
+                ExpressionNode::Name(name) if name.symbol == expected
+            )
+        };
+        if !is_binder(*left, first.symbol) || !is_binder(*right, second.symbol) {
+            return Err(unserved(
+                "dependent-arrow core\\Identity must equate its two binders",
+            ));
+        }
+        let bound_type = scope
+            .logical
+            .and_then(|logical| logical.type_argument(first_domain))
+            .ok_or_else(|| unserved("dependent-arrow domain is not a bound type parameter"))?;
+        match bound_type {
+            MathematicalPredicateBody::Proposition(proposition) => {
+                Ok(MathematicalPredicateBody::Proposition(Proposition::IsMere(
+                    Box::new(proposition.clone()),
+                )))
+            }
+            MathematicalPredicateBody::TypeParameter(slot) => {
+                Ok(MathematicalPredicateBody::TypeParameter(*slot))
+            }
+        }
     }
 
     pub(super) fn mathematical_definition_sort(
@@ -320,7 +514,7 @@ impl<'t> Program<'t> {
         definition_index: usize,
         address: MathematicalAddressContext<'_>,
         expanding: &[SymbolHandle],
-    ) -> Checked<ExpressionHandle> {
+    ) -> Checked<MathematicalBody> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let definition = self
             .typed
@@ -338,7 +532,7 @@ impl<'t> Program<'t> {
         {
             return Err(unserved("mathematical predicate has no exact declaration"));
         }
-        let binders = self.definition_value_binders(id, definition)?;
+        let binders = self.definition_binders(id, definition)?;
         let parameters = self.typed.mathematical_parameters(definition.parameters);
         if parameters.len() != definition.parameters.len() {
             return Err(unserved("mathematical predicate formal correspondence"));
@@ -348,17 +542,18 @@ impl<'t> Program<'t> {
                 "mathematical premise needs a formed Core Strict<0> or Type<0> result",
             ));
         }
-        let MathematicalBody::Definition(expression) = definition.body else {
+        let body = definition.body.clone();
+        if matches!(body, MathematicalBody::Assumption) {
             return Err(unserved("uninterpreted mathematical premise theory"));
-        };
+        }
         if expanding.contains(&definition.symbol) {
             return Err(unserved("recursive mathematical premise theory"));
         }
         let mut expanding = expanding.to_vec();
         expanding.push(definition.symbol);
-        // This environment has only the declaration's value binders and
-        // formals. Actual argument terms enter later by exact symbol
-        // substitution, without caller assumptions.
+        // This environment has only the declaration's binders and formals.
+        // Actual argument terms enter later by exact symbol substitution,
+        // without caller assumptions.
         let formal_inputs =
             MathematicalInputs::with_binders(self.typed, id, &binders, parameters, address)?;
         let declaration_scope = ClauseScope {
@@ -371,7 +566,7 @@ impl<'t> Program<'t> {
             formal_fields: true,
             logical: Some(formal_inputs.scope(id, address, &expanding)),
         };
-        let formed = self.definition_body(id, &declaration_scope, definition, expression)?;
+        let formed = self.definition_body(id, &declaration_scope, definition, body.clone())?;
         let parameters = formal_inputs.validate_body(id, &formed)?;
         let type_parameters = formal_inputs.type_parameter_ordinals();
         let output = self
@@ -397,42 +592,46 @@ impl<'t> Program<'t> {
                 body: formed,
             });
         }
-        Ok(expression)
+        Ok(body)
     }
 
-    /// The value binders of a definition, each with its scalar carrier, in
-    /// declared order. A binder of a type or a level is refused, and so is
-    /// a definition with binders that also takes an erased type formal,
-    /// whose formal ordinal would no longer be its position.
-    fn definition_value_binders(
+    /// The level, value, and type binders of a definition, in declared order.
+    fn definition_binders(
         &self,
         id: MachineId,
         definition: &MathematicalDefinition,
-    ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
+    ) -> Checked<Vec<DefinitionBinder>> {
         use crate::source_state::data::TypeParameterKind;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let typed = self.typed;
         let declared = typed.data_type_parameters.span_or_empty(definition.binders);
         let mut binders = Vec::with_capacity(declared.len());
+        let mut level_binders = Vec::new();
         for binder in declared.iter() {
-            let (TypeParameterKind::Value { type_reference }
-            | TypeParameterKind::Const { type_reference }) = binder.kind
-            else {
-                return Err(unserved(
-                    "open mathematical predicate declaration over a type or level binder",
-                ));
-            };
-            binders.push((binder.symbol, self.scalar_type(id, type_reference)?));
-        }
-        if !binders.is_empty()
-            && typed
-                .mathematical_parameters(definition.parameters)
-                .iter()
-                .any(|parameter| parameter.relevance == language_core::BindingRelevance::Erased)
-        {
-            return Err(unserved(
-                "open mathematical predicate declaration with an erased formal",
-            ));
+            match binder.kind {
+                TypeParameterKind::Type => binders.push(DefinitionBinder::Type(binder.symbol)),
+                TypeParameterKind::Value { type_reference }
+                | TypeParameterKind::Const { type_reference } => {
+                    if is_level_type_reference(typed, type_reference) {
+                        level_binders.push(binder.symbol);
+                        binders.push(DefinitionBinder::Level(binder.symbol));
+                    } else if type_reference_sort_with_levels(typed, type_reference, &level_binders)
+                        == Some(FixedCoreDeclaration::Type)
+                    {
+                        binders.push(DefinitionBinder::Type(binder.symbol));
+                    } else {
+                        binders.push(DefinitionBinder::Value(
+                            binder.symbol,
+                            self.scalar_type(id, type_reference)?,
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(unserved(
+                        "open mathematical predicate declaration over an unsupported binder",
+                    ));
+                }
+            }
         }
         Ok(binders)
     }
@@ -441,7 +640,23 @@ impl<'t> Program<'t> {
         &self,
         definition: &MathematicalDefinition,
     ) -> Option<FixedCoreDeclaration> {
-        mathematical_sort(self.typed, definition.result)
+        use crate::source_state::data::TypeParameterKind;
+        let level_binders: Vec<SymbolHandle> = self
+            .typed
+            .data_type_parameters
+            .span_or_empty(definition.binders)
+            .iter()
+            .filter_map(|binder| match binder.kind {
+                TypeParameterKind::Value { type_reference }
+                | TypeParameterKind::Const { type_reference }
+                    if is_level_type_reference(self.typed, type_reference) =>
+                {
+                    Some(binder.symbol)
+                }
+                _ => None,
+            })
+            .collect();
+        mathematical_sort_with_levels(self.typed, definition.result, &level_binders)
     }
 }
 

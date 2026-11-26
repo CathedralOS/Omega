@@ -25,16 +25,7 @@ Claim Ticket: `b5becca237e84675af8d8e357421e5a9`
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`, and carries `expected_native_exit.txt` (`0`). Run each positive program with `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/ieee_float_32bit_ordered_bound/main.omg
-omega run --both samples/cli/facts/ieee_float_32bit_ordered_bound/local/main.omg
-omega run --both samples/cli/facts/ieee_float_32bit_ordered_bound/field/main.omg
-omega run --both samples/cli/facts/ieee_float_32bit_ordered_bound/parameter/main.omg
-omega run --both samples/cli/facts/ieee_float_32bit_ordered_bound/call_result/main.omg
-omega run --both samples/cli/facts/ieee_float_32bit_ordered_bound/match_join/main.omg
-omega run --both samples/cli/facts/ieee_float_32bit_ordered_bound/const_name/main.omg
-omega run --both samples/cli/facts/ieee_float_32bit_ordered_bound/other_state/main.omg
-omega run --both samples/cli/facts/ieee_float_32bit_ordered_bound/other_machine/main.omg
-omega run --both samples/cli/facts/ieee_float_32bit_ordered_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/ieee_float_32bit_ordered_bound
 ```
 
 All ten positive programs produce `native exit 0` and `interp exit: 0`.

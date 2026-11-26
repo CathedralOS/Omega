@@ -230,7 +230,8 @@ fn a_formal_and_its_membership_contract_select_the_same_qualified_indices() {
          domain<T> Segment<T>::Stored<T>;
          data Kept = Segment<Count> in Stored<Count>;
          domain<T> Kept::Side<T>;
-         machine take(x: Segment<Count> in Side<Count> & Stored<Count>) -> Kept in Side<Count> { x }",
+         machine take(x: Segment<Count> in Side<Count> & Stored<Count>) -> Kept in Side<Count> { x }
+         machine take_alias(x: Kept in Side<Count>) -> Kept in Side<Count> { x }",
     );
     let typed = crate::lower_symbol_resolved_trees(&resolved).unwrap();
     let machine = typed
@@ -254,21 +255,25 @@ fn a_formal_and_its_membership_contract_select_the_same_qualified_indices() {
             (domain.symbol, domain.semantic_id)
         })
         .collect();
-    let required: Vec<_> = typed
-        .state_contracts(state)
-        .iter()
-        .flat_map(|contract| typed.proof_facts.span_or_empty(contract.facts))
-        .map(|fact| {
-            let membership = fact.as_membership().unwrap();
-            (membership.domain_symbol, membership.semantic_domain)
-        })
-        .collect();
     assert_eq!(declared.len(), 2);
-    assert_eq!(required.len(), 2);
-    for membership in declared {
-        assert!(
-            required.contains(&membership),
-            "missing {membership:?} in {required:?}"
-        );
+    for machine in typed.machines().iter() {
+        let state = &typed.machine_states(machine)[0];
+        let required: Vec<_> = typed
+            .state_contracts(state)
+            .iter()
+            .flat_map(|contract| typed.proof_facts.span_or_empty(contract.facts))
+            .map(|fact| {
+                let membership = fact.as_membership().unwrap();
+                (membership.domain_symbol, membership.semantic_domain)
+            })
+            .collect();
+        assert_eq!(required.len(), declared.len(), "{}", machine.name.as_str());
+        for membership in &declared {
+            assert!(
+                required.contains(membership),
+                "{} lost {membership:?} in {required:?}",
+                machine.name.as_str()
+            );
+        }
     }
 }

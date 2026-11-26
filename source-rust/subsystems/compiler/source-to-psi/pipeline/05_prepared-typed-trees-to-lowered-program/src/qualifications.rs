@@ -32,8 +32,7 @@ pub(crate) fn domain_identity(
     instance: DomainInstance,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
-    let declaration =
-        crate::declare::nominal(typed, sources, instance.declaration, identities)?;
+    let declaration = crate::declare::nominal(typed, sources, instance.declaration, identities)?;
     let exact = identities
         .text(declaration)
         .ok_or("domain application lost its retained declaration identity")?;
@@ -126,7 +125,8 @@ pub(crate) fn publish_access_plans(
                 identity
             };
             let mut matches = module
-                .types.structural_domains
+                .types
+                .structural_domains
                 .iter_mut()
                 .filter(|row| row.identity == identity && row.carrier == carrier);
             let domain = matches
@@ -269,9 +269,8 @@ fn establishment_routes(
                         (*symbol == *machine).then_some((body, ordinal))
                     }),
                 );
-                let declaration =
-                    crate::declare::semantic_identity(typed, *machine, builder)
-                        .map_err(unavailable)?;
+                let declaration = crate::declare::semantic_identity(typed, *machine, builder)
+                    .map_err(unavailable)?;
                 let machine = typed
                     .machine_by_symbol(*machine)
                     .ok_or_else(|| unavailable("domain issuer has no declaration"))?;
@@ -362,7 +361,10 @@ fn establishment_routes(
 
 impl Qualifications {
     pub(crate) fn scalar_domain_id(&self, instance: DomainInstance) -> Option<ScalarDomainId> {
-        self.domains.iter().find(|(declared, _)| *declared == instance).map(|(_, id)| *id)
+        self.domains
+            .iter()
+            .find(|(declared, _)| *declared == instance)
+            .map(|(_, id)| *id)
     }
 
     /// The module identity assigned to this domain application on its exact carrier.
@@ -414,10 +416,9 @@ impl Qualifications {
         let unavailable = |what| refuse(machine, Construct::Machine, Unserved::Contract(what));
         Ok(match &membership.subject {
             RuntimeMembershipSubject::Scalar(subject) => {
-                let domain = self.scalar_domain_id(membership.domain)
-                    .ok_or_else(|| {
-                        unavailable("runtime scalar membership lost its exact domain")
-                    })?;
+                let domain = self.scalar_domain_id(membership.domain).ok_or_else(|| {
+                    unavailable("runtime scalar membership lost its exact domain")
+                })?;
                 terminal_psi::RuntimeDomainMembership::Scalar {
                     subject: subject.clone(),
                     domain,
@@ -575,7 +576,8 @@ impl Qualifications {
             let builder = &mut result.identities;
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
-            let definition = source.domain_theory_in_scope(diagnostic, symbol, declared.schema_source())?;
+            let definition =
+                source.domain_theory_in_scope(diagnostic, symbol, declared.schema_source())?;
             if definition.access_policy.as_ref().is_some_and(|policy| {
                 policy
                     .plan_without_supply()
@@ -817,7 +819,8 @@ impl Qualifications {
         let ValueType::Record(carrier, _, _) = declared.carrier else {
             return Err(unavailable("structural domain has a nonstructural carrier"));
         };
-        let definition = source.domain_theory_in_scope(diagnostic, symbol, declared.schema_source())?;
+        let definition =
+            source.domain_theory_in_scope(diagnostic, symbol, declared.schema_source())?;
         // A complete empty theory has an explicit Truth predicate in the
         // saved representation. None continues to mean unavailable theory.
         let predicate = declared
@@ -1021,6 +1024,61 @@ impl Qualifications {
                     Unserved::Type("scalar qualification set has no declaration"),
                 )
             })
+    }
+
+    fn resolve_scalar_domains(
+        &self,
+        machine: MachineId,
+        carrier: ScalarType,
+        qualification: Qualification,
+    ) -> Checked<Vec<ScalarDomainId>> {
+        let unavailable = |detail| refuse(machine, Construct::Machine, Unserved::Type(detail));
+        let mut domains = Vec::with_capacity(DomainSet::CAPACITY);
+        for symbol in qualification.domains.members() {
+            let id = self
+                .domains
+                .iter()
+                .find(|(declared, _)| *declared == symbol)
+                .map(|(_, id)| *id)
+                .ok_or_else(|| {
+                    unavailable("scalar qualification has no retained domain declaration")
+                })?;
+            if self
+                .catalog
+                .domains
+                .iter()
+                .find(|domain| domain.id == id)
+                .is_none_or(|domain| domain.carrier != carrier)
+            {
+                return Err(unavailable("scalar qualification has another carrier"));
+            }
+            domains.push(id);
+        }
+        if qualification.policy.is_some() && !matches!(carrier, ScalarType::Integer(_)) {
+            return Err(unavailable("arithmetic policy on a noninteger carrier"));
+        }
+        domains.sort_unstable();
+        Ok(domains)
+    }
+
+    pub(crate) fn scalar_sets_differ(
+        &self,
+        machine: MachineId,
+        carrier: ScalarType,
+        original: Qualification,
+        updated: Qualification,
+    ) -> Checked<bool> {
+        let before = if original.is_none() {
+            Vec::new()
+        } else {
+            self.resolve_scalar_domains(machine, carrier, original)?
+        };
+        let after = if updated.is_none() {
+            Vec::new()
+        } else {
+            self.resolve_scalar_domains(machine, carrier, updated)?
+        };
+        Ok(original.policy != updated.policy || before != after)
     }
 
     pub fn scalar(

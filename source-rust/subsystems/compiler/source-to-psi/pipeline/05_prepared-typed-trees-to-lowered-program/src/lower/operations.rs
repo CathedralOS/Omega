@@ -535,6 +535,7 @@ impl Lowering<'_> {
             }
             ExpressionKind::ByteLiteral(_)
             | ExpressionKind::Array { .. }
+            | ExpressionKind::PackedInteger { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Case { .. } => Err(self.internal("a data literal has a scalar type")),
             ExpressionKind::Borrow { .. } | ExpressionKind::OwnedTemporary { .. } => {

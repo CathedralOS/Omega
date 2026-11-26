@@ -41,15 +41,15 @@ Every positive place binds `ProgramEntry` for all four hosted targets
 native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
-target/debug/omega run --both samples/cli/facts/predicate_array_copy/local/main.omg
-target/debug/omega run --both samples/cli/facts/predicate_array_copy/field/main.omg
-target/debug/omega run --both samples/cli/facts/predicate_array_copy/parameter/main.omg
-target/debug/omega run --both samples/cli/facts/predicate_array_copy/call_result/main.omg
-target/debug/omega run --both samples/cli/facts/predicate_array_copy/match_join/main.omg
-target/debug/omega run --both samples/cli/facts/predicate_array_copy/const_name/main.omg
-target/debug/omega run --both samples/cli/facts/predicate_array_copy/other_state/main.omg
-target/debug/omega run --both samples/cli/facts/predicate_array_copy/other_machine/main.omg
-target/debug/omega run --both samples/cli/facts/predicate_array_copy/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/local
+mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/field
+mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/parameter
+mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/call_result
+mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/match_join
+mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/const_name
+mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/other_state
+mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/other_machine
+mbx xtask sample-gate --filter samples/cli/facts/predicate_array_copy/target_body
 ```
 
 Run a place with `omega run --both --keep <place>/main.omg`, then independently

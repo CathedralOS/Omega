@@ -154,14 +154,10 @@ mod scalar_call {
                     implicit_unit_clobbers: row.clobbers.clone(),
                     memory: match table {
                         Some((_, byte_offset)) => {
-                            let position =
-                            selected_instructions::calls::constraints::foreign_argument_registers(
-                                &record.call,
-                            )
-                            .iter()
-                            .position(|(parameter, _)| *parameter == 0)?;
+                            use selected_instructions::calls::constraints::table_pointer_register_operand;
+                            let pointer_operand = table_pointer_register_operand(&record.call)?;
                             MachineEncodedMemoryEffect::ReadTableFieldV1 {
-                                pointer_operand: u16::try_from(position).ok()?,
+                                pointer_operand,
                                 byte_offset,
                             }
                         }
@@ -775,6 +771,43 @@ fn encoded_effects(
         | S::CallAggregate
         | S::NormalizedForeignCall
         | S::TrappingInteger(_)
+        | S::PackedAddI16x8
+        | S::PackedSubI16x8
+        | S::PackedShuffleI16x8
+        | S::PackedShuffleGeneralI16x8
+        | S::PackedShiftRightArithmeticI16x8
+        | S::PackedWidenU8x8ToI16x8
+        | S::PackedNarrowI16x8ToU8x8Saturating
+        | S::PackedLoadI16x4ZeroExtend
+        | S::PackedWidenU8x4ToI16x8
+        | S::PackedNarrowI16x8ToU8x4Saturating
+        | S::PackedAddU8x16
+        | S::PackedMinI16x8
+        | S::PackedCmpGtI16x8
+        | S::PackedBitAndI16x8
+        | S::PackedBitAndNotI16x8
+        | S::PackedAbsI16x8
+        | S::PackedLoad128
+        | S::PackedStore128
+        | S::PackedLoad64ZeroExtend
+        | S::PackedStore64
+        | S::PackedLoad32ZeroExtend
+        | S::PackedStore32
+        | S::PackedMaterializeZero
+        | S::PackedFromGpr64ZeroExtend
+        | S::PackedFromGpr64Pair
+        | S::PackedAddI16x8Reg
+        | S::PackedSubI16x8Reg
+        | S::PackedShiftRightArithmeticI16x8Reg
+        | S::PackedShuffleI16x8Reg
+        | S::PackedWidenU8x8ToI16x8Reg
+        | S::PackedNarrowI16x8ToU8x8SaturatingReg
+        | S::PackedAddU8x16Reg
+        | S::PackedMinI16x8Reg
+        | S::PackedCmpGtI16x8Reg
+        | S::PackedBitAndI16x8Reg
+        | S::PackedBitAndNotI16x8Reg
+        | S::PackedAbsI16x8Reg
         | S::PrivilegedCrash
         | S::PortRegisterRead
         | S::PortRegisterWrite

@@ -19,7 +19,7 @@ pub use build_recheck::{
 };
 use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
-    AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint,
+    AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint, ProductEntrySources,
 };
 use package_compilation::source_imports::{ProductQueryInputs, SuppliedBuildLibrary};
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
@@ -69,11 +69,11 @@ pub(super) struct PlanningSource {
 
 /// The opened Product and the exact Build and package graph that admitted it.
 pub struct PlannedProduct {
+    pub(super) supplied_build_libraries: Arc<[SuppliedBuildLibrary]>,
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
     pub(super) runtime_consents: Option<Vec<TerminalPermissionAcceptance>>,
     pub(crate) source: AssembledSyntax,
-    pub(super) generated: Option<source_compiler::SourceExtensionRequest>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(super) suppliers:
         std::collections::BTreeMap<semantic_vocabulary::PackageKeyIdentity, PlannedProduct>,
@@ -165,11 +165,11 @@ impl PlannedProduct {
     }
 
     pub fn attribute_diagnostics(&self, rows: &mut [Diagnostic]) {
-        let sources = self
-            .generated
-            .as_ref()
-            .map_or(&self.source.parsed.files, |extension| &extension.sources);
-        package_compilation::attribute_diagnostics(rows, sources, self.package_inputs());
+        package_compilation::attribute_diagnostics(
+            rows,
+            &self.source.parsed.files,
+            self.package_inputs(),
+        );
     }
 
     pub fn preparation(&self) -> &SourcePreparation {
@@ -200,6 +200,7 @@ pub fn prepare(
     let mut entry = CapturedBuildEntry::Initial(request.root);
     let mut preparations = super::BuildPreparations::default();
     let successor_source;
+    let successor_owner;
     let mut execution = request.execution;
     let (inputs, capture, supplied_libraries) = match request.sources {
         PlanningSources::Captured(capture) => (None, Some(capture), Vec::new()),
@@ -214,9 +215,11 @@ pub fn prepare(
             }
             execution.interpreter_providers = successor.providers;
             successor_source = successor.capture;
+            successor_owner = successor.source_owner;
             preparations = successor.preparations;
             entry = CapturedBuildEntry::Successor {
                 path: request.root,
+                source_owner: successor_owner.as_ref(),
                 previous_build_files: &preparations.files,
             };
             (None, Some(&successor_source), successor.libraries)
@@ -224,7 +227,7 @@ pub fn prepare(
         PlanningSources::Package(inputs) => (Some(inputs), None, Vec::new()),
     };
     let supplied_libraries: Arc<[_]> = supplied_libraries.into();
-    let mut execution = execution.resolve_compilation_defaults(inputs);
+    let mut execution = execution.resolve_compilation_defaults(inputs, capture.is_some());
     let profile = execution.profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Build execution requires an explicit profile on an uncatalogued host",
@@ -273,13 +276,18 @@ pub fn prepare(
     // A dependency Build checks only what its entry reaches, so typing its
     // file under a check-only owner would produce a subject nothing judges.
     let check_only_subject =
-        if execution.checks_whole_subject_first(inputs, assembled.anonymous_owner.is_some()) {
+        if execution.checks_whole_subject_first(inputs, assembled.anonymous_owner.as_ref()) {
             check_only_subject(&assembled, &preparation, profile, &supplied_libraries)?
         } else {
             None
         };
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
+            preceding_entries: preparations.stages.iter().map(|(_, stage)| {
+                stage.configuration.executed_entry.as_ref().map(|entry| &entry.declaration).ok_or_else(|| {
+                    refusal("a preparing Build lost its entered declaration".to_owned())
+                })
+            }).collect::<Result<_, _>>()?,
             execution_purpose: BuildExecutionPurpose::Source,
             root_path: request.root,
             interval: &interval,
@@ -353,7 +361,9 @@ fn resolve(
                 .map(|inputs| {
                     inputs.declaration_scope(build_declarations::DependencyPurpose::Build)
                 })
-                .or_else(|| SuppliedBuildLibrary::declaration_scope(libraries, None))
+                .or_else(|| {
+                    SuppliedBuildLibrary::declaration_scope(libraries, assembled.build_owner())
+                })
                 .map(Arc::new),
         )
         .map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, inputs))
@@ -514,7 +524,15 @@ impl PlanningSource {
             .deferred
             .assemble(
                 inputs,
-                &evaluated.configuration.root_binding_requests,
+                ProductEntrySources {
+                    bindings: &evaluated.configuration.root_binding_requests,
+                    has_registered_tests: evaluated
+                        .configuration
+                        .product_selection_requests
+                        .iter()
+                        .any(|event| event.test_group.is_some()),
+                },
+                &evaluated.configuration.generated_sources,
                 &evaluated.configuration.declared_product_selections,
                 &evaluated.interpreter_providers,
                 &mut self.timings,
@@ -527,33 +545,8 @@ impl PlanningSource {
                 )
             })?
             .1;
-        let generated = if evaluated.configuration.generated_sources.is_empty() {
-            None
-        } else {
-            let inputs = inputs.ok_or_else(|| {
-                refusal(
-                    "generated-source final compilation requires package-aware source custody"
-                        .to_owned(),
-                )
-            })?;
-            let root = inputs.package_root(inputs.root()).ok_or_else(|| {
-                refusal("generated-source handoff has no acquired package root".to_owned())
-            })?;
-            let extension = package_compilation::source_imports::admit_generated_extension(
-                &source.parsed.files,
-                root,
-                Some(inputs.root()),
-                &evaluated.configuration.generated_sources,
-                &mut *self.preparation.catalogue()?,
-            )?;
-            Some(extension.prepare_source_request(
-                &source.parsed.files,
-                inputs,
-                &mut self.timings,
-            )?)
-        };
         Ok(PlannedProduct {
-            generated,
+            supplied_build_libraries: self.supplied_libraries,
             evaluated,
             build_profile: self.profile,
             runtime_consents: None,

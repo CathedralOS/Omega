@@ -733,6 +733,14 @@ pub(crate) mod construction {
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
+        crate::instruction_selection::selection_inlining::inline_and_simplify(
+            &mut functions,
+            environment,
+        )?;
+        crate::instruction_selection::selection_vector_promotion::promote_and_simplify(
+            &mut functions,
+            environment,
+        )?;
         functions.sort_by_key(|function| function.machine);
         Ok(SelectedInstructionPlan {
             contracts: std::sync::Arc::new(
@@ -1808,6 +1816,12 @@ pub(crate) mod parameter_use {
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
                     | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => {
                         *source == place
+                    }
+                    LegalizedScalarInstructionKind::PackedIntegerUnary { source, .. } => {
+                        source.place == place
+                    }
+                    LegalizedScalarInstructionKind::PackedIntegerBinary { left, right, .. } => {
+                        left.place == place || right.place == place
                     }
                     LegalizedScalarInstructionKind::EstablishElementView { source, .. }
                     | LegalizedScalarInstructionKind::ElementViewRead { source, .. }

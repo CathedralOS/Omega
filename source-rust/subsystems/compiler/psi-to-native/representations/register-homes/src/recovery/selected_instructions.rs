@@ -119,6 +119,43 @@ pub(super) fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::Load16Indexed
         | SelectedInstructionKind::Load32Indexed
         | SelectedInstructionKind::Load64Indexed => 253,
+        SelectedInstructionKind::PackedAddI16x8 => 254,
+        SelectedInstructionKind::PackedSubI16x8
+        | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+        | SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
+        | SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+        | SelectedInstructionKind::PackedWidenU8x8ToI16x8
+        | SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating
+        | SelectedInstructionKind::PackedLoadI16x4ZeroExtend
+        | SelectedInstructionKind::PackedWidenU8x4ToI16x8
+        | SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+        | SelectedInstructionKind::PackedLoad128 { .. }
+        | SelectedInstructionKind::PackedStore128 { .. }
+        | SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
+        | SelectedInstructionKind::PackedStore64 { .. }
+        | SelectedInstructionKind::PackedLoad32ZeroExtend { .. }
+        | SelectedInstructionKind::PackedStore32 { .. }
+        | SelectedInstructionKind::PackedMaterializeZero
+        | SelectedInstructionKind::PackedFromGpr64ZeroExtend
+        | SelectedInstructionKind::PackedFromGpr64Pair
+        | SelectedInstructionKind::PackedAddI16x8Reg
+        | SelectedInstructionKind::PackedSubI16x8Reg
+        | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
+        | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
+        | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
+        | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+        | SelectedInstructionKind::PackedAddU8x16
+        | SelectedInstructionKind::PackedMinI16x8
+        | SelectedInstructionKind::PackedCmpGtI16x8
+        | SelectedInstructionKind::PackedBitAndI16x8
+        | SelectedInstructionKind::PackedBitAndNotI16x8
+        | SelectedInstructionKind::PackedAbsI16x8
+        | SelectedInstructionKind::PackedAddU8x16Reg
+        | SelectedInstructionKind::PackedMinI16x8Reg
+        | SelectedInstructionKind::PackedCmpGtI16x8Reg
+        | SelectedInstructionKind::PackedBitAndI16x8Reg
+        | SelectedInstructionKind::PackedBitAndNotI16x8Reg
+        | SelectedInstructionKind::PackedAbsI16x8Reg => 241,
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
@@ -501,6 +538,85 @@ pub(super) fn decode_kind(
         21 => SelectedInstructionKind::Load8Indexed,
         253 => SelectedInstructionKind::from_wide_indexed_load_bytes(cursor.byte()?)
             .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(253))?,
+        254 => SelectedInstructionKind::PackedAddI16x8,
+        241 => match cursor.byte()? {
+            0 => SelectedInstructionKind::PackedSubI16x8,
+            sub @ (1 | 2) => {
+                let lanes: [u8; 8] = cursor.array()?;
+                if lanes.iter().any(|&lane| lane >= 16) {
+                    return Err(FixedViewCopyDecodeError::UnknownInstructionKind(241));
+                }
+                if sub == 1 {
+                    SelectedInstructionKind::PackedShuffleI16x8 { lanes }
+                } else {
+                    SelectedInstructionKind::PackedShuffleGeneralI16x8 { lanes }
+                }
+            }
+            3 => {
+                let count = cursor.byte()?;
+                if count >= 16 {
+                    return Err(FixedViewCopyDecodeError::UnknownInstructionKind(241));
+                }
+                SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { count }
+            }
+            4 => SelectedInstructionKind::PackedWidenU8x8ToI16x8,
+            5 => SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating,
+            6 => SelectedInstructionKind::PackedLoadI16x4ZeroExtend,
+            7 => SelectedInstructionKind::PackedWidenU8x4ToI16x8,
+            8 => SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating,
+            9 => SelectedInstructionKind::PackedLoad128 {
+                byte_offset: cursor.u32()?,
+            },
+            10 => SelectedInstructionKind::PackedStore128 {
+                byte_offset: cursor.u32()?,
+            },
+            11 => SelectedInstructionKind::PackedLoad64ZeroExtend {
+                byte_offset: cursor.u32()?,
+            },
+            12 => SelectedInstructionKind::PackedStore64 {
+                byte_offset: cursor.u32()?,
+            },
+            13 => SelectedInstructionKind::PackedLoad32ZeroExtend {
+                byte_offset: cursor.u32()?,
+            },
+            14 => SelectedInstructionKind::PackedStore32 {
+                byte_offset: cursor.u32()?,
+            },
+            15 => SelectedInstructionKind::PackedMaterializeZero,
+            16 => SelectedInstructionKind::PackedFromGpr64ZeroExtend,
+            17 => SelectedInstructionKind::PackedFromGpr64Pair,
+            18 => SelectedInstructionKind::PackedAddI16x8Reg,
+            19 => SelectedInstructionKind::PackedSubI16x8Reg,
+            20 => {
+                let count = cursor.byte()?;
+                if count >= 16 {
+                    return Err(FixedViewCopyDecodeError::UnknownInstructionKind(241));
+                }
+                SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { count }
+            }
+            21 => {
+                let lanes: [u8; 8] = cursor.array()?;
+                if lanes.iter().any(|&lane| lane >= 16) {
+                    return Err(FixedViewCopyDecodeError::UnknownInstructionKind(241));
+                }
+                SelectedInstructionKind::PackedShuffleI16x8Reg { lanes }
+            }
+            22 => SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg,
+            23 => SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg,
+            24 => SelectedInstructionKind::PackedAddU8x16,
+            25 => SelectedInstructionKind::PackedMinI16x8,
+            26 => SelectedInstructionKind::PackedCmpGtI16x8,
+            27 => SelectedInstructionKind::PackedBitAndI16x8,
+            28 => SelectedInstructionKind::PackedBitAndNotI16x8,
+            29 => SelectedInstructionKind::PackedAbsI16x8,
+            30 => SelectedInstructionKind::PackedAddU8x16Reg,
+            31 => SelectedInstructionKind::PackedMinI16x8Reg,
+            32 => SelectedInstructionKind::PackedCmpGtI16x8Reg,
+            33 => SelectedInstructionKind::PackedBitAndI16x8Reg,
+            34 => SelectedInstructionKind::PackedBitAndNotI16x8Reg,
+            35 => SelectedInstructionKind::PackedAbsI16x8Reg,
+            _ => return Err(FixedViewCopyDecodeError::UnknownInstructionKind(241)),
+        },
         59 => SelectedInstructionKind::CopyBytes,
         5 => SelectedInstructionKind::ExactAddI64 {
             obligation: decode_id(cursor, ObligationId::new)?,
@@ -634,6 +750,7 @@ mod tests {
                 45,
             ),
             (SelectedInstructionKind::Load8Indexed, 21),
+            (SelectedInstructionKind::PackedAddI16x8, 254),
             (SelectedInstructionKind::CopyBytes, 59),
             (SelectedInstructionKind::ZeroBytes, 235),
             (SelectedInstructionKind::LoadEncodedScalar, 236),
@@ -643,6 +760,55 @@ mod tests {
             let mut bytes = Vec::new();
             encode_kind(&mut bytes, kind);
             assert_eq!(bytes, [tag]);
+            assert_eq!(decode_kind(&mut Cursor::new(&bytes)).unwrap(), kind);
+        }
+        for kind in [
+            SelectedInstructionKind::PackedSubI16x8,
+            SelectedInstructionKind::PackedShuffleI16x8 {
+                lanes: [0, 8, 1, 9, 2, 10, 3, 11],
+            },
+            SelectedInstructionKind::PackedShuffleGeneralI16x8 {
+                lanes: [15, 0, 14, 1, 13, 2, 12, 3],
+            },
+            SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { count: 6 },
+            SelectedInstructionKind::PackedWidenU8x8ToI16x8,
+            SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating,
+            SelectedInstructionKind::PackedLoadI16x4ZeroExtend,
+            SelectedInstructionKind::PackedWidenU8x4ToI16x8,
+            SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating,
+            SelectedInstructionKind::PackedLoad128 { byte_offset: 32 },
+            SelectedInstructionKind::PackedStore128 { byte_offset: 16 },
+            SelectedInstructionKind::PackedLoad64ZeroExtend { byte_offset: 8 },
+            SelectedInstructionKind::PackedStore64 { byte_offset: 24 },
+            SelectedInstructionKind::PackedLoad32ZeroExtend { byte_offset: 4 },
+            SelectedInstructionKind::PackedStore32 { byte_offset: 12 },
+            SelectedInstructionKind::PackedMaterializeZero,
+            SelectedInstructionKind::PackedFromGpr64ZeroExtend,
+            SelectedInstructionKind::PackedFromGpr64Pair,
+            SelectedInstructionKind::PackedAddI16x8Reg,
+            SelectedInstructionKind::PackedSubI16x8Reg,
+            SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { count: 6 },
+            SelectedInstructionKind::PackedShuffleI16x8Reg {
+                lanes: [0, 8, 1, 9, 2, 10, 3, 11],
+            },
+            SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg,
+            SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg,
+            SelectedInstructionKind::PackedAddU8x16,
+            SelectedInstructionKind::PackedMinI16x8,
+            SelectedInstructionKind::PackedCmpGtI16x8,
+            SelectedInstructionKind::PackedBitAndI16x8,
+            SelectedInstructionKind::PackedBitAndNotI16x8,
+            SelectedInstructionKind::PackedAbsI16x8,
+            SelectedInstructionKind::PackedAddU8x16Reg,
+            SelectedInstructionKind::PackedMinI16x8Reg,
+            SelectedInstructionKind::PackedCmpGtI16x8Reg,
+            SelectedInstructionKind::PackedBitAndI16x8Reg,
+            SelectedInstructionKind::PackedBitAndNotI16x8Reg,
+            SelectedInstructionKind::PackedAbsI16x8Reg,
+        ] {
+            let mut bytes = Vec::new();
+            encode_kind(&mut bytes, kind);
+            assert_eq!(bytes[0], 241);
             assert_eq!(decode_kind(&mut Cursor::new(&bytes)).unwrap(), kind);
         }
     }

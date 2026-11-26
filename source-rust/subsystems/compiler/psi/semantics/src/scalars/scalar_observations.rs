@@ -69,6 +69,7 @@ pub fn storage_alignment_fact(
             OperationKind::EstablishPrimitiveLocal { .. }
                 | OperationKind::EstablishStructuralLocal {}
                 | OperationKind::EstablishZeroedStructural {}
+                | OperationKind::PackedIntegerUnary { .. } | OperationKind::PackedIntegerBinary { .. }
                 | OperationKind::EstablishScalarArray { .. }
                 | OperationKind::EstablishStructuralArray { .. }
                 | OperationKind::EstablishRecord { .. }
@@ -213,7 +214,18 @@ pub fn structural_read_type_with_extents<'a>(
                 };
                 let field = exactly_one(fields.iter(), |field| field.id == *identity)?;
                 if field.relevance.is_erased() {
-                    return None;
+                    let StructuralFieldType::Erased {
+                        scalar: Some(scalar),
+                        ..
+                    } = &field.field_type
+                    else {
+                        return None;
+                    };
+                    if position + 1 != path.len() {
+                        return None;
+                    }
+                    target = Target::Scalar(*scalar);
+                    continue;
                 }
                 target = match &field.field_type {
                     StructuralFieldType::Structural(child) => Target::Declaration(*child),

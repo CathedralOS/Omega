@@ -266,6 +266,10 @@ pub(crate) mod proposition_encoding {
         match proposition {
             Proposition::Truth => bytes.u8(1),
             Proposition::Falsehood => bytes.u8(2),
+            Proposition::IsMere(inner) => {
+                bytes.u8(24);
+                encode_proposition(bytes, inner);
+            }
             Proposition::Atom(id) => {
                 bytes.u8(3);
                 bytes.id(*id);
@@ -524,7 +528,11 @@ pub(crate) mod proposition_encoding {
     pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) {
         use ScalarTerm as S;
         match term {
-            S::DeclarationApplication { declaration, arguments, scalar_type } => {
+            S::DeclarationApplication {
+                declaration,
+                arguments,
+                scalar_type,
+            } => {
                 bytes.u8(45);
                 encode_clause_declaration(bytes, *declaration);
                 encode_scalar_type(bytes, *scalar_type);
@@ -996,6 +1004,18 @@ pub(crate) mod proposition_encoding {
             let mut bytes = CanonicalBytes::collect();
             encode_proposition(&mut bytes, &proposition);
             bytes.finish()
+        }
+
+        #[test]
+        fn mere_proposition_identity_includes_its_operand() {
+            let encoded = |proposition| {
+                let mut bytes = CanonicalBytes::collect();
+                encode_proposition(&mut bytes, &proposition);
+                bytes.finish()
+            };
+            let mere = |inner| Proposition::IsMere(Box::new(inner));
+            assert_ne!(encoded(mere(Proposition::Truth)), encoded(Proposition::Truth));
+            assert_ne!(encoded(mere(Proposition::Truth)), encoded(mere(Proposition::Falsehood)));
         }
 
         #[test]
@@ -2538,7 +2558,7 @@ pub(crate) mod structural_encoding {
                 bytes.u8(4);
                 bytes.id(*value);
             }
-            StructuralFieldType::Erased { type_identity } => {
+            StructuralFieldType::Erased { type_identity, .. } => {
                 bytes.u8(5);
                 bytes.u32(type_identity.0);
             }
@@ -3577,6 +3597,8 @@ pub(crate) mod operation_encoding {
             | O::EstablishAccessReference { .. }
             | O::ReleaseReference { .. }
             | abstract_operations::move_or_store_structural_field_pattern!()
+            | O::PackedIntegerUnary { .. }
+            | O::PackedIntegerBinary { .. }
             | O::StructuralLeafCopy { .. }
             | O::MoveStructuralValue { .. }
             | O::DecomposeStructuralValue { .. }
@@ -5572,6 +5594,69 @@ pub(crate) mod operation_encoding {
                     tag!(bytes, 123, psi_operation);
                     encode_structural_operation_result(bytes, result);
                     encode_structural_argument(bytes, source);
+                }
+                O::PackedIntegerUnary {
+                    psi_operation,
+                    result,
+                    operation,
+                    source,
+                } => {
+                    tag!(bytes, 181, psi_operation);
+                    match operation {
+                        semantic_vocabulary::PackedIntegerUnaryOperation::ShiftRightArithmeticI16x8 { count } => {
+                            bytes.u8(0);
+                            bytes.u8(*count);
+                        }
+                        semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x8ToI16x8 => bytes.u8(1),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x8Saturating => bytes.u8(2),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::LoadI16x4ZeroExtend => bytes.u8(3),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x4ToI16x8 => bytes.u8(4),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating => bytes.u8(5),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::AbsI16x8 => bytes.u8(6),
+                    }
+                    encode_structural_operation_result(bytes, result);
+                    encode_structural_argument(bytes, source);
+                }
+                O::PackedIntegerBinary {
+                    psi_operation,
+                    result,
+                    operation,
+                    left,
+                    right,
+                } => {
+                    tag!(bytes, 180, psi_operation);
+                    match operation {
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8 => {
+                            bytes.u8(0)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingSubI16x8 => {
+                            bytes.u8(1)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::ShuffleI16x8 {
+                            lanes,
+                        } => {
+                            bytes.u8(2);
+                            for lane in lanes {
+                                bytes.u8(*lane);
+                            }
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddU8x16 => {
+                            bytes.u8(3)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::MinI16x8 => bytes.u8(4),
+                        semantic_vocabulary::PackedIntegerBinaryOperation::CmpGtI16x8 => {
+                            bytes.u8(5)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::BitAndI16x8 => {
+                            bytes.u8(6)
+                        }
+                        semantic_vocabulary::PackedIntegerBinaryOperation::BitAndNotI16x8 => {
+                            bytes.u8(7)
+                        }
+                    }
+                    encode_structural_operation_result(bytes, result);
+                    encode_structural_argument(bytes, left);
+                    encode_structural_argument(bytes, right);
                 }
                 O::StructuralLeafCopy {
                     psi_operation,

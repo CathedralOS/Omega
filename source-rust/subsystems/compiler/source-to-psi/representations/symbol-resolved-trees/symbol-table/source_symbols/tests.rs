@@ -408,7 +408,7 @@ mod hierarchy {
     }
 
     #[test]
-    fn generated_files_import_other_generated_files_and_base_cannot_see_them() {
+    fn handwritten_and_generated_files_need_imports_to_name_other_files() {
         let package_identity =
             PackageKeyIdentity::from_digest([9; 32]).expect("nonzero package identity");
         let mut sources = SourceMap::default();
@@ -481,7 +481,15 @@ mod hierarchy {
             ),
             Some(declarations[0]),
         );
-        assert!(!symbols.source_reference_can_see_symbol(reference(base_source), declarations[1],));
+        assert!(symbols.source_reference_can_see_symbol(reference(base_source), declarations[1]));
+        assert_eq!(
+            symbols.find_top_level_by_name_and_kinds_from_source(
+                "ExtensionOnly",
+                &[SymbolKind::Data],
+                reference(base_source)
+            ),
+            None
+        );
         assert!(
             symbols.source_reference_can_see_symbol(reference(second_extension), declarations[0],)
         );
@@ -1250,13 +1258,8 @@ mod module_namespaces {
         }
     }
 
-    /*
-        An exact-source import of a package's root file exposes the units that
-        package's build handed off, in the importer's checked instance only, while
-        the package's own authored file still cannot select them.
-    */
     #[test]
-    fn unmoduled_exact_import_exposes_the_dependency_generated_stratum() {
+    fn importing_a_file_does_not_reexport_its_generated_siblings() {
         use source_admission::SourceResolutionStratum::Base;
         use source_admission::SourceResolutionStratum::DependencyActivationExtension;
         use source_provenance::DependencyScope::Build;
@@ -1296,12 +1299,8 @@ mod module_namespaces {
         }
         let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
             Some(Arc::new(sources)),
-            vec![SourceScopedTopLevelBinding::module_import(
-                SourceId(0),
-                SourceId(1),
-                "kit::main",
-                1,
-            )],
+            vec![SourceScopedTopLevelBinding::file_import(SourceId(0), SourceId(1), "main"),
+                 SourceScopedTopLevelBinding::file_import(SourceId(0), SourceId(2), "generated")],
         );
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
@@ -1318,17 +1317,11 @@ mod module_namespaces {
         ))
         .collect::<Vec<_>>();
         let symbols = builder.finish();
-        assert_eq!(data_reference(&symbols, 0, "Item"), Some(declarations[0]));
+        assert_eq!(data_reference(&symbols, 0, "|main|::Item"), None);
         assert_eq!(
-            symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
-                "Item",
-                &[SymbolKind::Data],
-                reference(0),
-                |_| true,
-            ),
-            crate::source_symbols::SymbolLookup::Unique(declarations[0])
+            data_reference(&symbols, 0, "|generated|::Item"),
+            Some(declarations[0])
         );
-        assert_eq!(data_reference(&symbols, 1, "Item"), None);
     }
 
     #[test]
@@ -2734,6 +2727,7 @@ mod integer_types {
         BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
     };
     use numerics::integer_carrier::FixedInteger;
+    use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 
     #[test]
     fn a_carrier_without_a_fixed_slot_has_one_installed_symbol() {
@@ -2751,6 +2745,10 @@ mod integer_types {
         assert_eq!(table.builtin_atom_symbol(odd), None);
         let fixed = table.builtin_atom_symbol(word).unwrap();
         assert_eq!(table.builtin_type_atom(fixed), Some(word));
+        assert_eq!(
+            table.declaration_custody(fixed),
+            DeclarationCustody::Toolchain
+        );
 
         table.install_integer_types([
             FixedInteger::unsigned(13),
@@ -2762,6 +2760,10 @@ mod integer_types {
         assert_eq!(table.name(installed), "u13");
         assert_eq!(table.get(installed).kind, SymbolKind::BuiltinType);
         assert_eq!(table.builtin_type_atom(installed), Some(odd));
+        assert_eq!(
+            table.declaration_custody(installed),
+            DeclarationCustody::Toolchain
+        );
         assert_ne!(
             table.builtin_atom_symbol(BuiltinTypeAtom::Integer(FixedInteger::signed(13))),
             Some(installed)
@@ -2777,6 +2779,10 @@ mod integer_types {
         /* A declaration spelled like a carrier is that declaration, not the carrier. */
         let declared = table.root_children_named("u7").next().unwrap();
         assert_eq!(table.builtin_type_atom(declared), None);
+        assert_eq!(
+            table.declaration_custody(declared),
+            DeclarationCustody::Missing
+        );
         let seven = BuiltinTypeAtom::Integer(FixedInteger::unsigned(7));
         assert_eq!(table.builtin_atom_symbol(seven), None);
         table.install_integer_types([FixedInteger::unsigned(7)]);

@@ -98,7 +98,7 @@ x86-64. Producer `b457b1978b87` refreshes the macOS row and work/retry provision
 the Linux/Windows runs cover the ordered-edge controls and returned-linear row.
 
 ```sh
-omega run --both samples/cli/facts/borrowed_projection_cleanup/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/borrowed_projection_cleanup/local
 omega --check samples/cli/facts/borrowed_projection_cleanup/invalid_local/main.omg
 ```
 

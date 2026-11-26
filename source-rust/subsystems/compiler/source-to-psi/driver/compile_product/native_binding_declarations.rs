@@ -441,15 +441,12 @@ pub fn collect_captured(
         let public_toolchain_product = dependency.is_none()
             && owner.is_public
             && source.origin == source_admission::SourceOrigin::Toolchain
+            && source.resolution_stratum == source_admission::SourceResolutionStratum::Base
             && source.dependency_scope == source_provenance::DependencyScope::Product;
         if !(program.symbols.symbol_product_package_identity(selected) == Some(target)
             || public_toolchain_product)
             || dependency.is_some() && !owner.is_public
-            || !crate::source_inputs::SourceMap::captured_reference_can_see_stratum(
-                supplier,
-                declaration.source.resolution_stratum,
-                declaration.requirement.source(),
-            )
+            || source.dependency_scope != source_provenance::DependencyScope::Product
         {
             return Err(refuse(
                 "is not visible under its original Product package and temporal scope",

@@ -32,16 +32,7 @@ declares `Expected exit: 0`, and carries `expected_native_exit.txt` containing `
 Each is an application that runs under both engines:
 
 ```sh
-omega run --both samples/cli/facts/bounded_scalar_sums/main.omg
-omega run --both samples/cli/facts/bounded_scalar_sums/local/main.omg
-omega run --both samples/cli/facts/bounded_scalar_sums/field/main.omg
-omega run --both samples/cli/facts/bounded_scalar_sums/parameter/main.omg
-omega run --both samples/cli/facts/bounded_scalar_sums/call_result/main.omg
-omega run --both samples/cli/facts/bounded_scalar_sums/match_join/main.omg
-omega run --both samples/cli/facts/bounded_scalar_sums/const_name/main.omg
-omega run --both samples/cli/facts/bounded_scalar_sums/other_state/main.omg
-omega run --both samples/cli/facts/bounded_scalar_sums/other_machine/main.omg
-omega run --both samples/cli/facts/bounded_scalar_sums/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/bounded_scalar_sums
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

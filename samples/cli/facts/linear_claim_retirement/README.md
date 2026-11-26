@@ -49,16 +49,7 @@ row. This tests result composition, not real allocator backing or Vec growth.
 Each place is an application that exits 0 with native and Terminal execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/linear_claim_retirement/main.omg
-omega run --both samples/cli/facts/linear_claim_retirement/local/main.omg
-omega run --both samples/cli/facts/linear_claim_retirement/field/main.omg
-omega run --both samples/cli/facts/linear_claim_retirement/parameter/main.omg
-omega run --both samples/cli/facts/linear_claim_retirement/call_result/main.omg
-omega run --both samples/cli/facts/linear_claim_retirement/match_join/main.omg
-omega run --both samples/cli/facts/linear_claim_retirement/const_name/main.omg
-omega run --both samples/cli/facts/linear_claim_retirement/other_state/main.omg
-omega run --both samples/cli/facts/linear_claim_retirement/other_machine/main.omg
-omega run --both samples/cli/facts/linear_claim_retirement/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/linear_claim_retirement
 ```
 
 Each place has an `invalid/` twin that breaks only the linear obligation by consuming the transported `Token` a second time after retirement. The control must reject with `after ... was transferred or consumed`. Check a twin with:

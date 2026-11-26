@@ -7950,14 +7950,9 @@ pub(crate) mod storage_foundations {
             )
             .map_err(CodecError::MalformedStructuralFoundation)?;
             if contract.carrier != result.structural_type
-                || contract
-                    .qualifications
-                    .iter()
-                    .any(|domain| !result.qualifications.contains(domain))
-                || contract
-                    .projected_qualifications
-                    .iter()
-                    .any(|row| !result.projected_qualifications.contains(row))
+                || !terminal_payload_contract(machine, source.place).is_some_and(|declared| {
+                    declared.move_preserves_qualifications(&source.path, result)
+                })
             {
                 return malformed("owned value transfer loses source memberships");
             }
@@ -9609,7 +9604,7 @@ pub(crate) mod structural_type_foundations {
                                 "structural field references an unknown structural type",
                             );
                         }
-                        StructuralFieldType::Erased { type_identity }
+                        StructuralFieldType::Erased { type_identity, .. }
                             if type_identity.is_absent() =>
                         {
                             return malformed(
@@ -9675,7 +9670,7 @@ pub(crate) mod structural_type_foundations {
                                     "structural case payload references an unknown structural type",
                                 );
                             }
-                            StructuralFieldType::Erased { type_identity }
+                            StructuralFieldType::Erased { type_identity, .. }
                                 if !field.relevance.is_erased() || type_identity.is_absent() =>
                             {
                                 return malformed(
@@ -9728,7 +9723,7 @@ pub(crate) mod structural_type_foundations {
                                 "mixed structural field references an unknown structural type",
                             );
                         }
-                        StructuralFieldType::Erased { type_identity }
+                        StructuralFieldType::Erased { type_identity, .. }
                             if !field.relevance.is_erased() || type_identity.is_absent() =>
                         {
                             return malformed(
@@ -10724,6 +10719,85 @@ pub(crate) mod value_foundations {
         zeroed_projected_byte_qualifications_hold, zeroed_structural_shape,
     };
 
+    pub(crate) fn validate_packed_integer(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        operation: &Operation,
+    ) -> Result<(), CodecError> {
+        let Some(result) = operation.result.structural() else {
+            return malformed("packed integer operation has no structural result");
+        };
+        let types = module.types.structural_types.iter();
+        let (first, second) = match &operation.kind {
+            OperationKind::PackedIntegerUnary { source, .. } => (source, None),
+            OperationKind::PackedIntegerBinary { left, right, .. } => (left, Some(right)),
+            _ => unreachable!("dispatched packed integer operation"),
+        };
+        let lane_type = |id, role| match &operation.kind {
+            OperationKind::PackedIntegerUnary { operation, .. } => {
+                terminal_semantics::packed_integer_unary_array_type(
+                    types.clone(),
+                    id,
+                    *operation,
+                    role,
+                )
+            }
+            OperationKind::PackedIntegerBinary { operation, .. } => {
+                terminal_semantics::packed_integer_array_type(types.clone(), id, *operation)
+            }
+            _ => None,
+        };
+        if !result.is_unrestricted_plain()
+            || !result.qualification_establishments.is_empty()
+            || !result.additional_input_qualifications.is_empty()
+            || lane_type(
+                result.structural_type,
+                terminal_semantics::PackedArrayRole::Result,
+            )
+            .is_none()
+            || !matches!(machine.structural_place(result.place),
+                Some(StructuralPlaceDeclaration { kind: StructuralPlaceKind::OperationResult { producer, structural_type }, .. })
+                    if *producer == operation.id && *structural_type == result.structural_type)
+        {
+            return malformed("packed integer operation requires a plain fixed-array result");
+        }
+        for operand in std::iter::once(first).chain(second) {
+            let Some(root) = super::structural_place_type(machine, operand.place) else {
+                return malformed("packed integer operand references an unknown place");
+            };
+            let (multiplicity, access) =
+                if let Some(parameter) = machine.structural_parameter(operand.place) {
+                    (parameter.multiplicity, parameter.access)
+                } else if let Some(source) = machine
+                    .producing_operation(operand.place)
+                    .and_then(|(producer, _)| producer.result.structural())
+                    .filter(|source| source.place == operand.place)
+                {
+                    (source.multiplicity, StructuralAccess::Owned)
+                } else {
+                    return malformed("packed integer operand has no storage authority");
+                };
+            let input_type = super::validate_structural_path(module, root, &operand.path)?;
+            if operand.access != StructuralAccess::SharedBorrow
+                || (second.is_some() && input_type != result.structural_type)
+                || lane_type(input_type, terminal_semantics::PackedArrayRole::Input).is_none()
+                || !terminal_semantics::reference_source_projection_accessible(
+                    types.clone(),
+                    root,
+                    multiplicity,
+                    access,
+                    &operand.path,
+                    StructuralAccess::SharedBorrow,
+                )
+            {
+                return malformed(
+                    "packed integer operands must borrow readable arrays of the required lane type",
+                );
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn validate_establish_scalar_array(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -11371,6 +11445,152 @@ pub(crate) mod value_foundations {
             return malformed("native code layout region needs base addr and length u64");
         }
         Ok(())
+    }
+    #[cfg(test)]
+    mod packed_integer_tests {
+        use super::*;
+        use crate::semantic_module::entry_tests::unit_machine;
+        use semantic_vocabulary::{
+            IntegerSign, IntegerType, MachineId, OperationId, PackedIntegerBinaryOperation,
+            PlaceId, ScalarType, StructuralTypeId,
+        };
+        use terminal_psi::{
+            ArrayExtent, StructuralParameterDeclaration, StructuralTypeDeclaration,
+        };
+
+        #[test]
+        fn packed_integer_admission_requires_eight_plain_lanes_and_two_readable_operands() {
+            let lane = StructuralTypeId::new(1).unwrap();
+            let array = StructuralTypeId::new(2).unwrap();
+            let places = [1, 2, 3].map(|id| PlaceId::new(id).unwrap());
+            let producer = OperationId::new(1).unwrap();
+            let packed = PackedIntegerBinaryOperation::WrappingAddI16x8;
+            let integer = IntegerType::new(IntegerSign::Signed, 16).unwrap();
+            let mut module = TerminalModule::declarations();
+            for (id, shape) in [
+                (
+                    lane,
+                    StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)),
+                ),
+                (
+                    array,
+                    StructuralTypeShape::FixedArray {
+                        element: lane,
+                        length: ArrayExtent::Literal(8),
+                    },
+                ),
+            ] {
+                module
+                    .types
+                    .structural_types
+                    .push(StructuralTypeDeclaration {
+                        id,
+                        shape,
+                        declaration_identity: Default::default(),
+                        identity: Default::default(),
+                        quotient_carrier: None,
+                        owns_linear_claim: false,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        no_code_affine_cleanup: true,
+                        descriptor_cleanup: false,
+                        nominal_cleanup: None,
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                    });
+            }
+            let mut machine = unit_machine(MachineId::new(1).unwrap());
+            for (position, place) in [(0, places[0]), (1, places[1])] {
+                machine.structural_places.push(StructuralPlaceDeclaration {
+                    id: place,
+                    kind: StructuralPlaceKind::Parameter { position },
+                });
+                machine
+                    .structural_parameters
+                    .push(StructuralParameterDeclaration {
+                        position,
+                        place,
+                        structural_type: array,
+                        access: StructuralAccess::SharedBorrow,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: vec![],
+                        projected_qualifications: vec![],
+                        additional_input_qualifications: vec![],
+                    });
+            }
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: places[2],
+                kind: StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type: array,
+                },
+            });
+            let left = StructuralArgument::whole(places[0], StructuralAccess::SharedBorrow);
+            let right = StructuralArgument::whole(places[1], StructuralAccess::SharedBorrow);
+            let mut operation = Operation {
+                id: producer,
+                static_reach_binding: None,
+                required_contract: None,
+                suspension_crossing: None,
+                kind: OperationKind::PackedIntegerBinary {
+                    operation: packed,
+                    left: left.clone(),
+                    right: right.clone(),
+                },
+                result: OperationResult::Structural(StructuralOperationResult {
+                    place: places[2],
+                    structural_type: array,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: vec![],
+                    projected_qualifications: vec![],
+                    additional_input_qualifications: vec![],
+                    qualification_establishments: vec![],
+                    claims: vec![],
+                }),
+            };
+            let check = validate_packed_integer;
+            check(&module, &machine, &operation).unwrap();
+            if let StructuralTypeShape::FixedArray { length, .. } =
+                &mut module.types.structural_types[1].shape
+            {
+                *length = ArrayExtent::Literal(7);
+            }
+            assert!(check(&module, &machine, &operation).is_err());
+            module.types.structural_types[1].shape = StructuralTypeShape::FixedArray {
+                element: lane,
+                length: ArrayExtent::Literal(8),
+            };
+            machine.structural_parameters[1].access = StructuralAccess::WriteOnlyBorrow;
+            assert!(check(&module, &machine, &operation).is_err());
+            machine.structural_parameters[1].access = StructuralAccess::SharedBorrow;
+            operation.kind = OperationKind::PackedIntegerUnary {
+                operation: semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x8ToI16x8,
+                source: left,
+            };
+            assert!(check(&module, &machine, &operation).is_err());
+            let byte_lane = StructuralTypeId::new(3).unwrap();
+            let byte_array = StructuralTypeId::new(4).unwrap();
+            let mut byte = module.types.structural_types[0].clone();
+            byte.id = byte_lane;
+            byte.shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            ));
+            let mut bytes = module.types.structural_types[1].clone();
+            bytes.id = byte_array;
+            bytes.shape = StructuralTypeShape::FixedArray {
+                element: byte_lane,
+                length: ArrayExtent::Literal(8),
+            };
+            module.types.structural_types.extend([byte, bytes]);
+            machine.structural_parameters[0].structural_type = byte_array;
+            check(&module, &machine, &operation).unwrap();
+            let OperationResult::Structural(result) = &mut operation.result else {
+                unreachable!()
+            };
+            result
+                .qualifications
+                .push(semantic_vocabulary::StructuralDomainId::new(1).unwrap());
+            assert!(check(&module, &machine, &operation).is_err());
+        }
     }
 }
 
@@ -12857,6 +13077,9 @@ fn validate_operation_foundation(
         OperationKind::ScalarStructuralField { .. }
         | OperationKind::BooleanStructuralField { .. } => {
             storage_foundations::validate_scalar_structural_field(module, machine, operation)?
+        }
+        OperationKind::PackedIntegerBinary { .. } | OperationKind::PackedIntegerUnary { .. } => {
+            value_foundations::validate_packed_integer(module, machine, operation)?
         }
         OperationKind::EstablishScalarArray { .. } => {
             value_foundations::validate_establish_scalar_array(

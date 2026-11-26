@@ -185,10 +185,11 @@ mod data {
                     );
                 }
                 data_definition.predicate_subject_type =
-                    if !data_definition.predicate_subject_symbol.is_valid() {
+                    if !data_definition.predicate_subject_symbol.is_valid()
+                        || data_definition.generic_instance.is_some()
+                    {
+                        // An instance takes its subject type when its origin is resolved.
                         TypeReference::Unit
-                    } else if let Some(origin) = &data_definition.generic_instance {
-                        origin.clone()
                     } else if local_type_parameters.is_empty()
                         && data_definition.lifetime_parameters.is_empty()
                     {
@@ -779,6 +780,16 @@ mod mathematical {
             for parameter in parameters.span_mut_or_empty(definition.parameters) {
                 parameter.symbol =
                     next_child_of_kind(&mut children, symbols, SymbolKind::Parameter);
+            }
+            if let crate::source_resolved::mathematical::MathematicalBody::DependentArrow {
+                binders: arrow_binders,
+                ..
+            } = definition.body
+            {
+                for binder in parameters.span_mut_or_empty(arrow_binders) {
+                    binder.symbol =
+                        next_child_of_kind(&mut children, symbols, SymbolKind::Parameter);
+                }
             }
         });
     }

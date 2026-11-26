@@ -30,16 +30,7 @@ Every place performs the same operation: establish or transport a bounded IEEE `
 Root `main.omg` and all nine place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry `expected_native_exit.txt` (`0`). Run any positive directly:
 
 ```sh
-omega run --both samples/cli/facts/ieee_float_ordered_comparison/main.omg
-omega run --both samples/cli/facts/ieee_float_ordered_comparison/local/main.omg
-omega run --both samples/cli/facts/ieee_float_ordered_comparison/field/main.omg
-omega run --both samples/cli/facts/ieee_float_ordered_comparison/parameter/main.omg
-omega run --both samples/cli/facts/ieee_float_ordered_comparison/call_result/main.omg
-omega run --both samples/cli/facts/ieee_float_ordered_comparison/match_join/main.omg
-omega run --both samples/cli/facts/ieee_float_ordered_comparison/const_name/main.omg
-omega run --both samples/cli/facts/ieee_float_ordered_comparison/other_state/main.omg
-omega run --both samples/cli/facts/ieee_float_ordered_comparison/other_machine/main.omg
-omega run --both samples/cli/facts/ieee_float_ordered_comparison/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/ieee_float_ordered_comparison
 ```
 
 ### Reject twins and obligation class

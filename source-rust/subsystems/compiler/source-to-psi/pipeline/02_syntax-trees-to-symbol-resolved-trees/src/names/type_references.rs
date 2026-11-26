@@ -322,27 +322,12 @@ mod assignment {
                     &type_parameters,
                     data_type_parameters.span_mut_or_empty(data_definition.type_parameters),
                 );
-                assign!(&mut data_definition.predicate_subject_type);
-                // `self` in `data Index<const Limit: u32> requires ...` has the
-                // type `Index<Limit>`. A type lookup does not select the value
-                // binder `Limit`, so each value argument keeps its own binder.
-                if let TypeReference::Generic(subject) = &data_definition.predicate_subject_type
-                    && subject.base_symbol == declaration_symbol
-                {
-                    super::value_expressions::bind_named_value_arguments(
-                        &type_parameters,
-                        child_type_references,
-                        subject.arguments,
-                        |name| {
-                            type_parameters
-                                .iter()
-                                .find(|parameter| parameter.name.as_str() == name.as_str())
-                                .map(|parameter| parameter.symbol)
-                        },
-                    );
-                }
-                if let Some(generic_instance) = &mut data_definition.generic_instance {
-                    assign!(generic_instance);
+                let storage = &mut data_definition.storage;
+                if let Some(instance) = &mut storage.generic_instance {
+                    assign!(instance);
+                    if storage.predicate_subject_symbol.is_valid() {
+                        storage.predicate_subject_type.clone_from(instance);
+                    }
                 }
                 if let Some(quotient) = &mut data_definition.quotient {
                     assign!(&mut quotient.carrier);
@@ -943,11 +928,17 @@ mod assignment {
                     );
                 }
                 /*
-                    The width of `u<N>` is a const argument, so its name reads a
-                    value, never a type. Each other argument takes its role from
-                    the selected declaration's binder, which the value pass knows.
+                    The width of `u<N>` is a const argument, and the level of
+                    `core::Type<u>` / `core::Strict<u>` is a level binder, so its
+                    name reads a value binder, never a type. Each other argument
+                    takes its role from the selected declaration's binder, which
+                    the value pass knows.
                 */
-                if symbols.integer_family(generic.base_symbol).is_some() {
+                if symbols.integer_family(generic.base_symbol).is_some()
+                    || symbols
+                        .universe_sort_for_symbol(generic.base_symbol)
+                        .is_some()
+                {
                     for handle in generic.arguments.handles() {
                         if let TypeReference::Named { symbol, name, .. } =
                             child_type_references.get_mut(handle)

@@ -63,7 +63,7 @@ pub mod constraints {
                 !call.callbacks.iter().any(|callback| {
                     usize::try_from(callback.application.native_ordinal)
                         .ok()
-                        .map(|ordinal| ordinal + call.binding.dispatch_operand_count())
+                        .map(|ordinal| call.binding.operand_for_native_ordinal(ordinal))
                         == Some(*position)
                         && matches!(callback.destination, NativePlace::Parameter(_))
                 })
@@ -80,6 +80,15 @@ pub mod constraints {
                 })
             })
             .collect()
+    }
+
+    /// The encoded memory effect indexes register operands after ABI ordering.
+    pub fn table_pointer_register_operand(call: &LegalizedNormalizedForeignCall) -> Option<u16> {
+        let table = call.binding.table_operand_index()?;
+        let position = foreign_argument_registers(call)
+            .iter()
+            .position(|(operand, _)| *operand == table)?;
+        u16::try_from(position).ok()
     }
 
     pub fn instantiate_foreign_call_constraint(
@@ -1253,6 +1262,10 @@ pub mod ordinary {
         BoundaryResult {
             operation: OperationId,
         },
+        Inlined {
+            call_site: u32,
+            slot_index: u32,
+        },
     }
 
     impl LocalStorageSlotId {
@@ -1267,7 +1280,8 @@ pub mod ordinary {
                 | Self::Spill { .. }
                 | Self::EdgeSnapshot { .. }
                 | Self::StructuralBlockParameter { .. }
-                | Self::StructuralParameter { .. } => None,
+                | Self::StructuralParameter { .. }
+                | Self::Inlined { .. } => None,
             }
         }
 
@@ -1282,7 +1296,8 @@ pub mod ordinary {
                 | Self::BoundaryResult { .. }
                 | Self::Spill { .. }
                 | Self::StructuralCallArgument { .. }
-                | Self::EdgeSnapshot { .. } => None,
+                | Self::EdgeSnapshot { .. }
+                | Self::Inlined { .. } => None,
             }
         }
 
@@ -1341,6 +1356,14 @@ pub mod ordinary {
                 Self::Boundary { operation } => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+                }
+                Self::Inlined {
+                    call_site,
+                    slot_index,
+                } => {
+                    bytes.push(10);
+                    crate::codec_bytes::push_encoded(bytes, call_site.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, slot_index.to_le_bytes());
                 }
             }
         }

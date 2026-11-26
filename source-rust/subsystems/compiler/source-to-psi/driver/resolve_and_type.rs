@@ -47,34 +47,6 @@ struct SourceCompletionInput {
 
 #[derive(Clone, record_storage::Record)]
 pub(crate) struct CompletedSource {
-    accounting: crate::compile_time_invocations::SourceCompletionAccounting,
-    typing: typing::SeededTypingBase,
-    pending_pre_checks: Vec<PreCheckEvaluation>,
-}
-
-#[derive(Clone)]
-pub struct SourceExtensionRequest {
-    syntax: Arc<syntax_trees::SyntaxTrees>,
-    pub sources: Arc<crate::source_inputs::SourceMap>,
-    pub top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
-}
-
-impl SourceExtensionRequest {
-    pub fn new(
-        mut syntax: crate::SourceSyntax,
-        sources: Arc<crate::source_inputs::SourceMap>,
-        top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
-    ) -> Self {
-        syntax.share_pages();
-        Self {
-            syntax: Arc::new(syntax.trees),
-            sources,
-            top_level_bindings,
-        }
-    }
-}
-
-pub(crate) struct CompletedTypedSource {
     pub accounting: crate::compile_time_invocations::SourceCompletionAccounting,
     pub typed: crate::source_state::TypedTrees,
 }
@@ -134,19 +106,31 @@ impl ResolveAndTypeRequest {
         timings: &mut CompileTimings,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
         let scope = eager_body_scope(self.purpose);
-        self.prepare_with_body_scope(scope, timings)
+        self.prepare_with_body_scope(
+            scope,
+            resolution::DeferredBodyScope::BuildAndToolchain,
+            true,
+            timings,
+        )
     }
 
     pub(crate) fn prepare_declarations(
         self,
         timings: &mut CompileTimings,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
-        self.prepare_with_body_scope(resolution::DeferredBodyScope::BuildAndToolchain, timings)
+        self.prepare_with_body_scope(
+            resolution::DeferredBodyScope::BuildOnly,
+            resolution::DeferredBodyScope::BuildOnly,
+            false,
+            timings,
+        )
     }
 
     fn prepare_with_body_scope(
         mut self,
         eager_scope: resolution::DeferredBodyScope,
+        followup_scope: resolution::DeferredBodyScope,
+        retain_frontend: bool,
         timings: &mut CompileTimings,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
         let context = SourceContext {
@@ -204,8 +188,7 @@ impl ResolveAndTypeRequest {
             (typing, frontier, Vec::new())
         };
         loop {
-            let build_bodies = pending_bodies
-                .pending_machines_in(resolution::DeferredBodyScope::BuildAndToolchain)?;
+            let build_bodies = pending_bodies.pending_machines_in(followup_scope)?;
             if build_bodies.is_empty() {
                 break;
             }
@@ -236,7 +219,9 @@ impl ResolveAndTypeRequest {
             input,
             completions: Default::default(),
         };
-        self.frontends.retain(&source)?;
+        if retain_frontend {
+            self.frontends.retain(&source)?;
+        }
         Ok(source)
     }
 }
@@ -247,7 +232,7 @@ impl ResolveAndTypeRequest {
 /// passes, whatever its size. A Build typing is kept in its invocation's
 /// shared frontends, so it resolves only Build and toolchain bodies and leaves
 /// the others deferred for whichever later typing resumes it. The only
-/// consumer of a Product typing, `complete_authored`, completes every body,
+/// consumer of a Product typing, `complete`, completes every body,
 /// so the Product resolves them all here and types them in one cohort.
 fn eager_body_scope(purpose: source_provenance::DependencyScope) -> resolution::DeferredBodyScope {
     use resolution::DeferredBodyScope;
@@ -307,11 +292,16 @@ impl SourceTypingCheckpoint {
         self.input.typing.shared_typed()
     }
 
+    #[cfg(test)]
     pub(crate) fn typed(&self) -> &crate::source_state::TypedTrees {
         self.input.typing.typed()
     }
 
-    pub(crate) fn complete_authored(
+    pub(crate) fn into_typed(self) -> crate::source_state::TypedTrees {
+        Arc::unwrap_or_clone(self.input).typing.into_typed()
+    }
+
+    pub(crate) fn complete(
         self,
         timings: &mut CompileTimings,
     ) -> Result<CompletedSource, Vec<Diagnostic>> {
@@ -338,8 +328,7 @@ impl SourceTypingCheckpoint {
         drop(pending_bodies);
         PreCheckEvaluation::record_continuations(pending_pre_checks, typing.typed_mut())?;
         let source = CompletedSource {
-            typing,
-            pending_pre_checks: Vec::new(),
+            typed: typing.into_typed(),
             accounting: Default::default(),
         };
         completions.retain(input, &source)?;
@@ -430,63 +419,6 @@ fn complete_pending_bodies(
         };
     }
     Ok((typing, pending_bodies))
-}
-
-impl CompletedSource {
-    pub(super) fn authored_program_mut(&mut self) -> &mut crate::source_state::TypedTrees {
-        self.typing.typed_mut()
-    }
-
-    pub(crate) fn finish(self) -> CompletedTypedSource {
-        CompletedTypedSource {
-            accounting: self.accounting,
-            typed: self.typing.into_typed(),
-        }
-    }
-
-    pub(crate) fn extend(
-        mut self,
-        extension: SourceExtensionRequest,
-        declaration_scope: Option<Arc<PackageDeclarationScope>>,
-        timings: &mut CompileTimings,
-    ) -> Result<CompletedTypedSource, Vec<Diagnostic>> {
-        let wire_schema_frontier = self.typing.typed().wire_schemas().len();
-        let resolved_base = self.typing.resolved_base_for_extension()?;
-        let scope = declaration_scope.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "generated Product source requires its package declaration scope",
-            )]
-        })?;
-        let pre_check = PreCheckEvaluation::new(Some(scope));
-        let mut syntax = Arc::unwrap_or_clone(extension.syntax);
-        let generation = u32::try_from(syntax.page_count())
-            .ok()
-            .and_then(|count| count.checked_add(1))
-            .ok_or_else(|| vec![Diagnostic::error("syntax page identity overflow")])?;
-        syntax.begin_page(generation);
-        let (typing, pending) = extend_declarations(
-            self.typing,
-            resolution::ExtensionRequest {
-                base: resolved_base,
-                syntax,
-                sources: extension.sources,
-                top_level_bindings: extension.top_level_bindings,
-            },
-            timings,
-        )?;
-        let (typing, _) = complete_pending_bodies(
-            typing,
-            pending,
-            resolution::DeferredBodyScope::All,
-            timings,
-        )?;
-        let mut typed = typing.into_typed();
-        pre_check.record_extension(wire_schema_frontier, &mut typed)?;
-        Ok(CompletedTypedSource {
-            accounting: self.accounting,
-            typed,
-        })
-    }
 }
 
 impl SourceCompletionInput {

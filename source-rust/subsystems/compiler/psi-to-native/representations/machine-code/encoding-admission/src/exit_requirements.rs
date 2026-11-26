@@ -782,6 +782,141 @@ fn validate_non_return_effects(
             None,
         ) => true,
         (
+            SelectedInstructionKind::PackedAddI16x8
+            | SelectedInstructionKind::PackedSubI16x8
+            | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+            | SelectedInstructionKind::PackedAddU8x16
+            | SelectedInstructionKind::PackedMinI16x8
+            | SelectedInstructionKind::PackedCmpGtI16x8
+            | SelectedInstructionKind::PackedBitAndI16x8
+            | SelectedInstructionKind::PackedBitAndNotI16x8,
+            MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
+                left_pointer_operand: 0,
+                right_pointer_operand: 1,
+                destination_pointer_operand: 2,
+            },
+            None,
+        ) => {
+            effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                && effects.external_operand_reads == [0, 1, 2]
+                && effects.external_operand_writes.is_empty()
+        }
+        (
+            SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. },
+            MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
+                left_pointer_operand: 0,
+                right_pointer_operand: 1,
+                destination_pointer_operand: 2,
+            },
+            None,
+        ) => {
+            effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                && effects.external_operand_reads == [0, 1, 2]
+                && effects.external_operand_writes == [3]
+        }
+        (
+            SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+            | SelectedInstructionKind::PackedAbsI16x8,
+            MachineEncodedMemoryEffect::PackedUnary16To16BytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+            },
+            None,
+        )
+        | (
+            SelectedInstructionKind::PackedWidenU8x8ToI16x8
+            | SelectedInstructionKind::PackedLoadI16x4ZeroExtend,
+            MachineEncodedMemoryEffect::PackedUnary8To16BytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+            },
+            None,
+        )
+        | (
+            SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating,
+            MachineEncodedMemoryEffect::PackedUnary16To8BytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+            },
+            None,
+        )
+        | (
+            SelectedInstructionKind::PackedWidenU8x4ToI16x8,
+            MachineEncodedMemoryEffect::PackedUnary4To16BytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+            },
+            None,
+        )
+        | (
+            SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating,
+            MachineEncodedMemoryEffect::PackedUnary16To4BytesV1 {
+                source_pointer_operand: 0,
+                destination_pointer_operand: 1,
+            },
+            None,
+        ) => {
+            effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                && effects.external_operand_reads == [0, 1]
+                && effects.external_operand_writes.is_empty()
+        }
+        (
+            SelectedInstructionKind::PackedLoad128 { .. },
+            MachineEncodedMemoryEffect::PackedVectorLoadBytesV1 {
+                pointer_operand: 0,
+                byte_count: 16,
+            },
+            None,
+        )
+        | (
+            SelectedInstructionKind::PackedLoad64ZeroExtend { .. },
+            MachineEncodedMemoryEffect::PackedVectorLoadBytesV1 {
+                pointer_operand: 0,
+                byte_count: 8,
+            },
+            None,
+        )
+        | (
+            SelectedInstructionKind::PackedLoad32ZeroExtend { .. },
+            MachineEncodedMemoryEffect::PackedVectorLoadBytesV1 {
+                pointer_operand: 0,
+                byte_count: 4,
+            },
+            None,
+        ) => {
+            effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                && effects.external_operand_reads == [0]
+                && effects.external_operand_writes == [1]
+        }
+        (
+            SelectedInstructionKind::PackedStore128 { .. },
+            MachineEncodedMemoryEffect::PackedVectorStoreBytesV1 {
+                pointer_operand: 0,
+                byte_count: 16,
+            },
+            None,
+        )
+        | (
+            SelectedInstructionKind::PackedStore64 { .. },
+            MachineEncodedMemoryEffect::PackedVectorStoreBytesV1 {
+                pointer_operand: 0,
+                byte_count: 8,
+            },
+            None,
+        )
+        | (
+            SelectedInstructionKind::PackedStore32 { .. },
+            MachineEncodedMemoryEffect::PackedVectorStoreBytesV1 {
+                pointer_operand: 0,
+                byte_count: 4,
+            },
+            None,
+        ) => {
+            effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                && effects.external_operand_reads == [0, 1]
+                && effects.external_operand_writes.is_empty()
+        }
+        (
             SelectedInstructionKind::ZeroBytes,
             MachineEncodedMemoryEffect::ZeroBytesV1 {
                 destination_pointer_operand: 0,
@@ -1065,6 +1200,22 @@ fn validate_non_return_effects(
                 | SelectedInstructionKind::AtomicAccess { .. }
                 | SelectedInstructionKind::SaveFloatingControl { .. }
                 | SelectedInstructionKind::RestoreFloatingControl { .. }
+                | SelectedInstructionKind::PackedAddI16x8
+                | SelectedInstructionKind::PackedSubI16x8
+                | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+                | SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
+                | SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+                | SelectedInstructionKind::PackedWidenU8x8ToI16x8
+                | SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating
+                | SelectedInstructionKind::PackedLoadI16x4ZeroExtend
+                | SelectedInstructionKind::PackedWidenU8x4ToI16x8
+                | SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+                | SelectedInstructionKind::PackedAddU8x16
+                | SelectedInstructionKind::PackedMinI16x8
+                | SelectedInstructionKind::PackedCmpGtI16x8
+                | SelectedInstructionKind::PackedBitAndI16x8
+                | SelectedInstructionKind::PackedBitAndNotI16x8
+                | SelectedInstructionKind::PackedAbsI16x8
         ),
         _ => false,
     };

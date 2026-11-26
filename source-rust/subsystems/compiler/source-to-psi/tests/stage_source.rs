@@ -57,7 +57,6 @@ fn product<'a>(
             build_accounting: None,
             declaration_scope: None,
             build_host: ProductTarget::LinuxX86_64,
-            generated: None,
             targets: &[],
             calling_targets: &[],
             subject: Some(package),
@@ -621,12 +620,25 @@ fn typed_build(
 }
 
 #[test]
-fn stored_complete_parses_reopen_and_partial_build_parses_are_refused() {
+fn source_syntax_stores_only_the_complete_parse_and_files() {
     let id = SourceId(5);
     let entry = SourceSpan::new(id, Span::new(8, 13));
     let limits = record_storage::RecordLimits::default();
-    let old_parse = |entry: Option<SourceSpan>, can_return: bool| {
-        record_storage::encode(
+    let syntax = source_compiler::SourceSyntax::new(id);
+    let bytes = record_storage::encode(&syntax, limits).unwrap();
+    let body = record_storage::encode(
+        &(syntax_trees::SyntaxTrees::new(id), Vec::<()>::new()),
+        limits,
+    )
+    .unwrap();
+    assert_eq!(
+        bytes.strip_prefix(b"OmegaSourceSyntax1".as_slice()),
+        Some(body.as_slice())
+    );
+    let reopened: source_compiler::SourceSyntax = record_storage::decode(&bytes, limits).unwrap();
+    assert_eq!(syntax, reopened);
+    for (entry, can_return) in [(None, false), (Some(entry), false), (None, true)] {
+        let former = record_storage::encode(
             &(
                 syntax_trees::SyntaxTrees::new(id),
                 entry,
@@ -635,55 +647,38 @@ fn stored_complete_parses_reopen_and_partial_build_parses_are_refused() {
             ),
             limits,
         )
-        .unwrap()
-    };
-    let clean = old_parse(None, false);
-    let reopened = record_storage::decode::<source_compiler::SourceSyntax>(&clean, limits).unwrap();
-    assert_eq!(reopened, source_compiler::SourceSyntax::new(id));
-    assert_eq!(record_storage::encode(&reopened, limits).unwrap(), clean);
-    for partial in [old_parse(Some(entry), false), old_parse(None, true)] {
+        .unwrap();
         let error =
-            record_storage::decode::<source_compiler::SourceSyntax>(&partial, limits).unwrap_err();
-        assert!(error.reason.contains("only part of its source"), "{error}");
+            record_storage::decode::<source_compiler::SourceSyntax>(&former, limits).unwrap_err();
+        assert_eq!(error.reason, "unsupported SourceSyntax record format");
     }
 }
 
 #[test]
-fn a_projected_snapshot_cannot_supply_a_complete_build_invocation() {
-    let text = "machine build() {}";
-    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
-    let mut files = SourceMap::default();
-    let build = files
-        .add_checked_instance(
-            "project/build.omg".into(),
-            text,
-            "project".into(),
-            Some(package),
-            SourceOrigin::User,
-            SourceResolutionStratum::Base,
-            DependencyScope::Build,
-        )
-        .source_id;
-    let start = text.find("build").unwrap();
-    let entry = SourceSpan::new(build, Span::new(start, start + "build".len()));
-    let mut program = Arc::unwrap_or_clone(typed_build(files, entry).unwrap());
-    let machine = program.machines().at(0).symbol;
-    program.roots.partial_build_entry = Some(entry);
-    let Err(failure) = source_compiler::CheckedBuildInvocation::judge(
-        &program,
-        machine,
-        &[Some(package)],
-        None,
-        None,
-        &Default::default(),
-    ) else {
-        panic!("a partial snapshot supplied a complete Build invocation");
-    };
-    assert_eq!(failure.diagnostics.len(), 1);
-    assert!(
-        failure.diagnostics[0]
-            .message
-            .contains("older Build snapshot")
+fn typed_trees_check_their_record_format_before_reading_the_forest() {
+    let limits = record_storage::RecordLimits::default();
+    let typed = typed_trees::TypedTrees::default();
+    let bytes = record_storage::encode(&typed, limits).unwrap();
+    let restored: typed_trees::TypedTrees = record_storage::decode(&bytes, limits).unwrap();
+    assert_eq!(record_storage::encode(&restored, limits).unwrap(), bytes);
+
+    // Former forests begin with counts of excluded selections and parked Build locals.
+    // The format check precedes every forest table, even with a nonzero old count.
+    for count in [0u64, 1] {
+        let former_header = record_storage::encode(&(0u64, count), limits).unwrap();
+        let error =
+            record_storage::decode::<typed_trees::TypedTrees>(&former_header, limits).unwrap_err();
+        assert_eq!(error.reason, "unsupported TypedTrees record format");
+    }
+    let mut future = bytes;
+    let header = b"OmegaTypedTrees1";
+    assert!(future.starts_with(header));
+    future[header.len() - 1] = b'2';
+    assert_eq!(
+        record_storage::decode::<typed_trees::TypedTrees>(&future, limits)
+            .unwrap_err()
+            .reason,
+        "unsupported TypedTrees record format",
     );
 }
 
@@ -1380,8 +1375,66 @@ fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
             let errors = result.expect_err("returning the segment must preserve its domain");
             assert!(errors.iter().any(|error| error.message.contains(refusal)), "{errors:?}");
         } else {
-            result.expect("the alias and expanded index describe the same live segment");
+            let program =
+                result.expect("the alias and expanded index describe the same live segment");
+            let bytes = program.to_bytes();
+            let received = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+            assert_eq!(received.to_bytes(), bytes);
         }
+    }
+}
+
+#[test]
+fn an_owned_move_preserves_declared_whole_and_field_domains() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let (files, root) = captured(
+        package,
+        "
+        data Word { bits: u64; }
+        domain Word::Placed;
+        data Parcel [linear] { marked: Word in Word::Placed; plain: Word; }
+        domain Parcel::Ready;
+        machine carry(p: Parcel in Parcel::Ready) -> Parcel in Parcel::Ready { p }
+        machine main() {}
+    ",
+    );
+    let bytes = compile(product(files, root, package, &[]).unwrap(), None)
+        .unwrap()
+        .to_bytes();
+    let received = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+
+    for whole in [true, false] {
+        let mut module = received.semantic_module().clone();
+        let moved = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match (&operation.kind, &mut operation.result) {
+                (
+                    terminal_psi::OperationKind::MoveStructuralValue { .. },
+                    terminal_psi::OperationResult::Structural(result),
+                ) => Some(result),
+                _ => None,
+            })
+            .expect("carry moves the whole parcel");
+        if whole {
+            assert!(moved.qualifications.pop().is_some());
+        } else {
+            assert_eq!(
+                moved.projected_qualifications.len(),
+                1,
+                "only marked declares Placed"
+            );
+            moved.projected_qualifications.clear();
+        }
+        let forged = terminal_codec::encode_module(&module).unwrap();
+        let refusal = terminal_codec::decode_module(&forged).unwrap_err();
+        assert!(
+            refusal
+                .to_string()
+                .contains("owned value transfer loses source memberships")
+        );
     }
 }
 
@@ -1403,7 +1456,11 @@ fn a_domain_on_a_qualified_alias_preserves_both_qualifications() {
         let (files, root) = captured(package, &source);
         let result = compile(product(files, root, package, &[]).unwrap(), None);
         if carries_stored {
-            result.expect("Live qualifies the carrier of the already stored segment");
+            let bytes = result
+                .expect("Live qualifies the carrier of the already stored segment")
+                .to_bytes();
+            let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+            assert_eq!(reopened.to_bytes(), bytes);
         } else {
             let errors = result.expect_err("Live alone does not establish Stored");
             assert!(
@@ -1445,7 +1502,7 @@ fn transparent_aliases_check_their_const_arguments_even_when_expansion_erases_th
         ),
         (
             "machine missing() -> u8 { crash Trap; } machine f(x: Plain<missing()>) {}",
-            Some("const argument typing does not admit"),
+            Some("checked Trap crash route can occur"),
         ),
     ] {
         let (files, root) = captured(package, &format!("{declarations} {source}"));

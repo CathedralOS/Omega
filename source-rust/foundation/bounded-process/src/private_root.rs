@@ -23,8 +23,19 @@ unavailable; it never falls back to the host's filesystem.
 */
 
 mod observations;
+#[cfg(target_os = "linux")]
+mod program_syscalls;
 pub(crate) use observations::Setup;
 pub use observations::{PrivateFilesystemFiles, PrivateFilesystemOutputs};
+
+/// The invoking host decides whether to supply an ordinary test filesystem
+/// or the stricter reviewed-program boundary (including its admission probe).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrivateFilesystemPurpose {
+    NativeTest,
+    ReviewedProgram,
+    ProgramAdmissionProbe,
+}
 use std::{io, process::Command};
 
 #[cfg(not(target_os = "linux"))]
@@ -46,7 +57,12 @@ pub(crate) fn install(command: &mut Command, setup: Setup) -> io::Result<()> {
     std::fs::create_dir(&mount_point)?;
 
     let c = |bytes: &[u8]| CString::new(bytes).map_err(io::Error::from);
-    let arguments = std::iter::once(command.get_program())
+    let argv0 = if setup.purpose != PrivateFilesystemPurpose::NativeTest {
+        std::ffi::OsStr::new("program")
+    } else {
+        command.get_program()
+    };
+    let arguments = std::iter::once(argv0)
         .chain(command.get_args())
         .map(|argument| c(argument.as_bytes()))
         .collect::<io::Result<Vec<_>>>()?;
@@ -67,6 +83,7 @@ pub(crate) fn install(command: &mut Command, setup: Setup) -> io::Result<()> {
     let gid_map = format!("0 {} 1", unsafe { libc::getegid() });
     let prepared = Prepared {
         contents: setup.contents,
+        purpose: setup.purpose,
         image,
         mount_point: c(mount_point.as_os_str().as_bytes())?,
         uid_map,
@@ -111,6 +128,7 @@ unsafe impl Sync for ExecStrings {}
 
 #[cfg(target_os = "linux")]
 struct Prepared {
+    purpose: PrivateFilesystemPurpose,
     contents: observations::linux::Contents,
     image: std::fs::File,
     mount_point: std::ffi::CString,
@@ -156,6 +174,9 @@ impl Prepared {
             check(libc::chdir(c"/".as_ptr()))?;
             libc::umask(0o022);
             self.contents.install()?;
+            if self.purpose != PrivateFilesystemPurpose::NativeTest {
+                private_program_streams()?;
+            }
             // Root of the namespace only: executing as uid 0 must not regain
             // capabilities, and every capability is dropped before it does.
             let securebits = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 5);
@@ -192,6 +213,14 @@ impl Prepared {
                 },
             ];
             check(libc::syscall(libc::SYS_capset, &header, data.as_ptr()) as libc::c_int)?;
+            if self.purpose != PrivateFilesystemPurpose::NativeTest {
+                program_syscalls::install()?;
+                // The sponsor can exercise the complete confinement boundary
+                // before admitting a Build, without running any guest code.
+                if self.purpose == PrivateFilesystemPurpose::ProgramAdmissionProbe {
+                    libc::_exit(0);
+                }
+            }
             libc::syscall(
                 libc::SYS_execveat,
                 self.image.as_raw_fd(),
@@ -216,6 +245,46 @@ impl Prepared {
                 return Err(std::io::Error::last_os_error());
             }
         }
+        Ok(())
+    }
+}
+
+/// Replace the host's null descriptors with two unlinked files inside the
+/// private tmpfs. Even a launcher running as the host owner of /dev/null
+/// cannot expose that inode to the executable via a metadata operation.
+#[cfg(target_os = "linux")]
+fn private_program_streams() -> io::Result<()> {
+    use rustix::fs::{Mode, OFlags, open};
+    use std::os::fd::AsRawFd;
+    let private = || {
+        open(
+            c"/",
+            OFlags::TMPFILE | OFlags::RDWR | OFlags::CLOEXEC,
+            Mode::from_raw_mode(0o600),
+        )
+    };
+    let input = private()?;
+    let output = private()?;
+    for (descriptor, standard) in [(&input, 0), (&output, 1), (&output, 2)] {
+        // SAFETY: spawn prepared all three standard slots; the two private
+        // descriptors remain above them and are owned until loop completion.
+        if unsafe { libc::dup2(descriptor.as_raw_fd(), standard) } < 0 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+unsafe fn check_mount(
+    source: *const libc::c_char,
+    target: *const libc::c_char,
+    flags: libc::c_ulong,
+) -> io::Result<()> {
+    // SAFETY: the setup owns each non-null pathname for the whole call.
+    if unsafe { libc::mount(source, target, std::ptr::null(), flags, std::ptr::null()) } < 0 {
+        Err(io::Error::last_os_error())
+    } else {
         Ok(())
     }
 }

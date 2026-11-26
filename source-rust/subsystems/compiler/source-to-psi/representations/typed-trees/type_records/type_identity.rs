@@ -9833,8 +9833,13 @@ impl TypedTrees {
         else {
             return Ok(path);
         };
-        // Installed declarations have a separate, revision-checked catalog.
-        if source.origin.is_toolchain() {
+        // Only core and closed target contracts use catalog paths. Normal installed
+        // library declarations have the same file identity as package declarations.
+        if matches!(
+            source.origin,
+            source_admission::SourceOrigin::Toolchain
+                | source_admission::SourceOrigin::ToolchainContract
+        ) {
             return Ok(path);
         }
         let filename = source.logical_filename()?;
@@ -9843,7 +9848,7 @@ impl TypedTrees {
     }
 
     /// The authored declaration path used by the ABI and package review.
-    /// Installed declarations keep their catalog path.
+    /// Core and closed target contracts keep their catalog paths.
     pub fn authored_declaration_path(&self, symbol: SymbolHandle) -> Result<String, String> {
         if !self.symbols.symbols().nodes().is_valid(symbol) {
             return Err("an authored path contains a stale declaration".to_owned());
@@ -9916,6 +9921,7 @@ impl TypedTrees {
         }
         match self.symbols.symbol_source_origin(symbol) {
             Some(source_admission::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),
+            Some(source_admission::SourceOrigin::ToolchainLibrary) => Ok(format!("toolchain-library::{path}")),
             Some(source_admission::SourceOrigin::ToolchainContract) => {
                 Ok(format!("toolchain-contract::{path}"))
             }
@@ -9953,8 +9959,13 @@ impl TypedTrees {
                 .path
                 .to_str()
                 .is_some_and(|path| path.starts_with('<') && path.ends_with('>'));
-        if source.origin == source_admission::SourceOrigin::ToolchainContract && virtual_path {
-            return Err("closed toolchain contracts require an owned source path".into());
+        if matches!(
+            source.origin,
+            source_admission::SourceOrigin::ToolchainContract
+                | source_admission::SourceOrigin::ToolchainLibrary
+        ) && virtual_path
+        {
+            return Err("installed toolchain files require an owned source path".into());
         }
         if source.origin == source_admission::SourceOrigin::User
             && source.package_identity.is_none()

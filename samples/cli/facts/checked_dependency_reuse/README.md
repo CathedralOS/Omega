@@ -14,5 +14,5 @@ of judging it from source again. A different typed program does not take the
 first consumer's whole-program judgment.
 
 ```sh
-omega run --both samples/cli/facts/checked_dependency_reuse/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/checked_dependency_reuse
 ```

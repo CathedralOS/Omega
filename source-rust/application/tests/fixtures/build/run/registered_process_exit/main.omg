@@ -1,19 +1,19 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 
 trait Tests {
-    machine exits() reaches ProcessExit;
+    machine exits() reaches |process_exit|::ProcessExit;
 }
 
-machine exits_with_23() satisfies Tests::exits reaches ProcessExit {
-    ProcessExit::exit_process(23);
+machine exits_with_23() satisfies Tests::exits reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(23);
 }
 
-machine exits_with_zero() satisfies Tests::exits reaches ProcessExit {
-    ProcessExit::exit_process(0);
+machine exits_with_zero() satisfies Tests::exits reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
-machine exits_with_256() satisfies Tests::exits reaches ProcessExit {
-    ProcessExit::exit_process(256);
+machine exits_with_256() satisfies Tests::exits reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(256);
 }
 
 machine main() {}

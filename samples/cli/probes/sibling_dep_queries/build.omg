@@ -1,5 +1,5 @@
 // A sibling path dependency is resolved by its declared package name:
-// `Build::dependency(builder, dependency\from_source(Source::Path { location: "dependency" }))`
+// `Build::dependency(builder, |dependency|::from_source(Source::Path { location: "dependency" }))`
 // composes `query_dependency`; its machines import as
 // `use query_dependency\value`.
 use {omega}/build/dependency.omg;

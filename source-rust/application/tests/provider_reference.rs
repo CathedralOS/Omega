@@ -140,10 +140,15 @@ machine build(builder: @mutable Build) {{
     (directory, root)
 }
 
-/// Runs `omega run --both --keep <file>` in the fixture's source root.
-fn run(directory: &TemporaryDirectory, root: &std::path::Path, file: &str) -> std::process::Output {
+/// Keep each engine’s artifacts inside the fixture’s scratch directory.
+fn run(
+    directory: &TemporaryDirectory,
+    root: &std::path::Path,
+    engine: &str,
+    file: &str,
+) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "--keep", file])
+        .args(["run", "--engine", engine, "--keep", file])
         .current_dir(root)
         .env(
             "OMEGA_LIBRARY_ROOT",
@@ -163,7 +168,7 @@ fn execute_provider_fixture(fixture: Fixture) {
     // The run names the Build file: `omega run <file>` selects the Build in
     // the named file and ignores a neighboring `build.omg`
     // (wiki/spec/build/command_line.md, "Build-first entry selection").
-    let output = run(&directory, &root, "build.omg");
+    let output = run(&directory, &root, "native", "build.omg");
     let report = String::from_utf8(output.stderr).unwrap();
     // `omega run` forwards the native program's stdout and stderr before it
     // reports the native exit, so an empty stdout and a report that opens with
@@ -196,28 +201,22 @@ fn execute_provider_fixture(fixture: Fixture) {
     assert_eq!(groups.len(), 1);
     assert!(groups[0].inputs.is_empty());
     assert_eq!(groups[0].results, vec![Vec::new()]);
+    assert!(output.status.success(), "{report}");
+    let interpreted = run(&directory, &root, "psi", "build.omg");
+    let report = String::from_utf8(interpreted.stderr).unwrap();
     if forward {
-        assert!(!output.status.success(), "{report}");
-        assert!(
-            report.contains("resident scalar belongs to a different original allocation"),
-            "{report}"
-        );
+        assert!(!interpreted.status.success(), "{report}");
+        assert!(report.contains("resident scalar belongs to a different original allocation"), "{report}");
     } else {
-        assert!(output.status.success(), "{report}");
-        assert!(
-            report.lines().any(|line| line == "interp exit: 0"),
-            "{report}"
-        );
-        assert!(
-            std::fs::read(retained.join("terminal.stdout"))
-                .unwrap()
-                .is_empty()
-        );
-        assert!(
-            std::fs::read(retained.join("terminal.stderr"))
-                .unwrap()
-                .is_empty()
-        );
+        assert!(interpreted.status.success(), "{report}");
+        assert!(interpreted.stdout.is_empty());
+        assert!(report.lines().any(|line| line == "Psi exit 0"), "{report}");
+        let kept = report.lines().find_map(|line| line.strip_prefix("build dir kept: ")).unwrap();
+        let kept = std::path::Path::new(kept);
+        assert!(kept.starts_with(directory.path()), "{kept:?}");
+        for stream in ["terminal.stdout", "terminal.stderr"] {
+            assert!(std::fs::read(kept.join(stream)).unwrap().is_empty());
+        }
     }
 }
 
@@ -243,7 +242,7 @@ fn canonical_provider_reference_reads_both_fields_of_its_live_pair() {
 #[test]
 fn the_program_file_alone_supplies_no_provider() {
     let (directory, root) = write_provider_fixture(Fixture::Scalar);
-    let output = run(&directory, &root, "main.omg");
+    let output = run(&directory, &root, "psi", "main.omg");
     let report = String::from_utf8(output.stderr).unwrap();
     assert!(!output.status.success(), "{report}");
     assert!(output.stdout.is_empty(), "{:?}", output.stdout);

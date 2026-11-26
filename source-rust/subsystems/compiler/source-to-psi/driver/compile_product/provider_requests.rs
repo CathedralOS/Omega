@@ -49,12 +49,9 @@ pub(super) fn prepare_product_applications(
             .iter()
             .any(|event| applies(&event.request))
     {
-        // Applying an operand mutates the consuming program, not the source
-        // declarations and lexical authors that authorized this batch.
-        let source = typed.clone();
-        let lookups = crate::source_state::product_operand::ProductSourceLookups::new(
-            &source,
-        );
+        // Applying an operand mutates the consuming program, not the extracted
+        // source declaration and lexical author lookups that authorized this batch.
+        let lookups = crate::source_state::product_operand::ProductSourceLookups::new(typed);
         for (request, author) in formations
             .iter()
             .filter(|(request, _)| applies(request))
@@ -73,12 +70,14 @@ pub(super) fn prepare_product_applications(
             .filter(|event| applies(&event.request))
         {
             let author = lookups
-                .authors
-                .resolve(event.selecting_machine.ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "executed provider recipe lost its original author",
-                    )]
-                })?)
+                .resolve_author(
+                    &typed.symbols,
+                    event.selecting_machine.ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "executed provider recipe lost its original author",
+                        )]
+                    })?,
+                )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
             prepare_application_request(
                 typed,
@@ -114,7 +113,7 @@ pub(super) fn product_formation_authors(
 
 fn prepare_application_request(
     typed: &mut TypedTrees,
-    source: &crate::source_state::product_operand::ProductSourceLookups<'_>,
+    source: &crate::source_state::product_operand::ProductSourceLookups,
     request: &ProductDeclarationRequest,
     author: SymbolHandle,
     static_environment: Option<&ProductStaticEnvironment>,

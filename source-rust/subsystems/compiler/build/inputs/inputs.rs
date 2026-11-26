@@ -7,7 +7,7 @@
 
 #![forbid(unsafe_code)]
 
-pub use source::anonymous_owner::AnonymousSourceCapture;
+pub use source::anonymous_owner::{AnonymousSourceCapture, CompletedAnonymousSource};
 pub use source_acquisition::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
 use wire::codec_bytes;
@@ -26,10 +26,10 @@ mod package;
 
 pub use build_declarations::BuildDeclarationKind;
 pub use package::{
-    IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
-    PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
-    PackageDependencyAcquisition, PackageDependencyBinding, PackageDependencyClosure,
-    PackageSourceBinding,
+    IndependentComponentDescription, PackageBuildEntries, PackageBuildHandoff,
+    PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
+    PackageCompilationTargetInputs, PackageDependencyAcquisition, PackageDependencyBinding,
+    PackageDependencyClosure, PackageSourceBinding,
 };
 pub use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 pub use source::source_consumption::{

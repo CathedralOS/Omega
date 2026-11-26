@@ -225,6 +225,7 @@ impl Eq for DeferredResolvedFrontier {}
 pub enum DeferredBodyScope {
     All,
     BuildAndToolchain,
+    BuildOnly,
     SelectedFiles,
 }
 
@@ -321,6 +322,15 @@ impl DeferredResolvedFrontier {
                             file.origin == SourceOrigin::Toolchain
                                 || file.dependency_scope == DependencyScope::Build
                         })
+                })
+                .collect(),
+            DeferredBodyScope::BuildOnly => self
+                .pending_machines()
+                .filter(|symbol| {
+                    symbols
+                        .symbol_provenance_source_span(*symbol)
+                        .and_then(|span| symbols.source_file(span))
+                        .is_some_and(|file| file.dependency_scope == DependencyScope::Build)
                 })
                 .collect(),
             DeferredBodyScope::SelectedFiles => {

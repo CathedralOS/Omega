@@ -45,6 +45,7 @@ impl PreparedBuildExecution {
         original_sources: Option<Arc<super::OriginalBuildSources>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
+            diagnostic_output_bytes,
             prepared,
             produced,
             providers,
@@ -57,14 +58,16 @@ impl PreparedBuildExecution {
             default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
-        let providers = providers.admit(&produced).map_err(|mut errors| {
-            if let Some(span) = prepared.source().symbols.symbol_source_span(machine.symbol) {
-                for error in &mut errors {
-                    error.source_span.get_or_insert(span);
+        let providers = providers
+            .admit(&produced, diagnostic_output_bytes)
+            .map_err(|mut errors| {
+                if let Some(span) = prepared.source().symbols.symbol_source_span(machine.symbol) {
+                    for error in &mut errors {
+                        error.source_span.get_or_insert(span);
+                    }
                 }
-            }
-            errors
-        })?;
+                errors
+            })?;
 
         let measurement = crate::activation::measurement();
         const INVOCATION_WORK: u64 = 100_000;
@@ -185,6 +188,13 @@ impl PreparedBuildExecution {
 
     fn freeze(self, completed: ReturnedBuild) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
         let declaration = completed.declaration().cloned();
+        if matches!(
+            declaration,
+            Some(build_declarations::BuildDeclaration::Package(_))
+        ) && !completed.root_bindings.is_empty()
+        {
+            return Err(self.refuse("a package Product cannot bind an executable root"));
+        }
         let artifact_only = matches!(&declaration, Some(build_declarations::BuildDeclaration::Application(application)) if application.artifact_only);
         // Artifact-only mode builds no product, so an entry, provider or
         // native binding would have nothing to apply to. The spec

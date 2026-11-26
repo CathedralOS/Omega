@@ -1,14 +1,12 @@
 use calling.omg as abi;
+use console.omg;
 use targets/windows_x86_64/calling.omg as windows_abi;
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use ByteRead;
-use ConsoleByteOperations;
-use WindowsConsoleHost;
+use windows_console_host.omg;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+use {omega}/language/core/process_authority.omg as process;
+
 // Windows byte I/O uses MSVCRT descriptor calls. Binary mode preserves every
 // authored byte, including CR/LF and Ctrl+Z. Build supplies each DLL locator.
-use omega\language\core\narrow_i32_to_u8_wrapping;
-use omega\language\core\widen_u8_to_i32;
 
 // The leaf requirements below carry no source realization: each one is a
 // package-owned boundary row whose DLL locator lives in `system/build.omg`
@@ -17,13 +15,13 @@ use omega\language\core\widen_u8_to_i32;
 boundary trait WindowsConsoleIo: |abi|::Calling<|windows_abi|::WindowsX64ScalarCalling> {
     machine write(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
     requires descriptor == 1 && count <= 4
-    reaches StandardOutput
+    reaches |process|::StandardOutput
     crashes none;
 
     // A console read waits for host input, so the import publishes `blocks`.
     machine read(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
     requires descriptor == 0 && count <= 4
-    reaches StandardInput
+    reaches |process|::StandardInput
     blocks
     crashes none;
 
@@ -36,31 +34,31 @@ boundary trait WindowsConsoleIo: |abi|::Calling<|windows_abi|::WindowsX64ScalarC
     //   `int _setmode(int fd, int mode)`
     machine set_input_mode(descriptor: i32, mode: i32) -> i32
     requires descriptor == 0 && mode == 32768
-    reaches StandardInput
+    reaches |process|::StandardInput
     crashes none;
 
     machine set_output_mode(descriptor: i32, mode: i32) -> i32
     requires descriptor == 1 && mode == 32768
-    reaches StandardOutput
+    reaches |process|::StandardOutput
     crashes none;
 }
 
 // A one-byte transfer yields Byte, zero bytes yields Eof. A failed binary-mode
 // change, failed read, or invalid transfer count yields Error.
-machine windows_console_read_byte() -> ByteRead
-reaches StandardInput
+machine windows_console_read_byte() -> |console|::ByteRead
+reaches |process|::StandardInput
 blocks
 crashes none
 {
-    let mode: i32 = WindowsConsoleHost::set_input_mode(0, 32768);
+    let mode: i32 = |windows_console_host|::WindowsConsoleHost::set_input_mode(0, 32768);
     transition mode == -1 {
         true -> failed(),
         false -> block read()
     }
 
-    machine read() -> ByteRead {
+    machine read() -> |console|::ByteRead {
         let mutable cell: i32 = 0;
-        let count: i32 = block WindowsConsoleHost::read(0, @mutable cell, 1);
+        let count: i32 = block |windows_console_host|::WindowsConsoleHost::read(0, @mutable cell, 1);
         transition count {
             1 -> byte(cell),
             0 -> end(),
@@ -68,55 +66,55 @@ crashes none
         }
     }
 
-    machine byte(cell: i32) -> ByteRead {
-        let value: u8 = narrow_i32_to_u8_wrapping(cell);
-        ByteRead::Byte { value: widen_u8_to_i32(value) }
+    machine byte(cell: i32) -> |console|::ByteRead {
+        let value: u8 = |numeric|::narrow_i32_to_u8_wrapping(cell);
+        |console|::ByteRead::Byte { value: |numeric|::widen_u8_to_i32(value) }
     }
 
-    machine end() -> ByteRead { ByteRead::Eof }
+    machine end() -> |console|::ByteRead { |console|::ByteRead::Eof }
 
-    machine failed() -> ByteRead { ByteRead::Error }
+    machine failed() -> |console|::ByteRead { |console|::ByteRead::Error }
 }
 
 // Descriptor 1 is stdout.
 machine windows_console_write_byte(byte: i32)
-reaches StandardOutput
+reaches |process|::StandardOutput
 {
     let mutable cell: i32 = byte;
-    let mode: i32 = WindowsConsoleHost::set_output_mode(1, 32768);
-    let written: i32 = WindowsConsoleHost::write(1, @mutable cell, 1);
+    let mode: i32 = |windows_console_host|::WindowsConsoleHost::set_output_mode(1, 32768);
+    let written: i32 = |windows_console_host|::WindowsConsoleHost::write(1, @mutable cell, 1);
 }
 
 // Windows x86-64 reaches MSVCRT through the Microsoft x64 placement above.
-WindowsX64ConsoleHost satisfies WindowsConsoleHost {
+WindowsX64ConsoleHost satisfies |windows_console_host|::WindowsConsoleHost {
     machine write(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
     requires descriptor == 1 && count <= 4
-    reaches StandardOutput crashes none {
+    reaches |process|::StandardOutput crashes none {
         WindowsConsoleIo::write(descriptor, buffer, count)
     }
     machine read(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
     requires descriptor == 0 && count <= 4
-    reaches StandardInput blocks crashes none {
+    reaches |process|::StandardInput blocks crashes none {
         block WindowsConsoleIo::read(descriptor, buffer, count)
     }
     machine set_input_mode(descriptor: i32, mode: i32) -> i32
     requires descriptor == 0 && mode == 32768
-    reaches StandardInput crashes none {
+    reaches |process|::StandardInput crashes none {
         WindowsConsoleIo::set_input_mode(descriptor, mode)
     }
     machine set_output_mode(descriptor: i32, mode: i32) -> i32
     requires descriptor == 1 && mode == 32768
-    reaches StandardOutput crashes none {
+    reaches |process|::StandardOutput crashes none {
         WindowsConsoleIo::set_output_mode(descriptor, mode)
     }
 }
 
-WindowsConsoleBytes satisfies ConsoleByteOperations {
-    machine read_byte() -> ByteRead
-    reaches StandardInput blocks crashes none {
+WindowsConsoleBytes satisfies |console|::ConsoleByteOperations {
+    machine read_byte() -> |console|::ByteRead
+    reaches |process|::StandardInput blocks crashes none {
         block windows_console_read_byte()
     }
-    machine write_byte(byte: i32) reaches StandardOutput {
+    machine write_byte(byte: i32) reaches |process|::StandardOutput {
         windows_console_write_byte(byte);
     }
 }

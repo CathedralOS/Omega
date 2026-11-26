@@ -22,12 +22,13 @@ fn check_with_dependency_build(
     let build = format!(
         "use support/support.omg as amounts;
 
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build)
 suspends
 {{
     builder.tests.disabled = true;
-    let mutable kit_request: DependencyDescription = dependency\\from_source(Source::Path {{ location: \"dep\" }});
-    dependency\\with_alias(@mutable kit_request, \"kit\");
+    let mutable kit_request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: \"dep\" }});
+    |dependency|::with_alias(@mutable kit_request, \"kit\");
     let kit_registered: DependencyRegistration = register(builder, kit_request);
 {before}
     suspend Build::prepare_dependency(builder, kit_registered);
@@ -166,14 +167,23 @@ machine build(builder: @mutable Build) {{
 }}"#,
         target.target_name(),
     );
-    let (compiled, report) = check_project(
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
         "anonymous-constant",
-        &build,
-        7,
-        "",
-        &["--check", "main.omg"],
+        false,
+    )
+    .unwrap();
+    std::fs::write(project.path().join("build.omg"), build).unwrap();
+    std::fs::write(project.path().join("main.omg"), "machine main() {}").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(project.path())
+        .args(["--check", "main.omg"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
     );
-    assert!(compiled, "{report}");
 }
 
 #[test]
@@ -256,25 +266,27 @@ fn a_wait_preserves_the_proof_for_an_already_resolved_call() {
 
 #[test]
 fn a_prepared_call_and_an_earlier_borrow_are_visible_together() {
-    let (ran, report) = check_with_dependency_build(
-        "live-loan-and-package",
-        r#"    let mutable amount: i32 = initial_amount(builder);
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, report) = check_with_dependency_build(
+            "live-loan-and-package",
+            r#"    let mutable amount: i32 = initial_amount(builder);
     amount = 7;
     let held: @i32 = @amount;"#,
-        r#"    let seven: i32 = |amounts|::value();
+            r#"    let seven: i32 = |amounts|::value();
     needs_seven($held);
     transition seven == $held && !builder.tests.disabled {
         true -> carried(builder),
         _ -> wrong(builder)
     }"#,
-        7,
-        "",
-        &["run", "--both", "build.omg"],
-    );
-    assert!(
-        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
+            7,
+            "",
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            ran && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -339,10 +351,11 @@ fn build_helpers_are_checked_at_the_call_site_in_both_file_layouts() {
     ] {
         let build = format!(
             r#"{import}
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {{
     announce(builder);
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "dep" }});
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     let expected: i32 = 7;
     suspend Build::prepare_dependency(builder, registered);
@@ -355,6 +368,7 @@ machine build(builder: @mutable Build) suspends {{
 }}
 "#
         );
+        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
         let run = |case: &str, build: &str, support: Option<&str>| {
             check_project_with_support(
                 &format!("helpers-{layout}-{case}"),
@@ -362,12 +376,12 @@ machine build(builder: @mutable Build) suspends {{
                 7,
                 "",
                 support,
-                &["run", "--both", "build.omg"],
+                &["run", "--engine", engine, "build.omg"],
             )
         };
         let (ran, output) = run("after", &build, support.as_deref());
         assert!(
-            ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
+            ran && output.lines().any(|line| line == expected),
             "{layout}: {output}"
         );
 
@@ -377,7 +391,7 @@ machine build(builder: @mutable Build) suspends {{
         );
         let (ran, output) = run("before", &early, support.as_deref());
         assert!(
-            ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
+            ran && output.lines().any(|line| line == expected),
             "{layout}: {output}"
         );
 
@@ -400,7 +414,7 @@ machine build(builder: @mutable Build) suspends {{
                 type_support.as_deref(),
             );
             assert!(
-                ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
+                ran && output.lines().any(|line| line == expected),
                 "{layout} {form}: {output}"
             );
             let (ran, output) = run(
@@ -409,7 +423,7 @@ machine build(builder: @mutable Build) suspends {{
                 type_support.as_deref(),
             );
             assert!(
-                ran && output.contains("native exit 0") && output.contains("interp exit: 0"),
+                ran && output.lines().any(|line| line == expected),
                 "{layout} {form}: {output}"
             );
         }
@@ -439,6 +453,7 @@ machine build(builder: @mutable Build) suspends {{
                     && !output.contains("while resuming"),
                 "{layout}: {output}"
             );
+        }
         }
     }
 }
@@ -471,11 +486,12 @@ requires a == b && a < larger && flag == second && enabled { }";
             .target_name();
         let build = format!(
             r#"use counts.omg as counts;
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {{
     Build::application(builder, "staged");
     builder.tests.disabled = true;
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "dep" }});
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
 {before}
     suspend Build::prepare_dependency(builder, registered);
@@ -490,11 +506,12 @@ machine choose_amount(flag: bool) -> i32 ensures result >= 7 && result <= 9 {{
 {helpers}
 "#
         );
-        let (ran, output) = check_project(name, &build, 7, "", &["run", "--both", "build.omg"]);
+        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, output) = check_project(name, &build, 7, "", &["run", "--engine", engine, "build.omg"]);
         assert_eq!(ran, accepted, "{output}");
         if accepted {
             assert!(
-                output.contains("native exit 0") && output.contains("interp exit: 0"),
+                output.lines().any(|line| line == expected),
                 "{output}"
             );
         } else {
@@ -502,6 +519,7 @@ machine choose_amount(flag: bool) -> i32 ensures result >= 7 && result <= 9 {{
                 output.contains("cannot prove requires contract for call require_related"),
                 "{output}"
             );
+        }
         }
     }
 }
@@ -540,22 +558,24 @@ fn a_live_loan_also_prevents_writes_before_preparation() {
 
 #[test]
 fn a_resumed_mutable_loan_updates_its_own_home() {
-    let (ran, report) = check_with_dependency_build(
-        "two-live-homes",
-        r#"    let other: i32 = 3;
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, report) = check_with_dependency_build(
+            "two-live-homes",
+            r#"    let other: i32 = 3;
     let mutable amount: i32 = 1;
     let held: @mutable i32 = @mutable amount;"#,
-        r#"    let seven: i32 = |amounts|::value();
+            r#"    let seven: i32 = |amounts|::value();
     $held = seven;
     transition amount == 7 && other == 3 { true -> carried(builder), _ -> wrong(builder) }"#,
-        7,
-        "",
-        &["run", "--both", "build.omg"],
-    );
-    assert!(
-        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
+            7,
+            "",
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            ran && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -564,34 +584,38 @@ fn registration_and_a_mutable_local_survive_the_same_preparation() {
         "    $held = 7;\n    builder.tests.disabled = amount == 7;\n    suspend Build::prepare_dependency(builder, kit_registered);\n{}",
         after("|amounts|::value")
     );
-    let (ran, report) = check_with_dependency_build(
-        "registration-and-mutable-local",
-        "    let mutable amount: i32 = 3;\n    let held: @mutable i32 = @mutable amount;",
-        &after_wait,
-        7,
-        "",
-        &["run", "--both", "build.omg"],
-    );
-    assert!(
-        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, report) = check_with_dependency_build(
+            "registration-and-mutable-local",
+            "    let mutable amount: i32 = 3;\n    let held: @mutable i32 = @mutable amount;",
+            &after_wait,
+            7,
+            "",
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            ran && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+    }
 }
 
 #[test]
 fn a_local_helper_can_run_before_the_build_releases_its_live_borrow() {
-    let (ran, report) = check_with_dependency_build(
-        "call-with-live-borrow",
-        "    let mutable amount: i32 = 3;\n    let held: @mutable i32 = @mutable amount;",
-        "    let seven: i32 = |amounts|::value();\n    $held = seven;\n    suspend Build::prepare_dependency(builder, kit_registered);\n    transition amount == 7 {\n        true -> carried(builder),\n        _ -> wrong(builder)\n    }",
-        7,
-        "",
-        &["run", "--both", "build.omg"],
-    );
-    assert!(
-        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, report) = check_with_dependency_build(
+            "call-with-live-borrow",
+            "    let mutable amount: i32 = 3;\n    let held: @mutable i32 = @mutable amount;",
+            "    let seven: i32 = |amounts|::value();\n    $held = seven;\n    suspend Build::prepare_dependency(builder, kit_registered);\n    transition amount == 7 {\n        true -> carried(builder),\n        _ -> wrong(builder)\n    }",
+            7,
+            "",
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            ran && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -599,10 +623,11 @@ fn a_build_keeps_the_byte_its_helper_read_before_preparation() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let build = r#"use counts.omg as counts;
 machine middle(bytes: @[u8]) -> u8 requires bytes.length == 3 { bytes[1] }
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "staged_byte_read");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     let byte: u8 = middle("kit");
     suspend Build::prepare_dependency(builder, registered);
@@ -615,17 +640,19 @@ machine build(builder: @mutable Build) suspends {
     machine wrong(builder: @mutable Build) { Build::application(builder, "wrong_byte"); }
 }
 "#.replace("HOST", target.target_name());
-    let (ran, report) = check_project(
-        "byte-before-wait",
-        &build,
-        7,
-        "",
-        &["run", "--both", "build.omg"],
-    );
-    assert!(
-        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, report) = check_project(
+            "byte-before-wait",
+            &build,
+            7,
+            "",
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            ran && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -635,31 +662,34 @@ fn a_field_borrow_survives_preparing_a_product_dependency() {
         "linux_x86_64::ProgramEntry",
         &format!("{}::ProgramEntry", target.target_name()),
     );
-    let (ran, report) = check_project(
-        "borrowed-field",
-        &source,
-        7,
-        "",
-        &["run", "--both", "build.omg"],
-    );
-    assert!(
-        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, report) = check_project(
+            "borrowed-field",
+            &source,
+            7,
+            "",
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            ran && report.lines().any(|line| line == expected),
+            "{report}"
+        );
 
-    let conflict = source.replace("$held = seven;", "gauge.amount = seven;");
-    let (ran, report) = check_project(
-        "borrowed-field-conflict",
-        &conflict,
-        7,
-        "",
-        &["--check", "main.omg"],
-    );
-    assert!(
-        !ran && report.contains("storage is changed while a conflicting reference remains live")
-            && report.contains("build.omg:19:"),
-        "{report}"
-    );
+        let conflict = source.replace("$held = seven;", "gauge.amount = seven;");
+        let (ran, report) = check_project(
+            "borrowed-field-conflict",
+            &conflict,
+            7,
+            "",
+            &["--check", "main.omg"],
+        );
+        assert!(
+            !ran && report
+                .contains("storage is changed while a conflicting reference remains live")
+                && report.contains("build.omg:21:11"),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -680,40 +710,43 @@ fn a_suspending_helper_returns_its_local_value_after_preparation() {
     build.push_str(&format!(
         "\nmachine ready(builder: @mutable Build, registration: DependencyRegistration) -> i32 suspends {{\n    {wait}\n    helper_value()\n}}\n"
     ));
-    let (ok, report) = check_project(
-        "suspending-helper-result",
-        &build,
-        7,
-        "",
-        &["run", "--both", "build.omg"],
-    );
-    assert!(
-        ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
-    let wrong = build.replace(
-        "machine helper_value() -> i32 { 7 }",
-        "machine helper_value() -> i32 { 8 }",
-    );
-    assert_ne!(wrong, build);
-    let (ok, report) = check_project(
-        "wrong-suspending-helper-result",
-        &wrong,
-        7,
-        "",
-        &["--check", "main.omg"],
-    );
-    assert!(!ok && report.contains("project role"), "{report}");
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ok, report) = check_project(
+            "suspending-helper-result",
+            &build,
+            7,
+            "",
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            ok && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+        let wrong = build.replace(
+            "machine helper_value() -> i32 { 7 }",
+            "machine helper_value() -> i32 { 8 }",
+        );
+        assert_ne!(wrong, build);
+        let (ok, report) = check_project(
+            "wrong-suspending-helper-result",
+            &wrong,
+            7,
+            "",
+            &["--check", "main.omg"],
+        );
+        assert!(!ok && report.contains("project role"), "{report}");
+    }
 }
 
 #[test]
 fn a_transition_can_use_the_result_of_a_suspending_build_helper() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let build = r#"use counts.omg as counts;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "ready_subject");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     SUBJECT {
         true -> finish(builder),
@@ -743,11 +776,13 @@ machine ready(builder: @mutable Build, item: DependencyRegistration) -> bool sus
         ("direct-subject", &direct),
         ("subsequent-subject", &pair),
     ] {
-        let (ran, report) = check_project(name, source, 7, "", &["run", "--both", "build.omg"]);
+        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, report) = check_project(name, source, 7, "", &["run", "--engine", engine, "build.omg"]);
         assert!(
-            ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+            ran && report.lines().any(|line| line == expected),
             "{report}"
         );
+        }
     }
     let (ran, report) = check_project("false-subject", &direct, 8, "", &["--check", "main.omg"]);
     assert!(!ran && report.contains("project role"), "{report}");
@@ -769,11 +804,13 @@ fn a_helper_prepares_a_package_with_the_callers_borrow_still_live() {
             ""
         };
         source.push_str(&format!("\nmachine ready(builder: @mutable Build, registration: DependencyRegistration) suspends {{\n    {wait}\n    {body}\n}}\n"));
-        let (ran, report) = check_project(name, &source, 7, "", &["run", "--both", "build.omg"]);
+        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, report) = check_project(name, &source, 7, "", &["run", "--engine", engine, "build.omg"]);
         assert!(
-            ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+            ran && report.lines().any(|line| line == expected),
             "{report}"
         );
+        }
     }
 }
 
@@ -808,10 +845,11 @@ public machine score() -> i32 {
     )
     .unwrap();
     let build = r#"use support/helpers.omg as support;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "prepared_type");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "vendor" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registered);
     let score: i32 = |support|::score();
@@ -819,41 +857,41 @@ machine build(builder: @mutable Build) suspends {
     machine finish(builder: @mutable Build) { Build::bind(builder, HOST::ProgramEntry, main); }
     machine wrong(builder: @mutable Build) { Build::application(builder, "duplicate"); }
 }"#.replace("HOST", target.target_name());
-    let run = |program: &str| {
-        std::fs::write(root.join("build.omg"), program).unwrap();
-        Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--both", "build.omg"])
-            .current_dir(root)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .unwrap()
-    };
-    let result = run(&build);
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&result.stdout),
-        String::from_utf8_lossy(&result.stderr)
-    );
-    assert!(
-        result.status.success()
-            && report.contains("native exit 0")
-            && report.contains("interp exit: 0"),
-        "{report}"
-    );
-    let wait = "    suspend Build::prepare_dependency(builder, registered);\n";
-    let call = "    let score: i32 = |support|::score();\n";
-    let early = build.replace(&format!("{wait}{call}"), &format!("{call}{wait}"));
-    assert_ne!(early, build);
-    let result = run(&early);
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&result.stdout),
-        String::from_utf8_lossy(&result.stderr)
-    );
-    assert!(
-        result.status.success() && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let run = |program: &str| {
+            std::fs::write(root.join("build.omg"), program).unwrap();
+            Command::new(env!("CARGO_BIN_EXE_omega"))
+                .args(["run", "--engine", engine, "build.omg"])
+                .current_dir(root)
+                .stdin(std::process::Stdio::null())
+                .output()
+                .unwrap()
+        };
+        let result = run(&build);
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(
+            result.status.success() && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+        let wait = "    suspend Build::prepare_dependency(builder, registered);\n";
+        let call = "    let score: i32 = |support|::score();\n";
+        let early = build.replace(&format!("{wait}{call}"), &format!("{call}{wait}"));
+        assert_ne!(early, build);
+        let result = run(&early);
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(
+            result.status.success() && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -864,12 +902,13 @@ fn each_transition_arm_can_prepare_its_own_dependency() {
         false,
     )
     .unwrap();
-    let root = project.path();
+    let root = project.path().join("app");
+    std::fs::create_dir(&root).unwrap();
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
     for (directory, name, value) in [("left_vendor", "alpha", 7), ("right_vendor", "beta", 13)] {
         std::fs::write(root.join(format!("{name}.omg")),
             format!("public machine value() -> i32 {{ {value} }}")).unwrap();
-        let package = root.join(directory);
+        let package = project.path().join(directory);
         std::fs::create_dir(&package).unwrap();
         std::fs::write(
             package.join("build.omg"),
@@ -886,6 +925,7 @@ fn each_transition_arm_can_prepare_its_own_dependency() {
     }
     let build = r#"use alpha.omg as alpha;
 use beta.omg as beta;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "alternatives");
     builder.tests.disabled = FLAG;
@@ -894,13 +934,13 @@ machine build(builder: @mutable Build) suspends {
         _ -> suspend right(builder)
     }
     machine left(builder: @mutable Build) suspends {
-        let item: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "left_vendor" }));
+        let item: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../left_vendor" }));
         suspend Build::prepare_dependency(builder, item);
         let actual: i32 = |alpha|::value();
         transition actual == 7 { true -> done(builder), _ -> wrong(builder) }
     }
     machine right(builder: @mutable Build) suspends {
-        let item: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "right_vendor" }));
+        let item: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../right_vendor" }));
         suspend Build::prepare_dependency(builder, item);
         let actual: i32 = |beta|::value();
         transition actual == 13 { true -> done(builder), _ -> wrong(builder) }
@@ -914,9 +954,10 @@ machine build(builder: @mutable Build) suspends {
             selected.push_str("\nmachine unused(n: u64) -> u64 { n + 1u64 }\n");
         }
         std::fs::write(root.join("build.omg"), selected).unwrap();
+        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
         let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--both", "build.omg"])
-            .current_dir(root)
+            .args(["run", "--engine", engine, "build.omg"])
+            .current_dir(&root)
             .stdin(std::process::Stdio::null())
             .output()
             .unwrap();
@@ -935,10 +976,10 @@ machine build(builder: @mutable Build) suspends {
         } else {
             assert!(
                 output.status.success()
-                    && report.contains("native exit 0")
-                    && report.contains("interp exit: 0"),
+                    && report.lines().any(|line| line == expected),
                 "{report}"
             );
+        }
         }
     }
 }
@@ -947,10 +988,11 @@ machine build(builder: @mutable Build) suspends {
 fn resumption_preserves_arithmetic_and_float_contracts() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let build = r#"use counts.omg as counts;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "staged_proofs");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     let start: i32 = pick(builder.tests.disabled);
     let after: i32 = increment(start);
@@ -967,34 +1009,43 @@ machine require_step(start: i32, after: i32) requires start <= 9 && after == sta
 machine reading(flag: bool) -> f64 ensures result >= 0.0 && result <= 0.5 { match flag { true -> 0.25, _ -> 0.5 } }
 machine require_small(x: f64) requires x >= 0.0 && x <= 0.5 {}
 "#.replace("HOST", target.target_name());
-    let run =
-        |name, source: &str| check_project(name, source, 7, "", &["run", "--both", "build.omg"]);
-    let (ran, report) = run("staged-proof", &build);
-    assert!(
-        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
-    for (name, before, after, contract) in [
-        (
-            "staged-proof-arithmetic",
-            "increment(start)",
-            "increment(pick(builder.optimizations.human_report != 0u8))",
-            "require_step",
-        ),
-        (
-            "staged-proof-float",
-            "reading(builder.optimizations.human_report != 0u8)",
-            "0.75",
-            "require_small",
-        ),
-    ] {
-        let (ran, report) = run(name, &build.replace(before, after));
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let run = |name, source: &str| {
+            check_project(
+                name,
+                source,
+                7,
+                "",
+                &["run", "--engine", engine, "build.omg"],
+            )
+        };
+        let (ran, report) = run("staged-proof", &build);
         assert!(
-            !ran && report.contains(&format!(
-                "cannot prove requires contract for call {contract}"
-            )),
+            ran && report.lines().any(|line| line == expected),
             "{report}"
         );
+        for (name, before, after, contract) in [
+            (
+                "staged-proof-arithmetic",
+                "increment(start)",
+                "increment(pick(builder.optimizations.human_report != 0u8))",
+                "require_step",
+            ),
+            (
+                "staged-proof-float",
+                "reading(builder.optimizations.human_report != 0u8)",
+                "0.75",
+                "require_small",
+            ),
+        ] {
+            let (ran, report) = run(name, &build.replace(before, after));
+            assert!(
+                !ran && report.contains(&format!(
+                    "cannot prove requires contract for call {contract}"
+                )),
+                "{report}"
+            );
+        }
     }
 }
 
@@ -1003,10 +1054,11 @@ fn only_the_selected_transition_arm_waits_for_its_dependency() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let build = r#"use counts.omg as counts;
 const CHOSEN: bool = FLAG;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "conditional");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     builder.tests.disabled = CHOSEN;
     transition builder.tests.disabled {
@@ -1022,17 +1074,19 @@ machine build(builder: @mutable Build) suspends {
     machine wrong(builder: @mutable Build) { Build::application(builder, "duplicate_role"); }
 }"#.replace("HOST", target.target_name());
     for (flag, value) in [("true", 7), ("false", 8)] {
+        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
         let (ran, report) = check_project(
             &format!("conditional-wait-{flag}"),
             &build.replace("FLAG", flag),
             value,
             "",
-            &["run", "--both", "build.omg"],
+            &["run", "--engine", engine, "build.omg"],
         );
         assert!(
-            ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+            ran && report.lines().any(|line| line == expected),
             "{report}"
         );
+        }
     }
     let wrong_local = build.replace("FLAG", "false").replace(
         r"let value: i32 = |counts|::value();",
@@ -1076,11 +1130,11 @@ machine build(builder: @mutable Build) suspends {
 
 #[test]
 fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparation() {
-    let before = r#"    let input: BuildPath = BuildSource::resolve(@builder.source, "main.omg");
+    let before = r#"    let input: BuildPath = BuildSource::resolve(@builder.source, "support/support.omg");
     let reader: i32 = BuildSource::open(@builder.source, input, 0);
     let mutable first: [u8; 1] = [0u8];
     let first_count: i64 = BuildSource::read(@builder.source, reader, @mutable first[..], 1u64);
-    let saw_first: bool = first_count == 1i64 && first[0] == 109u8;
+    let saw_first: bool = first_count == 1i64 && first[0] == 112u8;
     let promised: RequiredOutput = BuildOutput::require(@mutable builder.output, "joined.txt");
     let output: BuildPath = BuildOutput::resolve(@builder.output, "joined.txt");
     let writer: i32 = BuildOutput::create(@mutable builder.output, output, 0);
@@ -1093,7 +1147,7 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
     _ = BuildOutput::write(@mutable builder.output, writer, "7i32 }");
     _ = BuildOutput::close(@mutable builder.output, writer);
     Build::include_source(builder, "joined.omg", "machine joined() -> i32 { 7i32 }");
-    let ready: bool = selected == 7 && saw_first && second_count == 1i64 && second[0] == 97u8 && denied == -1;
+    let ready: bool = selected == 7 && saw_first && second_count == 1i64 && second[0] == 117u8 && denied == -1;
     let completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, promised, output);
     transition completion {
         OutputCompletion::Sealed { receipt } -> checked(builder, ready),
@@ -1107,57 +1161,56 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
             true -> carried(builder), _ -> wrong(builder)
         }
     }"#;
-    let (ran, report) = check_with_dependency_build(
-        "open-files-across-mount",
-        before,
-        after,
-        7,
-        "",
-        &["run", "--both", "build.omg"],
-    );
-    assert!(
-        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
-    let output = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "open-writer-completed-output",
-        false,
-    )
-    .unwrap();
-    let (built, report) = check_with_dependency_build(
-        "open-files-export",
-        before,
-        after,
-        7,
-        "",
-        &["--build-dir", output.path().to_str().unwrap(), "build.omg"],
-    );
-    assert!(built, "{report}");
-    let completed = report
-        .lines()
-        .find_map(|line| line.strip_prefix("published completed build outputs to "))
-        .expect("the Build must export the file it completed");
-    assert_eq!(
-        std::fs::read(std::path::Path::new(completed).join("files/joined.txt")).unwrap(),
-        b"machine joined() -> i32 { 7i32 }",
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, report) = check_with_dependency_build(
+            "open-files-across-mount",
+            before,
+            after,
+            7,
+            "",
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            ran && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+        let output = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "open-writer-completed-output",
+            false,
+        )
+        .unwrap();
+        let (built, report) = check_with_dependency_build(
+            "open-files-export",
+            before,
+            after,
+            7,
+            "",
+            &["--build-dir", output.path().to_str().unwrap(), "build.omg"],
+        );
+        assert!(built, "{report}");
+        let completed = report
+            .lines()
+            .find_map(|line| line.strip_prefix("published completed build outputs to "))
+            .expect("the Build must export the file it completed");
+        assert_eq!(
+            std::fs::read(std::path::Path::new(completed).join("files/joined.txt")).unwrap(),
+            b"machine joined() -> i32 { 7i32 }",
+        );
 
-    let forged = after.replace(
-        "promised, output);",
-        "promised, BuildPath {});",
-    );
-    let (ran, report) = check_with_dependency_build(
-        "unissued-output-path-after-mount",
-        before,
-        &forged,
-        7,
-        "",
-        &["--check", "build.omg"],
-    );
-    assert!(
-        !ran && report.contains("filesystem value was not issued by this activation"),
-        "{report}"
-    );
+        let forged = after.replace("promised, output);", "promised, BuildPath {});");
+        let (ran, report) = check_with_dependency_build(
+            "unissued-output-path-after-mount",
+            before,
+            &forged,
+            7,
+            "",
+            &["--check", "build.omg"],
+        );
+        assert!(
+            !ran && report.contains("filesystem value was not issued by this activation"),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -1167,35 +1220,37 @@ fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() 
         "linux_x86_64::ProgramEntry",
         &format!("{}::ProgramEntry", target.target_name()),
     );
-    let (ran, report) = check_project(
-        "issued-output-after-wait",
-        &build,
-        7,
-        "",
-        &["run", "--both", "build.omg"],
-    );
-    assert!(
-        ran && report.contains("interp exit: 0") && report.contains("native exit 0"),
-        "{report}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ran, report) = check_project(
+            "issued-output-after-wait",
+            &build,
+            7,
+            "",
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            ran && report.lines().any(|line| line == expected),
+            "{report}"
+        );
 
-    // Settling the same obligation with a fresh, guest-constructed path must fail.
-    let forged = build.replace("obligation, checked);", "obligation, BuildPath {});");
-    assert_ne!(forged, build);
-    let (ran, report) = check_project(
-        "unissued-output-after-wait",
-        &forged,
-        7,
-        "",
-        &["--check", "build.omg"],
-    );
-    assert!(
-        !ran && report.contains("Build filesystem value was not issued by this activation")
-            && report.contains("build.omg:17:")
-            && !report.contains("ExecutionSite")
-            && !report.contains("EffectRejected"),
-        "{report}"
-    );
+        // Settling the same obligation with a fresh, guest-constructed path must fail.
+        let forged = build.replace("obligation, checked);", "obligation, BuildPath {});");
+        assert_ne!(forged, build);
+        let (ran, report) = check_project(
+            "unissued-output-after-wait",
+            &forged,
+            7,
+            "",
+            &["--check", "build.omg"],
+        );
+        assert!(
+            !ran && report.contains("Build filesystem value was not issued by this activation")
+                && report.contains("build.omg:19:")
+                && !report.contains("ExecutionSite")
+                && !report.contains("EffectRejected"),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -1236,7 +1291,7 @@ fn a_local_call_after_a_wait_does_not_end_a_live_shared_borrow() {
     );
     assert!(
         !ran && report.contains("storage is changed while a conflicting reference remains live")
-            && report.contains("build.omg:14:14")
+            && report.contains("build.omg:15:14")
             && !report.contains("while resuming the Build after dependency preparation"),
         "{report}"
     );
@@ -1250,10 +1305,11 @@ fn a_user_record_named_dependency_registration_keeps_its_own_fields() {
         r#"use counts.omg as counts;
 use support/support.omg as issued;
 data DependencyRegistration [copy] {{ mark: u32; }}
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {{
     Build::application(builder, "staged");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "dep" }});
+    |dependency|::with_alias(@mutable request, "kit");
     let shadow: DependencyRegistration = DependencyRegistration {{ mark: 7u32 }};
     let real: |issued|::IssuedRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, real);
@@ -1333,7 +1389,7 @@ fn a_preparation_refuses_shadowing_before_the_first_build_effects() {
     );
     assert!(!compiled, "{stderr}");
     assert!(
-        stderr.contains("an earlier local with this name is still visible") && stderr.contains("build.omg:13:9"),
+        stderr.contains("an earlier local with this name is still visible") && stderr.contains("build.omg:14:9"),
         "{stderr}"
     );
 }
@@ -1372,8 +1428,8 @@ fn a_build_can_call_its_local_helper_before_and_after_a_product_wait() {
 fn a_product_dependency_is_not_selectable_from_the_build() {
     let (compiled, stderr) = check(
         "product-dependency",
-        "    let mutable lib_request: DependencyDescription = dependency\\from_source(Source::Path { location: \"dep\" });
-    dependency\\with_alias(@mutable lib_request, \"lib\");
+        "    let mutable lib_request: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
+    |dependency|::with_alias(@mutable lib_request, \"lib\");
     let lib_registered: DependencyRegistration = Build::dependency(builder, lib_request);",
         &after("lib\\v"),
         7,
@@ -1395,7 +1451,7 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
     );
     let location = stderr.lines().map(str::trim).find_map(|line| {
         line.strip_prefix("at ")
-            .and_then(|position| position.strip_suffix(":14:22"))
+            .and_then(|position| position.strip_suffix(":15:22"))
     });
     let expected_path = std::path::PathBuf::from(format!(
         "omega-build-staged-dependency-calls-{}-product-dependency",
@@ -1480,61 +1536,62 @@ machine wrong() crashes Trap { crash Trap; }
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let build = r#"machine build(builder: @mutable Build) suspends {
+    let build = r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) suspends {
     Build::application(builder, "prepared_product");
-    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "vendor" }));
+    let registered: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "vendor" }));
     suspend Build::prepare_dependency(builder, registered);
     Build::bind(builder, HOST_TARGET::ProgramEntry, main);
 }
 "#.replace("HOST_TARGET", host.target_name());
-    let invoke = |contents: &str| {
-        std::fs::write(root.join("build.omg"), contents).unwrap();
-        Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--both", "build.omg"])
-            .current_dir(root)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .unwrap()
-    };
-    let output = invoke(&build);
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        output.status.success()
-            && report.contains("native exit 0")
-            && report.contains("interp exit: 0"),
-        "{report}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let invoke = |contents: &str| {
+            std::fs::write(root.join("build.omg"), contents).unwrap();
+            Command::new(env!("CARGO_BIN_EXE_omega"))
+                .args(["run", "--engine", engine, "build.omg"])
+                .current_dir(root)
+                .stdin(std::process::Stdio::null())
+                .output()
+                .unwrap()
+        };
+        let output = invoke(&build);
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            output.status.success() && report.lines().any(|line| line == expected),
+            "{report}"
+        );
 
-    let leaked = format!(
-        "use kit;\n{}",
-        build.replace(
-            "    Build::bind",
-            "    let leaked: i32 = kit\\value();\n    Build::bind"
-        )
-    );
-    let output = invoke(&leaked);
-    let report = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success()
-            && report.contains("Build import `kit` has no supplied source")
-            && report.contains("build.omg:1:5"),
-        "{report}"
-    );
-    let unknown = leaked
-        .replace("use kit;", "use kitchen;")
-        .replace("kit\\value()", "kitchen\\value()");
-    let output = invoke(&unknown);
-    let report = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !output.status.success()
-            && report.contains("Build import `kitchen` has no supplied source")
-            && report.contains("build.omg:1:5"),
-        "{report}"
-    );
+        let leaked = format!(
+            "use kit;\n{}",
+            build.replace(
+                "    Build::bind",
+                "    let leaked: i32 = kit\\value();\n    Build::bind"
+            )
+        );
+        let output = invoke(&leaked);
+        let report = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success()
+                && report.contains("Build import `kit` has no supplied source")
+                && report.contains("build.omg:1:5"),
+            "{report}"
+        );
+        let unknown = leaked
+            .replace("use kit;", "use kitchen;")
+            .replace("kit\\value()", "kitchen\\value()");
+        let output = invoke(&unknown);
+        let report = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !output.status.success()
+                && report.contains("Build import `kitchen` has no supplied source")
+                && report.contains("build.omg:1:5"),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -1561,10 +1618,11 @@ fn a_wait_cannot_add_a_library_to_the_checked_build() {
         return;
     };
     let build = r#"use {kit}/main.omg as chosen;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "fixed_imports");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registered);
     let value: i32 = |chosen|::v();
@@ -1627,9 +1685,10 @@ fn a_build_binds_its_products_file_without_being_able_to_call_it() {
     )
     .unwrap();
     let build = r#"use {kit}/entry.omg as selected;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "product_file");
-    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "vendor" }));
+    let registered: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "vendor" }));
     suspend Build::prepare_dependency(builder, registered);
     Build::bind(builder, HOST::ProgramEntry, |selected|::start);
 }"#.replace("HOST", host.target_name());
@@ -1648,28 +1707,33 @@ machine build(builder: @mutable Build) suspends {
         );
         (output.status.success(), report)
     };
-    let (ok, report) = invoke(&build, &["run", "--both", "build.omg"]);
-    assert!(
-        ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
-    let with_unused = format!("use {{absent}}/other.omg as unused;\n{build}");
-    let (ok, report) = invoke(&with_unused, &["--check", "build.omg"]);
-    assert!(
-        !ok && report.contains("Build import `{absent}/other.omg as unused` has no supplied source")
-            && !report.contains("Build import `{kit}/entry.omg as selected` has no supplied source"),
-        "{report}"
-    );
-    let called = build.replace(
-        "    Build::bind",
-        "    |selected|::start();\n    Build::bind",
-    );
-    let (ok, report) = invoke(&called, &["--check", "build.omg"]);
-    assert!(
-        !ok && report.contains("Build import `{kit}/entry.omg as selected` has no supplied source")
-            && report.contains("build.omg:1:5"),
-        "{report}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let (ok, report) = invoke(&build, &["run", "--engine", engine, "build.omg"]);
+        assert!(
+            ok && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+        let with_unused = format!("use {{absent}}/other.omg as unused;\n{build}");
+        let (ok, report) = invoke(&with_unused, &["--check", "build.omg"]);
+        assert!(
+            !ok && report
+                .contains("Build import `{absent}/other.omg as unused` has no supplied source")
+                && !report
+                    .contains("Build import `{kit}/entry.omg as selected` has no supplied source"),
+            "{report}"
+        );
+        let called = build.replace(
+            "    Build::bind",
+            "    |selected|::start();\n    Build::bind",
+        );
+        let (ok, report) = invoke(&called, &["--check", "build.omg"]);
+        assert!(
+            !ok && report
+                .contains("Build import `{kit}/entry.omg as selected` has no supplied source")
+                && report.contains("build.omg:1:5"),
+            "{report}"
+        );
+    }
 }
 
 #[test]
@@ -1678,28 +1742,38 @@ fn a_dependency_publishes_source_bytes_under_the_name_the_product_imports() {
         .unwrap()
         .target_name();
     let build = r#"use {kit}/generated/start.omg as entry;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "generated_entry");
-    let mutable source: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable source, "kit");
+    let mutable source: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable source, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, source);
     suspend Build::prepare_dependency(builder, registered);
     Build::bind(builder, HOST::ProgramEntry, |entry|::start);
 }"#.replace("HOST", target);
     let publish = r#"Build::include_source(builder, "generated/start.omg", "use main.omg as seed; public machine start() crashes Trap { transition |seed|::v() == 7 { true -> done(), _ -> bad() } machine done() {} machine bad() { crash Trap; } }");"#;
-    let run =
-        |name, body: &str| check_project(name, &build, 7, body, &["run", "--both", "build.omg"]);
-    let (ok, report) = run("published-source-bytes", publish);
-    assert!(
-        ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
-        "{report}"
-    );
-    let outside = publish.replace("generated/start.omg", "../start.omg");
-    let (ok, report) = run("published-source-outside", &outside);
-    assert!(
-        !ok && report.contains("invalid generated source filename `../start.omg`"),
-        "{report}"
-    );
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let run = |name, body: &str| {
+            check_project(
+                name,
+                &build,
+                7,
+                body,
+                &["run", "--engine", engine, "build.omg"],
+            )
+        };
+        let (ok, report) = run("published-source-bytes", publish);
+        assert!(
+            ok && report.lines().any(|line| line == expected),
+            "{report}"
+        );
+        let outside = publish.replace("generated/start.omg", "../start.omg");
+        let (ok, report) = run("published-source-outside", &outside);
+        assert!(
+            !ok && report.contains("invalid generated source filename `../start.omg`"),
+            "{report}"
+        );
+    }
 }
 
 #[test]

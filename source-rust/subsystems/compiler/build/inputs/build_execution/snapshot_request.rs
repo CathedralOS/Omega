@@ -1,8 +1,4 @@
-// Caller-selected immutable build snapshot requests (`BuildSnapshotRequest`,
-// `BuildSnapshotCapture`) and named input slots. When package inputs carry
-// validated canonical `Source` metadata, `automatic_package_inventory` selects
-// `BuildSnapshotCapture::PackageInventory` automatically unless overridden by
-// an explicit snapshot request.
+//! Immutable source and output grants for one Build activation.
 
 use crate::BuildSourceCaptureRequest;
 use build_output::CapturedBuildSourceInput;
@@ -18,25 +14,24 @@ pub struct BuildSnapshotRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BuildSnapshotCapture {
-    PackageInventory,                  // Root package's complete sealed inventory.
+    RequiredSources,                   // Local Build entry and its admitted source files.
+    PackageInventory,                  // Resolver-supplied dependency snapshot.
     Scoped(BuildSourceCaptureRequest), // Explicit invocation inventory of files and subtrees.
 }
 
 impl BuildSnapshotRequest {
-    pub fn new(required_outputs: impl IntoIterator<Item = Vec<u8>>) -> Self {
+    /// Resolved dependencies receive their sealed package inventory. A local
+    /// invocation without an explicit inventory can read its required source.
+    pub fn for_activation(dependency_activation: bool) -> Self {
         Self {
-            required_outputs: required_outputs.into_iter().collect(),
-            capture: BuildSnapshotCapture::PackageInventory,
+            required_outputs: Vec::new(),
+            capture: if dependency_activation {
+                BuildSnapshotCapture::PackageInventory
+            } else {
+                BuildSnapshotCapture::RequiredSources
+            },
             inputs: BTreeMap::new(),
         }
-    }
-
-    pub fn automatic_package_inventory(
-        package_inputs: Option<&crate::PackageCompilationInputs>,
-    ) -> Option<Self> {
-        package_inputs
-            .filter(|inputs| inputs.canonical_source_metadata(inputs.root()).is_some())
-            .map(|_| Self::new(std::iter::empty::<Vec<u8>>()))
     }
 
     pub fn scoped(

@@ -42,7 +42,8 @@ impl OperationKind {
         match self {
             Self::EstablishNativeCodeLayout { .. }
             | Self::ReleaseActivationClaim { .. }
-            | Self::MergeActivationClaim { .. } => {}
+            | Self::MergeActivationClaim { .. }
+            | Self::PackedIntegerUnary { .. } | Self::PackedIntegerBinary { .. } => {}
             Self::EstablishActivationClaim { committed, .. }
             | Self::SplitActivationClaim {
                 committed_at: committed,

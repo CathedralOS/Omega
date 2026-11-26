@@ -611,7 +611,7 @@ fn encode_scalar_restriction(bytes: &mut Vec<u8>, field_type: &StructuralFieldTy
             bytes.push(4);
             crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
         }
-        StructuralFieldType::Erased { type_identity } => {
+        StructuralFieldType::Erased { type_identity, .. } => {
             bytes.push(5);
             bytes.extend_from_slice(&type_identity.0.to_le_bytes());
         }

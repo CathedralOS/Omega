@@ -148,8 +148,7 @@ are established as follows:
   inferred from that agreement.
 
 ```sh
-omega run --both samples/cli/facts/opaque_closed_carrier_exchange/main.omg
-omega run --both samples/cli/facts/opaque_closed_carrier_exchange/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/opaque_closed_carrier_exchange
 omega --check samples/cli/facts/opaque_closed_carrier_exchange/invalid_local/main.omg
 ```
 
@@ -185,7 +184,7 @@ Measured on `macos_arm64` with the wave's shared producer at `9ff26a87`
 content):
 
 ```sh
-omega run --both samples/cli/facts/opaque_closed_carrier_exchange/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/opaque_closed_carrier_exchange/local
 omega --check samples/cli/facts/opaque_closed_carrier_exchange/invalid_local/main.omg
 ```
 

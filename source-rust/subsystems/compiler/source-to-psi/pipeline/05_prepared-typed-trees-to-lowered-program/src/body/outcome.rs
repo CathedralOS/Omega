@@ -671,7 +671,7 @@ impl<'b> Walk<'b> {
             }
             // Operands in authored order; the establishment itself cannot
             // crash or fail to complete.
-            ExpressionKind::Array { elements } => {
+            ExpressionKind::PackedInteger { operands: elements, .. } | ExpressionKind::Array { elements } => {
                 for element in elements {
                     if !self.expression(machine, element)? {
                         return Ok(false);
@@ -695,7 +695,7 @@ impl<'b> Walk<'b> {
             | ExpressionKind::ByteElement { base, index, .. } => {
                 Ok(self.expression(machine, base)? && self.expression(machine, index)?)
             }
-            ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+            ExpressionKind::Record { fields, .. } | ExpressionKind::Case { fields, .. } => {
                 for (_, operand) in fields {
                     if !self.expression(machine, operand)? {
                         return Ok(false);

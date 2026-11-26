@@ -87,6 +87,29 @@ mod tests {
     }
 
     #[test]
+    fn joining_shared_package_sources_rejects_different_commits_of_the_same_tree() {
+        use source_acquisition::{GitCommitId, GitTreeId, ImmutableSourceResolution};
+        let tree = GitTreeId::parse_hex(&"2".repeat(40)).unwrap();
+        let package = package(1, "meter", "public machine read() {}");
+        let at = |digit: char| {
+            let revision = ImmutableSourceResolution::git(
+                GitCommitId::parse_hex(&digit.to_string().repeat(40)).unwrap(),
+                tree.clone(),
+            )
+            .unwrap();
+            graph(1, package.clone().with_resolution(&revision))
+        };
+        let same = vec![dependency("first", at('1')), dependency("second", at('1'))];
+        ProductQueryInputs::new(None, same).unwrap();
+        let different = vec![dependency("first", at('1')), dependency("second", at('3'))];
+        let reason = ProductQueryInputs::new(None, different).unwrap_err();
+        assert!(
+            reason.contains("disagree about a shared package source"),
+            "{reason}"
+        );
+    }
+
+    #[test]
     fn a_product_query_selects_the_alias_in_the_requesting_sources_scope() {
         use source_provenance::DependencyScope::{Build, Product};
         let product = graph(
@@ -427,6 +450,34 @@ impl ProductQueryInputs {
         Ok(())
     }
 
+    pub(crate) fn resolved_edges(
+        &self,
+    ) -> Result<Vec<crate::source::anonymous_owner::ResolvedEdge<'_>>, Vec<Diagnostic>> {
+        use crate::source::anonymous_owner::ResolvedEdge;
+        [
+            (DependencyPurpose::Build, &self.build_dependencies),
+            (DependencyPurpose::Product, &self.dependencies),
+        ]
+        .into_iter()
+        .flat_map(|(purpose, dependencies)| dependencies.iter().map(move |edge| (purpose, edge)))
+        .map(|(purpose, edge)| {
+            let owner = edge.inputs.root();
+            let resolution = edge.inputs.resolution(owner).ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "dependency `{}` has no immutable resolution for the anonymous Build product",
+                    edge.alias,
+                ))]
+            })?;
+            Ok(ResolvedEdge {
+                purpose,
+                alias: &edge.alias,
+                owner,
+                resolution,
+            })
+        })
+        .collect()
+    }
+
     pub(crate) fn mount(&self, storage: &mut SourceStorage) -> Result<(), Vec<Diagnostic>> {
         if let Some(owner) = storage.default_package_identity() {
             storage.sources.retain_product_dependency_scope(
@@ -436,7 +487,7 @@ impl ProductQueryInputs {
             );
         }
         for graph in self.graphs() {
-            storage.require_disjoint_contract_packages(graph)?;
+            storage.require_disjoint_installed_roots(graph)?;
         }
         for graph in self.graphs() {
             storage
@@ -447,9 +498,7 @@ impl ProductQueryInputs {
                         "cannot join query source snapshots: {error}"
                     ))]
                 })?;
-            for (identity, root) in graph.packages() {
-                storage.register_reconciled_package_root(root.to_path_buf(), identity);
-            }
+            storage.register_package_graph(graph);
             storage
                 .sources
                 .retain_product_dependency_scope(graph.dependencies());
@@ -473,6 +522,7 @@ impl ProductQueryInputs {
         parsed: &ParsedSourceBatch,
         storage: &mut SourceStorage,
     ) -> Result<Vec<(PathBuf, source_provenance::DependencyScope)>, Vec<Diagnostic>> {
+        storage.capture_imported_build_library(parsed)?;
         let mut imports = Vec::new();
         for authored in parsed.sources.span_or_empty(parsed.batch) {
             let owner = storage
@@ -484,8 +534,7 @@ impl ProductQueryInputs {
                         .find(|inputs| inputs.package_for_source(&authored.path) == Some(owner))
                 });
             for import in &authored.imports {
-                let ordinal = import.ordinal;
-                let contract = storage.toolchain_contract_custody.root_for(&authored.path);
+                let contract = storage.installed_roots.root_for(&authored.path);
                 let mounted_owner = owner.is_some_and(|inputs| {
                     !self
                         .original
@@ -505,8 +554,10 @@ impl ProductQueryInputs {
                     }
                 };
                 if let Some(file) = super::files::FileImport::from(authored, import) {
+                    // Installed sources do not inherit the caller’s dependency aliases.
                     let mount = file
                         .root
+                        .filter(|_| contract.is_none())
                         .and_then(|alias| self.mounted_for(authored.scope, alias));
                     let mounted = mount.map(|dependency| &dependency.inputs);
                     let selected = if let Some(inputs) = owner {
@@ -542,6 +593,7 @@ impl ProductQueryInputs {
                                     .or(mounted)
                                     .expect("a package import has an admitted graph"),
                                 &mut storage.package_roots,
+                                &storage.sources,
                                 mount.and_then(|dependency| dependency.generated.as_ref()),
                             )?,
                         super::files::FileSelection::Unbound => continue,
@@ -563,7 +615,7 @@ impl ProductQueryInputs {
                         members,
                         requester,
                         purpose,
-                        storage.toolchain_contract_custody.root_for(&authored.path),
+                        storage.installed_roots.root_for(&authored.path),
                         inputs,
                     )?;
                     match selected {
@@ -601,7 +653,7 @@ impl ProductQueryInputs {
                             "Product query library imports require an issued Product dependency",
                         )]);
                     } else if let Some(root) =
-                        storage.toolchain_contract_custody.root_for(&authored.path)
+                        storage.installed_roots.root_for(&authored.path)
                     {
                         (
                             root.to_path_buf(),
@@ -667,7 +719,7 @@ impl ProductQueryInputs {
                     storage.resolved_imports.push(ResolvedSourceImport {
                         occurrence: ImportOccurrence::new(
                             authored.source_id,
-                            ordinal,
+                            import,
                             members,
                             prefix,
                         ),
@@ -701,21 +753,20 @@ impl ProductQueryInputs {
             if !local
                 && !package
                 && !canonical.starts_with(&core)
-                && !storage.is_toolchain_contract_source(&canonical)
+                && !storage.is_installed_source(&canonical)
             {
                 return Err(vec![Diagnostic::error(
                     "Product query source escapes its admitted source frontier",
                 )]);
             }
-            if !local
-                && package
-                && canonical
-                    .file_name()
-                    .is_some_and(|name| name == "build.omg")
+            if self.graphs().any(|inputs| inputs.package_for_source(&canonical).is_some_and(|owner| {
+                inputs.package_root(owner) != Some(storage.default_package_root())
+                    && inputs.dependency_build_file(owner, &canonical)
+            }))
             {
-                return Err(vec![Diagnostic::error(
-                    "Product query cannot import a dependency Build entry",
-                )]);
+                return Err(vec![Diagnostic::error(format!(
+                    "Product query cannot import dependency Build entry {}", canonical.display()
+                ))]);
             }
             validated.push((canonical, scope));
         }

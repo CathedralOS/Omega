@@ -151,6 +151,10 @@ to other packages or runtime services. The Build activation keeps its own
 admitted code and imports throughout. A separately requested Build can also use
 generated source when its invoker supplies the frozen view before compilation.
 
+A confined disk directory suffices for this handoff. The public operand for
+selecting privately created backing and any command-line options for virtual
+filesystems remain [deferred design work](../../drafts/designs/build_library_and_service_inputs.md#public-build-vocabulary).
+
 The `product-source-view` decision (2026-11-22) retires `Build::include_source`,
 per-file source registration, and the requirement to append generated units
 to an earlier compiler checkpoint. Product checking can reuse valid prior

@@ -2166,9 +2166,11 @@ pub(crate) mod record {
                             cell,
                             crate::storage::scalar_storage::ScalarCell::Resident { .. }
                         ) && !self.scalars.contains_key(field)
-                            && let Some(scalar) = self
-                                .array_initialization
-                                .zero_element_field(&types, &self.cases, field)?
+                            && let Some(scalar) = self.array_initialization.zero_element_field(
+                                &types,
+                                &self.cases,
+                                field,
+                            )?
                         {
                             self.scalars.insert(
                                 field.clone(),
@@ -2180,9 +2182,12 @@ pub(crate) mod record {
                         &execution.structural_primitive_storage,
                         root,
                     ) {
-                        if matches!(cell, crate::storage::scalar_storage::ScalarCell::Resident { .. })
-                            && !self.primitives.contains_key(home)
-                            && let Some(zero) = self.array_initialization.zero_primitive(&types, home)?
+                        if matches!(
+                            cell,
+                            crate::storage::scalar_storage::ScalarCell::Resident { .. }
+                        ) && !self.primitives.contains_key(home)
+                            && let Some(zero) =
+                                self.array_initialization.zero_primitive(&types, home)?
                         {
                             self.primitives.insert(home.clone(), zero)?;
                         }
@@ -3069,13 +3074,19 @@ pub(crate) mod scalar_array {
                     InitialValue::ZeroedElements => {
                         for (index, step) in path.iter().enumerate() {
                             match step {
-                                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_) => {}
+                                StructuralPathSegment::Field(_)
+                                | StructuralPathSegment::FixedIndex(_) => {}
                                 StructuralPathSegment::Case(case) => {
-                                    let owner = crate::engine::custody::resolve_structural_path_type(
-                                        types, self.structural_type, &path[..index],
-                                    )?;
+                                    let owner =
+                                        crate::engine::custody::resolve_structural_path_type(
+                                            types,
+                                            self.structural_type,
+                                            &path[..index],
+                                        )?;
                                     let declaration = types.get(&owner).ok_or_else(malformed)?;
-                                    if declaration.shape.cases().first().map(|first| first.id) != Some(*case) {
+                                    if declaration.shape.cases().first().map(|first| first.id)
+                                        != Some(*case)
+                                    {
                                         return Ok(None);
                                     }
                                 }
@@ -3083,8 +3094,11 @@ pub(crate) mod scalar_array {
                             }
                         }
                         crate::engine::custody::resolve_structural_path_type(
-                            types, self.structural_type, path,
-                        ).map(Some)
+                            types,
+                            self.structural_type,
+                            path,
+                        )
+                        .map(Some)
                     }
                 }
             }
@@ -4164,7 +4178,8 @@ pub(crate) mod scalar_array {
                     !self
                         .program
                         .catalogs
-                        .types.structural_domains
+                        .types
+                        .structural_domains
                         .iter()
                         .any(|declaration| {
                             declaration.id == *domain && declaration.carrier == structural_type
@@ -4303,6 +4318,163 @@ pub(crate) mod scalar_array {
             )
         }
 
+        fn packed_input_lanes<const N: usize>(
+            &self,
+            source: &StructuralArgument,
+            valid_type: impl FnOnce(StructuralTypeId) -> Option<semantic_vocabulary::IntegerType>,
+        ) -> Result<[i16; N], TerminalInterpretError> {
+            if source.access != StructuralAccess::SharedBorrow {
+                return Err(malformed());
+            }
+            let root = self.live_structural_type(source.place)?;
+            let source_type = crate::engine::custody::resolve_structural_path_type(
+                &self.structural_types(),
+                root,
+                &source.path,
+            )?;
+            let integer = valid_type(source_type).ok_or(malformed())?;
+            let snapshot = self.scalar_array_snapshot(source, source_type)?;
+            let actual = snapshot.elements();
+            let mut lanes = [0_i16; N];
+            if actual.len() > lanes.len() {
+                return Err(malformed());
+            }
+            for (lane, value) in lanes.iter_mut().zip(actual) {
+                let TerminalScalarValue::Integer { scalar_type, value } = *value else {
+                    return Err(malformed());
+                };
+                if scalar_type != integer {
+                    return Err(malformed());
+                }
+                *lane = match (integer.sign(), value) {
+                    (
+                        semantic_vocabulary::IntegerSign::Signed,
+                        semantic_vocabulary::IntegerValue::Signed(value),
+                    ) => i16::try_from(value).map_err(|_| malformed())?,
+                    (
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        semantic_vocabulary::IntegerValue::Unsigned(value),
+                    ) => i16::from(u8::try_from(value).map_err(|_| malformed())?),
+                    _ => return Err(malformed()),
+                };
+            }
+            Ok(lanes)
+        }
+
+        pub(crate) fn execute_packed_integer(
+            &mut self,
+            operation: &terminal_psi::Operation,
+        ) -> Result<(), TerminalInterpretError> {
+            use semantic_vocabulary::{PackedIntegerBinaryOperation, PackedIntegerUnaryOperation};
+            use terminal_psi::OperationKind;
+            use terminal_semantics::PackedArrayRole;
+            let result = operation.result.structural().ok_or(malformed())?;
+            if !result.is_unrestricted_plain()
+                || !result.additional_input_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+                || self.structural_values.contains_key(&result.place)
+                || self.scalar_array_values.contains_key(&result.place)
+            {
+                return Err(malformed());
+            }
+            let types = self.structural_types();
+            let (integer, result_count, lanes): (_, usize, [i16; 16]) = match &operation.kind {
+                OperationKind::PackedIntegerBinary {
+                    operation: PackedIntegerBinaryOperation::WrappingAddU8x16,
+                    left,
+                    right,
+                } => {
+                    let check = |ty| {
+                        terminal_semantics::packed_integer_array_type(
+                            types.values(),
+                            ty,
+                            PackedIntegerBinaryOperation::WrappingAddU8x16,
+                        )
+                    };
+                    let integer = check(result.structural_type).ok_or(malformed())?;
+                    let input = |ty| (ty == result.structural_type).then_some(integer);
+                    let left: [i16; 16] = self.packed_input_lanes(left, input)?;
+                    let right: [i16; 16] = self.packed_input_lanes(right, input)?;
+                    let out = std::array::from_fn(|i| {
+                        i16::from((left[i] as u8).wrapping_add(right[i] as u8))
+                    });
+                    (integer, 16usize, out)
+                }
+                OperationKind::PackedIntegerBinary {
+                    operation,
+                    left,
+                    right,
+                } => {
+                    let check = |ty| {
+                        terminal_semantics::packed_integer_array_type(
+                            types.values(),
+                            ty,
+                            *operation,
+                        )
+                    };
+                    let integer = check(result.structural_type).ok_or(malformed())?;
+                    let input = |ty| (ty == result.structural_type).then_some(integer);
+                    let left: [i16; 8] = self.packed_input_lanes(left, input)?;
+                    let right: [i16; 8] = self.packed_input_lanes(right, input)?;
+                    let out8 = packed_binary_lanes(*operation, left, right)?;
+                    (
+                        integer,
+                        8usize,
+                        std::array::from_fn(|i| if i < 8 { out8[i] } else { 0 }),
+                    )
+                }
+                OperationKind::PackedIntegerUnary { operation, source } => {
+                    let check = |ty, role| {
+                        terminal_semantics::packed_integer_unary_array_type(
+                            types.values(),
+                            ty,
+                            *operation,
+                            role,
+                        )
+                    };
+                    let integer =
+                        check(result.structural_type, PackedArrayRole::Result).ok_or(malformed())?;
+                    let input: [i16; 8] =
+                        self.packed_input_lanes(source, |ty| check(ty, PackedArrayRole::Input))?;
+                    let count = match operation {
+                        PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating => 4,
+                        _ => 8,
+                    };
+                    let out8 = packed_unary_lanes(*operation, input)?;
+                    (
+                        integer,
+                        count,
+                        std::array::from_fn(|i| if i < 8 { out8[i] } else { 0 }),
+                    )
+                }
+                _ => return Err(malformed()),
+            };
+            let elements = lanes.into_iter().take(result_count).map(|value| {
+                let value = match integer.sign() {
+                    semantic_vocabulary::IntegerSign::Signed => {
+                        semantic_vocabulary::IntegerValue::Signed(i128::from(value))
+                    }
+                    semantic_vocabulary::IntegerSign::Unsigned => {
+                        semantic_vocabulary::IntegerValue::Unsigned(u128::from(
+                            u8::try_from(value).map_err(|_| malformed())?,
+                        ))
+                    }
+                };
+                Ok(TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value,
+                })
+            });
+            let snapshot = TerminalScalarArrayValue::collect(
+                result.structural_type,
+                Vec::new(),
+                result_count as u64,
+                elements,
+                self.account.as_ref(),
+            )?;
+            self.scalar_array_values.publish(result.place, snapshot)
+        }
+
         pub(crate) fn execute_scalar_array_establishment(
             &mut self,
             operation: &terminal_psi::Operation,
@@ -4344,17 +4516,127 @@ pub(crate) mod scalar_array {
         }
     }
 
+    fn packed_binary_lanes(
+        operation: semantic_vocabulary::PackedIntegerBinaryOperation,
+        left: [i16; 8],
+        right: [i16; 8],
+    ) -> Result<[i16; 8], TerminalInterpretError> {
+        use semantic_vocabulary::PackedIntegerBinaryOperation::*;
+        Ok(match operation {
+            WrappingAddI16x8 => std::array::from_fn(|i| left[i].wrapping_add(right[i])),
+            WrappingSubI16x8 => std::array::from_fn(|i| left[i].wrapping_sub(right[i])),
+            ShuffleI16x8 { lanes } => {
+                let inputs = [left, right];
+                let mut shuffled = [0; 8];
+                for (out, index) in shuffled.iter_mut().zip(lanes.map(usize::from)) {
+                    *out = inputs.get(index / 8).ok_or(malformed())?[index % 8];
+                }
+                shuffled
+            }
+            MinI16x8 => std::array::from_fn(|i| left[i].min(right[i])),
+            CmpGtI16x8 => std::array::from_fn(|i| if left[i] > right[i] { -1 } else { 0 }),
+            BitAndI16x8 => std::array::from_fn(|i| left[i] & right[i]),
+            BitAndNotI16x8 => std::array::from_fn(|i| (!left[i]) & right[i]),
+            WrappingAddU8x16 => return Err(malformed()),
+        })
+    }
+
+    fn packed_unary_lanes(
+        operation: semantic_vocabulary::PackedIntegerUnaryOperation,
+        input: [i16; 8],
+    ) -> Result<[i16; 8], TerminalInterpretError> {
+        use semantic_vocabulary::PackedIntegerUnaryOperation::*;
+        Ok(match operation {
+            ShiftRightArithmeticI16x8 {
+                count: count @ 0..=15,
+            } => input.map(|lane| lane >> count),
+            ShiftRightArithmeticI16x8 { .. } => return Err(malformed()),
+            WidenU8x8ToI16x8 => input,
+            NarrowI16x8ToU8x8Saturating => input.map(|lane| lane.clamp(0, 255)),
+            LoadI16x4ZeroExtend | WidenU8x4ToI16x8 => {
+                [input[0], input[1], input[2], input[3], 0, 0, 0, 0]
+            }
+            NarrowI16x8ToU8x4Saturating => [
+                input[0].clamp(0, 255),
+                input[1].clamp(0, 255),
+                input[2].clamp(0, 255),
+                input[3].clamp(0, 255),
+                0,
+                0,
+                0,
+                0,
+            ],
+            AbsI16x8 => input.map(|lane| lane.wrapping_abs()),
+        })
+    }
+
     #[cfg(test)]
     pub(crate) mod tests {
         use super::*;
         use crate::boundary::effects::TerminalEffectRejection;
-        use record_storage::{RecordLimits, decode, encode};
         use evaluation_accounting::BuildEvaluationSponsor;
         use evaluation_contracts::{
             BuildEvaluationSponsorLimits, EvaluationAccountingError, EvaluationMeasurementIdentity,
             EvaluationResource, TerminalStorageScheduleIdentity,
         };
+        use record_storage::{RecordLimits, decode, encode};
         use semantic_vocabulary::IntegerType;
+
+        #[test]
+        fn packed_integer_lanes_wrap_shift_shuffle_and_clip_independently() {
+            use semantic_vocabulary::{
+                PackedIntegerBinaryOperation::*, PackedIntegerUnaryOperation::*,
+            };
+            let left = [i16::MAX, i16::MIN, -3, -1, 0, 1, 254, 256];
+            let right = [1, 1, -3, 2, 4, 8, 16, 32];
+            assert_eq!(
+                packed_binary_lanes(WrappingAddI16x8, left, right).unwrap(),
+                [i16::MIN, -32767, -6, 1, 4, 9, 270, 288]
+            );
+            assert_eq!(
+                packed_binary_lanes(WrappingSubI16x8, left, right).unwrap(),
+                [32766, i16::MAX, 0, -3, -4, -7, 238, 224]
+            );
+            assert_eq!(
+                packed_binary_lanes(
+                    ShuffleI16x8 {
+                        lanes: [15, 0, 15, 1, 10, 5, 8, 7]
+                    },
+                    left,
+                    right
+                )
+                .unwrap(),
+                [32, i16::MAX, 32, i16::MIN, -3, 1, 1, 256]
+            );
+            assert!(packed_binary_lanes(ShuffleI16x8 { lanes: [16; 8] }, left, right).is_err());
+            assert_eq!(
+                packed_unary_lanes(ShiftRightArithmeticI16x8 { count: 1 }, left).unwrap(),
+                [16383, -16384, -2, -1, 0, 0, 127, 128]
+            );
+            assert_eq!(
+                packed_unary_lanes(ShiftRightArithmeticI16x8 { count: 15 }, left).unwrap(),
+                [0, -1, -1, -1, 0, 0, 0, 0]
+            );
+            assert!(packed_unary_lanes(ShiftRightArithmeticI16x8 { count: 16 }, left).is_err());
+            let bytes = [255, 0, 0, 0, 0, 1, 254, 255];
+            assert_eq!(
+                packed_unary_lanes(NarrowI16x8ToU8x8Saturating, left).unwrap(),
+                bytes
+            );
+            assert_eq!(packed_unary_lanes(WidenU8x8ToI16x8, bytes).unwrap(), bytes);
+            assert_eq!(
+                packed_unary_lanes(LoadI16x4ZeroExtend, left).unwrap(),
+                [i16::MAX, i16::MIN, -3, -1, 0, 0, 0, 0]
+            );
+            assert_eq!(
+                packed_unary_lanes(WidenU8x4ToI16x8, [10, 200, 255, 0, 99, 99, 99, 99]).unwrap(),
+                [10, 200, 255, 0, 0, 0, 0, 0]
+            );
+            assert_eq!(
+                packed_unary_lanes(NarrowI16x8ToU8x4Saturating, left).unwrap(),
+                [255, 0, 0, 0, 0, 0, 0, 0]
+            );
+        }
 
         fn sponsor(cells: u64) -> BuildEvaluationSponsor {
             BuildEvaluationSponsor::new_with_measurement(

@@ -391,14 +391,34 @@ machine build_entry() { let checked: u64 = check::<10>(3); }"
         ),
         "accepted"
     );
-    // A binder of a type has no scalar carrier, so it is no value binder
-    // and stays refused where its carrier is read.
+    // A type binder (`<T: core\Type<0>>` or `<T>`) is bound as a type
+    // parameter and unfolds at its static type argument.
     assert_eq!(
         verdict(
             "let holds<T: core\\Type<0>>(value: u64): core\\Strict<0> = value < 10;
-machine check(value: u64) -> u64 requires holds::<u64>(value) { value }
+machine check(value: u64) -> u64 requires holds::<u64>(value) ensures result < 10 { value }
 machine build_entry() { let checked: u64 = check(3); }"
         ),
-        "type generic application while reading the signature of `check`"
+        "accepted"
+    );
+    assert_eq!(
+        verdict(
+            "let holds<T>(value: u64): core\\Strict<0> = value < 10;
+machine check(value: u64) -> u64 requires holds::<u64>(value) ensures result < 10 { value }
+machine build_entry() { let checked: u64 = check(3); }"
+        ),
+        "accepted"
+    );
+    let tight = judge_build(
+        "let holds<T>(value: u64): core\\Strict<0> = value < 10;
+machine check(value: u64) -> u64 requires holds::<u64>(value) ensures result < 9 { value }
+machine build_entry() { let checked: u64 = check(3); }",
+    );
+    assert!(
+        matches!(
+            tight,
+            Ok(RouteVerdict::Incomplete(_)) | Ok(RouteVerdict::Rejected { .. })
+        ),
+        "too-tight guarantee over type-bound definition must not accept: {tight:?}"
     );
 }

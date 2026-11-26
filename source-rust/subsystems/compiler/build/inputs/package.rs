@@ -31,7 +31,9 @@ Build outputs; and `errors.rs` defines `PackageCompilationInputError`.
 */
 
 mod bindings;
+mod build_entries;
 mod build_handoffs;
+pub use build_entries::PackageBuildEntries;
 mod construction;
 mod dependency_graph;
 mod errors;
@@ -116,6 +118,8 @@ impl std::borrow::Borrow<PackageKeyIdentity> for PackageUse {
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 struct PackageCompilationSourceRecord {
+    build_entries: PackageBuildEntries,
+    resolution: Option<[u8; 32]>,
     source_root: PathBuf,
     canonical_name: String,
     canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
@@ -126,11 +130,43 @@ struct PackageCompilationSourceRecord {
 }
 
 impl PackageCompilationInputs {
+    pub(crate) fn hash_build_entries(
+        &self,
+        package: PackageKeyIdentity,
+        digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    ) {
+        self.source.packages[&package]
+            .build_entries
+            .hash_into(digest);
+    }
+
+    pub(crate) fn source_owners(
+        &self,
+    ) -> impl Iterator<Item = (PackageKeyIdentity, &Path, &PackageBuildEntries)> {
+        self.source
+            .packages
+            .iter()
+            .map(|(identity, owner)| (*identity, owner.source_root.as_path(), &owner.build_entries))
+    }
+
+    pub(crate) fn dependency_build_file(
+        &self,
+        package: PackageKeyIdentity,
+        path: &std::path::Path,
+    ) -> bool {
+        self.source.packages.get(&package).is_some_and(|owner| {
+            path.strip_prefix(&owner.source_root)
+                .is_ok_and(|file| owner.build_entries.contains(file))
+        })
+    }
+
     pub(crate) fn require_same_shared_product_sources(&self, other: &Self) -> Result<(), String> {
         for (identity, record) in &self.source.packages {
             if let Some(previous) = other.source.packages.get(identity)
                 && (record.source_root != previous.source_root
                     || record.canonical_name != previous.canonical_name
+                    || record.build_entries != previous.build_entries
+                    || record.resolution != previous.resolution
                     || record.captured_source != previous.captured_source
                     || record.captured_build_source != previous.captured_build_source
                     || record.dependencies != previous.dependencies)
@@ -210,6 +246,8 @@ impl PackageCompilationInputs {
                 Ok(PackageSourceBinding {
                     identity,
                     canonical_name: record.canonical_name,
+                    build_entries: record.build_entries,
+                    resolution: record.resolution,
                     source_root: record.source_root,
                     canonical_source_metadata: if identity == self.root() {
                         record.canonical_source_metadata
@@ -355,6 +393,10 @@ impl PackageCompilationInputs {
             .packages
             .get(&identity)
             .map(|record| record.source_root.as_path())
+    }
+
+    pub(crate) fn resolution(&self, identity: PackageKeyIdentity) -> Option<[u8; 32]> {
+        self.source.packages.get(&identity)?.resolution
     }
 
     pub fn package_name(&self, identity: PackageKeyIdentity) -> Option<&str> {

@@ -1,11 +1,11 @@
 use targets/windows_x86_64/windows_filesystem_control.omg as control;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
 use targets/windows_x86_64/windows_filesystem_position_native.omg as position_io;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // Shared acquisition/cleanup for positioned transfers. The pin keeps the
 // numeric original from being recycled between its access query and reopen.
 // Zero-initialized outcomes fail closed; no error record denotes byte count 0.
-use omega\language\core\widen_u32_to_i64;
-use omega\language\core\narrow_u64_to_i64_wrapping;
 
 data WindowsPinnedAccessResult {
     case Error(code: u32);
@@ -17,7 +17,7 @@ data WindowsPositionedFile {
 }
 
 machine windows_positioned_error(code: u32) -> i64 {
-    transition code == 0 { true -> (-31), false -> (0 - widen_u32_to_i64(code)) }
+    transition code == 0 { true -> (-31), false -> (0 - |numeric|::widen_u32_to_i64(code)) }
 }
 
 machine windows_positioned_pin(handle: u64) -> WindowsPinnedAccessResult {
@@ -29,7 +29,7 @@ machine windows_positioned_pin(handle: u64) -> WindowsPinnedAccessResult {
     machine query(duplicate: u64) -> WindowsPinnedAccessResult {
         let mutable information: |position_io|::WindowsNativeObjectBasicInfo;
         let mutable returned: u32 = 0;
-        let raw: i64 = narrow_u64_to_i64_wrapping(duplicate);
+        let raw: i64 = |numeric|::narrow_u64_to_i64_wrapping(duplicate);
         let status: i32 = block |position_io|::WindowsFilesystemPositionIo::object_access(raw, 0, @mutable information, 56, @mutable returned);
         transition status == 0 {
             true -> block complete(duplicate, information.granted_access, returned),

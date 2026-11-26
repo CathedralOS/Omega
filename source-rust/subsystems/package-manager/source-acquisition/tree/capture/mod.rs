@@ -14,7 +14,7 @@ identity hashing, and no-follow closing checks.
 mod selection;
 mod traversal;
 mod traversal_observations;
-pub(crate) use traversal::excluded_from_capture;
+pub(crate) use traversal::{canonical_relative_path_bytes, excluded_from_capture};
 
 use std::path::{Path, PathBuf};
 

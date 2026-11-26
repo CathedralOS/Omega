@@ -11,12 +11,16 @@ use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildExecutionContract {
+    /// The caller may designate this activation's retained diagnostics as a bounded StandardOutput.
+    pub diagnostic_output_bytes: Option<u64>,
     pub profile: Option<TargetProfile>,
     pub snapshot: Option<BuildSnapshotRequest>,
 }
 
 #[derive(Default)]
 pub struct BuildExecutionInputs {
+    /// The caller may designate this activation's retained diagnostics as a bounded StandardOutput.
+    pub diagnostic_output_bytes: Option<u64>,
     pub interpreter_providers: crate::InterpretedProviderSelections,
     pub profile: Option<TargetProfile>, // Compilation requests default to the host, independently of Product target.
     pub directory: Option<PathBuf>, // Writable staging, separate from immutable source snapshots.
@@ -53,6 +57,7 @@ impl BuildExecutionInputs {
 
     pub fn contract(&self) -> BuildExecutionContract {
         BuildExecutionContract {
+            diagnostic_output_bytes: self.diagnostic_output_bytes,
             profile: self.profile,
             snapshot: self.snapshot.clone(),
         }
@@ -65,19 +70,29 @@ impl BuildExecutionInputs {
     pub fn checks_whole_subject_first(
         &self,
         inputs: Option<&PackageCompilationInputs>,
-        has_anonymous_source: bool,
+        anonymous: Option<&crate::AnonymousSourceCapture>,
     ) -> bool {
-        !self.dependency_activation && inputs.is_none() && has_anonymous_source
+        !self.dependency_activation
+            && inputs.is_none()
+            && anonymous.is_some_and(|source| source.build_owner().is_none())
     }
 
     pub fn resolve_compilation_defaults(
         mut self,
         inputs: Option<&PackageCompilationInputs>,
+        has_anonymous_source: bool,
     ) -> Self {
         self.profile = self.profile.or_else(TargetProfile::host_if_supported);
-        self.snapshot = self
-            .snapshot
-            .or_else(|| BuildSnapshotRequest::automatic_package_inventory(inputs));
+        if self.snapshot.is_none()
+            && (has_anonymous_source
+                || inputs.is_some_and(|inputs| {
+                    inputs.canonical_source_metadata(inputs.root()).is_some()
+                }))
+        {
+            self.snapshot = Some(BuildSnapshotRequest::for_activation(
+                self.dependency_activation,
+            ));
+        }
         self
     }
 }

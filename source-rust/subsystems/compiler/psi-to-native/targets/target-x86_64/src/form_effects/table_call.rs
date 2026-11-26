@@ -31,7 +31,7 @@ pub fn table_address(record: &SelectedNormalizedForeignCall) -> Option<(u8, u32)
         return None;
     }
     let operands = record.call.binding.operand_placements();
-    let parameter = operands.get(0)?;
+    let parameter = operands.get(record.call.binding.table_operand_index()?)?;
     let [
         calling_conventions::ValueLocation::Register {
             register,

@@ -93,6 +93,100 @@ byte_enums! {
     }
 }
 
+pub(crate) struct PackedIntegerBinary;
+impl Field<semantic_vocabulary::PackedIntegerBinaryOperation> for PackedIntegerBinary {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::PackedIntegerBinaryOperation,
+    ) -> Result<(), CodecError> {
+        use semantic_vocabulary::PackedIntegerBinaryOperation::*;
+        match value {
+            WrappingAddI16x8 => writer.u8(0),
+            WrappingSubI16x8 => writer.u8(1),
+            ShuffleI16x8 { lanes } => {
+                writer.u8(2);
+                writer.bytes(lanes);
+            }
+            WrappingAddU8x16 => writer.u8(3),
+            MinI16x8 => writer.u8(4),
+            CmpGtI16x8 => writer.u8(5),
+            BitAndI16x8 => writer.u8(6),
+            BitAndNotI16x8 => writer.u8(7),
+        }
+        Ok(())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<semantic_vocabulary::PackedIntegerBinaryOperation, CodecError> {
+        use semantic_vocabulary::PackedIntegerBinaryOperation::*;
+        Ok(match reader.u8()? {
+            0 => WrappingAddI16x8,
+            1 => WrappingSubI16x8,
+            2 => {
+                let lanes = <[u8; 8]>::try_from(reader.take(8)?).expect("eight wire bytes");
+                if lanes.iter().any(|&index| index >= 16) {
+                    return Err(CodecError::MalformedStructuralFoundation(
+                        "packed shuffle index exceeds both input arrays",
+                    ));
+                }
+                ShuffleI16x8 { lanes }
+            }
+            3 => WrappingAddU8x16,
+            4 => MinI16x8,
+            5 => CmpGtI16x8,
+            6 => BitAndI16x8,
+            7 => BitAndNotI16x8,
+            tag => return Err(CodecError::InvalidTag("PackedIntegerBinaryOperation", tag)),
+        })
+    }
+}
+
+pub(crate) struct PackedIntegerUnary;
+impl Field<semantic_vocabulary::PackedIntegerUnaryOperation> for PackedIntegerUnary {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::PackedIntegerUnaryOperation,
+    ) -> Result<(), CodecError> {
+        use semantic_vocabulary::PackedIntegerUnaryOperation::*;
+        match value {
+            ShiftRightArithmeticI16x8 { count } => {
+                writer.u8(0);
+                writer.u8(*count);
+            }
+            WidenU8x8ToI16x8 => writer.u8(1),
+            NarrowI16x8ToU8x8Saturating => writer.u8(2),
+            LoadI16x4ZeroExtend => writer.u8(3),
+            WidenU8x4ToI16x8 => writer.u8(4),
+            NarrowI16x8ToU8x4Saturating => writer.u8(5),
+            AbsI16x8 => writer.u8(6),
+        }
+        Ok(())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<semantic_vocabulary::PackedIntegerUnaryOperation, CodecError> {
+        use semantic_vocabulary::PackedIntegerUnaryOperation::*;
+        Ok(match reader.u8()? {
+            0 => {
+                let count = reader.u8()?;
+                if count >= 16 {
+                    return Err(CodecError::MalformedStructuralFoundation(
+                        "packed shift count exceeds the lane width",
+                    ));
+                }
+                ShiftRightArithmeticI16x8 { count }
+            }
+            1 => WidenU8x8ToI16x8,
+            2 => NarrowI16x8ToU8x8Saturating,
+            3 => LoadI16x4ZeroExtend,
+            4 => WidenU8x4ToI16x8,
+            5 => NarrowI16x8ToU8x4Saturating,
+            6 => AbsI16x8,
+            tag => return Err(CodecError::InvalidTag("PackedIntegerUnaryOperation", tag)),
+        })
+    }
+}
+
 pub(crate) struct Resident;
 impl Field<Option<ResidentReferenceSource>> for Resident {
     fn write(

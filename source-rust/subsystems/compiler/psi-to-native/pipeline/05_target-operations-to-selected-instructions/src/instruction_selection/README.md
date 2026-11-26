@@ -61,7 +61,7 @@ ordinals. The audit compares the whole structural contract, claims and
 service ceilings included, to the source. Ordinary instruction building reads
 only plan rows; it receives no earlier executable function or unit.
 
-[Control-exit construction](../../../04_abstract-operations-to-target-operations/src/preparation/legalization_control.rs), in stage 04's
+[Control-exit construction](../../../04_abstract-operations-to-target-operations/src/preparation/legalization/control.rs), in stage 04's
 preparation, uses only target terminators, retained storage declarations and
 admitted proof facts. Only the audit uses the earlier body's terminator, as a reference for whole
 exits including work, ownership, cleanup and successor bindings. Return,
@@ -185,9 +185,9 @@ offsets; they need no primitive leaves and do not imply element construction
 works. Replay derives the full layout and argument/result ABI again.
 
 Primitive arrays share that aggregate storage and call/return path, without a
-sum tag. [Array input](selection_inputs.rs) rebuilds the declared
+sum tag. [Array input](selection/inputs.rs) rebuilds the declared
 dimensions and leaf carrier, and constructor selection writes each row-major
-leaf at its exact width. [Aggregate results](selection_inputs.rs) joins
+leaf at its exact width. [Aggregate results](selection/inputs.rs) joins
 array and sum homes to their retained calling plans. Replay checks every
 store, result fragment and the single constructor work charge.
 
@@ -466,7 +466,7 @@ stack-slot spacing and alignment. Signed narrow stack loads are sign-extended
 after the raw load; unsigned and Boolean loads already zero-extend. Register
 parameters and ordinary scalar call results likewise normalize the whole GPR
 from their fixed-width type before comparisons or forwarding.
-[`selection_call_abi.rs`](selection_call_abi.rs) picks the width and
+[`selection/call_abi.rs`](selection/call_abi.rs) picks the width and
 signedness, and entry and call replay require that exact operation. This
 cleans up bits the ABI leaves unspecified; it changes neither the source type
 nor the value and charges no extra Psi work. Already-admitted exact casts normalize their destination carrier without changing proof or

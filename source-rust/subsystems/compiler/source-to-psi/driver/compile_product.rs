@@ -38,6 +38,8 @@ pub use native_bindings::{NativeBindingInputs, PackageNativeBindings};
 /// The source descriptions and events returned by the selected Build execution.
 #[derive(Clone, Default)]
 pub struct ProductPolicyInputs<'a> {
+    /// Owner of the exact Build source selected by the issuing stage.
+    pub activation_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub activation: Option<&'a source_admission::RetainedDeclaration>,
     pub declared: &'a [Arc<crate::declaration_selection::ProductDeclarationRequest>],
     pub executed: &'a [crate::declaration_selection::ExecutedProductSelection],
@@ -57,7 +59,7 @@ impl ProductPolicyInputs<'_> {
             .map(|declaration| {
                 crate::source_state::source_subjects::rejoin_build_activation(
                     typed,
-                    subject,
+                    self.activation_owner.or(subject),
                     declaration,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])
@@ -75,8 +77,6 @@ pub struct ProductSourceInputs<'a> {
     pub build_accounting: Option<&'a crate::compile_time_invocations::SourceCompletionAccounting>,
     pub declaration_scope: Option<Arc<declaration_scope::PackageDeclarationScope>>,
     pub build_host: semantic_vocabulary::source_selections::ProductTarget,
-    /// The generated source admitted after this Build's authored source was captured.
-    pub generated: Option<crate::SourceExtensionRequest>,
     pub targets: &'a [crate::compile_product::source_targets::SourceTarget],
     pub calling_targets: &'a [&'a str],
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
@@ -212,18 +212,20 @@ pub(crate) enum ProductEntry<'a> {
 
 pub(crate) fn prepare_lower_and_check(
     continuation: crate::SourceTypingCheckpoint,
-    mut inputs: ProductSourceInputs<'_>,
+    inputs: ProductSourceInputs<'_>,
     entry: ProductEntry<'_>,
     accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
     timings: &mut crate::CompileTimings,
 ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
-    let mut authored = continuation.complete_authored(timings)?;
-    let typed = authored.authored_program_mut();
+    let resolve_and_type::CompletedSource {
+        mut typed,
+        accounting: initial_source_charges,
+    } = continuation.complete(timings)?;
     let test = match entry {
         ProductEntry::RegisteredTest { root, .. } => Some(root),
         _ => None,
     };
-    let (activation, mut admitted) = inputs.policy.admit(typed, inputs.subject, test)?;
+    let (activation, mut admitted) = inputs.policy.admit(&mut typed, inputs.subject, test)?;
     // An interpreter choice has already had its source checked. Only the
     // interpreted successor prepares its body and acquires its dependencies.
     admitted.providers.retain(|choice| {
@@ -231,14 +233,7 @@ pub(crate) fn prepare_lower_and_check(
     });
     let native_supplies = inputs
         .native_bindings
-        .resolve(typed, admitted.native_bindings)?;
-    let resolve_and_type::CompletedTypedSource {
-        mut typed,
-        accounting: initial_source_charges,
-    } = match inputs.generated.take() {
-        Some(extension) => authored.extend(extension, inputs.declaration_scope.clone(), timings)?,
-        None => authored.finish(),
-    };
+        .resolve(&mut typed, admitted.native_bindings)?;
     *accounting = initial_source_charges;
     accounting
         .validate_charges()

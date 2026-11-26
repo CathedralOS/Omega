@@ -844,6 +844,77 @@ impl Program<'_> {
         Ok(regions)
     }
 
+    // Collection values carry their borrow regions separately. A physical view
+    // row may be shared by values from different binders, but its access,
+    // element type and qualifications must still match this source occurrence.
+    fn sequence_element_matches(
+        &self,
+        machine: MachineId,
+        owner: SymbolHandle,
+        mut source: SourceTypeApplication,
+        mut element: StructuralTypeId,
+        mut qualification: crate::body::Qualification,
+    ) -> Checked<bool> {
+        for _ in 0..self.records.len() {
+            let Some(row) = self.records.get(element) else {
+                return Ok(false);
+            };
+            let Some(view) =
+                super::source_views::source_view(self.typed, source.clone(), owner, machine)?
+            else {
+                if !qualification.is_none() {
+                    source.reference = self
+                        .typed
+                        .type_reference_table
+                        .unconstrained_type_reference(source.reference);
+                }
+                let expected = self
+                    .typed
+                    .type_identity_text(source.type_identity(self.typed));
+                return Ok(expected.is_some_and(|identity| {
+                    let constant_owner = self
+                        .record_sources
+                        .get(element)
+                        .and_then(|source| source.constant_input_owner);
+                    super::places::storage_identity_for_inputs(identity, constant_owner)
+                        == row.identity
+                }));
+            };
+            match view.kind {
+                super::source_views::SourceViewKind::Bytes(bytes) => {
+                    let domains = bytes
+                        .domains
+                        .iter()
+                        .try_fold(crate::body::DomainSet::EMPTY, |set, &domain| {
+                            set.with(domain)
+                        });
+                    return Ok(
+                        row.shape == crate::StorageShape::ByteSequence(bytes.carrier)
+                            && qualification.policy.is_none()
+                            && domains == Some(qualification.domains),
+                    );
+                }
+                super::source_views::SourceViewKind::Elements(elements) => {
+                    let crate::StorageShape::ElementView {
+                        element: nested,
+                        qualification: nested_qualification,
+                        access,
+                    } = row.shape
+                    else {
+                        return Ok(false);
+                    };
+                    if !qualification.is_none() || access != elements.access {
+                        return Ok(false);
+                    }
+                    source = view.slice.element;
+                    element = nested;
+                    qualification = nested_qualification;
+                }
+            }
+        }
+        Ok(false)
+    }
+
     pub(crate) fn source_record_correspondence(
         &self,
         machine: MachineId,
@@ -1030,14 +1101,6 @@ impl Program<'_> {
                         source.constant_input_owner,
                     ),
                 );
-                let element_type = view.slice.element.reference;
-                let element_storage = if qualification.is_none() {
-                    element_type
-                } else {
-                    self.typed
-                        .type_reference_table
-                        .unconstrained_type_reference(element_type)
-                };
                 if source_access != access
                     || identity != declaration.identity
                     || source.declaration.is_valid()
@@ -1050,28 +1113,17 @@ impl Program<'_> {
                         "sequence storage disagrees with its declared type or access",
                     ));
                 }
-                let expected = self.typed.type_identity_text(
-                    view.slice
-                        .element
-                        .scope
-                        .type_identity(self.typed, element_storage),
-                );
-                let expected = expected.map(|identity| {
-                    super::places::storage_identity_for_inputs(
-                        identity,
-                        self.record_sources
-                            .get(element)
-                            .and_then(|source| source.constant_input_owner),
-                    )
-                });
-                let actual = self.records.get(element).map(|row| row.identity.as_str());
-                if expected.as_deref() != actual || actual.is_none() {
-                    let mut refusal =
-                        malformed(machine, "sequence element has another source type");
-                    refusal
-                        .detail
-                        .push_str(&format!(" (expected {expected:?}, stored {actual:?})",));
-                    return Err(refusal);
+                if !self.sequence_element_matches(
+                    machine,
+                    source.region_owner,
+                    view.slice.element,
+                    element,
+                    qualification,
+                )? {
+                    return Err(malformed(
+                        machine,
+                        "sequence element has another source type",
+                    ));
                 }
                 continue;
             }

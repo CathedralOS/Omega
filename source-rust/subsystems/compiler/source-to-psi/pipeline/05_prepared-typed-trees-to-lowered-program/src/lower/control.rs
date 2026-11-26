@@ -1284,14 +1284,15 @@ impl Lowering<'_> {
         let edge = semantic_vocabulary::EdgeId::new(self.tables.edges.len() as u64 + 1)
             .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
         self.jump(established, vec![operand], source)?;
-        let before = self.qualifications.scalar(id, scalar_type, original)?;
-        let after = self.qualifications.scalar(id, scalar_type, qualification)?;
+        let sets_differ =
+            self.qualifications
+                .scalar_sets_differ(id, scalar_type, original, qualification)?;
+        self.control_scalar_uses.push((scalar_type, original));
+        self.control_scalar_uses.push((scalar_type, qualification));
         // A logical predicate needs an ordinary same-value edge. Publish a
         // membership coercion only when the declared membership set changes.
-        if before != after {
-            self.qualifications
-                .catalog
-                .coercions
+        if sets_differ {
+            self.coercions
                 .push(terminal_psi::ScalarQualificationCoercion {
                     machine: id,
                     edge,

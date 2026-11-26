@@ -1251,6 +1251,12 @@ impl AtomicOperation {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackedIntegerOperation {
+    Unary(semantic_vocabulary::PackedIntegerUnaryOperation),
+    Binary(semantic_vocabulary::PackedIntegerBinaryOperation),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionKind {
     /// Operand indices refer to the event's source evaluation order.
@@ -1301,6 +1307,10 @@ pub enum ExpressionKind {
     CollectionMeasure {
         base: Box<Expression>,
         measure: crate::source_state::expression::CollectionMeasure,
+    },
+    PackedInteger {
+        operation: PackedIntegerOperation,
+        operands: Vec<Expression>,
     },
     /// Observe the current bytes through the already formed shared loan.
     /// The Boolean result is tied to that exact view, not its whole backing.
@@ -1368,6 +1378,7 @@ pub enum ExpressionKind {
     /// appears exactly once.
     Record {
         fields: Vec<(usize, Expression)>,
+        erased: Vec<(StructuralFieldId, Expression)>,
     },
     /// `base.field`: the field at this position of the record `base` names.
     /// `wiki/spec/language/expressions.md`: "Dot access remains data-field
@@ -1385,6 +1396,7 @@ pub enum ExpressionKind {
     Case {
         case: usize,
         fields: Vec<(usize, Expression)>,
+        erased: Vec<(StructuralFieldId, Expression)>,
     },
     /// The payload field at position `field` of case `case` of the sum
     /// `base` names. It is storage that exists only while that case is

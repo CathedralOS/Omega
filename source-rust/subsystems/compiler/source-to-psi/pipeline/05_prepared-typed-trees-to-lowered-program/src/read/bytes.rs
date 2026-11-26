@@ -1247,6 +1247,12 @@ mod tests {
         let b = view(second, "region");
         let c = view(first, "other");
         let missing = view(first, "missing");
+        let arguments = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Slice { element_type: b });
+        let lists = typed.type_reference_table.insert(TypeReferenceNode::Slice {
+            element_type: arguments,
+        });
         let mut program = Program::new(&typed, false);
         let machine = MachineId::new(1).unwrap();
         let origin = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
@@ -1273,6 +1279,14 @@ mod tests {
         assert_ne!(program.view_type(machine, b).unwrap(), Some(a));
         assert_ne!(program.view_type(machine, c).unwrap(), Some(a));
         assert!(program.view_type(machine, missing).is_err());
+        // The sequence uses `b`; its shared physical byte row was first read
+        // for `a`. The two values retain distinct regions above.
+        let ValueType::Record(arguments_row, _, _) =
+            program.view_type(machine, arguments).unwrap().unwrap()
+        else {
+            panic!("a sequence must have a structural carrier");
+        };
+        program.view_type(machine, lists).unwrap().unwrap();
         assert!(
             program
                 .source_record_correspondence(machine)
@@ -1283,6 +1297,16 @@ mod tests {
             panic!("a byte descriptor is structural")
         };
         assert_eq!(a, from_literal);
+        // A sequence cannot substitute its outer descriptor for its byte element.
+        let declared = program.records.get(arguments_row).unwrap().shape.clone();
+        let crate::StorageShape::ElementView { element, .. } =
+            &mut program.records.get_mut(arguments_row).unwrap().shape
+        else {
+            panic!("the sequence lost its physical element");
+        };
+        *element = arguments_row;
+        assert!(program.source_record_correspondence(machine).is_err());
+        program.records.get_mut(arguments_row).unwrap().shape = declared;
         program
             .record_sources
             .get_mut(a)

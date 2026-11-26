@@ -91,8 +91,8 @@ mod facts {
         use selected_instructions::{
             MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
             MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-            MachineSemanticKind, PreparedMachineEffectCatalog,
-            SelectedFunction, SelectedInstruction, SelectedInstructionKind,
+            MachineSemanticKind, PreparedMachineEffectCatalog, SelectedFunction,
+            SelectedInstruction, SelectedInstructionKind,
         };
 
         use crate::MachineEffectError;
@@ -620,6 +620,99 @@ mod facts {
                 SelectedInstructionKind::Load16Indexed => MachineSemanticKind::Load16Indexed,
                 SelectedInstructionKind::Load32Indexed => MachineSemanticKind::Load32Indexed,
                 SelectedInstructionKind::Load64Indexed => MachineSemanticKind::Load64Indexed,
+                SelectedInstructionKind::PackedAddI16x8 => MachineSemanticKind::PackedAddI16x8,
+                SelectedInstructionKind::PackedSubI16x8 => MachineSemanticKind::PackedSubI16x8,
+                SelectedInstructionKind::PackedShuffleI16x8 { .. } => {
+                    MachineSemanticKind::PackedShuffleI16x8
+                }
+                SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. } => {
+                    MachineSemanticKind::PackedShuffleGeneralI16x8
+                }
+                SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. } => {
+                    MachineSemanticKind::PackedShiftRightArithmeticI16x8
+                }
+                SelectedInstructionKind::PackedWidenU8x8ToI16x8 => {
+                    MachineSemanticKind::PackedWidenU8x8ToI16x8
+                }
+                SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating => {
+                    MachineSemanticKind::PackedNarrowI16x8ToU8x8Saturating
+                }
+                SelectedInstructionKind::PackedLoadI16x4ZeroExtend => {
+                    MachineSemanticKind::PackedLoadI16x4ZeroExtend
+                }
+                SelectedInstructionKind::PackedWidenU8x4ToI16x8 => {
+                    MachineSemanticKind::PackedWidenU8x4ToI16x8
+                }
+                SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating => {
+                    MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating
+                }
+                SelectedInstructionKind::PackedAddU8x16 => MachineSemanticKind::PackedAddU8x16,
+                SelectedInstructionKind::PackedMinI16x8 => MachineSemanticKind::PackedMinI16x8,
+                SelectedInstructionKind::PackedCmpGtI16x8 => MachineSemanticKind::PackedCmpGtI16x8,
+                SelectedInstructionKind::PackedBitAndI16x8 => {
+                    MachineSemanticKind::PackedBitAndI16x8
+                }
+                SelectedInstructionKind::PackedBitAndNotI16x8 => {
+                    MachineSemanticKind::PackedBitAndNotI16x8
+                }
+                SelectedInstructionKind::PackedAbsI16x8 => MachineSemanticKind::PackedAbsI16x8,
+                SelectedInstructionKind::PackedLoad128 { .. } => MachineSemanticKind::PackedLoad128,
+                SelectedInstructionKind::PackedStore128 { .. } => {
+                    MachineSemanticKind::PackedStore128
+                }
+                SelectedInstructionKind::PackedLoad64ZeroExtend { .. } => {
+                    MachineSemanticKind::PackedLoad64ZeroExtend
+                }
+                SelectedInstructionKind::PackedStore64 { .. } => MachineSemanticKind::PackedStore64,
+                SelectedInstructionKind::PackedLoad32ZeroExtend { .. } => {
+                    MachineSemanticKind::PackedLoad32ZeroExtend
+                }
+                SelectedInstructionKind::PackedStore32 { .. } => MachineSemanticKind::PackedStore32,
+                SelectedInstructionKind::PackedMaterializeZero => {
+                    MachineSemanticKind::PackedMaterializeZero
+                }
+                SelectedInstructionKind::PackedFromGpr64ZeroExtend => {
+                    MachineSemanticKind::PackedFromGpr64ZeroExtend
+                }
+                SelectedInstructionKind::PackedFromGpr64Pair => {
+                    MachineSemanticKind::PackedFromGpr64Pair
+                }
+                SelectedInstructionKind::PackedAddI16x8Reg => {
+                    MachineSemanticKind::PackedAddI16x8Reg
+                }
+                SelectedInstructionKind::PackedSubI16x8Reg => {
+                    MachineSemanticKind::PackedSubI16x8Reg
+                }
+                SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. } => {
+                    MachineSemanticKind::PackedShiftRightArithmeticI16x8Reg
+                }
+                SelectedInstructionKind::PackedShuffleI16x8Reg { .. } => {
+                    MachineSemanticKind::PackedShuffleI16x8Reg
+                }
+                SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg => {
+                    MachineSemanticKind::PackedWidenU8x8ToI16x8Reg
+                }
+                SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg => {
+                    MachineSemanticKind::PackedNarrowI16x8ToU8x8SaturatingReg
+                }
+                SelectedInstructionKind::PackedAddU8x16Reg => {
+                    MachineSemanticKind::PackedAddU8x16Reg
+                }
+                SelectedInstructionKind::PackedMinI16x8Reg => {
+                    MachineSemanticKind::PackedMinI16x8Reg
+                }
+                SelectedInstructionKind::PackedCmpGtI16x8Reg => {
+                    MachineSemanticKind::PackedCmpGtI16x8Reg
+                }
+                SelectedInstructionKind::PackedBitAndI16x8Reg => {
+                    MachineSemanticKind::PackedBitAndI16x8Reg
+                }
+                SelectedInstructionKind::PackedBitAndNotI16x8Reg => {
+                    MachineSemanticKind::PackedBitAndNotI16x8Reg
+                }
+                SelectedInstructionKind::PackedAbsI16x8Reg => {
+                    MachineSemanticKind::PackedAbsI16x8Reg
+                }
                 SelectedInstructionKind::CopyBytes => MachineSemanticKind::CopyBytes,
                 SelectedInstructionKind::LoadEncodedScalar => {
                     MachineSemanticKind::LoadEncodedScalar
@@ -1005,7 +1098,8 @@ mod catalog_handoff_tests {
 
     #[test]
     fn catalog_handoff_propagates_an_architecture_mismatch() {
-        let environment = baseline_target_register_environment(NativeTarget::windows_x64()).unwrap();
+        let environment =
+            baseline_target_register_environment(NativeTarget::windows_x64()).unwrap();
         let target = NativeTarget::windows_arm64();
         assert!(matches!(
             prepared_machine_effect_catalog(target, environment.constraints()),

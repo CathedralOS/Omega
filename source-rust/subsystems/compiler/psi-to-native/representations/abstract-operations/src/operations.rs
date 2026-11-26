@@ -355,6 +355,19 @@ pub enum AbstractOperation {    EstablishActivationClaim {
         parents: Vec<StructuralArgument>,
         derivations: Vec<terminal_psi::ContentTransformationDerivation>,
     },
+    PackedIntegerUnary {
+        psi_operation: OperationId,
+        result: OperationResult,
+        operation: semantic_vocabulary::PackedIntegerUnaryOperation,
+        source: StructuralArgument,
+    },
+    PackedIntegerBinary {
+        psi_operation: OperationId,
+        result: OperationResult,
+        operation: semantic_vocabulary::PackedIntegerBinaryOperation,
+        left: StructuralArgument,
+        right: StructuralArgument,
+    },
     StructuralLeafCopy {
         psi_operation: OperationId,
         result: OperationResult,
@@ -737,7 +750,11 @@ macro_rules! structural_paths_of {
             }
             AbstractOperation::ReadTaskRegister { .. }
             | AbstractOperation::ReadSegmentSelector { .. } => vec![],
-            AbstractOperation::GlobalDescriptorTable { source, .. } => vec![source.path.$as()],
+            AbstractOperation::GlobalDescriptorTable { source, .. }
+            | AbstractOperation::PackedIntegerUnary { source, .. } => vec![source.path.$as()],
+            AbstractOperation::PackedIntegerBinary { left, right, .. } => {
+                vec![left.path.$as(), right.path.$as()]
+            }
             AbstractOperation::EliminateEmpty { path, .. }
             | AbstractOperation::ObserveStorageLocation { path, .. }
             | AbstractOperation::PrimitiveScalarRead { path, .. }
@@ -1122,6 +1139,8 @@ impl AbstractOperation {
             | Self::EstablishScalarArray { result, .. }
             | Self::EstablishStructuralArray { result, .. }
             | Self::MoveStructuralField { result, .. }
+            | Self::PackedIntegerUnary { result, .. }
+            | Self::PackedIntegerBinary { result, .. }
             | Self::StructuralLeafCopy { result, .. }
             | Self::MoveStructuralValue { result, .. }
             | Self::TransformContent { result, .. }
@@ -1216,6 +1235,8 @@ impl AbstractOperation {
             | Self::StructuralScalarFieldStore { psi_operation, .. }
             | Self::MoveStructuralField { psi_operation, .. }
             | Self::StoreStructuralField { psi_operation, .. }
+            | Self::PackedIntegerUnary { psi_operation, .. }
+            | Self::PackedIntegerBinary { psi_operation, .. }
             | Self::StructuralLeafCopy { psi_operation, .. }
             | Self::MoveStructuralValue { psi_operation, .. }
             | Self::DecomposeStructuralValue { psi_operation, .. }

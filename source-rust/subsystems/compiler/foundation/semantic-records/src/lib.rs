@@ -8,15 +8,17 @@
 
 #![forbid(unsafe_code)]
 
-mod declaration_contracts;
 mod clause_identity;
-pub use clause_identity::{ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue};
+mod declaration_contracts;
 pub use self::declaration_contracts::{
     BlockingInterface, BlockingPlan, BlockingSummary, ExternalBindingId, ExternalBindingIdentity,
     ExternalBindingMechanism, RANKING_VIEW_CORE_SOURCE, RankingViewDeclaration, RankingViewId,
     SemanticDomainId, ServiceReachId, ServiceReachInterface, ServiceReachPlan, ServiceReachRowId,
     ServiceReachSummary, SuspensionInterface, SuspensionPlan, SuspensionSummary,
     SynchronousInvocationInterface, SynchronousInvocationPlan,
+};
+pub use clause_identity::{
+    ClauseCarrier, ClauseDeclaration, ClauseIdentity, ClauseOperand, ClauseValue,
 };
 mod declaration_descriptions;
 pub use declaration_descriptions::{
@@ -27,6 +29,31 @@ pub mod provider_identity;
 
 pub mod identity_encoding;
 pub mod structural_path_encoding;
+
+/// Two eight-lane arrays supply the signed lanes for arithmetic or a constant shuffle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackedIntegerBinaryOperation {
+    WrappingAddI16x8,
+    WrappingSubI16x8,
+    ShuffleI16x8 { lanes: [u8; 8] },
+    WrappingAddU8x16,
+    MinI16x8,
+    CmpGtI16x8,
+    BitAndI16x8,
+    BitAndNotI16x8,
+}
+
+/// One read-only packed array produces a fresh fixed array.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackedIntegerUnaryOperation {
+    ShiftRightArithmeticI16x8 { count: u8 },
+    WidenU8x8ToI16x8,
+    NarrowI16x8ToU8x8Saturating,
+    LoadI16x4ZeroExtend,
+    WidenU8x4ToI16x8,
+    NarrowI16x8ToU8x4Saturating,
+    AbsI16x8,
+}
 
 // Call obligations and runtime lowering use the same two declaration
 // namespaces. Keeping this existing target identity in the shared vocabulary
@@ -657,12 +684,12 @@ pub use scalar_condition_role::ScalarConditionRole;
 mod storage;
 pub use behavior_policy::{CrashCause, TerminalAuthorityClass};
 mod terminal_authority;
-pub use terminal_authority::{PortableFilesystemAuthorityFacet, TerminalAuthorityDisposition};
 pub use boundary::callback_identities::{
     BoundaryNativeParameterOrigin, CallbackRequirementId, NativeParameterId, StaticMachineBinderId,
     callback_nominal_report_fingerprint, callback_requirement_id, nominal_callback_binder_id,
     nominal_callback_native_parameter_id,
 };
+pub use terminal_authority::{PortableFilesystemAuthorityFacet, TerminalAuthorityDisposition};
 pub mod byte_predicates {
     pub use language_core::byte_predicates::ByteSequencePredicate;
 

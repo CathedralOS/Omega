@@ -56,7 +56,7 @@ use terminal_check_tables::mathematics::{
 use terminal_check_tables::{Checked, Construct, Refusal};
 
 use super::Program;
-use super::families::{EvidenceTerm, EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
+use super::families::{EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
 use super::quotients::LiftedOperation;
 use crate::body::{
     ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement, Target,
@@ -784,30 +784,46 @@ impl<'p> Converter<'p, '_> {
                 declaration: quotient.declaration,
                 carrier,
                 relation,
+                laws: [0; 4],
                 type_identity: quotient.identity.clone(),
             },
             self.name(quotient.declaration),
         );
         self.data.push((quotient.record, entry));
-        self.equivalence(id, quotient, carrier, relation)?;
+        let laws = self.equivalence(id, quotient, carrier, relation)?;
+        if let SignatureEntryKind::Quotient { laws: stored, .. } =
+            &mut self.signature.entries[entry as usize].kind
+        {
+            *stored = laws;
+        }
         Ok(entry)
     }
 
-    /// The three laws of the equivalence a quotient selects. Each row's
+    /// The four laws of the `MereEquivalence` a quotient selects. Each row's
     /// machine must have proved exactly the sealed statement of its law
     /// about this relation: for all values of the carrier, `R a a`; from
-    /// `R a b`, `R b a`; from `R a b` and `R b c`, `R a c`. Stage 06 checks
-    /// the proved statement against it, so a row that asks for more, or
-    /// proves something else, is refused.
+    /// `R a b`, `R b a`; from `R a b` and `R b c`, `R a c`; and for all
+    /// `a, b` and `p, q: R a b`, `Id (R a b) p q` (`IsMere(R(a, b))`).
+    /// Returns `[propositional, reflexive, symmetric, transitive]` statement
+    /// entry indices for effectivity.
     fn equivalence(
         &mut self,
         id: MachineId,
         quotient: &super::quotients::QuotientRecord,
         carrier: u32,
         relation: u32,
-    ) -> Checked<()> {
+    ) -> Checked<[u32; 4]> {
         let program = self.program;
-        for (name, count) in [("reflexive", 1u32), ("symmetric", 2), ("transitive", 3)] {
+        let mut entries = [0u32; 4];
+        for (slot, (name, count)) in [
+            ("proofs_agree", 2u32),
+            ("reflexive", 1),
+            ("symmetric", 2),
+            ("transitive", 3),
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let row = quotient
                 .rows
                 .iter()
@@ -841,6 +857,7 @@ impl<'p> Converter<'p, '_> {
                     "row of a quotient's equivalence over other than values of its carrier",
                 ));
             }
+            entries[slot] = stated.statement;
             let related = self.constant(relation);
             let holds = |converter: &mut Self, left: u32, right: u32| {
                 let left = converter.variable(count - 1 - left);
@@ -850,9 +867,31 @@ impl<'p> Converter<'p, '_> {
                     .arena
                     .apply_arguments(related, &[left, right])
             };
-            let (premises, goal) = match count {
-                1 => (Vec::new(), holds(self, 0, 0)),
-                2 => (vec![holds(self, 0, 1)], holds(self, 1, 0)),
+            let (premises, goal) = match name {
+                "proofs_agree" => {
+                    let prop = holds(self, 0, 1);
+                    let arena = &mut self.signature.arena;
+                    let prop_1 = mathematical_kernel::shift(arena, prop, 0, 1);
+                    let prop_2 = mathematical_kernel::shift(arena, prop, 0, 2);
+                    let p = arena.insert(Term::Variable(1));
+                    let q = arena.insert(Term::Variable(0));
+                    let eq = arena.insert(Term::Id {
+                        ty: prop_2,
+                        left: p,
+                        right: q,
+                    });
+                    let inner_pi = arena.insert(Term::Pi {
+                        domain: prop_1,
+                        codomain: eq,
+                    });
+                    let is_mere = arena.insert(Term::Pi {
+                        domain: prop,
+                        codomain: inner_pi,
+                    });
+                    (Vec::new(), is_mere)
+                }
+                "reflexive" => (Vec::new(), holds(self, 0, 0)),
+                "symmetric" => (vec![holds(self, 0, 1)], holds(self, 1, 0)),
                 _ => (
                     vec![holds(self, 0, 1), holds(self, 1, 2)],
                     holds(self, 0, 2),
@@ -869,7 +908,7 @@ impl<'p> Converter<'p, '_> {
                 refusal,
             });
         }
-        Ok(())
+        Ok(entries)
     }
 
     /// Judges a machine whose body is one `Quotient::lift` or
@@ -1628,19 +1667,7 @@ impl<'p> Converter<'p, '_> {
             for child in &case.children {
                 let mut at = Vec::with_capacity(child.at.len());
                 for term in &child.at {
-                    at.push(match *term {
-                        FamilyTerm::Index(index) => index_terms[index as usize],
-                        FamilyTerm::Payload(position) => payload_terms[position as usize].1,
-                        FamilyTerm::Literal(value) => {
-                            self.integer_literal(id, bignum::BigInt::from_i128(value))?
-                        }
-                        FamilyTerm::Name(_) => {
-                            return Err(unserved(
-                                id,
-                                "child of indexed data at something other than an index, a payload value or a literal",
-                            ));
-                        }
-                    });
+                    at.push(self.family_term_kernel(id, term, &index_terms, &payload_terms)?);
                 }
                 let tuple = self.index_tuple(&at);
                 child_indices.push(self.over(integer, total, tuple));
@@ -1742,12 +1769,7 @@ impl<'p> Converter<'p, '_> {
             let mut actuals =
                 Vec::with_capacity(construction.at.len() + construction.payload.len());
             for term in construction.at.iter().chain(&construction.payload) {
-                actuals.push(match *term {
-                    EvidenceTerm::Parameter(parameter) => open[parameter as usize],
-                    EvidenceTerm::Literal(value) => {
-                        self.integer_literal(id, bignum::BigInt::from_i128(value))?
-                    }
-                });
+                actuals.push(self.evidence_term_kernel(id, term, &open)?);
             }
             let case = format!(
                 "{}::{}",
@@ -1790,7 +1812,106 @@ impl<'p> Converter<'p, '_> {
                 });
             }
         }
+        for equality in &used.index_equalities {
+            let left = self.evidence_term_kernel(id, &equality.left, &open)?;
+            let right = self.evidence_term_kernel(id, &equality.right, &open)?;
+            let goal = self.signature.arena.insert(Term::Id {
+                ty: integer,
+                left,
+                right,
+            });
+            let mut statement = self.implication(&premises, goal);
+            for _ in 0..count {
+                statement = self.signature.arena.insert(Term::Pi {
+                    domain: integer,
+                    codomain: statement,
+                });
+            }
+            let law = index(id, self.signature.laws.len())?;
+            index(id, self.signature.declarations.len() + 1)?;
+            let entry = self.push(
+                Declaration::assumption(0, statement),
+                SignatureEntryKind::Statement { law },
+                used.name.clone(),
+            );
+            self.signature.laws.push(Law {
+                machine: used.machine,
+                clause: 0,
+                statement: entry,
+                formals: vec![integer; count as usize],
+                premises: premises.clone(),
+                goal,
+                declared: None,
+                proof: LawProof::Integers,
+                formal_names: used
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.name.clone())
+                    .collect(),
+                machine_name: used.name.clone(),
+                text: "indices of indexed data must be equal".to_owned(),
+                source: equality.source,
+            });
+        }
         Ok(())
+    }
+
+    fn family_term_kernel(
+        &mut self,
+        id: MachineId,
+        term: &FamilyTerm,
+        index_terms: &[TermHandle],
+        payload_terms: &[(semantic_vocabulary::StructuralFieldId, TermHandle)],
+    ) -> Checked<TermHandle> {
+        use super::families::IndexOp;
+        match term {
+            FamilyTerm::Index(index) => Ok(index_terms[*index as usize]),
+            FamilyTerm::Payload(position) => Ok(payload_terms[*position as usize].1),
+            FamilyTerm::Literal(value) => {
+                self.integer_literal(id, bignum::BigInt::from_i128(*value))
+            }
+            FamilyTerm::Binary(op, left, right) => {
+                let left = self.family_term_kernel(id, left, index_terms, payload_terms)?;
+                let right = self.family_term_kernel(id, right, index_terms, payload_terms)?;
+                let vocab = self.integer_vocabulary(id)?;
+                let head = self.constant(match op {
+                    IndexOp::Add => vocab.add,
+                    IndexOp::Sub => vocab.subtract,
+                    IndexOp::Mul => vocab.multiply,
+                });
+                Ok(self.signature.arena.apply_arguments(head, &[left, right]))
+            }
+            FamilyTerm::Name(_) => Err(unserved(
+                id,
+                "child of indexed data at something other than an index, a payload value or a literal",
+            )),
+        }
+    }
+
+    fn evidence_term_kernel(
+        &mut self,
+        id: MachineId,
+        term: &super::families::EvidenceTerm,
+        open: &[TermHandle],
+    ) -> Checked<TermHandle> {
+        use super::families::{EvidenceTerm, IndexOp};
+        match term {
+            EvidenceTerm::Parameter(parameter) => Ok(open[*parameter as usize]),
+            EvidenceTerm::Literal(value) => {
+                self.integer_literal(id, bignum::BigInt::from_i128(*value))
+            }
+            EvidenceTerm::Binary(op, left, right) => {
+                let left = self.evidence_term_kernel(id, left, open)?;
+                let right = self.evidence_term_kernel(id, right, open)?;
+                let vocab = self.integer_vocabulary(id)?;
+                let head = self.constant(match op {
+                    IndexOp::Add => vocab.add,
+                    IndexOp::Sub => vocab.subtract,
+                    IndexOp::Mul => vocab.multiply,
+                });
+                Ok(self.signature.arena.apply_arguments(head, &[left, right]))
+            }
+        }
     }
 
     /// The index with these components: each paired with the rest.
@@ -3240,11 +3361,11 @@ impl<'p> Converter<'p, '_> {
     ) -> Checked<Bound> {
         let plain = |term| Bound { term, field: None };
         match &expression.kind {
-            ExpressionKind::Boolean(value) => Ok(plain(
-                self.signature
-                    .arena
-                    .insert(if *value { Term::TwoOne } else { Term::TwoZero }),
-            )),
+            ExpressionKind::Boolean(value) => Ok(plain(self.signature.arena.insert(if *value {
+                Term::TwoOne
+            } else {
+                Term::TwoZero
+            }))),
             ExpressionKind::Slot(slot) => scope
                 .slots
                 .get(scope.aliases.get(*slot).copied().unwrap_or(*slot))
@@ -3283,7 +3404,7 @@ impl<'p> Converter<'p, '_> {
                 let value = self.expression(id, base, scope)?.term;
                 Ok(plain(self.component(id, entry, value, *field)?.0))
             }
-            ExpressionKind::Record { fields } => {
+            ExpressionKind::Record { fields, .. } => {
                 let mut operands = vec![None; fields.len()];
                 for (position, operand) in fields {
                     let term = self.expression(id, operand, scope)?.term;
@@ -3308,7 +3429,7 @@ impl<'p> Converter<'p, '_> {
                 }
                 Ok(plain(term))
             }
-            ExpressionKind::Case { case, fields } => {
+            ExpressionKind::Case { case, fields, .. } => {
                 let Some(ValueType::Record(record, ..)) = expression.result else {
                     return Err(unserved(id, "mathematical constructor lost its data"));
                 };
@@ -3695,6 +3816,27 @@ impl<'p> Converter<'p, '_> {
         formals: &[TermHandle],
         satisfaction: Option<&Satisfaction>,
     ) -> Checked<TermHandle> {
+        if let Proposition::IsMere(inner) = proposition {
+            let prop = self.equality(id, inner, formals, satisfaction)?;
+            let arena = &mut self.signature.arena;
+            let prop_1 = mathematical_kernel::shift(arena, prop, 0, 1);
+            let prop_2 = mathematical_kernel::shift(arena, prop, 0, 2);
+            let p = arena.insert(Term::Variable(1));
+            let q = arena.insert(Term::Variable(0));
+            let eq = arena.insert(Term::Id {
+                ty: prop_2,
+                left: p,
+                right: q,
+            });
+            let inner_pi = arena.insert(Term::Pi {
+                domain: prop_1,
+                codomain: eq,
+            });
+            return Ok(arena.insert(Term::Pi {
+                domain: prop,
+                codomain: inner_pi,
+            }));
+        }
         let Proposition::DeclarationIdentity(clause) = proposition else {
             return Err(unserved(id, "law guarantee other than an Identity"));
         };
@@ -4457,7 +4599,7 @@ impl<'p> Converter<'p, '_> {
             ExpressionKind::Field { base, .. } if nested || returns => {
                 self.cite_within(law, machine, base, scope, script, true)
             }
-            ExpressionKind::Record { fields } if nested || returns => {
+            ExpressionKind::Record { fields, .. } if nested || returns => {
                 for (_, operand) in fields {
                     self.cite_within(law, machine, operand, scope, script, true)?;
                 }

@@ -48,14 +48,56 @@ pub fn encode_planned_system_v_amd64_frame_protocol(
         }
     }
     for slot in slots {
-        let code = register_code(model, slot.view)?;
-        append_register_memory(&mut prologue, code, slot.offset_bytes, false)?;
-        record(&mut prologue_steps, &prologue, saved_register(code, slot)?)?;
+        if let Some(xmm) = xmm_register_code(model, slot.view)? {
+            if slot.size_bytes != 16 {
+                return Err(X86_64FrameProtocolError::NonCanonicalSlots);
+            }
+            let offset = u32::try_from(slot.offset_bytes)
+                .map_err(|_| X86_64FrameProtocolError::OffsetOutOfRange)?;
+            let encoded = encode_x86_64_frame_memory(model, slot.view, offset, 16, false)?;
+            prologue.extend_from_slice(&encoded);
+            record(
+                &mut prologue_steps,
+                &prologue,
+                FrameProtocolEffect::Register {
+                    register: MachineRegister::X86Xmm(xmm),
+                    frame_offset_bytes: offset,
+                },
+            )?;
+        } else {
+            if slot.size_bytes != 8 {
+                return Err(X86_64FrameProtocolError::NonCanonicalSlots);
+            }
+            let code = register_code(model, slot.view)?;
+            append_register_memory(&mut prologue, code, slot.offset_bytes, false)?;
+            record(&mut prologue_steps, &prologue, saved_register(code, slot)?)?;
+        }
     }
     for slot in slots.iter().rev() {
-        let code = register_code(model, slot.view)?;
-        append_register_memory(&mut epilogue, code, slot.offset_bytes, true)?;
-        record(&mut epilogue_steps, &epilogue, saved_register(code, slot)?)?;
+        if let Some(xmm) = xmm_register_code(model, slot.view)? {
+            if slot.size_bytes != 16 {
+                return Err(X86_64FrameProtocolError::NonCanonicalSlots);
+            }
+            let offset = u32::try_from(slot.offset_bytes)
+                .map_err(|_| X86_64FrameProtocolError::OffsetOutOfRange)?;
+            let encoded = encode_x86_64_frame_memory(model, slot.view, offset, 16, true)?;
+            epilogue.extend_from_slice(&encoded);
+            record(
+                &mut epilogue_steps,
+                &epilogue,
+                FrameProtocolEffect::Register {
+                    register: MachineRegister::X86Xmm(xmm),
+                    frame_offset_bytes: offset,
+                },
+            )?;
+        } else {
+            if slot.size_bytes != 8 {
+                return Err(X86_64FrameProtocolError::NonCanonicalSlots);
+            }
+            let code = register_code(model, slot.view)?;
+            append_register_memory(&mut epilogue, code, slot.offset_bytes, true)?;
+            record(&mut epilogue_steps, &epilogue, saved_register(code, slot)?)?;
+        }
     }
     append_stack_adjust(&mut epilogue, &mut epilogue_steps, frame_size_bytes, false)?;
     Ok(EncodedFrameProtocol {
@@ -115,6 +157,26 @@ fn saved_register(
         frame_offset_bytes: u32::try_from(slot.offset_bytes)
             .map_err(|_| X86_64FrameProtocolError::OffsetOutOfRange)?,
     })
+}
+
+fn xmm_register_code(
+    model: &ValidatedPhysicalRegisterModel,
+    view: RegisterViewId,
+) -> Result<Option<u8>, X86_64FrameProtocolError> {
+    let name = model
+        .model()
+        .view(view)
+        .map(|row| row.name.as_str())
+        .ok_or(X86_64FrameProtocolError::UnknownOrUnsupportedView(view))?;
+    let Some(number) = name.strip_prefix("xmm") else {
+        return Ok(None);
+    };
+    let number = number
+        .parse::<u8>()
+        .ok()
+        .filter(|number| *number < 16)
+        .ok_or(X86_64FrameProtocolError::UnknownOrUnsupportedView(view))?;
+    Ok(Some(number))
 }
 
 fn register_code(
@@ -784,6 +846,86 @@ mod tests {
         assert_eq!(
             encode_system_v_amd64_frame_protocol(&model, 8_192, foreign_interval, &[]),
             Err(X86_64FrameProtocolError::NonCanonicalProbe)
+        );
+    }
+
+    #[test]
+    fn encodes_xmm_callee_save_slots_and_unwind_effects() {
+        let model =
+            validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap();
+        let rbx = model.model().view_named("rbx").unwrap().id;
+        let xmm6 = model.model().view_named("xmm6").unwrap().id;
+        let xmm12 = model.model().view_named("xmm12").unwrap().id;
+        let encoded = encode_system_v_amd64_frame_protocol(
+            &model,
+            64,
+            NO_PROBE,
+            &[
+                X86_64FrameSlot {
+                    view: rbx,
+                    offset_bytes: 0,
+                    size_bytes: 8,
+                },
+                X86_64FrameSlot {
+                    view: xmm6,
+                    offset_bytes: 16,
+                    size_bytes: 16,
+                },
+                X86_64FrameSlot {
+                    view: xmm12,
+                    offset_bytes: 32,
+                    size_bytes: 16,
+                },
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            encoded.prologue,
+            &[
+                0x48, 0x83, 0xec, 64, // sub rsp, 64
+                0x48, 0x89, 0x1c, 0x24, // mov [rsp], rbx
+                0x0f, 0x11, 0xb4, 0x24, 16, 0, 0, 0, // movups [rsp+16], xmm6
+                0x44, 0x0f, 0x11, 0xa4, 0x24, 32, 0, 0, 0, // movups [rsp+32], xmm12
+            ]
+        );
+        assert_eq!(
+            encoded.epilogue,
+            &[
+                0x44, 0x0f, 0x10, 0xa4, 0x24, 32, 0, 0, 0, // movups xmm12, [rsp+32]
+                0x0f, 0x10, 0xb4, 0x24, 16, 0, 0, 0, // movups xmm6, [rsp+16]
+                0x48, 0x8b, 0x1c, 0x24, // mov rbx, [rsp]
+                0x48, 0x83, 0xc4, 64, // add rsp, 64
+            ]
+        );
+        assert_eq!(
+            encoded.prologue_steps,
+            [
+                FrameProtocolStep {
+                    end_offset: 4,
+                    effect: FrameProtocolEffect::AdjustStack { bytes: 64 },
+                },
+                FrameProtocolStep {
+                    end_offset: 8,
+                    effect: FrameProtocolEffect::Register {
+                        register: MachineRegister::X86Rbx,
+                        frame_offset_bytes: 0,
+                    },
+                },
+                FrameProtocolStep {
+                    end_offset: 16,
+                    effect: FrameProtocolEffect::Register {
+                        register: MachineRegister::X86Xmm(6),
+                        frame_offset_bytes: 16,
+                    },
+                },
+                FrameProtocolStep {
+                    end_offset: 25,
+                    effect: FrameProtocolEffect::Register {
+                        register: MachineRegister::X86Xmm(12),
+                        frame_offset_bytes: 32,
+                    },
+                },
+            ]
         );
     }
 }

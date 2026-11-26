@@ -299,6 +299,24 @@ impl SyntaxCopy<'_> {
                 MathematicalDefinitionBody::Definition(term) => {
                     MathematicalDefinitionBody::Definition(self.copy_expression_handle(other, term))
                 }
+                MathematicalDefinitionBody::DependentArrow { binders, body } => {
+                    MathematicalDefinitionBody::DependentArrow {
+                        binders: self.copy_mapped_span(
+                            other.items.mathematical_parameters(binders).to_vec(),
+                            |this, handle| {
+                                let parameter = other.items.mathematical_parameter(handle);
+                                let node = MathematicalParameterNode {
+                                    name: parameter.name.clone(),
+                                    relevance: parameter.relevance,
+                                    ty: this.copy_mathematical_type(other, parameter.ty),
+                                };
+                                this.items.insert_mathematical_parameter(node)
+                            },
+                            |this, handle| this.items.append_mathematical_parameter_handle(handle),
+                        ),
+                        body: self.copy_expression_handle(other, body),
+                    }
+                }
                 MathematicalDefinitionBody::Assumption => MathematicalDefinitionBody::Assumption,
             },
         }
@@ -755,7 +773,11 @@ impl SyntaxCopy<'_> {
                 other.items.satisfies_clauses(machine.satisfies).to_vec(),
                 |scope, clause| SatisfiesClause {
                     trait_name: clause.trait_name,
-                    lifetime_arguments: clause.lifetime_arguments.iter().map(|name| scope.copied_lifetime(other, name)).collect(),
+                    lifetime_arguments: clause
+                        .lifetime_arguments
+                        .iter()
+                        .map(|name| scope.copied_lifetime(other, name))
+                        .collect(),
                     arguments: scope.copy_type_reference_handle_span(other, clause.arguments),
                     requirement: clause.requirement,
                     alias: clause.alias,
@@ -775,7 +797,11 @@ impl SyntaxCopy<'_> {
                 .map(|bound| GenericConformanceBound {
                     binder: bound.binder.clone(),
                     trait_name: bound.trait_name.clone(),
-                    lifetime_arguments: bound.lifetime_arguments.iter().map(|name| self.copied_lifetime(other, name)).collect(),
+                    lifetime_arguments: bound
+                        .lifetime_arguments
+                        .iter()
+                        .map(|name| self.copied_lifetime(other, name))
+                        .collect(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
                 })
                 .collect(),

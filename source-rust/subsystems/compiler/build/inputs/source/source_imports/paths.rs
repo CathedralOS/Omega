@@ -31,6 +31,10 @@ pub fn bundled_core_root() -> Result<PathBuf, Vec<Diagnostic>> {
     Ok(bundled_omega_root()?.join("core"))
 }
 
+pub(super) fn bundled_build_root() -> Result<PathBuf, Vec<Diagnostic>> {
+    Ok(bundled_omega_root()?.join("build"))
+}
+
 /// The entry contract is issued from the installed standard library without
 /// executing its Build. Its own package name selects that registered root, just
 /// as PackageCompilationInputs::package_name does for a reconciled package.

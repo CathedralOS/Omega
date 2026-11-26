@@ -55,7 +55,10 @@ pub fn validate_canonical_proposition(proposition: &Proposition) -> Result<(), C
                     }
                 }
                 Proposition::StructuralCaseMembership { .. } => {}
-                Proposition::DeclarationIdentity(clause) => clause.validate().map_err(CodecError::MalformedProposition)?,
+                Proposition::DeclarationIdentity(clause) => clause
+                    .validate()
+                    .map_err(CodecError::MalformedProposition)?,
+                Proposition::IsMere(inner) => pending.push(Step::Validate(inner)),
                 Proposition::Conjunction(conjuncts) => {
                     if conjuncts
                         .iter()

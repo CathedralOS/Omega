@@ -692,11 +692,12 @@ fn dependency_roots(root: &Path, program: &str) -> Result<Vec<String>, String> {
         .collect())
 }
 
-/// Whether a changed library file is in a library every check reads: the
-/// toolchain supplies `core` and `system` to every program, declared or not;
-/// any other library arrives only through a declared dependency.
+/// Installed Build helpers, core, and target entry contracts can reach programs
+/// outside their declared package edges. A change requires the full sweep.
 fn toolchain_library(path: &str) -> bool {
-    path.starts_with("source/library/core/") || path.starts_with("source/library/system/")
+    path.starts_with("source/library/core/")
+        || path.starts_with("source/library/system/")
+        || path.starts_with("source/library/build/")
 }
 
 /// The blast zone of the change from `rev`: each program the change can
@@ -734,7 +735,7 @@ fn blast_zone(
         .iter()
         // Only Omega source reaches a check: a README or an expected-output
         // file beside a program changes nothing `omega --check` reads. A
-        // changed `core` or `system` file already selected every program.
+        // changed installed toolchain file already selected every program.
         .filter(|path| path.ends_with(".omg") && !toolchain_library(path))
         .collect();
     if !sources.is_empty() {
@@ -1417,9 +1418,10 @@ mod tests {
     }
 
     #[test]
-    fn only_core_and_system_reach_every_program() {
+    fn installed_toolchain_roots_select_every_program() {
         assert!(toolchain_library("source/library/core/layout.omg"));
         assert!(toolchain_library("source/library/system/console.omg"));
+        assert!(toolchain_library("source/library/build/dependency.omg"));
         assert!(!toolchain_library("source/library/allocation/vec/vec.omg"));
         assert!(!toolchain_library("samples/cli/facts/f/local/main.omg"));
     }

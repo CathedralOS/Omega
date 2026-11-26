@@ -179,6 +179,7 @@ Startup and dispatch live in `src/main.rs`; typed invocations are parsed in
 `src/arguments/` and run in `src/commands/`. Full surface:
 
 ```text
+omega --check [<root.omg>]
 omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
@@ -193,6 +194,10 @@ omega packages install <source> [--rev <revision>] [--package <declared-name>] [
 omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]
 omega packages <install|update> <--resume|--discard-review> [--project <dir>] [--offline]
 ```
+
+Use `omega --check build.omg` to check every member returned by a workspace
+Build. An unnamed check discovers a single enclosing `build.omg`. If a member
+and its enclosing workspace each provide one, name the entry to check.
 
 `--dangerously-accept-all` accepts every pending review decision unread,
 resumes and publishes. `omega.lock` records each acceptance exactly

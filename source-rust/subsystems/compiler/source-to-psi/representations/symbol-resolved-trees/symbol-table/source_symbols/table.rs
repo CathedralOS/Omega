@@ -859,7 +859,7 @@ mod modules {
                             file.package_root == importer.package_root
                                 && file.package_identity == importer.package_identity
                         }
-                        Owner::Core => file.origin.is_toolchain() && file.path != file.package_root,
+                        Owner::Core => file.origin == source_admission::SourceOrigin::Toolchain && file.path != file.package_root,
                         Owner::Dependency(target) => file.package_identity == Some(target),
                     };
                     owned && file.logical_filename().is_ok_and(|name| name == relative)
@@ -1296,41 +1296,7 @@ mod modules {
                         || (import.exact_source
                             && !import.logical_selection
                             && !self.source_module(declaration.source_id).is_valid()
-                            && self.exact_import_exposes_source(
-                                binding.declaration_source,
-                                declaration,
-                            ))
-                })
-        }
-
-        /*
-            Whether an exact-source import of `imported_source` exposes a
-            declaration at `declaration`: it is authored in that file, or it is a
-            generated unit of the same checked package instance. A package's
-            module-less files form one logical module, and the units its build
-            handed off (`SourceResolutionStratum::DependencyActivationExtension`)
-            are that module's later stratum, so importing the package's root file
-            imports them too. Two checked instances of one package never expose
-            each other's units.
-        */
-        pub(super) fn exact_import_exposes_source(
-            &self,
-            imported_source: SourceId,
-            declaration: SourceSpan,
-        ) -> bool {
-            if declaration.source_id == imported_source {
-                return true;
-            }
-            !self.source_module(imported_source).is_valid()
-                && self.source_file(declaration).is_some_and(|file| {
-                    file.resolution_stratum
-                        == source_admission::SourceResolutionStratum::DependencyActivationExtension
-                })
-                && self.sources.as_deref().is_some_and(|sources| {
-                    sources.same_checked_instance(
-                        declaration,
-                        SourceSpan::new(imported_source, declaration.span),
-                    )
+                            && (binding.declaration_source == declaration.source_id))
                 })
         }
 
@@ -1568,10 +1534,7 @@ mod modules {
                                 && !self.source_module(binding.declaration_source).is_valid()
                                 && self.symbol_provenance_source_span(*candidate).is_some_and(
                                     |span| {
-                                        self.exact_import_exposes_source(
-                                            binding.declaration_source,
-                                            span,
-                                        )
+                                        binding.declaration_source == span.source_id
                                     },
                                 ))
                     })
@@ -1642,7 +1605,7 @@ mod modules {
                             SourceSpan::new(binding.declaration_source, span.span),
                         )
                     } else {
-                        self.exact_import_exposes_source(binding.declaration_source, span)
+                        binding.declaration_source == span.source_id
                     }
                 })
         }
@@ -2366,7 +2329,8 @@ mod source_queries {
             let Some(sources) = self.sources.as_deref() else {
                 return true;
             };
-            sources.same_package(reference, declaration)
+            (sources.same_package(reference, declaration)
+                || sources.describes_own_product(reference, declaration))
                 && sources.file_at(declaration).is_none_or(|file| {
                     file.dependency_scope
                         == source_provenance::DependencyScope::Product
@@ -2398,7 +2362,7 @@ mod source_queries {
             match self.symbol_source_origin(symbol) {
                 Some(SourceOrigin::Toolchain) => true,
                 None => self.symbol_provenance_source_span(symbol).is_none(),
-                Some(SourceOrigin::User | SourceOrigin::ToolchainContract) => false,
+                Some(SourceOrigin::User | SourceOrigin::ToolchainContract | SourceOrigin::ToolchainLibrary) => false,
             }
         }
 
@@ -2412,6 +2376,30 @@ mod source_queries {
             let sources = self.sources.as_deref()?;
             let source_span = self.provenance_source_span(symbol)?;
             sources.file_at(source_span).map(|file| file.origin)
+        }
+
+        /// Custody records the supplier of this declaration. The selected occurrence
+        /// and its checked scope determine whether an invocation may use it.
+        pub fn declaration_custody(
+            &self,
+            symbol: SymbolHandle,
+        ) -> semantic_vocabulary::compiler_evaluation::DeclarationCustody {
+            use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
+            if !self.symbols().nodes().is_valid(symbol) {
+                return DeclarationCustody::Missing;
+            }
+            if let Some(package) = self.symbol_package_identity(symbol) {
+                return DeclarationCustody::Package(package);
+            }
+            match self.symbol_source_origin(symbol) {
+                Some(SourceOrigin::Toolchain | SourceOrigin::ToolchainLibrary) => {
+                    DeclarationCustody::Toolchain
+                }
+                Some(SourceOrigin::ToolchainContract) => DeclarationCustody::ToolchainContract,
+                Some(SourceOrigin::User) => DeclarationCustody::UnownedUser,
+                None if self.builtin_type_atom(symbol).is_some() => DeclarationCustody::Toolchain,
+                None => DeclarationCustody::Missing,
+            }
         }
 
         /*
@@ -4179,17 +4167,7 @@ impl SymbolTable {
                 self.sources.as_deref().and_then(|sources| {
                     candidates.iter().copied().find(|symbol| {
                         self.symbol_source_span(*symbol).is_some_and(|declaration| {
-                            !sources.resolution_strata_separate(reference, declaration)
-                                && sources.same_checked_instance(reference, declaration)
-                        })
-                    })
-                })
-            })
-            .or_else(|| {
-                self.sources.as_deref().and_then(|sources| {
-                    candidates.iter().copied().find(|symbol| {
-                        self.symbol_source_span(*symbol).is_some_and(|declaration| {
-                            !sources.resolution_strata_separate(reference, declaration)
+                            sources.same_checked_instance(reference, declaration)
                         })
                     })
                 })

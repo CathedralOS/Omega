@@ -12,7 +12,7 @@ mod bindings;
 mod build_prelude;
 mod entry_contract_seed;
 mod files;
-pub(crate) use files::{generated_file_imports, product_file_sources};
+pub(crate) use files::product_file_sources;
 mod source_targets;
 pub use source_targets::source_targets;
 mod frontier;
@@ -31,14 +31,9 @@ pub(crate) use bindings::{
 };
 pub(crate) use build_prelude::prepare_build_prelude;
 pub(crate) use entry_contract_seed::seed_entry_contracts;
-pub(crate) use frontier::{
-    SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
-};
-pub(crate) use generated::{
-    DependencyGeneratedSource, admit_dependency_build_handoffs,
-    dependency_generated_source_logical_path,
-};
-pub use generated::{GeneratedSourceExtension, admit_generated_extension};
+pub(crate) use frontier::{InstalledSourceRoots, SourceStorage, validate_package_source_frontier};
+pub(crate) use generated::{collect_generated_files, generated_file_path};
+
 pub(crate) use import_queue::ImportQueue;
 pub(crate) use logical::{LogicalSourceDiscovery, retained_unit};
 
@@ -46,6 +41,7 @@ pub(crate) use package_selection::{
     ReconciledPackageImport, ReconciledPackageImportRequest, reconciled_package_import,
     source_import_scope,
 };
+use paths::bundled_build_root;
 pub use paths::bundled_core_root;
 pub(crate) use paths::bundled_omega_root;
 
@@ -59,12 +55,21 @@ use source_compiler::SourceImportTarget;
 use source_provenance::DependencyScope;
 use std::path::PathBuf;
 
+#[derive(Clone, Copy)]
+pub(crate) enum PackageImportPhase {
+    /// Discover the authored prefix before target-dependent handoffs are available.
+    CapturedPrefix,
+    /// Bind import occurrences in the receiving compilation's frozen view.
+    FrozenView,
+}
+
 pub(crate) fn discover_imports(
     parsed: &ParsedSourceBatch,
     storage: &mut SourceStorage,
 ) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
+    storage.capture_imported_build_library(parsed)?;
     let default_root = storage.default_package_root.as_path();
-    let contracts = &storage.toolchain_contract_custody;
+    let contracts = &storage.installed_roots;
     let filesystem = &storage.filesystem;
     let discovery = &mut storage.package_roots;
     let retained = &mut storage.resolved_imports;
@@ -77,7 +82,6 @@ pub(crate) fn discover_imports(
             default_root
         };
         for import in &unit.imports {
-            let ordinal = import.ordinal;
             if let Some(file) = FileImport::from(unit, import) {
                 let root = contracts.root_for(&unit.path).unwrap_or(source_root);
                 match file.standalone(root, None, filesystem)? {
@@ -131,7 +135,7 @@ pub(crate) fn discover_imports(
             }
             for path in selected {
                 retained.push(ResolvedSourceImport {
-                    occurrence: ImportOccurrence::new(unit.source_id, ordinal, members, prefix),
+                    occurrence: ImportOccurrence::new(unit.source_id, import, members, prefix),
                     path: path.clone(),
                 });
                 imports.push((path, unit.scope));
@@ -141,62 +145,31 @@ pub(crate) fn discover_imports(
     Ok(imports)
 }
 
-pub(crate) fn discover_imports_with_packages(
-    parsed: &ParsedSourceBatch,
-    packages: &PackageCompilationInputs,
-    generated_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
-    retained: &mut Vec<ResolvedSourceImport>,
-    contract_custody: &ToolchainContractCustody,
-    discovery: &mut impl LogicalSourceDiscovery,
-    filesystem: &source_capture::SourceFileSystem,
-) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
-    let (imports, _) = discover_package_imports(
-        parsed,
-        packages,
-        PackageImportPhase::ExactTarget(generated_owner),
-        retained,
-        contract_custody,
-        discovery,
-        filesystem,
-    )?;
-    Ok(imports)
-}
-
-#[derive(Clone, Copy)]
-pub(crate) enum PackageImportPhase {
-    TargetIndependent,
-    ExactTarget(Option<semantic_vocabulary::PackageKeyIdentity>),
-}
-
 pub(crate) fn discover_package_imports(
     parsed: &ParsedSourceBatch,
     packages: &PackageCompilationInputs,
     phase: PackageImportPhase,
-    retained: &mut Vec<ResolvedSourceImport>,
-    contract_custody: &ToolchainContractCustody,
-    discovery: &mut impl LogicalSourceDiscovery,
-    filesystem: &source_capture::SourceFileSystem,
+    storage: &mut SourceStorage,
 ) -> Result<(Vec<(PathBuf, DependencyScope)>, Vec<PendingPackageImport>), Vec<Diagnostic>> {
-    let generated_owner = match phase {
-        PackageImportPhase::TargetIndependent => None,
-        PackageImportPhase::ExactTarget(owner) => owner,
-    };
+    storage.capture_imported_build_library(parsed)?;
+    let retained = &mut storage.resolved_imports;
+    let contract_custody = &storage.installed_roots;
+    let discovery = &mut storage.package_roots;
+    let filesystem = &storage.filesystem;
     let mut imports = Vec::new();
     let mut requests = Vec::new();
     for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
-        let requester =
-            generated_owner.or_else(|| packages.package_for_source(&parsed_source.path));
+        let requester = packages.package_for_source(&parsed_source.path);
         let purpose = source_import_scope(packages, parsed_source.scope, &parsed_source.path);
         let contract_root = contract_custody.root_for(&parsed_source.path);
         for import in &parsed_source.imports {
-            let ordinal = import.ordinal;
             if let Some(file) = FileImport::from(parsed_source, import) {
                 match file.reconciled(packages, requester, purpose, contract_root, filesystem)? {
                     FileSelection::Selected(resolved) => {
                         imports.push((resolved.path.clone(), parsed_source.scope));
                         retained.push(resolved);
                     }
-                    FileSelection::Package(pending) => collect_package_import(pending, phase, packages, discovery, &mut imports, retained, &mut requests)?,
+                    FileSelection::Package(pending) => collect_package_import(pending, phase, packages, discovery, &storage.sources, &mut imports, retained, &mut requests)?,
                     FileSelection::Unbound => {}
                 }
                 continue;
@@ -224,7 +197,7 @@ pub(crate) fn discover_package_imports(
                         retained.push(ResolvedSourceImport {
                             occurrence: ImportOccurrence::new(
                                 parsed_source.source_id,
-                                ordinal,
+                                import,
                                 members,
                                 prefix,
                             ),
@@ -238,14 +211,14 @@ pub(crate) fn discover_package_imports(
                     let pending = PendingPackageImport {
                         occurrence: ImportOccurrence::new(
                             parsed_source.source_id,
-                            ordinal,
+                            import,
                             members,
                             prefix,
                         ),
                         scope: parsed_source.scope,
                         request,
                     };
-                    collect_package_import(pending, phase, packages, discovery, &mut imports, retained, &mut requests)?;
+                    collect_package_import(pending, phase, packages, discovery, &storage.sources, &mut imports, retained, &mut requests)?;
                 }
             }
         }
@@ -258,20 +231,21 @@ fn collect_package_import(
     phase: PackageImportPhase,
     packages: &PackageCompilationInputs,
     discovery: &mut impl LogicalSourceDiscovery,
+    sources: &source_compiler::representations::source_inputs::SourceMap,
     imports: &mut Vec<(PathBuf, DependencyScope)>,
     retained: &mut Vec<ResolvedSourceImport>,
     requests: &mut Vec<PendingPackageImport>,
 ) -> Result<(), Vec<Diagnostic>> {
     let scope = pending.scope;
     match phase {
-        PackageImportPhase::TargetIndependent => {
+        PackageImportPhase::CapturedPrefix => {
             for physical in pending.physical_sources(packages, discovery)? {
                 imports.push((physical, scope));
             }
             requests.push(pending);
         }
-        PackageImportPhase::ExactTarget(_) => {
-            for resolved in pending.resolve_for_exact_target(packages, discovery)? {
+        PackageImportPhase::FrozenView => {
+            for resolved in pending.resolve_for_exact_target(packages, discovery, sources)? {
                 imports.push((resolved.path.clone(), scope));
                 retained.push(resolved);
             }

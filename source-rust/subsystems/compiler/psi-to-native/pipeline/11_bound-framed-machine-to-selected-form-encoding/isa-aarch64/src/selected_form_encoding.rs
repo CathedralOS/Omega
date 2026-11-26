@@ -12876,8 +12876,8 @@ mod normalized_foreign_call {
             use super::super::table_call::{
                 encode_aarch64_selected_table_call_form, validate_aarch64_selected_table_call_form,
             };
-            for byte_offset in [7, 65_536, u32::MAX] {
-                let (_, _, alternative, operands, accesses, _, mut record) = inputs(false, 1, 1);
+            for (table_operand, byte_offset) in [(0, 7), (1, 65_536), (1, u32::MAX)] {
+                let (_, _, alternative, operands, accesses, _, mut record) = inputs(false, 2, 1);
                 let contribution = record
                     .call
                     .binding
@@ -12888,6 +12888,7 @@ mod normalized_foreign_call {
                     target_operations::NormalizedForeignCallMechanism::Table {
                         target: target::TargetProfile::LinuxArm64,
                         byte_offset,
+                        table_operand,
                         dispatch_only: false,
                         same_stack_contribution: contribution,
                     };
@@ -12899,8 +12900,15 @@ mod normalized_foreign_call {
                 )
                 .unwrap();
                 assert_eq!(encoded.bytes().len(), 20);
-                assert!(matches!(encoded.footprint().encoded.memory,
-                MachineEncodedMemoryEffect::ReadTableFieldV1 { byte_offset: retained, .. } if retained == byte_offset));
+                assert_eq!(
+                    encoded.footprint().encoded.memory,
+                    MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                        pointer_operand: table_operand as u16,
+                        byte_offset,
+                    }
+                );
+                let add_base = 0x8b11_0011u32 | (table_operand << 5);
+                assert_eq!(&encoded.bytes()[8..12], &add_base.to_le_bytes());
                 assert_eq!(
                     encoded.footprint().encoded.control,
                     MachineEncodedControlEffect::IndirectExternalCallV1
@@ -12937,6 +12945,7 @@ mod normalized_foreign_call {
                 target_operations::NormalizedForeignCallMechanism::Table {
                     target: target::TargetProfile::MacosArm64,
                     byte_offset: 8,
+                    table_operand: 1,
                     dispatch_only: true,
                     same_stack_contribution: contribution,
                 };
@@ -14456,6 +14465,45 @@ mod selected_forms {
         kind: SelectedInstructionKind,
     ) -> Result<(MachineAlternativeFamily, usize), Aarch64SelectedFormEncodingError> {
         Ok(match kind {
+            SelectedInstructionKind::PackedAddI16x8
+            | SelectedInstructionKind::PackedSubI16x8
+            | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+            | SelectedInstructionKind::PackedShuffleGeneralI16x8 { .. }
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating
+            | SelectedInstructionKind::PackedLoadI16x4ZeroExtend
+            | SelectedInstructionKind::PackedWidenU8x4ToI16x8
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+            | SelectedInstructionKind::PackedLoad128 { .. }
+            | SelectedInstructionKind::PackedStore128 { .. }
+            | SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore64 { .. }
+            | SelectedInstructionKind::PackedLoad32ZeroExtend { .. }
+            | SelectedInstructionKind::PackedStore32 { .. }
+            | SelectedInstructionKind::PackedMaterializeZero
+            | SelectedInstructionKind::PackedFromGpr64ZeroExtend
+            | SelectedInstructionKind::PackedFromGpr64Pair
+            | SelectedInstructionKind::PackedAddI16x8Reg
+            | SelectedInstructionKind::PackedSubI16x8Reg
+            | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
+            | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
+            | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
+            | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+            | SelectedInstructionKind::PackedAddU8x16
+            | SelectedInstructionKind::PackedMinI16x8
+            | SelectedInstructionKind::PackedCmpGtI16x8
+            | SelectedInstructionKind::PackedBitAndI16x8
+            | SelectedInstructionKind::PackedBitAndNotI16x8
+            | SelectedInstructionKind::PackedAbsI16x8
+            | SelectedInstructionKind::PackedAddU8x16Reg
+            | SelectedInstructionKind::PackedMinI16x8Reg
+            | SelectedInstructionKind::PackedCmpGtI16x8Reg
+            | SelectedInstructionKind::PackedBitAndI16x8Reg
+            | SelectedInstructionKind::PackedBitAndNotI16x8Reg
+            | SelectedInstructionKind::PackedAbsI16x8Reg => {
+                return Err(Aarch64SelectedFormEncodingError::AlternativeMismatch);
+            }
             SelectedInstructionKind::AccessorScalarAccess { form, .. } => {
                 (MachineAlternativeFamily::AccessorScalarAccess(form), 2)
             }

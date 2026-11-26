@@ -30,16 +30,7 @@ The root retains the original once-only effectful producer reproduction. The nin
 Root `main.omg` and all nine place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declare `Expected exit: 0`. Run any positive directly:
 
 ```sh
-omega run --both samples/cli/facts/result_cleanup_guarantees/main.omg
-omega run --both samples/cli/facts/result_cleanup_guarantees/local/main.omg
-omega run --both samples/cli/facts/result_cleanup_guarantees/field/main.omg
-omega run --both samples/cli/facts/result_cleanup_guarantees/parameter/main.omg
-omega run --both samples/cli/facts/result_cleanup_guarantees/call_result/main.omg
-omega run --both samples/cli/facts/result_cleanup_guarantees/match_join/main.omg
-omega run --both samples/cli/facts/result_cleanup_guarantees/const_name/main.omg
-omega run --both samples/cli/facts/result_cleanup_guarantees/other_state/main.omg
-omega run --both samples/cli/facts/result_cleanup_guarantees/other_machine/main.omg
-omega run --both samples/cli/facts/result_cleanup_guarantees/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/result_cleanup_guarantees
 ```
 
 Each place has an `invalid/` twin whose transported `Seed` has `ready: false`, breaking the prerequisite required by `drop_token`. The control must reject with `cannot prove automatic cleanup requires`. Check each twin with:

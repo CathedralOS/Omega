@@ -84,6 +84,10 @@ pub(crate) fn lower_domain_definition(
             semantic_identity = format!("package:{digest}:{scope}::{semantic_identity}");
         } else if owner.origin == source_admission::SourceOrigin::Toolchain {
             semantic_identity = format!("toolchain:{scope}::{semantic_identity}");
+        } else if owner.origin == source_admission::SourceOrigin::ToolchainLibrary {
+            let filename = owner.logical_filename().map_err(Diagnostic::error)?;
+            let name = domain.name.as_str(syntax_trees);
+            semantic_identity = format!("toolchain-library:{scope}:{filename}::{name}");
         } else if owner.origin == source_admission::SourceOrigin::ToolchainContract {
             semantic_identity = format!("toolchain-contract:{scope}::{semantic_identity}");
         } else {

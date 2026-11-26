@@ -28,16 +28,7 @@ Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 Each positive place is an application that exits 0 in both Terminal Psi and native execution:
 
 ```sh
-omega run --both samples/cli/facts/fixed_array_eight_elem_index_bound/main.omg
-omega run --both samples/cli/facts/fixed_array_eight_elem_index_bound/local/main.omg
-omega run --both samples/cli/facts/fixed_array_eight_elem_index_bound/field/main.omg
-omega run --both samples/cli/facts/fixed_array_eight_elem_index_bound/parameter/main.omg
-omega run --both samples/cli/facts/fixed_array_eight_elem_index_bound/call_result/main.omg
-omega run --both samples/cli/facts/fixed_array_eight_elem_index_bound/match_join/main.omg
-omega run --both samples/cli/facts/fixed_array_eight_elem_index_bound/const_name/main.omg
-omega run --both samples/cli/facts/fixed_array_eight_elem_index_bound/other_state/main.omg
-omega run --both samples/cli/facts/fixed_array_eight_elem_index_bound/other_machine/main.omg
-omega run --both samples/cli/facts/fixed_array_eight_elem_index_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/fixed_array_eight_elem_index_bound
 ```
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.

@@ -37,16 +37,7 @@ Every positive place (and the root `main.omg`) binds `ProgramEntry` for all four
 `omega run --both` reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/nominal_reference_cleanup/main.omg
-omega run --both samples/cli/facts/nominal_reference_cleanup/local/main.omg
-omega run --both samples/cli/facts/nominal_reference_cleanup/field/main.omg
-omega run --both samples/cli/facts/nominal_reference_cleanup/parameter/main.omg
-omega run --both samples/cli/facts/nominal_reference_cleanup/call_result/main.omg
-omega run --both samples/cli/facts/nominal_reference_cleanup/match_join/main.omg
-omega run --both samples/cli/facts/nominal_reference_cleanup/const_name/main.omg
-omega run --both samples/cli/facts/nominal_reference_cleanup/other_state/main.omg
-omega run --both samples/cli/facts/nominal_reference_cleanup/other_machine/main.omg
-omega run --both samples/cli/facts/nominal_reference_cleanup/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/nominal_reference_cleanup
 ```
 
 All 10 positive entries check and execute with native exit 0 and Terminal exit 0.

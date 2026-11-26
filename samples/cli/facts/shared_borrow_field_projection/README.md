@@ -28,16 +28,7 @@ Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 Each positive place is an application that exits 0 in both Terminal Psi and native execution:
 
 ```sh
-omega run --both samples/cli/facts/shared_borrow_field_projection/main.omg
-omega run --both samples/cli/facts/shared_borrow_field_projection/local/main.omg
-omega run --both samples/cli/facts/shared_borrow_field_projection/field/main.omg
-omega run --both samples/cli/facts/shared_borrow_field_projection/parameter/main.omg
-omega run --both samples/cli/facts/shared_borrow_field_projection/call_result/main.omg
-omega run --both samples/cli/facts/shared_borrow_field_projection/match_join/main.omg
-omega run --both samples/cli/facts/shared_borrow_field_projection/const_name/main.omg
-omega run --both samples/cli/facts/shared_borrow_field_projection/other_state/main.omg
-omega run --both samples/cli/facts/shared_borrow_field_projection/other_machine/main.omg
-omega run --both samples/cli/facts/shared_borrow_field_projection/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/shared_borrow_field_projection
 ```
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.

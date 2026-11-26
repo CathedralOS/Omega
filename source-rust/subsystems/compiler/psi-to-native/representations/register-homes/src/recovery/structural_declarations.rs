@@ -985,7 +985,7 @@ fn encode_scalar_restriction(
             bytes.push(4);
             crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
         }
-        StructuralFieldType::Erased { type_identity } => {
+        StructuralFieldType::Erased { type_identity, .. } => {
             bytes.push(5);
             crate::codec_bytes::push_encoded(bytes, type_identity.0.to_le_bytes());
         }
@@ -1043,6 +1043,7 @@ fn decode_scalar_restriction(
         4 => StructuralFieldType::Structural(decode_id(cursor, StructuralTypeId::new)?),
         5 => StructuralFieldType::Erased {
             type_identity: terminal_psi::TerminalIdentityIndex(cursor.u32()?),
+            scalar: None,
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralFieldType(tag)),
     })

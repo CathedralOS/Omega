@@ -322,8 +322,11 @@ function importTarget(use, reference) {
     const braced = /^\{([^}]+)\}\/(.+)$/.exec(path);
     if (!braced) return { file: path };
     const [, dependency, file] = braced;
-    const core = /^language\/core\/(.+)$/.exec(file);
-    if (dependency === 'omega' && core) return { library: 'core', file: core[1] };
+    if (dependency === 'omega') {
+      const core = /^language\/core\/(.+)$/.exec(file);
+      if (core) return { library: 'core', file: core[1] };
+      if (file.startsWith('build/')) return { library: 'build', file: file.slice('build/'.length) };
+    }
     return { dependency, file };
   }
   const segments = path.split(/\\|::/).filter(Boolean);

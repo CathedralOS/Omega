@@ -65,6 +65,7 @@ pub struct TerminalBuildRequestHost {
     registrations: Mutex<Registrations>,
     output: Mutex<BuildRequestOutput>,
     original_log: Option<TerminalStructuralValue>,
+    diagnostic_output_bytes: Option<u64>,
 }
 
 /// One dependency registration this activation issued a marker for. The
@@ -108,6 +109,7 @@ impl TerminalBuildRequestHost {
         artifact: terminal_codec::TerminalExecutionView<'_>,
         requests: &TerminalBuildRequests,
         original: TerminalStructuralValue,
+        diagnostic_output_bytes: Option<u64>,
         account: Option<&EvaluationInvocationAccount>,
         libraries: Arc<[package_compilation::source_imports::SuppliedBuildLibrary]>,
     ) -> Result<Arc<Self>, String> {
@@ -135,6 +137,7 @@ impl TerminalBuildRequestHost {
             registrations: Mutex::new(Registrations::default()),
             output: Mutex::default(),
             original_log,
+            diagnostic_output_bytes,
         }))
     }
 
@@ -364,6 +367,26 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             .iter()
             .find(|call| crate::host::is_call_at(effect, call.site))
             .ok_or_else(|| refuse("Build request has no source-issued protocol call"))?;
+        if call.action == Operation::SandboxWrite {
+            let ([], [_], [Some(bytes)], terminal_psi::BoundaryMachineResult::Unit) = (
+                arguments.as_slice(),
+                structural_arguments.as_slice(),
+                byte_sequence_arguments.as_slice(),
+                result,
+            ) else {
+                return Err(refuse("sandbox output differs from its admitted signature"));
+            };
+            let limit = self
+                .host
+                .diagnostic_output_bytes
+                .ok_or_else(|| refuse("Build has no admitted diagnostic sink"))?;
+            self.host
+                .output()
+                .map_err(refuse)?
+                .write_stream(bytes, limit, self.host.account.as_ref())
+                .map_err(TerminalEffectRejection::new)?;
+            return Ok(TerminalEffectResult::Unit);
+        }
         if call.action == Operation::LogLine {
             let [facet, _] = structural_arguments.as_slice() else {
                 return Err(refuse("Build log request has an invalid argument roster"));
@@ -383,7 +406,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .output()
                 .map_err(TerminalEffectRejection::new)?
                 .log
-                .append_line(bytes, self.host.account.as_ref())
+                .append(bytes, true, self.host.account.as_ref())
                 .map_err(TerminalEffectRejection::new)?;
             return Ok(TerminalEffectResult::Unit);
         }
@@ -472,6 +495,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::GitDependency => (3, 6),
             Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
+            | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
             | Operation::PublishSource => {
@@ -526,7 +550,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         let forwarded = if call.action == Operation::AddBinding {
             if byte_sequence_arguments[1].is_some() {
-                return Err(refuse("dependency::add requires a PackageBinding"));
+                return Err(refuse("Build dependency registration requires a PackageBinding"));
             }
             let binding = self.host.inputs.require(&structural_arguments[1])?;
             if !max_reach.is_subset_of(binding.library().max_reach()) {
@@ -624,6 +648,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         let request = match call.action {
             Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
+            | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
             | Operation::PublishSource => {
