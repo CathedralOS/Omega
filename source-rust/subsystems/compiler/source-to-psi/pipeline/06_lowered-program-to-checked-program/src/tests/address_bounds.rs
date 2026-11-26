@@ -479,3 +479,25 @@ ensures embed(b.base) == embed(a.base) + embed(a.length)
         );
     }
 }
+
+#[test]
+fn a_nonpositive_displacement_preserves_a_shared_upper_endpoint() {
+    let check = |guard| {
+        judge_build(&format!(
+            "machine build_entry(a: addr, x: u64) -> u64
+ensures embed(a) == embed(a) + embed(result)
+{{ match x == {guard} {{ true -> x, false -> 0, }} }}"
+        ))
+        .unwrap()
+    };
+    let RouteVerdict::Accepted(accepted) = check(0) else {
+        panic!("each return displaces the address by zero");
+    };
+    accepted.publish_invocation().unwrap();
+    let rejected = check(1);
+    assert!(
+        matches!(rejected, RouteVerdict::Incomplete(ref unproved) | RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{rejected:?}"
+    );
+}

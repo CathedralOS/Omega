@@ -5,9 +5,8 @@ use proof_admission::ClosedIntegerEvaluator;
 use semantic_vocabulary::IntegerMathLiteral;
 
 impl Prover<'_> {
-    /// Preserve a shared endpoint in an order such as base <= base + length.
-    /// The kernel checks both the nonnegative offset and the translated exact
-    /// endpoints. No finite-carrier fit is needed for erased integer sums.
+    /// An offset with a checked sign orders a base and its translated endpoint.
+    /// The kernel checks the sign and the translation on mathematical integers.
     pub(super) fn mathematical_offset_order(
         &mut self,
         left: &IntegerMathTerm,
@@ -20,25 +19,25 @@ impl Prover<'_> {
             if offset == left || offset == right {
                 continue;
             }
-            let translated = IntegerMathTerm::Add(Box::new(left.clone()), Box::new(offset.clone()));
-            if compare_integer_math_terms(&translated, right)
-                .ok()
-                .flatten()
-                != Some(Ordering::Equal)
-            {
-                continue;
+            for (base, sum, extend_right) in [(left, right, true), (right, left, false)] {
+                let translated = IntegerMathTerm::Add(Box::new(base.clone()), Box::new(offset.clone()));
+                if compare_integer_math_terms(&translated, sum).ok().flatten() != Some(Ordering::Equal) {
+                    continue;
+                }
+                let zero = IntegerMathTerm::literal(IntegerValue::Unsigned(0));
+                let bound = if extend_right {
+                    Proposition::IntegerMathLessOrEqual(zero, offset.clone())
+                } else {
+                    Proposition::IntegerMathLessOrEqual(offset.clone(), zero)
+                };
+                let Ok(proof) = self.prove(&bound) else { continue };
+                if let Some(translated) = self.translate_mathematical_order(
+                    proof, base.clone(),
+                    &Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
+                ) {
+                    return Some(translated);
+                }
             }
-            let nonnegative = self
-                .prove(&Proposition::IntegerMathLessOrEqual(
-                    IntegerMathTerm::literal(IntegerValue::Unsigned(0)),
-                    offset.clone(),
-                ))
-                .ok()?;
-            return self.translate_mathematical_order(
-                nonnegative,
-                left.clone(),
-                &Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
-            );
         }
         None
     }
