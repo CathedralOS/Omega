@@ -287,7 +287,7 @@ impl ImmutableSourceParseCheckpoint {
         let (discovered, _) = discover_package_imports(
             &parsed,
             inputs,
-            PackageImportPhase::ExactTarget,
+            PackageImportPhase::FrozenView,
             storage,
         )?;
         storage.attach_parsed(parsed);
@@ -300,7 +300,7 @@ impl ImmutableSourceParseCheckpoint {
             storage,
             &mut imports,
             Some(inputs),
-            PackageImportPhase::ExactTarget,
+            PackageImportPhase::FrozenView,
             timings,
             catalogue,
         )?;
@@ -408,7 +408,7 @@ impl ImmutableSourceParseCheckpoint {
             &mut source_storage,
             &mut imports,
             package_inputs,
-            PackageImportPhase::TargetIndependent,
+            PackageImportPhase::CapturedPrefix,
             timings,
             catalogue,
         )?;
@@ -487,7 +487,7 @@ impl ImmutableSourceParseCheckpoint {
             Some(inputs) => discover_package_imports(
                 &parsed,
                 inputs,
-                PackageImportPhase::TargetIndependent,
+                PackageImportPhase::CapturedPrefix,
                 storage,
             )?,
             None => (
@@ -505,7 +505,7 @@ impl ImmutableSourceParseCheckpoint {
             storage,
             &mut imports,
             package_inputs,
-            PackageImportPhase::TargetIndependent,
+            PackageImportPhase::CapturedPrefix,
             timings,
             catalogue,
         )?);

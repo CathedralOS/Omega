@@ -55,6 +55,14 @@ use source_compiler::SourceImportTarget;
 use source_provenance::DependencyScope;
 use std::path::PathBuf;
 
+#[derive(Clone, Copy)]
+pub(crate) enum PackageImportPhase {
+    /// Discover the authored prefix before target-dependent handoffs are available.
+    CapturedPrefix,
+    /// Bind import occurrences in the receiving compilation's frozen view.
+    FrozenView,
+}
+
 pub(crate) fn discover_imports(
     parsed: &ParsedSourceBatch,
     storage: &mut SourceStorage,
@@ -136,12 +144,6 @@ pub(crate) fn discover_imports(
         }
     }
     Ok(imports)
-}
-
-#[derive(Clone, Copy)]
-pub(crate) enum PackageImportPhase {
-    TargetIndependent,
-    ExactTarget,
 }
 
 pub(crate) fn discover_package_imports(
@@ -238,13 +240,13 @@ fn collect_package_import(
 ) -> Result<(), Vec<Diagnostic>> {
     let scope = pending.scope;
     match phase {
-        PackageImportPhase::TargetIndependent => {
+        PackageImportPhase::CapturedPrefix => {
             for physical in pending.physical_sources(packages, discovery)? {
                 imports.push((physical, scope));
             }
             requests.push(pending);
         }
-        PackageImportPhase::ExactTarget => {
+        PackageImportPhase::FrozenView => {
             for resolved in pending.resolve_for_exact_target(packages, discovery, sources)? {
                 imports.push((resolved.path.clone(), scope));
                 retained.push(resolved);

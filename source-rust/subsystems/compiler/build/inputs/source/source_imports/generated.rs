@@ -7,36 +7,10 @@ pub(crate) struct GeneratedFile<'source> {
     pub logical_path: std::path::PathBuf,
     pub source: &'source build_output::PackageGeneratedSource,
     pub stratum: source_admission::SourceResolutionStratum,
-    pub package: semantic_vocabulary::PackageKeyIdentity,
     pub scope: source_provenance::DependencyScope,
 }
 
 impl<'source> GeneratedFile<'source> {
-    pub fn authored_base(
-        &self,
-        package_inputs: &crate::PackageCompilationInputs,
-        discovery: &mut impl super::LogicalSourceDiscovery,
-    ) -> Result<
-        Vec<(
-            std::path::PathBuf,
-            source_provenance::DependencyScope,
-        )>,
-        Vec<Diagnostic>,
-    > {
-        let filesystem = package_inputs.source_filesystem();
-        let package_root = package_inputs
-            .package_root(self.package)
-            .expect("validated generated-source bundle retains its package root");
-        let excluded = package_inputs
-            .packages()
-            .filter(|(owner, root)| *owner != self.package && root.starts_with(package_root))
-            .map(|(_, root)| root.to_path_buf())
-            .collect();
-        discovery
-            .select_owned(package_root, &[], filesystem, excluded)
-            .map(|paths| paths.into_iter().map(|path| (path, self.scope)).collect())
-    }
-
     pub fn source_text(&self) -> Result<&'source str, Vec<Diagnostic>> {
         std::str::from_utf8(self.source.bytes()).map_err(|_| {
             vec![Diagnostic::error(format!(
@@ -78,13 +52,13 @@ pub(crate) fn collect_generated_files<'source>(
                 || !occupied.insert((logical_path.clone(), scope))
             {
                 return Err(vec![Diagnostic::error(format!(
-                    "generated logical file `{}` collides with an existing source", filename.display(),
+                    "generated logical file `{}` collides with an existing source",
+                    filename.display(),
                 ))]);
             }
             entries.push(GeneratedFile {
                 logical_path,
                 source,
-                package,
                 scope,
                 stratum,
             });

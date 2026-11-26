@@ -32,9 +32,6 @@ pub(super) fn admit_generated_files(
     let mut retained = Vec::with_capacity(entries.len());
     let mut files = Vec::with_capacity(entries.len());
     for entry in entries {
-        if entry.stratum == SourceResolutionStratum::DependencyActivationExtension {
-            imports.enqueue(entry.authored_base(package_inputs, &mut source_storage.package_roots)?)?;
-        }
         let source = Arc::from(entry.source_text()?);
         let admitted = source_storage.admit_source(
             SourceContents { path: entry.logical_path, source, scope: entry.scope },
@@ -51,7 +48,7 @@ pub(super) fn admit_generated_files(
         let (discovered, _) = discover_package_imports(
             &parsed,
             package_inputs,
-            PackageImportPhase::ExactTarget,
+            PackageImportPhase::FrozenView,
             source_storage,
         )?;
         imports.enqueue(discovered)?;
@@ -62,9 +59,7 @@ pub(super) fn admit_generated_files(
 
 /// Admits, into the Build scope of a stage, the source each prepared build
 /// dependency's own Build generated. The generated units are part of the
-/// package the stage may call, in the stratum a dependency's generated
-/// source always has, with the same logical-file visibility as authored units. The package's authored units are enqueued with them,
-/// because generated code selects its package's authored declarations.
+/// package the stage may call. Their imports select any needed authored files.
 pub(super) fn append_stage_generated_sources(
     storage: &mut SourceStorage,
     imports: &mut ImportQueue,
@@ -72,7 +67,6 @@ pub(super) fn append_stage_generated_sources(
     timings: &mut CompileTimings,
     catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
 ) -> Result<Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
-    use crate::source::source_imports::LogicalSourceDiscovery as _;
     let mut retained = Vec::new();
     // Two aliases may name one package. Its generated source is admitted once.
     let mut admitted = Vec::new();
@@ -131,24 +125,6 @@ pub(super) fn append_stage_generated_sources(
             storage.attach_parsed(parsed);
             retained.push((source_id, generated.clone()));
         }
-        let excluded = dependency
-            .inputs
-            .packages()
-            .filter(|(owner, root)| *owner != package && root.starts_with(&package_root))
-            .map(|(_, root)| root.to_path_buf())
-            .collect();
-        let authored = storage.package_roots.select_owned(
-            &package_root,
-            &[],
-            &storage.filesystem,
-            excluded,
-        )?;
-        imports.enqueue(
-            authored
-                .into_iter()
-                .map(|path| (path, source_provenance::DependencyScope::Build))
-                .collect(),
-        )?;
     }
     Ok(retained)
 }
