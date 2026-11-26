@@ -140,11 +140,26 @@ fn derive_object_physical_evidence(
         pass.verify(|| publication.replay_foreign_call_custody(object))?;
     }
     let module = terminal_artifact.module();
-    // One current-form declaration owner serves every foreign result in this
-    // receiving pass; no call reconstructs an index from claimed result rows.
-    let result_geometry =
-        calling_conventions::terminal_layout::NativeGeometry::new(&module.types.structural_types)
-            .map_err(|_| "physical result declarations have invalid identities")?;
+    // Physical homes retain the selected record geometry from lowering. Replay
+    // that selection on the original Psi before comparing a fragment's claims.
+    let layouts;
+    let result_geometry = if !module.layouts.target_layout_applications.is_empty()
+        && let Some(profile) = object.profile()
+        && let Some(facts) = profile.layout_target_facts()
+    {
+        if profile.native_realization() != Some(target) {
+            return Err("physical result layout belongs to another native target");
+        }
+        let selections =
+            psi_target_layouts::terminal_target_context(terminal_artifact, profile.target_name());
+        layouts = psi_target_layouts::admit_target_layouts(terminal_artifact, &selections, &facts)
+            .map_err(|_| "physical evidence could not admit the selected target layouts")?;
+        layouts
+            .geometry(terminal_artifact)
+            .map_err(|_| "physical result layout belongs to another artifact")?
+    } else {
+        psi_target_layouts::TargetLayoutGeometry::unscoped(terminal_artifact)
+    };
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
 
