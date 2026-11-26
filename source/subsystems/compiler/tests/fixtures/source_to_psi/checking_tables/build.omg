@@ -1,7 +1,7 @@
 use main.omg as table_test;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "checking_tables");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "checking_tables" };
     Build::bind(builder, windows_x86_64::ProgramEntry, |table_test|::start);
     Build::bind(builder, windows_arm64::ProgramEntry, |table_test|::start);
     Build::bind(builder, linux_x86_64::ProgramEntry, |table_test|::start);

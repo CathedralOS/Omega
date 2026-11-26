@@ -1,7 +1,7 @@
 use main.omg as operator_holds_test;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "operator_holds_tests");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "operator_holds_tests" };
     Build::bind(builder, windows_x86_64::ProgramEntry, |operator_holds_test|::start);
     Build::bind(builder, windows_arm64::ProgramEntry, |operator_holds_test|::start);
     Build::bind(builder, linux_x86_64::ProgramEntry, |operator_holds_test|::start);
