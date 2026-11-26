@@ -152,8 +152,7 @@ impl AcquiredBuildDependency {
     }
 
     pub fn entry_path(&self) -> std::path::PathBuf {
-        let capture = self.source_capture();
-        super::package_entry(capture.canonical_live_root(), Some(capture.tree()))
+        self.acquired.entry_path()
     }
 
     pub fn source_capture(&self) -> &CapturedLocalSource {

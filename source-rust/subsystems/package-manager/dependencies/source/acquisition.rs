@@ -569,10 +569,12 @@ impl AcquiredBuildSource {
     }
 
     pub fn entry_path(&self) -> std::path::PathBuf {
-        super::package_entry(
-            self.capture.canonical_live_root(),
-            Some(self.capture.tree()),
-        )
+        let filename = if self.capture.tree().is_file(Path::new("build.omg")) {
+            "build.omg"
+        } else {
+            "main.omg"
+        };
+        self.capture.canonical_live_root().join(filename)
     }
 
     pub fn capture_local(
