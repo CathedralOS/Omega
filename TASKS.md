@@ -95,7 +95,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Implement [operator-independent domain composition and exact result keys](wiki/spec/language/domains.md#domain-composition-and-operators), including its selection and artifact acceptance controls.
   - Implement `i`/`u`, exact math `/`, quotient/remainder and checked bridges; migrate existing integer-proof fixtures under the design's controls.
   - Remove the root `operator` declaration from the [Rust parser](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/src/declarations/items.rs) and its dependent representation once its source customers use machines. Lower `f64 in D` and `i32 in D` through their declared operators.
-  - Form the collection loan for a declared `[]` or `[..]` whose collection parameter is a reference ([collection arguments](wiki/spec/language/expressions.md#collection-arguments-and-results)). With `machine [] at(buffer: @Buffer, index: u64)`, `buffer[index]` on a `Buffer` value must lend `buffer` to `at`; typing leaves that occurrence unselected (`needs_collection_view` in `operator_calls.rs`) and lowering refuses it.
 
 ## Pipeline route
 
