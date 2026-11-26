@@ -117,6 +117,7 @@ dependencies = [
  "language-core",
  "layout",
  "layout-plans",
+ "native-binding-admission",
  "native-execution-scope",
  "native-intrinsics",
  "native-scalar-inputs",
