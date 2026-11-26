@@ -196,10 +196,10 @@ fn selected_provider_preserves_the_domains_of_each_record_field() {
     let root = temporary.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"
+        r#"use main.omg as app;
         machine build(builder: @mutable Build) {
             Build::package(builder, "reading");
-            Build::select_provider::<Reading, Provider>(builder, linux_x86_64);
+            Build::select_provider::<|app|::Reading, |app|::Provider>(builder, linux_x86_64);
         }"#,
     )
     .unwrap();

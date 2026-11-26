@@ -2,15 +2,16 @@
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::process::{Command, Stdio};
 
-const BUILD: &str = r#"use {omega}/build/dependency.omg;
+const BUILD: &str = r#"use main.omg as app;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "group_settings");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    let muted: TestGroup = builder.tests.group::<Checks::muted>();
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    let muted: TestGroup = builder.tests.group::<|app|::Checks::muted>();
     muted.disabled = false;
     let dependency: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "kit" }));
     suspend Build::prepare_dependency(builder, dependency);
-    let live: TestGroup = builder.tests.group::<Checks::live>();
+    let live: TestGroup = builder.tests.group::<|app|::Checks::live>();
     live.disabled = true;
     muted.disabled = 2u32 + 3u32 == 5u32;
     live.disabled = !live.disabled;
@@ -96,11 +97,12 @@ trait Checks<T> { machine memory() crashes Trap; }
 machine scan() satisfies Checks<ScanFixture>::memory crashes Trap {}
 machine write() satisfies Checks<WriteFixture>::memory crashes Trap { crash Trap; }
 machine main() {}"#;
-    let configuration = r#"machine build(builder: @mutable Build) {
+    let configuration = r#"use main.omg as app;
+machine build(builder: @mutable Build) {
     Build::application(builder, "applied_groups");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    _ = builder.tests.group::<Checks<ScanFixture>::memory>();
-    let writes: TestGroup = builder.tests.group::<Checks<WriteFixture>::memory>();
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    _ = builder.tests.group::<|app|::Checks<|app|::ScanFixture>::memory>();
+    let writes: TestGroup = builder.tests.group::<|app|::Checks<|app|::WriteFixture>::memory>();
     writes.disabled = true;
 }"#;
     let (success, output) = build(product, configuration);

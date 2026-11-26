@@ -396,7 +396,7 @@ machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "firmware" };
     builder.subsystem = Subsystem::EfiApplication;
     let system: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "SYSTEM_SOURCE" }));
-    Build::select_provider::<|firmware|::UefiPhysicalEntry, RejectArrival>(builder, uefi_x86_64);
+    Build::select_provider::<|firmware|::UefiPhysicalEntry, |app|::RejectArrival>(builder, uefi_x86_64);
     Build::bind(builder, uefi_x86_64::ProgramEntry, |app|::semantic_entry);
 }
 "#;

@@ -6,8 +6,8 @@ use target::TargetProfile;
 #[test]
 fn table_bindings_check_unreached_requirements_and_their_borrowed_fields() {
     let product = r"
-public data Protocol { reset: address; output: address; revision: u64; }
-public data Other { reset: address; output: address; }
+public data Protocol { reset: addr; output: addr; revision: u64; }
+public data Other { reset: addr; output: addr; }
 public boundary trait Firmware {
     machine write(text: @[u16; 2], table: @Protocol) reaches none crashes none;
     machine clear(text: @[u16; 2], table: @Protocol) reaches none crashes none;
@@ -29,7 +29,7 @@ machine main() {}
         (
             "Firmware::write::table",
             "Protocol::revision",
-            Some("live, non-atomic address field"),
+            Some("live, non-atomic addr field"),
         ),
     ] {
         let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(

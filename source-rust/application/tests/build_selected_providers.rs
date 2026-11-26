@@ -35,17 +35,18 @@ machine entry() crashes Trap {
 }
 ";
 
-const BUILD: &str = "\
+const BUILD: &str = "use main.omg as app;
+\
 machine build(builder: @mutable Build) {
     Build::application(builder, \"selected_provider\");
-    Build::select_provider::<Service, Native>(builder, linux_x86_64);
-    Build::select_provider::<Service, Native>(builder, linux_arm64);
-    Build::select_provider::<Service, Native>(builder, macos_arm64);
-    Build::select_provider::<Service, Native>(builder, windows_x86_64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
+    Build::select_provider::<|app|::Service, |app|::Native>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Service, |app|::Native>(builder, linux_arm64);
+    Build::select_provider::<|app|::Service, |app|::Native>(builder, macos_arm64);
+    Build::select_provider::<|app|::Service, |app|::Native>(builder, windows_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry);
 }
 ";
 
@@ -128,10 +129,11 @@ Copy<P, T, R> satisfies Echo<P, T> {
 machine entry() {}
 "#;
     let build = format!(
-        r#"machine build(builder: @mutable Build) {{
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {{
     Build::application(builder, "uncalled_provider");
-    Build::select_provider::<Echo<Tag, Word>, Copy<Tag, Word, u32>>(builder, {target});
-    Build::bind(builder, {target}::ProgramEntry, entry);
+    Build::select_provider::<|app|::Echo<|app|::Tag, |app|::Word>, |app|::Copy<|app|::Tag, |app|::Word, u32>>(builder, {target});
+    Build::bind(builder, {target}::ProgramEntry, |app|::entry);
 }}"#
     );
     for engine in ["native", "psi"] {
@@ -140,7 +142,7 @@ machine entry() {}
             run_fixture(engine, "uncalled_requirement", program, &build),
         );
 
-        let wrong = build.replace("Copy<Tag, Word, u32>", "Copy<Word, Tag, u32>");
+        let wrong = build.replace("|app|::Copy<|app|::Tag, |app|::Word, u32>", "|app|::Copy<|app|::Word, |app|::Tag, u32>");
         let (status, report) = run_fixture(engine, "wrong_uncalled_requirement", program, &wrong);
         assert!(
             !status.success() && report.contains("does not satisfy"),
@@ -222,11 +224,12 @@ machine entry() crashes Trap {
 }
 "#;
     let build = format!(
-        r#"machine build(builder: @mutable Build) {{
+        r#"use main.omg as app;
+machine build(builder: @mutable Build) {{
     Build::application(builder, "qualified_providers");
-    Build::select_provider::<Service<Tag in Tag::Left>, First>(builder, {target});
-    Build::select_provider::<Service<Tag in Tag::Right>, Second>(builder, {target});
-    Build::bind(builder, {target}::ProgramEntry, entry);
+    Build::select_provider::<|app|::Service<|app|::Tag in |app|::Tag::Left>, |app|::First>(builder, {target});
+    Build::select_provider::<|app|::Service<|app|::Tag in |app|::Tag::Right>, |app|::Second>(builder, {target});
+    Build::bind(builder, {target}::ProgramEntry, |app|::entry);
 }}"#
     );
     for engine in ["native", "psi"] {
