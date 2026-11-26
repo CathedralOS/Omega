@@ -76,7 +76,7 @@ pub fn fixture_local_and_core_imports(
     syntax
         .root_items()
         .filter_map(|item| {
-            let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::File {
+            let syntax_trees::item::Item::Use(syntax_trees::item::UseItem {
                 root,
                 components,
                 alias,

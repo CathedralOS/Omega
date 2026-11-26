@@ -1,4 +1,5 @@
 use {omega}/language/core/foundation.omg as proof;
+use nat.omg;
 
 // Seq<T> is ordinary generic recursive data. It is proof-only: the computed
 // classification finds it recursive through `tail`, so it has no runtime
@@ -76,19 +77,19 @@ terminates by items
 // generic twin of nat's own ladder over a generic recursive type. The
 // structural entailment judge is parametric over
 // constructor names, so it discharges Seq lemmas exactly as it does Nat's.
-public machine length(s: Seq<u64>) -> Nat
+public machine length(s: Seq<u64>) -> |nat|::Nat
 terminates by s
 {
     transition s {
-        Seq::Empty -> Nat::Zero,
-        Seq::Cons { head, tail } -> Nat::Succ { prev: length(tail) }
+        Seq::Empty -> |nat|::Nat::Zero,
+        Seq::Cons { head, tail } -> |nat|::Nat::Succ { prev: length(tail) }
     }
 }
 
 // length of the empty sequence is Zero (compute-mode: unfold the Empty arm).
 machine length_empty()
 ensures
-    |proof|::Identity::<Nat>(length(Seq::Empty), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(length(Seq::Empty), |nat|::Nat::Zero)
 {
 }
 
@@ -97,7 +98,7 @@ ensures
 // Lean analog: `List.length_cons`.
 machine length_cons(x: u64, s: Seq<u64>)
 ensures
-    |proof|::Identity::<Nat>(length(Seq::Cons { head: x, tail: s }), Nat::Succ { prev: length(s) })
+    |proof|::Identity::<|nat|::Nat>(length(Seq::Cons { head: x, tail: s }), |nat|::Nat::Succ { prev: length(s) })
 {
 }
 
@@ -141,14 +142,14 @@ ensures
 // induction on the first sequence -- cross-machine unfolding (append
 // inside length inside add) plus the inductive hypothesis; no citations
 // needed. Lean analog: `List.length_append`.
-public machine length_append(s: Seq<u64>, t: Seq<u64>) -> Nat
+public machine length_append(s: Seq<u64>, t: Seq<u64>) -> |nat|::Nat
 terminates by s
 ensures
-    |proof|::Identity::<Nat>(length(append(s, t)), add(length(s), length(t)))
+    |proof|::Identity::<|nat|::Nat>(length(append(s, t)), |nat|::add(length(s), length(t)))
 {
     transition s {
-        Seq::Empty -> Nat::Zero,
-        Seq::Cons { head, tail } -> Nat::Succ { prev: length_append(tail, t) }
+        Seq::Empty -> |nat|::Nat::Zero,
+        Seq::Cons { head, tail } -> |nat|::Nat::Succ { prev: length_append(tail, t) }
     }
 }
 
@@ -173,21 +174,21 @@ terminates by s
 // (boolean depth budget + distribution size gate + the helper-expansion
 // work budget): the backend used to crash, then hang, expanding the
 // proof machine's recursion. Lean analog: `List.length_reverse`.
-machine length_reverse(s: Seq<u64>) -> Nat
+machine length_reverse(s: Seq<u64>) -> |nat|::Nat
 terminates by s
 ensures
-    |proof|::Identity::<Nat>(length(reverse(s)), length(s))
+    |proof|::Identity::<|nat|::Nat>(length(reverse(s)), length(s))
 {
     transition s {
-        Seq::Empty -> Nat::Zero,
+        Seq::Empty -> |nat|::Nat::Zero,
         Seq::Cons { head, tail } -> lr_step(head, tail)
     }
 
-    machine lr_step(head: u64, tail: Seq<u64>) -> Nat {
+    machine lr_step(head: u64, tail: Seq<u64>) -> |nat|::Nat {
         _ = length_append(reverse(tail), Seq::Cons { head: head, tail: Seq::Empty });
-        _ = add_succ_law(length(tail), Nat::Zero);
-        add_zero_right(length(tail));
-        transition { _ -> Nat::Succ { prev: length_reverse(tail) } }
+        _ = |nat|::add_succ_law(length(tail), |nat|::Nat::Zero);
+        |nat|::add_zero_right(length(tail));
+        transition { _ -> |nat|::Nat::Succ { prev: length_reverse(tail) } }
     }
 }
 
@@ -272,12 +273,12 @@ ensures
 // `add(length(s), length([x]))`; the singleton's length computes to
 // Succ(Zero); add_one_right at length(s) collapses the trailing add.
 // Lean analog: `List.length_concat`.
-machine length_snoc(s: Seq<u64>, x: u64) -> Nat
+machine length_snoc(s: Seq<u64>, x: u64) -> |nat|::Nat
 ensures
-    |proof|::Identity::<Nat>(length(snoc(s, x)), Nat::Succ { prev: length(s) })
+    |proof|::Identity::<|nat|::Nat>(length(snoc(s, x)), |nat|::Nat::Succ { prev: length(s) })
 {
     _ = length_append(s, Seq::Cons { head: x, tail: Seq::Empty });
-    _ = add_one_right(length(s));
+    _ = |nat|::add_one_right(length(s));
     transition { _ -> (length(s)) }
 }
 

@@ -242,6 +242,88 @@ fn loop_specializations_publish_the_reach_of_their_emitted_calls() {
 }
 
 #[test]
+fn the_core_iterator_instantiates_its_callback_borrow_for_each_element() {
+    let package = PackageKeyIdentity::from_digest([0x7a; 32]).unwrap();
+    let source = concat!(
+        include_str!("../../../../../source/library/core/iteration.omg"),
+        "\ndata Cell { value: i32; }
+        machine clear(item: @mutable Cell) satisfies ElementStep<Cell>::apply { item.value = 0; }
+        machine main() {
+            let mutable items: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
+            for_each::<Cell, clear>(@mutable items[..]);
+        }",
+    );
+    let (files, root) = captured(package, source);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None)
+        .expect("the public core iterator checks its abstract callback and the selected body");
+    let bytes = artifact.to_bytes();
+    assert_eq!(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+            .unwrap()
+            .to_bytes(),
+        bytes,
+    );
+}
+
+#[test]
+fn replacing_a_borrowed_field_retires_its_old_extent() {
+    let package = PackageKeyIdentity::from_digest([0x7b; 32]).unwrap();
+    let source = r#"
+        data Buffer<'back> { bytes: @'back [u8]; }
+        machine replace_bytes<'back>(item: @mutable Buffer<'back>, replacement: @'back [u8]) {
+            item.bytes = replacement;
+        }
+        machine read<'back>(item: @mutable Buffer<'back>, replacement: @'back [u8])
+        requires item.bytes.length > 0 {
+            replace_bytes(item, replacement);
+            let byte: u8 = item.bytes[0];
+        }
+        machine main() {}
+    "#;
+    let (files, root) = captured(package, source);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("the bounds do not decide the comparison")),
+        "{errors:?}",
+    );
+}
+
+#[test]
+fn an_ended_record_borrow_preserves_the_loan_stored_in_its_field() {
+    let package = PackageKeyIdentity::from_digest([0x7c; 32]).unwrap();
+    let source = r#"
+        data Kept<'a> { bytes: @'a [u8]; }
+        machine observe<'a>(item: @mutable Kept<'a>) { }
+        machine first(bytes: @[u8]) -> u8 {
+         transition bytes.length > 0 { true -> head(bytes), _ -> empty() }
+         machine head(bytes: @[u8]) -> u8 requires bytes.length > 0 { bytes[0] }
+         machine empty() -> u8 { 0 }
+        }
+        machine main() {
+         let mutable source: [u8; 2] = [1, 2];
+         let mutable kept: Kept = Kept { bytes: @source[..] };
+         observe(@mutable kept);
+         {actions}
+        }
+    "#;
+    let compile_actions = |actions| {
+        let (files, root) = captured(package, &source.replace("{actions}", actions));
+        compile(product(files, root, package, &[]).unwrap(), None)
+    };
+    let errors = compile_actions("source[0] = 7; let seen: u8 = first(kept.bytes);").unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("conflicting reference remains live")),
+        "{errors:?}",
+    );
+    compile_actions("let seen: u8 = first(kept.bytes); source[0] = 7;")
+        .expect("the element may change after the field's final read");
+}
+
+#[test]
 fn an_indexed_generic_borrow_can_end_before_the_next_suffix() {
     let package = PackageKeyIdentity::from_digest([0x78; 32]).unwrap();
     let (files, root) = captured(
@@ -851,6 +933,7 @@ fn complete_omega_request_protocol_publishes_psi() {
         "codec.omg",
         include_str!("../../../../../source/foundation/wire/codec.omg"),
     );
+    files.retain_product_dependency_scope([(package, "wire", wire_package)]);
     let mut stage = product(files, request, package, &[]).unwrap();
     let scope = ProductDeclarationScope::from_direct_dependencies(
         &[package, wire_package],
@@ -858,15 +941,12 @@ fn complete_omega_request_protocol_publishes_psi() {
     );
     stage.product.declaration_scope = Some(Arc::new(scope));
     stage.parsed.roots.extend([outcome, protocol, wire]);
-    stage
-        .parsed
-        .imports
-        .push(SourceScopedTopLevelBinding::logical_module_import(
-            protocol,
-            wire,
-            "wire::u32_from_le_bytes",
-            1,
-        ));
+    stage.parsed.imports.extend([
+        SourceScopedTopLevelBinding::file_import(protocol, request, "input"),
+        SourceScopedTopLevelBinding::file_import(protocol, outcome, "results"),
+        SourceScopedTopLevelBinding::file_import(protocol, wire, "codec")
+            .from_dependency(Some(("wire", wire_package))),
+    ]);
     let program = compile(stage, None).unwrap();
     assert!(!program.to_bytes().is_empty());
 }
@@ -875,7 +955,7 @@ fn complete_omega_request_protocol_publishes_psi() {
 fn omega_frontend_imports_a_member_of_the_lowered_program_representation() {
     let customer = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     let psi = PackageKeyIdentity::from_digest([0x62; 32]).unwrap();
-    let import = "psi::representations::lowered_program::ScalarParameter";
+    let import = "{psi}/representations/lowered_program/scalar.omg";
     let check = |body: &str| {
         let (mut files, root) = captured(customer, &format!("use {import};\n{body}"));
         let scalar = capture_file(
@@ -896,21 +976,23 @@ fn omega_frontend_imports_a_member_of_the_lowered_program_representation() {
                 "../../../../../source/subsystems/compiler/source_to_psi/representations/lowered_program/layouts.omg"
             ),
         );
+        files.retain_product_dependency_scope([(customer, "psi", psi)]);
         let mut stage = product(files, root, customer, &[]).unwrap();
         let scope =
             ProductDeclarationScope::from_direct_dependencies(&[customer, psi], [(customer, psi)]);
         stage.product.declaration_scope = Some(Arc::new(scope));
         stage.parsed.roots.extend([scalar, layouts]);
-        stage
-            .parsed
-            .imports
-            .push(SourceScopedTopLevelBinding::logical_module_import(
-                root, scalar, import, 1,
-            ));
+        stage.parsed.imports.extend([
+            SourceScopedTopLevelBinding::file_import(root, scalar, "scalar")
+                .from_dependency(Some(("psi", psi))),
+            SourceScopedTopLevelBinding::file_import(scalar, layouts, "layouts"),
+            SourceScopedTopLevelBinding::file_import(layouts, scalar, "scalar"),
+        ]);
         compile(stage, None)
     };
     let artifact =
-        check("machine handle(p: ScalarParameter) -> u64 in Trapping { p.type_handle }").unwrap();
+        check("machine handle(p: |scalar|::ScalarParameter) -> u64 in Trapping { p.type_handle }")
+            .unwrap();
     assert!(!artifact.to_bytes().is_empty());
     let errors =
         check("machine handle(p: ScalarLayout) -> u64 in Trapping { p.size }").unwrap_err();
@@ -956,7 +1038,7 @@ fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
 
 #[test]
 fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
-    let text = "use first;\nuse second;\nmachine build() -> u8 { true }";
+    let text = "use first.omg;\nuse second.omg;\nmachine build() -> u8 { |first|::one(); |second|::two(); true }";
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     let mut files = SourceMap::default();
     let root = files
@@ -975,8 +1057,8 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
         Span::new(start, start + part.len())
     };
     let missing = [
-        ("first", span("use first;")),
-        ("second", span("use second;")),
+        ("first", span("use first.omg;")),
+        ("second", span("use second.omg;")),
     ];
     let stage = source_compiler::BuildStageSource {
         parsed: source_compiler::ParsedStageSources::parse(Arc::new(files), vec![root], vec![])
@@ -987,7 +1069,11 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
             .map(|(name, span)| source_compiler::PendingBuildImport {
                 source: root,
                 span: *span,
-                target: source_compiler::SourceImportTarget::Namespace(vec![(*name).into()]),
+                target: source_compiler::SourceImportTarget {
+                    root: None,
+                    path: format!("{name}.omg"),
+                    alias: (*name).into(),
+                },
             })
             .collect(),
         entry: SourceSpan::new(root, span("build")),
@@ -999,7 +1085,7 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
     for (error, (name, span)) in errors.iter().zip(missing) {
         assert_eq!(
             error.message,
-            format!("Build import `{name}` has no supplied source")
+            format!("Build import `{name}.omg as {name}` has no supplied source")
         );
         assert_eq!(error.source_span, Some(SourceSpan::new(root, span)));
     }
@@ -1037,8 +1123,13 @@ fn source_syntax_stores_only_the_complete_parse_and_files() {
     )
     .unwrap();
     assert_eq!(
-        bytes.strip_prefix(b"OmegaSourceSyntax1".as_slice()),
+        bytes.strip_prefix(b"OmegaSourceSyntax2".as_slice()),
         Some(body.as_slice())
+    );
+    let mut previous_format = b"OmegaSourceSyntax1".to_vec();
+    previous_format.extend_from_slice(&body);
+    assert!(
+        record_storage::decode::<source_compiler::SourceSyntax>(&previous_format, limits).is_err()
     );
     let reopened: source_compiler::SourceSyntax = record_storage::decode(&bytes, limits).unwrap();
     assert_eq!(syntax, reopened);
@@ -1200,9 +1291,9 @@ fn a_build_activation_rejoins_its_authored_machine_in_the_selected_package() {
 
 #[test]
 fn publication_checks_the_same_grammar_in_root_and_imported_files() {
-    let main = "use kit\\answer;
+    let main = "use kit/values.omg as kit;
         machine main() -> u32 {
-            transition true { true -> kit\\answer(), false -> 0u32 }
+            transition true { true -> |kit|::answer(), false -> 0u32 }
         }";
     let helper = "machine id<T>(x: T) -> T { x }
         public machine answer() -> u32 {
@@ -1224,6 +1315,12 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
             .source_id;
         let mut stage = product(files, root, package, &[])?;
         stage.parsed.roots.push(dependency);
+        stage
+            .parsed
+            .imports
+            .push(SourceScopedTopLevelBinding::file_import(
+                root, dependency, "kit",
+            ));
         compile(stage, None)
     };
 
@@ -2265,16 +2362,32 @@ fn the_order_files_are_met_in_does_not_change_the_published_psi() {
 fn identity_checks_the_complete_applied_data_type_of_both_subjects() {
     let package = PackageKeyIdentity::from_digest([0x79; 32]).unwrap();
     let check = |source: &str| {
-        let (files, root) = captured(package, source);
-        source_compiler::check(
-            product(files, root, package, &[]).unwrap(),
-            &mut Default::default(),
-        )
+        let (mut files, root) = captured(package, source);
+        let core = Path::new("toolchain/core");
+        let foundation = files
+            .add_with_metadata(
+                core.join("foundation.omg"),
+                include_str!("../../../../../source/library/core/foundation.omg").into(),
+                core.to_owned(),
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .source_id;
+        let mut stage = product(files, root, package, &[]).unwrap();
+        stage.parsed.roots.push(foundation);
+        stage
+            .parsed
+            .imports
+            .push(SourceScopedTopLevelBinding::file_import(
+                root, foundation, "proof",
+            ));
+        source_compiler::check(stage, &mut Default::default())
     };
-    let source = r#"data Holder<T> { field: T; }
+    let source = r#"use {omega}/language/core/foundation.omg as proof;
+data Holder<T> { field: T; }
 machine carry(left: Holder<Holder<u32>>, right: Holder<Holder<u32>>)
-requires core\Identity::<Holder<Holder<u32>>>(left, right)
-ensures core\Identity::<Holder<Holder<u32>>>(left, right)
+requires |proof|::Identity::<Holder<Holder<u32>>>(left, right)
+ensures |proof|::Identity::<Holder<Holder<u32>>>(left, right)
 {}
 machine main() {}
 "#;
@@ -2293,7 +2406,7 @@ machine main() {}
     );
 
     let unproved = source.replace(
-        "requires core\\Identity::<Holder<Holder<u32>>>(left, right)\n",
+        "requires |proof|::Identity::<Holder<Holder<u32>>>(left, right)\n",
         "",
     );
     let missing = check(&unproved).expect_err("two independent values supply no identity proof");

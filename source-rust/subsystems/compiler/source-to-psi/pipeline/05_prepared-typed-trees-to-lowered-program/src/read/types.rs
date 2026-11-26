@@ -1217,7 +1217,7 @@ impl Program<'_> {
         for domain in qualification.domains.members() {
             if !carrier.qualification().domains.contains(domain) {
                 let at = self.written_domain(constraints, domain);
-                self.declared_domain(id, domain, result, base_type, at)?;
+                self.declared_domain(id, domain, result, at)?;
             }
         }
         Ok(result)
@@ -1484,10 +1484,9 @@ impl Program<'_> {
         id: MachineId,
         domain: crate::body::DomainInstance,
         carrier: ValueType,
-        carrier_type: TypeReferenceHandle,
         at: crate::SourceOrigin,
     ) -> Checked<()> {
-        self.form_domain(id, domain, carrier, carrier_type, at, DomainUse::Retained)
+        self.form_domain(id, domain, carrier, at, DomainUse::Retained)
     }
 
     pub(super) fn form_domain(
@@ -1495,7 +1494,6 @@ impl Program<'_> {
         id: MachineId,
         domain: crate::body::DomainInstance,
         carrier: ValueType,
-        carrier_type: TypeReferenceHandle,
         at: crate::SourceOrigin,
         use_site: DomainUse,
     ) -> Checked<()> {
@@ -1559,30 +1557,10 @@ impl Program<'_> {
         if required.policy.is_some() {
             return unserved("a domain declared on an arithmetic-policy-qualified carrier");
         }
-        if subject.qualified(Qualification::NONE) != Some(plain) {
-            // `LayoutStorage<T, L> in T::D`: the laid value is T's value in
-            // L's geometry (plans.md, "Representation applications"), so T's
-            // domain qualifies it. Only a domain whose meaning is its access
-            // policy or routes is read here: a predicate over `self` would
-            // read T's fields through L's geometry, which nothing judges yet.
-            let laid = typed.layout_storage_arguments(carrier_type);
-            let Some(laid) = laid else {
-                return unserved("constrained by a domain declared on another carrier");
-            };
-            if self.value_type(id, laid.semantic_type)? != subject {
-                return unserved("constrained by a domain declared on another carrier");
-            }
-            if !required.domains.is_empty() {
-                return unserved("a qualified domain carrier on laid layout storage");
-            }
-            if !declaration.content_projections.is_empty() {
-                return unserved("a content projection on laid layout storage");
-            }
-            if definition.predicate_presence != language_core::DomainPredicatePresence::Absent
-                || !definition.facts.is_empty()
-            {
-                return unserved("a predicate domain on laid layout storage");
-            }
+        if subject.qualified(Qualification::NONE) != Some(plain)
+            && !self.represented_domain_carrier(id, plain, subject, definition)?
+        {
+            return unserved("constrained by a domain declared on another carrier");
         }
         if let Some(missing) = required
             .domains
@@ -1629,7 +1607,7 @@ impl Program<'_> {
             // An unused child can be the only occurrence of this parent application.
             // The published prerequisite must have an identity before the child uses it.
             if let Some(parent) = parent {
-                self.declared_domain(id, parent, carrier, carrier_type, at)?;
+                self.declared_domain(id, parent, carrier, at)?;
             }
             let schema_scope = typed
                 .domain_application(domain.declaration, domain.identity)
@@ -1650,6 +1628,50 @@ impl Program<'_> {
             });
         }
         Ok(())
+    }
+
+    /// Domain formation and executable membership follow the same retained
+    /// LayoutStorage<T, L> to its exact semantic T, including after a projection.
+    pub(super) fn represented_domain_carrier(
+        &mut self,
+        id: MachineId,
+        actual: ValueType,
+        subject: ValueType,
+        definition: &crate::source_state::domain::DomainDefinition,
+    ) -> Checked<bool> {
+        let typed = self.typed;
+        let ValueType::Record(record, ..) = actual else {
+            return Ok(false);
+        };
+        let Some(layout) = self
+            .record_sources
+            .get(record)
+            .and_then(|source| source.application.as_ref())
+            .and_then(|application| typed.layout_storage_arguments(application.reference))
+        else {
+            return Ok(false);
+        };
+        if self.value_type(id, layout.semantic_type)? != subject {
+            return Ok(false);
+        }
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        if !subject.qualification().domains.is_empty()
+            || crate::source_state::domain::refinement_parent(typed, definition).is_some()
+        {
+            return unserved("a qualified domain carrier on laid layout storage");
+        }
+        let Some(declaration) = typed.domain_definition(definition.symbol) else {
+            return unserved("domain application lost its declaring family");
+        };
+        if !declaration.content_projections.is_empty() {
+            return unserved("a content projection on laid layout storage");
+        }
+        if definition.predicate_presence != language_core::DomainPredicatePresence::Absent
+            || !definition.facts.is_empty()
+        {
+            return unserved("a predicate domain on laid layout storage");
+        }
+        Ok(true)
     }
 
     /// Where `T in D` wrote the domain `domain`: the constraint typing

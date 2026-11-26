@@ -22,6 +22,38 @@ fn edge(target: u32) -> DescriptorFlowEdge {
 }
 
 #[test]
+fn only_the_outer_invocation_address_stops_at_a_rigid_call() {
+    let address = root(1);
+    let mut payload = address.clone();
+    payload.path.push(DescriptorPathSegment::UnknownContents);
+    let other = root(2);
+    let steps = BTreeMap::from([(
+        position(0),
+        DescriptorFlowStep {
+            inputs: vec![(Some(address.clone()), None), (Some(other.clone()), None)],
+            may_escape: true,
+            invocation_addresses: vec![address.clone()],
+            ..Default::default()
+        },
+    )]);
+    let escapes = |observed: &DescriptorLocation| {
+        location_live_positions(
+            &steps,
+            position(0),
+            observed,
+            DescriptorStart::AtEntry,
+            true,
+            None,
+            |_, _| false,
+        )
+        .escaped
+    };
+    assert!(!escapes(&address));
+    assert!(escapes(&payload));
+    assert!(escapes(&other));
+}
+
+#[test]
 fn ending_a_borrowed_header_keeps_its_contents_and_captured_successor_argument() {
     let address = root(1);
     let mut payload = address.clone();

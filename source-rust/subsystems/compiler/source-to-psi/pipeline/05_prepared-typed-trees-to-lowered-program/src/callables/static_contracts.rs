@@ -315,7 +315,13 @@ impl StaticContracts {
                                         boundaries,
                                         qualifications,
                                     )
-                                    .map(|header| StaticRequirementInstance { machine, nominal_requirement, member, header })
+                                    .map(|header| StaticRequirementInstance {
+                                        machine,
+                                        nominal_requirement,
+                                        member,
+                                        scoped_addresses: reader.scoped_input_addresses(requirement.declaration, signature),
+                                        header,
+                                    })
                                 })
                                 .transpose()?;
                             Ok(StaticRequirementSchema {

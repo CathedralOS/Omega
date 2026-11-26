@@ -1347,21 +1347,16 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "calling-conventions",
- "function-identity",
  "language-core",
  "operation-evidence",
  "operation-operands",
  "optimization-core",
  "runtime-abi",
  "semantic-vocabulary",
- "sha2",
- "structural-storage",
  "target",
  "target-vocabulary",
  "terminal-psi",
  "terminal-semantics",
- "terminal-wire",
- "wire",
 ]
 
 [[package]]

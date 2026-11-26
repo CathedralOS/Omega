@@ -1,5 +1,6 @@
 // Product-purpose control for product_entry_query_build_scope_alias.
 use {omega}/build/dependency.omg;
+use {support}/setup/setup.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "product_entry_query_scope");
@@ -12,5 +13,5 @@ machine build(builder: @mutable Build) {
     Build::bind(builder, linux_arm64::ProgramEntry, entry(builder, "linux_arm64::ProgramEntry"));
 }
 machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
-    BuildDeclarations::entry(@builder.declarations, "support::setup::launch", slot)
+    BuildDeclarations::entry(@builder.declarations, "|setup|::launch", slot)
 }

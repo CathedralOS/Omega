@@ -120,7 +120,7 @@ impl DemandedValues for AccessPlans {
     }
 
     /// A policy names its own domain whenever it reflects an issuer, as
-    /// `reflect\callable(stamp)` does for a `stamp` that writes `as +D`.
+    /// `|reflect|::callable(stamp)` does for a `stamp` that writes `as +D`.
     /// Reflecting `stamp` does not run it. The plan runs while its domain's
     /// plan is still unevaluated (`DomainDefinition::issuance` answers
     /// `Planned`), so an `as +D` the plan itself executed would be refused

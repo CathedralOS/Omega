@@ -95,12 +95,17 @@ fn an_unchosen_dependency_default_is_never_laid_out() {
 fn a_chosen_dependency_default_with_an_invalid_layout_is_refused() {
     let main = std::fs::read_to_string(fixture().join("main.omg")).expect("kept program");
     let root = default_only("reached", &main);
-    let report = omega(&["--check", "main.omg"], root.path());
+    // The authored Windows row must be valid even when the requested output is Linux.
+    let (accepted, diagnostic) = project::status(project::omega(
+        root.path(),
+        &["--check", "--target", "linux_x86_64", "build.omg"],
+    ));
+    assert!(!accepted, "the Windows provider has overlapping fields");
     assert!(
-        report.contains(
+        diagnostic.contains(
             "layout policy for `Overlapping` on `windows_x86_64`: layout placements of field keys 1 and 2 overlap"
         ),
-        "{report}"
+        "{diagnostic}"
     );
 }
 
@@ -121,8 +126,8 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
         &[(
             "build.omg",
             r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-        Build::package(builder, "layout_reach");
+machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "layout_reach" };
         Build::select_provider::<|app|::Reading, |app|::ConstantReading>(builder, alpha_bootstrap);
     }"#,
         )],
@@ -142,7 +147,7 @@ machine build(builder: @mutable Build) {
         (
             "",
             "|layout|::LayoutStorage<Packet, |c_layout|::CAbiPolicy<OtherPacket>>",
-            Some("selected layout policy belongs to another semantic type"),
+            Some("does not supply the declared `FixedLayout` application of `LayoutStorage`"),
         ),
     ] {
         let source = format!(
@@ -241,8 +246,8 @@ fn an_unreached_layout_constant_keeps_its_initializer_without_target_geometry() 
         &[
             (
                 "build.omg",
-                r#"machine build(builder: @mutable Build) {
-        Build::package(builder, "observed_packet");
+                r#"machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "observed_packet" };
     }"#,
             ),
             (

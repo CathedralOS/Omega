@@ -296,6 +296,53 @@ fn cleanup_write_ends(asked: Asked<'_>, watched: &Backing, written: &Backing) ->
     }
 }
 
+impl<'a> AtCleanupCall<'_, 'a> {
+    /// The backing a cleanup clause reads at `path` beneath `root`, refused
+    /// with `changed` when an earlier action of the same roster wrote it.
+    fn untouched(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        changed: &'static str,
+    ) -> Result<Backing, crate::Unbound> {
+        let actual = self.inputs.actual(root, path)?;
+        if !self
+            .inputs
+            .storage
+            .cleanup_untouched(
+                self.inputs.references,
+                &actual,
+                self.edge,
+                self.action_ordinal,
+                self.inputs.concerns,
+            )
+            .map_err(crate::Unbound::Refused)?
+        {
+            return Err(crate::Unbound::Unproved(changed));
+        }
+        self.inputs
+            .storage
+            .cleanup_backing(
+                self.inputs.references,
+                &actual,
+                self.edge,
+                self.action_ordinal,
+                self.inputs.concerns,
+            )
+            .map_err(crate::Unbound::Refused)
+    }
+
+    /// The observation of `place` just before this cleanup action.
+    fn before_cleanup<'p>(&'p mut self, place: &'p Lineage) -> Held<'p, 'a> {
+        let mut held = self.inputs.held_at(place);
+        held.point = Some(ProgramPoint::BeforeCleanup {
+            edge: self.edge,
+            action_ordinal: self.action_ordinal,
+        });
+        held
+    }
+}
+
 impl crate::Bindings for AtCleanupCall<'_, '_> {
     type Error = crate::Unbound;
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Self::Error> {
@@ -308,40 +355,13 @@ impl crate::Bindings for AtCleanupCall<'_, '_> {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Self::Error> {
-        let actual = self.inputs.actual(root, path)?;
-        if !self
-            .inputs
-            .storage
-            .cleanup_untouched(
-                self.inputs.references,
-                &actual,
-                self.edge,
-                self.action_ordinal,
-                self.inputs.concerns,
-            )
-            .map_err(crate::Unbound::Refused)?
-        {
-            return Err(crate::Unbound::Unproved(
-                "cleanup requirement needs a fresh value after a preceding action's write",
-            ));
-        }
-        let actual = self
-            .inputs
-            .storage
-            .cleanup_backing(
-                self.inputs.references,
-                &actual,
-                self.edge,
-                self.action_ordinal,
-                self.inputs.concerns,
-            )
-            .map_err(crate::Unbound::Refused)?;
-        let mut held = self.inputs.held_at(&actual.place);
-        held.point = Some(ProgramPoint::BeforeCleanup {
-            edge: self.edge,
-            action_ordinal: self.action_ordinal,
-        });
-        held.observation(&actual.place, scalar_type)
+        let actual = self.untouched(
+            root,
+            path,
+            "cleanup requirement needs a fresh value after a preceding action's write",
+        )?;
+        self.before_cleanup(&actual.place)
+            .observation(&actual.place, scalar_type)
     }
     fn extent(
         &mut self,
@@ -349,40 +369,9 @@ impl crate::Bindings for AtCleanupCall<'_, '_> {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: semantic_vocabulary::IntegerType,
     ) -> Result<ScalarTerm, Self::Error> {
-        let actual = self.inputs.actual(root, path)?;
-        if !self
-            .inputs
-            .storage
-            .cleanup_untouched(
-                self.inputs.references,
-                &actual,
-                self.edge,
-                self.action_ordinal,
-                self.inputs.concerns,
-            )
-            .map_err(crate::Unbound::Refused)?
-        {
-            return Err(crate::Unbound::Unproved(
-                "cleanup extent changed in a preceding action",
-            ));
-        }
-        let actual = self
-            .inputs
-            .storage
-            .cleanup_backing(
-                self.inputs.references,
-                &actual,
-                self.edge,
-                self.action_ordinal,
-                self.inputs.concerns,
-            )
-            .map_err(crate::Unbound::Refused)?;
-        let mut held = self.inputs.held_at(&actual.place);
-        held.point = Some(ProgramPoint::BeforeCleanup {
-            edge: self.edge,
-            action_ordinal: self.action_ordinal,
-        });
-        held.extent_of(&actual.place, scalar_type)
+        let actual = self.untouched(root, path, "cleanup extent changed in a preceding action")?;
+        self.before_cleanup(&actual.place)
+            .extent_of(&actual.place, scalar_type)
     }
     fn case(
         &mut self,

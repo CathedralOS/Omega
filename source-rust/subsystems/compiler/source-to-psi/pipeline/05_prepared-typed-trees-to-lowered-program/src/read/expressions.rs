@@ -2584,7 +2584,6 @@ impl Program<'_> {
                 id,
                 domain,
                 actual,
-                target_type,
                 subject.source,
                 super::types::DomainUse::test(needs_evidence),
             )?;
@@ -2593,7 +2592,7 @@ impl Program<'_> {
     }
 
     pub(super) fn checked_membership_carrier(
-        &self,
+        &mut self,
         id: MachineId,
         definition: &crate::source_state::domain::DomainDefinition,
         carrier: ValueType,
@@ -2605,25 +2604,30 @@ impl Program<'_> {
         {
             return Err(super::rejections::membership_carrier(id, at, found, wanted));
         }
-        let plain = carrier.erased().qualified(crate::body::Qualification::NONE);
-        let Some(actual) = actual.filter(|ty| {
-            plain.is_some() && ty.erased().qualified(crate::body::Qualification::NONE) == plain
-        }) else {
+        let typed = self.typed;
+        let mismatch = || {
             let kind = if definition.alias.is_some() {
                 "domain alias"
             } else {
                 "domain"
             };
-            return Err(reject(
+            reject(
                 id,
                 at,
                 format!(
                     "membership in {kind} `{}` requires carrier `{}`",
                     definition.name,
-                    self.typed.display_type_reference(definition.target_type)
+                    typed.display_type_reference(definition.target_type)
                 ),
-            ));
+            )
         };
+        let actual = actual.ok_or_else(mismatch)?;
+        let plain = carrier.erased().qualified(crate::body::Qualification::NONE);
+        let exact = plain.is_some()
+            && actual.erased().qualified(crate::body::Qualification::NONE) == plain;
+        if !exact && !self.represented_domain_carrier(id, actual, carrier, definition)? {
+            return Err(mismatch());
+        }
         let supplied = actual.qualification();
         let required = carrier.qualification();
         if let Some(missing) = required

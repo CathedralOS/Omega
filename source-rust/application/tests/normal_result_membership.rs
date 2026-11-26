@@ -88,3 +88,44 @@ fn a_result_promise_cannot_hide_read_restrictions() {
         "{report}"
     );
 }
+
+#[test]
+fn represented_result_fields_keep_the_domain_of_their_semantic_record() {
+    let scratch = TemporaryDirectory::create("represented-result-membership", false).unwrap();
+    std::fs::write(
+        scratch.path().join("build.omg"),
+        r#"machine build(plan: @mutable BuildPlan) {
+            plan.product = BuildProduct::Package { name: "represented_result" };
+        }"#,
+    ).unwrap();
+    let source = r#"use {omega}/language/core/c_layout.omg;
+        public data Fields { bits: u64; }
+        public data Other { bits: u64; }
+        public domain Fields::Initialized;
+        public domain Other::Initialized;
+        public data Holder { field: |c_layout|::CLayout<Fields> in Fields::Initialized; }
+        public machine keep(holder: Holder) -> Holder
+        ensures result.field in Fields::Initialized { holder }
+        public machine initialized(holder: Holder) -> bool {
+            holder.field in Fields::Initialized
+        }"#;
+    for (program, refusal) in [
+        (source.to_owned(), None),
+        (
+            source.replace("result.field in Fields", "result.field in Other"),
+            Some("domain declared on another carrier"),
+        ),
+        (
+            source.replace("holder.field in Fields", "holder.field in Other"),
+            Some("requires carrier `Other`"),
+        ),
+    ] {
+        std::fs::write(scratch.path().join("main.omg"), program).unwrap();
+        let (output, report) =
+            observations::run(&scratch, &["--check", "--target", "linux_x86_64"], INPUTS);
+        assert_eq!(output.status.success(), refusal.is_none(), "{report}");
+        if let Some(reason) = refusal {
+            assert!(report.contains(reason), "{report}");
+        }
+    }
+}

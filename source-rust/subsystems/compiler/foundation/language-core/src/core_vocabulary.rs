@@ -35,6 +35,7 @@ pub enum CoreVocabulary {
     /// The proof-only meaning, format type and two IEEE format constants.
     FloatMeaning,
     FloatFormat,
+    FloatClass,
     FloatBinary32,
     FloatBinary64,
     OpaqueRepresentation,
@@ -374,6 +375,12 @@ const ROWS: &[CoreVocabularyRow] = &[
         "FilesystemNamespaceMutation",
         BundledFile::CoreFilesystemAuthority,
         CoreVocabulary::FilesystemService(FilesystemService::NamespaceMutation),
+    ),
+    row(
+        "float_operations.omg",
+        "FloatClass",
+        BundledFile::CoreFloatOperations,
+        CoreVocabulary::FloatClass,
     ),
     row(
         "float_meaning.omg",
