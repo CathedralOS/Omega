@@ -36,8 +36,9 @@ with a peer. A connected socket is one possible implementation. The
 `network-service-reach` decision (2026-11-23) applies to both hosted sockets
 and protocol stacks that run in the application.
 
-Core declares `Network` as a memberless boundary trait. Its five memberless
-boundary children identify operations. Reaching any child also reaches
+Import `{omega}/language/core/network_authority.omg` to name the memberless
+core boundary trait `Network` and its five memberless children. Each child
+identifies an operation. Reaching any child also reaches
 `Network` under the ordinary [boundary-parent rules](../language/effects.md#boundary-services-with-parameters).
 
 | Service | What the operation permits |
