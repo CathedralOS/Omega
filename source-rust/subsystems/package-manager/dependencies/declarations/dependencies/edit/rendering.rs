@@ -53,7 +53,11 @@ pub(crate) fn canonical_dependency_statement(
             )
         }
     };
-    let description = format!("|{import}|::{FROM_SOURCE_HELPER_NAME}({source})");
+    let description = if purpose.is_product() && request.explicit_alias().is_none() {
+        source
+    } else {
+        format!("|{import}|::{FROM_SOURCE_HELPER_NAME}({source})")
+    };
     let Some(alias) = request.explicit_alias() else {
         return format!(
             "let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_MODULE_NAME}::{operation}({receiver}, {description});"
