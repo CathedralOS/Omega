@@ -138,15 +138,15 @@ package is the "real" one.
 
 This separate outcome removes demonstrated coupling under
 [ordinary-library-packages](../../spec/build/declarations.md#ordinary-library-packages).
-Current implementation evidence motivating it is specific:
+Its implementation obligations are:
 
-- Library discovery requires both `core/` and `system/build.omg`, even when the
-  requested program needs no `system`. Remove that unconditional dependency without
-  disabling integrity verification for declared distribution components.
-- The sealed catalog embeds hosted console/process-exit and related `system`
-  declarations. Separate only genuine compiler-supplied primitives and necessary
-  entry/ABI bridges into explicit exact bindings, keeping ordinary library work
-  and wrappers in their selected package. Do not copy all of `system` into core.
+- Library discovery requires the core directory. A distribution that ships core
+  alone is valid. If a distribution also ships system, removing its files from
+  the installation fails the distribution digest check.
+- Console and its byte-read result belong to their selected package. Their
+  declarations have no sealed source identity. Core retains the exact hosted
+  process-exit requirement and primitive; target descriptors retain the entry
+  declarations needed to check their ABIs.
 - Entry-contract discovery can use package-graph suppliers but otherwise captures
   bundled `system` source with toolchain-contract custody. Replace that hidden path
   with normal target-declared dependency and contract selection; do not silently

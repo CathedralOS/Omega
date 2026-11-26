@@ -106,7 +106,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Carry the subject set from [project planning](source-rust/subsystems/compiler/build/project_build.rs) into the [source driver](source-rust/subsystems/compiler/source-to-psi/driver/compile_product/judge_product_roster.rs). Check generated and unused declarations owned by a selected subject. Follow dependency bodies only as demanded by types, proofs, cleanup, bindings and conformances.
   - Complete `Build::validate`, all-members workspace selection and full validation of the admitted package revision with reusable, activation-scoped registrations.
 
-- **ORDINARY-LIBRARY-PACKAGES.** Remove mandatory/pinned `system` and hidden entry coupling ([acceptance](wiki/drafts/designs/validation_subjects.md#ordinary-library-migration)); preserve primitive custody and release integrity. Independent of validation delivery.
+- **ORDINARY-LIBRARY-PACKAGES.** Remove the remaining `system` compilation-identity and entry coupling ([acceptance](wiki/drafts/designs/validation_subjects.md#ordinary-library-migration)); preserve primitive custody and release integrity. Independent of validation delivery.
 
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Complete the handoff from [source provider publication](source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply) to [native admission](source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs). Bind external realizations and calling plans to the exact requirement, provider, target and published program.

@@ -151,30 +151,19 @@ mod tests {
     }
 
     #[test]
-    fn private_console_adapters_have_no_hosted_catalog_identity() {
-        for member in ["read_byte", "write_byte", "exit_process"] {
-            let requirement = format!("ConsoleHost::{member}");
+    fn console_declarations_have_no_sealed_identity_even_at_their_original_site() {
+        for declaration in [
+            "ByteRead",
+            "Console::read_byte",
+            "Console::write_byte",
+            "ConsoleHost::read_byte",
+            "ConsoleHost::write_byte",
+            "ConsoleHost::exit_process",
+        ] {
             assert_eq!(
-                SealedIntrinsicCatalog::classify(site(
-                    "console.omg",
-                    &requirement,
-                    crate::bytes(BundledFile::SystemConsole)
-                )),
+                Catalog::match_declaration(Path::new("console.omg"), declaration, |_| true),
                 None,
-            );
-            let mut edited = crate::bytes(BundledFile::SystemConsole).to_vec();
-            edited.push(b' ');
-            assert_eq!(
-                SealedIntrinsicCatalog::classify(site("console.omg", &requirement, &edited)),
-                None,
-            );
-            assert_eq!(
-                SealedIntrinsicCatalog::classify(site(
-                    "copied/console.omg",
-                    &requirement,
-                    crate::bytes(BundledFile::SystemConsole)
-                )),
-                None,
+                "{declaration}",
             );
         }
     }

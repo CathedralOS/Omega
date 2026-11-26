@@ -41,7 +41,6 @@ macro_rules! bundled_library_files {
             CoreStaticInterrupt => "core/static_interrupt.omg",
             CoreTask => "core/task.omg",
             CoreTaskRegister => "core/task_register.omg",
-            SystemConsole => "system/console.omg",
         }
     };
 }

@@ -101,9 +101,9 @@ fn validate(root: &Path, expected: Option<&str>) -> Result<PathBuf, String> {
     }
     let root = root.canonicalize().map_err(|error| format!(
         "missing Omega toolchain library at {}: {error}; reinstall the complete bundle or set OMEGA_LIBRARY_ROOT", root.display()))?;
-    if !root.join("core").is_dir() || !root.join("system/build.omg").is_file() {
+    if !root.join("core").is_dir() {
         return Err(format!(
-            "incomplete Omega toolchain library at {}",
+            "Omega toolchain library at {} is missing its core directory",
             root.display()
         ));
     }
@@ -169,9 +169,40 @@ fn library_digest(root: &Path) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::select;
+    use super::{library_digest, select, validate};
+    use platform_custody::temporary_directory::TemporaryDirectory;
+    use std::fs;
     use std::path::PathBuf;
     use std::sync::OnceLock;
+
+    #[test]
+    fn discovery_requires_core_and_verifies_the_components_the_distribution_shipped() {
+        let directory = TemporaryDirectory::create("library-discovery", false).unwrap();
+        let root = directory.path().canonicalize().unwrap();
+        assert!(
+            validate(&root, None)
+                .unwrap_err()
+                .contains("missing its core")
+        );
+
+        fs::create_dir(root.join("core")).unwrap();
+        fs::write(root.join("core/main.omg"), b"public data Word {}").unwrap();
+        let core_only = library_digest(&root).unwrap();
+        assert_eq!(validate(&root, None).unwrap(), root);
+        assert_eq!(validate(&root, Some(&core_only)).unwrap(), root);
+
+        fs::create_dir(root.join("system")).unwrap();
+        let service = root.join("system/build.omg");
+        fs::write(&service, b"machine build(builder: @mutable Build) {}").unwrap();
+        let with_system = library_digest(&root).unwrap();
+        assert_eq!(validate(&root, Some(&with_system)).unwrap(), root);
+        fs::remove_file(service).unwrap();
+        let refusal = validate(&root, Some(&with_system)).unwrap_err();
+        assert!(
+            refusal.contains("does not match this compiler"),
+            "{refusal}"
+        );
+    }
 
     #[test]
     fn selecting_the_same_library_twice_succeeds_and_a_different_one_is_refused() {
