@@ -17,3 +17,5 @@ pub(crate) use entry::{
 };
 
 pub(crate) const BUILD_MACHINE_NAME: &str = "build";
+
+pub(crate) const DEPENDENCY_REGISTRATION_NAME: &str = "dependency";

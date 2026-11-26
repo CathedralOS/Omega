@@ -600,8 +600,8 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::InputBinding => (0, 2),
             Operation::AddBinding => (0, 3),
             Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
-            Operation::PathDependency => (2, 4),
-            Operation::GitDependency => (3, 6),
+            Operation::PathDependency => (1, 4),
+            Operation::GitDependency => (2, 6),
             Operation::ForwardProgram { .. }
             | Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
@@ -714,8 +714,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         match call.action {
             Operation::PathDependency | Operation::GitDependency => {
-                flag(0)?;
-                if flag(1)? {
+                if flag(0)? {
                     let alias = text(1)?;
                     if !ProjectName::is_valid(alias) {
                         return Err(TerminalEffectRejection::new(format!(
@@ -729,7 +728,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 text(2)?;
                 if call.action == Operation::GitDependency {
                     text(3)?;
-                    if flag(2)? {
+                    if flag(1)? {
                         name(text(4)?)?;
                     } else if !text(4)?.is_empty() {
                         return Err(refuse("root package selection carries unexpected text"));
@@ -822,12 +821,8 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             Operation::PathDependency | Operation::GitDependency => BuildRequest::Dependency {
                 max_reach,
-                purpose: if flag(0)? {
-                    DependencyPurpose::Build
-                } else {
-                    DependencyPurpose::Product
-                },
-                alias: if flag(1)? {
+                purpose: DependencyPurpose::Product,
+                alias: if flag(0)? {
                     Some(project_name(text(1)?)?)
                 } else {
                     None
@@ -838,7 +833,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                     BuildDependencySource::Git {
                         repository: copy(text(2)?)?,
                         revision: copy(text(3)?)?,
-                        package: if flag(2)? {
+                        package: if flag(1)? {
                             Some(project_name(text(4)?)?)
                         } else {
                             None

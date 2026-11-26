@@ -24,7 +24,7 @@ public machine add(builder: @mutable BuildPlan, description: DependencyDescripti
 }
 
 public machine add(builder: @mutable BuildPlan, description: DependencyDescription, max_reach: @[BoundaryServiceReference]) -> DependencyRegistration reaches BuildRequestOperations {
-    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, ceiling(builder, max_reach))
+    Build::dependency(builder, description, ceiling(builder, max_reach))
 }
 
 machine ceiling(builder: @BuildPlan, services: @[BoundaryServiceReference]) -> DependencyOptions reaches BuildRequestOperations {
