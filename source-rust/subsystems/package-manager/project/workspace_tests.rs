@@ -357,9 +357,11 @@ machine build(builder: @mutable Build) {
         r#"use {roster}/main.omg;
 machine build(builder: @mutable Build) {
     transition |main|::include_member() {
-        true -> Build::member(builder, "member"),
-        _ -> Build::member(builder, "other")
+        true -> selected(builder),
+        _ -> other(builder)
     }
+    machine selected(builder: @mutable Build) { Build::member(builder, "member"); }
+    machine other(builder: @mutable Build) { Build::member(builder, "other"); }
 }"#,
     )
     .unwrap();
