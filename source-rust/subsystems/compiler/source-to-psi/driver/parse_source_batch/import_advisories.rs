@@ -8,7 +8,7 @@ use syntax_trees::item::{Item, UseItem};
 /// The same captured file may be parsed under distinct Build and Product owners.
 /// Its path, contents and occurrence identify the authored import across those stages.
 #[derive(Clone, Default)]
-pub struct FileImportAdvisories(BTreeMap<(PathBuf, Arc<str>, usize), (String, bool)>);
+pub struct FileImportAdvisories(BTreeMap<(PathBuf, usize, Arc<str>), (String, bool)>);
 
 impl FileImportAdvisories {
     pub fn observe(&mut self, stage: &ParsedStageSources, scope: DependencyScope) {
@@ -29,7 +29,7 @@ impl FileImportAdvisories {
             if !stage.files.source_is_selected(span.source_id) || file.dependency_scope != scope {
                 continue;
             }
-            let identity = (file.path.clone(), Arc::clone(&file.source), span.span.start);
+            let identity = (file.path.clone(), span.span.start, Arc::clone(&file.source));
             // A designated Product operand is still a use written by this Build.
             let seen = !qualifiers.is_empty();
             self.0
@@ -52,7 +52,7 @@ impl FileImportAdvisories {
         self.0
             .iter()
             .filter(|(_, (_, used))| !used)
-            .map(|((path, source, at), (alias, _))| {
+            .map(|((path, at, source), (alias, _))| {
                 let position = source_text::SourcePosition::of(source, *at);
                 let mut warning = Diagnostic::warning(format!("unused file import `{alias}`"));
                 warning.resolved_location = Some(ResolvedSourceLocation {
