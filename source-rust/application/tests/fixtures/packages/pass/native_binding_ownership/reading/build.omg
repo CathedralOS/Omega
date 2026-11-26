@@ -1,6 +1,8 @@
+use main.omg as app;
+
 machine build(builder: @mutable Build) {
     Build::package(builder, "reading");
-    Build::bind_native::<ReadProcess::read>(builder, linux_x86_64,
+    Build::bind_native::<|app|::ReadProcess::read>(builder, linux_x86_64,
         ForeignBinding::DllImport { import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "getpid", version: "GLIBC_2.2.5"
         } });

@@ -83,8 +83,8 @@ fn a_binding_of_each_requirement_is_admitted() {
     check(
         "control",
         &format!(
-            "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind_native::<Host::tock>(builder, windows_x86_64, {OTHER});
+            "    Build::bind_native::<|app|::Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind_native::<|app|::Host::tock>(builder, windows_x86_64, {OTHER});
 "
         ),
     )
@@ -96,8 +96,8 @@ fn two_places_for_one_requirement_on_one_target_are_refused() {
     let stderr = check(
         "two-places",
         &format!(
-            "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind_native::<Host::tick>(builder, windows_x86_64, {OTHER});
+            "    Build::bind_native::<|app|::Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind_native::<|app|::Host::tick>(builder, windows_x86_64, {OTHER});
 "
         ),
     )
@@ -108,7 +108,7 @@ fn two_places_for_one_requirement_on_one_target_are_refused() {
         ),
         "{stderr}"
     );
-    assert!(stderr.contains("build.omg:8:"), "{stderr}");
+    assert!(stderr.contains("build.omg:7:"), "{stderr}");
 }
 
 /// The same two places for two targets do not conflict.
@@ -117,8 +117,8 @@ fn one_requirement_may_be_found_in_a_different_place_on_each_target() {
     check(
         "two-targets",
         &format!(
-            "    Build::bind_native::<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind_native::<Host::tick>(builder, linux_x86_64, {OTHER});
+            "    Build::bind_native::<|app|::Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind_native::<|app|::Host::tick>(builder, linux_x86_64, {OTHER});
 "
         ),
     )
@@ -129,15 +129,15 @@ fn one_requirement_may_be_found_in_a_different_place_on_each_target() {
 fn a_binding_that_names_no_requirement_is_refused() {
     let stderr = check(
         "no-requirement",
-        &format!("    Build::bind_native::<Host::missing>(builder, windows_x86_64, {SLEEP});\n"),
+        &format!("    Build::bind_native::<|app|::Host::missing>(builder, windows_x86_64, {SLEEP});\n"),
     )
     .expect_err("the invalid binding must be refused");
     assert!(
         stderr
-            .contains("Product requirement `Host::missing` does not name one visible declaration"),
+            .contains("Product requirement `|app|::Host::missing` does not name one visible declaration"),
         "{stderr}"
     );
-    assert!(stderr.contains("build.omg:7:"), "{stderr}");
+    assert!(stderr.contains("build.omg:6:"), "{stderr}");
 }
 
 /// A package's own bindings are judged with the package, even when no
@@ -152,7 +152,7 @@ fn a_requirement_the_package_binds_is_judged_though_nothing_calls_it() {
     let stderr = check_product(
         "uncalled-binding",
         &product,
-        &format!("    Build::bind_native::<Host::tock>(builder, windows_x86_64, {OTHER});\n"),
+        &format!("    Build::bind_native::<|app|::Host::tock>(builder, windows_x86_64, {OTHER});\n"),
     )
     .expect_err("the invalid binding must be refused");
     assert!(stderr.contains(DEFAULT_BODY_REFUSAL), "{stderr}");
@@ -184,10 +184,11 @@ fn check_with_bound_library(name: &str, body: &str) -> String {
     std::fs::write(
         library.join("build.omg"),
         format!(
-            "use {{omega}}/language/core/external_binding.omg as native;
+            "use main.omg as app;
+use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Package {{ name: \"bound_library\" }};
-    Build::bind_native::<Raw::read>(builder, macos_arm64, {SLEEP});
+    Build::bind_native::<|app|::Raw::read>(builder, macos_arm64, {SLEEP});
 }}
 "
         ),
