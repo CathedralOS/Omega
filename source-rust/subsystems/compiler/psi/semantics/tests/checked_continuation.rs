@@ -681,13 +681,7 @@ fn only_the_active_root_may_add_previously_unstated_service_reach() {
     for machine in &mut old.machines {
         let decl = machine.contract.declaration.as_ref().unwrap();
         names
-            .retain_invocation_machine(
-                decl.machine.identity(),
-                decl.state.identity(),
-                None,
-                [1; 32],
-                [7; 32],
-            )
+            .retain_invocation_machine(decl, None, [1; 32], [7; 32])
             .unwrap();
         machine.contract.published_service_ceiling = vec![root];
     }
@@ -798,6 +792,32 @@ fn an_added_call_requirement_needs_evidence_from_its_own_invocation() {
 }
 
 #[test]
+fn overloads_retain_and_rejoin_their_own_source_occurrences() {
+    let (module, _) = program();
+    let mut names = module.identities.into_builder();
+    let mut byte = module.machines[1].declaration.as_ref().unwrap().clone();
+    let mut boolean = byte.clone();
+    byte.callable = names.intern("choose(u8)");
+    boolean.callable = names.intern("choose(bool)");
+    names
+        .retain_invocation_machine(&byte, None, [1; 32], [3; 32])
+        .unwrap();
+    names
+        .retain_invocation_machine(&boolean, None, [2; 32], [3; 32])
+        .unwrap();
+    assert!(
+        names
+            .retain_invocation_machine(&byte, None, [2; 32], [3; 32])
+            .is_err()
+    );
+
+    let names = names.build();
+    assert!(names.rejoins_machine(&byte, &names, &byte));
+    assert!(names.rejoins_machine(&boolean, &names, &boolean));
+    assert!(!names.rejoins_machine(&byte, &names, &boolean));
+}
+
+#[test]
 fn the_same_source_owner_and_receipt_number_do_not_hide_a_changed_authored_contract() {
     use semantic_vocabulary::{ObligationId, Proposition};
     let (mut old, cut) = program();
@@ -805,13 +825,7 @@ fn the_same_source_owner_and_receipt_number_do_not_hide_a_changed_authored_contr
     let helper = &mut old.machines[1];
     let declaration = helper.declaration.as_ref().unwrap();
     names
-        .retain_invocation_machine(
-            declaration.machine.identity(),
-            declaration.state.identity(),
-            None,
-            [8; 32],
-            [9; 32],
-        )
+        .retain_invocation_machine(declaration, None, [8; 32], [9; 32])
         .unwrap();
     helper.contract.requires.push(Proposition::Truth);
     helper.contract.ensures.push(terminal_psi::ContractClause {

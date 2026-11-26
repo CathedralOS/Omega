@@ -1056,12 +1056,27 @@ fn declaration(
         &result_type,
         published,
     )?;
+    let declaration = CheckedMachineDeclaration {
+        machine: NominalDeclarationIdentity::new(machine_identity),
+        state: NominalDeclarationIdentity::new(state_identity),
+        semantic_declaration: semantic,
+        parameter_types: parameter_types
+            .iter()
+            .map(|text| identities.intern(text))
+            .collect(),
+        callable: identities.intern(&callable),
+        result_type: identities.intern(&result_type),
+        contract,
+        published_may_suspend: machine.published_may_suspend,
+        published_may_block: machine.published_may_block,
+        specialization,
+    };
     // Build first checks the root before it has a package owner. Keep only
     // ordinary authored base declarations: a generated specialization needs
     // its own exact application correspondence. This does not name a source
     // declaration in portable Psi.
     if identities.is_invocation_scoped()
-        && specialization.is_none()
+        && declaration.specialization.is_none()
         && !typed.symbols.get(symbol).generated_from.is_valid()
         && let Some(mut occurrence) = BuildDeclarationOccurrence::new(
             typed,
@@ -1128,32 +1143,14 @@ fn declaration(
             effects,
         )?;
         identities.retain_invocation_machine(
-            machine_identity,
-            state_identity,
+            &declaration,
             occurrence.package,
             occurrence.digest.finish(),
             signature,
         )?;
     }
 
-    Ok((
-        CheckedMachineDeclaration {
-            machine: NominalDeclarationIdentity::new(machine_identity),
-            state: NominalDeclarationIdentity::new(state_identity),
-            semantic_declaration: semantic,
-            parameter_types: parameter_types
-                .iter()
-                .map(|text| identities.intern(text))
-                .collect(),
-            callable: identities.intern(&callable),
-            result_type: identities.intern(&result_type),
-            contract,
-            published_may_suspend: machine.published_may_suspend,
-            published_may_block: machine.published_may_block,
-            specialization,
-        },
-        prepared,
-    ))
+    Ok((declaration, prepared))
 }
 
 /// What the declaration of `instance`, a machine stage 04 generated from the

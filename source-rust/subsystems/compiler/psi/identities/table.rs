@@ -37,9 +37,18 @@ pub struct TerminalIdentityTable {
 struct InvocationDeclarationOrigin {
     machine: TerminalIdentityIndex,
     state: TerminalIdentityIndex,
+    callable: TerminalIdentityIndex,
     package: Option<semantic_vocabulary::PackageKeyIdentity>,
     occurrence: [u8; 32],
     contract: [u8; 32],
+}
+
+impl InvocationDeclarationOrigin {
+    fn names(&self, declaration: &crate::CheckedMachineDeclaration) -> bool {
+        self.machine == declaration.machine.identity()
+            && self.state == declaration.state.identity()
+            && self.callable == declaration.callable
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,10 +139,7 @@ impl TerminalIdentityTable {
             table
                 .rejoin
                 .iter()
-                .find(|row| {
-                    row.machine == declaration.machine.identity()
-                        && row.state == declaration.state.identity()
-                })
+                .find(|row| row.names(declaration))
                 .copied()
         };
         (self.is_invocation_local(old.machine.identity())
@@ -337,23 +343,25 @@ impl TerminalIdentityTableBuilder {
 
     pub fn retain_invocation_machine(
         &mut self,
-        machine: TerminalIdentityIndex,
-        state: TerminalIdentityIndex,
+        declaration: &crate::CheckedMachineDeclaration,
         package: Option<semantic_vocabulary::PackageKeyIdentity>,
         occurrence: [u8; 32],
         contract: [u8; 32],
     ) -> Result<(), &'static str> {
+        let machine = declaration.machine.identity();
+        let state = declaration.state.identity();
+        let callable = declaration.callable;
         if !self.is_invocation_scoped()
-            || machine.is_absent()
-            || state.is_absent()
-            || self.text(machine).is_none()
-            || self.text(state).is_none()
+            || [machine, state, callable]
+                .into_iter()
+                .any(|id| id.is_absent() || self.text(id).is_none())
         {
-            return Err("a retained Build declaration needs both invocation identities");
+            return Err("a retained Build declaration needs machine, state and callable identities");
         }
         let origin = InvocationDeclarationOrigin {
             machine,
             state,
+            callable,
             package,
             occurrence,
             contract,
@@ -362,7 +370,7 @@ impl TerminalIdentityTableBuilder {
             .table
             .rejoin
             .iter()
-            .find(|r| r.machine == machine && r.state == state)
+            .find(|r| r.names(declaration))
         {
             if *existing != origin {
                 return Err("the Build declaration already has another retained origin");
