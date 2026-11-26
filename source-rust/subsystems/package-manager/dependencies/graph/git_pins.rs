@@ -57,10 +57,12 @@ impl<'a> GitResolutionOptions<'a> {
             }));
         }
         if self.offline {
-            return Err(pin_error(
-                request,
-                "offline resolution forbids new or refreshed Git selection; an unchanged recorded pin is required",
-            ));
+            let reason = if self.pins.is_none() {
+                "offline source selection requires a full commit ID in the Build declaration"
+            } else {
+                "offline lock resolution requires an unchanged recorded Git pin"
+            };
+            return Err(pin_error(request, reason));
         }
         Ok(None)
     }
@@ -209,7 +211,10 @@ mod tests {
         assert_eq!(fetched.tree, None);
         assert_eq!(fetched.acquisition, GitExactRevisionAcquisition::AllowFetch);
         for floating in ["stable", "refs/heads/stable", &hex[..12]] {
-            assert!(options.exact_revision(&request(floating)).is_err());
+            let Err(error) = options.exact_revision(&request(floating)) else {
+                panic!("accepted floating revision {floating} offline");
+            };
+            assert!(error.to_string().contains("full commit ID"), "{error}");
             assert!(online.exact_revision(&request(floating)).unwrap().is_none());
         }
     }
