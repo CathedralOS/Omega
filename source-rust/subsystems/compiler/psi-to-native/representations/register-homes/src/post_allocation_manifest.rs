@@ -1,13 +1,8 @@
 /*
-We define the durable post-allocation optimization manifest
-(`PostAllocationOptimizationManifest`, framed under `OMGPAO\0\0` version 16),
-its append-only selected-transformation ledger
-(`PostAllocationSelectedTransformation`), canonical SHA-256 identity
-recomputation, wire persistence, and human-readable text rendering.
-
-The selected-transformation roster binds each transformation variant to one
-append-only wire tag, its 32-byte artifact identity, and its rendered kind so
-that wire encoding, identity hashing, and diagnostic text never drift apart.
+We define the in-process post-allocation optimization manifest
+(`PostAllocationOptimizationManifest`), its append-only selected-transformation
+ledger (`PostAllocationSelectedTransformation`), canonical SHA-256 identity
+recomputation, and human-readable text rendering.
 */
 
 use std::fmt::Write;
@@ -24,14 +19,11 @@ use selected_instructions::{
     PressureRematerializationIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
     SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity,
 };
-use target::{NativeTarget, TargetWireIdentityError};
+use target::NativeTarget;
 use wire::digest_encoder::hex;
 
-use crate::codec_bytes::{Envelope, decode_list, push_encoded};
-use crate::cursor::Cursor;
+use crate::codec_bytes::push_encoded;
 use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RegisterHomeIdentity};
-
-const POST_ALLOCATION_MANIFEST_ENVELOPE: Envelope = Envelope::new(b"OMGPAO\0\0", 16);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationManifestStage {
@@ -99,21 +91,6 @@ macro_rules! selected_transformation_rows {
                     $( Self::$variant(_) => $kind, )*
                 }
             }
-
-            pub(super) fn decode(
-                cursor: &mut Cursor<'_>,
-            ) -> Result<Self, PostAllocationOptimizationManifestDecodeError> {
-                Ok(match cursor.byte()? {
-                    $( $tag => Self::$variant(<$identity>::from_bytes(cursor.array()?)), )*
-                    tag => {
-                        return Err(
-                            PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(
-                                tag,
-                            ),
-                        );
-                    }
-                })
-            }
         }
     };
 }
@@ -167,102 +144,6 @@ impl PostAllocationOptimizationManifest {
         canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v7\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(&canonical)
-    }
-
-    pub fn encode(&self) -> Vec<u8> {
-        let content = encode_manifest_content(self);
-        POST_ALLOCATION_MANIFEST_ENVELOPE.frame(self.identity.bytes(), &content)
-    }
-
-    pub fn decode(encoded: &[u8]) -> Result<Self, PostAllocationOptimizationManifestDecodeError> {
-        let (mut cursor, identity) = POST_ALLOCATION_MANIFEST_ENVELOPE.open(
-            encoded,
-            || PostAllocationOptimizationManifestDecodeError::WrongMagic,
-            PostAllocationOptimizationManifestDecodeError::UnsupportedVersion,
-        )?;
-        let identity = PostAllocationOptimizationManifestIdentity::from_bytes(identity);
-        let stage = match cursor.byte()? {
-            1 => PostAllocationManifestStage::RegisterHomes,
-            tag => {
-                return Err(PostAllocationOptimizationManifestDecodeError::UnknownStage(
-                    tag,
-                ));
-            }
-        };
-        let pre_physical = PrePhysicalOptimizationManifestIdentity::from_bytes(cursor.array()?);
-        let target = decode_target(&mut cursor)?;
-        let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
-        let selected_lowering_completion = crate::cursor::optional(
-            &mut cursor,
-            |cursor| {
-                Ok(SelectedLoweringOptimizationCompletionIdentity::from_bytes(
-                    cursor.array()?,
-                ))
-            },
-            PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus,
-        )?;
-        let pre_allocation_completion = crate::cursor::optional(
-            &mut cursor,
-            |cursor| {
-                Ok(PreAllocationOptimizationCompletionIdentity::from_bytes(
-                    cursor.array()?,
-                ))
-            },
-            PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus,
-        )?;
-        let selected_transformations =
-            decode_list(&mut cursor, PostAllocationSelectedTransformation::decode)?;
-        let liveness = LivenessIdentity::from_bytes(cursor.array()?);
-        let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
-        let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
-        let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
-        let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
-        let homes = RegisterHomeIdentity::from_bytes(cursor.array()?);
-        let spills = match cursor.byte()? {
-            1 => PostAllocationSpillStatus::NotRequiredForValidatedHomePlan,
-            2 => PostAllocationSpillStatus::RealizedInSelectedProgram,
-            tag => {
-                return Err(PostAllocationOptimizationManifestDecodeError::UnknownSpillStatus(tag));
-            }
-        };
-        let frame = decode_unavailable(&mut cursor)?;
-        let emission = decode_unavailable(&mut cursor)?;
-        let publication = decode_unavailable(&mut cursor)?;
-        let statistics = PostAllocationStatistics {
-            functions: cursor.u64()?,
-            assignments: cursor.u64()?,
-            distinct_physical_views: cursor.u64()?,
-            virtual_interferences: cursor.u64()?,
-            fixed_view_transitions: cursor.u64()?,
-        };
-        if cursor.remaining() != 0 {
-            return Err(PostAllocationOptimizationManifestDecodeError::TrailingBytes);
-        }
-        let manifest = Self {
-            identity,
-            stage,
-            pre_physical,
-            target,
-            selected,
-            selected_lowering_completion,
-            pre_allocation_completion,
-            selected_transformations,
-            liveness,
-            ranges,
-            legality,
-            register_environment,
-            allocator_availability,
-            homes,
-            spills,
-            frame,
-            emission,
-            publication,
-            statistics,
-        };
-        if manifest.identity != manifest.recomputed_identity() {
-            return Err(PostAllocationOptimizationManifestDecodeError::IdentityMismatch);
-        }
-        Ok(manifest)
     }
 
     pub fn render_text(&self) -> String {
@@ -419,32 +300,6 @@ fn encode_manifest_content(manifest: &PostAllocationOptimizationManifest) -> Vec
     canonical
 }
 
-fn decode_target(
-    cursor: &mut Cursor<'_>,
-) -> Result<NativeTarget, PostAllocationOptimizationManifestDecodeError> {
-    let encoded = cursor.array::<18>()?;
-    NativeTarget::from_wire_identity_bytes(&encoded).map_err(|error| match error {
-        TargetWireIdentityError::UnknownArchitecture(tag) => {
-            PostAllocationOptimizationManifestDecodeError::UnknownArchitecture(tag)
-        }
-        TargetWireIdentityError::UnknownObjectFormat(tag) => {
-            PostAllocationOptimizationManifestDecodeError::UnknownObjectFormat(tag)
-        }
-        TargetWireIdentityError::LayoutOverflow => {
-            PostAllocationOptimizationManifestDecodeError::TargetLayoutOverflow
-        }
-    })
-}
-
-fn decode_unavailable(
-    cursor: &mut Cursor<'_>,
-) -> Result<PostAllocationUnavailableData, PostAllocationOptimizationManifestDecodeError> {
-    match cursor.byte()? {
-        1 => Ok(PostAllocationUnavailableData::Unavailable),
-        tag => Err(PostAllocationOptimizationManifestDecodeError::UnknownUnavailableStatus(tag)),
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationOptimizationManifestError {
     RootMismatch,
@@ -457,32 +312,12 @@ pub enum PostAllocationOptimizationManifestError {
 
 crate::decode_error_display! { PostAllocationOptimizationManifestError, "invalid post-allocation optimization manifest" }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PostAllocationOptimizationManifestDecodeError {
-    Truncated,
-    WrongMagic,
-    UnsupportedVersion(u32),
-    UnknownStage(u8),
-    UnknownArchitecture(u8),
-    UnknownObjectFormat(u8),
-    TargetLayoutOverflow,
-    LengthOverflow,
-    UnknownTransformationTag(u8),
-    UnknownCompletionStatus(u8),
-    UnknownSpillStatus(u8),
-    UnknownUnavailableStatus(u8),
-    IdentityMismatch,
-    TrailingBytes,
-}
-
-crate::decode_error! { PostAllocationOptimizationManifestDecodeError, "invalid post-allocation manifest encoding" }
-
 #[cfg(test)]
 mod tests {
     use super::{
         PostAllocationManifestStage, PostAllocationOptimizationManifest,
-        PostAllocationOptimizationManifestDecodeError, PostAllocationSelectedTransformation,
-        PostAllocationSpillStatus, PostAllocationStatistics, PostAllocationUnavailableData,
+        PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,
+        PostAllocationUnavailableData,
     };
     use crate::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RegisterHomeIdentity};
     use optimization_core::{
@@ -491,9 +326,8 @@ mod tests {
     };
     use register_model::TargetRegisterEnvironmentIdentity;
     use selected_instructions::{
-        CopiedCallOperandIdentity, CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
-        LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-        SelectedInstructionPlanIdentity, StoredLoadForwardingIdentity,
+        CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity,
+        LivenessIdentity, PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
     };
     use target::NativeTarget;
 
@@ -544,10 +378,6 @@ mod tests {
         ];
         spilled.spills = PostAllocationSpillStatus::RealizedInSelectedProgram;
         spilled.identity = spilled.recomputed_identity();
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&spilled.encode()),
-            Ok(spilled.clone())
-        );
         let mut reordered = spilled.clone();
         reordered.selected_transformations.reverse();
         assert_ne!(reordered.recomputed_identity(), spilled.identity);
@@ -557,16 +387,12 @@ mod tests {
     }
 
     #[test]
-    fn runtime_split_manifest_round_trips_and_is_distinct_from_storage_steps() {
+    fn runtime_split_manifest_is_distinct_from_storage_steps() {
         let identity = SelectedInstructionPlanIdentity::from_bytes([9; 32]);
         let mut split = record();
         split.selected_transformations =
             vec![PostAllocationSelectedTransformation::RuntimeSplit(identity)];
         split.identity = split.recomputed_identity();
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&split.encode()),
-            Ok(split.clone())
-        );
         for other in [
             PostAllocationSelectedTransformation::RuntimeSpill(identity),
             PostAllocationSelectedTransformation::RuntimeRematerialization(identity),
@@ -669,99 +495,6 @@ mod tests {
             rematerialized
                 .render_text()
                 .contains("pressure-rematerialization")
-        );
-    }
-
-    #[test]
-    fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
-        let direct = record();
-        let encoded = direct.encode();
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&encoded),
-            Ok(direct)
-        );
-
-        let mut transformed = record();
-        transformed.selected_lowering_completion = Some(
-            SelectedLoweringOptimizationCompletionIdentity::from_canonical_bytes(b"completed"),
-        );
-        transformed.selected_transformations = vec![
-            PostAllocationSelectedTransformation::FixedViewCopy(FixedViewCopyIdentity::from_bytes(
-                [12; 32],
-            )),
-            PostAllocationSelectedTransformation::LiteralFold(LiteralFoldIdentity::from_bytes(
-                [13; 32],
-            )),
-            PostAllocationSelectedTransformation::PressureRematerialization(
-                PressureRematerializationIdentity::from_bytes([14; 32]),
-            ),
-            PostAllocationSelectedTransformation::CopiedCallOperand(
-                CopiedCallOperandIdentity::from_bytes([16; 32]),
-            ),
-            PostAllocationSelectedTransformation::StoredLoadForwarding(
-                StoredLoadForwardingIdentity::from_bytes([17; 32]),
-            ),
-        ];
-        transformed.identity = transformed.recomputed_identity();
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&transformed.encode()),
-            Ok(transformed)
-        );
-
-        let mut identity_tamper = encoded.clone();
-        identity_tamper[12] ^= 1;
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&identity_tamper),
-            Err(PostAllocationOptimizationManifestDecodeError::IdentityMismatch)
-        );
-        let mut structural_count_tamper = encoded.clone();
-        let structural_count_offset = structural_count_tamper.len() - 5 * size_of::<u64>();
-        structural_count_tamper[structural_count_offset] ^= 1;
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&structural_count_tamper),
-            Err(PostAllocationOptimizationManifestDecodeError::IdentityMismatch)
-        );
-        let mut trailing = encoded.clone();
-        trailing.push(0);
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&trailing),
-            Err(PostAllocationOptimizationManifestDecodeError::TrailingBytes)
-        );
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&encoded[..encoded.len() - 1]),
-            Err(PostAllocationOptimizationManifestDecodeError::Truncated)
-        );
-        let mut wrong_magic = encoded.clone();
-        wrong_magic[0] ^= 1;
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&wrong_magic),
-            Err(PostAllocationOptimizationManifestDecodeError::WrongMagic)
-        );
-        let mut wrong_version = encoded.clone();
-        crate::codec_bytes::patch_encoded(&mut wrong_version, 8, 5_u32.to_le_bytes());
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&wrong_version),
-            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(5))
-        );
-        let content_offset = 8 + 4 + 32;
-        let mut unknown_architecture = encoded.clone();
-        unknown_architecture[content_offset + 1 + 32] = 9;
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&unknown_architecture),
-            Err(PostAllocationOptimizationManifestDecodeError::UnknownArchitecture(9))
-        );
-        let mut one_transformation = record();
-        one_transformation.selected_transformations =
-            vec![PostAllocationSelectedTransformation::FixedViewCopy(
-                FixedViewCopyIdentity::from_bytes([12; 32]),
-            )];
-        one_transformation.identity = one_transformation.recomputed_identity();
-        let mut unknown_transformation = one_transformation.encode();
-        let transformation_tag_offset = content_offset + 1 + 32 + 18 + 32 + 1 + 1 + 8;
-        unknown_transformation[transformation_tag_offset] = 18;
-        assert_eq!(
-            PostAllocationOptimizationManifest::decode(&unknown_transformation),
-            Err(PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(18))
         );
     }
 }

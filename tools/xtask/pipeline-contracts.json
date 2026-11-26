@@ -7757,11 +7757,11 @@
         "independent native validation"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "use:fragment_emission :: { FunctionFragmentEmissionError , FunctionFragmentEmissionManifest , FunctionFragmentEmissionManifestDecodeError , FunctionFragmentEmissionStage , FunctionFragmentEmissionStatistics , FunctionFragmentEmissionUnavailableData , StagedOptimizedFunctionFragmentEmissionSource , }#1",
+      "item": "use:fragment_emission :: { FunctionFragmentEmissionError , FunctionFragmentEmissionManifest , FunctionFragmentEmissionStage , FunctionFragmentEmissionStatistics , FunctionFragmentEmissionUnavailableData , StagedOptimizedFunctionFragmentEmissionSource , }#1",
       "kind": "definition",
       "meaning": "Emit function-relative bytes and fixups from the resolved machine layout.",
       "producer": "function placement",
-      "signature": "d8704e37a8f1079457b6ca39d85a7d6d0657148a1685e27a0cf5cfe245cc8141"
+      "signature": "0739aa1c6a1cec30770d0fe8677eb833cbc117b9169b06a67e22aab0d1aed3fe"
     },
     {
       "consumers": [
@@ -7794,11 +7794,11 @@
         "object construction"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "use:text_placement :: { FunctionFragmentTextSectionManifest , FunctionFragmentTextSectionManifestDecodeError , FunctionFragmentTextSectionStage , FunctionFragmentTextSectionStatistics , FunctionFragmentTextSectionUnavailableData , FunctionPlacement , RelocationFreeTextSectionPlacementError , StagedOptimizedFixedFrameTextSection , validate_optimized_fixed_frame_text_section , }#1",
+      "item": "use:text_placement :: { FunctionFragmentTextSectionManifest , FunctionFragmentTextSectionStage , FunctionFragmentTextSectionStatistics , FunctionFragmentTextSectionUnavailableData , FunctionPlacement , RelocationFreeTextSectionPlacementError , StagedOptimizedFixedFrameTextSection , validate_optimized_fixed_frame_text_section , }#1",
       "kind": "definition",
       "meaning": "Expose placed text, placement replay and the text validator.",
       "producer": "function placement",
-      "signature": "2fc77878950ca96258df4213a5f107ab19788ef41a66e135617cde21e8862db7"
+      "signature": "2f7dc6ee670ac84ff0ed923ebee947f36d6224dd426097cee471feb3d57b607f"
     },
     {
       "consumers": [

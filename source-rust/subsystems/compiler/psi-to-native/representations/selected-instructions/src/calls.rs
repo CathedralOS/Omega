@@ -901,6 +901,7 @@ pub mod normalized_foreign {
                         binding: NormalizedForeignCallBinding {
                             boundary_entry_plan: plan,
                             mechanism: NormalizedForeignCallMechanism::BuildImport {
+                                stack: target_vocabulary::NativeBindingStack::Hosted,
                                 locator,
                                 receipt: [1; 32],
                                 requirement_identity: "Foreign::leaf".to_owned(),

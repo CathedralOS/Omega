@@ -25,7 +25,6 @@ use crate::function_realization::{
     ValidatedFunctionRelativeOptimizationRealizationManifest,
     validate_fixed_frame_function_relative_realization,
 };
-pub use machine_code::FunctionFragmentEmissionManifestDecodeError;
 #[cfg(test)]
 use machine_code::FunctionFragmentSuccessorProvenance;
 use machine_code::{
