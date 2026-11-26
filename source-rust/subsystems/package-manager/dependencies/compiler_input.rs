@@ -34,7 +34,11 @@ impl<'closure> PackageCompilationScope<'closure> {
         Self {
             closure,
             root,
-            reachable: reachable_package_keys(closure, root),
+            reachable: crate::resolution::graph::reachable_packages(
+                root,
+                |key| closure.graph().package(key),
+                |requester, dependency| dependency.purpose().is_product() || requester == root,
+            ),
         }
     }
 
@@ -71,7 +75,11 @@ impl<'closure> PackageCompilationScope<'closure> {
                 .with_preparing_source(custody.preparing_source().cloned());
                 if custody.key() == root {
                     if let Some(captured) = root_binding.as_ref().filter(|captured| {
-                        captured.can_reuse_for(&binding, &custody.build_entries, custody.captured_source())
+                        captured.can_reuse_for(
+                            &binding,
+                            &custody.build_entries,
+                            custody.captured_source(),
+                        )
                     }) {
                         return Ok(captured.clone());
                     }
@@ -82,7 +90,9 @@ impl<'closure> PackageCompilationScope<'closure> {
                     if let Some(tree) = custody.captured_source() {
                         binding
                             .with_captured_source(std::sync::Arc::clone(tree))
-                            .and_then(|binding| binding.with_build_entries(custody.build_entries.clone()))
+                            .and_then(|binding| {
+                                binding.with_build_entries(custody.build_entries.clone())
+                            })
                             .map_err(|reason| PackageCompilationInputError::InvalidSourceRoot {
                                 identity: custody.key().identity(),
                                 path: custody.snapshot_root().to_path_buf(),
@@ -191,29 +201,4 @@ fn binding_with_canonical_source_metadata(
             .map_err(invalid);
     }
     binding.with_canonical_source_metadata().map_err(invalid)
-}
-
-fn reachable_package_keys(
-    closure: &ResolvedPackageSourceClosure,
-    root: &crate::declarations::PackageKey,
-) -> BTreeSet<crate::declarations::PackageKey> {
-    let mut reachable = BTreeSet::new();
-    let mut pending = vec![root.clone()];
-    while let Some(package) = pending.pop() {
-        if !reachable.insert(package.clone()) {
-            continue;
-        }
-        let Some(node) = closure.graph().package(&package) else {
-            continue;
-        };
-        let is_root = &package == root;
-        pending.extend(
-            node.dependencies()
-                .iter()
-                .rev()
-                .filter(|dependency| dependency.purpose().is_product() || is_root)
-                .map(|dependency| dependency.target().clone()),
-        );
-    }
-    reachable
 }

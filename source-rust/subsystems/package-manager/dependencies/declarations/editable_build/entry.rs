@@ -1,5 +1,5 @@
 //! Locate the free Build entry and its borrowed parameter for dependency source edits.
-use super::BUILD_MACHINE_NAME;
+use super::{BUILD_MACHINE_NAME, machine_leaf_name};
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, reject_authored_toolchain_vocabulary,
 };
@@ -126,8 +126,4 @@ pub fn package_authored_type_name<'syntax>(
         Item::Trait(definition) => Some(definition.name.as_str(syntax_trees)),
         _ => None,
     }
-}
-
-fn machine_leaf_name(name: &str) -> &str {
-    name.rsplit("::").next().unwrap_or(name)
 }
