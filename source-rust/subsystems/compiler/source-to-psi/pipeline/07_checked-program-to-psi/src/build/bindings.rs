@@ -381,7 +381,10 @@ pub(crate) mod build_requests {
     pub use semantic_vocabulary::source_selections::BuildCallSite;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum TerminalBuildRequestOperation {
+    pub enum TerminalBuildRequestOperation {        /// Exact authored nominal declaration in the checked Build source.
+        LaunchProgram {
+            program: source_text::SourceSpan,
+        },
         Package,
         Application,
         Member,

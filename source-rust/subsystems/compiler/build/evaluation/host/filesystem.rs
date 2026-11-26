@@ -72,13 +72,14 @@ impl TerminalBuildFilesystemHost {
         account: &EvaluationInvocationAccount,
         scope: &BuildMachineFilesystemScope,
         machine_name: &str,
+        program_files: bool,
     ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
         let calls = produced
             .build_filesystem()
             .calls_for(artifact)
             .ok_or("Build filesystem calls lost their invocation custody")?;
-        let activation = if calls.is_empty() {
+        let activation = if calls.is_empty() && !program_files {
             None
         } else {
             Some(FilesystemActivation {
@@ -102,6 +103,20 @@ impl TerminalBuildFilesystemHost {
             machine_name: machine_name.to_owned(),
             activation: Mutex::new(activation),
         }))
+    }
+
+    pub(super) fn with_program_files<T>(
+        &self,
+        operation: impl FnOnce(&mut BuildFilesystemRuntime) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let mut shared = self
+            .activation
+            .lock()
+            .map_err(|_| "Build filesystem activation lock was poisoned")?;
+        let activation = shared
+            .as_mut()
+            .ok_or("this activation has no program filesystem backing")?;
+        operation(&mut activation.runtime)
     }
 
     pub(crate) fn adapter(

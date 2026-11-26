@@ -253,6 +253,7 @@ impl TerminalBuildHost {
         account: &EvaluationInvocationAccount,
         machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
         filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
+        programs: Arc<crate::host::programs::ProgramInstallation>,
         execution_profile: Option<target::TargetProfile>,
         default_source: bool,
         default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
@@ -292,9 +293,20 @@ impl TerminalBuildHost {
         );
         original.projected_qualifications = parameter.projected_qualifications.clone();
         let output = OriginalOutput::new(artifact, &original)?;
+        let filesystem = crate::host::filesystem::TerminalBuildFilesystemHost::new(
+            &produced,
+            &original,
+            &output.value,
+            account,
+            filesystem_scope,
+            &machine.name,
+            programs.uses_files(),
+        )?;
         let requests = TerminalBuildRequestHost::new(
             artifact,
             produced.build_requests(),
+            programs,
+            Arc::clone(&filesystem),
             original.clone(),
             providers.diagnostic_output_bytes,
             Some(account),
@@ -307,14 +319,6 @@ impl TerminalBuildHost {
             original.clone(),
             Some(account),
             requests.reflected_services(),
-        )?;
-        let filesystem = crate::host::filesystem::TerminalBuildFilesystemHost::new(
-            &produced,
-            &original,
-            &output.value,
-            account,
-            filesystem_scope,
-            &machine.name,
         )?;
         Ok(Arc::new(Self {
             original_sources,

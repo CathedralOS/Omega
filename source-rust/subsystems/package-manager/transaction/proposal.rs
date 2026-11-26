@@ -1,19 +1,6 @@
-/*
-Canonical encoding and bounded recovery (`PendingPackageChange`) for inert pending-review proposals (`omega-package-proposal 2`).
-
-Version 2 uses fixed-order LF rows, lowercase hexadecimal digests, and canonical target
-identities sorted strictly ascending by `target.target_name()`. Each `proposed-build N`
-or `source N` row precedes exactly `N` UTF-8 bytes and one framing LF before `end\n`
-closes the envelope.
-*/
-
-/*
-The caller's root build-input selection is retained as `build-inputs absent` or
-`build-inputs present` followed by `build-input-count N` and strictly byte-ordered
-`build-input required|optional` / `build-input-path N` frames so an empty explicit
-inventory remains distinct from the absent default. Version 1 proposals cannot retain
-that distinction and are rejected with `--discard-review` guidance.
-*/
+//! A pending package command retains its staged declaration, input selection
+//! and editable Build-review findings. Once the Build has returned, the same
+//! record also pins its resolved source graph for Product review and publication.
 
 #[path = "proposal_framing.rs"]
 mod framing;
@@ -25,9 +12,10 @@ use crate::resolution::graph::{
 use crate::resolution::source::git::workspace::MAX_BUILD_DECLARATION_BYTES;
 use framing::{Reader, Writer, read_digest, write_digest};
 use package_compilation::{BuildSourceCaptureObligation, BuildSourceCaptureRequest};
+use std::collections::BTreeSet;
 use target::TargetProfile;
 
-const HEADER: &str = "omega-package-proposal 2";
+const HEADER: &str = "omega-package-proposal 3";
 const MAXIMUM_TEXT_BYTES: usize = 128 * 1024 * 1024;
 const MAXIMUM_TARGETS: usize = 32;
 const MAXIMUM_BUILD_INPUTS: usize =
@@ -41,21 +29,65 @@ pub(super) struct PendingPackageChange {
     pub before_lock: Option<[u8; 32]>,
     pub original_content: [u8; 32],
     pub proposed_build: String,
-    pub source: CanonicalSourceClosureSubject,
+    pub source: Option<CanonicalSourceClosureSubject>,
+    pub refresh: Option<BTreeSet<[u8; 32]>>,
+    pub build_requests: super::restricted_build::Requests,
     pub targets: Vec<TargetProfile>,
     pub build_inputs: Option<BuildSourceCaptureRequest>,
 }
 
 impl PendingPackageChange {
+    pub(super) fn resume_updates(
+        &self,
+        accepted: Option<&crate::lock::PackageLock>,
+    ) -> Result<Option<Vec<crate::declarations::PackageKey>>, String> {
+        let Some(requested) = &self.refresh else {
+            return Ok(None);
+        };
+        if requested.is_empty() {
+            return Ok(Some(Vec::new()));
+        }
+        let accepted = accepted.ok_or("selected package update has no accepted source graph")?;
+        let keys = accepted.targets()[0]
+            .source()
+            .packages()
+            .iter()
+            .map(|package| package.key())
+            .filter(|key| requested.contains(&key.identity().digest()))
+            .cloned()
+            .collect::<Vec<_>>();
+        if keys.len() != requested.len() {
+            return Err("package update selection differs from the accepted source graph".into());
+        }
+        Ok(Some(keys))
+    }
+
     pub(super) fn encode(&self) -> Result<String, String> {
         if self.proposed_build.len() > MAX_BUILD_DECLARATION_BYTES {
             return Err("package proposal build exceeds declaration byte limit".into());
         }
-        validate_targets(&self.targets, self.source.target_profile())?;
+        let first = self
+            .targets
+            .first()
+            .copied()
+            .ok_or("package proposal has no targets")?;
+        validate_targets(
+            &self.targets,
+            self.source
+                .as_ref()
+                .map_or(first, |source| source.target_profile()),
+        )?;
         let source = self
             .source
-            .canonical_text(CanonicalSourceClosureSubjectLimits::default())
+            .as_ref()
+            .map(|source| source.canonical_text(CanonicalSourceClosureSubjectLimits::default()))
+            .transpose()
             .map_err(|error| error.to_string())?;
+        if source.is_none() && self.build_requests.is_empty() {
+            return Err(
+                "package proposal has neither a resolved graph nor pending Build requests".into(),
+            );
+        }
         let mut writer = Writer::new(MAXIMUM_TEXT_BYTES);
         writer.append(HEADER)?;
         writer.append("\n")?;
@@ -76,9 +108,30 @@ impl PendingPackageChange {
         for target in &self.targets {
             writer.row("target", target.identity().as_str())?;
         }
+        match &self.refresh {
+            None => writer.row("refresh", "all")?,
+            Some(keys) => {
+                if keys.len() > CanonicalSourceClosureSubjectLimits::default().maximum_packages {
+                    return Err("package update selection exceeds package limit".into());
+                }
+                writer.row("refresh", "selected")?;
+                writer.row("refresh-count", keys.len())?;
+                for key in keys {
+                    writer.row("refresh-key", write_digest(key))?;
+                }
+            }
+        }
         write_build_inputs(&mut writer, self.build_inputs.as_ref())?;
         writer.section("proposed-build", &self.proposed_build)?;
-        writer.section("source", &source)?;
+        if self.build_requests.len() > super::restricted_build::MAX_REQUESTS {
+            return Err("too many restricted Build requests".into());
+        }
+        writer.row("build-requests", self.build_requests.len())?;
+        for (key, description) in &self.build_requests {
+            writer.row("build-request", write_digest(key))?;
+            writer.section("description", description)?;
+        }
+        writer.section("source", source.as_deref().unwrap_or(""))?;
         writer.append("end\n")?;
         Ok(writer.finish())
     }
@@ -116,16 +169,60 @@ impl PendingPackageChange {
         }
         let targets = &targets[..count];
         validate_targets(targets, targets[0])?;
+        let refresh = match reader.field("refresh")? {
+            "all" => None,
+            "selected" => {
+                let count = reader.count(
+                    "refresh-count",
+                    CanonicalSourceClosureSubjectLimits::default().maximum_packages,
+                )?;
+                let mut keys = BTreeSet::new();
+                for _ in 0..count {
+                    let key = read_digest(reader.field("refresh-key")?)?;
+                    if keys.last().is_some_and(|last| last >= &key) {
+                        return Err("package update selections must be distinct and ordered".into());
+                    }
+                    keys.insert(key);
+                }
+                Some(keys)
+            }
+            _ => return Err("unknown package update selection".into()),
+        };
         let build_inputs = read_build_inputs(&mut reader)?;
         let proposed_build = reader.section("proposed-build", MAX_BUILD_DECLARATION_BYTES)?;
+        let mut build_requests = super::restricted_build::Requests::new();
+        let count_requests =
+            reader.count("build-requests", super::restricted_build::MAX_REQUESTS)?;
+        for _ in 0..count_requests {
+            let key = read_digest(reader.field("build-request")?)?;
+            if build_requests
+                .last_key_value()
+                .is_some_and(|(last, _)| last >= &key)
+            {
+                return Err("Build requests must be distinct and ordered".into());
+            }
+            let description = reader.section("description", MAXIMUM_TEXT_BYTES)?;
+            build_requests.insert(key, description.to_owned());
+        }
         let source_limits = CanonicalSourceClosureSubjectLimits::default();
         let source_text = reader.section("source", source_limits.maximum_record_bytes)?;
         reader.expect("end")?;
         reader.finish()?;
 
-        let source = CanonicalSourceClosureSubject::recover_text(source_text, source_limits)
-            .map_err(|error| error.to_string())?;
-        validate_targets(targets, source.target_profile())?;
+        let source = if source_text.is_empty() {
+            if build_requests.is_empty() {
+                return Err("empty package review proposal".into());
+            }
+            None
+        } else {
+            if refresh.as_ref().is_none_or(|keys| !keys.is_empty()) {
+                return Err("a resolved package proposal must preserve the selected revisions".into());
+            }
+            let source = CanonicalSourceClosureSubject::recover_text(source_text, source_limits)
+                .map_err(|error| error.to_string())?;
+            validate_targets(targets, source.target_profile())?;
+            Some(source)
+        };
         let mut owned_build = String::new();
         owned_build
             .try_reserve_exact(proposed_build.len())
@@ -143,6 +240,8 @@ impl PendingPackageChange {
             original_content,
             proposed_build: owned_build,
             source,
+            refresh,
+            build_requests,
             targets: owned_targets,
             build_inputs,
         })
@@ -169,12 +268,13 @@ pub(crate) fn legacy_publication_kind(
         crate::lock::PackageLockRecoveryLimits::default(),
     )
     .ok()?;
+    let source = proposal.source.as_ref()?;
     if lock.targets().len() != proposal.targets.len()
         || !proposal
             .targets
             .iter()
             .all(|&target| lock.target(target).is_some())
-        || lock.target(proposal.source.target_profile())?.source() != &proposal.source
+        || lock.target(source.target_profile())?.source() != source
     {
         return None;
     }
@@ -264,4 +364,34 @@ fn validate_targets(targets: &[TargetProfile], source_target: TargetProfile) -> 
         return Err("package proposal source target must be the canonical first target".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_build_review_pause_keeps_the_requested_update_selection() {
+        for refresh in [None, Some(BTreeSet::new()), Some(BTreeSet::from([[7; 32]]))] {
+            let pending = PendingPackageChange {
+                kind: PackageCommandKind::Update,
+                before_build: [1; 32],
+                before_lock: None,
+                original_content: [2; 32],
+                proposed_build: "machine build(builder: @mutable Build) {}".into(),
+                source: None,
+                refresh: refresh.clone(),
+                build_requests: [([3; 32], "one restricted Build action".into())].into(),
+                targets: vec![TargetProfile::CrossPlatformCli],
+                build_inputs: None,
+            };
+            let restored = PendingPackageChange::recover(&pending.encode().unwrap()).unwrap();
+            assert_eq!(restored.refresh, refresh);
+            if refresh.as_ref().is_some_and(|keys| !keys.is_empty()) {
+                assert!(restored.resume_updates(None).is_err());
+            } else {
+                assert_eq!(restored.resume_updates(None).unwrap(), refresh.map(|_| vec![]));
+            }
+        }
+    }
 }

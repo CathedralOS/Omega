@@ -50,9 +50,15 @@ machine build(b: @mutable Build) {
     .unwrap();
     let targets = [TargetProfile::LinuxX64];
     let out = temp.path().join("out");
-    let mut subjects =
-        package_manager::project::open_check_subjects(&entry, &targets, true, false, &out, None)
-            .unwrap();
+    let mut subjects = package_manager::project::open_check_subjects(
+        &entry,
+        &targets,
+        true,
+        false,
+        &out,
+        Default::default(),
+    )
+    .unwrap();
     // Both the provider's own subject and the consumer's authored request must keep
     // the declaration captured before either member Build runs.
     fs::write(provider.join("build.omg"), "invalid replacement").unwrap();
@@ -137,7 +143,7 @@ machine build(builder: @mutable Build) {
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         )
         .unwrap();
         let product = products.select(deployment).unwrap();
@@ -205,7 +211,7 @@ public TestImage satisfies |image|::ProgramImage {
         true,
         false,
         &temp.path().join("out"),
-        None,
+        Default::default(),
     );
     let Err(errors) = result else {
         panic!("the invocation supplied two libraries as backing")
@@ -227,7 +233,12 @@ fn open_recheck_case(
     let targets = [target];
     if alongside {
         let mut subjects = package_manager::project::open_check_subjects(
-            entry, &targets, true, true, directory, None,
+            entry,
+            &targets,
+            true,
+            true,
+            directory,
+            Default::default(),
         )
         .unwrap();
         let product = subjects
@@ -244,7 +255,7 @@ fn open_recheck_case(
             true,
             true,
             directory,
-            None,
+            Default::default(),
         )
         .unwrap()
     }
@@ -447,7 +458,7 @@ machine build(builder: @mutable Build) {{
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         );
         if export == "free" {
             result.unwrap();
@@ -503,7 +514,7 @@ public machine answer() -> i32 { |layout|::answer() }"#,
         true,
         false,
         &temp.path().join("out"),
-        None,
+        Default::default(),
     )
     .unwrap();
     let product = products.select(target).unwrap();
@@ -556,7 +567,7 @@ machine build(builder: @mutable Build) {{ Build::package(builder, "project"); {o
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         );
         let Err(error) = result else {
             panic!("invalid binding accepted")
@@ -606,7 +617,7 @@ machine build(builder: @mutable Build) {
         true,
         false,
         &temp.path().join("out"),
-        None,
+        Default::default(),
     )
     .unwrap();
     let inputs = products.select(target).unwrap().package_inputs().unwrap();
@@ -656,7 +667,7 @@ machine build(builder: @mutable Build) {
         true,
         false,
         &temp.path().join("out"),
-        None,
+        Default::default(),
     );
     let Err(error) = outcome else {
         panic!("a forwarded package widened its incoming ceiling")
@@ -727,7 +738,7 @@ machine build(builder: @mutable Build) {{
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         )
         .unwrap();
         let stage = opened
@@ -808,7 +819,7 @@ machine build(builder: @mutable Build) {{
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         )
         .unwrap();
         let stage = products

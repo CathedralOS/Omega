@@ -44,7 +44,8 @@ fn resolve_catalog(
     let root = preparation.acquire_root()?;
     let mut acquisitions = preparation.source_acquisitions()?;
     let mut session = PackageBuildSession::create(&directory.join("out"))?;
-    let result = super::resolve_build_sources(&mut session, root, &mut acquisitions, None);
+    let result =
+        super::resolve_build_sources(&mut session, root, &mut acquisitions, Default::default());
     session.dispose(result)
 }
 

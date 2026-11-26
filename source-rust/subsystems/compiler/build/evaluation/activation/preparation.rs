@@ -3,8 +3,7 @@ Prepare an `AdmittedBuildProgram` for Terminal execution and settle its
 normal-return `ComputedBuildConfig` (`PreparedBuildExecution`).
 
 `PreparedBuildExecution::prepare` takes the one invocation-scoped program whose
-source selections were admitted by `admit_build_program`, admits its
-`BuildProviderScope` against that same produced artifact view, and opens a
+source and provider selections were admitted by `admit_build_program` and opens a
 `100,000`-work `EvaluationInvocationAccount` under the caller's
 `BuildEvaluationSponsor` (or a standalone per-invocation sponsor with Terminal
 measurement identity if none was supplied).
@@ -24,6 +23,7 @@ use evaluation_contracts::BuildEvaluationSponsorLimits;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
+    programs: Arc<crate::host::programs::ProgramInstallation>,
     original_sources: Option<Arc<super::OriginalBuildSources>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<source_compiler::publication::ProducedTerminalProgram>,
@@ -45,7 +45,7 @@ impl PreparedBuildExecution {
         original_sources: Option<Arc<super::OriginalBuildSources>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
-            diagnostic_output_bytes,
+            programs,
             prepared,
             produced,
             providers,
@@ -58,17 +58,6 @@ impl PreparedBuildExecution {
             default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
-        let providers = providers
-            .admit(&produced, diagnostic_output_bytes)
-            .map_err(|mut errors| {
-                if let Some(span) = prepared.source().symbols.symbol_source_span(machine.symbol) {
-                    for error in &mut errors {
-                        error.source_span.get_or_insert(span);
-                    }
-                }
-                errors
-            })?;
-
         let measurement = crate::activation::measurement();
         const INVOCATION_WORK: u64 = 100_000;
         let sponsor = match evaluation_sponsor {
@@ -93,6 +82,7 @@ impl PreparedBuildExecution {
             .begin_invocation(measurement, INVOCATION_WORK)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
+            programs,
             original_sources,
             execution_purpose,
             accepted: prepared,
@@ -121,6 +111,7 @@ impl PreparedBuildExecution {
             &self.account,
             Arc::clone(&self.machine),
             &self.filesystem_scope,
+            Arc::clone(&self.programs),
             self.execution_profile,
             self.default_source,
             self.default_sources.clone(),

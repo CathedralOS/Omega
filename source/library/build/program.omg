@@ -1,0 +1,26 @@
+use {omega}/language/core/program_launch.omg as authority;
+
+public data RunResult {
+    case NotRun;
+    case Exited(status: u32);
+    case StartFailed;
+    case AbnormalExit;
+    case TimedOut;
+}
+
+boundary trait Launcher {
+    machine run<Program>(arguments: @[@[u8]]) -> RunResult
+        reaches |authority|::ProgramLaunch
+        blocks
+        crashes none
+        ensures !(result in RunResult::NotRun);
+}
+
+public machine run<Program>(arguments: @[@[u8]]) -> RunResult
+    reaches |authority|::ProgramLaunch
+    blocks
+    crashes none
+    ensures !(result in RunResult::NotRun)
+{
+    block Launcher::run::<Program>(arguments)
+}

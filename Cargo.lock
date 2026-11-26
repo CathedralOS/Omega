@@ -315,9 +315,11 @@ version = "0.1.0"
 dependencies = [
  "artifacts",
  "behavior-exclusion-requests",
+ "bounded-process",
  "build-declarations",
  "build-evaluation-result",
  "build-output",
+ "build-program-launch",
  "build-scalar-evaluation",
  "build-settings",
  "build-time-values",
@@ -390,6 +392,7 @@ dependencies = [
  "platform-custody",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

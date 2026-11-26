@@ -19,6 +19,7 @@ before `publish_reviewed_package_change` commits `build.omg` and `omega.lock`.
 mod change_decisions;
 mod planning;
 mod proposal;
+pub(crate) mod restricted_build;
 mod source_review;
 mod state;
 
@@ -201,7 +202,7 @@ impl PackageCommandTransaction {
                             before,
                             proposal.proposed_build.clone(),
                         ),
-                        updates: Some(Vec::new()),
+                        updates: proposal.resume_updates(accepted.as_ref()).map_err(failure)?,
                     },
                     proposal.targets.clone(),
                     Some(proposal),
@@ -282,7 +283,7 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
         let preserved = self
             .recovered
             .as_ref()
-            .map(|proposal| &proposal.source)
+            .and_then(|proposal| proposal.source.as_ref())
             .or_else(|| {
                 self.accepted
                     .as_ref()
@@ -302,14 +303,16 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
             .map(|(subject, updates)| GitDependencyPins::new(subject, updates, self.acquisition))
             .transpose()
             .map_err(failure)?;
-        Ok(BuildSourceAcquisitions::new(
+        let mut acquisitions = BuildSourceAcquisitions::new(
             self.storage.resolver(),
             GitResolutionOptions {
                 pins,
                 offline: self.offline,
             },
             self.root_request(),
-        ))
+        );
+        acquisitions.select_reviewed_root(self.accepted.as_ref(), &self.targets)?;
+        Ok(acquisitions)
     }
 
     fn root_request(&self) -> PackageRootSourceRequest {
@@ -317,6 +320,119 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
             requested_root: self.stage.requested_root().to_path_buf(),
             source_context: ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
         }
+    }
+
+    fn previous_build_requests(&self) -> restricted_build::Requests {
+        self.recovered
+            .as_ref()
+            .map(|p| p.build_requests.clone())
+            .unwrap_or_default()
+    }
+
+    fn proposal(
+        &self,
+        source: Option<CanonicalSourceClosureSubject>,
+        build_requests: restricted_build::Requests,
+    ) -> PendingPackageChange {
+        PendingPackageChange {
+            kind: self.kind,
+            before_build: digest(&self.before_build),
+            before_lock: self.before_lock.as_deref().map(digest),
+            original_content: digest(self.stage.original().content_identity.as_bytes()),
+            proposed_build: self.replacement.replacement_source().to_owned(),
+            // A resolved graph has pinned its revisions. A pre-action pause
+            // still needs the update selection the user originally requested.
+            refresh: if source.is_some() {
+                Some(Default::default())
+            } else {
+                self.updates.as_ref().map(|keys| {
+                    keys.iter().map(|key| key.identity().digest()).collect()
+                })
+            },
+            source,
+            build_requests,
+            targets: self.targets.clone(),
+            build_inputs: self.build_inputs.clone(),
+        }
+    }
+
+    /// Resolve the candidate under the transaction. Restricted Build actions
+    /// may need a decision before the candidate can return its package graph.
+    pub fn resolve_sources(
+        self,
+        session: &mut crate::PackageBuildSession,
+        programs: package_compilation::build_execution::BuildProgramInvocation,
+    ) -> Result<CommandSourceReview<'workspace, 'storage>, PackageCommandError> {
+        let mut rows = self.previous_build_requests();
+        let reviewed = if rows.is_empty() {
+            Default::default()
+        } else if let Some(mut document) = read(self.files, restricted_build::DOCUMENT)? {
+            let decisions = restricted_build::decisions(&rows, text(&document)?)?;
+            document.verify_current(LIMITS).map_err(file_failure)?;
+            decisions
+        } else {
+            // The process can stop after writing the proposal and before
+            // writing its review. Recover every finding with a pending vote.
+            let decisions = Default::default();
+            let document = restricted_build::render(&rows, &decisions)?;
+            state::write(self.files, restricted_build::DOCUMENT, &document)?;
+            decisions
+        };
+        let approved = rows
+            .iter()
+            .filter(|(key, _)| reviewed.contains(*key))
+            .map(|(key, text)| (*key, text.clone()))
+            .collect();
+        let phase = restricted_build::BuildPhaseGrants::new(
+            self.stage.requested_root(),
+            self.stage.normalized().content_identity.as_bytes(),
+            &self.targets,
+            approved,
+        )?;
+        let acquired = self.acquire_root()?;
+        let inputs = crate::project::RootBuildInputs {
+            snapshot: self.build_snapshot().cloned(),
+            programs,
+        };
+        let result = {
+            let mut acquisitions = self.source_acquisitions()?;
+            acquisitions.phase_grants = Some(phase.clone());
+            crate::project::resolve_build_sources(session, acquired, &mut acquisitions, inputs)
+        };
+        let error = match result {
+            Ok(sources) => {
+                return self
+                    .complete_source_resolution(sources)
+                    .map(|prepared| CommandSourceReview::Resolved(Box::new(prepared)));
+            }
+            Err(error) => error,
+        };
+        let PackageCommandCause::RootBuildPreparation(CompileFailure::BuildConsentRequired {
+            site,
+            requests,
+            ..
+        }) = &error.cause
+        else {
+            return Err(error);
+        };
+        self.stage.verify_live_source_unchanged().map_err(failure)?;
+        let original = rows.len();
+        rows.extend(phase.findings(site, requests)?);
+        if rows.len() > restricted_build::MAX_REQUESTS {
+            return Err(failure("too many restricted Build requests"));
+        }
+        if rows.len() != original {
+            let document = restricted_build::render(&rows, &reviewed)?;
+            let proposal = self.proposal(None, rows).encode().map_err(failure)?;
+            // Commit the findings before exposing a document that can vote on them.
+            replace_proposal(self.files, self.pending_file, &proposal)?;
+            state::write(self.files, restricted_build::DOCUMENT, &document)?;
+        }
+        Ok(CommandSourceReview::Pending(PackageCommandOutcome {
+            status: PackageCommandStatus::ReviewRequired,
+            report: "Restricted Build actions await review. Generated-source and Product review are incomplete. Edit the Build decisions and resume the same package command.".into(),
+            review_paths: vec![self.transaction.project_root().join("build/package-manager").join(restricted_build::DOCUMENT)],
+        }))
     }
 
     pub fn complete_source_resolution(
@@ -348,23 +464,15 @@ impl<'workspace, 'storage> PackageCommandPreparation<'workspace, 'storage> {
         if self
             .recovered
             .as_ref()
-            .is_some_and(|proposal| proposal.source != source)
+            .and_then(|proposal| proposal.source.as_ref())
+            .is_some_and(|previous| previous != &source)
         {
             return Err(failure(
                 "candidate sources or dependency graph changed since the proposal; discard it and review a fresh candidate",
             ));
         }
-        let proposal = if !self.resume {
-            Some(PendingPackageChange {
-                kind: self.kind,
-                before_build: digest(&self.before_build),
-                before_lock: self.before_lock.as_deref().map(digest),
-                original_content: digest(self.stage.original().content_identity.as_bytes()),
-                proposed_build: self.replacement.replacement_source().to_owned(),
-                source,
-                targets: self.targets.clone(),
-                build_inputs: self.build_inputs.clone(),
-            })
+        let proposal = if self.recovered.as_ref().is_none_or(|pending| pending.source.is_none()) {
+            Some(self.proposal(Some(source), self.previous_build_requests()))
         } else {
             None
         };
@@ -416,6 +524,11 @@ pub struct PackageCommandPreparation<'workspace, 'storage> {
     recovered: Option<PendingPackageChange>,
     updates: Option<Vec<PackageKey>>,
     offline: bool,
+}
+
+pub enum CommandSourceReview<'workspace, 'storage> {
+    Resolved(Box<PreparedPackageCommand<'workspace, 'storage>>),
+    Pending(PackageCommandOutcome),
 }
 
 pub struct PreparedPackageCommand<'workspace, 'storage> {
@@ -544,8 +657,14 @@ impl PreparedPackageCommand<'_, '_> {
             .map(|proposal| proposal.encode())
             .transpose()
             .map_err(failure)?;
-        let mut choices =
-            change_decisions::prepare(files, transaction, &reviews, resume, accepted.is_none())?;
+        let graph_resume = resume && proposal_text.is_none();
+        let mut choices = change_decisions::prepare(
+            files,
+            transaction,
+            &reviews,
+            graph_resume,
+            accepted.is_none(),
+        )?;
         choices.report.push_str(&source_review::prepare(
             files,
             transaction,
@@ -555,7 +674,7 @@ impl PreparedPackageCommand<'_, '_> {
             acquisition,
         )?);
         if let Some(text) = proposal_text {
-            write_proposal(files, &text)?;
+            replace_proposal(files, pending_file.take(), &text)?;
             pending_file = read(files, PROPOSAL)?;
             if pending_file.as_ref().map(|file| file.bytes()) != Some(text.as_bytes()) {
                 return Err(failure("the package proposal changed before publication"));
@@ -612,6 +731,19 @@ pub fn discard_package_review(
             .map_err(failure)?;
     transaction.recover().map_err(failure)?;
     discard(&transaction)
+}
+
+fn replace_proposal(
+    files: &RecordFileRoot,
+    existing: Option<RootRecordRead<'_>>,
+    content: &str,
+) -> Result<(), PackageCommandError> {
+    match existing {
+        Some(file) => file
+            .replace(content.as_bytes(), LIMITS)
+            .map_err(file_failure),
+        None => write_proposal(files, content),
+    }
 }
 
 fn digest(bytes: &[u8]) -> [u8; 32] {
@@ -677,6 +809,7 @@ pub enum PackageCommand {
 
 #[derive(Debug, Clone)]
 pub struct PackageCommandOptions {
+    pub programs: package_compilation::build_execution::BuildProgramInvocation,
     pub project_root: PathBuf,
     pub targets: Vec<TargetProfile>, // explicit targets augment every previously accepted target
     pub offline: bool, // use cached recorded Git pins only; never fetch or refresh a selector
@@ -704,11 +837,11 @@ pub struct PackageCommandError {
 }
 
 #[derive(Debug)]
-enum PackageCommandCause {
-    Message(String),
+enum PackageCommandCause {    Message(String),
     Review(Box<CompileResolvedPackageReviewsError>),
     Change(Box<crate::review::PackageChangeError>),
     Compilation(CompileFailure),
+    RootBuildPreparation(CompileFailure),
     Preparation(Box<crate::dependencies::PrepareLocalProjectError>),
 }
 
@@ -725,9 +858,24 @@ impl PackageCommandError {
         self
     }
 
+    pub(crate) fn for_build_preparation(failure: CompileFailure, root: bool) -> Self {
+        if root && matches!(failure, CompileFailure::BuildConsentRequired { .. }) {
+            let accounting = failure
+                .source_completion_accounting()
+                .cloned()
+                .unwrap_or_default();
+            Self {
+                cause: PackageCommandCause::RootBuildPreparation(failure),
+                accounting,
+            }
+        } else {
+            Self::from(failure)
+        }
+    }
+
     pub fn compilation_failure(&self) -> Option<&CompileFailure> {
         match &self.cause {
-            PackageCommandCause::Compilation(failure) => Some(failure),
+            PackageCommandCause::Compilation(failure) | PackageCommandCause::RootBuildPreparation(failure) => Some(failure),
             _ => None,
         }
     }
@@ -821,7 +969,7 @@ impl PackageCommandError {
             PackageCommandCause::Review(error) => error.fmt_with_diagnostics(formatter, render),
             PackageCommandCause::Change(error) => error.fmt_with_diagnostics(formatter, render),
             PackageCommandCause::Preparation(error) => fmt::Display::fmt(error, formatter),
-            PackageCommandCause::Compilation(failure) => {
+            PackageCommandCause::Compilation(failure) | PackageCommandCause::RootBuildPreparation(failure) => {
                 render(formatter, &failure.clone().into_diagnostics())
             }
         }

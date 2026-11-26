@@ -1,0 +1,2 @@
+// Execute one program bound by the caller of this activation.
+public boundary trait ProgramLaunch {}

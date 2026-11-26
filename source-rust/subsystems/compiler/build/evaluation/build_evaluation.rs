@@ -217,6 +217,7 @@ pub fn prepare_build_evaluation(
         execution.checks_whole_subject_first(package_inputs, anonymous_source);
     let BuildExecutionInputs {
         diagnostic_output_bytes,
+        programs,
         interpreter_providers,
         profile: execution_profile,
         directory: build_directory,
@@ -334,17 +335,34 @@ pub fn prepare_build_evaluation(
             artifact_only,
             build_source,
             package_inputs,
+            &programs,
         )?;
         let restricted_build_requests = admitted.restricted_build_requests();
-        if let Some(grants) = restricted_build_grants.as_mut() {
+        if !restricted_build_requests.is_empty() {
+            let site = package_compilation::build_execution::RestrictedBuildSite {
+                entry: admitted.machine.normalized_callable_identity.clone(),
+                program: *admitted
+                    .produced
+                    .view()
+                    .identity()
+                    .program_fingerprint
+                    .as_bytes(),
+            };
+            let mut pending = Vec::new();
             for request in &restricted_build_requests {
-                grants.admit(request)?;
+                let accepted = match restricted_build_grants.as_mut() {
+                    Some(grants) => grants.admits(&site, request)?,
+                    None => false,
+                };
+                if !accepted { pending.push(request.clone()); }
             }
-        } else if !restricted_build_requests.is_empty() {
-            return Err(CompileFailure::BuildConsentRequired {
-                requests: restricted_build_requests,
-                accounting: source_completion_accounting.clone(),
-            });
+            if !pending.is_empty() {
+                return Err(CompileFailure::BuildConsentRequired {
+                    site,
+                    requests: pending,
+                    accounting: source_completion_accounting.clone(),
+                });
+            }
         }
         let original_sources = capture
             .map(|capture| {

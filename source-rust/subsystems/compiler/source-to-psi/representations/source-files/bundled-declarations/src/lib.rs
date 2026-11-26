@@ -23,3 +23,9 @@ pub const BUILD_STREAMS: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../../../../source/library/core/sandbox/streams.omg"
 ));
+
+/// Host recognition first checks the installed Build-file origin and path.
+pub const BUILD_PROGRAM: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../../../source/library/build/program.omg"
+));

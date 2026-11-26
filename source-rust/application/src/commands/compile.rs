@@ -194,6 +194,10 @@ fn compile_targets(
     // A check writes nothing, so it can run while the dependency Build
     // rechecks finish; each target settles them before its result is reported.
     let root = arguments.root_path.clone();
+    let root_inputs = package_manager::project::RootBuildInputs {
+        snapshot,
+        programs: arguments.programs.clone(),
+    };
     let subjects: Box<dyn Iterator<Item = (PathBuf, Option<OpenedProduct>)> + '_> =
         if active.is_empty() {
             Box::new(std::iter::once((root, None)))
@@ -205,7 +209,7 @@ fn compile_targets(
                     arguments.offline,
                     arguments.timings,
                     &base,
-                    snapshot,
+                    root_inputs,
                 )
             });
             match subjects {
@@ -222,7 +226,7 @@ fn compile_targets(
                     arguments.offline,
                     arguments.timings,
                     &base,
-                    snapshot,
+                    root_inputs,
                 )
             });
             Box::new(std::iter::once((root, Some(products))))

@@ -331,15 +331,44 @@ fn purposes(output: &mut Output, prefix: &str, values: &[PackageCheckedContext])
     writeln!(output)
 }
 
+pub(crate) fn render_build_request(
+    request: &RestrictedBuildRequest,
+    maximum_bytes: usize,
+) -> Result<String, PackagePolicyReviewError> {
+    let mut output = Output::new(maximum_bytes);
+    let result = build_request(&mut output, request);
+    Ok(output.finish(result)?.text)
+}
+
 fn build_request(output: &mut Output, request: &RestrictedBuildRequest) -> fmt::Result {
     use package_compilation::build_execution::{
         RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
     };
     let operation = match request.operation() {
+        RestrictedBuildOperation::ProgramLaunch(_) => "program-launch",
         RestrictedBuildOperation::ScopedFilesystemExecution => "scoped-filesystem-execution",
         RestrictedBuildOperation::UnscopedFilesystemExecution => "unscoped-filesystem-execution",
     };
     writeln!(output, "build-request {operation}")?;
+    if let RestrictedBuildOperation::ProgramLaunch(program) = request.operation() {
+        writeln!(
+            output,
+            "program {:?} file {:?} sha256 {} timeout-ms {}",
+            program.declaration,
+            program.file,
+            Hex(&program.image_sha256),
+            program.timeout_ms
+        )?;
+        for (access, paths) in [("read", &program.readable), ("write", &program.writable)] {
+            for path in paths {
+                writeln!(
+                    output,
+                    "program-{access} {:?}",
+                    String::from_utf8_lossy(path)
+                )?;
+            }
+        }
+    }
     let grant = |output: &mut Output, access: &str, grant: &RestrictedBuildGrant| {
         write!(output, "{access} ")?;
         match grant.root() {

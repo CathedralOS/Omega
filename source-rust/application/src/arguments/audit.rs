@@ -9,7 +9,7 @@ use package_compilation::BuildSourceCaptureRequest;
 use package_manager::operations::PackageInspectionOptions;
 use std::path::PathBuf;
 
-pub(super) const USAGE: &str = "usage: omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 3: policy requires review; 64: invalid arguments.\nInspection never accepts changes or resumes a pending publication.";
+pub(super) const USAGE: &str = "usage: omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\nProject audits can bind a reviewed executable with --allow ProgramLaunch --program <identity> <executable>.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 3: policy requires review; 64: invalid arguments.\nInspection never accepts changes or resumes a pending publication.";
 
 pub(super) enum ParsedAudit {
     Locator(SourceArguments),
@@ -29,10 +29,14 @@ pub(super) fn parse(arguments: &mut super::Arguments) -> Result<Option<ParsedAud
     let mut details = false;
     let mut offline = false;
     let mut build_inputs = Vec::new();
+    let mut programs = package_compilation::build_execution::BuildProgramInvocation::default();
     let mut source_kind = None;
     let mut rev = None;
     let mut locator = None;
     while let Some(argument) = arguments.next_argument() {
+        if super::programs::take(&argument, arguments, &mut programs)? {
+            continue;
+        }
         match argument.to_str() {
             Some("--help" | "-h") => set_flag(&mut help, &argument.to_string_lossy())?,
             Some("--details") => set_flag(&mut details, "--details")?,
@@ -87,7 +91,8 @@ pub(super) fn parse(arguments: &mut super::Arguments) -> Result<Option<ParsedAud
     if help {
         return Ok(None);
     }
-    let project_arguments = project_root.is_some()
+    super::programs::finish(&mut programs)?;
+    let project_arguments = programs.allow || project_root.is_some()
         || !target_names.is_empty()
         || details
         || offline
@@ -114,7 +119,7 @@ pub(super) fn parse(arguments: &mut super::Arguments) -> Result<Option<ParsedAud
         Some(BuildSourceCaptureRequest::new(build_inputs)?)
     };
     Ok(Some(ParsedAudit::Project(PackageInspectionOptions {
-        project_root: project_root.unwrap_or_else(|| PathBuf::from(".")),
+        programs,        project_root: project_root.unwrap_or_else(|| PathBuf::from(".")),
         targets,
         details,
         offline,

@@ -76,6 +76,11 @@ impl ReviewedProgram {
         }
     }
 
+    pub fn image_sha256(&self) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        Sha256::digest(&self.0).into()
+    }
+
     pub fn run(
         &self,
         worker: &Path,

@@ -3,7 +3,7 @@ use package_manager::operations::{
     PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome,
     PackageInspectionTransaction,
 };
-use package_manager::project::resolve_build_sources;
+use package_manager::project::{RootBuildInputs, resolve_build_sources};
 use package_manager::{
     PackageBuildSession, PackageCommand, PackageCommandAdmission, PackageCommandError,
     PackageCommandOptions, PackageCommandOutcome, PackageCommandTransaction, PackageSourceBindings,
@@ -14,19 +14,16 @@ pub(super) fn execute_package_command(
     options: PackageCommandOptions,
     session: &mut PackageBuildSession,
 ) -> Result<PackageCommandOutcome, PackageCommandError> {
+    let programs = options.programs.clone();
     let mut transaction = PackageCommandTransaction::open(options)?;
     let preparation = match transaction.prepare(command, None)? {
         PackageCommandAdmission::Published(outcome) => return Ok(outcome),
         PackageCommandAdmission::Review(preparation) => *preparation,
     };
-    let acquired = preparation.acquire_root()?;
-    let sources = resolve_build_sources(
-        session,
-        acquired,
-        &mut preparation.source_acquisitions()?,
-        preparation.build_snapshot().cloned(),
-    )?;
-    let prepared = preparation.complete_source_resolution(sources)?;
+    let prepared = match preparation.resolve_sources(session, programs)? {
+        package_manager::transaction::CommandSourceReview::Pending(outcome) => return Ok(outcome),
+        package_manager::transaction::CommandSourceReview::Resolved(prepared) => *prepared,
+    };
     let mut bindings = prepared.source_bindings();
     let mut reviews = Vec::new();
     for request in prepared.review_requests() {
@@ -38,6 +35,7 @@ pub(super) fn execute_package_command(
 pub(super) fn inspect_packages(
     options: PackageInspectionOptions,
 ) -> Result<PackageInspectionOutcome, PackageInspectionError> {
+    let programs = options.programs.clone();
     let transaction = PackageInspectionTransaction::open(options)?;
     let mut session =
         PackageBuildSession::create(&transaction.project_root().join("build/package-manager"))?;
@@ -49,7 +47,7 @@ pub(super) fn inspect_packages(
                 &mut session,
                 acquired,
                 &mut inspection.source_acquisitions()?,
-                inspection.build_snapshot().cloned(),
+                RootBuildInputs { snapshot: inspection.build_snapshot().cloned(), programs },
             )?;
             inspection.complete_source_resolution(sources)
         })();

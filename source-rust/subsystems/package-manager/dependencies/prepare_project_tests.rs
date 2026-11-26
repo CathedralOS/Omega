@@ -162,7 +162,7 @@ fn fresh_library_review_includes_an_unreferenced_export_from_its_own_build() {
         &mut session,
         root,
         &mut preparation.source_acquisitions().unwrap(),
-        None,
+        Default::default(),
     )
     .unwrap();
     let closure = project.sources.into_source_closure();
@@ -217,7 +217,7 @@ fn a_build_for_an_earlier_capture_cannot_review_new_code_at_the_same_package_pat
             session,
             source,
             &mut preparation.source_acquisitions().unwrap(),
-            None,
+            Default::default(),
         )
         .unwrap()
     };
@@ -461,6 +461,7 @@ fn named_file_capture_needs_only_the_entry_and_inspection_needs_the_package_buil
     );
     drop(pending);
     let inspection = PackageInspectionTransaction::open(PackageInspectionOptions {
+        programs: Default::default(),
         project_root: temporary.path().to_path_buf(),
         targets: vec![TargetProfile::host_if_supported().unwrap()],
         details: false,
