@@ -250,7 +250,7 @@ def main():
 
     # The first source unit starts with the unresolved import. A compiler
     # refusal publishes its coordinate; malformed transport publishes none.
-    _, caller_start, _ = unit_rows[0]
+    caller_start = unit_rows[0][1]
     refusal = evaluate("missing-edge")
     if refusal != b"\x00" + struct.pack("<II", 1, caller_start):
         raise SystemExit(f"missing edge: expected refusal at {caller_start}, got {refusal[:40].hex()}")
