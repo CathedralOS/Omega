@@ -54,9 +54,11 @@ not require ecosystem receiving-policy input or claim permission to execute the
 result. Explicit receiver admission remains a separate operation under
 [service permission](permissions.md#artifact-production-versus-receiver-admission).
 
-Component verification receives its exact consumer-accepted assumptions through
-those canonical external admissions, with the ordinary package acceptance/lock
-route for packaged dependencies and existing root grants for root claims.
+When the caller requests component verification, the receiver supplies its
+exact accepted assumptions through those canonical external admissions. The
+[version 4 lock](../packages/locks.md) carries the consuming project's decisions
+on the legacy package route. Staged builds have no plugin-approval input for
+ordinary artifact production.
 [Build attenuation](component_publication.md#consumer-acceptance-and-build-attenuation)
 can only narrow the selected product's accepted ceiling; it cannot manufacture
 admissions or replace them with a source-authored digest list. Preserve subject,

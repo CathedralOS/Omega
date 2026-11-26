@@ -24,20 +24,25 @@ both uses require both edges. Neither edge grants ambient host services or makes
 host and target type instances interchangeable. See
 [dependency scopes](../build/scoped_execution.md#two-checked-contexts).
 
-## Consumer-supplied semantic bindings
+## Semantic bindings in a staged Build
 
-When target entry/profile integration or risk classification needs to recognize
-an ordinary package declaration, bind its exact nominal identity and normalized
-schema in the accepted resolved closure. A candidate designation only guides
-confined review; accepted binding comes from consumer policy. It grants no
-provider or capability and cannot be inferred from an alias or source location.
+Each compiler role takes its identity from the selection that owns it. The
+target profile designates its entry contract. A selected provider plan fixes
+the provider and the exact requirement it implements. An installed host
+service identifies the declaration it backs. Native imports use the evaluated
+requirement, target and locator from `Build::bind_native`.
 
-Rejoin package, exact declaration, complete schema, and any role-required selected
-plan. Every supplied row settles exactly once; foreign, stale, ambiguous, or
-unmatched rows reject. Downstream consumers use the resolved declaration identity,
-not another name search. Requirement-only roles cannot synthesize a provider. An interpreter
-routing token identifies the exact declaration in one checked program; it grants
-no filesystem access or policy acceptance.
+Check the exact package instance, declaration and normalized schema in the
+frozen occurrence, including the selected provider plan where the role requires
+one. Derived identities travel with that occurrence. Reuse requires those
+inputs to match. Reject missing, stale, ambiguous or mismatched selections;
+a same-named declaration in another package cannot fill the role. The staged
+workflow has no separately supplied binding table or per-project entry-contract
+override. The [version 4 lock](locks.md) records the earlier acceptance route.
+
+Recognizing a host declaration grants no access to a clock, filesystem or
+other resource. Execution uses the provider and backing installed for that
+invocation.
 
 Package declaration visibility remains real inside core and ordinary libraries.
 Source-facing float namespaces, formats, meanings, and operators are public

@@ -8,8 +8,9 @@ second configuration grammar or ambient runtime service.
 The default build environment supplies confined filesystem backing through
 ordinary service contracts. Snapshot/staging is a supported library profile.
 Checked declarations and transitive build contracts expose restricted host
-requests for [project acceptance](../packages/acceptance.md#restricted-build-acceptance)
-in `omega.lock`; they cannot approve those requests themselves. Build selections
+requests. The invocation supplies the grants for this Build; a parent can
+delegate them to a child. The [version 4 workflow](../packages/acceptance.md#restricted-build-acceptance)
+also checks its retained lock acceptance during migration. Build selections
 also cannot choose an external ecosystem's receiving policy. Producing a binary
 requires no such policy declaration.
 

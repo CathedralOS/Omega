@@ -3,9 +3,9 @@
 **Version 4 workflow.** The [staged package input contract](staged_inputs.md)
 moves revision selection into ordinary source and removes implicit lock
 discovery from the source-based Build path. This page records the separate duties
-of the existing lock during migration. In particular its accepted semantic
-bindings and restricted-operation approvals still need a caller-owned handoff
-before the lock can be retired.
+of the existing lock during migration. The staged workflow derives bindings
+from the [selections for this build](staged_inputs.md#binding-identity-and-admission)
+and takes Build grants from the invocation.
 
 The lock is retained project intent, not a certificate of package safety.
 [Acceptance](acceptance.md) owns review and decision authority;
