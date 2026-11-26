@@ -42,7 +42,6 @@ pub struct BuildStageSource {
 
 /// The complete typed source of one Build invocation.
 pub struct TypedBuildInterval {
-    pub file_imports: crate::FileImportAdvisories,
     pub program: Arc<TypedTrees>,
 }
 
@@ -83,12 +82,6 @@ impl BuildStageSource {
         authority: Option<Arc<PackageDeclarationScope>>,
         providers: &crate::InterpretedProviderSelections,
     ) -> Result<TypedBuildInterval, Vec<Diagnostic>> {
-        let mut file_imports = crate::FileImportAdvisories::default();
-        file_imports.observe(
-            &self.parsed,
-            source_provenance::DependencyScope::Build,
-            &self.pending_imports,
-        );
         let program = self.typed_source_scoped(
             preparation,
             host,
@@ -99,10 +92,7 @@ impl BuildStageSource {
         program
             .check_build_provider_declarations()
             .map_err(|error| vec![error])?;
-        Ok(TypedBuildInterval {
-            program,
-            file_imports,
-        })
+        Ok(TypedBuildInterval { program })
     }
 
     /// Rejoin the selected Build entry in the assembled Product sources so the

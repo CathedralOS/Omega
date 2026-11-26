@@ -337,7 +337,7 @@ pub fn prepare(
     )
     .map_err(|failure| locate_failure(failure, &assembled.parsed.files, inputs))?;
     let mut file_imports = std::mem::take(&mut preparations.file_imports);
-    file_imports.extend(&interval.file_imports);
+    file_imports.observe_build(&assembled.parsed, &interval.program);
     Ok(PreparedPlanningStage {
         preparations,
         evaluation,
@@ -645,7 +645,7 @@ impl PlanningSource {
             })?
             .1;
         self.file_imports
-            .observe(&source.parsed, source_provenance::DependencyScope::Product, &[]);
+            .observe_product(&source.parsed);
         Ok(PlannedProduct {
             file_imports: self.file_imports,
             supplied_build_libraries: self.supplied_libraries,
