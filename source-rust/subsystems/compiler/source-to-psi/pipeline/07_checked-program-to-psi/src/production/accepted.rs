@@ -743,6 +743,40 @@ impl AcceptedTerminalSource {
         &self.closure.elaboration().module
     }
 
+    /// Resolve only service declarations issued by the installed core into this
+    /// module's service indices. Source spellings alone cannot acquire an opt-in.
+    pub fn unsafe_services(
+        &self,
+    ) -> Result<semantic_vocabulary::dependency_reach::UnsafeServices, Vec<Diagnostic>> {
+        let typed = self.source();
+        let mut identities = std::collections::BTreeMap::new();
+        for (id, row) in typed.service_reaches.all_definitions() {
+            if let Some(language_core::core_vocabulary::CoreVocabulary::UnsafeAtom(atom)) =
+                typed.core_vocabulary(row.symbol)
+            {
+                let identity = typed
+                    .service_reach_application_identity(id)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "core Unsafe service lost its application identity",
+                        )]
+                    })?;
+                identities.insert(identity, atom);
+            }
+        }
+        let module = self.module();
+        Ok(module
+            .interfaces
+            .services
+            .iter()
+            .filter_map(|row| {
+                identities
+                    .get(module.identities.text(row.identity)?)
+                    .map(|atom| (row.id, *atom))
+            })
+            .collect())
+    }
+
     pub fn source(&self) -> &Arc<FrozenTypedTrees> {
         self.source.trees()
     }

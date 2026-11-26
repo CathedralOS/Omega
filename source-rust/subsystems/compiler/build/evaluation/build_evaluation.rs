@@ -236,6 +236,7 @@ pub fn prepare_build_evaluation(
         diagnostic_output_bytes,
         programs,
         interpreter_providers,
+        prepared_unsafe_atoms,
         profile: execution_profile,
         directory: build_directory,
         filesystem_sponsor,
@@ -304,7 +305,7 @@ pub fn prepare_build_evaluation(
             })?,
         None => Arc::default(),
     };
-    let (prepared, providers, entry_constants, source_completion_accounting) =
+    let (prepared, mut providers, entry_constants, source_completion_accounting) =
         crate::admission::checking::prepare_admitted_build(
             typed,
             selected_machine,
@@ -315,6 +316,7 @@ pub fn prepare_build_evaluation(
             subject_validation == BuildSubjectValidation::Checked,
             timings,
         )?;
+    providers.admit_prepared_unsafe_atoms(prepared_unsafe_atoms);
     let constants = match check_only {
         Some((subject, capture)) => crate::admission::checking::check_subject_before_execution(
             subject,

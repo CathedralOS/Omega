@@ -501,6 +501,7 @@ fn protocol_action(
         }
         Protocol::AwaitProvider => Action::AwaitProvider,
         Protocol::DescribeService => Action::DescribeService,
+        Protocol::EnableUnsafe => Action::EnableUnsafe,
         Protocol::Prepare => Action::Prepare,
         Protocol::PrepareTests => Action::PrepareTests,
         Protocol::Bind | Protocol::BindDescription => Action::Bind,

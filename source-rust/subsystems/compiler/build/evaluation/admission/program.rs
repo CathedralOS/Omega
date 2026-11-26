@@ -113,7 +113,7 @@ pub(crate) fn admit_build_program(
             ))]
         })?;
     let (providers, imports) = providers
-        .admit(&produced, diagnostic_output_bytes)
+        .admit(&produced, &prepared, diagnostic_output_bytes)
         .map_err(|mut errors| {
             if let Some(span) = prepared.source().symbols.symbol_source_span(machine.symbol) {
                 for error in &mut errors {

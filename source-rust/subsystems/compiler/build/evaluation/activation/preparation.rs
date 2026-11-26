@@ -258,6 +258,7 @@ impl PreparedBuildExecution {
             product_selection_requests: completed.product_selections,
             native_binding_requests: completed.native_bindings,
             native_formations: completed.native_formations,
+            enabled_unsafe_atoms: completed.enabled_unsafe_atoms,
             behavior_exclusion_requests: completed.exclusions,
             project_declaration: declaration,
             optimization_report_request: completed.optimization_report,

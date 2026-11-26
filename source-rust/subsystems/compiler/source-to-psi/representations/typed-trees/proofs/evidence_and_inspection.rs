@@ -5697,6 +5697,7 @@ pub mod inspection {
                     "build_product_operand",
                     Some(format!("{operation:?}:{position}:{role:?}")),
                 ),
+                Intrinsic::BuildEnableUnsafe => ("build_enable_unsafe", None),
                 Intrinsic::BuildServiceDescription => ("build_service_description", None),
                 Intrinsic::BuildProviderReadiness => ("build_provider_readiness", None),
                 Intrinsic::BuildProviderSelection => ("build_provider_selection", None),

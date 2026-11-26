@@ -2,7 +2,7 @@
 use diagnostics::Diagnostic;
 use semantic_vocabulary::TargetMachineCallable as Callable;
 use semantic_vocabulary::dependency_reach::{
-    DependencyCallOrigin, DependencyCallOrigins, DependencyServiceEdge,
+    DependencyCallOrigin, DependencyCallOrigins, ExecutionReachPolicy, UnsafeServices,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use terminal_psi::{ProofCallableHeader, TerminalModule};
@@ -45,6 +45,62 @@ fn record_call<'source>(
     }
 }
 
+enum Via {
+    Import(Option<Callable>),
+    Call(Callable),
+}
+
+type Paths = BTreeMap<Callable, Via>;
+
+fn complete_paths(
+    calls: &CallGraph<'_>,
+    paths: &mut Paths,
+    mut pending: VecDeque<Callable>,
+) -> Vec<Callable> {
+    let mut reached = Vec::new();
+    while let Some(current) = pending.pop_front() {
+        reached.push(current);
+        if let Some(callees) = calls.get(&current) {
+            for &callee in callees.keys() {
+                if let std::collections::btree_map::Entry::Vacant(slot) = paths.entry(callee) {
+                    slot.insert(Via::Call(current));
+                    pending.push_back(callee);
+                }
+            }
+        }
+    }
+    reached
+}
+
+fn diagnostic_path<'module>(
+    module: &'module TerminalModule,
+    headers: &BTreeMap<Callable, &ProofCallableHeader>,
+    paths: &Paths,
+    roots: &Paths,
+    current: Callable,
+) -> Result<String, Vec<Diagnostic>> {
+    let mut path = Vec::new();
+    let mut cursor = current;
+    let mut predecessors = paths;
+    loop {
+        path.push(name(module, headers[&cursor])?);
+        match predecessors[&cursor] {
+            Via::Call(caller) => cursor = caller,
+            Via::Import(Some(requester)) => {
+                cursor = requester;
+                if roots.is_empty() {
+                    path.push(name(module, headers[&requester])?);
+                    break;
+                }
+                predecessors = roots;
+            }
+            Via::Import(None) => break,
+        }
+    }
+    path.reverse();
+    Ok(path.join(" -> "))
+}
+
 /// Edges are on the actually invoked functions and their selected providers. A callback
 /// descriptor or exported declaration alone does not spend a dependency's ceiling.
 pub fn check(
@@ -52,10 +108,11 @@ pub fn check(
     entry: Callable,
     implementations: &[CallableBoundaryImplementation],
     target: Option<&str>,
-    edges: &[DependencyServiceEdge],
+    policy: &ExecutionReachPolicy,
+    unsafe_services: &UnsafeServices,
     imported_calls: &DependencyCallOrigins,
 ) -> Result<(), Vec<Diagnostic>> {
-    if edges.is_empty() {
+    if policy.edges.is_empty() && unsafe_services.is_empty() {
         return Ok(());
     }
     let root = match entry {
@@ -182,58 +239,70 @@ pub fn check(
         }
     }
     let mut registered = BTreeMap::new();
-    for edge in edges {
+    for edge in &policy.edges {
         registered
             .entry((edge.requester, edge.package))
             .or_insert_with(BTreeSet::new)
             .insert(edge.alias.as_str());
     }
-    for edge in edges {
+    // The Product itself must opt in even when no package edge is crossed.
+    // Each actual dependency use must satisfy its edge and that package's own Build.
+    let mut root_paths = Paths::new();
+    if !unsafe_services.is_empty() {
+        root_paths.insert(entry, Via::Import(None));
+        complete_paths(&calls, &mut root_paths, VecDeque::from([entry]));
+    }
+    let gates = std::iter::once(None)
+        .filter(|_| !unsafe_services.is_empty())
+        .chain(policy.edges.iter().map(Some));
+    for gate in gates {
         let mut pending = VecDeque::new();
-        // Keep a single predecessor for each invocation. Diagnostics reconstruct just the
-        // failing path, including its requester, without duplicating paths at every branch.
-        enum Via {
-            Import(Option<Callable>),
-            Call(Callable),
-        }
         let mut paths = BTreeMap::new();
-        if headers[&entry].package == Some(edge.package) {
+        if let Some(edge) = gate {
+            if headers[&entry].package == Some(edge.package) {
+                paths.insert(entry, Via::Import(None));
+                pending.push_back(entry);
+            }
+            for (&requester, callees) in &calls {
+                let owner = headers[&requester].package;
+                if owner == Some(edge.package) {
+                    continue;
+                }
+                for (&callee, uses) in callees {
+                    if headers[&callee].package != Some(edge.package) {
+                        continue;
+                    }
+                    // A forwarded descriptor can enter here through another requester even
+                    // if the current machine happens to import the very same package itself.
+                    if let Some(aliases) = registered.get(&(owner, edge.package)) {
+                        let exact = uses.iter().all(|choice| {
+                            choice.is_some_and(|choice| {
+                                choice.package == edge.package
+                                    && aliases.contains(choice.alias.as_str())
+                            })
+                        });
+                        let selected = uses
+                            .iter()
+                            .flatten()
+                            .any(|choice| choice.alias == edge.alias);
+                        if exact && (owner != edge.requester || !selected) {
+                            continue;
+                        }
+                    }
+                    if let std::collections::btree_map::Entry::Vacant(slot) = paths.entry(callee) {
+                        slot.insert(Via::Import(Some(requester)));
+                        pending.push_back(callee);
+                    }
+                }
+            }
+        } else {
             paths.insert(entry, Via::Import(None));
             pending.push_back(entry);
         }
-        for (&requester, callees) in &calls {
-            let owner = headers[&requester].package;
-            if owner == Some(edge.package) {
-                continue;
-            }
-            for (&callee, uses) in callees {
-                if headers[&callee].package != Some(edge.package) {
-                    continue;
-                }
-                // A forwarded descriptor can enter here through another requester even
-                // if the current machine happens to import the very same package itself.
-                if let Some(aliases) = registered.get(&(owner, edge.package)) {
-                    let exact = uses.iter().all(|choice| {
-                        choice.is_some_and(|choice| {
-                            choice.package == edge.package
-                                && aliases.contains(choice.alias.as_str())
-                        })
-                    });
-                    let selected = uses
-                        .iter()
-                        .flatten()
-                        .any(|choice| choice.alias == edge.alias);
-                    if exact && (owner != edge.requester || !selected) {
-                        continue;
-                    }
-                }
-                if let std::collections::btree_map::Entry::Vacant(slot) = paths.entry(callee) {
-                    slot.insert(Via::Import(Some(requester)));
-                    pending.push_back(callee);
-                }
-            }
-        }
-        while let Some(current) = pending.pop_front() {
+        let reached = complete_paths(&calls, &mut paths, pending);
+        // A callee's demand also appears in its callers' derived ceilings.
+        // Diagnose the originating call before that propagated demand.
+        for current in reached.into_iter().rev() {
             let (published, body): (&[_], &[_]) = match current {
                 Callable::Machine(id) => {
                     let machine = module
@@ -259,39 +328,47 @@ pub fn check(
                     }
                 }
             };
-            for &service in published.iter().chain(body) {
+            let services = published.iter().chain(body);
+            // A rejected concrete child explains the operation even if its reporting parent
+            // appears earlier in the service table.
+            let (specific, other) =
+                services.partition::<Vec<_>, _>(|id| unsafe_services.contains_key(id));
+            for &service in specific.into_iter().chain(other) {
                 let atom = module
                     .service(service)
                     .and_then(|decl| module.identities.text(decl.identity))
                     .ok_or_else(|| error("dependency reach lost an exact service identity"))?;
-                if !edge.max_reach.admits(atom) {
-                    let mut path = Vec::new();
-                    let mut at = current;
-                    loop {
-                        path.push(name(module, headers[&at])?);
-                        match paths[&at] {
-                            Via::Call(previous) => at = previous,
-                            Via::Import(previous) => {
-                                if let Some(previous) = previous {
-                                    path.push(name(module, headers[&previous])?);
-                                }
-                                break;
+                let required = unsafe_services.get(&service);
+                let product = gate.map(|edge| edge.package).or(policy.root);
+                let withheld_by_product = required.is_some_and(|required| {
+                    !policy
+                        .enabled_unsafe
+                        .get(&product)
+                        .is_some_and(|enabled| enabled.contains(required))
+                });
+                let withheld_by_edge = gate.filter(|edge| !edge.max_reach.admits(atom));
+                if withheld_by_product || withheld_by_edge.is_some() {
+                    let path = diagnostic_path(module, &headers, &paths, &root_paths, current)?;
+                    if let Some(required) = required {
+                        let subject = match (gate, withheld_by_edge) {
+                            (_, Some(edge)) => {
+                                format!("dependency edge `{}` did not admit", edge.alias)
                             }
-                        }
+                            (Some(edge), None) => {
+                                format!("Build of dependency `{}` did not enable", edge.alias)
+                            }
+                            (None, None) => "Build of the root Product did not enable".to_owned(),
+                        };
+                        return Err(error(format!(
+                            "{subject} Unsafe + {} on {path}\nOmega is designed to be used without Unsafe. Performance is not a valid justification. Use checked Omega or checked inline assembly for performance-sensitive code.\n\nUnsafe exists only for extreme applications. Treat any use of Unsafe in a library as malicious.",
+                            required.name()
+                        )));
                     }
-                    path.reverse();
-                    return Err(error(format!(
-                        "dependency `{}` exceeds its reach ceiling with service `{atom}` on {}",
-                        edge.alias,
-                        path.join(" -> ")
-                    )));
-                }
-            }
-            if let Some(callees) = calls.get(&current) {
-                for &callee in callees.keys() {
-                    if let std::collections::btree_map::Entry::Vacant(slot) = paths.entry(callee) {
-                        slot.insert(Via::Call(current));
-                        pending.push_back(callee);
+                    if let Some(edge) = withheld_by_edge {
+                        return Err(error(format!(
+                            "dependency `{}` exceeds its reach ceiling with service `{atom}` on {path}",
+                            edge.alias
+                        )));
                     }
                 }
             }

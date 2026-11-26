@@ -150,7 +150,10 @@ pub(crate) mod build_selections {
             .collect::<Vec<_>>();
         use language_core::build_protocol::SelectionProtocolOperation as Protocol;
         let operation = match (&request, arguments.len()) {
-            (BuildSelectionRequest::Service { .. }, 1) => Protocol::DescribeService,
+            (BuildSelectionRequest::Service { operation, .. }, 1) => match operation {
+                crate::declaration_selection::BuildServiceOperation::Describe => Protocol::DescribeService,
+                crate::declaration_selection::BuildServiceOperation::EnableUnsafe(_) => Protocol::EnableUnsafe,
+            },
             (BuildSelectionRequest::ProviderReadiness(_), 1) => Protocol::AwaitProvider,
             (BuildSelectionRequest::Exclusion(_), 2) => Protocol::Exclude,
             (BuildSelectionRequest::Entry(binding), 1)
@@ -3924,7 +3927,7 @@ pub(crate) mod product_selections {
             operation.authored_spelling(),
             match operation {
                 BuildOperation::NativeBinding => "one exact requirement operand",
-                BuildOperation::ServiceExclusion
+                BuildOperation::EnableUnsafe | BuildOperation::ServiceExclusion
                 | BuildOperation::ServiceAudit
                 | BuildOperation::BoundaryAcceptance => "one bare declaration operand",
                 BuildOperation::TestGroupRegistration => "one exact trait machine requirement and an optional adapter machine",
@@ -3944,7 +3947,7 @@ pub(crate) mod product_selections {
         }
         let requirement = if matches!(
             operation,
-            BuildOperation::ProviderReadiness | BuildOperation::ServiceDescription
+            BuildOperation::ProviderReadiness | BuildOperation::ServiceDescription | BuildOperation::EnableUnsafe
         ) {
             let operand =
                 lower_static_machine_argument(Some(source), typed, exposure, &operands[0])?;
@@ -4081,9 +4084,23 @@ pub(crate) mod product_selections {
         }
         inputs.dedup();
         let request = if let Some(requirement) = requirement
-            && operation == BuildOperation::ServiceDescription
+            && matches!(operation, BuildOperation::ServiceDescription | BuildOperation::EnableUnsafe)
         {
+            use crate::declaration_selection::BuildServiceOperation;
+            use language_core::core_vocabulary::CoreVocabulary;
+            let use_service = if operation == BuildOperation::EnableUnsafe {
+                let symbol = typed.type_reference_table.type_symbol(requirement);
+                let Some(CoreVocabulary::UnsafeAtom(atom)) = source.symbols.core_vocabulary(symbol) else {
+                    return Err(Diagnostic::error(
+                        "Build::enable_unsafe requires a specific Unsafe atom declared by core",
+                    ).with_source_span(span));
+                };
+                BuildServiceOperation::EnableUnsafe(atom)
+            } else {
+                BuildServiceOperation::Describe
+            };
             BuildSelectionRequest::Service {
+                operation: use_service,
                 source_span: span,
                 requirement,
             }
