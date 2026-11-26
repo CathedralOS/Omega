@@ -2,7 +2,7 @@
 
 use super::BuildSourceSelection;
 use super::imports::{SourceRouting, load_source_frontiers};
-use crate::source::source_imports::{ImportQueue, SourceStorage};
+use crate::source::source_imports::{ImportQueue, ResolvedSourceImport, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use source_admission::{SourceContents, SourceOrigin, SourceResolutionStratum};
@@ -180,7 +180,17 @@ pub(super) fn append_build_prelude(
                             "Build library import lost its compiler-owned source",
                         )]
                     })?;
-                bindings.push(source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::file_import(file.source_id, *source_id, alias.as_str()));
+                let declaration = storage
+                    .sources
+                    .get(*source_id)
+                    .expect("just-admitted Build library");
+                storage.resolved_imports.push(ResolvedSourceImport::file(
+                    file.source_id,
+                    import.ordinal,
+                    import.target.to_string(),
+                    alias,
+                    declaration,
+                ));
             }
         }
     }
