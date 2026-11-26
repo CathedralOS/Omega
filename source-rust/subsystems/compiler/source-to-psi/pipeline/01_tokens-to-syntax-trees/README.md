@@ -32,7 +32,7 @@ returns an error and leaves the input tokens intact.
 
 For `(registry.store)(key, value)`, [postfix parsing](src/expressions/postfix.rs)
 records a call on a member and retains both arguments. Follow the receiver into
-[typing](../03_symbol-resolved-trees-to-typed-trees/src/atomic_calls.rs) to see
+[typing](../03_symbol-resolved-trees-to-typed-trees/src/expressions/atomic_calls.rs) to see
 why an atomic cell's `store` checks its ordering argument. For a transition,
 [dispatch preparation](../02_syntax-trees-to-symbol-resolved-trees/src/declarations/dispatches.rs)
 takes the authored arms and arranges to evaluate the subjects once.

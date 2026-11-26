@@ -28,9 +28,9 @@ language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../foundation/numerics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 symbols = { path = "../../../foundation/declaration-identity" }
-syntax-trees = { path = "../../representations/syntax-trees" }
 
 [dev-dependencies]
+syntax-trees = { path = "../../representations/syntax-trees" }
 source-parser = { path = "../01_tokens-to-syntax-trees" }
 source-lexer = { path = "../00_source-files-to-tokens" }
 tokens = { path = "../../representations/tokens" }

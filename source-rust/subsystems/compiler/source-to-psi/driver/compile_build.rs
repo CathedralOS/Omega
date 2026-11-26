@@ -3,15 +3,15 @@
 use crate::compile_time_invocations::{InvocationSourceConsent, SourceCompletionAccounting};
 use crate::driver::judge_lowered_source;
 use crate::driver::prepare_typed_source::{
-    SourceAdmission, SourcePreparationFailure, SourcePreparationRequest,
+    InvocationProviders, SourceAdmission, SourcePreparationFailure, SourcePreparationRequest,
 };
 use crate::driver::resolve_and_type::ResolveAndTypeRequest;
 use crate::source_state::TypedTrees;
 use crate::{CompileTimings, ParsedStageSources, SourcePreparation};
 use checked_program_to_psi as production;
 use checked_program_to_psi::{
-    AcceptedTerminalSource, ConstantRead, PreparedTerminalPublication,
-    ProducedTerminalProgram, TerminalSourceCompilation,
+    AcceptedTerminalSource, ConstantRead, PreparedTerminalPublication, ProducedTerminalProgram,
+    TerminalSourceCompilation,
 };
 use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
@@ -176,9 +176,8 @@ impl CheckedBuildInvocation {
         invocation_sources: Option<Arc<dyn InvocationSourceConsent>>,
         providers: &crate::InterpretedProviderSelections,
     ) -> Result<BuildInvocationJudgment, SourcePreparationFailure> {
-        use crate::compile_product::{provider_choices, provider_declarations};
+        use crate::compile_product::provider_declarations;
         use source_provenance::DependencyScope;
-        use typed_trees_to_prepared_typed_trees::{SelectedDeclaration, SelectedProvider};
 
         let mut program = typed.clone();
         let uncharged = |diagnostics| SourcePreparationFailure {
@@ -225,64 +224,13 @@ impl CheckedBuildInvocation {
             },
             compilation,
         };
-        let judged = if roots.is_empty() {
-            request.judge(terminal_codec::TerminalPublication::Invocation)?
-        } else {
-            let mut settled = request.settle()?;
-            settled
-                .selected_declarations
-                .extend(overrides.iter().chain(&defaults).map(|row| {
-                    let provider = &row.provider_type;
-                    SelectedDeclaration::Provider(SelectedProvider {
-                        declaration: provider.symbol,
-                        application: provider.applied.then(|| {
-                            production::provider_choice_inputs::source_application(
-                                provider.application,
-                            )
-                        }),
-                    })
-                }));
-            let prepared = settled.freeze()?;
-            let frozen = Arc::clone(prepared.program.trees());
-            let finished = || {
-                let choices = provider_choices::prepare_in_scope(
-                    &frozen,
-                    &[
-                        semantic_vocabulary::source_selections::ProductTarget::Interpreter
-                            .canonical_name(),
-                    ],
-                    &overrides,
-                    &defaults,
-                    &[],
-                    DependencyScope::Build,
-                )?;
-                judge_lowered_source::judge_terminal_source(
-                    prepared.program,
-                    TerminalSourceCompilation {
-                        selected: &choices.declaration_roots,
-                        calling: Some(production::TerminalCallingPolicySelections {
-                            source: &frozen,
-                            applications: &choices.calling_applications,
-                            entries: &[],
-                        }),
-                        providers: Some(production::TerminalProviderSelections {
-                            source: &frozen,
-                            choices: &choices.selections,
-                        }),
-                        ..compilation
-                    },
-                    terminal_codec::TerminalPublication::Invocation,
-                )
-            };
-            let accepted = finished().map_err(|diagnostics| SourcePreparationFailure {
-                diagnostics,
-                accounting: prepared.accounting.clone(),
-            })?;
-            judge_lowered_source::JudgedSource {
-                accepted,
-                accounting: prepared.accounting,
-            }
-        };
+        let judged = request.judge(
+            terminal_codec::TerminalPublication::Invocation,
+            InvocationProviders {
+                overrides: &overrides,
+                defaults: &defaults,
+            },
+        )?;
         let constants = judged.accepted.constants_read();
         Ok(BuildInvocationJudgment {
             invocation: Self {

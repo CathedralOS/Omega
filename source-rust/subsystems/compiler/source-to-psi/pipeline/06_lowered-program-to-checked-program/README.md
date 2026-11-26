@@ -15,6 +15,18 @@ Terminal checking input to `judge_compilation`; this stage never elaborates
 typed source or calls stage 05. [The route's verdict](#the-routes-verdict) is
 the compilation verdict, including every demanded generic and conformance form.
 
+## Find the code
+
+Start at [`judge_compilation`](src/verdict.rs) to follow the checks in order. [Publication](src/publication.rs) issues the checked program after acceptance.
+
+- [Obligations](src/obligations/) identifies what operations owe and prepares machines for judgment.
+- [Control flow](src/control_flow/) follows edges, joins, and termination rankings.
+- [Storage](src/storage/) checks initialized places, borrows, and cleanup.
+- [Calls](src/calls/) checks inputs and results against contracts, including selected providers and generic machines.
+- [Effects](src/effects/) checks what can crash, wait, or reach a service.
+- [Proofs](src/proofs/) derives and reuses evidence and judges laws. The kernel decides the certificates submitted to it.
+- [Reports](src/reports/) explains refusals and unreachable branches.
+
 An abstract algebra can cite a law of its supplied record to prove identity of
 two operation results. The checker instantiates the law's signature and records
 the kernel-checked proof of the requested identity. For a concrete record determined by its fields, the
@@ -24,13 +36,13 @@ requires a kernel proof built from their identities.
 A law over data that contains itself is judged apart from every machine.
 Stage 05 hands this crate one
 [mathematical signature](../../representations/lowered-program/README.md#the-mathematical-signature)
-for the compilation. [laws.rs](src/laws.rs) has the kernel check its
+for the compilation. [laws.rs](src/proofs/laws.rs) has the kernel check its
 declarations once, then proves each law against the entries before that law's
 own statement. For a law that dispatches on a formal it proves one equality
 per case, over an arbitrary value of that case, and assembles the cases into
 one induction. A case is proved by normalizing both sides with the kernel and
 rewriting with the laws the case cites and with the law itself at a field of
-the case ([equality.rs](src/equality.rs), `prove_under`). The kernel checks
+the case ([equality.rs](src/proofs/equality.rs), `prove_under`). The kernel checks
 the assembled term against the law's statement; the judgment is
 `RouteVerdict::Laws`, and a law or case left unproved is one entry of
 `RouteVerdict::UnprovedLaws` that names the equality and the arm.
@@ -212,25 +224,25 @@ which keeps cited lemmas, branches and contracts, and from explicit stage
 validators, which add checks without changing which sources are accepted.
 
 Start at [lib.rs](src/lib.rs) (`discharge`). After shared inference settles,
-[machine_inputs.rs](src/machine_inputs.rs) borrows each machine's existing
+[machine_inputs.rs](src/obligations/machine_inputs.rs) borrows each machine's existing
 authored branch rows and associates its requirement role and first carried-proof
 offer once. These are inputs, not accepted facts; proof transport and kernel
-admission still run for each actual obligation. [minted.rs](src/minted.rs)
+admission still run for each actual obligation. [minted.rs](src/obligations/minted.rs)
 checks that the rows to decide are the ones the lowered form owes;
-[graph.rs](src/graph.rs) answers dominance between program points;
-[places.rs](src/places.rs) says what a place holds when a field read observes
-it, from the stores [places/log.rs](src/places/log.rs) derives from the
-operations; [prove.rs](src/prove.rs) is the one prover.
-[branch_warnings.rs](src/branch_warnings.rs) reports impossible authored arms
+[graph.rs](src/control_flow/graph.rs) answers dominance between program points;
+[places.rs](src/storage/places.rs) says what a place holds when a field read observes
+it, from the stores [places/log.rs](src/storage/places/log.rs) derives from the
+operations; [prove.rs](src/proofs/prove.rs) is the one prover.
+[branch_warnings.rs](src/reports/branch_warnings.rs) reports impossible authored arms
 from refutations the kernel accepted and the premises they cite. It shares
 results only within one machine's read-only analysis, never retries with a
 subset of the assumptions, and decides no obligation.
-[joins.rs](src/joins.rs) infers and checks join predicates;
-[crashes.rs](src/crashes.rs) states crash-site coverage;
-[arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
-[rankings.rs](src/rankings.rs) admits a loop's ranking and states its
+[joins.rs](src/control_flow/joins.rs) infers and checks join predicates;
+[crashes.rs](src/effects/crashes.rs) states crash-site coverage;
+[arrivals.rs](src/control_flow/arrivals.rs) admits a loop head's declared invariant.
+[rankings.rs](src/control_flow/rankings.rs) admits a loop's ranking and states its
 comparisons.
-[prove/reach.rs](src/prove/reach.rs) says which unproved goals the integer
+[prove/reach.rs](src/proofs/prove/reach.rs) says which unproved goals the integer
 rules could not have decided
 ([below](#what-the-integer-rules-do-not-reach)).
 
@@ -238,7 +250,7 @@ rules could not have decided
 
 A contract clause justifies other code only once it is well defined:
 `a / b > 0` means nothing where `b` may be zero.
-[formation.rs](src/formation.rs) checks every partial scalar term with the
+[formation.rs](src/obligations/formation.rs) checks every partial scalar term with the
 same safety goal, prover and proof kernel as an operation. Only clauses
 formed on their own supply premises. A pending clause can use a clause formed
 later in authored order, but a clause that depends on itself, or a cycle,
@@ -374,7 +386,7 @@ use the callee's written contract plus checked body-derived result and state
 facts", and "Derive and check a reusable summary against the body; each call
 substitutes its evaluated actual arguments".
 
-[result_summaries.rs](src/result_summaries.rs) runs before anything is
+[result_summaries.rs](src/calls/result_summaries.rs) runs before anything is
 decided. For each machine elaboration lists in `Elaboration::local_results`
 (a private machine of the subject package: no other verification unit can
 call it), callees first, it describes every normal return in the machine's
@@ -427,7 +439,7 @@ that exact checked body") waits for dependency slices.
 
 A certificate for every row proves nothing about a row that is missing, that
 names the wrong subject or that sits at the wrong point. So before anything
-is decided, `follow_the_lowered_form` ([minted.rs](src/minted.rs)) recomputes
+is decided, `follow_the_lowered_form` ([minted.rs](src/obligations/minted.rs)) recomputes
 what each machine owes from the lowered form alone and refuses tables that
 differ. Nothing is taken from elaboration's word, because the lowered form
 already carries every identity:
@@ -463,7 +475,7 @@ The data `requires` clauses arrive in a table beside the module
 premise a read of an arrived value learns from its type. The module's own
 type declarations state them (`StructuralTypeDeclaration::requires`, part of
 the encoded module and so of its identity), so `domains_are_declared`
-([minted.rs](src/minted.rs)) refuses a table that is not exactly those
+([minted.rs](src/obligations/minted.rs)) refuses a table that is not exactly those
 clauses, type by type and in authored order. Otherwise a clause weakened,
 strengthened, dropped or moved to another type in the table would change
 what is proved for every construction, store and read of the type.
@@ -480,7 +492,7 @@ proved without touching an obligation row. Three tables say what storage
 holds, and none is taken on elaboration's word.
 
 **The write log is derived, then compared.** The walk below does not read
-`MachineTables::writes`. [places/log.rs](src/places/log.rs) derives every
+`MachineTables::writes`. [places/log.rs](src/storage/places/log.rs) derives every
 store from the operation that makes it (`Storage::stores`):
 
 | Operation | What it stores |
@@ -515,7 +527,7 @@ and a parent's projections must be sorted with one per segment. Two paths
 that share a row would let one field's contents answer for another's.
 
 **The value table must be the lowered form's declarations**
-(`values_are_declared` in [minted.rs](src/minted.rs)). Each formal, the scalar
+(`values_are_declared` in [minted.rs](src/obligations/minted.rs)). Each formal, the scalar
 result, each block parameter and each scalar operation result must have its
 declared type and the origin of what declares it. The type is what Terminal
 semantics states a goal over and what the kernel bounds a value by; the
@@ -526,7 +538,7 @@ formal, with that leaf's declared type
 (`Storage::entry_contents_are_of_formals`). Since the lowered form declares
 none of them, nothing in it says which identity belongs to which leaf, so
 they must be in the order of their leaves (`entry_contents` in
-[places.rs](src/places.rs)): two rows of one type that exchange their
+[places.rs](src/storage/places.rs)): two rows of one type that exchange their
 leaves are refused, and so is a second value for one leaf.
 
 ## What a place holds
@@ -534,7 +546,7 @@ leaves are refused, and so is a second value for one leaf.
 A read, a whole copy, a dispatch's payload parameters and the two structural
 judgments all ask what a place holds on every path to a point: which value a
 scalar leaf holds, or which case a sum is established as.
-[places.rs](src/places.rs) answers both with one walk (`Storage::reaching`)
+[places.rs](src/storage/places.rs) answers both with one walk (`Storage::reaching`)
 over the tables and the lowered form. The two questions differ only in which
 rows end a path and in what an edge can establish:
 
@@ -989,7 +1001,7 @@ called yet.
 A call that passes a place to a borrowed formal lends it for the call
 ([prepared-typed-trees-to-lowered-program](../05_prepared-typed-trees-to-lowered-program/README.md#references)):
 the structural argument names the place with the loan's access, and one
-`Loan` row stands for it. [places/loans.rs](src/places/loans.rs) recomputes
+`Loan` row stands for it. [places/loans.rs](src/storage/places/loans.rs) recomputes
 the rows from the lowered form, as for every other row
 ([The rows are checked against the lowered form](#the-rows-are-checked-against-the-lowered-form)).
 There is one per borrowed structural argument of each call, created at the
@@ -1058,7 +1070,7 @@ cycle, the machine's formals as the head's parameters, and a jump to the
 head for each call
 ([structure elaboration](../05_prepared-typed-trees-to-lowered-program/README.md#call-cycles-as-loops)).
 A machine's `requires` is its head's invariant, a row of the module's
-`scalar_block_invariants`. [arrivals.rs](src/arrivals.rs) does three things
+`scalar_block_invariants`. [arrivals.rs](src/control_flow/arrivals.rs) does three things
 with a row, and the prover does the rest unchanged.
 
 - **Admits it.** The predicate may name only machine formals and the head's
@@ -1102,7 +1114,7 @@ An unranked loop proves nothing about ending, and nothing here says it ends.
 
 Elaboration records each loop's private measure in `ranked_scc`, including
 measures computed from borrowed slice lengths and transfers between member
-heads. [rankings.rs](src/rankings.rs) admits the complete claim before any
+heads. [rankings.rs](src/control_flow/rankings.rs) admits the complete claim before any
 proof runs (`prepare` calls `admit`). Following
 [control flow](../../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress),
 it reconstructs the actual cyclic components and checks:
@@ -1154,7 +1166,7 @@ four corner products of the operands' bounds), carries that bound through the
 result equation with `ValueEqualityTransport`, and restates it in the carrier
 with `IntegerOrderSubstitution`. The result of a divide, a remainder, a shift, a
 bitwise and or a bitwise or gets its bound from a one-step endpoint chain
-([prove/ranges.rs](src/prove/ranges.rs)): the witness roots at the operand
+([prove/ranges.rs](src/proofs/prove/ranges.rs)): the witness roots at the operand
 that is a value, cites the result equation as its only definition and lands
 the other operand on the earlier equation that fixes it to a literal, and the
 kernel replays the step on the root's bound. This is the range propagation
@@ -1246,7 +1258,7 @@ so the obligation is `Unproved`. None is worked around here. The programs
 named below were in the deleted `tests/omega/` corpus.
 
 Whether such an obligation rejects the program depends on what it rests on
-([prove/reach.rs](src/prove/reach.rs)). A goal that depends on a value
+([prove/reach.rs](src/proofs/prove/reach.rs)). A goal that depends on a value
 defined by an operation the rules give no exact interval is unproved whether
 or not the program is right, so its cause is `NoRuleForGoalForm` and the
 route's verdict is `Incomplete`: the second and third items below, and any
@@ -1468,7 +1480,7 @@ decision from. It discharges an elaborated closure and returns:
   its kind, its source site from elaboration's correspondence, and its cause
   (`UnprovedCause`). `reject_diagnostic()` turns it into the program error,
   `<statement> (<cause>: <detail>)`, an ordinary `Reject` with no artifact.
-  The statement ([describe.rs](src/describe.rs)) says what was not proved,
+  The statement ([describe.rs](src/reports/describe.rs)) says what was not proved,
   using the lowered form
   and elaboration's names table (`MachineNames`): `cannot prove requires
   contract for call bounded from probe: xored >= 1 && xored <= 2 (needs fact
@@ -1635,7 +1647,7 @@ measurement code lives in `_recycling/source-rust/compiler/v1-probes`.
 
 ## Reusing a saved proof (experiment)
 
-[reuse.rs](src/reuse.rs) is an experiment the owner asked to see before
+[reuse.rs](src/proofs/reuse.rs) is an experiment the owner asked to see before
 anything is built on it; no production path calls it. `reverify` takes a saved
 certificate for one obligation and has the kernel decide it for the goal and
 hypotheses the consumer computes from its own lowered program, through the same
@@ -1773,7 +1785,7 @@ cannot authorize an otherwise invalid generic body").
 **The instantiation is worked out, not read.** The generated machine has one
 formal and the literal 7 wherever the declaration named `Units`. The typed
 trees record the argument of a generated machine only as its spelling, which
-is not read. `Instantiation::of` ([reuse.rs](src/reuse.rs)) finds the
+is not read. `Instantiation::of` ([reuse.rs](src/proofs/reuse.rs)) finds the
 literals from the two lowered contracts: the ones at which each `ensures`
 clause of the generic form is the specialization's clause at that position
 and its `requires` clauses are the specialization's in some order (they are
@@ -2035,7 +2047,7 @@ total < 3`, the false edge says only that the `||` join's Boolean parameter
 `p` is `false`, which alone tells a use nothing about `total <= 9000`. The
 specification's answer is a block predicate checked on every arrival before
 it justifies anything downstream (`fact_validity.md`, "Premise
-availability"; `control_flow.md`, "Equality relations"). [joins.rs](src/joins.rs)
+availability"; `control_flow.md`, "Equality relations"). [joins.rs](src/control_flow/joins.rs)
 builds one per join, so no shape of join is special:
 
 - Lowering mints an `ArrivalInvariant` obligation per edge into a block with

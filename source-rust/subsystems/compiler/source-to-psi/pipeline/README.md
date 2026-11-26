@@ -771,12 +771,12 @@ requires is not a drop schedule. Proof discharge, flow invalidation and ABI
 placement happen later.
 
 The typing coordinator orders declaration lowering and finalization.
-[Conformances](03_symbol-resolved-trees-to-typed-trees/src/declarations.rs)
+[Conformances](03_symbol-resolved-trees-to-typed-trees/src/declarations/items.rs)
 own header selection, lifetime arguments, realization parameter binding and
 publication; proposition definitions live with declarations, while proposition
 applications remain expressions. Shared
-[type parameters](03_symbol-resolved-trees-to-typed-trees/src/contracts_and_signatures.rs)
-and [callable signatures](03_symbol-resolved-trees-to-typed-trees/src/contracts_and_signatures.rs)
+[type parameters](03_symbol-resolved-trees-to-typed-trees/src/declarations/contracts_and_signatures.rs)
+and [callable signatures](03_symbol-resolved-trees-to-typed-trees/src/declarations/contracts_and_signatures.rs)
 are independent of data and state declaration lowering. Contract facts,
 invocations and parameter-domain obligations have shared owners; type-reference
 normalization owns domain-alias expansion and domain constraints. Both full
@@ -787,7 +787,7 @@ Missing measure-body field selectors bind through the exact measure parameter's
 declared nominal type. Existing nonzero selectors remain unchanged for checking;
 typing does not replace conflicting identities with a same-spelled field.
 
-[Call-result typing](03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs)
+[Call-result typing](03_symbol-resolved-trees-to-typed-trees/src/expressions/call_and_product_selections.rs)
 selects computed-receiver methods from the producer's exact declared return type
 after receiver children lower, never from its body or a returned-place proof.
 Preserve already-resolved pattern-bound call targets and root/member identity.
