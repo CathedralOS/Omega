@@ -1,6 +1,8 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "owned_outcome");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../source/library/system" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../source/library/system" }));
     Build::accept_boundary::<Issuer>(builder);
     Build::select_provider::<Issuer, Provider>(builder, linux_arm64);
     Build::select_provider::<Issuer, Provider>(builder, linux_x86_64);
@@ -11,8 +13,8 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<Issuer, Provider>(builder, cross_platform_cli);
     Build::select_provider::<Issuer, Provider>(builder, local_unchecked);
     Build::select_provider::<Issuer, Provider>(builder, alpha_bootstrap);
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
 }

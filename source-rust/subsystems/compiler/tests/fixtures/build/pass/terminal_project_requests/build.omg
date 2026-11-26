@@ -1,23 +1,25 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "terminal_project_requests");
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
 }
 
 // Build project requests are effects of the executed branch, including helpers.
 machine project_name() -> @[u8] { "computed_project" }
 
 machine selected_dependency(builder: @mutable Build) {
-    let mutable selected_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "selected_source" });
-    dependency\with_alias(@mutable selected_dependency, "selected");
+    let mutable selected_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "selected_source" });
+    |dependency|::with_alias(@mutable selected_dependency, "selected");
     let selected_registration: DependencyRegistration = Build::dependency(builder, selected_dependency);
 }
 
 machine unselected_dependency(builder: @mutable Build) {
-    let mutable unselected_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "unselected_source" });
-    dependency\with_alias(@mutable unselected_dependency, "unselected");
+    let mutable unselected_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "unselected_source" });
+    |dependency|::with_alias(@mutable unselected_dependency, "unselected");
     let unselected_registration: DependencyRegistration = Build::dependency(builder, unselected_dependency);
 }
 

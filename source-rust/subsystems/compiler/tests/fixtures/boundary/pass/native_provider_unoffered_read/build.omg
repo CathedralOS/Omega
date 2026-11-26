@@ -10,6 +10,6 @@ machine build(builder: @mutable Build) {
         ForeignBinding::DllImport { import: DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "read", version: "GLIBC_2.17",
         } });
-    Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64\ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
 }

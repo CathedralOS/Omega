@@ -58,7 +58,7 @@ impl GitWorkspaceSession {
             lane.path(),
             lane.directory(),
             catalog_limits,
-            GitRevisionSelection::Recorded(&revision),
+            GitRevisionSelection::Exact(&revision),
             |executor, repository, _, _, _| {
                 let entries =
                     self.inspection

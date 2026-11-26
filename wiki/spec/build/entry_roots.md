@@ -48,7 +48,7 @@ using the supported primitives without registering another target.
 ## Source selection is not invocation
 
 For an application named `entry_example`, Build selects
-`windows_x86_64\ProgramEntry` with machine argument `start`, and
+`windows_x86_64::ProgramEntry` with machine argument `start`, and
 may separately select `TestConsole` for the exact Console requirement. Neither
 selection invokes application code. The Build operations themselves follow the
 ordinary static-machine argument rules; they have no receiver-syntax exemption.

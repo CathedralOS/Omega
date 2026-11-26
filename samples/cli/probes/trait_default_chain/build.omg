@@ -4,8 +4,8 @@
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "trait_default_chain");
-    Build::bind(builder, windows_x86_64\ProgramEntry, trait_default_chain);
-    Build::bind(builder, linux_x86_64\ProgramEntry, trait_default_chain);
-    Build::bind(builder, linux_arm64\ProgramEntry, trait_default_chain);
-    Build::bind(builder, macos_arm64\ProgramEntry, trait_default_chain);
+    Build::bind(builder, windows_x86_64::ProgramEntry, trait_default_chain);
+    Build::bind(builder, linux_x86_64::ProgramEntry, trait_default_chain);
+    Build::bind(builder, linux_arm64::ProgramEntry, trait_default_chain);
+    Build::bind(builder, macos_arm64::ProgramEntry, trait_default_chain);
 }

@@ -1,6 +1,6 @@
 machine build(builder: @mutable Build) {
     Build::application(builder, "unissued_test_group_provider");
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
     _ = builder.tests.group::<Tests::reading>();
     let mutable local: TestGroupSettings;
     Build::select_provider::<Reading, FixedReading>(builder, linux_x86_64, @mutable local);

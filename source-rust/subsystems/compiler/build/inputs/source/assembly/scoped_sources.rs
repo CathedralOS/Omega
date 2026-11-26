@@ -77,12 +77,12 @@ impl DeferredProductSources {
             build_source,
             generated: _,
         } = checkpoint.reselect(inputs, timings, catalogue)?;
-        for root in checkpoint
-            .product_roots
-            .iter()
-            .flat_map(|roots| roots.iter())
+        if inputs.successor_entry().is_none()
+            && let Some(roots) = &checkpoint.product_roots
         {
-            imports.seed(root.clone(), source_provenance::DependencyScope::Product);
+            for root in roots.iter() {
+                imports.seed(root.clone(), source_provenance::DependencyScope::Product);
+            }
         }
         load_source_frontiers(
             &mut storage,
@@ -166,6 +166,7 @@ impl super::ImmutableSourceParseCheckpoint {
     pub fn assemble_supplied_build_libraries(
         &self,
         libraries: Arc<[crate::source_imports::SuppliedBuildLibrary]>,
+        providers: &crate::InterpretedProviderSelections,
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
@@ -188,7 +189,9 @@ impl super::ImmutableSourceParseCheckpoint {
             .collect();
         let inputs = crate::source_imports::ProductQueryInputs::for_build_stage(None, mounted)
             .map_err(|why| vec![Diagnostic::error(why)])?;
-        let mut assembled = self.assemble_build_stage(&inputs, timings, catalogue)?.1;
+        let mut assembled = self
+            .assemble_build_stage(&inputs, providers, timings, catalogue)?
+            .1;
         let acquisition = assembled.build_source_acquisition.as_mut().ok_or_else(|| {
             vec![Diagnostic::error(
                 "a supplied Build library requires its receiving source capture",
@@ -201,6 +204,7 @@ impl super::ImmutableSourceParseCheckpoint {
     fn assemble_build_stage(
         &self,
         inputs: &crate::source::source_imports::ProductQueryInputs,
+        providers: &crate::InterpretedProviderSelections,
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
@@ -215,6 +219,14 @@ impl super::ImmutableSourceParseCheckpoint {
             &mut storage,
             &mut imports,
             SourceRouting::Query(inputs),
+            timings,
+            catalogue,
+        )?;
+        super::imports::load_provider_sources(
+            &mut storage,
+            &mut imports,
+            SourceRouting::Query(inputs),
+            providers,
             timings,
             catalogue,
         )?;

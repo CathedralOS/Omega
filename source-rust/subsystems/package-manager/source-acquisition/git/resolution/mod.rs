@@ -20,7 +20,7 @@ Callers may resolve a floating selector (`resolve_git_source_in_lane`), reuse an
 operation-local acquisition pin (`resolve_git_source_from_pin_in_lane`), or
 reconstruct an exact recorded commit and tree from a lockfile
 (`resolve_git_source_at_revision_in_lane` with `Offline` or `AllowFetch`).
-`selection` and `recorded_objects` isolate when transport is permitted so an
+`selection` and `exact_objects` isolate when transport is permitted so an
 offline or pinned lookup never drifts to a new ref or mistakes a missing
 historical object for cache corruption.
 */
@@ -41,7 +41,7 @@ mod issuance;
 mod materialization;
 mod network;
 mod pinned_source;
-mod recorded_objects;
+mod exact_objects;
 mod repository;
 mod selection;
 mod tree_session;

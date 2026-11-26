@@ -1,10 +1,11 @@
+use {omega}/build/dependency.omg;
 use omega\language\core\reflect;
 use omega\language\core\reflect\ParameterInfo;
 use omega\language\core\reflect\FieldInfo;
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_parameter_description");
-    let mutable description: DependencyDescription = dependency\from_source(Source::Path { location: "../../run/build_parameter_description/library" });
-    dependency\with_alias(@mutable description, "api");
+    let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../run/build_parameter_description/library" });
+    |dependency|::with_alias(@mutable description, "api");
     let registration: DependencyRegistration = Build::dependency(builder, description);
     let parameter: ParameterInfo = reflect\parameter(api\Table::invoke);
     let field: FieldInfo = reflect\field(api\Table::invoke);
@@ -16,10 +17,10 @@ machine build(builder: @mutable Build) {
         false -> reject()
     }
     machine accept(builder: @mutable Build) {
-        Build::bind(builder, linux_x86_64\ProgramEntry, main);
-        Build::bind(builder, linux_arm64\ProgramEntry, main);
-        Build::bind(builder, macos_arm64\ProgramEntry, main);
-        Build::bind(builder, windows_x86_64\ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
+        Build::bind(builder, macos_arm64::ProgramEntry, main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, main);
     }
     machine reject() crashes Trap { crash Trap; }
 }

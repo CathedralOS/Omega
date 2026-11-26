@@ -1,4 +1,6 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "invalid_git_call_style");
-    let package_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Git("https://example.invalid/kit.git", "deadbeef", PackageSelection::Root {})));
+    let package_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Git("https://example.invalid/kit.git", "deadbeef", PackageSelection::Root {})));
 }

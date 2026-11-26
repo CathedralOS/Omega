@@ -41,7 +41,7 @@ fn successive_builds_select_the_final_native_and_psi_entry() {
     let last = format!(
         r#"machine build(builder: @mutable Build) {{
             Build::application(builder, "staged");
-            Build::bind(builder, {}\ProgramEntry, launch);
+            Build::bind(builder, {}::ProgramEntry, launch);
         }}
         machine launch() {{}}
         machine main() crashes Trap {{ crash Trap; }}"#,

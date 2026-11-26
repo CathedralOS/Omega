@@ -13,5 +13,5 @@ machine build(builder: @mutable Build) {
     });
 
     Build::application(builder, "native_array_window");
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
 }

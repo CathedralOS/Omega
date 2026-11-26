@@ -3,10 +3,10 @@ use omega\language\core\ForeignBinding;
 machine build(builder: @mutable Build) {
  Build::package(builder, "raw_qualified_result_producer");
  Build::select_representation::<InternetAddress, AddressRepresentation>(builder);
- Build::bind(builder, linux_x86_64\ProgramEntry, component_entry);
- Build::bind(builder, linux_arm64\ProgramEntry, component_entry);
- Build::bind(builder, macos_arm64\ProgramEntry, component_entry);
- Build::bind(builder, windows_x86_64\ProgramEntry, component_entry);
+ Build::bind(builder, linux_x86_64::ProgramEntry, component_entry);
+ Build::bind(builder, linux_arm64::ProgramEntry, component_entry);
+ Build::bind(builder, macos_arm64::ProgramEntry, component_entry);
+ Build::bind(builder, windows_x86_64::ProgramEntry, component_entry);
 
     Build::bind_native::<AddressParts::make>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {

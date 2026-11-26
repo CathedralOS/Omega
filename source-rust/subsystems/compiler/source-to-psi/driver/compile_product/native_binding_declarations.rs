@@ -437,6 +437,7 @@ pub fn collect_captured(
                     ProductOperandRole::Requirement,
                     selected,
                     &declaration.source.requirement_path,
+                    source_provenance::DependencyScope::Product,
                 )
                 .map_err(|error| vec![error])
             })

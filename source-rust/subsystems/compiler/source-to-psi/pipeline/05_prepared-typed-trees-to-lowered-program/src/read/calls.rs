@@ -721,7 +721,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let mut read = self.read_call_statement(id, slots, call, source)?;
-        crate::operational::retain(&mut read, call.operational_acknowledgement, true);
+        crate::lower::operational::retain(&mut read, call.operational_acknowledgement, true);
         Ok(read)
     }
 
@@ -818,7 +818,7 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let mut read = self.read_call_expression(id, slots, call, handle, source)?;
-        crate::operational::retain(&mut read, call.operational_acknowledgement, false);
+        crate::lower::operational::retain(&mut read, call.operational_acknowledgement, false);
         Ok(read)
     }
 

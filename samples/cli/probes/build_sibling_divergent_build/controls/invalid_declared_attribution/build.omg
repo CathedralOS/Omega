@@ -1,12 +1,14 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "invalid_declared_attribution");
-    let mutable a_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../../sibling_a" });
-    dependency\with_alias(@mutable a_dependency, "a");
+    let mutable a_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../sibling_a" });
+    |dependency|::with_alias(@mutable a_dependency, "a");
     let a_registration: DependencyRegistration = Build::dependency(builder, a_dependency);
-    let mutable bad_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../../sibling_declared" });
-    dependency\with_alias(@mutable bad_dependency, "bad");
+    let mutable bad_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../sibling_declared" });
+    |dependency|::with_alias(@mutable bad_dependency, "bad");
     let bad_registration: DependencyRegistration = Build::dependency(builder, bad_dependency);
-    let mutable c_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../../sibling_c" });
-    dependency\with_alias(@mutable c_dependency, "c");
+    let mutable c_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../sibling_c" });
+    |dependency|::with_alias(@mutable c_dependency, "c");
     let c_registration: DependencyRegistration = Build::dependency(builder, c_dependency);
 }

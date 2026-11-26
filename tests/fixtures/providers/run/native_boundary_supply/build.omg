@@ -3,10 +3,10 @@ use omega\language\core\ForeignBinding;
 machine build(builder: @mutable Build) {
     Build::application(builder, "native_boundary_supply");
     Build::bind(builder, alpha_bootstrap\ProgramEntry, main);
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind_native::<HostProcessId::get>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_getpid"

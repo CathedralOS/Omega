@@ -1,7 +1,9 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
  Build::application(builder, "independent_copy_opaque_local");
- let mutable producer_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../producer_invalid" });
- dependency\with_alias(@mutable producer_dependency, "producer");
+ let mutable producer_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../producer_invalid" });
+ |dependency|::with_alias(@mutable producer_dependency, "producer");
  let producer_registration: DependencyRegistration = Build::dependency(builder, producer_dependency);
  Build::select_representation::<producer\InternetAddress, producer\AddressRepresentation>(builder);
  Build::select_provider::<producer\AddressBridge, producer\AddressBridgeProvider>(builder, linux_arm64, CompositionMode::Independent);
@@ -13,8 +15,8 @@ machine build(builder: @mutable Build) {
  Build::select_provider::<producer\AddressBridge, producer\AddressBridgeProvider>(builder, cross_platform_cli, CompositionMode::Independent);
  Build::select_provider::<producer\AddressBridge, producer\AddressBridgeProvider>(builder, local_unchecked, CompositionMode::Independent);
  Build::select_provider::<producer\AddressBridge, producer\AddressBridgeProvider>(builder, alpha_bootstrap, CompositionMode::Independent);
- Build::bind(builder, linux_x86_64\ProgramEntry, main);
- Build::bind(builder, linux_arm64\ProgramEntry, main);
- Build::bind(builder, macos_arm64\ProgramEntry, main);
- Build::bind(builder, windows_x86_64\ProgramEntry, main);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+ Build::bind(builder, linux_arm64::ProgramEntry, main);
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+ Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }

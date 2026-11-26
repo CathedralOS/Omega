@@ -46,7 +46,7 @@ fn authored_exact_commit_must_equal_persisted_commit_before_acquisition() {
         fixture.storage.primary_git().unwrap(),
         &request,
         &fixture.commit,
-        &fixture.tree,
+        Some(&fixture.tree),
         GitExactRevisionAcquisition::AllowFetch,
         fixture.storage.git_sources(),
         LocalSourceLimits::default(),

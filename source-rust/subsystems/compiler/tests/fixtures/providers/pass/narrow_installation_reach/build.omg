@@ -24,8 +24,8 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<D, DProvider>(builder, macos_arm64);
     Build::select_provider::<X, XProvider>(builder, macos_arm64);
     Build::select_provider::<Y, YProvider>(builder, macos_arm64);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }

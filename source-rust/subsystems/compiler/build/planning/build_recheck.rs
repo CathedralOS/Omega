@@ -23,6 +23,7 @@ pub(super) struct BuildRecheck {
     inputs: Option<PackageCompilationInputs>,
     declaration: Option<source_admission::RetainedDeclaration>,
     constants: BuildConstants,
+    interpreter_providers: source_compiler::InterpretedProviderSelections,
     subject_validation: BuildSubjectValidation,
     timings: bool,
     /// Pairs the result with the one Product it settles.
@@ -76,6 +77,7 @@ impl BuildRecheck {
                 .selected_build_declaration()
                 .cloned(),
             constants: constants.clone(),
+            interpreter_providers: evaluated.interpreter_providers.clone(),
             subject_validation: evaluated.subject_validation,
             timings: product.timings.is_enabled(),
             product: Arc::clone(&token),
@@ -129,6 +131,7 @@ impl BuildRecheck {
             )?;
             build_execution::settle_rejoined_build_slice(
                 &self.constants,
+                &self.interpreter_providers,
                 &typed,
                 entry,
                 inputs,
@@ -583,7 +586,7 @@ machine build(builder: @mutable Build) {
 use main.omg as app;
 machine build(builder: @mutable Build) {
     |helper|::configure(builder);
-    Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
 "#,
         )
@@ -669,7 +672,7 @@ machine build(builder: @mutable Build) {
     }
     machine named(builder: @mutable Build) {
         Build::application(builder, "const_app");
-        Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     }
     machine wrong(builder: @mutable Build) {
         Build::application(builder, "other_app");

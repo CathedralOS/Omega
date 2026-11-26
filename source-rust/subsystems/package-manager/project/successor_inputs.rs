@@ -2,19 +2,29 @@
 use super::services::SourceServices;
 use super::{PreparedRequest, SourceHost};
 use crate::PackageCommandError;
+use crate::declarations::dependencies::read::{DependencyProjections, DependencyUse};
 use crate::resolution::source::AcquiredBuildSource;
 use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::ReturnedBuild;
 use package_compilation::source_imports::SuppliedBuildLibrary;
 use std::collections::{BTreeMap, BTreeSet};
 
+/// Keep the acquisition made at this exact registration. Another Git selector
+/// can resolve to the same settled package without naming the same request.
+pub(super) struct PreparedInput {
+    pub purpose: DependencyPurpose,
+    pub ordinal: usize,
+    pub request: DependencyUse,
+    pub prepared: super::PreparedRequest,
+}
+
 impl SourceHost<'_, '_> {
-    pub(super) fn successor_libraries(
+    pub(super) fn successor_inputs(
         &mut self,
         acquired: &AcquiredBuildSource,
         returned: &ReturnedBuild,
         mut prepared: BTreeMap<(DependencyPurpose, usize), PreparedRequest>,
-    ) -> Result<Vec<SuppliedBuildLibrary>, PackageCommandError> {
+    ) -> Result<(Vec<SuppliedBuildLibrary>, Vec<PreparedInput>), PackageCommandError> {
         returned.require_source_acquisition(acquired.source_capture())?;
         // A suspended query may have already seen some of these occurrences. A demand
         // must agree with exactly that preparation, even when another alias names the same source.
@@ -84,6 +94,30 @@ impl SourceHost<'_, '_> {
                     .into(),
             );
         }
-        Ok(libraries)
+        let issued = DependencyProjections::from_executed_requests(
+            returned
+                .requests()
+                .iter()
+                .map(|registration| registration.request()),
+        )?;
+        let mut inputs = Vec::new();
+        for ((purpose, ordinal), prepared) in prepared {
+            let demanded = returned.demanded_sources().iter().any(|registered| {
+                registered.purpose == purpose && registered.request_ordinal == ordinal
+            });
+            if purpose.is_product() || demanded {
+                let request = issued
+                    .requests(purpose)
+                    .get(ordinal)
+                    .ok_or("the preparing Build lost an issued catalog registration".to_owned())?;
+                inputs.push(PreparedInput {
+                    purpose,
+                    ordinal,
+                    request: request.clone(),
+                    prepared,
+                });
+            }
+        }
+        Ok((libraries, inputs))
     }
 }

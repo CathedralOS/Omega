@@ -2,6 +2,6 @@ machine build(builder: @mutable Build) {
     Build::application(builder, "texture_access");
     Optimizations::enable(@mutable builder.optimizations, Optimization::UnsignedPowerOfTwoRemainderMask);
     Optimizations::enable(@mutable builder.optimizations, Optimization::X86ScaledIndexedLoad);
-    Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
 }

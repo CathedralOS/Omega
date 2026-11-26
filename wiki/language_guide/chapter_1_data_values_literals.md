@@ -19,7 +19,7 @@ entry:
 ```omega
 machine build(builder: @mutable Build) {
     Build::application(builder, "hello");
-    Build::bind(builder, windows_x86_64\ProgramEntry, start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, start);
 }
 ```
 

@@ -19,6 +19,7 @@ pub struct EvaluatedBuild {
     pub base_source_consumption_commitment:
         Option<source_provenance::PackageSourceConsumptionCommitment>,
     pub constants: BuildConstants,
+    pub interpreter_providers: package_compilation::InterpretedProviderSelections,
     pub subject_validation: BuildSubjectValidation,
     /// Costs of this Build context, not materialization evidence for Product.
     pub source_completion_accounting: source_completion_accounting::SourceCompletionAccounting,
