@@ -322,10 +322,11 @@ mod assignment {
                     &type_parameters,
                     data_type_parameters.span_mut_or_empty(data_definition.type_parameters),
                 );
-                if let Some(instance) = &mut data_definition.generic_instance {
+                let storage = &mut data_definition.storage;
+                if let Some(instance) = &mut storage.generic_instance {
                     assign!(instance);
-                    if data_definition.predicate_subject_symbol.is_valid() {
-                        data_definition.predicate_subject_type.clone_from(instance);
+                    if storage.predicate_subject_symbol.is_valid() {
+                        storage.predicate_subject_type.clone_from(instance);
                     }
                 }
                 if let Some(quotient) = &mut data_definition.quotient {
