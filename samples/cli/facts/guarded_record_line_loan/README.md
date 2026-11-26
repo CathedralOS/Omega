@@ -26,16 +26,7 @@ Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hos
 `omega run --both` reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/guarded_record_line_loan/main.omg
-omega run --both samples/cli/facts/guarded_record_line_loan/local/main.omg
-omega run --both samples/cli/facts/guarded_record_line_loan/field/main.omg
-omega run --both samples/cli/facts/guarded_record_line_loan/parameter/main.omg
-omega run --both samples/cli/facts/guarded_record_line_loan/call_result/main.omg
-omega run --both samples/cli/facts/guarded_record_line_loan/match_join/main.omg
-omega run --both samples/cli/facts/guarded_record_line_loan/const_name/main.omg
-omega run --both samples/cli/facts/guarded_record_line_loan/other_state/main.omg
-omega run --both samples/cli/facts/guarded_record_line_loan/other_machine/main.omg
-omega run --both samples/cli/facts/guarded_record_line_loan/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/guarded_record_line_loan
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

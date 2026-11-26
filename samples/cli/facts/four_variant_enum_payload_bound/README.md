@@ -29,19 +29,10 @@ Subsequent exact subtractions `headroom = 80u64 - res` and `margin = res - 40u64
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`.
-`omega run --both` verifies Terminal Psi interpreter and native execution agreement:
+The sample gate verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/four_variant_enum_payload_bound/main.omg
-omega run --both samples/cli/facts/four_variant_enum_payload_bound/local/main.omg
-omega run --both samples/cli/facts/four_variant_enum_payload_bound/field/main.omg
-omega run --both samples/cli/facts/four_variant_enum_payload_bound/parameter/main.omg
-omega run --both samples/cli/facts/four_variant_enum_payload_bound/call_result/main.omg
-omega run --both samples/cli/facts/four_variant_enum_payload_bound/match_join/main.omg
-omega run --both samples/cli/facts/four_variant_enum_payload_bound/const_name/main.omg
-omega run --both samples/cli/facts/four_variant_enum_payload_bound/other_state/main.omg
-omega run --both samples/cli/facts/four_variant_enum_payload_bound/other_machine/main.omg
-omega run --both samples/cli/facts/four_variant_enum_payload_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/four_variant_enum_payload_bound
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

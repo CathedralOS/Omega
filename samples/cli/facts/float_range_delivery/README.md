@@ -45,16 +45,7 @@ an interior payload 0.125 and the inclusive upper endpoint 0.25. The match also
 exercises its arms across both values. Run with `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/float_range_delivery/main.omg
-omega run --both samples/cli/facts/float_range_delivery/local/main.omg
-omega run --both samples/cli/facts/float_range_delivery/field/main.omg
-omega run --both samples/cli/facts/float_range_delivery/parameter/main.omg
-omega run --both samples/cli/facts/float_range_delivery/call_result/main.omg
-omega run --both samples/cli/facts/float_range_delivery/match_join/main.omg
-omega run --both samples/cli/facts/float_range_delivery/const_name/main.omg
-omega run --both samples/cli/facts/float_range_delivery/other_state/main.omg
-omega run --both samples/cli/facts/float_range_delivery/other_machine/main.omg
-omega run --both samples/cli/facts/float_range_delivery/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/float_range_delivery
 ```
 
 All 10 samples report `native exit 0` and `interp exit: 0`.

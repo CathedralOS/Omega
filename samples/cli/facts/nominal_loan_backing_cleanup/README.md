@@ -95,6 +95,6 @@ its starting blob is `7e1a0a1fda3b3d8e90276d01fa7cccc4fe473bf8`.
 No cleanup successor exists for a crash.
 
 ```sh
-omega run --both samples/cli/facts/nominal_loan_backing_cleanup/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/nominal_loan_backing_cleanup/local
 omega --check samples/cli/facts/nominal_loan_backing_cleanup/invalid_local/main.omg
 ```

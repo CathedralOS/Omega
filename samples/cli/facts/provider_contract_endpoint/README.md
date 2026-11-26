@@ -26,7 +26,7 @@ The frozen [local positive](local/main.omg) is the discovery program. Its public
 acceptance command is:
 
 ```sh
-omega run --both samples/cli/facts/provider_contract_endpoint/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/provider_contract_endpoint/local
 ```
 
 At producer `16b381462327a3f7d1eb8c7218bdb81114a8a10a`, the canonical Build

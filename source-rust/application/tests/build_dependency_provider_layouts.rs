@@ -79,14 +79,16 @@ fn default_only(name: &str, main: &str) -> PathBuf {
     root
 }
 
-fn assert_agreed_exit_zero(report: &str) {
-    assert!(report.contains("native exit 0"), "{report}");
-    assert!(report.contains("interp exit: 0"), "{report}");
+fn assert_runs_on_each_engine(root: &std::path::Path) {
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        let report = omega(&["run", "--engine", engine, "build.omg"], root);
+        assert!(report.lines().any(|line| line == expected), "{report}");
+    }
 }
 
 #[test]
 fn a_chosen_dependency_default_is_laid_out_for_its_target_and_runs() {
-    assert_agreed_exit_zero(&omega(&["run", "--both", "build.omg"], &fixture()));
+    assert_runs_on_each_engine(&fixture());
 }
 
 #[test]
@@ -95,9 +97,8 @@ fn an_unchosen_dependency_default_is_never_laid_out() {
         "unreached",
         "use layout_default_kit\\main\\Measure;\n\nmachine main() {\n}\n",
     );
-    let report = omega(&["run", "--both", "build.omg"], &root);
+    assert_runs_on_each_engine(&root);
     let _ = std::fs::remove_dir_all(&root);
-    assert_agreed_exit_zero(&report);
 }
 
 #[test]

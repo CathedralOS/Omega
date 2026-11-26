@@ -70,9 +70,11 @@ impl BuildExecutionInputs {
     pub fn checks_whole_subject_first(
         &self,
         inputs: Option<&PackageCompilationInputs>,
-        has_anonymous_source: bool,
+        anonymous: Option<&crate::AnonymousSourceCapture>,
     ) -> bool {
-        !self.dependency_activation && inputs.is_none() && has_anonymous_source
+        !self.dependency_activation
+            && inputs.is_none()
+            && anonymous.is_some_and(|source| source.build_owner().is_none())
     }
 
     pub fn resolve_compilation_defaults(

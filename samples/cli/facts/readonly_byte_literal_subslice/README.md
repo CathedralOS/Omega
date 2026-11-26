@@ -22,7 +22,7 @@ Every place establishes an immutable byte-view literal of 14 bytes (`"0123456789
 Run each positive place or root with:
 
 ```sh
-omega run --both samples/cli/facts/readonly_byte_literal_subslice/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/readonly_byte_literal_subslice
 omega run --both samples/cli/facts/readonly_byte_literal_subslice/<place>/main.omg
 ```
 

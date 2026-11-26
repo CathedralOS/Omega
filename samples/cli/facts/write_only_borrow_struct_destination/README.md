@@ -28,16 +28,7 @@ and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpr
 and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/write_only_borrow_struct_destination/main.omg
-omega run --both samples/cli/facts/write_only_borrow_struct_destination/local/main.omg
-omega run --both samples/cli/facts/write_only_borrow_struct_destination/field/main.omg
-omega run --both samples/cli/facts/write_only_borrow_struct_destination/parameter/main.omg
-omega run --both samples/cli/facts/write_only_borrow_struct_destination/call_result/main.omg
-omega run --both samples/cli/facts/write_only_borrow_struct_destination/match_join/main.omg
-omega run --both samples/cli/facts/write_only_borrow_struct_destination/const_name/main.omg
-omega run --both samples/cli/facts/write_only_borrow_struct_destination/other_state/main.omg
-omega run --both samples/cli/facts/write_only_borrow_struct_destination/other_machine/main.omg
-omega run --both samples/cli/facts/write_only_borrow_struct_destination/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/write_only_borrow_struct_destination
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

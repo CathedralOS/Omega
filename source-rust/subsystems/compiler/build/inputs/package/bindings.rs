@@ -21,6 +21,7 @@ pub struct PackageSourceBinding {
     pub(super) build_entries: super::PackageBuildEntries,
     pub(super) identity: PackageKeyIdentity,
     pub(super) canonical_name: String,
+    pub(super) resolution: Option<[u8; 32]>,
     pub(super) source_root: PathBuf,
     pub(super) canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
     pub(super) captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
@@ -37,6 +38,7 @@ impl PackageSourceBinding {
             build_entries: Default::default(),
             identity,
             canonical_name: canonical_name.into(),
+            resolution: None,
             source_root,
             canonical_source_metadata: None,
             captured_source: None,
@@ -55,6 +57,14 @@ impl PackageSourceBinding {
         entries.require_capture(tree)?;
         self.build_entries = entries;
         Ok(self)
+    }
+
+    pub fn with_resolution(
+        mut self,
+        resolution: &source_acquisition::ImmutableSourceResolution,
+    ) -> Self {
+        self.resolution = Some(resolution.identity_digest());
+        self
     }
 
     pub fn with_captured_source(

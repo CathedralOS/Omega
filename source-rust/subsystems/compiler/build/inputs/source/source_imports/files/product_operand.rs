@@ -47,7 +47,7 @@ pub(crate) fn product_file_sources<'graph>(
         .get(author)
         .expect("the Build author was just rejoined");
     let package = match root.as_deref() {
-        None => requester.package_identity,
+        None => storage.sources.product_owner_at(occurrence),
         Some(alias) => storage.sources.product_dependency_at(occurrence, alias),
     };
     let selected = package.and_then(|owner| {

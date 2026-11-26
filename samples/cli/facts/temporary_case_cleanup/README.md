@@ -65,7 +65,7 @@ union payloads, unselected case drop dispatch, and cross-host native qualificati
 for non-hosted targets.
 
 ```sh
-omega run --both samples/cli/facts/temporary_case_cleanup/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/temporary_case_cleanup/local
 omega --check samples/cli/facts/temporary_case_cleanup/invalid_local/main.omg
 ```
 

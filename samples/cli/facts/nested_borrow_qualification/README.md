@@ -39,7 +39,7 @@ checks both selector values, so choosing the same arm twice fails at runtime.
 Run a place through the public route:
 
 ```sh
-omega run --both samples/cli/facts/nested_borrow_qualification/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/nested_borrow_qualification/local
 omega --check samples/cli/facts/nested_borrow_qualification/invalid_local/main.omg
 ```
 

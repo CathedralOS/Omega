@@ -37,16 +37,7 @@ obligations.
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement (`interp exit: 0` and `native exit 0`):
 
 ```sh
-omega run --both samples/cli/facts/view_extent_after_write/main.omg
-omega run --both samples/cli/facts/view_extent_after_write/local/main.omg
-omega run --both samples/cli/facts/view_extent_after_write/field/main.omg
-omega run --both samples/cli/facts/view_extent_after_write/parameter/main.omg
-omega run --both samples/cli/facts/view_extent_after_write/call_result/main.omg
-omega run --both samples/cli/facts/view_extent_after_write/match_join/main.omg
-omega run --both samples/cli/facts/view_extent_after_write/const_name/main.omg
-omega run --both samples/cli/facts/view_extent_after_write/other_state/main.omg
-omega run --both samples/cli/facts/view_extent_after_write/other_machine/main.omg
-omega run --both samples/cli/facts/view_extent_after_write/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/view_extent_after_write
 ```
 
 ### The oracle discriminates

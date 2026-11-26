@@ -3,45 +3,25 @@
 //! stays borrowed while that reference is live; the record's other fields
 //! do not.
 
+#[path = "support/build_fixture.rs"]
+mod build_fixture;
 mod support;
 
-use std::process::{Command, Stdio};
 
-fn run_both(fixture: &str) -> (bool, String) {
-    let project = support::repository_root()
-        .join(fixture);
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "main.omg"])
-        .current_dir(&project)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-    );
-    let _ = std::fs::remove_dir_all(project.join("build"));
-    let _ = std::fs::remove_file(project.join("omega.lock"));
-    (output.status.success(), report)
-}
+
 
 #[test]
 fn a_runtime_element_field_reference_returns_to_the_caller_in_both_engines() {
-    let (success, report) = run_both("source-rust/application/tests/fixtures/ownership/run/runtime_element_reference_return");
-    assert!(success, "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    build_fixture::assert_silent_return(&support::repository_root().join(
+        "source-rust/application/tests/fixtures/ownership/run/runtime_element_reference_return",
+    ));
 }
 
 #[test]
 fn a_returned_element_reference_leaves_the_other_fields_of_its_argument_free() {
-    let (success, report) = run_both("source-rust/application/tests/fixtures/ownership/run/returned_reference_disjoint_field");
-    assert!(success, "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    build_fixture::assert_silent_return(&support::repository_root().join(
+        "source-rust/application/tests/fixtures/ownership/run/returned_reference_disjoint_field",
+    ));
 }
 
 #[test]
@@ -53,8 +33,8 @@ fn a_returned_runtime_element_reference_keeps_its_array_borrowed() {
             .join("expected.txt"),
     )
     .unwrap();
-    let (success, report) = run_both(fixture);
-    assert!(!success, "{report}");
+    let (output, report) = build_fixture::check(&support::repository_root().join(fixture));
+    assert!(!output.status.success(), "{report}");
     assert!(report.contains(expected.trim()), "{report}");
     assert!(report.contains("main.omg:15:19"), "{report}");
 }

@@ -22,16 +22,7 @@ Every place carries the same construct and operation: one `match` on a single ev
 Each positive place and root `main.omg` compiles and executes with agreement between Terminal Psi and native code, exiting 0 on all four hosted platforms (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`):
 
 ```sh
-omega run --both samples/cli/facts/case_payload_exclusive_loan/main.omg
-omega run --both samples/cli/facts/case_payload_exclusive_loan/local/main.omg
-omega run --both samples/cli/facts/case_payload_exclusive_loan/field/main.omg
-omega run --both samples/cli/facts/case_payload_exclusive_loan/parameter/main.omg
-omega run --both samples/cli/facts/case_payload_exclusive_loan/call_result/main.omg
-omega run --both samples/cli/facts/case_payload_exclusive_loan/match_join/main.omg
-omega run --both samples/cli/facts/case_payload_exclusive_loan/const_name/main.omg
-omega run --both samples/cli/facts/case_payload_exclusive_loan/other_state/main.omg
-omega run --both samples/cli/facts/case_payload_exclusive_loan/other_machine/main.omg
-omega run --both samples/cli/facts/case_payload_exclusive_loan/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/case_payload_exclusive_loan
 ```
 
 ### The oracle discriminates

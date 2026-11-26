@@ -65,6 +65,25 @@ impl ImmutableSourceResolution {
         Self::ExternalLocal { content }
     }
 
+    /// A path-independent commitment to the complete resolution, including the
+    /// selected Git revision when two commits name the same tree.
+    pub fn identity_digest(&self) -> [u8; 32] {
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
+            b"omega-immutable-source-resolution-v1\0",
+        );
+        match self {
+            Self::Git { commit, tree, .. } => {
+                digest.byte(0);
+                digest.bytes(commit.0.bytes());
+                digest.bytes(tree.0.bytes());
+            }
+            Self::Workspace { .. } => digest.byte(1),
+            Self::ExternalLocal { .. } => digest.byte(2),
+        }
+        digest.raw(self.content().digest());
+        digest.finish()
+    }
+
     pub fn content(&self) -> &SourceContentDigest {
         match self {
             Self::Git { content, .. }
@@ -157,6 +176,13 @@ impl GitObjectId {
                 .map(Self::Sha256)
                 .ok_or(IdentityError::InvalidGitObjectId),
             _ => Err(IdentityError::InvalidGitObjectId),
+        }
+    }
+
+    fn bytes(&self) -> &[u8] {
+        match self {
+            Self::Sha1(bytes) => bytes,
+            Self::Sha256(bytes) => bytes,
         }
     }
 

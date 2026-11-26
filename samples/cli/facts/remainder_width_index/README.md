@@ -28,16 +28,7 @@ targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and
 exit 0 under both Terminal Psi and native execution:
 
 ```sh
-omega run --both samples/cli/facts/remainder_width_index/main.omg
-omega run --both samples/cli/facts/remainder_width_index/local/main.omg
-omega run --both samples/cli/facts/remainder_width_index/field/main.omg
-omega run --both samples/cli/facts/remainder_width_index/parameter/main.omg
-omega run --both samples/cli/facts/remainder_width_index/call_result/main.omg
-omega run --both samples/cli/facts/remainder_width_index/match_join/main.omg
-omega run --both samples/cli/facts/remainder_width_index/const_name/main.omg
-omega run --both samples/cli/facts/remainder_width_index/other_state/main.omg
-omega run --both samples/cli/facts/remainder_width_index/other_machine/main.omg
-omega run --both samples/cli/facts/remainder_width_index/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/remainder_width_index
 ```
 
 Each place has an `invalid/` twin whose width is one greater than the view

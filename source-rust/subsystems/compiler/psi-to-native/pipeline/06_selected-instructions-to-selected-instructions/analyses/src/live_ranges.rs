@@ -1097,6 +1097,13 @@ pub mod compute {
                 }
             }
 
+            let entry = liveness
+                .blocks
+                .iter()
+                .find(|block| block.block == selected.entry_block)
+                .ok_or(LiveRangeError::FunctionMismatch {
+                    function: function_index,
+                })?;
             let mut virtual_rows = Vec::with_capacity(register_count);
             for (pos, register) in selected.virtual_registers.iter().enumerate() {
                 let canonical_idx = register_index[register.id.0 as usize] as usize;
@@ -1105,7 +1112,10 @@ pub mod compute {
                 let row_indices = &operand_indices[row_start..row_end];
                 let mut occurrences = Vec::with_capacity(row_indices.len());
                 let mut fixed_constraints = Vec::new();
-                if let Some(view) = register.entry_fixed_view {
+                // An incoming ABI view constrains allocation only while the value is live.
+                if let Some(view) = register.entry_fixed_view
+                    && entry.virtual_live_in.binary_search(&register.id).is_ok()
+                {
                     fixed_constraints.push(VirtualFixedConstraint {
                         site: VirtualFixedConstraintSite::Entry,
                         view,

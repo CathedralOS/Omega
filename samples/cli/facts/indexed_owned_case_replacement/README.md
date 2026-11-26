@@ -37,7 +37,7 @@ reports the equivalent declared interval `1..=7`; the other controls name
 Run a place with:
 
 ```sh
-omega run --both samples/cli/facts/indexed_owned_case_replacement/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/indexed_owned_case_replacement/local
 ```
 
 ## Requirements and evidence

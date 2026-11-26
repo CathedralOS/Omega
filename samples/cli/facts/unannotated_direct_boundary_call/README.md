@@ -34,16 +34,7 @@ interpreter exit 0 and native exit 0. Windows, macOS, and QEMU execution were
 not run on this host.
 
 ```sh
-omega run --both samples/cli/facts/unannotated_direct_boundary_call/main.omg
-omega run --both samples/cli/facts/unannotated_direct_boundary_call/local/main.omg
-omega run --both samples/cli/facts/unannotated_direct_boundary_call/field/main.omg
-omega run --both samples/cli/facts/unannotated_direct_boundary_call/parameter/main.omg
-omega run --both samples/cli/facts/unannotated_direct_boundary_call/call_result/main.omg
-omega run --both samples/cli/facts/unannotated_direct_boundary_call/match_join/main.omg
-omega run --both samples/cli/facts/unannotated_direct_boundary_call/const_name/main.omg
-omega run --both samples/cli/facts/unannotated_direct_boundary_call/other_state/main.omg
-omega run --both samples/cli/facts/unannotated_direct_boundary_call/other_machine/main.omg
-omega run --both samples/cli/facts/unannotated_direct_boundary_call/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/unannotated_direct_boundary_call
 ```
 
 The oracle discriminates. A provider result other than 7 takes `bad()` and

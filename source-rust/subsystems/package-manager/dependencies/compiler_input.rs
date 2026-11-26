@@ -66,7 +66,8 @@ impl<'closure> PackageCompilationScope<'closure> {
                     custody.key().identity(),
                     custody.key().name().as_str(),
                     custody.snapshot_root().to_path_buf(),
-                );
+                )
+                .with_resolution(custody.resolution());
                 if custody.key() == root {
                     if let Some(captured) = root_binding.as_ref().filter(|captured| {
                         captured.identity() == binding.identity()
