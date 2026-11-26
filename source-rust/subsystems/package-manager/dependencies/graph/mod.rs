@@ -40,7 +40,7 @@ pub(crate) use subject::{
     CanonicalSourceClosureSubjectFingerprint, CanonicalSourceClosureSubjectLimits,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct ResolvedSourceIdentity {
     key: PackageKey,
     resolution: ImmutableSourceResolution,

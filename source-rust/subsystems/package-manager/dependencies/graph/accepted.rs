@@ -58,8 +58,8 @@ pub(crate) fn admit_locked_issued_source_request(
             .catalog_dependencies()
             .iter()
             .find(|dependency| {
-                dependency.observer.key().source_lineage() == origin.lineage
-                    && &dependency.navigation == origin.navigation
+                dependency.observer.lineage() == origin.lineage
+                    && dependency.observer.navigation() == origin.navigation
                     && dependency.ordinal == ordinal
             })
             .ok_or("requesting source is absent from locked graph")?;

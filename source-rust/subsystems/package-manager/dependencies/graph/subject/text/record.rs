@@ -1,6 +1,7 @@
 //! The canonical package graph records a purpose on every edge. Recovery checks
 //! field limits, total allocation and byte-for-byte canonical re-emission.
 
+use super::super::CatalogObserver;
 use super::super::{
     CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,
@@ -13,14 +14,17 @@ use super::requests::{
     into_authored, read_navigation, read_request, read_root, write_navigation, write_request,
     write_root,
 };
-use super::source::{read_key, read_source, write_key, write_source};
+use super::source::{
+    read_key, read_lineage, read_resolution, read_source, write_key, write_lineage,
+    write_resolution, write_source,
+};
 use crate::declarations::dependencies::read::{
     DependencyProjections, DependencyPurpose, DependencyUse, ProjectedDependencies,
 };
 use semantic_vocabulary::dependency_reach::DependencyReach;
 use target::TargetProfile;
 
-const TEXT_VERSION: usize = 7;
+const TEXT_VERSION: usize = 8;
 
 impl CanonicalSourceClosureSubject {
     pub fn canonical_text(&self, limits: Limits) -> Result<String, Error> {
@@ -86,8 +90,21 @@ impl CanonicalSourceClosureSubject {
         writer.number("catalog-dependencies", self.catalog_dependencies.len())?;
         for dependency in &self.catalog_dependencies {
             writer.row("catalog-dependency", &[])?;
-            write_source(writer, &dependency.observer)?;
-            write_navigation(writer, &dependency.navigation)?;
+            match &dependency.observer {
+                CatalogObserver::Member { source, navigation } => {
+                    writer.row("observer member", &[])?;
+                    write_source(writer, source)?;
+                    write_navigation(writer, navigation)?;
+                }
+                CatalogObserver::Workspace {
+                    lineage,
+                    resolution,
+                } => {
+                    writer.row("observer workspace", &[])?;
+                    write_lineage(writer, lineage)?;
+                    write_resolution(writer, resolution)?;
+                }
+            }
             writer.number("preparing", usize::from(dependency.preparation.is_some()))?;
             if let Some(stage) = &dependency.preparation {
                 writer.number("stage", stage.ordinal)?;
@@ -193,8 +210,18 @@ impl CanonicalSourceClosureSubject {
         let mut catalog_dependencies = reader.budget.reserve(count)?;
         for _ in 0..count {
             reader.expect("catalog-dependency")?;
-            let observer = read_source(reader, limits)?;
-            let navigation = read_navigation(reader, limits)?;
+            reader.expect("observer")?;
+            let observer = match reader.atom()? {
+                "member" => CatalogObserver::Member {
+                    source: read_source(reader, limits)?,
+                    navigation: read_navigation(reader, limits)?,
+                },
+                "workspace" => CatalogObserver::Workspace {
+                    lineage: read_lineage(reader, limits)?,
+                    resolution: read_resolution(reader)?,
+                },
+                _ => return Err(Error::new("unknown catalog observer role")),
+            };
             reader.expect("preparing")?;
             let preparation = if reader.number(1)? == 1 {
                 reader.expect("stage")?;
@@ -216,7 +243,6 @@ impl CanonicalSourceClosureSubject {
             let provider = Self::read_text(reader, limits, false)?;
             catalog_dependencies.push(super::super::CanonicalCatalogDependency {
                 observer,
-                navigation,
                 preparation,
                 purpose,
                 ordinal,

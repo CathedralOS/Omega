@@ -15,6 +15,13 @@ pub(crate) enum PackageSourceSelectionEvidence {
 }
 
 impl PackageSourceSelectionEvidence {
+    pub(crate) fn root_inputs(&self) -> &[super::CatalogInput] {
+        match self {
+            Self::GitWorkspace(evidence) => evidence.root_inputs(),
+            Self::Root | Self::HistoricalGit { .. } => &[],
+        }
+    }
+
     pub(crate) fn observations(&self) -> &[super::WorkspaceMemberObservation] {
         match self {
             Self::Root | Self::HistoricalGit { .. } => &[],
