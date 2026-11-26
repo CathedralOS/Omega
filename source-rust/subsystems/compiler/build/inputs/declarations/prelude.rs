@@ -65,7 +65,7 @@ const MODULES: &[(&str, &str)] = &[
     ("TestGroup", include_str!("prelude/modules/test_group.omg")),
     ("BuildLog", include_str!("prelude/modules/build_log.omg")),
     (
-        "BuildProduct",
-        include_str!("prelude/modules/build_product.omg"),
+        "BuildDeclarations",
+        include_str!("prelude/modules/build_declarations.omg"),
     ),
 ];

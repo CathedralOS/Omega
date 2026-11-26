@@ -26,5 +26,5 @@ machine build(builder: @mutable Build) {
 // opaque description back; `roots.bind` rejoins it to the exact machine the
 // query chose.
 machine choose(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
-    BuildProduct::entry(@builder.product, "left::run", slot)
+    BuildDeclarations::entry(@builder.declarations, "left::run", slot)
 }

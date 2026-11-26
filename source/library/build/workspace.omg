@@ -1,0 +1,7 @@
+// Extend an immutable catalog. The invocation retains the pathname when the
+// call returns, so its original byte view may then go out of scope.
+public machine with_member(plan: @BuildPlan, catalog: WorkspaceMembers, path: @[u8]) -> WorkspaceMembers
+reaches BuildRequestOperations
+{
+    BuildRequestOperations::extend_workspace(plan, catalog, path)
+}

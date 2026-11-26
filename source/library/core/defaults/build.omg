@@ -1,2 +1,2 @@
 // The first Build for a source file without an authored Build entry.
-machine build(builder: @mutable Build) {}
+machine build(builder: @mutable BuildPlan) {}

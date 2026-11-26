@@ -1,10 +1,10 @@
 // The dependency package's own build machine also runs: `choose`
-// queries `BuildProduct::entry` for the windows entry spelling —
+// queries `BuildDeclarations::entry` for the windows entry spelling —
 // entry inventory is a build-time observation, not a bound fact.
 machine build(builder: @mutable Build) {
     Build::package(builder, "query_dependency");
     let entry: ProductEntryRef = choose(builder, "launch");
 }
 machine choose(builder: @mutable Build, path: @[u8]) -> ProductEntryRef {
-    BuildProduct::entry(@builder.product, path, "windows_x86_64::ProgramEntry")
+    BuildDeclarations::entry(@builder.declarations, path, "windows_x86_64::ProgramEntry")
 }

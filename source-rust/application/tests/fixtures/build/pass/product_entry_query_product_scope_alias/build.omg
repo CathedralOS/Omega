@@ -12,5 +12,5 @@ machine build(builder: @mutable Build) {
     Build::bind(builder, linux_arm64::ProgramEntry, entry(builder, "linux_arm64::ProgramEntry"));
 }
 machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
-    BuildProduct::entry(@builder.product, "support::setup::launch", slot)
+    BuildDeclarations::entry(@builder.declarations, "support::setup::launch", slot)
 }

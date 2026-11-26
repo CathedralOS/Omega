@@ -157,16 +157,16 @@ component installation. External provider readiness goes through
 `poll_effect_readiness` and needs a checked suspension crossing. The Build
 application, not either interpreter hook, schedules product queries.
 
-After a normal return, `TerminalInstance::observe_borrowed_entry` reads one
-leaf of a structural argument the host lent, by dense argument index and
-canonical declaration path. The original home outlives the retired helper and
-entry frames; owned inputs are not kept for readback. It returns plain scalar
-or case contents or borrowed byte readers, never a qualified guest value or an
-opaque host capability. Paused, crashed, externally terminated and closed
-instances cannot report a normal borrowed result. (Its `compiler`
-test, `terminal_entry_writeback`, no longer exists.)
-This lets Build observe settings; it does not move Build effects or activation
-scheduling off the legacy evaluator.
+The host reads storage through `TerminalInstance::observe_storage`. It selects
+a root and a canonical declaration path. On normal return the root may be the
+result or an original borrowed argument. While a synchronous host computation
+is pending, the host can observe an original borrowed argument to answer that
+call. External provider waits and interrupted invocations cannot supply that
+result. Owned inputs expire with their entry frame.
+
+The Build driver uses the returned plan to select its product. A declaration
+query reads the live plan at its host call. Reading an issued value inside a
+sum also checks the active case before it reads the field.
 
 Byte readback holds a Rust borrow of the instance instead of copying the
 payload. `TerminalByteRead::len` lets the host check the size and reserve live

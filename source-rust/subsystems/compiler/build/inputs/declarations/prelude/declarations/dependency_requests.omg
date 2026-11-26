@@ -9,19 +9,16 @@ public data Source<'storage> {
 // Executed project requests cross one compiler-issued host protocol. Source
 // variants are decomposed by ordinary Omega code, not a host syntax visitor.
 public boundary trait BuildRequestOperations {
-    machine package(builder: @Build, name: @[u8]) reaches none crashes none;
-    machine application(builder: @Build, name: @[u8]) reaches none crashes none;
-    machine member(builder: @Build, path: @[u8]) reaches none crashes none;
-    machine build_entry(builder: @Build, path: @[u8]) reaches none crashes none;
-    machine artifact_only(builder: @Build) reaches none crashes none;
-    machine register_path_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
-    machine register_git_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
-    machine input_binding(builder: @Build, alias: @[u8]) -> PackageBinding reaches none crashes none;
-    machine extend_reach(builder: @Build, prior: PackageReach, service: BoundaryServiceReference) -> PackageReach reaches none crashes none;
-    machine add_binding(builder: @Build, binding: PackageBinding, max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
-    machine validate_dependency(builder: @Build, registered: DependencyRegistration) reaches none crashes none;
-    machine prepare_dependency(builder: @Build, registered: DependencyRegistration) reaches none crashes none suspends;
-    machine publish_source(builder: @Build, name: @[u8], source: @[u8]) reaches none crashes none;
+    machine extend_workspace(builder: @BuildPlan, prefix: WorkspaceMembers, path: @[u8]) -> WorkspaceMembers reaches none crashes none;
+    machine artifact_only(builder: @BuildPlan) reaches none crashes none;
+    machine register_path_dependency(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
+    machine register_git_dependency(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
+    machine input_binding(builder: @BuildPlan, alias: @[u8]) -> PackageBinding reaches none crashes none;
+    machine extend_reach(builder: @BuildPlan, prior: PackageReach, service: BoundaryServiceReference) -> PackageReach reaches none crashes none;
+    machine add_binding(builder: @BuildPlan, binding: PackageBinding, max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
+    machine validate_dependency(builder: @BuildPlan, registered: DependencyRegistration) reaches none crashes none;
+    machine prepare_dependency(builder: @BuildPlan, registered: DependencyRegistration) reaches none crashes none suspends;
+    machine publish_source(builder: @BuildPlan, name: @[u8], source: @[u8]) reaches none crashes none;
     machine configure_test_engine(group: @mutable TestGroupSettings, target: u64, engine: u64, policy: u64) reaches none crashes none;
     machine configure_test_fixture(group: @mutable TestGroupSettings, setting: u64, path: @[u8], bytes: @[u8]) reaches none crashes none;
     machine write_log(log: @BuildLog, text: @[u8]) reaches none crashes none;
