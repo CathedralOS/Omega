@@ -1,5 +1,6 @@
 // Population-count sample with console input, console output, and process exit.
 
+use main.omg as app;
 use {omega}/build/dependency.omg;
 use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
@@ -13,8 +14,9 @@ machine build(builder: @mutable Build) {
     ];
     let adapter: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../../../source/library/system" });
     _ = |dependency|::add(builder, adapter, @allowed[..]);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }
