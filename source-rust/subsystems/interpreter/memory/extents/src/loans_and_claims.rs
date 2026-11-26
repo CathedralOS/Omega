@@ -263,33 +263,15 @@ pub(crate) mod activation_claims {
     }
 
     impl ActivationClaim {
-        pub const fn id(&self) -> ActivationClaimId {
-            self.id
-        }
-
-        pub const fn site(&self) -> ActivationClaimSiteId {
-            self.site
-        }
-
-        pub const fn branch(&self) -> &ActivationClaimBranch {
-            &self.branch
-        }
-
-        pub const fn bound(&self) -> u64 {
-            self.bound
-        }
-
-        pub const fn alignment(&self) -> u64 {
-            self.alignment
-        }
-
-        pub const fn committed(&self) -> u64 {
-            self.committed
-        }
-
-        pub const fn provenance(&self) -> ActivationClaimProvenance {
-            self.provenance
-        }
+        get_fields!(copy &self;
+            id: ActivationClaimId,
+            site: ActivationClaimSiteId,
+            bound: u64,
+            alignment: u64,
+            committed: u64,
+            provenance: ActivationClaimProvenance,
+        );
+        get_fields!(ref &self; branch: ActivationClaimBranch);
 
         fn bound_row(&self) -> ClaimBoundRow<'_> {
             ClaimBoundRow {
@@ -332,27 +314,20 @@ pub(crate) mod activation_claims {
         }
 
         fn live_position(&self, id: ActivationClaimId) -> Result<usize, ExtentDiagnostic> {
-            let Some(position) = self.live.iter().position(|claim| claim.id == id) else {
-                return Err(ExtentDiagnostic(format!(
-                    "claim {} is not live in this activation",
-                    id.0
-                )));
-            };
-            Ok(position)
+            self.live
+                .iter()
+                .position(|claim| claim.id == id)
+                .ok_or_else(|| {
+                    ExtentDiagnostic(format!("claim {} is not live in this activation", id.0))
+                })
         }
 
         pub fn establish(
             &mut self,
             request: ActivationClaimRequest,
         ) -> Result<ActivationClaimId, ClaimEstablishmentError> {
-            if let Err(diagnostic) = aligned_claim_bound(request.bound, request.alignment) {
-                return Err(ClaimEstablishmentError {
-                    request,
-                    diagnostic,
-                });
-            }
-            if let Err(diagnostic) =
-                validate_committed_within_bound(request.bound, request.committed)
+            if let Err(diagnostic) = aligned_claim_bound(request.bound, request.alignment)
+                .and_then(|_| validate_committed_within_bound(request.bound, request.committed))
             {
                 return Err(ClaimEstablishmentError {
                     request,
@@ -425,27 +400,22 @@ pub(crate) mod activation_claims {
                 bound: bound_at,
                 committed: committed_at,
                 id: ActivationClaimId(0),
-                site: claim.site,
                 branch: claim.branch.clone(),
-                alignment: claim.alignment,
-                provenance: claim.provenance,
                 lineage: Lineage {
                     root: claim.lineage.root,
                     path: lower_path,
                 },
+                ..claim
             });
             let upper_id = self.push_established(ActivationClaim {
                 bound: claim.bound - bound_at,
                 committed: claim.committed - committed_at,
                 id: ActivationClaimId(0),
-                site: claim.site,
-                branch: claim.branch,
-                alignment: claim.alignment,
-                provenance: claim.provenance,
                 lineage: Lineage {
                     root: claim.lineage.root,
                     path: upper_path,
                 },
+                ..claim
             });
             Ok((lower_id, upper_id))
         }
@@ -532,27 +502,71 @@ pub(crate) mod activation_claims {
 
 pub(crate) mod external_loans {
     use crate::extent::diagnostic::ExtentDiagnostic;
-
     use crate::loans::ExtentLoan;
     use arena::NormalizedIdentitySet;
-    use extent_contracts::ExternalBorrowerId;
-    use extent_contracts::ExternalLoanId;
-    use extent_contracts::LoanPolarity;
     use extent_contracts::{
-        AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
+        AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, ExternalBorrowerId,
+        ExternalCompletionFactId, ExternalLoanId, ExternalReachReceiptId, LoanPolarity,
+        MappingEraId,
     };
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ExternalLoanDirection {
         DeviceReads,
         DeviceWrites,
     }
 
-    use extent_contracts::ExternalCompletionFactId;
-    use extent_contracts::ExternalReachReceiptId;
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ExternalReachMechanism {
         AdmittedBorrowerContract,
         HardwareIsolation,
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct LentExtentSnapshot {
+        address_space: AddressSpaceId,
+        provenance: ExtentProvenanceId,
+        era: MappingEraId,
+        lineage: ExtentLineageId,
+        rights: ExtentRights,
+        base: u64,
+        length: u64,
+    }
+
+    impl LentExtentSnapshot {
+        fn from_loan(loan: &ExtentLoan<'_>) -> Self {
+            Self {
+                address_space: loan.address_space(),
+                provenance: loan.provenance(),
+                era: loan.era(),
+                lineage: loan.lineage_root(),
+                rights: loan.rights().clone(),
+                base: loan.base(),
+                length: loan.length(),
+            }
+        }
+
+        fn verify(
+            &self,
+            loan: &ExtentLoan<'_>,
+            receipt_kind: &str,
+            range_mismatch: &'static str,
+        ) -> Option<String> {
+            first_mismatch!(
+                self.address_space != loan.address_space()
+                    => format!("{receipt_kind} receipt names a different address space"),
+                self.provenance != loan.provenance()
+                    => format!("{receipt_kind} receipt names different extent provenance"),
+                self.era != loan.era()
+                    => format!("{receipt_kind} receipt names a stale mapping era"),
+                self.lineage != loan.lineage_root()
+                    => format!("{receipt_kind} receipt names a different extent authority lineage"),
+                self.rights != *loan.rights()
+                    => format!("{receipt_kind} receipt names different attenuated extent rights"),
+                self.base != loan.base() || self.length != loan.length()
+                    => range_mismatch.into(),
+            )
+        }
     }
 
     #[derive(Debug, PartialEq, Eq)]
@@ -561,13 +575,7 @@ pub(crate) mod external_loans {
         loan: ExternalLoanId,
         borrower: ExternalBorrowerId,
         direction: ExternalLoanDirection,
-        address_space: AddressSpaceId,
-        provenance: ExtentProvenanceId,
-        era: MappingEraId,
-        lineage: ExtentLineageId,
-        rights: ExtentRights,
-        base: u64,
-        length: u64,
+        extent: LentExtentSnapshot,
         mechanism: ExternalReachMechanism,
         confined_to_range: bool,
     }
@@ -586,13 +594,7 @@ pub(crate) mod external_loans {
                 loan: loan_identity,
                 borrower: grant.borrower,
                 direction: grant.direction,
-                address_space: loan.address_space(),
-                provenance: loan.provenance(),
-                era: loan.era(),
-                lineage: loan.lineage_root(),
-                rights: loan.rights().clone(),
-                base: loan.base(),
-                length: loan.length(),
+                extent: LentExtentSnapshot::from_loan(loan),
                 mechanism,
                 confined_to_range,
             }
@@ -643,71 +645,50 @@ pub(crate) mod external_loans {
     }
 
     impl<'extent> ExternalLoan<'extent> {
-        pub const fn identity(&self) -> ExternalLoanId {
-            self.identity
-        }
-
-        pub const fn borrower(&self) -> ExternalBorrowerId {
-            self.borrower
-        }
-
-        pub const fn direction(&self) -> ExternalLoanDirection {
-            self.direction
-        }
-
-        pub const fn reach_receipt(&self) -> ExternalReachReceiptId {
-            self.reach_receipt
-        }
-
-        pub const fn reach_mechanism(&self) -> ExternalReachMechanism {
-            self.reach_mechanism
-        }
-
-        pub const fn base(&self) -> u64 {
-            self.loan.base()
-        }
-
-        pub const fn length(&self) -> u64 {
-            self.loan.length()
-        }
+        get_fields!(copy &self;
+            identity: ExternalLoanId,
+            borrower: ExternalBorrowerId,
+            direction: ExternalLoanDirection,
+            reach_receipt: ExternalReachReceiptId,
+            reach_mechanism: ExternalReachMechanism,
+        );
+        delegate_methods!(const pub loan { base: u64, length: u64 });
 
         pub fn complete(
             self,
             receipt: ExternalCompletionReceipt,
         ) -> Result<ExternalLoanCompletion, Box<ExternalCompletionError<'extent>>> {
-            let mismatch = if receipt.loan != self.identity {
-                Some("completion receipt names a different external loan")
-            } else if receipt.borrower != self.borrower {
-                Some("completion receipt names a different external borrower")
-            } else if receipt.direction != self.direction {
-                Some("completion receipt names a different transfer direction")
-            } else if receipt.reach_receipt != self.reach_receipt {
-                Some("completion receipt names different confinement evidence")
-            } else if receipt.address_space != self.loan.address_space() {
-                Some("completion receipt names a different address space")
-            } else if receipt.provenance != self.loan.provenance() {
-                Some("completion receipt names different extent provenance")
-            } else if receipt.era != self.loan.era() {
-                Some("completion receipt names a stale mapping era")
-            } else if receipt.lineage != self.loan.lineage_root() {
-                Some("completion receipt names a different extent authority lineage")
-            } else if receipt.rights != *self.loan.rights() {
-                Some("completion receipt names different attenuated extent rights")
-            } else if receipt.base != self.loan.base() || receipt.length != self.loan.length() {
-                Some("completion receipt names a different lent extent range")
-            } else if !receipt.borrow_released {
-                Some("completion receipt does not establish external-borrow release")
-            } else if !receipt.established_facts.contains(&self.completion) {
-                Some("completion receipt lacks facts required by the external-loan grant")
-            } else {
-                None
-            };
+            let mismatch = first_mismatch!(
+                receipt.loan != self.identity
+                    => "completion receipt names a different external loan".into(),
+                receipt.borrower != self.borrower
+                    => "completion receipt names a different external borrower".into(),
+                receipt.direction != self.direction
+                    => "completion receipt names a different transfer direction".into(),
+                receipt.reach_receipt != self.reach_receipt
+                    => "completion receipt names different confinement evidence".into(),
+            )
+            .or_else(|| {
+                receipt.extent.verify(
+                    &self.loan,
+                    "completion",
+                    "completion receipt names a different lent extent range",
+                )
+            })
+            .or_else(|| {
+                first_mismatch!(
+                    !receipt.borrow_released
+                        => "completion receipt does not establish external-borrow release".into(),
+                    !receipt.established_facts.contains(&self.completion)
+                        => "completion receipt lacks facts required by the external-loan grant".into(),
+                )
+            });
 
             if let Some(message) = mismatch {
                 return Err(Box::new(ExternalCompletionError {
                     loan: self,
                     receipt,
-                    diagnostic: ExtentDiagnostic(message.into()),
+                    diagnostic: ExtentDiagnostic(message),
                 }));
             }
 
@@ -727,73 +708,52 @@ pub(crate) mod external_loans {
         grant: &ExternalLoanGrant,
         reach_receipt: Option<ExternalReachReceipt>,
     ) -> Result<ExternalLoan<'extent>, Box<ExternalLoanStartError<'extent>>> {
-        let mismatch = if loan.address_space() != grant.address_space {
-            Some("extent address space does not match external-loan grant")
-        } else if loan.provenance() != grant.provenance {
-            Some("extent provenance does not match external-loan grant")
-        } else if !loan.rights().contains(&grant.required_rights) {
-            Some("extent lacks rights required by external-loan grant")
-        } else if grant.direction == ExternalLoanDirection::DeviceReads
-            && loan.polarity() != LoanPolarity::Shared
-        {
-            Some("device-read lending requires a shared extent loan")
-        } else if grant.direction == ExternalLoanDirection::DeviceWrites
-            && loan.polarity() != LoanPolarity::Exclusive
-        {
-            Some("device-write lending requires an exclusive extent loan")
-        } else {
-            None
-        };
+        let mismatch: Option<String> = first_mismatch!(
+            loan.address_space() != grant.address_space
+                => "extent address space does not match external-loan grant",
+            loan.provenance() != grant.provenance
+                => "extent provenance does not match external-loan grant",
+            !loan.rights().contains(&grant.required_rights)
+                => "extent lacks rights required by external-loan grant",
+            grant.direction == ExternalLoanDirection::DeviceReads
+                && loan.polarity() != LoanPolarity::Shared
+                => "device-read lending requires a shared extent loan",
+            grant.direction == ExternalLoanDirection::DeviceWrites
+                && loan.polarity() != LoanPolarity::Exclusive
+                => "device-write lending requires an exclusive extent loan",
+        )
+        .map(str::to_owned)
+        .or_else(|| match reach_receipt.as_ref() {
+            None => Some(
+                "external borrower requires exact-range reach evidence or hardware isolation"
+                    .into(),
+            ),
+            Some(receipt) => first_mismatch!(
+                receipt.loan != identity
+                    => "external-reach receipt names a different external loan".into(),
+                receipt.borrower != grant.borrower
+                    => "external-reach receipt names a different borrower".into(),
+                receipt.direction != grant.direction
+                    => "external-reach receipt names a different transfer direction".into(),
+            )
+            .or_else(|| {
+                receipt.extent.verify(
+                    &loan,
+                    "external-reach",
+                    "external borrower reach is not the exact lent extent range",
+                )
+            })
+            .or_else(|| {
+                (!receipt.confined_to_range)
+                    .then(|| "external-reach receipt does not establish range confinement".into())
+            }),
+        });
 
         if let Some(message) = mismatch {
             return Err(Box::new(ExternalLoanStartError {
                 loan,
                 reach_receipt,
-                diagnostic: ExtentDiagnostic(message.into()),
-            }));
-        }
-
-        let reach_mismatch = match reach_receipt.as_ref() {
-            None => {
-                Some("external borrower requires exact-range reach evidence or hardware isolation")
-            }
-            Some(receipt) if receipt.loan != identity => {
-                Some("external-reach receipt names a different external loan")
-            }
-            Some(receipt) if receipt.borrower != grant.borrower => {
-                Some("external-reach receipt names a different borrower")
-            }
-            Some(receipt) if receipt.direction != grant.direction => {
-                Some("external-reach receipt names a different transfer direction")
-            }
-            Some(receipt) if receipt.address_space != loan.address_space() => {
-                Some("external-reach receipt names a different address space")
-            }
-            Some(receipt) if receipt.provenance != loan.provenance() => {
-                Some("external-reach receipt names different extent provenance")
-            }
-            Some(receipt) if receipt.era != loan.era() => {
-                Some("external-reach receipt names a stale mapping era")
-            }
-            Some(receipt) if receipt.lineage != loan.lineage_root() => {
-                Some("external-reach receipt names a different extent authority lineage")
-            }
-            Some(receipt) if receipt.rights != *loan.rights() => {
-                Some("external-reach receipt names different attenuated extent rights")
-            }
-            Some(receipt) if receipt.base != loan.base() || receipt.length != loan.length() => {
-                Some("external borrower reach is not the exact lent extent range")
-            }
-            Some(receipt) if !receipt.confined_to_range => {
-                Some("external-reach receipt does not establish range confinement")
-            }
-            Some(_) => None,
-        };
-        if let Some(message) = reach_mismatch {
-            return Err(Box::new(ExternalLoanStartError {
-                loan,
-                reach_receipt,
-                diagnostic: ExtentDiagnostic(message.into()),
+                diagnostic: ExtentDiagnostic(message),
             }));
         }
         let reach_receipt = reach_receipt.expect("validated external-reach receipt");
@@ -815,13 +775,7 @@ pub(crate) mod external_loans {
         borrower: ExternalBorrowerId,
         direction: ExternalLoanDirection,
         reach_receipt: ExternalReachReceiptId,
-        address_space: AddressSpaceId,
-        provenance: ExtentProvenanceId,
-        era: MappingEraId,
-        lineage: ExtentLineageId,
-        rights: ExtentRights,
-        base: u64,
-        length: u64,
+        extent: LentExtentSnapshot,
         borrow_released: bool,
         established_facts: CompletionObligations,
     }
@@ -837,13 +791,7 @@ pub(crate) mod external_loans {
                 borrower: loan.borrower,
                 direction: loan.direction,
                 reach_receipt: loan.reach_receipt,
-                address_space: loan.loan.address_space(),
-                provenance: loan.loan.provenance(),
-                era: loan.loan.era(),
-                lineage: loan.loan.lineage_root(),
-                rights: loan.loan.rights().clone(),
-                base: loan.loan.base(),
-                length: loan.loan.length(),
+                extent: LentExtentSnapshot::from_loan(&loan.loan),
                 borrow_released,
                 established_facts: CompletionObligations::from_normalized_identities(
                     established_facts,
@@ -861,43 +809,27 @@ pub(crate) mod external_loans {
         pub length: u64,
     }
 
-    #[derive(Debug)]
-    pub struct ExternalLoanStartError<'extent> {
-        loan: ExtentLoan<'extent>,
-        reach_receipt: Option<ExternalReachReceipt>,
-        diagnostic: ExtentDiagnostic,
-    }
+    conserved_error!(
+        #[derive(Debug)]
+        pub struct ExternalLoanStartError<'extent> {
+            loan: ExtentLoan<'extent>,
+            reach_receipt: Option<ExternalReachReceipt>,
+        } => into_parts
+    );
 
     impl<'extent> ExternalLoanStartError<'extent> {
-        pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-            &self.diagnostic
-        }
-
         pub fn into_loan(self) -> ExtentLoan<'extent> {
             self.loan
         }
-
-        pub fn into_parts(self) -> (ExtentLoan<'extent>, Option<ExternalReachReceipt>) {
-            (self.loan, self.reach_receipt)
-        }
     }
 
-    #[derive(Debug)]
-    pub struct ExternalCompletionError<'extent> {
-        loan: ExternalLoan<'extent>,
-        receipt: ExternalCompletionReceipt,
-        diagnostic: ExtentDiagnostic,
-    }
-
-    impl<'extent> ExternalCompletionError<'extent> {
-        pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-            &self.diagnostic
-        }
-
-        pub fn into_parts(self) -> (ExternalLoan<'extent>, ExternalCompletionReceipt) {
-            (self.loan, self.receipt)
-        }
-    }
+    conserved_error!(
+        #[derive(Debug)]
+        pub struct ExternalCompletionError<'extent> {
+            loan: ExternalLoan<'extent>,
+            receipt: ExternalCompletionReceipt,
+        } => into_parts
+    );
 
     #[cfg(test)]
     mod tests {
@@ -1042,8 +974,8 @@ pub(crate) mod external_loans {
                 &loan,
                 ExternalReachMechanism::HardwareIsolation,
             );
-            overbroad_reach.base = 0x3000;
-            overbroad_reach.length = 128;
+            overbroad_reach.extent.base = 0x3000;
+            overbroad_reach.extent.length = 128;
             let overbroad =
                 begin_external_loan(loan, loan_id(603), &read_grant, Some(overbroad_reach))
                     .expect_err("whole-parent reach exceeds the exact lent subrange");
@@ -1108,10 +1040,10 @@ pub(crate) mod ordering_events {
     use std::collections::{BTreeMap, BTreeSet};
 
     use crate::extent::diagnostic::{ExtentDiagnostic, validate_range};
-    use extent_contracts::ExternalLoanId;
-
-    use extent_contracts::MappingId;
-    use extent_contracts::{AddressSpaceId, ExtentLineageId, ExtentProvenanceId, MappingEraId};
+    use extent_contracts::{
+        AddressSpaceId, DeviceInstanceId, ExtentLineageId, ExtentProvenanceId, ExternalLoanId,
+        MappingEraId, MappingId, OrderingEventId, RuntimeScopeId,
+    };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum DeviceOrderingRole {
@@ -1134,9 +1066,6 @@ pub(crate) mod ordering_events {
         }
     }
 
-    use extent_contracts::DeviceInstanceId;
-    use extent_contracts::OrderingEventId;
-    use extent_contracts::RuntimeScopeId;
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum OrderingCoordinateKind {
         Data,
@@ -1209,29 +1138,14 @@ pub(crate) mod ordering_events {
             })
         }
 
-        pub const fn identity(&self) -> OrderingEventId {
-            self.identity
-        }
-
-        pub const fn role(&self) -> DeviceOrderingRole {
-            self.role
-        }
-
-        pub const fn device(&self) -> DeviceInstanceId {
-            self.device
-        }
-
-        pub const fn scope(&self) -> RuntimeScopeId {
-            self.scope
-        }
-
-        pub const fn request(&self) -> ExternalLoanId {
-            self.request
-        }
-
-        pub const fn authority(&self) -> OrderingAuthority {
-            self.authority
-        }
+        get_fields!(copy &self;
+            identity: OrderingEventId,
+            role: DeviceOrderingRole,
+            device: DeviceInstanceId,
+            scope: RuntimeScopeId,
+            request: ExternalLoanId,
+            authority: OrderingAuthority,
+        );
 
         pub fn coordinate(&self, kind: OrderingCoordinateKind) -> Option<OrderingRange> {
             self.coordinates.get(&kind).copied()
@@ -1267,21 +1181,10 @@ pub(crate) mod ordering_events {
         }
     }
 
-    #[derive(Debug)]
-    pub struct OrderingCoverageRejection {
-        events: Vec<OrderingEvent>,
-        diagnostic: ExtentDiagnostic,
-    }
-
-    impl OrderingCoverageRejection {
-        pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-            &self.diagnostic
-        }
-
-        pub fn into_events(self) -> Vec<OrderingEvent> {
-            self.events
-        }
-    }
+    conserved_error!(
+        #[derive(Debug)]
+        pub struct OrderingCoverageRejection { events: Vec<OrderingEvent> } => into_events
+    );
 
     pub fn admit_role_coverage(
         requirement: &OrderingCoverageRequirement,
@@ -1295,32 +1198,22 @@ pub(crate) mod ordering_events {
         };
 
         let mut covered: BTreeSet<DeviceOrderingRole> = BTreeSet::new();
-        let mut failure: Option<String> = None;
-        for event in &events {
-            if event.device != requirement.device {
-                failure = Some("ordering event names a different stable device instance".into());
-            } else if event.scope != requirement.scope {
-                failure =
-                    Some("ordering event names a different runtime queue/session scope".into());
-            } else if event.request != requirement.request {
-                failure = Some("ordering event names a different external-loan request".into());
-            } else if event.authority != requirement.authority {
-                failure = Some("ordering event binds drifted extent authority".into());
-            } else if !requirement.roles.contains(&event.role) {
-                failure = Some(format!(
-                    "ordering event carries extra {:?} coverage",
-                    event.role
-                ));
-            } else if !covered.insert(event.role) {
-                failure = Some(format!(
-                    "ordering event duplicates {:?} coverage",
-                    event.role
-                ));
-            }
-            if failure.is_some() {
-                break;
-            }
-        }
+        let failure = events.iter().find_map(|event| {
+            first_mismatch!(
+                event.device != requirement.device
+                    => "ordering event names a different stable device instance".into(),
+                event.scope != requirement.scope
+                    => "ordering event names a different runtime queue/session scope".into(),
+                event.request != requirement.request
+                    => "ordering event names a different external-loan request".into(),
+                event.authority != requirement.authority
+                    => "ordering event binds drifted extent authority".into(),
+                !requirement.roles.contains(&event.role)
+                    => format!("ordering event carries extra {:?} coverage", event.role),
+                !covered.insert(event.role)
+                    => format!("ordering event duplicates {:?} coverage", event.role),
+            )
+        });
         if let Some(message) = failure {
             return reject(events, message);
         }
@@ -1345,34 +1238,32 @@ pub(crate) mod ordering_events {
         acquisition: &OrderingEvent,
         completion: &OrderingEvent,
     ) -> Result<(), ExtentDiagnostic> {
-        let mismatch = if acquisition.role != DeviceOrderingRole::Acquisition {
-            Some("event is not an acquisition")
-        } else if completion.role != DeviceOrderingRole::Completion {
-            Some("companion event is not a completion")
-        } else if acquisition.request != completion.request {
-            Some("acquisition names a different external-loan request")
-        } else if acquisition.device != completion.device {
-            Some("acquisition names a different stable device instance")
-        } else if acquisition.scope != completion.scope {
-            Some("acquisition names a different runtime queue/session scope")
-        } else if acquisition.authority != completion.authority {
-            Some("acquisition binds different extent authority")
-        } else {
-            None
-        };
+        let mismatch = first_mismatch!(
+            acquisition.role != DeviceOrderingRole::Acquisition
+                => "event is not an acquisition",
+            completion.role != DeviceOrderingRole::Completion
+                => "companion event is not a completion",
+            acquisition.request != completion.request
+                => "acquisition names a different external-loan request",
+            acquisition.device != completion.device
+                => "acquisition names a different stable device instance",
+            acquisition.scope != completion.scope
+                => "acquisition names a different runtime queue/session scope",
+            acquisition.authority != completion.authority
+                => "acquisition binds different extent authority",
+        );
         mismatch.map_or(Ok(()), |message| Err(ExtentDiagnostic(message.into())))
     }
 
     #[cfg(test)]
     mod tests {
         use super::{
-            DeviceInstanceId, DeviceOrderingRole, ExtentLineageId, ExtentProvenanceId,
-            ExternalLoanId, MappingEraId, OrderingAuthority, OrderingCoordinateKind,
-            OrderingCoverageRequirement, OrderingEvent, OrderingEventId, OrderingRange,
-            RuntimeScopeId, admit_acquisition_after_completion, admit_role_coverage,
+            AddressSpaceId, DeviceInstanceId, DeviceOrderingRole, ExtentLineageId,
+            ExtentProvenanceId, ExternalLoanId, MappingEraId, MappingId, OrderingAuthority,
+            OrderingCoordinateKind, OrderingCoverageRequirement, OrderingEvent, OrderingEventId,
+            OrderingRange, RuntimeScopeId, admit_acquisition_after_completion, admit_role_coverage,
         };
-        use extent_contracts::AddressSpaceId;
-        use extent_contracts::MappingId;
+        use crate::extent::diagnostic::ExtentDiagnostic;
 
         fn authority() -> OrderingAuthority {
             OrderingAuthority {
@@ -1383,7 +1274,22 @@ pub(crate) mod ordering_events {
             }
         }
 
-        fn event(role: DeviceOrderingRole, identity: u64) -> OrderingEvent {
+        fn data_range(base: u64, length: u64) -> (OrderingCoordinateKind, OrderingRange) {
+            (
+                OrderingCoordinateKind::Data,
+                OrderingRange {
+                    mapping: MappingId::from_normalized_identity(40).unwrap(),
+                    base,
+                    length,
+                },
+            )
+        }
+
+        fn try_event(
+            role: DeviceOrderingRole,
+            identity: u64,
+            coords: impl IntoIterator<Item = (OrderingCoordinateKind, OrderingRange)>,
+        ) -> Result<OrderingEvent, ExtentDiagnostic> {
             OrderingEvent::from_admitted_provider(
                 OrderingEventId::from_normalized_identity(identity).unwrap(),
                 role,
@@ -1391,16 +1297,12 @@ pub(crate) mod ordering_events {
                 RuntimeScopeId::from_normalized_identity(20).unwrap(),
                 ExternalLoanId::from_normalized_identity(30).unwrap(),
                 authority(),
-                [(
-                    OrderingCoordinateKind::Data,
-                    OrderingRange {
-                        mapping: MappingId::from_normalized_identity(40).unwrap(),
-                        base: 0x1000,
-                        length: 0x200,
-                    },
-                )],
+                coords,
             )
-            .unwrap()
+        }
+
+        fn event(role: DeviceOrderingRole, identity: u64) -> OrderingEvent {
+            try_event(role, identity, [data_range(0x1000, 0x200)]).unwrap()
         }
 
         fn requirement(roles: &[DeviceOrderingRole]) -> OrderingCoverageRequirement {
@@ -1502,31 +1404,10 @@ pub(crate) mod ordering_events {
 
         #[test]
         fn duplicate_coordinate_kind_rejects() {
-            let error = OrderingEvent::from_admitted_provider(
-                OrderingEventId::from_normalized_identity(1).unwrap(),
+            let error = try_event(
                 DeviceOrderingRole::Publication,
-                DeviceInstanceId::from_normalized_identity(10).unwrap(),
-                RuntimeScopeId::from_normalized_identity(20).unwrap(),
-                ExternalLoanId::from_normalized_identity(30).unwrap(),
-                authority(),
-                [
-                    (
-                        OrderingCoordinateKind::Data,
-                        OrderingRange {
-                            mapping: MappingId::from_normalized_identity(40).unwrap(),
-                            base: 0x1000,
-                            length: 0x200,
-                        },
-                    ),
-                    (
-                        OrderingCoordinateKind::Data,
-                        OrderingRange {
-                            mapping: MappingId::from_normalized_identity(40).unwrap(),
-                            base: 0x3000,
-                            length: 0x100,
-                        },
-                    ),
-                ],
+                1,
+                [data_range(0x1000, 0x200), data_range(0x3000, 0x100)],
             )
             .unwrap_err();
             assert!(error.to_string().contains("duplicate"));
@@ -1534,16 +1415,7 @@ pub(crate) mod ordering_events {
 
         #[test]
         fn empty_coordinates_reject() {
-            let error = OrderingEvent::from_admitted_provider(
-                OrderingEventId::from_normalized_identity(1).unwrap(),
-                DeviceOrderingRole::Publication,
-                DeviceInstanceId::from_normalized_identity(10).unwrap(),
-                RuntimeScopeId::from_normalized_identity(20).unwrap(),
-                ExternalLoanId::from_normalized_identity(30).unwrap(),
-                authority(),
-                [],
-            )
-            .unwrap_err();
+            let error = try_event(DeviceOrderingRole::Publication, 1, []).unwrap_err();
             assert!(error.to_string().contains("at least one coordinate"));
         }
     }

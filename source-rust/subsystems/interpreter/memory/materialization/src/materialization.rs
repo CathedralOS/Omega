@@ -591,6 +591,21 @@ pub(crate) mod stored_integer_writes {
         )
     }
 
+    pub(crate) fn container_range(
+        container_byte_offset: u64,
+        container_width_bits: u16,
+        label: &str,
+    ) -> Result<std::ops::Range<usize>, MaterializationDiagnostic> {
+        let container_bytes = usize::from(container_width_bits / 8);
+        let start = usize::try_from(container_byte_offset).map_err(|_| {
+            MaterializationDiagnostic(format!("{label} offset cannot be represented on this host"))
+        })?;
+        let end = start
+            .checked_add(container_bytes)
+            .ok_or_else(|| MaterializationDiagnostic(format!("{label} byte range overflows")))?;
+        Ok(start..end)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn apply_fragment(
         bytes: &mut [u8],
@@ -603,18 +618,11 @@ pub(crate) mod stored_integer_writes {
         width: u16,
         source_value: u64,
     ) -> Result<(), MaterializationDiagnostic> {
-        let container_bytes = usize::from(container_width_bits / 8);
-        let start = usize::try_from(container_byte_offset).map_err(|_| {
-            MaterializationDiagnostic("container offset cannot be represented on this host".into())
-        })?;
-        let end = start
-            .checked_add(container_bytes)
-            .ok_or_else(|| MaterializationDiagnostic("container byte range overflows".into()))?;
+        let range = container_range(container_byte_offset, container_width_bits, "container")?;
         let materialization_len = bytes.len();
-        let container_slice = bytes.get_mut(start..end).ok_or_else(|| {
+        let container_slice = bytes.get_mut(range).ok_or_else(|| {
             MaterializationDiagnostic(format!(
-                "symbolic field `{}` writes outside the {}-byte materialization",
-                field, materialization_len
+                "symbolic field `{field}` writes outside the {materialization_len}-byte materialization"
             ))
         })?;
         let mut container_value = read_container(container_slice, byte_order);
@@ -655,8 +663,8 @@ pub(crate) mod stored_integer_writes {
 use layout_plans::{MaterializationDiagnostic, SymbolicMaterializationPlan};
 
 use crate::materialization::stored_integer_writes::{
-    apply_write, byte_sized_width, low_mask, read_container, scalar_fragment, validate_fragment,
-    validate_write, validate_write_source_value,
+    apply_write, byte_sized_width, container_range, low_mask, read_container, scalar_fragment,
+    validate_fragment, validate_write, validate_write_source_value,
 };
 use crate::symbolic_materialization::apply_scalar_entry;
 use layout_plans::field_identities::{
@@ -670,6 +678,41 @@ use layout_plans::field_values::{
 use layout_plans::{ByteOrder, MaterializationAction};
 use layout_plans::{IntegerInterpretation, LayoutPlacementReport, LayoutPlanReport};
 
+fn checked_buffer_len(
+    layout: &LayoutPlanReport,
+    actual: usize,
+    materialization: &str,
+    buffer_role: &str,
+) -> Result<usize, MaterializationDiagnostic> {
+    let byte_len = fixed_layout_byte_len(layout, materialization)?;
+    if actual < byte_len {
+        return Err(MaterializationDiagnostic(format!(
+            "{materialization} needs {byte_len} bytes, {buffer_role} has {actual}"
+        )));
+    }
+    Ok(byte_len)
+}
+
+fn checked_aggregate_bytes<'a, Bytes: AsRef<[u8]>>(
+    field_name: &str,
+    schema: &AggregateFieldSchema,
+    value: &'a AggregateFieldValue<Bytes>,
+) -> Result<(&'a [u8], usize), MaterializationDiagnostic> {
+    let expected_size = usize::try_from(schema.byte_size).map_err(|_| {
+        MaterializationDiagnostic(format!(
+            "aggregate field `{field_name}` extent cannot be represented on this compiler host"
+        ))
+    })?;
+    let bytes = value.bytes.as_ref();
+    if bytes.len() != expected_size {
+        return Err(MaterializationDiagnostic(format!(
+            "aggregate field `{field_name}` supplies {} bytes, but its compiler-derived extent is {expected_size}",
+            bytes.len()
+        )));
+    }
+    Ok((bytes, expected_size))
+}
+
 pub fn materialize_resolved_into(
     plan: &SymbolicMaterializationPlan,
     destination: &mut [u8],
@@ -681,38 +724,28 @@ pub fn materialize_resolved_into(
             destination.len()
         )));
     }
-    if let Some(action) = plan
+    let resolved_writes = plan
         .actions
         .iter()
-        .find(|action| !matches!(action, MaterializationAction::ResolvedWrite { .. }))
-    {
-        return Err(MaterializationDiagnostic(format!(
-            "materialization still contains an unresolved action: {action:?}"
-        )));
-    }
+        .map(|action| match action {
+            MaterializationAction::ResolvedWrite {
+                write,
+                source_value,
+            } => Ok((write, *source_value)),
+            other => Err(MaterializationDiagnostic(format!(
+                "materialization still contains an unresolved action: {other:?}"
+            ))),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
-    for action in &plan.actions {
-        let MaterializationAction::ResolvedWrite {
-            write,
-            source_value,
-        } = action
-        else {
-            unreachable!("unresolved actions were rejected above")
-        };
+    for &(write, source_value) in &resolved_writes {
         validate_write(plan.byte_len, write)?;
-        validate_write_source_value(write, *source_value, "resolved symbolic")?;
+        validate_write_source_value(write, source_value, "resolved symbolic")?;
     }
 
     let mut staged = destination[..plan.byte_len].to_vec();
-    for action in &plan.actions {
-        let MaterializationAction::ResolvedWrite {
-            write,
-            source_value,
-        } = action
-        else {
-            unreachable!("unresolved actions were rejected above")
-        };
-        apply_write(&mut staged, plan.byte_order, write, *source_value)?;
+    for (write, source_value) in resolved_writes {
+        apply_write(&mut staged, plan.byte_order, write, source_value)?;
     }
     destination[..plan.byte_len].copy_from_slice(&staged);
     Ok(())
@@ -744,13 +777,12 @@ pub fn materialize_scalar_layout_into(
     byte_order: ByteOrder,
     destination: &mut [u8],
 ) -> Result<(), MaterializationDiagnostic> {
-    let byte_len = fixed_layout_byte_len(layout, "scalar materialization")?;
-    if destination.len() < byte_len {
-        return Err(MaterializationDiagnostic(format!(
-            "scalar materialization needs {byte_len} bytes, destination has {}",
-            destination.len()
-        )));
-    }
+    let byte_len = checked_buffer_len(
+        layout,
+        destination.len(),
+        "scalar materialization",
+        "destination",
+    )?;
     validate_materialization_field_identities(layout)?;
     let supplied =
         index_supplied_fields(values, "scalar", "supplied", |value: &ScalarFieldValue| {
@@ -782,13 +814,12 @@ pub fn materialize_aggregate_layout_into(
     byte_order: ByteOrder,
     destination: &mut [u8],
 ) -> Result<(), MaterializationDiagnostic> {
-    let byte_len = fixed_layout_byte_len(layout, "aggregate materialization")?;
-    if destination.len() < byte_len {
-        return Err(MaterializationDiagnostic(format!(
-            "aggregate materialization needs {byte_len} bytes, destination has {}",
-            destination.len()
-        )));
-    }
+    let byte_len = checked_buffer_len(
+        layout,
+        destination.len(),
+        "aggregate materialization",
+        "destination",
+    )?;
     let mut staged = vec![0_u8; byte_len];
     stage_aggregate_layout(layout, fields, values, byte_order, &mut staged)?;
     destination[..byte_len].copy_from_slice(&staged);
@@ -802,13 +833,12 @@ pub fn stage_aggregate_layout<Bytes: AsRef<[u8]>>(
     byte_order: ByteOrder,
     destination: &mut [u8],
 ) -> Result<(), MaterializationDiagnostic> {
-    let byte_len = fixed_layout_byte_len(layout, "aggregate materialization")?;
-    if destination.len() < byte_len {
-        return Err(MaterializationDiagnostic(format!(
-            "aggregate materialization needs {byte_len} bytes, destination has {}",
-            destination.len()
-        )));
-    }
+    let byte_len = checked_buffer_len(
+        layout,
+        destination.len(),
+        "aggregate materialization",
+        "destination",
+    )?;
     validate_materialization_field_identities(layout)?;
     let schemas = index_supplied_fields(
         fields,
@@ -871,6 +901,9 @@ pub fn stage_aggregate_layout<Bytes: AsRef<[u8]>>(
                 "aggregate field `{field_name}` mixes `At` with scalar placements"
             )));
         }
+        let value = supplied
+            .named(field_name)
+            .expect("complete aggregate field set validated above");
         if has_scalar_placement {
             if !matches!(schema.shape, AggregateFieldShape::Whole) {
                 return Err(MaterializationDiagnostic(format!(
@@ -883,28 +916,13 @@ pub fn stage_aggregate_layout<Bytes: AsRef<[u8]>>(
                     schema.byte_size
                 )));
             }
-            let value = supplied
-                .named(field_name)
-                .expect("complete aggregate field set validated above");
-            let expected_size = usize::try_from(schema.byte_size).map_err(|_| {
-                MaterializationDiagnostic(format!(
-                    "aggregate field `{}` extent cannot be represented on this compiler host",
-                    field_name
-                ))
-            })?;
-            if value.bytes.as_ref().len() != expected_size {
-                return Err(MaterializationDiagnostic(format!(
-                    "aggregate field `{}` supplies {} bytes, but its compiler-derived extent is {expected_size}",
-                    field_name,
-                    value.bytes.as_ref().len()
-                )));
-            }
+            let (bytes, expected_size) = checked_aggregate_bytes(field_name, schema, value)?;
             let scalar = ScalarFieldValue {
                 field: value.field.clone(),
                 member_identity: schema.member_identity,
                 width_bits: u16::try_from(expected_size * 8)
                     .expect("the eight-byte carrier bound keeps the extent inside u16"),
-                value: read_container(value.bytes.as_ref(), byte_order),
+                value: read_container(bytes, byte_order),
             };
             for entry in entries.iter() {
                 match entry.placement {
@@ -946,22 +964,7 @@ pub fn stage_aggregate_layout<Bytes: AsRef<[u8]>>(
             }
             continue;
         }
-        let value = supplied
-            .named(field_name)
-            .expect("complete aggregate field set validated above");
-        let expected_size = usize::try_from(schema.byte_size).map_err(|_| {
-            MaterializationDiagnostic(format!(
-                "aggregate field `{}` extent cannot be represented on this compiler host",
-                field_name
-            ))
-        })?;
-        if value.bytes.as_ref().len() != expected_size {
-            return Err(MaterializationDiagnostic(format!(
-                "aggregate field `{}` supplies {} bytes, but its compiler-derived extent is {expected_size}",
-                field_name,
-                value.bytes.as_ref().len()
-            )));
-        }
+        let (bytes, expected_size) = checked_aggregate_bytes(field_name, schema, value)?;
 
         entries.sort_unstable_by_key(|entry| match entry.placement {
             LayoutPlacementReport::At { offset } => offset,
@@ -1017,7 +1020,7 @@ pub fn stage_aggregate_layout<Bytes: AsRef<[u8]>>(
             (element_byte_size, Some(element_align))
         };
 
-        let chunks = value.bytes.as_ref().chunks_exact(source_chunk_size);
+        let chunks = bytes.chunks_exact(source_chunk_size);
         if !chunks.remainder().is_empty() || chunks.len() != entries.len() {
             return Err(MaterializationDiagnostic(format!(
                 "aggregate field `{field_name}` bytes do not tile its compiler-derived source elements exactly"
@@ -1114,24 +1117,7 @@ pub fn decode_scalar_layout(
     byte_order: ByteOrder,
     source: &[u8],
 ) -> Result<Vec<ScalarFieldValue>, MaterializationDiagnostic> {
-    let byte_len = layout
-        .size
-        .ok_or_else(|| {
-            MaterializationDiagnostic("scalar decoding requires a fixed-size layout plan".into())
-        })
-        .and_then(|size| {
-            usize::try_from(size).map_err(|_| {
-                MaterializationDiagnostic(format!(
-                    "fixed layout size {size} cannot be represented on this compiler host"
-                ))
-            })
-        })?;
-    if source.len() < byte_len {
-        return Err(MaterializationDiagnostic(format!(
-            "scalar decoding needs {byte_len} bytes, source has {}",
-            source.len()
-        )));
-    }
+    let byte_len = checked_buffer_len(layout, source.len(), "scalar decoding", "source")?;
     validate_materialization_field_identities(layout)?;
     let supplied =
         index_supplied_fields(fields, "scalar", "declared", |field: &ScalarFieldSchema| {
@@ -1188,16 +1174,12 @@ pub fn decode_scalar_layout(
                     entry.field
                 )));
             }
-            let container_bytes = usize::from(fragment.container_width_bits / 8);
-            let start = usize::try_from(fragment.container_byte_offset).map_err(|_| {
-                MaterializationDiagnostic(
-                    "stored-integer offset cannot be represented on this host".into(),
-                )
-            })?;
-            let end = start.checked_add(container_bytes).ok_or_else(|| {
-                MaterializationDiagnostic("stored-integer byte range overflows".into())
-            })?;
-            let stored = read_container(&source[start..end], byte_order) & low_mask(stored_width);
+            let range = container_range(
+                fragment.container_byte_offset,
+                fragment.container_width_bits,
+                "stored-integer",
+            )?;
+            let stored = read_container(&source[range], byte_order) & low_mask(stored_width);
             *value = match interpretation {
                 IntegerInterpretation::Unsigned => stored,
                 IntegerInterpretation::Signed if stored & (1_u64 << (stored_width - 1)) != 0 => {
@@ -1215,14 +1197,12 @@ pub fn decode_scalar_layout(
                 entry.field
             )));
         }
-        let container_bytes = usize::from(fragment.container_width_bits / 8);
-        let start = usize::try_from(fragment.container_byte_offset).map_err(|_| {
-            MaterializationDiagnostic("container offset cannot be represented on this host".into())
-        })?;
-        let end = start
-            .checked_add(container_bytes)
-            .ok_or_else(|| MaterializationDiagnostic("container byte range overflows".into()))?;
-        let container = read_container(&source[start..end], byte_order);
+        let range = container_range(
+            fragment.container_byte_offset,
+            fragment.container_width_bits,
+            "container",
+        )?;
+        let container = read_container(&source[range], byte_order);
         let value_fragment = (container >> fragment.destination_lsb) & low_mask(fragment.width);
         *value |= value_fragment << fragment.source_lsb;
         *covered |= source_mask;
