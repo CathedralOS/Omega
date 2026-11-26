@@ -134,19 +134,31 @@ impl ResolveAndTypeRequest {
         timings: &mut CompileTimings,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
         let scope = eager_body_scope(self.purpose);
-        self.prepare_with_body_scope(scope, timings)
+        self.prepare_with_body_scope(
+            scope,
+            resolution::DeferredBodyScope::BuildAndToolchain,
+            true,
+            timings,
+        )
     }
 
     pub(crate) fn prepare_declarations(
         self,
         timings: &mut CompileTimings,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
-        self.prepare_with_body_scope(resolution::DeferredBodyScope::BuildAndToolchain, timings)
+        self.prepare_with_body_scope(
+            resolution::DeferredBodyScope::BuildOnly,
+            resolution::DeferredBodyScope::BuildOnly,
+            false,
+            timings,
+        )
     }
 
     fn prepare_with_body_scope(
         mut self,
         eager_scope: resolution::DeferredBodyScope,
+        followup_scope: resolution::DeferredBodyScope,
+        retain_frontend: bool,
         timings: &mut CompileTimings,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
         let context = SourceContext {
@@ -204,8 +216,7 @@ impl ResolveAndTypeRequest {
             (typing, frontier, Vec::new())
         };
         loop {
-            let build_bodies = pending_bodies
-                .pending_machines_in(resolution::DeferredBodyScope::BuildAndToolchain)?;
+            let build_bodies = pending_bodies.pending_machines_in(followup_scope)?;
             if build_bodies.is_empty() {
                 break;
             }
@@ -236,7 +247,9 @@ impl ResolveAndTypeRequest {
             input,
             completions: Default::default(),
         };
-        self.frontends.retain(&source)?;
+        if retain_frontend {
+            self.frontends.retain(&source)?;
+        }
         Ok(source)
     }
 }
@@ -307,8 +320,13 @@ impl SourceTypingCheckpoint {
         self.input.typing.shared_typed()
     }
 
+    #[cfg(test)]
     pub(crate) fn typed(&self) -> &crate::source_state::TypedTrees {
         self.input.typing.typed()
+    }
+
+    pub(crate) fn into_typed(self) -> crate::source_state::TypedTrees {
+        Arc::unwrap_or_clone(self.input).typing.into_typed()
     }
 
     pub(crate) fn complete_authored(
