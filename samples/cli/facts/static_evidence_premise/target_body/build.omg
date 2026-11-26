@@ -1,10 +1,10 @@
 machine build(builder: @mutable Build) {
     Build::application(builder, "static_evidence_premise_target_body");
-    Build::bind(builder, macos_x86_64\ProgramEntry, x86_entry);
-    Build::bind(builder, macos_arm64\ProgramEntry, arm_entry);
-    Build::bind(builder, linux_x86_64\ProgramEntry, x86_entry);
-    Build::bind(builder, linux_arm64\ProgramEntry, arm_entry);
-    Build::bind(builder, windows_x86_64\ProgramEntry, x86_entry);
+    Build::bind(builder, macos_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
     Build::select_provider::<SelectedBodyCheck, X86BodyCheck>(builder, macos_x86_64);
     Build::select_provider::<SelectedObserve, X86Observe>(builder, macos_x86_64);
     Build::select_provider::<SelectedBodyCheck, ArmBodyCheck>(builder, macos_arm64);

@@ -143,7 +143,7 @@ use omega\language\core\ProgramImageNativeProvider;
 machine build(builder: @mutable Build) {
     Build::application(builder, "firmware");
     Build::select_provider::<ProgramImage, ProgramImageNativeProvider>(builder, uefi_x86_64);
-    Build::bind(builder, uefi_x86_64\ProgramEntry, entry);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, entry);
 }"#,
     )
     .unwrap();
@@ -232,7 +232,7 @@ fn saved_psi_retains_private_grants_only_across_a_closed_observation() {
         let path = temporary.path().join("build.omg");
         std::fs::write(&path, r#"machine build(b: @mutable Build) {
             Build::application(b, "firmware");
-            Build::bind(b, uefi_x86_64\ProgramEntry, entry);
+            Build::bind(b, uefi_x86_64::ProgramEntry, entry);
         }"#).unwrap();
         let source = r"use omega\language\core\Extent;
 use omega\language\core\Extent\Granted;

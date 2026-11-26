@@ -732,7 +732,7 @@ fn a_build_operation_record_keeps_its_ordinary_statement_call() {
 fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
     let source = r#"
         machine build(builder: @mutable Build) {
-            Build::bind(builder, linux_x86_64\ProgramEntry, Main::main);
+            Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
         }
     "#;
     let parsed =

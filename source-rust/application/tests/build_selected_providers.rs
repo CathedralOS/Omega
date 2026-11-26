@@ -42,10 +42,10 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<Service, Native>(builder, linux_arm64);
     Build::select_provider::<Service, Native>(builder, macos_arm64);
     Build::select_provider::<Service, Native>(builder, windows_x86_64);
-    Build::bind(builder, linux_x86_64\\ProgramEntry, entry);
-    Build::bind(builder, linux_arm64\\ProgramEntry, entry);
-    Build::bind(builder, macos_arm64\\ProgramEntry, entry);
-    Build::bind(builder, windows_x86_64\\ProgramEntry, entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
 }
 ";
 
@@ -124,7 +124,7 @@ machine entry() {}
         r#"machine build(builder: @mutable Build) {{
     Build::application(builder, "uncalled_provider");
     Build::select_provider::<Echo<Tag, Word>, Copy<Tag, Word, u32>>(builder, {target});
-    Build::bind(builder, {target}\ProgramEntry, entry);
+    Build::bind(builder, {target}::ProgramEntry, entry);
 }}"#
     );
     assert_agreed_exit_zero(run_both("uncalled_requirement", program, &build));
@@ -198,7 +198,7 @@ machine entry() crashes Trap {
     Build::application(builder, "qualified_providers");
     Build::select_provider::<Service<Tag in Tag::Left>, First>(builder, {target});
     Build::select_provider::<Service<Tag in Tag::Right>, Second>(builder, {target});
-    Build::bind(builder, {target}\ProgramEntry, entry);
+    Build::bind(builder, {target}::ProgramEntry, entry);
 }}"#
     );
     assert_agreed_exit_zero(run_both("qualified", program, &build));
@@ -246,7 +246,7 @@ machine build(builder: @mutable Build) {{
     Build::application(builder, "aliased_providers");
     Build::select_provider::<|app|::Reading<|app|::WordPacket>, |app|::Words>(builder, {target});
     Build::select_provider::<|app|::Reading<|app|::Pack<u64>>, |app|::Wide>(builder, {target});
-    Build::bind(builder, {target}\ProgramEntry, |app|::entry);
+    Build::bind(builder, {target}::ProgramEntry, |app|::entry);
 }}"#
     );
     assert_agreed_exit_zero(run_both("aliased_slots", program, &build));
@@ -276,7 +276,7 @@ data Ticket [linear] {{}}
 machine build(builder: @mutable Build) {{
     Build::application(builder, "helper_alias");
     choose::<Word<u64>>(builder);
-    Build::bind(builder, {target}\ProgramEntry, |app|::entry);
+    Build::bind(builder, {target}::ProgramEntry, |app|::entry);
 }}
 machine choose<T>(builder: @mutable Build) {{
     Build::select_provider::<|app|::Reading<T>, |app|::Words>(builder, {target});
@@ -360,7 +360,7 @@ machine build(builder: @mutable Build) {{
     Build::application(builder, "storage_probe");
     Build::accept_boundary::<|layout|::NativeAccess<|app|::{placement}, |app|::{value}, |app|::{storage}, |app|::TestMemory>>(builder);
     Build::select_provider::<|layout|::AccessLifecycle<|app|::{placement}, |app|::{value}>, |layout|::NativeAccess<|app|::{placement}, |app|::{value}, |app|::{storage}, |app|::TestMemory>>(builder, {target});
-    Build::bind(builder, {target}\ProgramEntry, |app|::storage_probe);
+    Build::bind(builder, {target}::ProgramEntry, |app|::storage_probe);
 }}"#
         );
         let (status, report) = run_both(name, program, &build);
@@ -393,7 +393,7 @@ machine build(builder: @mutable Build) {{
     Build::accept_boundary::<|layout|::NativeAccess<|app|::WordPlacement, |app|::Word, |app|::WordStorage, |app|::TestMemory>>(builder);
     Build::select_provider::<|layout|::ResourceProfileSupply<|app|::TestMemory>, |app|::MemorySupply>(builder, {target});
     Build::select_provider::<|layout|::AccessLifecycle<|app|::WordPlacement, |app|::Word>, |layout|::NativeAccess<|app|::WordPlacement, |app|::Word, |app|::WordStorage, |app|::TestMemory>>(builder, {target});
-    Build::bind(builder, {target}\ProgramEntry, |app|::storage_probe);
+    Build::bind(builder, {target}::ProgramEntry, |app|::storage_probe);
 }}"#
     );
     let (status, report) = run_both("matching_resident_index", &program, &build);

@@ -113,8 +113,8 @@ machine firmware(image: Extent in Granted, initial_storage: Extent in Granted)
     let mode: CompositionMode = fused_mode();
     Build::select_provider::<Clock, FixedClock>(builder, mode);
     Build::select_provider::<Sensor, FirmwareSensor>(builder, uefi_x86_64);
-    Build::bind(builder, uefi_x86_64\ProgramEntry, firmware);
-    Build::bind(builder, linux_x86_64\ProgramEntry, hosted);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, firmware);
+    Build::bind(builder, linux_x86_64::ProgramEntry, hosted);
 }
 machine fused_mode() -> CompositionMode { CompositionMode::Fused }"#,
     )
@@ -267,8 +267,8 @@ fn private_entry_requires_the_target_of_its_parent() {
         project.path().join("build.omg"),
         r#"machine build(builder: @mutable Build) {
         Build::application(builder, "entry_target");
-        Build::bind(builder, linux_x86_64\ProgramEntry, main);
-        Build::bind(builder, linux_arm64\ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
     }"#,
     )
     .unwrap();
@@ -771,7 +771,7 @@ fn root_and_private_callable_enforce_the_selected_process_exit() {
         workspace.path().join("build.omg"),
         r#"machine build(builder: @mutable Build) {
     Build::application(builder, "exit_scope");
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }"#,
     )
     .unwrap();
@@ -973,7 +973,7 @@ fn fresh_review_records_the_build_that_declared_the_package() {
     let root = temp.path();
     std::fs::write(
         root.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64\ProgramEntry, main); }"#,
+        r#"machine build(builder: @mutable Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64::ProgramEntry, main); }"#,
     )
     .unwrap();
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();

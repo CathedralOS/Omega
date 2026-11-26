@@ -1,4 +1,4 @@
 machine build(builder: @mutable Build) {
     Build::application(builder, "issued_handle");
-    Build::bind(builder, macos_arm64\ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

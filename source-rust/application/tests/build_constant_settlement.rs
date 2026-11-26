@@ -33,7 +33,7 @@ fn check(name: &str, build_body: &str) -> (bool, String) {
             "machine observe(target: BuildTarget) {{ }}
 machine build(builder: @mutable Build) {{
     Build::application(builder, \"settled\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {build_body}}}
 "
         ),

@@ -26,10 +26,10 @@ fn run(name: &str, main: &str) -> (Option<i32>, String) {
         "machine build(builder: @mutable Build) {{
     Build::application(builder, \"{application}\");
     let registration: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path {{ location: \"{library}\" }}));
-    Build::bind(builder, windows_x86_64\\ProgramEntry, main);
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
 }}
 "
     );
@@ -134,10 +134,10 @@ fn a_provider_of_the_exit_passes_on_the_status_it_received() {
     Build::select_provider::<ProcessExit, LocalExit>(builder, linux_x86_64);
     Build::select_provider::<ProcessExit, LocalExit>(builder, linux_arm64);
     Build::select_provider::<ProcessExit, LocalExit>(builder, macos_arm64);
-    Build::bind(builder, windows_x86_64\\ProgramEntry, main);
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
 }
 ";
     let honest = "use omega\\language\\core\\Never;

@@ -188,7 +188,7 @@ fn a_domain_only_a_selected_dependency_provider_uses_has_its_plan_run() {
             "    Build::select_provider::<Probe, StampedProbe>(builder, {target});\n"
         ));
         consumer_build.push_str(&format!(
-            "    Build::bind(builder, {target}\\ProgramEntry, main);\n"
+            "    Build::bind(builder, {target}::ProgramEntry, main);\n"
         ));
     }
     kit_build.push_str("}\n");

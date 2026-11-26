@@ -5,8 +5,8 @@ machine build(builder: @mutable Build) {
     let mutable foreign_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../../support/fact_dependencies/semantic_schema_foreign" });
     |dependency|::with_alias(@mutable foreign_dependency, "foreign");
     let foreign_registration: DependencyRegistration = Build::dependency(builder, foreign_dependency);
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
 }

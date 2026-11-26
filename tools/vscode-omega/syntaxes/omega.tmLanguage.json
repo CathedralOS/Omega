@@ -279,7 +279,7 @@
     "punctuation": {
       "patterns": [
         {
-          "comment": "`::` selects a member; `\\` selects a provider or measure, as in windows_arm64\\ProgramEntry or Nat\\Descending.",
+          "comment": "A target selects its entry with windows_arm64::ProgramEntry. Nat\\Descending names a termination measure.",
           "name": "punctuation.accessor.omega",
           "match": "::|\\\\"
         },

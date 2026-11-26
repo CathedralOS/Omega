@@ -222,10 +222,10 @@ machine build(builder: @mutable Build) {
             selection: PackageSelection::Named { package: "workspace_selected" }
         });
         let registration: DependencyRegistration = Build::dependency(builder, member);
-        Build::bind(builder, windows_x86_64\ProgramEntry, main);
-        Build::bind(builder, linux_x86_64\ProgramEntry, main);
-        Build::bind(builder, macos_arm64\ProgramEntry, main);
-        Build::bind(builder, linux_arm64\ProgramEntry, main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
+        Build::bind(builder, macos_arm64::ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
     }"#,
     );
 }

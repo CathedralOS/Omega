@@ -10,8 +10,8 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<system\Console, system\DarwinArm64Console>(builder, macos_arm64);
     Build::select_provider::<system\Console, system\DarwinX86Console>(builder, macos_x86_64);
     Build::select_provider::<system\Console, system\WindowsConsole>(builder, windows_x86_64);
-    Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64\ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64\ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

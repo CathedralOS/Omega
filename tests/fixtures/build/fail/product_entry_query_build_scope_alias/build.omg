@@ -12,5 +12,5 @@ machine build(builder: @mutable Build) {
     |dependency|::with_alias(@mutable support_dependency, "support");
     let support_registration: DependencyRegistration = Build::build_dependency(builder, support_dependency);
     let entry: ProductEntryRef = BuildProduct::entry(@builder.product, "support::setup::launch", "windows_x86_64::ProgramEntry");
-    Build::bind(builder, windows_x86_64\ProgramEntry, entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
 }
