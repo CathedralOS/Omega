@@ -1041,7 +1041,16 @@ fn publish_parents(
                         at,
                         &DescriptorLocation::whole(result.place),
                     );
-                    if lifetime.live.contains(&at) {
+                    // A recursive walk becomes a loop, and the view it forms
+                    // lives around that loop back to this operation, so one
+                    // Loan row stands for every activation. Shared reborrows of
+                    // a view cannot conflict with one another, and the row's
+                    // lifetime is already the union over activations. An
+                    // exclusive self-overlap still needs per-activation rows.
+                    let shared_view_chain = expected_access
+                        == language_core::ReferenceAccess::Shared
+                        && view_reborrows.binary_search(&operation.id).is_ok();
+                    if lifetime.live.contains(&at) && !shared_view_chain {
                         let mut refused = refuse(
                             machine.id,
                             Construct::Operation(operation.id),

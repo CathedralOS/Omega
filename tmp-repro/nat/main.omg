@@ -1,0 +1,17 @@
+
+machine steps(count: u32) -> u32
+terminates by count -> Nat::Descending
+{
+    transition count > 0 { true -> step(count), _ -> done() }
+    machine step(count: u32) -> u32 requires count > 0 {
+        transition { _ -> steps(count - 1) }
+    }
+    machine done() -> u32 { 0 }
+}
+
+machine main() crashes Trap {
+    let left: u32 = steps(5);
+    transition left == 0 { true -> ok(), _ -> bad() }
+    machine ok() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -1,0 +1,24 @@
+
+data Command [copy] { direction: i32; attack: bool; }
+data Set { items: [Command; 2]; }
+
+machine count_all(items: @[Command]) -> u64
+terminates by items -> Slice::Length
+{
+    transition items.length > 0 {
+        true -> head(items),
+        _ -> done()
+    }
+    machine head(items: @[Command]) -> u64 requires items.length > 0 {
+        transition { _ -> count_all(items[1..]) }
+    }
+    machine done() -> u64 { 0 }
+}
+
+machine main() crashes Trap {
+    let mutable set: Set;
+    let counted: u64 = count_all(@set.items[..]);
+    transition counted == 0 { true -> ok(), _ -> bad() }
+    machine ok() {}
+    machine bad() crashes Trap { crash Trap; }
+}

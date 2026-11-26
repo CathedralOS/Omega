@@ -1,0 +1,18 @@
+data Command [copy] { direction: i32; attack: bool; }
+data Set { items: [Command; 2]; }
+
+machine clear_first(items: @mutable [Command]) {
+    transition items.length > 0 { true -> head(items), _ -> done() }
+    machine head(items: @mutable [Command]) requires items.length > 0 {
+        items[0].direction = -1;
+    }
+    machine done() {}
+}
+
+machine main() crashes Trap {
+    let mutable set: Set;
+    clear_first(@mutable set.items[..]);
+    transition set.items[0].direction == -1 { true -> ok(), _ -> bad() }
+    machine ok() {}
+    machine bad() crashes Trap { crash Trap; }
+}

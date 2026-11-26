@@ -2,16 +2,9 @@ use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use system\Window;
-use system\macos_key_state;
-use system\macos_sleep;
-use system\macos_window_create;
-use system\macos_window_destroy;
-use system\macos_window_foreground_window;
-use system\macos_window_is_window;
-use system\macos_window_msg_dispatch;
-use system\macos_window_msg_peek;
-use system\macos_window_present;
+use system\Clock;
 use system\Console;
+use providers;
 use dungeon_core\simulation\game\Game;
 use dungeon_core\presentation\frame\Frame;
 use dungeon_core\render;
@@ -40,7 +33,7 @@ machine Main::main(main: @mutable Main) reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit {
+    StandardOutput + ProcessExit + Clock {
     let verified: bool = Game::verify(@mutable main.game);
     transition verified { true -> start(main), _ -> failed() }
 
@@ -53,7 +46,7 @@ machine Main::main(main: @mutable Main) reaches
         Game::reset(@mutable main.game);
         let class_name: [u8; 7] = "#32770\0";
         let title: [u8; 16] = "HOLLOW / OMEGA\0\0";
-        let mutable window: Window = macos_window_create::<16>(class_name, @title, 0, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        let mutable window: Window = hollow_window_create(class_name, @title, HOLLOW_WINDOW_STYLE, 120, 60, WINDOW_WIDTH, WINDOW_HEIGHT);
         transition window.window != 0 { true -> frame(main, window), _ -> close(main, window) }
     }
 
@@ -77,29 +70,29 @@ machine Main::main(main: @mutable Main) reaches
         transition { _ -> pump(main, window) }
     }
     machine pump(main: @mutable Main, mutable window: Window) {
-        let available: u32 = macos_window_msg_peek(@mutable window, [0, 0, 0, 0, 0, 0]);
+        let available: u32 = hollow_window_msg_peek(@mutable window);
         transition available > 0 && main.pumped < EVENT_BUDGET { true -> dispatch(main, window), _ -> visible(main, window) }
     }
     machine dispatch(main: @mutable Main, window: Window)
     requires main.pumped < EVENT_BUDGET {
-        let dispatched: u64 = macos_window_msg_dispatch(@window, [0, 0, 0, 0, 0, 0]);
+        let dispatched: u64 = hollow_window_msg_dispatch(@window);
         main.pumped = main.pumped + 1;
         transition { _ -> pump(main, window) }
     }
     machine visible(main: @mutable Main, window: Window) {
-        let alive: u32 = macos_window_is_window(@window, window.window);
+        let alive: u32 = hollow_window_is_window(@window);
         transition alive > 0 { true -> focus(main, window), _ -> close(main, window) }
     }
     machine focus(main: @mutable Main, window: Window) {
-        let focused: u64 = macos_window_foreground_window(@window);
+        let focused: u64 = hollow_window_foreground_window(@window);
         transition focused == window.window { true -> escape(main, window), _ -> render(main, window) }
     }
     machine escape(main: @mutable Main, window: Window) {
-        let escape: u64 = macos_key_state(27);
+        let escape: u64 = hollow_key_state(27);
         transition escape > 0 { true -> close(main, window), _ -> restart(main, window) }
     }
     machine restart(main: @mutable Main, window: Window) {
-        let restart: u64 = macos_key_state(82);
+        let restart: u64 = hollow_key_state(82);
         transition restart > 0 { true -> reset(main, window), _ -> input(main, window) }
     }
     machine reset(main: @mutable Main, window: Window) {
@@ -108,10 +101,10 @@ machine Main::main(main: @mutable Main) reaches
     }
     machine input(main: @mutable Main, window: Window) {
         main.direction = -1;
-        let attack: u64 = macos_key_state(32);
+        let attack: u64 = hollow_key_state(32);
         main.swing = attack > 0;
-        let up: u64 = macos_key_state(38);
-        let north: u64 = macos_key_state(87);
+        let up: u64 = hollow_key_state(38);
+        let north: u64 = hollow_key_state(87);
         transition up > 0 || north > 0 { true -> north(main, window), _ -> east_input(main, window) }
     }
     machine north(main: @mutable Main, window: Window) {
@@ -119,8 +112,8 @@ machine Main::main(main: @mutable Main) reaches
         transition { _ -> update(main, window) }
     }
     machine east_input(main: @mutable Main, window: Window) {
-        let right: u64 = macos_key_state(39);
-        let east: u64 = macos_key_state(68);
+        let right: u64 = hollow_key_state(39);
+        let east: u64 = hollow_key_state(68);
         transition right > 0 || east > 0 { true -> east(main, window), _ -> south_input(main, window) }
     }
     machine east(main: @mutable Main, window: Window) {
@@ -128,8 +121,8 @@ machine Main::main(main: @mutable Main) reaches
         transition { _ -> update(main, window) }
     }
     machine south_input(main: @mutable Main, window: Window) {
-        let down: u64 = macos_key_state(40);
-        let south: u64 = macos_key_state(83);
+        let down: u64 = hollow_key_state(40);
+        let south: u64 = hollow_key_state(83);
         transition down > 0 || south > 0 { true -> south(main, window), _ -> west_input(main, window) }
     }
     machine south(main: @mutable Main, window: Window) {
@@ -137,8 +130,8 @@ machine Main::main(main: @mutable Main) reaches
         transition { _ -> update(main, window) }
     }
     machine west_input(main: @mutable Main, window: Window) {
-        let left: u64 = macos_key_state(37);
-        let west: u64 = macos_key_state(65);
+        let left: u64 = hollow_key_state(37);
+        let west: u64 = hollow_key_state(65);
         transition left > 0 || west > 0 { true -> west(main, window), _ -> update(main, window) }
     }
     machine west(main: @mutable Main, window: Window) {
@@ -150,12 +143,12 @@ machine Main::main(main: @mutable Main) reaches
         transition { _ -> render(main, window) }
     }
     machine draw(main: @mutable Main, window: Window) {
-        let copied: u32 = macos_window_present(@window, FRAME_WIDTH, FRAME_HEIGHT, @main.pixels[..FRAME_PIXELS]);
-        macos_sleep(FRAME_DELAY_MILLISECONDS);
+        let copied: u32 = hollow_window_present(@window, FRAME_WIDTH, FRAME_HEIGHT, @main.pixels[..FRAME_PIXELS]);
+        block Clock::sleep(FRAME_DELAY_MILLISECONDS);
         transition copied == FRAME_HEIGHT { true -> frame(main, window), _ -> close(main, window) }
     }
     machine close(main: @mutable Main, window: Window) {
-        macos_window_destroy(window);
+        hollow_window_destroy(window);
     }
 }
 // The entry owns ordinary local state; selection supplies no context.
@@ -165,7 +158,7 @@ machine entry_start() reaches
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit {
+    StandardOutput + ProcessExit + Clock {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

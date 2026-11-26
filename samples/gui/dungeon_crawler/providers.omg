@@ -1,0 +1,216 @@
+// Per-target window, event and keyboard bodies for the windowed game. Each
+// family has one Windows x86_64 member over the shared WindowsGuiHost seam and
+// one macOS ARM64 member over the existing Cocoa facades; the build target
+// keeps only its own member. Window is the shared application-owned state; on
+// Windows only its `window` field (the HWND) is meaningful.
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
+use system\Window;
+use system\macos_key_state;
+use system\macos_window_create;
+use system\macos_window_destroy;
+use system\macos_window_foreground_window;
+use system\macos_window_is_window;
+use system\macos_window_msg_dispatch;
+use system\macos_window_msg_peek;
+use system\macos_window_present;
+use system\WindowsGuiHost;
+use system\WindowsMessage;
+use system\WindowsRectangle;
+
+// WS_VISIBLE | WS_OVERLAPPEDWINDOW. macOS ignores the style argument.
+public const HOLLOW_WINDOW_STYLE: u32 = 0x10cf0000;
+
+// Windows sizes the outer frame; WINDOW_WIDTH and WINDOW_HEIGHT already add the
+// standard frame metrics to the 4x client area.
+public windows_x86_64 machine hollow_window_create(class_name: [u8; 7], title: @[u8; 16], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+requires title[15] == 0
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes WindowsGuiHost {
+    let handle: u64 = WindowsGuiHost::window_create(@class_name, title, style, x, y, width, height);
+    Window { window: handle, view: 0, app: 0, space: 0, date: 0, mode: 0,
+        psel: 0, mask: 0, evt: 0, relsel: 0, dsel: 0, vsel: 0, ksel: 0, pool: 0 }
+}
+public macos_arm64 machine hollow_window_create(class_name: [u8; 7], title: @[u8; 16], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+requires title[15] == 0
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit {
+    macos_window_create::<16>(class_name, title, style, x, y, width, height)
+}
+
+public windows_x86_64 machine hollow_window_destroy(window: Window) reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes WindowsGuiHost {
+    _ = WindowsGuiHost::window_destroy(window.window);
+}
+public macos_arm64 machine hollow_window_destroy(window: Window) reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit {
+    macos_window_destroy(window);
+}
+
+// One Windows pump removes, translates and dispatches a message, so the
+// separate Windows dispatch below has nothing left to do.
+public windows_x86_64 machine hollow_window_msg_peek(window_state: @mutable Window) -> u32
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes WindowsGuiHost {
+    let mutable native: WindowsMessage;
+    let pumped: bool = WindowsGuiHost::pump_message(@mutable native);
+    transition pumped { true -> (1), _ -> (0) }
+}
+public macos_arm64 machine hollow_window_msg_peek(window_state: @mutable Window) -> u32
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit {
+    macos_window_msg_peek(window_state, [0, 0, 0, 0, 0, 0])
+}
+
+public windows_x86_64 machine hollow_window_msg_dispatch(window_state: @Window) -> u64
+reaches none {
+    0
+}
+public macos_arm64 machine hollow_window_msg_dispatch(window_state: @Window) -> u64
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit {
+    macos_window_msg_dispatch(window_state, [0, 0, 0, 0, 0, 0])
+}
+
+public windows_x86_64 machine hollow_window_is_window(window_state: @Window) -> u32
+reaches WindowManagement invokes WindowsGuiHost {
+    let answer: bool = WindowsGuiHost::is_window(window_state.window);
+    transition answer { true -> (1), _ -> (0) }
+}
+public macos_arm64 machine hollow_window_is_window(window_state: @Window) -> u32
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit {
+    macos_window_is_window(window_state, window_state.window)
+}
+
+public windows_x86_64 machine hollow_window_foreground_window(window_state: @Window) -> u64
+reaches WindowManagement invokes WindowsGuiHost {
+    WindowsGuiHost::foreground_window()
+}
+public macos_arm64 machine hollow_window_foreground_window(window_state: @Window) -> u64
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit {
+    macos_window_foreground_window(window_state)
+}
+
+// Both members take Win32 virtual-key codes; macOS maps them to its keycodes.
+public windows_x86_64 machine hollow_key_state(virtual_key: u32) -> u64
+reaches GlobalInputObservation invokes WindowsGuiHost {
+    WindowsGuiHost::key_state(virtual_key)
+}
+public macos_arm64 machine hollow_key_state(virtual_key: u32) -> u64
+reaches GlobalInputObservation {
+    macos_key_state(virtual_key)
+}
+
+// Stretch the whole framebuffer over the current client area. The pixels use
+// the same little-endian 0x00RRGGBB layout as the macOS image snapshot, which
+// is a top-down 32-bit BI_RGB DIB. Returns the source height on success, like
+// the macOS member, and 0 when the window has no drawable client area.
+public windows_x86_64 machine hollow_window_present(window_state: @Window, source_width: u32, source_height: u32, pixels: @[i32]) -> u32
+reaches
+    WindowManagement + SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
+    FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
+    FilesystemNamespaceMutation invokes WindowsGuiHost {
+    let count: u64 = (source_width as u64) * (source_height as u64);
+    transition source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192
+        && pixels.length == count {
+        true -> measure(window_state.window, source_width, source_height, pixels),
+        _ -> (0)
+    }
+    machine measure(window: u64, source_width: u32, source_height: u32, pixels: @[i32]) -> u32
+    requires source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192
+    requires pixels.length == (source_width as u64) * (source_height as u64) {
+        let mutable client: WindowsRectangle = WindowsRectangle { left: 0, top: 0, right: 0, bottom: 0 };
+        let measured: i32 = WindowsGuiHost::client_rectangle(window, @mutable client);
+        let width: i64 = (client.right as i64) - (client.left as i64);
+        let height: i64 = (client.bottom as i64) - (client.top as i64);
+        transition measured != 0 && width > 0 && width <= 0x7fff_ffff && height > 0 && height <= 0x7fff_ffff {
+            true -> device(window, width as i32, height as i32, source_width, source_height, pixels),
+            _ -> (0)
+        }
+    }
+    machine device(window: u64, width: i32, height: i32, source_width: u32, source_height: u32, pixels: @[i32]) -> u32
+    requires width > 0 && height > 0
+    requires source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192
+    requires pixels.length == (source_width as u64) * (source_height as u64) {
+        let device: u64 = WindowsGuiHost::get_dc(window);
+        transition device != 0 {
+            true -> draw(window, device, width, height, source_width, source_height, pixels),
+            _ -> (0)
+        }
+    }
+    machine draw(window: u64, device: u64, width: i32, height: i32, source_width: u32, source_height: u32, pixels: @[i32]) -> u32
+    requires device != 0 && width > 0 && height > 0
+    requires source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192
+    requires pixels.length == (source_width as u64) * (source_height as u64) {
+        // BITMAPINFOHEADER: width, negative height for top-down rows, one plane
+        // and 32 bits per pixel packed in the fourth word, BI_RGB.
+        let mutable info: [i32; 11];
+        info[0] = 40;
+        info[1] = source_width as i32;
+        info[2] = 0 - (source_height as i32);
+        info[3] = 0x00200001;
+        // DIB_RGB_COLORS (0) and SRCCOPY (0x00CC0020); the pixel and header
+        // loans last only for this synchronous draw.
+        let copied: i32 = WindowsGuiHost::stretch_dibits(device, 0, 0, width, height,
+            0, 0, source_width as i32, source_height as i32, @pixels[0], @info[0], 0, 0x00CC0020);
+        let released: i32 = WindowsGuiHost::release_dc(window, device);
+        transition copied > 0 { true -> (source_height), _ -> (0) }
+    }
+}
+public macos_arm64 machine hollow_window_present(window_state: @Window, source_width: u32, source_height: u32, pixels: @[i32]) -> u32
+reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit {
+    macos_window_present(window_state, source_width, source_height, pixels)
+}

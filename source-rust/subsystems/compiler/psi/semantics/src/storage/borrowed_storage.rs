@@ -408,7 +408,10 @@ impl Projection {
                     }
                     window = true;
                 }
-                AddressStep::ErasedElement { .. } | AddressStep::ErasedWindow { .. } => {
+                // EXPERIMENT(hollow): a window with erased bounds is still one
+                // contiguous window of the retained prefix.
+                AddressStep::ErasedWindow { .. } => window = true,
+                AddressStep::ErasedElement { .. } => {
                     return Err("captured storage address has erased runtime coordinates");
                 }
             }
@@ -886,8 +889,32 @@ impl Projection {
                             | AddressStep::ErasedWindow { .. } => 1,
                         })
                     })?;
-                    if work > 4096
-                        || suffix.iter().any(|step| {
+                    if work > 4096 {
+                        return None;
+                    }
+                    // EXPERIMENT(hollow): a loop applies one window operation
+                    // again to its own result. The composition is some window
+                    // inside the earlier one: keep the prefix and erase the bounds.
+                    let repeated_window = suffix.iter().all(|step| {
+                        matches!(step, AddressStep::Window { .. } | AddressStep::ErasedWindow { interval: None })
+                    }) && !suffix.is_empty()
+                        && matches!(
+                            prefix.last(),
+                            Some(AddressStep::Window { .. } | AddressStep::ErasedWindow { interval: None })
+                        )
+                        && (suffix.iter().any(|step| prefix.iter().any(|prior| matches!(
+                            (prior, step),
+                            (AddressStep::Window { at: before, .. }, AddressStep::Window { at, .. }) if before == at
+                        ))) || matches!(prefix.last(), Some(AddressStep::ErasedWindow { interval: None })));
+                    if repeated_window {
+                        let mut steps = prefix.to_vec();
+                        while matches!(steps.last(), Some(AddressStep::Window { .. } | AddressStep::ErasedWindow { .. })) {
+                            steps.pop();
+                        }
+                        steps.push(AddressStep::ErasedWindow { interval: None });
+                        return Some(steps);
+                    }
+                    if suffix.iter().any(|step| {
                             prefix.iter().any(|prior| match (prior, step) {
                                 (
                                     AddressStep::Window { at: before, .. },

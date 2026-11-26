@@ -1,0 +1,20 @@
+use omega\language\core\ElementStep;
+use omega\language\core\for_each;
+
+data Command [copy] { direction: i32; attack: bool; }
+data Set { items: [Command; 2]; }
+
+machine clear_command(command: @mutable Command)
+satisfies ElementStep<Command>::apply
+terminates {
+    command.direction = -1;
+    command.attack = false;
+}
+
+machine main() crashes Trap {
+    let mutable set: Set;
+    for_each::<Command, clear_command>(@mutable set.items[..]);
+    transition set.items[1].direction == -1 { true -> ok(), _ -> bad() }
+    machine ok() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -1273,7 +1273,8 @@ impl<'a> Storage<'a> {
         } else {
             descriptor_location_lifetime(flow, at, &DescriptorLocation::whole(result.place))
         };
-        if lifetime.live.contains(&at) {
+        // EXPERIMENT(hollow): shared self-overlap, see reference_results.rs.
+        if lifetime.live.contains(&at) && access != ReferenceAccess::Shared {
             return Err(self.unsupported(
                 concerns,
                 "persistent loan crosses its own formation without a fresh occurrence",
