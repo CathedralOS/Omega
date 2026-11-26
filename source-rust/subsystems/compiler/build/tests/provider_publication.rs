@@ -157,10 +157,8 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
         false,
     )
     .unwrap();
-    let root = temp.path();
-    for name in ["build.omg", "main.omg"] {
-        std::fs::copy(fixture.join(name), root.join(name)).unwrap();
-    }
+    let root = temp.path().canonicalize().unwrap();
+    std::fs::copy(fixture.join("build.omg"), root.join("build.omg")).unwrap();
     // The application owns an unrelated source at the exact relative path of
     // the Linux contract. It remains an ordinary declaration of this package.
     let linux = TargetProfile::LinuxX64
@@ -170,13 +168,24 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
     let relative = linux.package_relative_source();
     let other = root.join(relative);
     std::fs::create_dir_all(other.parent().unwrap()).unwrap();
-    std::fs::write(other, "public data UnrelatedEntry {}").unwrap();
+    std::fs::write(&other, "public data UnrelatedEntry {}").unwrap();
+    let program = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        format!("use {relative} as application_entry;\n{program}"),
+    )
+    .unwrap();
     let (returned, inputs) = run_project_build_with_sources(
-        &root.join("main.omg"),
+        &root.join("build.omg"),
         &targets,
         &["main.omg", "build.omg", relative],
     );
     let project = returned.open_product(Some(&inputs)).unwrap();
+    assert!(project.source().parsed.files.selected_files().any(|file| {
+        file.path == other
+            && file.package_identity == Some(inputs.root())
+            && file.dependency_scope == source_provenance::DependencyScope::Product
+    }));
     let firmware = TargetProfile::UefiX64
         .program_entry_slot()
         .physical_contract_package
