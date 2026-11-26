@@ -14,22 +14,21 @@ pub(crate) fn seed_entry_contracts(
     storage: &mut SourceStorage,
     imports: &mut ImportQueue,
     bindings: &[ProductEntryBinding],
-    implicit_main: bool,
+    has_target_selected_entry: bool,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut contracts = Vec::new();
-    if implicit_main {
-        // Deployments for the default main are chosen after source assembly.
+    if has_target_selected_entry {
+        // A default main or registered test gets its target after source assembly.
         contracts.extend(
             target::TargetProfile::ALL
                 .into_iter()
                 .filter_map(|profile| profile.program_entry_slot().physical_contract_package),
         );
-    } else {
-        for binding in bindings {
-            let slot = target::ProgramEntrySlots::resolve(&binding.slot)
-                .map_err(|error| vec![Diagnostic::error(error)])?;
-            contracts.extend(slot.physical_contract_package);
-        }
+    }
+    for binding in bindings {
+        let slot = target::ProgramEntrySlots::resolve(&binding.slot)
+            .map_err(|error| vec![Diagnostic::error(error)])?;
+        contracts.extend(slot.physical_contract_package);
     }
     if contracts.is_empty() {
         return Ok(());

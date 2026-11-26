@@ -11,6 +11,7 @@ mod toolchain;
 
 pub use crate::source::entry::CapturedBuildEntry;
 pub use build_entry::BuildSourceSelection;
+pub use checkpoint::ProductEntrySources;
 
 use crate::PackageCompilationInputs;
 use crate::source::source_imports::{
