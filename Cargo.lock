@@ -1301,6 +1301,7 @@ name = "language-core"
 version = "0.1.0"
 dependencies = [
  "record-storage",
+ "source-provenance",
 ]
 
 [[package]]
