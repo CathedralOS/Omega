@@ -1130,11 +1130,11 @@ machine build(builder: @mutable Build) suspends {
 
 #[test]
 fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparation() {
-    let before = r#"    let input: BuildPath = BuildSource::resolve(@builder.source, "main.omg");
+    let before = r#"    let input: BuildPath = BuildSource::resolve(@builder.source, "support/support.omg");
     let reader: i32 = BuildSource::open(@builder.source, input, 0);
     let mutable first: [u8; 1] = [0u8];
     let first_count: i64 = BuildSource::read(@builder.source, reader, @mutable first[..], 1u64);
-    let saw_first: bool = first_count == 1i64 && first[0] == 109u8;
+    let saw_first: bool = first_count == 1i64 && first[0] == 112u8;
     let promised: RequiredOutput = BuildOutput::require(@mutable builder.output, "joined.txt");
     let output: BuildPath = BuildOutput::resolve(@builder.output, "joined.txt");
     let writer: i32 = BuildOutput::create(@mutable builder.output, output, 0);
@@ -1147,7 +1147,7 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
     _ = BuildOutput::write(@mutable builder.output, writer, "7i32 }");
     _ = BuildOutput::close(@mutable builder.output, writer);
     Build::include_source(builder, "joined.omg", "machine joined() -> i32 { 7i32 }");
-    let ready: bool = selected == 7 && saw_first && second_count == 1i64 && second[0] == 97u8 && denied == -1;
+    let ready: bool = selected == 7 && saw_first && second_count == 1i64 && second[0] == 117u8 && denied == -1;
     let completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, promised, output);
     transition completion {
         OutputCompletion::Sealed { receipt } -> checked(builder, ready),
