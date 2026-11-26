@@ -160,9 +160,18 @@ impl<'source> FileQualifiers<'source> {
         let mut description_apis = BTreeSet::new();
         for root in &roots.items {
             match trees.root_item(*root) {
-                Item::Use(syntax_trees::item::UseItem::File { root: Some(root), components, alias, .. })
-                    if root.as_str(trees) == "omega" && trees.items.identifier_path_members(*components)
-                        .iter().map(|part| part.as_str(trees)).eq(["language", "core", "reflect", "reflect"]) =>
+                Item::Use(syntax_trees::item::UseItem::File {
+                    root: Some(root),
+                    components,
+                    alias,
+                    ..
+                }) if root.as_str(trees) == "omega"
+                    && trees
+                        .items
+                        .identifier_path_members(*components)
+                        .iter()
+                        .map(|part| part.as_str(trees))
+                        .eq(["language", "core", "reflect", "reflect"]) =>
                 {
                     description_apis.insert(alias.as_str(trees));
                 }
@@ -185,21 +194,23 @@ impl<'source> FileQualifiers<'source> {
             let role = match role {
                 QualifierUse::Product => FileQualifierRole::Product,
                 QualifierUse::Host => FileQualifierRole::Code,
-                QualifierUse::Description(api) if description_apis.contains(api.as_str()) => FileQualifierRole::Description,
+                QualifierUse::Description(api) if description_apis.contains(api.as_str()) => {
+                    FileQualifierRole::Description
+                }
                 QualifierUse::Description(_) => FileQualifierRole::Code,
                 QualifierUse::RootOperand(schema) => {
-                    if !named_record && !schema.as_deref().is_some_and(|name| traits.contains(name)) {
+                    if !named_record && !schema.as_deref().is_some_and(|name| traits.contains(name))
+                    {
                         FileQualifierRole::Product
-                    } else { FileQualifierRole::Code }
+                    } else {
+                        FileQualifierRole::Code
+                    }
                 }
             };
             aliases
                 .entry(*alias)
                 .or_default()
-                .push(syntax_trees::item::FileQualifier {
-                    offset,
-                    role,
-                });
+                .push(syntax_trees::item::FileQualifier { offset, role });
         }
         aliases
     }
