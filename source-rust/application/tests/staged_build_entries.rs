@@ -43,7 +43,8 @@ fn successive_builds_select_the_final_native_and_psi_entry() {
             Build::application(builder, "staged");
             Build::bind(builder, {}\ProgramEntry, launch);
         }}
-        machine launch() {{}}"#,
+        machine launch() {{}}
+        machine main() crashes Trap {{ crash Trap; }}"#,
         host.target_name()
     );
     let (status, report) = invoke(
