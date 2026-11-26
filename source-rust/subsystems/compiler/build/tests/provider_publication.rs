@@ -113,6 +113,7 @@ machine firmware(image: Extent in Granted, initial_storage: Extent in Granted)
     let mode: CompositionMode = fused_mode();
     Build::select_provider::<Clock, FixedClock>(builder, mode);
     Build::select_provider::<Sensor, FirmwareSensor>(builder, uefi_x86_64);
+    Build::select_provider::<Clock, FixedClock>(builder, interpreter);
     Build::bind(builder, uefi_x86_64\ProgramEntry, firmware);
     Build::bind(builder, linux_x86_64\ProgramEntry, hosted);
 }
@@ -138,6 +139,7 @@ machine fused_mode() -> CompositionMode { CompositionMode::Fused }"#,
                 Some(ProductTarget::UefiX86_64),
                 Some(CompositionMode::Fused)
             ),
+            (Some(ProductTarget::Interpreter), Some(CompositionMode::Fused)),
         ]
     );
 }
