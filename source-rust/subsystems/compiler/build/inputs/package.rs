@@ -119,6 +119,7 @@ impl std::borrow::Borrow<PackageKeyIdentity> for PackageUse {
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 struct PackageCompilationSourceRecord {
     build_entries: PackageBuildEntries,
+    resolution: Option<[u8; 32]>,
     source_root: PathBuf,
     canonical_name: String,
     canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
@@ -165,6 +166,7 @@ impl PackageCompilationInputs {
                 && (record.source_root != previous.source_root
                     || record.canonical_name != previous.canonical_name
                     || record.build_entries != previous.build_entries
+                    || record.resolution != previous.resolution
                     || record.captured_source != previous.captured_source
                     || record.captured_build_source != previous.captured_build_source
                     || record.dependencies != previous.dependencies)
@@ -245,6 +247,7 @@ impl PackageCompilationInputs {
                     identity,
                     canonical_name: record.canonical_name,
                     build_entries: record.build_entries,
+                    resolution: record.resolution,
                     source_root: record.source_root,
                     canonical_source_metadata: if identity == self.root() {
                         record.canonical_source_metadata
@@ -390,6 +393,10 @@ impl PackageCompilationInputs {
             .packages
             .get(&identity)
             .map(|record| record.source_root.as_path())
+    }
+
+    pub(crate) fn resolution(&self, identity: PackageKeyIdentity) -> Option<[u8; 32]> {
+        self.source.packages.get(&identity)?.resolution
     }
 
     pub fn package_name(&self, identity: PackageKeyIdentity) -> Option<&str> {

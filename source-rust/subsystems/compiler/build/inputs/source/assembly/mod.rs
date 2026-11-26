@@ -74,6 +74,13 @@ pub struct AssembledSyntax {
 }
 
 impl AssembledSyntax {
+    pub fn build_owner(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+        self.parsed
+            .files
+            .get(self.build_source?.source_id())?
+            .package_identity
+    }
+
     /// The Build stage the whole-file check reads before Build runs, with the
     /// root's own files under a check-only owner. `None` when a package graph
     /// already supplies the root's owner.
@@ -358,9 +365,8 @@ impl ImmutableSourceParseCheckpoint {
             );
         }
         load_phase!(PackageImportPhase::FrozenView)?;
-        if deferred_product.is_none()
-            && let Some(loaded) = source_storage.seal_product_owner(catalogue)?
-        {
+        if deferred_product.is_none() && source_storage.seal_product_owner()? {
+            let loaded = source_storage.reselect_current_sources(catalogue)?;
             if let Some(inputs) = package_inputs {
                 source_storage
                     .sources

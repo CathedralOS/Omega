@@ -9,7 +9,7 @@ use crate::{
 use filesystem_authority::CanonicalFilesystemMetadataIndex;
 
 // Previously issued Build receipts bind this domain.
-const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x06";
+const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x07";
 
 impl PackageBuildHandoff {
     pub fn identity_digest(&self) -> [u8; 32] {
@@ -28,6 +28,13 @@ impl PackageCompilationInputs {
             digest.raw(&identity.digest());
             self.hash_build_entries(identity, &mut digest);
             digest.bytes(self.package_name(identity).unwrap_or_default().as_bytes());
+            match self.resolution(identity) {
+                Some(resolution) => {
+                    digest.byte(1);
+                    digest.raw(&resolution);
+                }
+                None => digest.byte(0),
+            }
             match self.canonical_source_metadata(identity) {
                 Some(index) => {
                     digest.byte(1);

@@ -38,6 +38,8 @@ pub use native_bindings::{NativeBindingInputs, PackageNativeBindings};
 /// The source descriptions and events returned by the selected Build execution.
 #[derive(Clone, Default)]
 pub struct ProductPolicyInputs<'a> {
+    /// Owner of the exact Build source selected by the issuing stage.
+    pub activation_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub activation: Option<&'a source_admission::RetainedDeclaration>,
     pub declared: &'a [Arc<crate::declaration_selection::ProductDeclarationRequest>],
     pub executed: &'a [crate::declaration_selection::ExecutedProductSelection],
@@ -57,7 +59,7 @@ impl ProductPolicyInputs<'_> {
             .map(|declaration| {
                 crate::source_state::source_subjects::rejoin_build_activation(
                     typed,
-                    subject,
+                    self.activation_owner.or(subject),
                     declaration,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])

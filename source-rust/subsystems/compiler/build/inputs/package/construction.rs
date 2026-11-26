@@ -81,6 +81,7 @@ impl PackageCompilationInputs {
                         build_entries: package.build_entries,
                         source_root: canonical_root.clone(),
                         canonical_name: package.canonical_name,
+                        resolution: package.resolution,
                         canonical_source_metadata,
                         captured_source: package.captured_source,
                         captured_build_source: package.captured_build_source,

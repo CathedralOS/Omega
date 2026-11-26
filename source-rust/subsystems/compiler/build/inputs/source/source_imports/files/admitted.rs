@@ -184,7 +184,16 @@ pub(crate) fn build_product_file_imports(
                     };
                     (FileOwner::Package(package), path.as_str())
                 }
-                None => (FileOwner::of(source), path.as_str()),
+                None => (
+                    storage
+                        .sources
+                        .product_owner_at(source.source_span(import.span))
+                        .map_or_else(
+                            || FileOwner::Root(source.package_root.clone()),
+                            FileOwner::Package,
+                        ),
+                    path.as_str(),
+                ),
             };
             aliases.push(AdmittedFileAlias {
                 source: roots.source_id,
