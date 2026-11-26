@@ -131,8 +131,7 @@ fn source_calls_publish_the_selected_atomic_member() {
         let current: u32 = cell.load(Receive);
     }";
     let typed =
-        crate::qualified_operator_home_tests::packages(&[(1, "main.omg", source)], &[], &[])
-            .unwrap();
+        crate::qualified_operator_home_tests::packages(&[(1, "main.omg", source)], &[]).unwrap();
     let table = &typed.expression_table;
     let mut operations = Vec::new();
     for (handle, node) in table.iter_expressions() {
