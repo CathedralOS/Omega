@@ -140,75 +140,217 @@ fn loading_eight_lanes_requires_eight_elements() {
     );
 }
 
-// Every remaining omega::simd operation is written as checked inline asm.
-// Each must agree on Psi and native, including the interleaves the
-// transposes compose.
-#[test]
-fn shifts_widening_narrowing_and_transposes_match_psi_and_native() {
-    let source = r#"
-use {system}/simd/simd.omg as simd;
-use {system}/simd/i16x8.omg as i16x8;
-use {system}/simd/transpose.omg as transpose;
+// Every SIMD library operation built from more than one instruction, or from
+// an instruction whose lane order matters, is checked lane by lane against a
+// scalar reference computed here in Rust, on both Psi and native.
+fn i16_array(values: &[i16]) -> String {
+    let lanes: Vec<String> = values.iter().map(|value| format!("{value}i16")).collect();
+    format!("[{}]", lanes.join(", "))
+}
 
-public machine main() crashes Trap {
-    let a_arr: [i16; 8] = [-3i16, 100i16, -32768i16, 7i16, 1i16, 2i16, 3i16, 4i16];
+fn u8_array(values: &[u8]) -> String {
+    let lanes: Vec<String> = values.iter().map(|value| format!("{value}u8")).collect();
+    format!("[{}]", lanes.join(", "))
+}
+
+fn lane_checks(name: &str, place: &str, suffix: &str, expected: &[String]) -> String {
+    let checks: Vec<String> = expected
+        .iter()
+        .enumerate()
+        .map(|(lane, value)| format!("{place}[{lane}] == {value}{suffix}"))
+        .collect();
+    format!("    let {name}: bool = {};\n", checks.join(" && "))
+}
+
+fn i16_checks(name: &str, place: &str, expected: &[i16]) -> String {
+    let values: Vec<String> = expected.iter().map(i16::to_string).collect();
+    lane_checks(name, place, "i16", &values)
+}
+
+fn narrow(value: i16) -> u8 {
+    value.clamp(0, 255) as u8
+}
+
+fn transpose(rows: &[[i16; 8]; 4], half: usize) -> [[i16; 4]; 4] {
+    std::array::from_fn(|column| std::array::from_fn(|row| rows[row][half * 4 + column]))
+}
+
+#[test]
+fn every_lane_of_the_simd_library_matches_a_scalar_reference_on_psi_and_native() {
+    let a: [i16; 8] = [-3, 100, -32768, 7, 32767, -1, 3, -4];
+    let b: [i16; 8] = [1, -100, 1, -8, 1, 32767, -32768, 4];
+    let bytes8: [u8; 8] = [0, 128, 255, 1, 2, 127, 4, 200];
+    let bytes4: [u8; 4] = [10, 200, 255, 0];
+    let clip: [i16; 8] = [-1, 0, 127, 255, 256, 32767, -32768, 42];
+    let quad: [i16; 4] = [-10, 20, 300, -400];
+    let rows: [[i16; 8]; 4] =
+        std::array::from_fn(|row| std::array::from_fn(|lane| (row * 10 + lane) as i16 - 17));
+
+    let sub: Vec<i16> = (0..8).map(|lane| a[lane].wrapping_sub(b[lane])).collect();
+    let add: Vec<i16> = (0..8).map(|lane| a[lane].wrapping_add(b[lane])).collect();
+    let shift1: Vec<i16> = a.iter().map(|value| value >> 1).collect();
+    let shift15: Vec<i16> = a.iter().map(|value| value >> 15).collect();
+    let widen8: Vec<i16> = bytes8.iter().map(|&value| i16::from(value)).collect();
+    let widen4: Vec<i16> = (0..8)
+        .map(|lane| bytes4.get(lane).map_or(0, |&value| i16::from(value)))
+        .collect();
+    let narrow8: Vec<String> = clip
+        .iter()
+        .map(|&value| narrow(value).to_string())
+        .collect();
+    let narrow4: Vec<String> = clip[..4]
+        .iter()
+        .map(|&value| narrow(value).to_string())
+        .collect();
+    let low4: Vec<i16> = (0..8)
+        .map(|lane| quad.get(lane).copied().unwrap_or(0))
+        .collect();
+    let concat: Vec<i16> = a[..4].iter().chain(&b[..4]).copied().collect();
+    let high: Vec<i16> = a[4..].iter().chain(&a[4..]).copied().collect();
+    let low_t = transpose(&rows, 0);
+    let high_t = transpose(&rows, 1);
+
+    // Native register allocation fails on one machine that keeps all of
+    // these checks live at once (see OWNER_CODE_CONCERNS.md), so each group
+    // runs as its own program over the same operations.
+    let mut groups: Vec<Vec<(String, String)>> = vec![
+        vec![
+            ("ok_sub".into(), i16_checks("ok_sub", "sub.values", &sub)),
+            ("ok_add".into(), i16_checks("ok_add", "add.values", &add)),
+            (
+                "ok_shift1".into(),
+                i16_checks("ok_shift1", "shift1.values", &shift1),
+            ),
+            (
+                "ok_shift15".into(),
+                i16_checks("ok_shift15", "shift15.values", &shift15),
+            ),
+            (
+                "ok_widen8".into(),
+                i16_checks("ok_widen8", "widen8.values", &widen8),
+            ),
+            (
+                "ok_widen4".into(),
+                i16_checks("ok_widen4", "widen4.values", &widen4),
+            ),
+        ],
+        vec![
+            (
+                "ok_narrow8".into(),
+                lane_checks("ok_narrow8", "narrow8", "u8", &narrow8),
+            ),
+            (
+                "ok_narrow4".into(),
+                lane_checks("ok_narrow4", "narrow4", "u8", &narrow4),
+            ),
+            (
+                "ok_low4".into(),
+                i16_checks("ok_low4", "low4.values", &low4),
+            ),
+            (
+                "ok_concat".into(),
+                i16_checks("ok_concat", "concat.values", &concat),
+            ),
+            (
+                "ok_high".into(),
+                i16_checks("ok_high", "high.values", &high),
+            ),
+        ],
+        Vec::new(),
+    ];
+    for row in 0..4 {
+        // The single transpose repeats its four lanes in the upper half; the
+        // pair transposes the upper four columns into the upper half.
+        let single: Vec<i16> = low_t[row].iter().chain(&low_t[row]).copied().collect();
+        let pair: Vec<i16> = low_t[row].iter().chain(&high_t[row]).copied().collect();
+        let (t, p) = (format!("ok_t{row}"), format!("ok_p{row}"));
+        groups[2].push((
+            t.clone(),
+            i16_checks(&t, &format!("t.row{row}.values"), &single),
+        ));
+        groups[2].push((
+            p.clone(),
+            i16_checks(&p, &format!("p.row{row}.values"), &pair),
+        ));
+    }
+
+    for group in groups {
+        let checks: String = group.iter().map(|(_, check)| check.as_str()).collect();
+        let verdicts: Vec<&str> = group.iter().map(|(name, _)| name.as_str()).collect();
+        let source = format!(
+            r#"
+use {{system}}/simd/simd.omg as simd;
+use {{system}}/simd/i16x8.omg as i16x8;
+use {{system}}/simd/transpose.omg as transpose;
+
+public machine main() crashes Trap {{
+    let a_arr: [i16; 8] = {a};
+    let b_arr: [i16; 8] = {b};
     let a: |simd|::Lanes<i16, 8> = |i16x8|::load(@a_arr);
-    let shifted: |simd|::Lanes<i16, 8> = |i16x8|::shift_right_arithmetic::<1>(@a);
-    let one_arr: [i16; 8] = [1i16, 1i16, 1i16, 1i16, 1i16, 1i16, 1i16, 1i16];
-    let one: |simd|::Lanes<i16, 8> = |i16x8|::load(@one_arr);
-    let less: |simd|::Lanes<i16, 8> = |i16x8|::wrapping_sub(@a, @one);
-    let bytes8: [u8; 8] = [0u8, 128u8, 255u8, 1u8, 2u8, 3u8, 4u8, 5u8];
-    let widened: |simd|::Lanes<i16, 8> = |i16x8|::widen_u8x8(@bytes8);
-    let bytes4: [u8; 4] = [10u8, 200u8, 255u8, 0u8];
-    let widened4: |simd|::Lanes<i16, 8> = |i16x8|::widen_u8x4(@bytes4);
-    let clip_arr: [i16; 8] = [-1i16, 0i16, 127i16, 255i16, 256i16, 32767i16, -32768i16, 42i16];
+    let b: |simd|::Lanes<i16, 8> = |i16x8|::load(@b_arr);
+    let sub: |simd|::Lanes<i16, 8> = |i16x8|::wrapping_sub(@a, @b);
+    let add: |simd|::Lanes<i16, 8> = |i16x8|::wrapping_add(@a, @b);
+    let shift1: |simd|::Lanes<i16, 8> = |i16x8|::shift_right_arithmetic::<1>(@a);
+    let shift15: |simd|::Lanes<i16, 8> = |i16x8|::shift_right_arithmetic::<15>(@a);
+    let bytes8: [u8; 8] = {bytes8};
+    let widen8: |simd|::Lanes<i16, 8> = |i16x8|::widen_u8x8(@bytes8);
+    let bytes4: [u8; 4] = {bytes4};
+    let widen4: |simd|::Lanes<i16, 8> = |i16x8|::widen_u8x4(@bytes4);
+    let clip_arr: [i16; 8] = {clip};
     let clip: |simd|::Lanes<i16, 8> = |i16x8|::load(@clip_arr);
-    let narrowed: [u8; 8] = |i16x8|::saturating_narrow_u8x8(@clip);
-    let narrowed4: [u8; 4] = |i16x8|::saturating_narrow_u8x4(@clip);
-    let quad: [i16; 4] = [-10i16, 20i16, 300i16, -400i16];
+    let narrow8: [u8; 8] = |i16x8|::saturating_narrow_u8x8(@clip);
+    let narrow4: [u8; 4] = |i16x8|::saturating_narrow_u8x4(@clip);
+    let quad: [i16; 4] = {quad};
     let low4: |simd|::Lanes<i16, 8> = |i16x8|::load_low4(@quad);
-    let cat: |simd|::Lanes<i16, 8> = |i16x8|::concat_low4(@a, @widened);
-    let hi: |simd|::Lanes<i16, 8> = |i16x8|::high4(@a);
-    let r0: [i16; 8] = [0i16, 1i16, 2i16, 3i16, 0i16, 0i16, 0i16, 0i16];
-    let r1: [i16; 8] = [10i16, 11i16, 12i16, 13i16, 0i16, 0i16, 0i16, 0i16];
-    let r2: [i16; 8] = [20i16, 21i16, 22i16, 23i16, 0i16, 0i16, 0i16, 0i16];
-    let r3: [i16; 8] = [30i16, 31i16, 32i16, 33i16, 0i16, 0i16, 0i16, 0i16];
-    let rows: |simd|::Rows4x4 = |simd|::Rows4x4 {
+    let concat: |simd|::Lanes<i16, 8> = |i16x8|::concat_low4(@a, @b);
+    let high: |simd|::Lanes<i16, 8> = |i16x8|::high4(@a);
+    let r0: [i16; 8] = {r0};
+    let r1: [i16; 8] = {r1};
+    let r2: [i16; 8] = {r2};
+    let r3: [i16; 8] = {r3};
+    let rows: |simd|::Rows4x4 = |simd|::Rows4x4 {{
         row0: |i16x8|::load(@r0), row1: |i16x8|::load(@r1),
         row2: |i16x8|::load(@r2), row3: |i16x8|::load(@r3)
-    };
+    }};
     let t: |simd|::Rows4x4 = |transpose|::transpose4x4(@rows);
-    let p0: [i16; 8] = [0i16, 1i16, 2i16, 3i16, 4i16, 5i16, 6i16, 7i16];
-    let p1: [i16; 8] = [10i16, 11i16, 12i16, 13i16, 14i16, 15i16, 16i16, 17i16];
-    let p2: [i16; 8] = [20i16, 21i16, 22i16, 23i16, 24i16, 25i16, 26i16, 27i16];
-    let p3: [i16; 8] = [30i16, 31i16, 32i16, 33i16, 34i16, 35i16, 36i16, 37i16];
-    let prow: |simd|::Rows4x4 = |simd|::Rows4x4 {
-        row0: |i16x8|::load(@p0), row1: |i16x8|::load(@p1),
-        row2: |i16x8|::load(@p2), row3: |i16x8|::load(@p3)
-    };
-    let tp: |simd|::Rows4x4 = |transpose|::transpose4x4_pair(@prow);
-    let ok_shift: bool = shifted.values[0] == -2i16 && shifted.values[1] == 50i16 && shifted.values[2] == -16384i16 && shifted.values[3] == 3i16;
-    let ok_widen: bool = widened.values[1] == 128i16 && widened.values[2] == 255i16 && widened.values[7] == 5i16;
-    let ok_widen4: bool = widened4.values[0] == 10i16 && widened4.values[1] == 200i16 && widened4.values[2] == 255i16 && widened4.values[4] == 0i16 && widened4.values[7] == 0i16;
-    let ok_narrow: bool = narrowed[0] == 0u8 && narrowed[2] == 127u8 && narrowed[4] == 255u8 && narrowed[6] == 0u8 && narrowed[7] == 42u8;
-    let ok_narrow4: bool = narrowed4[0] == 0u8 && narrowed4[1] == 0u8 && narrowed4[2] == 127u8 && narrowed4[3] == 255u8;
-    let ok_low4: bool = low4.values[0] == -10i16 && low4.values[3] == -400i16 && low4.values[4] == 0i16 && low4.values[7] == 0i16;
-    let ok_cat: bool = cat.values[0] == -3i16 && cat.values[3] == 7i16 && cat.values[4] == 0i16 && cat.values[5] == 128i16;
-    let ok_hi: bool = hi.values[0] == 1i16 && hi.values[3] == 4i16 && hi.values[4] == 1i16 && hi.values[7] == 4i16;
-    let ok_t: bool = t.row0.values[0] == 0i16 && t.row0.values[1] == 10i16 && t.row0.values[2] == 20i16 && t.row0.values[3] == 30i16 && t.row0.values[4] == 0i16
-        && t.row1.values[0] == 1i16 && t.row1.values[3] == 31i16 && t.row3.values[0] == 3i16 && t.row3.values[3] == 33i16 && t.row3.values[7] == 33i16;
-    let ok_tp: bool = tp.row0.values[0] == 0i16 && tp.row0.values[1] == 10i16 && tp.row0.values[3] == 30i16 && tp.row0.values[4] == 4i16 && tp.row0.values[7] == 34i16
-        && tp.row1.values[0] == 1i16 && tp.row1.values[4] == 5i16 && tp.row3.values[0] == 3i16 && tp.row3.values[7] == 37i16;
-    let ok_sub: bool = less.values[0] == -4i16 && less.values[2] == 32767i16 && less.values[7] == 3i16;
-    transition ok_sub && ok_shift && ok_widen && ok_widen4 && ok_narrow && ok_narrow4 && ok_low4 && ok_cat && ok_hi && ok_t && ok_tp {
+    let p: |simd|::Rows4x4 = |transpose|::transpose4x4_pair(@rows);
+{checks}    transition {verdict} {{
         true -> done(),
         false -> wrong()
+    }}
+    machine done() {{}}
+    machine wrong() {{ crash Trap; }}
+}}
+"#,
+            a = i16_array(&a),
+            b = i16_array(&b),
+            bytes8 = u8_array(&bytes8),
+            bytes4 = u8_array(&bytes4),
+            clip = i16_array(&clip),
+            quad = i16_array(&quad),
+            r0 = i16_array(&rows[0]),
+            r1 = i16_array(&rows[1]),
+            r2 = i16_array(&rows[2]),
+            r3 = i16_array(&rows[3]),
+            verdict = verdicts.join(" && "),
+        );
+        observations::assert_silent_return(|| project_source(&source), &["build.omg"]);
     }
-    machine done() {}
-    machine wrong() { crash Trap; }
 }
-"#;
-    observations::assert_silent_return(|| project_source(source), &["build.omg"]);
+
+// Only x86-64 implements packed integer instructions. Another target refuses
+// the build by naming the machine and the missing target support.
+#[test]
+fn packed_instructions_refuse_arm64_native_builds_clearly() {
+    let scratch = project(false);
+    let (output, report) =
+        observations::run(&scratch, &["--target", "linux_arm64"], &["build.omg"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("uses packed integer asm instructions, which only x86_64 implements")
+            && report.contains("target `linux_arm64` has no packed integer instructions yet"),
+        "{report}"
+    );
 }
 
 // The instruction contracts are reached only through `asm`; importing the

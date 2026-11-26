@@ -100,6 +100,8 @@ pub enum PackedIntegerPrimitive {
     ShiftRightI16x8,
     WidenU8x8ToI16x8,
     NarrowI16x8ToU8x8Saturating,
+    WidenU8x4ToI16x8,
+    NarrowI16x8ToU8x4Saturating,
     LoadI16x4ZeroExtend,
     WrappingAddU8x16,
     MinI16x8,
@@ -110,7 +112,7 @@ pub enum PackedIntegerPrimitive {
 }
 
 impl PackedIntegerPrimitive {
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 20] = [
         Self::WrappingAddI16x8,
         Self::WrappingSubI16x8,
         Self::UnpackLowWords,
@@ -122,6 +124,8 @@ impl PackedIntegerPrimitive {
         Self::ShiftRightI16x8,
         Self::WidenU8x8ToI16x8,
         Self::NarrowI16x8ToU8x8Saturating,
+        Self::WidenU8x4ToI16x8,
+        Self::NarrowI16x8ToU8x4Saturating,
         Self::LoadI16x4ZeroExtend,
         Self::WrappingAddU8x16,
         Self::MinI16x8,
@@ -146,6 +150,11 @@ impl PackedIntegerPrimitive {
             Self::ShiftRightI16x8 => "vpsraw",
             Self::WidenU8x8ToI16x8 => "vpmovzxbw",
             Self::NarrowI16x8ToU8x8Saturating => "vpackuswb",
+            // The four-byte forms are the x86-64 pairs `vmovd` + `vpmovzxbw`
+            // and `vpackuswb` + `vmovd`, which read or write exactly four
+            // bytes; the eight-byte mnemonics would touch eight.
+            Self::WidenU8x4ToI16x8 => "vpmovzxbw_low4",
+            Self::NarrowI16x8ToU8x4Saturating => "vpackuswb_low4",
             Self::LoadI16x4ZeroExtend => "vmovq",
             Self::WrappingAddU8x16 => "vpaddb",
             Self::MinI16x8 => "vpminsw",
@@ -180,6 +189,8 @@ impl PackedIntegerPrimitive {
             Self::ShiftRightI16x8
             | Self::WidenU8x8ToI16x8
             | Self::NarrowI16x8ToU8x8Saturating
+            | Self::WidenU8x4ToI16x8
+            | Self::NarrowI16x8ToU8x4Saturating
             | Self::LoadI16x4ZeroExtend
             | Self::AbsI16x8 => 1,
         }
@@ -446,6 +457,22 @@ const ROWS: &[SealedIntrinsicRow] = &[
         BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::NarrowI16x8ToU8x8Saturating,
+        )),
+    ),
+    row(
+        "assembly_packed_integer.omg",
+        "vpmovzxbw_low4",
+        BundledFile::CoreAssemblyPackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::WidenU8x4ToI16x8,
+        )),
+    ),
+    row(
+        "assembly_packed_integer.omg",
+        "vpackuswb_low4",
+        BundledFile::CoreAssemblyPackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::NarrowI16x8ToU8x4Saturating,
         )),
     ),
     row(

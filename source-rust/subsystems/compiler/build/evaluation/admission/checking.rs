@@ -315,7 +315,7 @@ pub(crate) fn prepare_admitted_build(
 #[cfg(test)]
 mod tests {
     use super::settle_rejoined_build_slice;
-    use build_evaluation_result::{BuildConstants, BuildSubjectValidation};
+    use build_evaluation_result::{BuildConstants, BuildSubjectValidation, CompileFailure};
 
     fn settle(constants: &BuildConstants) -> Result<(), Vec<String>> {
         let typed = source_compiler::representations::source_state::TypedTrees::default();
@@ -513,6 +513,7 @@ mod tests {
                 entry,
                 None,
                 None,
+                &Default::default(),
                 BuildSubjectValidation::Checked,
                 &mut artifacts::compile_timings::CompileTimings::default(),
             )
@@ -560,7 +561,6 @@ mod tests {
             Err(failure) => failure,
             Ok(_) => panic!("a retyped value is not a receipt"),
         };
-        use build_evaluation_result::CompileFailure;
         assert!(diagnostics::join_messages(&failure.diagnostics).contains("receipt"));
         assert!(failure.accounting.receipts().is_empty());
     }
