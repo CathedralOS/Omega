@@ -92,6 +92,12 @@ pub(super) fn decode_local_slot(
             register: selected_instructions::VirtualRegisterId(cursor.u32()?),
         });
     }
+    if tag == 10 {
+        return Ok(LocalStorageSlotId::Inlined {
+            call_site: cursor.u32()?,
+            slot_index: cursor.u32()?,
+        });
+    }
     let operation = decode_id(cursor, OperationId::new)?;
     match tag {
         0 => Ok(LocalStorageSlotId::Structural {

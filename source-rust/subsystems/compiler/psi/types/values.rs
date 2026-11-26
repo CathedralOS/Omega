@@ -279,6 +279,7 @@ pub(crate) mod places {
                 | Self::StorageAlignment { source }
                 | Self::GlobalDescriptorTable { source, .. }
                 | Self::MoveStructuralValue { source }
+                | Self::PackedIntegerUnary { source, .. }
                 | Self::DecomposeStructuralValue { subject: source }
                 | Self::EstablishAccessReference { source, .. }
                 | Self::EstablishReference { source, .. }
@@ -286,7 +287,8 @@ pub(crate) mod places {
                 | Self::EstablishMutableElementView { source, .. } => {
                     source.place = map(source.place, source.access);
                 }
-                Self::MergeActivationClaim { lower, upper, .. } => {
+                Self::MergeActivationClaim { lower, upper, .. }
+                | Self::PackedIntegerBinary { left: lower, right: upper, .. } => {
                     lower.place = map(lower.place, lower.access);
                     upper.place = map(upper.place, upper.access);
                 }
@@ -520,6 +522,12 @@ pub(crate) mod places {
                 } => {
                     push(argument_projection(source).into(), None);
                     push(StructuralStorageUse::Type(*element), None);
+                }
+                Self::PackedIntegerUnary { source, .. } => push(argument_projection(source).into(), Some(Read)),
+                Self::PackedIntegerBinary { left, right, .. } => {
+                    for source in [left, right] {
+                        push(argument_projection(source).into(), Some(Read));
+                    }
                 }
                 Self::MergeActivationClaim { lower, upper, .. } => {
                     for source in [lower, upper] {
@@ -839,6 +847,7 @@ pub(crate) mod places {
                 | Self::StorageAlignment { source }
                 | Self::GlobalDescriptorTable { source, .. }
                 | Self::MoveStructuralValue { source }
+                | Self::PackedIntegerUnary { source, .. }
                 | Self::DecomposeStructuralValue { subject: source }
                 | Self::EstablishAccessReference { source, .. }
                 | Self::EstablishReference { source, .. }
@@ -851,7 +860,8 @@ pub(crate) mod places {
                 | Self::ElementViewSubslice { source, .. } => {
                     paths.push(&mut source.path);
                 }
-                Self::MergeActivationClaim { lower, upper, .. } => {
+                Self::MergeActivationClaim { lower, upper, .. }
+                | Self::PackedIntegerBinary { left: lower, right: upper, .. } => {
                     paths.push(&mut lower.path);
                     paths.push(&mut upper.path);
                 }

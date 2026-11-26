@@ -67,3 +67,53 @@ fn a_case_constraint_selects_the_case_its_type_argument_allows() {
     assert_eq!(verdict(CASE_TYPE), "accepted");
     assert_eq!(verdict(CASE_TYPE_MISMATCH), "data domain unproved");
 }
+
+#[test]
+fn a_computed_static_argument_evaluates_for_a_generic_call_and_index() {
+    let program = |value: u32| {
+        format!(
+            "data Index<Limit: u32> [copy] requires value < Limit {{\n\
+                 value: u32;\n\
+             }}\n\
+             machine inner<Limit: u32>(x: u32) -> Index<Limit> requires x < Limit {{\n\
+                 Index {{ value: x }}\n\
+             }}\n\
+             machine outer<Count: u32>() -> u32 requires Count < 100 {{\n\
+                 let idx: Index<Count + 1> = inner::<Count + 1>({value}u32);\n\
+                 idx.value\n\
+             }}\n\
+             machine main() -> u32 {{\n\
+                 outer::<3>()\n\
+             }}\n"
+        )
+    };
+    let entry_verdict = |source: &str| {
+        let mut parts = super::build_purpose::judge_build_all(&build(source));
+        match parts.remove(0) {
+            Ok(RouteVerdict::Accepted(accepted)) => {
+                accepted.publish_invocation().unwrap();
+                "accepted".to_owned()
+            }
+            Ok(RouteVerdict::Rejected { unproved, .. })
+                if !unproved.is_empty()
+                    && unproved.iter().all(|row| {
+                        matches!(
+                            row.kind,
+                            ObligationKind::DataDomain { .. }
+                                | ObligationKind::CallRequirement { .. }
+                        )
+                    }) =>
+            {
+                "domain or precondition unproved".to_owned()
+            }
+            Err(crate::CompilationRefusal::Elaboration(refusal))
+            | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
+            other => panic!("{other:?}"),
+        }
+    };
+    assert_eq!(entry_verdict(&program(3)), "accepted");
+    assert_eq!(
+        entry_verdict(&program(4)),
+        "domain or precondition unproved"
+    );
+}

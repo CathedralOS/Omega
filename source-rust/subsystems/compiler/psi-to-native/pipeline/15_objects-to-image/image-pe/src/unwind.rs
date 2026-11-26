@@ -157,6 +157,8 @@ mod x64 {
     const UWOP_ALLOC_SMALL: u8 = 2;
     const UWOP_SAVE_NONVOL: u8 = 4;
     const UWOP_SAVE_NONVOL_FAR: u8 = 5;
+    const UWOP_SAVE_XMM128: u8 = 8;
+    const UWOP_SAVE_XMM128_FAR: u8 = 9;
     const UNW_FLAG_CHAININFO: u8 = 4;
     const MAX_PROLOG_BYTES: u32 = 255;
 
@@ -245,16 +247,29 @@ mod x64 {
                     register,
                     frame_offset_bytes,
                 } => {
-                    let number = general_register(register)?;
-                    if frame_offset_bytes.is_multiple_of(8)
-                        && frame_offset_bytes / 8 <= u32::from(u16::MAX)
-                    {
-                        slots.push(code(offset, UWOP_SAVE_NONVOL, number));
-                        slots.push((frame_offset_bytes / 8) as u16);
+                    if let MachineRegister::X86Xmm(number @ 0..=15) = register {
+                        if frame_offset_bytes.is_multiple_of(16)
+                            && frame_offset_bytes / 16 <= u32::from(u16::MAX)
+                        {
+                            slots.push(code(offset, UWOP_SAVE_XMM128, number));
+                            slots.push((frame_offset_bytes / 16) as u16);
+                        } else {
+                            slots.push(code(offset, UWOP_SAVE_XMM128_FAR, number));
+                            slots.push(frame_offset_bytes as u16);
+                            slots.push((frame_offset_bytes >> 16) as u16);
+                        }
                     } else {
-                        slots.push(code(offset, UWOP_SAVE_NONVOL_FAR, number));
-                        slots.push(frame_offset_bytes as u16);
-                        slots.push((frame_offset_bytes >> 16) as u16);
+                        let number = general_register(register)?;
+                        if frame_offset_bytes.is_multiple_of(8)
+                            && frame_offset_bytes / 8 <= u32::from(u16::MAX)
+                        {
+                            slots.push(code(offset, UWOP_SAVE_NONVOL, number));
+                            slots.push((frame_offset_bytes / 8) as u16);
+                        } else {
+                            slots.push(code(offset, UWOP_SAVE_NONVOL_FAR, number));
+                            slots.push(frame_offset_bytes as u16);
+                            slots.push((frame_offset_bytes >> 16) as u16);
+                        }
                     }
                 }
             }

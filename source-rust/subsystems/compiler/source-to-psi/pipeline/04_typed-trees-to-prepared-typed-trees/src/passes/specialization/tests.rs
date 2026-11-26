@@ -2745,17 +2745,23 @@ fn copied_layout_queries_keep_the_kind_and_substitute_the_exact_type_operand() {
         let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
         let copied_calls = calls(program, copied.machine);
         let query = copied_calls[0].layout_query.as_ref().unwrap();
-        let DataLayoutQueryRequest::Type { kind: copied_kind, operand } = query else {
+        let DataLayoutQueryRequest::Type {
+            kind: copied_kind,
+            operand,
+        } = query
+        else {
             panic!("the specialized query measures a type")
         };
         assert_eq!(*copied_kind, kind);
         assert_eq!(operand.symbol, source.byte);
-        assert_eq!(
-            named_symbol(program, operand.type_reference),
-            source.byte
-        );
+        assert_eq!(named_symbol(program, operand.type_reference), source.byte);
         let original_calls = calls(program, source.relay.machine);
-        let original = original_calls[0].layout_query.as_ref().unwrap().type_operand().unwrap();
+        let original = original_calls[0]
+            .layout_query
+            .as_ref()
+            .unwrap()
+            .type_operand()
+            .unwrap();
         assert_eq!(original.symbol, source.relay.parameter);
         assert_eq!(
             named_symbol(program, original.type_reference),

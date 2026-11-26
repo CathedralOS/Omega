@@ -40,7 +40,7 @@ impl DeferredProductSources {
     pub fn assemble(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
-        bindings: &[ProductEntryBinding],
+        entries: ProductEntrySources<'_>,
         declarations: &[Arc<ProductDeclarationRequest>],
         build_providers: &crate::InterpretedProviderSelections,
         timings: &mut CompileTimings,
@@ -57,7 +57,7 @@ impl DeferredProductSources {
             package_inputs,
             Some(ProductSourceSelection {
                 roots,
-                bindings,
+                entries,
                 declarations,
             }),
             build_providers,
@@ -67,9 +67,16 @@ impl DeferredProductSources {
     }
 }
 
+/// Roots whose target entry contracts must be available when checking a Product.
+#[derive(Default)]
+pub struct ProductEntrySources<'a> {
+    pub bindings: &'a [ProductEntryBinding],
+    pub has_registered_tests: bool,
+}
+
 pub(super) struct ProductSourceSelection<'a> {
     roots: Arc<[std::path::PathBuf]>,
-    bindings: &'a [ProductEntryBinding],
+    entries: ProductEntrySources<'a>,
     declarations: &'a [Arc<ProductDeclarationRequest>],
 }
 
@@ -92,17 +99,23 @@ impl ProductSourceSelection<'_> {
         crate::source::source_imports::seed_entry_contracts(
             storage,
             imports,
-            self.bindings,
-            implicit_main,
+            self.entries.bindings,
+            implicit_main || self.entries.has_registered_tests,
         )?;
         if let Some(named) = &storage.entry
-            && named.selected_by(self.bindings)
+            && named.selected_by(self.entries.bindings)
         {
             imports.seed(named.path.clone(), Product);
         }
-        seed_operand_files(imports, storage, packages, self.bindings, self.declarations)?;
+        seed_operand_files(
+            imports,
+            storage,
+            packages,
+            self.entries.bindings,
+            self.declarations,
+        )?;
         if let Some(packages) = packages {
-            seed_described_entries(imports, packages, self.bindings);
+            seed_described_entries(imports, packages, self.entries.bindings);
             for path in storage.product_subject_sources()? {
                 imports.seed(path, Product);
             }
@@ -367,13 +380,23 @@ impl ImmutableSourceParseCheckpoint {
         let root_path = entry.path();
         let mut source_storage =
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
-        if let CapturedBuildEntry::Successor {
-            previous_build_files, ..
-        } = entry
-        {
-            source_storage.previous_build_files = previous_build_files.into();
-        }
         let project = StageRoots::prepare(entry, &mut source_storage)?;
+        let predecessors = match entry {
+            CapturedBuildEntry::Initial(_) => &[][..],
+            CapturedBuildEntry::Successor {
+                previous_build_files,
+                ..
+            } => previous_build_files,
+        };
+        let root = source_storage.default_package_root().to_path_buf();
+        source_storage.register_package_root(
+            &root,
+            None,
+            predecessors
+                .iter()
+                .cloned()
+                .chain(project.build.iter().map(|(path, _)| path.clone())),
+        );
         let mut imports = ImportQueue::default();
         if let Some((path, _)) = &project.build {
             imports.seed(path.clone(), source_provenance::DependencyScope::Build);

@@ -26,6 +26,25 @@ pub mod provider_identity;
 pub mod identity_encoding;
 pub mod structural_path_encoding;
 
+/// Two eight-lane arrays supply the signed lanes for arithmetic or a constant shuffle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackedIntegerBinaryOperation {
+    WrappingAddI16x8,
+    WrappingSubI16x8,
+    ShuffleI16x8 { lanes: [u8; 8] },
+}
+
+/// One read-only packed array produces a fresh fixed array.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PackedIntegerUnaryOperation {
+    ShiftRightArithmeticI16x8 { count: u8 },
+    WidenU8x8ToI16x8,
+    NarrowI16x8ToU8x8Saturating,
+    LoadI16x4ZeroExtend,
+    WidenU8x4ToI16x8,
+    NarrowI16x8ToU8x4Saturating,
+}
+
 // Call obligations and runtime lowering use the same two declaration
 // namespaces. Keeping this existing target identity in the shared vocabulary
 // lets check tables name a boundary without depending on the artifact crate.

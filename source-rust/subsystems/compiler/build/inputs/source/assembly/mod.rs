@@ -11,6 +11,7 @@ mod toolchain;
 
 pub use crate::source::entry::CapturedBuildEntry;
 pub use build_entry::BuildSourceSelection;
+pub use checkpoint::ProductEntrySources;
 
 use crate::PackageCompilationInputs;
 use crate::source::source_imports::{
@@ -276,7 +277,15 @@ impl ImmutableSourceParseCheckpoint {
         if let Some(package_inputs) = package_inputs {
             for request in self.package_imports.iter() {
                 for resolved in request
-                    .resolve_for_exact_target(package_inputs, &mut source_storage.package_roots)?
+                    .resolve_for_exact_target(package_inputs, &mut source_storage.package_roots)
+                    .map_err(|mut diagnostics| {
+                        crate::attribute_diagnostics(
+                            &mut diagnostics,
+                            &source_storage.sources,
+                            Some(package_inputs),
+                        );
+                        diagnostics
+                    })?
                 {
                     imports.enqueue(vec![(resolved.path.clone(), request.importer_scope())])?;
                     source_storage.resolved_imports.push(resolved);

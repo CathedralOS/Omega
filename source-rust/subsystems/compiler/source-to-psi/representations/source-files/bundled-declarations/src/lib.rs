@@ -17,3 +17,9 @@ macro_rules! source_bytes {
     };
 }
 language_core::bundled_library_files!(source_bytes);
+
+/// Exact installed declarations for the Build interpreter’s designated standard streams.
+pub const BUILD_STREAMS: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../../../source/library/core/sandbox/streams.omg"
+));

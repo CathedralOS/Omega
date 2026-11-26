@@ -1,4 +1,7 @@
+use {omega}/language/core/process_exit.omg;
+use main.omg as adapter;
+
 machine build(builder: @mutable Build) {
     Build::package(builder, "exit_adapter");
-    Build::select_provider::<ProcessExit, LocalExit>(builder);
+    Build::select_provider::<|process_exit|::ProcessExit, |adapter|::LocalExit>(builder);
 }

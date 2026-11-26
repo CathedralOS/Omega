@@ -155,6 +155,8 @@ pub enum StructuralEffectAction {    EstablishNativeCodeLayout,
     EstablishRecord,
     EstablishScalarCase,
     EstablishStructuralCase,
+    PackedIntegerUnary,
+    PackedIntegerBinary,
     EstablishScalarArray,
 }
 
@@ -367,6 +369,8 @@ structural_effect_rows! {
     EstablishAccessReference => (Structural, ExactReferenceSource, EstablishAccessReference, None, CapturesLoanAndAddsReferenceCarrier),
     EstablishReference => (Structural, ExactReferenceSource, EstablishReference, None, CapturesLoanAndAddsReferenceCarrier),
     ReleaseReference => (Unit, ExactReferenceCarrier, ReleaseReference, None, ReleasesReferenceCarrier),
+    PackedIntegerUnary => (Structural, ExactScalarArray, PackedIntegerUnary, None, AddsUnrestrictedPlace),
+    PackedIntegerBinary => (Structural, ExactScalarArray, PackedIntegerBinary, None, AddsUnrestrictedPlace),
     EstablishScalarArray => (Structural, ExactScalarArray, EstablishScalarArray, None, AddsUnrestrictedPlace),
     EstablishPrimitiveLocal => (Structural, ExactPrimitiveLocal, EstablishPrimitiveLocal, None, AddsUnrestrictedPlace),
     PrimitiveScalarRead => (Scalar, ExactReadablePrimitiveRoot, ReadPrimitive, None, RequiresAndKeepsStructuralPlace),
@@ -516,6 +520,8 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EstablishStructuralCase => {
             OperationSemanticTag::EstablishStructuralCase
         }
+        StructuralEffectAction::PackedIntegerUnary => OperationSemanticTag::PackedIntegerUnary,
+        StructuralEffectAction::PackedIntegerBinary => OperationSemanticTag::PackedIntegerBinary,
         StructuralEffectAction::EstablishScalarArray => {
             OperationSemanticTag::EstablishScalarArray
         }
@@ -767,7 +773,7 @@ fn validate_structural_effect_schema(
                 && schema.external_effect == StructuralEffectExternalEffect::None
                 && schema.frontier
                     == StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace,
-            StructuralEffectAction::EstablishScalarArray => {
+            StructuralEffectAction::PackedIntegerUnary | StructuralEffectAction::PackedIntegerBinary | StructuralEffectAction::EstablishScalarArray => {
                 schema.result == StructuralEffectResultShape::Structural
                     && schema.custody == StructuralEffectCustody::ExactScalarArray
                     && schema.external_effect == StructuralEffectExternalEffect::None

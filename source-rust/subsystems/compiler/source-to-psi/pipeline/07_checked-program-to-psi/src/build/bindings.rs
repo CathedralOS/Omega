@@ -397,6 +397,7 @@ pub(crate) mod build_requests {
         PublishSource,
         ConfigureTestFixture,
         ConfigureTestEngine,
+        SandboxWrite,
     }
 
     impl TerminalBuildRequestOperation {

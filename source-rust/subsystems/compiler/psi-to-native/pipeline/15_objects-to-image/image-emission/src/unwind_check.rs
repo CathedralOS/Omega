@@ -127,9 +127,10 @@ fn machine_register(name: &str) -> Result<MachineRegister, String> {
         "r13" => R::X86R13,
         "r14" => R::X86R14,
         "r15" => R::X86R15,
-        _ => match (numbered("x"), numbered("d")) {
-            (Some(number), _) if number < 31 => R::Aarch64X(number),
-            (_, Some(number)) if number < 32 => R::Aarch64V(number),
+        _ => match (numbered("x"), numbered("d"), numbered("xmm")) {
+            (Some(number), _, _) if number < 31 => R::Aarch64X(number),
+            (_, Some(number), _) if number < 32 => R::Aarch64V(number),
+            (_, _, Some(number)) if number < 16 => R::X86Xmm(number),
             _ => {
                 return Err(format!(
                     "frame plan restores `{name}`, which no unwind record names"

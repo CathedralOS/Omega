@@ -13391,6 +13391,20 @@ mod source_integer {
                 goal: TermHandle,
                 premises: &[(TermHandle, TermHandle)],
             ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+                if let Some((ty, left, right)) = self.identity_parts(goal) {
+                    let integer = self.integer_constant()?;
+                    if ty == integer {
+                        let l = self.source_normal_integer(left, 0)?;
+                        let r = self.source_normal_integer(right, 0)?;
+                        if self.arena.structurally_equal(l.term, r.term) {
+                            let reverse_r = self.symmetry(integer, right, r.term, r.equation);
+                            return Ok(Some(self.transitivity(
+                                integer, left, l.term, right, l.equation, reverse_r,
+                            )));
+                        }
+                    }
+                    return self.closed_source_predicate(goal, 0);
+                }
                 let Some(IntegerRelation::LessOrEqual { left, right }) =
                     self.integer_relation(goal)
                 else {

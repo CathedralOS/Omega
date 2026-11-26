@@ -619,6 +619,12 @@ pub(crate) mod aggregate_result_input {
                 | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. } => {
                     *source == place
                 }
+                LegalizedScalarInstructionKind::PackedIntegerUnary { source, .. } => {
+                    source.place == place
+                }
+                LegalizedScalarInstructionKind::PackedIntegerBinary { left, right, .. } => {
+                    left.place == place || right.place == place
+                }
                 LegalizedScalarInstructionKind::EstablishStructuralArray { elements, .. } => {
                     elements
                         .iter()
@@ -2535,6 +2541,12 @@ pub(crate) mod established_view_input {
                         elements.iter().any(|argument| argument.place == place),
                     LegalizedScalarInstructionKind::StructuralByteViewFieldStore { source, .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. } => *source == place,
+                    LegalizedScalarInstructionKind::PackedIntegerUnary { source, .. } => {
+                    source.place == place
+                }
+                LegalizedScalarInstructionKind::PackedIntegerBinary { left, right, .. } => {
+                        left.place == place || right.place == place
+                    }
                     LegalizedScalarInstructionKind::StoreStructuralField { value, .. } => *value == place,
                     _ => false,
                 })
@@ -3449,8 +3461,7 @@ pub(crate) mod primitive_local_input {
                 path,
                 indices,
             } => {
-                if !query.admits_result(scalar.as_checking())
-                {
+                if !query.admits_result(scalar.as_checking()) {
                     return None;
                 }
                 source.structural.as_ref()?;
@@ -3982,12 +3993,36 @@ pub(crate) mod record_input {
             let mutable = view(Some(MutableBorrow));
             let write_only = view(Some(WriteOnlyBorrow));
             let unspecified = view(None);
-            assert!(descriptor_family(Some(&mutable), &shared, Some(MutableBorrow)));
-            assert!(descriptor_family(Some(&mutable), &write_only, Some(MutableBorrow)));
-            assert!(descriptor_family(Some(&unspecified), &mutable, Some(MutableBorrow)));
-            assert!(descriptor_family(Some(&shared), &unspecified, Some(SharedBorrow)));
-            assert!(!descriptor_family(Some(&shared), &mutable, Some(SharedBorrow)));
-            assert!(!descriptor_family(Some(&mutable), &mutable, Some(SharedBorrow)));
+            assert!(descriptor_family(
+                Some(&mutable),
+                &shared,
+                Some(MutableBorrow)
+            ));
+            assert!(descriptor_family(
+                Some(&mutable),
+                &write_only,
+                Some(MutableBorrow)
+            ));
+            assert!(descriptor_family(
+                Some(&unspecified),
+                &mutable,
+                Some(MutableBorrow)
+            ));
+            assert!(descriptor_family(
+                Some(&shared),
+                &unspecified,
+                Some(SharedBorrow)
+            ));
+            assert!(!descriptor_family(
+                Some(&shared),
+                &mutable,
+                Some(SharedBorrow)
+            ));
+            assert!(!descriptor_family(
+                Some(&mutable),
+                &mutable,
+                Some(SharedBorrow)
+            ));
         }
     }
 }
@@ -4279,19 +4314,17 @@ pub(crate) mod reference_input {
                 .iter()
                 .filter(|plan| plan.carrier == referent);
             match (plans.next(), plans.next()) {
-                (Some(plan), None) => {
-                    owner == Some(correspondence.source_type())
-                        && (correspondence.resident_source().is_some()
-                            || actual == Some(correspondence.schema()))
-                        && structural_storage_queries::access_reference_validation::validate_backing(
-                            declarations,
-                            signature.structural_types.access_views(),
-                            plan,
-                            correspondence.source_type(),
-                            correspondence,
-                        )
-                        .is_ok()
-                }
+                (Some(plan), None) => owner == Some(correspondence.source_type())
+                    && (correspondence.resident_source().is_some()
+                        || actual == Some(correspondence.schema()))
+                    && structural_storage_queries::access_reference_validation::validate_backing(
+                        declarations,
+                        signature.structural_types.access_views(),
+                        plan,
+                        correspondence.source_type(),
+                        correspondence,
+                    )
+                    .is_ok(),
                 _ => false,
             }
         } else {

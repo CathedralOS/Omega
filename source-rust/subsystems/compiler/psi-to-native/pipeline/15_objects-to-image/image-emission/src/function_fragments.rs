@@ -5883,6 +5883,19 @@ mod source {
                                 | Kind::StorePacked { .. }
                                 | Kind::StoreEncodedScalar
                                 | Kind::CopyBytes
+                                | Kind::PackedAddI16x8
+                                | Kind::PackedSubI16x8
+                                | Kind::PackedShuffleI16x8 { .. }
+                                | Kind::PackedShuffleGeneralI16x8 { .. }
+                                | Kind::PackedShiftRightArithmeticI16x8 { .. }
+                                | Kind::PackedWidenU8x8ToI16x8
+                                | Kind::PackedNarrowI16x8ToU8x8Saturating
+                                | Kind::PackedLoadI16x4ZeroExtend
+                                | Kind::PackedWidenU8x4ToI16x8
+                                | Kind::PackedNarrowI16x8ToU8x4Saturating
+                                | Kind::PackedStore128 { .. }
+                                | Kind::PackedStore64 { .. }
+                                | Kind::PackedStore32 { .. }
                         ) {
                             return Err(Error::Mismatch(
                                 "installation contains an unaccounted storage operation",
@@ -7677,6 +7690,8 @@ mod source {
                 | TargetUnitOperation::EstablishNativeCodeLayout { psi_operation, .. }
                 | TargetUnitOperation::EstablishRecord { psi_operation, .. }
                 | TargetUnitOperation::EstablishReference { psi_operation, .. }
+                | TargetUnitOperation::PackedIntegerUnary { psi_operation, .. }
+                | TargetUnitOperation::PackedIntegerBinary { psi_operation, .. }
                 | TargetUnitOperation::EstablishScalarArray { psi_operation, .. }
                 | TargetUnitOperation::EstablishStructuralArray { psi_operation, .. }
                 | TargetUnitOperation::EstablishStructuralLocal { psi_operation, .. }
@@ -7925,6 +7940,20 @@ mod source {
                                 if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
                                     && retained_elements == elements
                         ))
+                }
+                AbstractOperation::PackedIntegerUnary { psi_operation, result, operation, source } => {
+                    retained.is_some_and(|row| matches!(row,
+                        TargetUnitOperation::PackedIntegerUnary { psi_operation: retained, result_home, operation: retained_operation, source: retained_source }
+                            if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
+                                && retained_operation == operation && retained_source == source
+                    ))
+                }
+                AbstractOperation::PackedIntegerBinary { psi_operation, result, operation, left, right } => {
+                    retained.is_some_and(|row| matches!(row,
+                        TargetUnitOperation::PackedIntegerBinary { psi_operation: retained, result_home, operation: retained_operation, left: retained_left, right: retained_right }
+                            if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
+                                && retained_operation == operation && retained_left == left && retained_right == right
+                    ))
                 }
                 AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
                     retained.is_some_and(|row| matches!(row,

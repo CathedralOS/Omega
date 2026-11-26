@@ -22,6 +22,17 @@ pub enum StructuralEffectObservation {    NativeCodeLayoutEstablished {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
     },
+    PackedIntegerUnary {
+        operation: semantic_vocabulary::PackedIntegerUnaryOperation,
+        destination: PlaceId,
+        source: StructuralArgument,
+    },
+    PackedIntegerBinary {
+        operation: semantic_vocabulary::PackedIntegerBinaryOperation,
+        destination: PlaceId,
+        left: StructuralArgument,
+        right: StructuralArgument,
+    },
     ScalarArrayEstablished {
         destination: PlaceId,
         elements: Vec<ValueId>,
@@ -598,6 +609,14 @@ pub fn structural_effect_leaf_observation_in(
             field: *field,
             value: *value,
         },
+        (StructuralEffectAction::PackedIntegerUnary, OperationKind::PackedIntegerUnary { operation: packed, source }) => {
+            let result = operation.result.structural().ok_or(OperationSemanticError::StructuralEffectSchemaMismatch(tag))?;
+            StructuralEffectObservation::PackedIntegerUnary { operation: *packed, destination: result.place, source: source.clone() }
+        }
+        (StructuralEffectAction::PackedIntegerBinary, OperationKind::PackedIntegerBinary { operation: packed, left, right }) => {
+            let result = operation.result.structural().ok_or(OperationSemanticError::StructuralEffectSchemaMismatch(tag))?;
+            StructuralEffectObservation::PackedIntegerBinary { operation: *packed, destination: result.place, left: left.clone(), right: right.clone() }
+        }
         (
             StructuralEffectAction::EstablishScalarArray,
             OperationKind::EstablishScalarArray { elements },

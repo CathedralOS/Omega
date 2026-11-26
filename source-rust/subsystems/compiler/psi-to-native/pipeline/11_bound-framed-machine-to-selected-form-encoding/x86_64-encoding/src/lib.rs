@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod packed_integer;
+
 /*
 We provide fixed-width x86-64 machine-code sequences for
 immediate port I/O (`encode_immediate_port_write` for `out dx, al` and

@@ -84,6 +84,8 @@ guides and command examples together.
 `omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in `omega\core`.
 A build requests the product artifact. A run requests execution under the
 [engine and target rules](embedding.md#standalone-execution-selection).
+Building a package checks its source, runs its registered tests and publishes
+its declared Build outputs. Only an executable Product requires a program entry.
 
 1. Look for a free `machine build` in the named file. If present, bind it as the
    [build entry](declarations.md#project-role), including when the file also

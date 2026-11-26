@@ -771,6 +771,31 @@ fn encoded_effects(
         | S::CallAggregate
         | S::NormalizedForeignCall
         | S::TrappingInteger(_)
+        | S::PackedAddI16x8
+        | S::PackedSubI16x8
+        | S::PackedShuffleI16x8
+        | S::PackedShuffleGeneralI16x8
+        | S::PackedShiftRightArithmeticI16x8
+        | S::PackedWidenU8x8ToI16x8
+        | S::PackedNarrowI16x8ToU8x8Saturating
+        | S::PackedLoadI16x4ZeroExtend
+        | S::PackedWidenU8x4ToI16x8
+        | S::PackedNarrowI16x8ToU8x4Saturating
+        | S::PackedLoad128
+        | S::PackedStore128
+        | S::PackedLoad64ZeroExtend
+        | S::PackedStore64
+        | S::PackedLoad32ZeroExtend
+        | S::PackedStore32
+        | S::PackedMaterializeZero
+        | S::PackedFromGpr64ZeroExtend
+        | S::PackedFromGpr64Pair
+        | S::PackedAddI16x8Reg
+        | S::PackedSubI16x8Reg
+        | S::PackedShiftRightArithmeticI16x8Reg
+        | S::PackedShuffleI16x8Reg
+        | S::PackedWidenU8x8ToI16x8Reg
+        | S::PackedNarrowI16x8ToU8x8SaturatingReg
         | S::PrivilegedCrash
         | S::PortRegisterRead
         | S::PortRegisterWrite

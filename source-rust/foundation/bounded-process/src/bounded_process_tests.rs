@@ -92,7 +92,11 @@ fn a_private_image_that_never_starts_has_no_guest_result() {
     let mut prepared =
         BoundedProcessPrepared::new(Command::new(image), process_limits(), "private test").unwrap();
     prepared
-        .use_private_filesystem(&scratch, Default::default())
+        .use_private_filesystem(
+            &scratch,
+            Default::default(),
+            crate::PrivateFilesystemPurpose::NativeTest,
+        )
         .unwrap();
     let result = run_bounded_process(
         prepared,

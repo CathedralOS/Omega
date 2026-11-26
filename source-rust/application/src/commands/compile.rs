@@ -500,18 +500,10 @@ fn compile_target(
     let mut test_roster = Vec::new();
     let mut wrote_output = false;
     let mut show_summary = true;
-    let artifact_only = stage.artifact_only();
-    let kind = if artifact_only {
-        "build outputs"
-    } else if arguments.check_only {
-        "check"
-    } else if arguments.emit_psi.is_some() {
-        "Psi"
-    } else {
-        "native artifact"
-    };
+    let kind;
     let rows;
-    if artifact_only {
+    if stage.artifact_only() {
+        kind = "build outputs";
         if completed.is_none() || arguments.emit_psi.is_some() {
             return Err(output_error(
                 "an artifact-only Build requires completed outputs and cannot publish executable Psi",
@@ -522,57 +514,65 @@ fn compile_target(
             &[profile.target_name()],
             |_| "the Build produces only completed files",
         )?;
-    } else if arguments.check_only || arguments.emit_psi.is_some() {
-        let names = if arguments.emit_psi.is_some() {
-            stage.deployment_targets().to_vec()
+    } else if arguments.emit_psi.is_some() {
+        kind = "Psi";
+        rows = arguments.stage_validators.stages_not_produced(
+            stage.deployment_targets(),
+            |_| "a portable Psi publication produces no native target operations",
+        )?;
+        let Artifact::Psi(artifact) = compiler::compile(
+            CompileRequest::Psi(stage.source()),
+            compiler::CompileOptions {
+                advisories: Some(&mut advisories),
+                ..Default::default()
+            },
+        )?
+        .artifact
+        else {
+            return Err(output_error(
+                "source compilation returned an unexpected product",
+            ));
+        };
+        portable = Some(
+            CompletedProduct::from_published_psi(artifact, rollback.cloned())
+                .map_err(output_error)?,
+        );
+    } else if arguments.check_only
+        || matches!(
+            configuration.project_declaration,
+            Some(build_declarations::BuildDeclaration::Package(_))
+        )
+    {
+        let reason;
+        (kind, reason) = if arguments.check_only {
+            ("check", "--check produces no native target operations")
         } else {
-            vec![profile.target_name()]
+            (
+                "package",
+                "a source package produces no native target operations",
+            )
         };
         rows = arguments
             .stage_validators
-            .stages_not_produced(&names, |_| {
-                if arguments.check_only {
-                    "--check produces no native target operations"
-                } else {
-                    "a portable Psi publication produces no native target operations"
-                }
-            })?;
-        if arguments.emit_psi.is_some() {
-            let Artifact::Psi(artifact) = compiler::compile(
-                CompileRequest::Psi(stage.source()),
-                compiler::CompileOptions {
-                    advisories: Some(&mut advisories),
-                    ..Default::default()
-                },
-            )?
-            .artifact
-            else {
-                return Err(output_error(
-                    "source compilation returned an unexpected product",
-                ));
-            };
-            portable = Some(
-                CompletedProduct::from_published_psi(artifact, rollback.cloned())
-                    .map_err(output_error)?,
-            );
+            .stages_not_produced(&[profile.target_name()], |_| reason)?;
+        let mut timings = if arguments.timings {
+            CompileTimings::enabled()
         } else {
-            let mut timings = if arguments.timings {
-                CompileTimings::enabled()
-            } else {
-                CompileTimings::default()
-            };
-            let checked = timeline
-                .borrow_mut()
-                .record("product_check", || stage.check(profile, &mut timings));
-            if arguments.timings {
-                print_phases(&format!("Product ({})", profile.target_name()), &timings);
-            }
-            // The dependency rechecks ran alongside this check. Settle them
-            // before its advisories or refusal are reported.
-            settle_rechecks()?;
-            advisories = checked?;
+            CompileTimings::default()
+        };
+        let checked = timeline
+            .borrow_mut()
+            .record("product_check", || stage.check(profile, &mut timings));
+        if arguments.timings {
+            print_phases(&format!("Product ({})", profile.target_name()), &timings);
         }
+        // The dependency rechecks ran alongside this check. Settle them
+        // before its advisories or refusal are reported.
+        settle_rechecks()?;
+        advisories = checked?;
+        test_roster = tests.execute()?;
     } else {
+        kind = "native artifact";
         let program = stage.program(
             profile,
             arguments

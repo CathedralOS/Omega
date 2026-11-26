@@ -36,6 +36,7 @@ impl WorkSchedule {
             | OperationKind::EstablishReference { .. }
             | OperationKind::ReleaseReference { .. }
             | OperationKind::EstablishScalarCase { .. }
+            | OperationKind::PackedIntegerUnary { .. } | OperationKind::PackedIntegerBinary { .. }
             | OperationKind::EstablishScalarArray { .. }
             | OperationKind::EstablishActivationClaim { .. }
             | OperationKind::ReleaseActivationClaim { .. }

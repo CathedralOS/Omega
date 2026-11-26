@@ -1262,6 +1262,10 @@ pub mod ordinary {
         BoundaryResult {
             operation: OperationId,
         },
+        Inlined {
+            call_site: u32,
+            slot_index: u32,
+        },
     }
 
     impl LocalStorageSlotId {
@@ -1276,7 +1280,8 @@ pub mod ordinary {
                 | Self::Spill { .. }
                 | Self::EdgeSnapshot { .. }
                 | Self::StructuralBlockParameter { .. }
-                | Self::StructuralParameter { .. } => None,
+                | Self::StructuralParameter { .. }
+                | Self::Inlined { .. } => None,
             }
         }
 
@@ -1291,7 +1296,8 @@ pub mod ordinary {
                 | Self::BoundaryResult { .. }
                 | Self::Spill { .. }
                 | Self::StructuralCallArgument { .. }
-                | Self::EdgeSnapshot { .. } => None,
+                | Self::EdgeSnapshot { .. }
+                | Self::Inlined { .. } => None,
             }
         }
 
@@ -1350,6 +1356,14 @@ pub mod ordinary {
                 Self::Boundary { operation } => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+                }
+                Self::Inlined {
+                    call_site,
+                    slot_index,
+                } => {
+                    bytes.push(10);
+                    crate::codec_bytes::push_encoded(bytes, call_site.to_le_bytes());
+                    crate::codec_bytes::push_encoded(bytes, slot_index.to_le_bytes());
                 }
             }
         }

@@ -1,7 +1,7 @@
 /*
 We derive the canonical source-consumption commitment (`PackageSourceConsumptionCommitment`) and subject (`PackageCompilationSubject`) for a package-aware compilation.
 
-Every package-aware frontend run retains the reconciled package graph and the exact authored, generated, and toolchain source bytes it consumed. We project those retained `SourceFile` records and generated-source custody rows into sorted, deduplicated `ConsumedSourceUnit` records (`derive_consumed_source_units`) and hash them alongside the root package identity, root role, package roster, and dependency edges under `OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4` (`derive_source_consumption_commitment`).
+Every package-aware frontend run retains the reconciled package graph and the exact authored, generated, and toolchain source bytes it consumed. We project those retained `SourceFile` records and generated-source custody rows into sorted, deduplicated `ConsumedSourceUnit` records (`derive_consumed_source_units`) and hash them alongside the root package identity, root role, package roster, and dependency edges under `OMEGA-PACKAGE-SOURCE-CONSUMPTION-V5` (`derive_source_consumption_commitment`).
 */
 
 /*
@@ -22,7 +22,7 @@ use source_admission::SourceOrigin;
 mod checked_sources;
 pub use checked_sources::{BuildSourceCustody, CheckedSourceCustody};
 
-const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4\0";
+const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V5\0";
 
 pub use source_provenance::ConsumedSourceUnit;
 pub use source_provenance::ConsumedSourceUnitKind;
@@ -86,6 +86,7 @@ pub fn derive_source_consumption_commitment(
     digest.u64(u64::try_from(packages.len()).expect("compiler package count fits u64"));
     for package in packages {
         digest.raw(&package.digest());
+        inputs.hash_build_entries(package, &mut digest);
     }
     let dependencies = inputs.dependencies().collect::<Vec<_>>();
     digest.u64(u64::try_from(dependencies.len()).expect("compiler dependency count fits u64"));

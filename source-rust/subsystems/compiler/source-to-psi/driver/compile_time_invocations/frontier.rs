@@ -164,7 +164,10 @@ fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> 
             TypeReferenceNode::ConstExpression(_)
                 if !typed
                     .constant_recipe_for_const_application(reference)
-                    .is_valid() =>
+                    .is_valid()
+                    && typed_trees::source_state::domain::index_argument_is_closed(
+                        typed, reference,
+                    ) =>
             {
                 types.push((reference, DeferredRequest::TypeExpressionEvaluation));
             }

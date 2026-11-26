@@ -178,8 +178,20 @@ mod constraint_catalog {
         X86_64_LOAD_ENCODED_SCALAR, X86_64_LOAD8, X86_64_LOAD8_INDEXED, X86_64_LOAD16,
         X86_64_LOAD32, X86_64_LOAD64, X86_64_MATERIALIZE_BOOLEAN, X86_64_MATERIALIZE_I64,
         X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT,
-        X86_64_MULTIPLY_I64, X86_64_REMAINDER_I64, X86_64_REMAINDER_U64,
-        X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64, X86_64_SATURATING_DIVIDE_SIGNED,
+        X86_64_MULTIPLY_I64, X86_64_PACKED_ADD_I16X8, X86_64_PACKED_ADD_I16X8_REG,
+        X86_64_PACKED_FROM_GPR64_PAIR, X86_64_PACKED_FROM_GPR64_ZERO_EXTEND,
+        X86_64_PACKED_LOAD_32_ZERO_EXTEND, X86_64_PACKED_LOAD_64_ZERO_EXTEND,
+        X86_64_PACKED_LOAD_128, X86_64_PACKED_LOAD_I16X4_ZERO_EXTEND,
+        X86_64_PACKED_MATERIALIZE_ZERO, X86_64_PACKED_NARROW_I16X8_TO_U8X4_SATURATING,
+        X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING,
+        X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING_REG, X86_64_PACKED_SHIFT_RIGHT_I16X8,
+        X86_64_PACKED_SHIFT_RIGHT_I16X8_REG, X86_64_PACKED_SHUFFLE_GENERAL_I16X8,
+        X86_64_PACKED_SHUFFLE_I16X8, X86_64_PACKED_SHUFFLE_I16X8_REG, X86_64_PACKED_STORE_32,
+        X86_64_PACKED_STORE_64, X86_64_PACKED_STORE_128, X86_64_PACKED_SUB_I16X8,
+        X86_64_PACKED_SUB_I16X8_REG, X86_64_PACKED_WIDEN_U8X4_TO_I16X8,
+        X86_64_PACKED_WIDEN_U8X8_TO_I16X8, X86_64_PACKED_WIDEN_U8X8_TO_I16X8_REG,
+        X86_64_REMAINDER_I64, X86_64_REMAINDER_U64, X86_64_SATURATING_ADD_CLAMPED,
+        X86_64_SATURATING_ADD_U64, X86_64_SATURATING_DIVIDE_SIGNED,
         X86_64_SATURATING_MULTIPLY_CLAMPED, X86_64_SATURATING_MULTIPLY_U64,
         X86_64_SATURATING_SUBTRACT_CLAMPED, X86_64_SATURATING_SUBTRACT_UNSIGNED,
         X86_64_SCALED_INDEXED_LOAD, X86_64_SCAN_BYTE_SEQUENCE, X86_64_SHIFT_I64, X86_64_STORE,
@@ -1209,6 +1221,200 @@ mod constraint_catalog {
         super::system_calls::append_constraints(&mut constraints, model);
         float_scalar_calls::append_constraints(&mut constraints, model);
         indirect_results::append_constraints(&mut constraints, model);
+        let xmm0_xmm1 = sorted_units(
+            view("xmm0")
+                .units
+                .iter()
+                .chain(&view("xmm1").units)
+                .copied(),
+        );
+        let xmm0_xmm1_xmm2 = sorted_units(
+            view("xmm0")
+                .units
+                .iter()
+                .chain(&view("xmm1").units)
+                .chain(&view("xmm2").units)
+                .copied(),
+        );
+        let xmm0 = sorted_units(view("xmm0").units.iter().copied());
+        for (key, operands, clobbers) in [
+            (
+                X86_64_PACKED_ADD_I16X8,
+                super::operand_lane(3, 3),
+                xmm0_xmm1.clone(),
+            ),
+            (
+                X86_64_PACKED_SUB_I16X8,
+                super::operand_lane(3, 3),
+                xmm0_xmm1.clone(),
+            ),
+            (
+                X86_64_PACKED_SHUFFLE_I16X8,
+                super::operand_lane(3, 3),
+                xmm0_xmm1.clone(),
+            ),
+            (
+                X86_64_PACKED_SHUFFLE_GENERAL_I16X8,
+                super::operand_lane(4, 3),
+                xmm0_xmm1_xmm2,
+            ),
+            (
+                X86_64_PACKED_SHIFT_RIGHT_I16X8,
+                super::operand_lane(2, 2),
+                xmm0.clone(),
+            ),
+            (
+                X86_64_PACKED_WIDEN_U8X8_TO_I16X8,
+                super::operand_lane(2, 2),
+                xmm0_xmm1.clone(),
+            ),
+            (
+                X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING,
+                super::operand_lane(2, 2),
+                xmm0.clone(),
+            ),
+            (
+                X86_64_PACKED_LOAD_I16X4_ZERO_EXTEND,
+                super::operand_lane(2, 2),
+                xmm0.clone(),
+            ),
+            (
+                X86_64_PACKED_WIDEN_U8X4_TO_I16X8,
+                super::operand_lane(2, 2),
+                xmm0_xmm1,
+            ),
+            (
+                X86_64_PACKED_NARROW_I16X8_TO_U8X4_SATURATING,
+                super::operand_lane(2, 2),
+                xmm0,
+            ),
+        ] {
+            constraints.push(RegisterInstructionConstraint {
+                id: RegisterConstraintId(0),
+                key,
+                operands,
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers,
+            });
+        }
+        for (key, operands) in [
+            (
+                X86_64_PACKED_LOAD_128,
+                vec![
+                    allocatable(0, Access::Use, GPR64),
+                    allocatable(1, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_STORE_128,
+                vec![
+                    allocatable(0, Access::Use, GPR64),
+                    allocatable(1, Access::Use, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_LOAD_64_ZERO_EXTEND,
+                vec![
+                    allocatable(0, Access::Use, GPR64),
+                    allocatable(1, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_STORE_64,
+                vec![
+                    allocatable(0, Access::Use, GPR64),
+                    allocatable(1, Access::Use, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_LOAD_32_ZERO_EXTEND,
+                vec![
+                    allocatable(0, Access::Use, GPR64),
+                    allocatable(1, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_STORE_32,
+                vec![
+                    allocatable(0, Access::Use, GPR64),
+                    allocatable(1, Access::Use, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_MATERIALIZE_ZERO,
+                vec![allocatable(0, Access::Def, VECTOR128)],
+            ),
+            (
+                X86_64_PACKED_FROM_GPR64_ZERO_EXTEND,
+                vec![
+                    allocatable(0, Access::Use, GPR64),
+                    allocatable(1, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_FROM_GPR64_PAIR,
+                vec![
+                    allocatable(0, Access::Use, GPR64),
+                    allocatable(1, Access::Use, GPR64),
+                    allocatable(2, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_ADD_I16X8_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Use, VECTOR128),
+                    allocatable(2, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_SUB_I16X8_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Use, VECTOR128),
+                    allocatable(2, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_SHIFT_RIGHT_I16X8_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_SHUFFLE_I16X8_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Use, VECTOR128),
+                    allocatable(2, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_WIDEN_U8X8_TO_I16X8_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Def, VECTOR128),
+                ],
+            ),
+            (
+                X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING_REG,
+                vec![
+                    allocatable(0, Access::Use, VECTOR128),
+                    allocatable(1, Access::Def, VECTOR128),
+                ],
+            ),
+        ] {
+            constraints.push(RegisterInstructionConstraint {
+                id: RegisterConstraintId(0),
+                key,
+                operands,
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+            });
+        }
         packed_memory::append_constraints(&mut constraints, model);
         constraints.push(condition_clobbering_row(
             RegisterConstraintId(0),
@@ -2135,6 +2341,31 @@ mod operation_keys {
     pub const X86_64_SAVE_FLOATING_CONTROL: Key = Key::instruction(753);
     pub const X86_64_RESTORE_FLOATING_CONTROL: Key = Key::instruction(754);
 
+    pub const X86_64_PACKED_ADD_I16X8: Key = Key::instruction(811);
+    pub const X86_64_PACKED_SUB_I16X8: Key = Key::instruction(812);
+    pub const X86_64_PACKED_SHUFFLE_I16X8: Key = Key::instruction(813);
+    pub const X86_64_PACKED_SHUFFLE_GENERAL_I16X8: Key = Key::instruction(814);
+    pub const X86_64_PACKED_SHIFT_RIGHT_I16X8: Key = Key::instruction(815);
+    pub const X86_64_PACKED_WIDEN_U8X8_TO_I16X8: Key = Key::instruction(816);
+    pub const X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING: Key = Key::instruction(817);
+    pub const X86_64_PACKED_LOAD_I16X4_ZERO_EXTEND: Key = Key::instruction(818);
+    pub const X86_64_PACKED_WIDEN_U8X4_TO_I16X8: Key = Key::instruction(819);
+    pub const X86_64_PACKED_NARROW_I16X8_TO_U8X4_SATURATING: Key = Key::instruction(820);
+    pub const X86_64_PACKED_LOAD_128: Key = Key::instruction(821);
+    pub const X86_64_PACKED_STORE_128: Key = Key::instruction(822);
+    pub const X86_64_PACKED_LOAD_64_ZERO_EXTEND: Key = Key::instruction(823);
+    pub const X86_64_PACKED_STORE_64: Key = Key::instruction(824);
+    pub const X86_64_PACKED_LOAD_32_ZERO_EXTEND: Key = Key::instruction(825);
+    pub const X86_64_PACKED_STORE_32: Key = Key::instruction(826);
+    pub const X86_64_PACKED_MATERIALIZE_ZERO: Key = Key::instruction(827);
+    pub const X86_64_PACKED_FROM_GPR64_ZERO_EXTEND: Key = Key::instruction(828);
+    pub const X86_64_PACKED_FROM_GPR64_PAIR: Key = Key::instruction(829);
+    pub const X86_64_PACKED_ADD_I16X8_REG: Key = Key::instruction(830);
+    pub const X86_64_PACKED_SUB_I16X8_REG: Key = Key::instruction(831);
+    pub const X86_64_PACKED_SHIFT_RIGHT_I16X8_REG: Key = Key::instruction(832);
+    pub const X86_64_PACKED_SHUFFLE_I16X8_REG: Key = Key::instruction(833);
+    pub const X86_64_PACKED_WIDEN_U8X8_TO_I16X8_REG: Key = Key::instruction(834);
+    pub const X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING_REG: Key = Key::instruction(835);
     pub const X86_64_COPY_BYTES: Key = Key::instruction(736);
 
     pub const X86_64_LOAD_ENCODED_SCALAR: Key = Key::instruction(758);
@@ -2247,7 +2478,32 @@ mod operation_keys {
 
     pub const X86_64_JUMP: Key = Key::instruction(9);
 
-    pub const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 103] = [
+    pub const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [Key; 128] = [
+        X86_64_PACKED_ADD_I16X8,
+        X86_64_PACKED_SUB_I16X8,
+        X86_64_PACKED_SHUFFLE_I16X8,
+        X86_64_PACKED_SHUFFLE_GENERAL_I16X8,
+        X86_64_PACKED_SHIFT_RIGHT_I16X8,
+        X86_64_PACKED_WIDEN_U8X8_TO_I16X8,
+        X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING,
+        X86_64_PACKED_LOAD_I16X4_ZERO_EXTEND,
+        X86_64_PACKED_WIDEN_U8X4_TO_I16X8,
+        X86_64_PACKED_NARROW_I16X8_TO_U8X4_SATURATING,
+        X86_64_PACKED_LOAD_128,
+        X86_64_PACKED_STORE_128,
+        X86_64_PACKED_LOAD_64_ZERO_EXTEND,
+        X86_64_PACKED_STORE_64,
+        X86_64_PACKED_LOAD_32_ZERO_EXTEND,
+        X86_64_PACKED_STORE_32,
+        X86_64_PACKED_MATERIALIZE_ZERO,
+        X86_64_PACKED_FROM_GPR64_ZERO_EXTEND,
+        X86_64_PACKED_FROM_GPR64_PAIR,
+        X86_64_PACKED_ADD_I16X8_REG,
+        X86_64_PACKED_SUB_I16X8_REG,
+        X86_64_PACKED_SHIFT_RIGHT_I16X8_REG,
+        X86_64_PACKED_SHUFFLE_I16X8_REG,
+        X86_64_PACKED_WIDEN_U8X8_TO_I16X8_REG,
+        X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING_REG,
         X86_64_SYSTEM_V_CALL,
         X86_64_MICROSOFT_CALL,
         X86_64_SYSTEM_V_RETURN,
@@ -3693,17 +3949,29 @@ pub use operation_keys::{
     X86_64_INTERRUPT_CONTROL, X86_64_JUMP, X86_64_LOAD_ENCODED_SCALAR, X86_64_LOAD8,
     X86_64_LOAD8_INDEXED, X86_64_LOAD16, X86_64_LOAD32, X86_64_LOAD64, X86_64_MATERIALIZE_BOOLEAN,
     X86_64_MATERIALIZE_I64, X86_64_MEMORY_FENCE, X86_64_MODEL_SPECIFIC_READ,
-    X86_64_MODEL_SPECIFIC_WRITE, X86_64_MULTIPLY_I64, X86_64_PORT_REGISTER_READ,
-    X86_64_PORT_REGISTER_WRITE, X86_64_PORT_WRITE, X86_64_PRIVILEGED_CRASH, X86_64_PROCESSOR_HALT,
-    X86_64_REMAINDER_I64, X86_64_REMAINDER_U64, X86_64_RESTORE_FLOATING_CONTROL,
-    X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64, X86_64_SATURATING_DIVIDE_SIGNED,
-    X86_64_SATURATING_MULTIPLY_CLAMPED, X86_64_SATURATING_MULTIPLY_U64,
-    X86_64_SATURATING_SUBTRACT_CLAMPED, X86_64_SATURATING_SUBTRACT_UNSIGNED,
-    X86_64_SAVE_FLOATING_CONTROL, X86_64_SCALED_INDEXED_LOAD, X86_64_SCAN_BYTE_SEQUENCE,
-    X86_64_SEGMENT_SELECTOR_READ, X86_64_SHIFT_I64, X86_64_STORE, X86_64_STORE_ENCODED_SCALAR,
-    X86_64_STORE64, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
-    X86_64_TASK_REGISTER_ACTIVATE, X86_64_TASK_REGISTER_READ, X86_64_TRAPPING_BINARY,
-    X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR, X86_64_TRAPPING_SHIFT, X86_64_ZERO_BYTES,
+    X86_64_MODEL_SPECIFIC_WRITE, X86_64_MULTIPLY_I64, X86_64_PACKED_ADD_I16X8,
+    X86_64_PACKED_ADD_I16X8_REG, X86_64_PACKED_FROM_GPR64_PAIR,
+    X86_64_PACKED_FROM_GPR64_ZERO_EXTEND, X86_64_PACKED_LOAD_32_ZERO_EXTEND,
+    X86_64_PACKED_LOAD_64_ZERO_EXTEND, X86_64_PACKED_LOAD_128,
+    X86_64_PACKED_LOAD_I16X4_ZERO_EXTEND, X86_64_PACKED_MATERIALIZE_ZERO,
+    X86_64_PACKED_NARROW_I16X8_TO_U8X4_SATURATING, X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING,
+    X86_64_PACKED_NARROW_I16X8_TO_U8X8_SATURATING_REG, X86_64_PACKED_SHIFT_RIGHT_I16X8,
+    X86_64_PACKED_SHIFT_RIGHT_I16X8_REG, X86_64_PACKED_SHUFFLE_GENERAL_I16X8,
+    X86_64_PACKED_SHUFFLE_I16X8, X86_64_PACKED_SHUFFLE_I16X8_REG, X86_64_PACKED_STORE_32,
+    X86_64_PACKED_STORE_64, X86_64_PACKED_STORE_128, X86_64_PACKED_SUB_I16X8,
+    X86_64_PACKED_SUB_I16X8_REG, X86_64_PACKED_WIDEN_U8X4_TO_I16X8,
+    X86_64_PACKED_WIDEN_U8X8_TO_I16X8, X86_64_PACKED_WIDEN_U8X8_TO_I16X8_REG,
+    X86_64_PORT_REGISTER_READ, X86_64_PORT_REGISTER_WRITE, X86_64_PORT_WRITE,
+    X86_64_PRIVILEGED_CRASH, X86_64_PROCESSOR_HALT, X86_64_REMAINDER_I64, X86_64_REMAINDER_U64,
+    X86_64_RESTORE_FLOATING_CONTROL, X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64,
+    X86_64_SATURATING_DIVIDE_SIGNED, X86_64_SATURATING_MULTIPLY_CLAMPED,
+    X86_64_SATURATING_MULTIPLY_U64, X86_64_SATURATING_SUBTRACT_CLAMPED,
+    X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SAVE_FLOATING_CONTROL, X86_64_SCALED_INDEXED_LOAD,
+    X86_64_SCAN_BYTE_SEQUENCE, X86_64_SEGMENT_SELECTOR_READ, X86_64_SHIFT_I64, X86_64_STORE,
+    X86_64_STORE_ENCODED_SCALAR, X86_64_STORE64, X86_64_SUBTRACT_I64,
+    X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_TASK_REGISTER_ACTIVATE, X86_64_TASK_REGISTER_READ,
+    X86_64_TRAPPING_BINARY, X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR,
+    X86_64_TRAPPING_SHIFT, X86_64_ZERO_BYTES,
 };
 pub use operation_keys::{
     X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_LINUX_SYSTEM_CALL, x86_64_required_register_constraints,

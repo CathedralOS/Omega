@@ -4155,6 +4155,70 @@ pub(crate) mod unit {
                 }
 
                 (
+                    TargetUnitOperation::PackedIntegerUnary { psi_operation, result_home, operation, source },
+                    AbstractOperation::PackedIntegerUnary { psi_operation: expected_operation, result, operation: expected_kind, source: expected_source },
+                ) => {
+                    if psi_operation != expected_operation
+                        || operation != expected_kind
+                        || source != expected_source
+                        || !same_result_home(result_home, optimized, result.place, plan)?
+                        || terminal_semantics::packed_integer_unary_array_type(
+                            unit.geometry().iter(),
+                            result.structural_type,
+                            *operation,
+                            terminal_semantics::PackedArrayRole::Result,
+                        ).is_none()
+                    {
+                        return Err(LegalizationError::custody());
+                    }
+                    let root = optimized.structural_place(source.place)
+                        .and_then(|place| optimization_unit::declared_structural_type(optimized, place))
+                        .ok_or_else(LegalizationError::custody)?;
+                    let (_, selected) = terminal_semantics::canonical_static_projection(unit.geometry().iter(), root, &source.path)
+                        .ok_or_else(LegalizationError::custody)?;
+                    if source.access != terminal_psi::StructuralAccess::SharedBorrow
+                        || source.place == result.place
+                        || terminal_semantics::packed_integer_unary_array_type(
+                            unit.geometry().iter(),
+                            selected.id,
+                            *operation,
+                            terminal_semantics::PackedArrayRole::Input,
+                        ).is_none()
+                        || !optimization_unit_semantics::structural_place_access(optimized, source.place)
+                            .is_some_and(|access| access != terminal_psi::StructuralAccess::WriteOnlyBorrow)
+                    {
+                        return Err(LegalizationError::custody());
+                    }
+                }
+                (
+                    TargetUnitOperation::PackedIntegerBinary { psi_operation, result_home, operation, left, right },
+                    AbstractOperation::PackedIntegerBinary { psi_operation: expected_operation, result, operation: expected_kind, left: expected_left, right: expected_right },
+                ) => {
+                    if psi_operation != expected_operation || operation != expected_kind || left != expected_left
+                        || right != expected_right || !same_result_home(result_home, optimized, result.place, plan)?
+                        || terminal_semantics::packed_integer_array_type(
+                            unit.geometry().iter(),
+                            result.structural_type,
+                            *operation,
+                        ).is_none()
+                    {
+                        return Err(LegalizationError::custody());
+                    }
+                    for source in [left, right] {
+                        let root = optimized.structural_place(source.place)
+                            .and_then(|place| optimization_unit::declared_structural_type(optimized, place))
+                            .ok_or_else(LegalizationError::custody)?;
+                        let (_, selected) = terminal_semantics::canonical_static_projection(unit.geometry().iter(), root, &source.path)
+                            .ok_or_else(LegalizationError::custody)?;
+                        if source.access != terminal_psi::StructuralAccess::SharedBorrow || source.place == result.place
+                            || selected.id != result.structural_type
+                            || !optimization_unit_semantics::structural_place_access(optimized, source.place)
+                                .is_some_and(|access| access != terminal_psi::StructuralAccess::WriteOnlyBorrow) {
+                            return Err(LegalizationError::custody());
+                        }
+                    }
+                }
+                (
                     TargetUnitOperation::EstablishStructuralArray {
                         psi_operation,
                         result_home,
@@ -6410,7 +6474,9 @@ pub(crate) mod unit {
             }
             (
                 _,
-                AbstractOperation::EstablishStructuralArray { .. }
+                AbstractOperation::PackedIntegerUnary { .. }
+                | AbstractOperation::PackedIntegerBinary { .. }
+                | AbstractOperation::EstablishStructuralArray { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishActivationClaim { .. }
                 | AbstractOperation::SplitActivationClaim { .. }

@@ -20,8 +20,6 @@ use std::path::{Path, PathBuf};
 
 #[derive(Clone, Default, record_storage::Record)]
 pub(crate) struct SourceStorage {
-    // Already checked by predecessor Builds. An explicit Product import can still select them.
-    pub(crate) previous_build_files: std::sync::Arc<[PathBuf]>,
     pub(crate) entry: Option<crate::source::entry::NamedSource>,
     pub filesystem: source_capture::SourceFileSystem, // Captured virtual source filesystem.
     pub source_roots: Arena<SourceRoots>,             // Per-source parsed root `ItemHandle` lists.
@@ -42,7 +40,27 @@ pub(crate) struct SourceStorage {
 pub(crate) struct RegisteredPackageRoot {
     pub(crate) root: PathBuf,
     pub(crate) identity: Option<PackageKeyIdentity>,
+    /// Files actually selected for Build execution. Exclude these from implicit Product discovery.
+    pub(crate) build_files: std::collections::BTreeSet<PathBuf>,
     pub(crate) logical_inventory: Option<super::logical::LogicalSourceInventory>,
+}
+
+impl RegisteredPackageRoot {
+    pub(super) fn for_root<'a>(roots: &'a mut Vec<Self>, root: &Path) -> &'a mut Self {
+        let position = roots
+            .iter()
+            .position(|owner| owner.root == root)
+            .unwrap_or_else(|| {
+                roots.push(Self {
+                    root: root.to_path_buf(),
+                    identity: None,
+                    build_files: Default::default(),
+                    logical_inventory: None,
+                });
+                roots.len() - 1
+            });
+        &mut roots[position]
+    }
 }
 
 impl SourceStorage {
@@ -111,7 +129,7 @@ impl SourceStorage {
                 .path
                 .strip_prefix(&root)
                 .map_err(|_| vec![Diagnostic::error("core source escaped its admitted root")])?;
-            if file.origin != SourceOrigin::Toolchain
+            if file.origin != core_source_origin(&root, &file.path)
                 || file.package_identity.is_some()
                 || capture.tree().read_to_string(relative).ok().as_deref()
                     != Some(file.source.as_ref())
@@ -173,7 +191,8 @@ impl SourceStorage {
             .selected_files()
             .filter(|file| file.dependency_scope == source_provenance::DependencyScope::Build)
             .map(|file| file.path.as_path())
-            .chain(self.previous_build_files.iter().map(PathBuf::as_path))
+            .chain(self.package_roots.iter().filter(|owner| owner.root == *root)
+                .flat_map(|owner| owner.build_files.iter().map(PathBuf::as_path)))
             .collect::<std::collections::HashSet<_>>();
         let mut paths = self.filesystem.captured_files(root).map_err(|reason| {
             vec![Diagnostic::error(format!(
@@ -199,7 +218,12 @@ impl SourceStorage {
             return Ok(Vec::new());
         }
         let (root, _, origin) = self.source_metadata(path, None);
-        if origin == source_admission::SourceOrigin::Toolchain {
+        if origin == source_admission::SourceOrigin::Toolchain
+            || self
+                .core_capture
+                .as_ref()
+                .is_some_and(|core| core.canonical_live_root() == root)
+        {
             return Ok(Vec::new());
         }
         let excluded = self
@@ -239,9 +263,7 @@ impl SourceStorage {
                     package_inputs.source_filesystem().clone(),
                 );
                 storage.sources = catalogue.begin_selection();
-                for (identity, source_root) in package_inputs.packages() {
-                    storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
-                }
+                storage.register_package_graph(package_inputs);
                 storage
                     .sources
                     .retain_product_dependency_scope(package_inputs.dependencies());
@@ -353,9 +375,7 @@ impl SourceStorage {
             .map_err(|reason| refuse(reason.to_owned()))?;
         self.filesystem = filesystem;
         self.default_package_identity = Some(inputs.root());
-        for (identity, root) in inputs.packages() {
-            self.register_reconciled_package_root(root.to_path_buf(), identity);
-        }
+        self.register_package_graph(inputs);
         self.sources
             .retain_product_dependency_scope(inputs.dependencies());
         // Naming the root does not settle its dependency graph. Keep the
@@ -521,14 +541,6 @@ impl SourceStorage {
         }
     }
 
-    pub(crate) fn register_reconciled_package_root(
-        &mut self,
-        package_root: PathBuf,
-        identity: PackageKeyIdentity,
-    ) {
-        self.register_package_source(package_root, Some(identity));
-    }
-
     pub(super) fn admit_installed_root(
         &mut self,
         root: &Path,
@@ -621,30 +633,26 @@ impl SourceStorage {
         self.installed_roots.root_for(path).is_some()
     }
 
-    fn register_package_source(
-        &mut self,
-        package_root: PathBuf,
-        identity: Option<PackageKeyIdentity>,
-    ) {
-        let package_root = RegisteredPackageRoot {
-            root: self
-                .filesystem
-                .canonicalize(&package_root)
-                .unwrap_or(package_root),
-            identity,
-            logical_inventory: None,
-        };
-        if let Some(owner) = self
-            .package_roots
-            .iter_mut()
-            .find(|owner| owner.root == package_root.root)
-        {
-            if owner.identity.is_none() {
-                owner.identity = identity;
-            }
-        } else {
-            self.package_roots.push(package_root);
+    pub(super) fn register_package_graph(&mut self, graph: &crate::PackageCompilationInputs) {
+        for (identity, root, entries) in graph.source_owners() {
+            self.register_package_root(
+                root,
+                Some(identity),
+                entries.filenames().map(|file| root.join(file)),
+            );
         }
+    }
+
+    pub(crate) fn register_package_root(
+        &mut self,
+        root: &Path,
+        identity: Option<PackageKeyIdentity>,
+        build_files: impl IntoIterator<Item = PathBuf>,
+    ) {
+        // The graph and the selected stages both supply canonical captured paths.
+        let owner = RegisteredPackageRoot::for_root(&mut self.package_roots, root);
+        owner.identity = owner.identity.or(identity);
+        owner.build_files.extend(build_files);
     }
 
     pub fn admit_source(
@@ -706,7 +714,7 @@ impl SourceStorage {
         if let Some(core) = &self.core_root
             && path.starts_with(core)
         {
-            return (core.clone(), None, SourceOrigin::Toolchain);
+            return (core.clone(), None, core_source_origin(core, path));
         }
 
         if origin_override == Some(SourceOrigin::Toolchain)
@@ -743,6 +751,16 @@ impl SourceStorage {
                 SourceOrigin::User,
             ),
         }
+    }
+}
+
+fn core_source_origin(root: &Path, path: &Path) -> SourceOrigin {
+    // Build and Product may import this contract. Unlike the core prelude,
+    // its names belong only to the file that imported them.
+    if path.strip_prefix(root) == Ok(Path::new("sandbox/streams.omg")) {
+        SourceOrigin::ToolchainLibrary
+    } else {
+        SourceOrigin::Toolchain
     }
 }
 
@@ -825,7 +843,7 @@ pub(crate) fn validate_package_source_frontier(
             continue;
         };
         if owner != package_inputs.root()
-            && canonical.file_name().and_then(|name| name.to_str()) == Some("build.omg")
+            && package_inputs.dependency_build_file(owner, &canonical)
         {
             diagnostics.push(Diagnostic::error(format!(
                 "dependency build file {} may not join the compiled program",
@@ -1153,7 +1171,7 @@ mod tests {
         let mut loose = SourceStorage::for_compilation(base.join("application"), core.clone());
         let system = library.join("system");
         let owner = semantic_vocabulary::PackageKeyIdentity::from_digest([23; 32]).unwrap();
-        loose.register_reconciled_package_root(system.clone(), owner);
+        loose.register_package_root(&system, Some(owner), []);
         assert_eq!(
             loose.source_metadata(&system.join("console.omg"), None),
             (system, Some(owner), SourceOrigin::User)

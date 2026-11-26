@@ -187,6 +187,8 @@ pub fn derive_component_inventory(
                     OperationKind::EstablishAccessReference { .. }
                     | OperationKind::EstablishReference { .. }
                     | OperationKind::ReleaseReference { .. }
+                    | OperationKind::PackedIntegerUnary { .. }
+                    | OperationKind::PackedIntegerBinary { .. }
                     | OperationKind::EstablishScalarArray { .. }
                     | OperationKind::EstablishStructuralArray { .. }
                     | OperationKind::EstablishPrimitiveLocal { .. }

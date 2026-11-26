@@ -1,3 +1,4 @@
+use {omega}/language/core/sandbox/streams.omg as sandbox;
 use calling.omg as abi;
 use posix_byte_view_calling.omg as byte_views;
 use omega\language\core\StandardInput;
@@ -117,6 +118,47 @@ boundary trait DarwinX86ConsoleIo: |abi|::Calling<|byte_views|::SystemVByteViewC
     machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
     reaches StandardOutput crashes none;
+}
+
+// The caller supplies each reached stream to the interpreted activation.
+public InterpreterConsole satisfies Console {
+    machine write_line(text: @[u8]) reaches StandardOutput {
+        |sandbox|::SandboxOutput::write(text);
+        |sandbox|::SandboxOutput::write("\n");
+    }
+    machine write(text: @[u8]) reaches StandardOutput {
+        |sandbox|::SandboxOutput::write(text);
+    }
+    machine read_line(out_line: @mutable [u8]) -> LineReadResult
+    reaches StandardInput blocks crashes none {
+        block console_read_line::<InterpreterBytes>(out_line)
+    }
+    machine read_byte() -> ByteRead reaches StandardInput blocks crashes none {
+        block InterpreterBytes::read_byte()
+    }
+    machine write_byte(byte: i32) reaches StandardOutput {
+        InterpreterBytes::write_byte(byte);
+    }
+}
+
+InterpreterBytes satisfies ConsoleByteOperations {
+    machine read_byte() -> ByteRead reaches StandardInput blocks crashes none {
+        let result: i32 = block |sandbox|::SandboxInput::read_byte();
+        transition {
+            result == -1 -> end(),
+            result == -2 -> failed(),
+            _ -> got(result)
+        }
+        machine end() -> ByteRead { ByteRead::Eof }
+        machine failed() -> ByteRead { ByteRead::Error }
+        machine got(value: i32) -> ByteRead {
+            ByteRead::Byte { value: widen_u8_to_i32(narrow_i32_to_u8_wrapping(value)) }
+        }
+    }
+    machine write_byte(byte: i32) reaches StandardOutput {
+        let bytes: [u8; 1] = [narrow_i32_to_u8_wrapping(byte)];
+        |sandbox|::SandboxOutput::write(@bytes[..]);
+    }
 }
 
 public WindowsConsole satisfies Console {

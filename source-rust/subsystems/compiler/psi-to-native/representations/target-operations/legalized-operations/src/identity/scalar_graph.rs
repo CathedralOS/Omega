@@ -379,6 +379,36 @@ pub(super) fn encode(
                     push_bytes!(bytes, capacity_obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
+                LegalizedScalarInstructionKind::PackedIntegerUnary { result, operation, source } => {
+                    bytes.push(238);
+                    match operation {
+                        semantic_vocabulary::PackedIntegerUnaryOperation::ShiftRightArithmeticI16x8 { count } => {
+                            bytes.push(0);
+                            bytes.push(*count);
+                        }
+                        semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x8ToI16x8 => bytes.push(1),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x8Saturating => bytes.push(2),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::LoadI16x4ZeroExtend => bytes.push(3),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::WidenU8x4ToI16x8 => bytes.push(4),
+                        semantic_vocabulary::PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating => bytes.push(5),
+                    }
+                    super::structural::encode_operation_result(bytes, result);
+                    super::structural_types::encode_structural_argument(bytes, source);
+                }
+                LegalizedScalarInstructionKind::PackedIntegerBinary { result, operation, left, right } => {
+                    bytes.push(237);
+                    match operation {
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingAddI16x8 => bytes.push(0),
+                        semantic_vocabulary::PackedIntegerBinaryOperation::WrappingSubI16x8 => bytes.push(1),
+                        semantic_vocabulary::PackedIntegerBinaryOperation::ShuffleI16x8 { lanes } => {
+                            bytes.push(2);
+                            bytes.extend_from_slice(lanes);
+                        }
+                    }
+                    super::structural::encode_operation_result(bytes, result);
+                    super::structural_types::encode_structural_argument(bytes, left);
+                    super::structural_types::encode_structural_argument(bytes, right);
+                }
                 LegalizedScalarInstructionKind::EstablishStructuralArray {
                     result,
                     elements,

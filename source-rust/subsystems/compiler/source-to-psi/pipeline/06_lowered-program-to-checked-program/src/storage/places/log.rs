@@ -578,6 +578,55 @@ impl<'a> Storage<'a> {
             // A checked decomposition ends the wrapper role, not its bytes.
             // Shared affine replay authenticates the complete component roster.
             OperationKind::DecomposeStructuralValue { .. } => {}
+            OperationKind::PackedIntegerBinary { operation: primitive, left, right } => {
+                let result = produced.ok_or_else(|| self.foreign(concerns, "packed arithmetic has no owned array result"))?;
+                let expected = result.structural_type;
+                if terminal_semantics::packed_integer_array_type(self.types.iter(), expected, *primitive).is_none()
+                    || !result.is_unrestricted_plain()
+                    || !result.additional_input_qualifications.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                {
+                    return Err(self.foreign(concerns, "packed arithmetic has another result shape or authority"));
+                }
+                for argument in [left, right] {
+                    let place = self.argument(argument, concerns)?;
+                    if argument.access != StructuralAccess::SharedBorrow || self.projection_type(&place, concerns) != Some(expected) {
+                        return Err(self.foreign(concerns, "packed arithmetic requires shared arrays of the result type"));
+                    }
+                }
+                rows.push((fresh()?, Stored::Established));
+            }
+            OperationKind::PackedIntegerUnary { operation: primitive, source } => {
+                let result = produced.ok_or_else(|| self.foreign(concerns, "packed unary operation has no owned array result"))?;
+                let expected = result.structural_type;
+                if terminal_semantics::packed_integer_unary_array_type(
+                    self.types.iter(),
+                    expected,
+                    *primitive,
+                    terminal_semantics::PackedArrayRole::Result,
+                ).is_none()
+                    || !result.is_unrestricted_plain()
+                    || !result.additional_input_qualifications.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                {
+                    return Err(self.foreign(concerns, "packed unary operation has another result shape or authority"));
+                }
+                let place = self.argument(source, concerns)?;
+                let Some(input_type) = self.projection_type(&place, concerns) else {
+                    return Err(self.foreign(concerns, "packed unary operation requires a shared input array"));
+                };
+                if source.access != StructuralAccess::SharedBorrow
+                    || terminal_semantics::packed_integer_unary_array_type(
+                        self.types.iter(),
+                        input_type,
+                        *primitive,
+                        terminal_semantics::PackedArrayRole::Input,
+                    ).is_none()
+                {
+                    return Err(self.foreign(concerns, "packed unary operation requires a shared array of the declared input type"));
+                }
+                rows.push((fresh()?, Stored::Established));
+            }
             // These operations observe their exact operands and store nothing;
             // readability and same-view measurements remain independently checked.
             OperationKind::ByteSequenceEqual { .. }

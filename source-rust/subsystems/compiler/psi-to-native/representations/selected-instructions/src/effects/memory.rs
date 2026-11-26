@@ -86,6 +86,39 @@ memory_effects! {
     6 => HostedWriteByteV1 { stack_pointer: RegisterViewId },
     7 => WritePointerV1 { pointer_operand: u16 },
     8 => HostedReadByteV1 { stack_pointer: RegisterViewId },
+    30 => PackedBinary16BytesV1 {
+        left_pointer_operand: u16,
+        right_pointer_operand: u16,
+        destination_pointer_operand: u16,
+    },
+    31 => PackedUnary16To16BytesV1 {
+        source_pointer_operand: u16,
+        destination_pointer_operand: u16,
+    },
+    32 => PackedUnary8To16BytesV1 {
+        source_pointer_operand: u16,
+        destination_pointer_operand: u16,
+    },
+    33 => PackedUnary16To8BytesV1 {
+        source_pointer_operand: u16,
+        destination_pointer_operand: u16,
+    },
+    34 => PackedUnary4To16BytesV1 {
+        source_pointer_operand: u16,
+        destination_pointer_operand: u16,
+    },
+    35 => PackedUnary16To4BytesV1 {
+        source_pointer_operand: u16,
+        destination_pointer_operand: u16,
+    },
+    36 => PackedVectorLoadBytesV1 {
+        pointer_operand: u16,
+        byte_count: u16,
+    },
+    37 => PackedVectorStoreBytesV1 {
+        pointer_operand: u16,
+        byte_count: u16,
+    },
     9 => CopyBytesV1 {
         source_pointer_operand: u16,
         destination_pointer_operand: u16,

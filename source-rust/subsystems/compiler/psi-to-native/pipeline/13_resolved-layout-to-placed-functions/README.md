@@ -1,12 +1,11 @@
 # Machine emission
 
-This backend combines allocation and machine facts with frame, encoding,
-layout and exit evidence, then emits replayable fragments and placed text. Start at [lib.rs](src/lib.rs): it lists the four stages in
-the order native realization runs them, the three evidence modules
-realization combines, and the x86-64 byte recipes outside those stages. The public contracts are
-[optimization validation](../../../../../wiki/spec/build/optimizations.md),
-[machine-state evidence](../../../../../wiki/spec/build/machine_state_evidence.md),
-and [stack provisioning](../../../../../wiki/spec/resources/storage.md).
+This stage takes resolved instruction layout and the carried frame bytes,
+forms function fragments, applies the frame and places the resulting text.
+Start at [src/lib.rs](src/lib.rs) for that sequence. The public contracts are
+[optimization validation](../../../../../../wiki/spec/build/optimizations.md),
+[machine-state evidence](../../../../../../wiki/spec/build/machine_state_evidence.md),
+and [stack provisioning](../../../../../../wiki/spec/resources/storage.md).
 
 ## Function realization
 
@@ -54,7 +53,7 @@ callee-save requirements, target preservation-storage groups, exact frame geomet
 stored geometry and protocol plans live in `machine-code`; these modules
 compute and independently replay them.
 
-[Frame layout](src/frame_layout.rs) takes the selected machine,
+[Frame layout](../09_post-allocation-machine-to-framed-machine/src/frame_layout.rs) takes the selected machine,
 requirements, storage, target, register environment, ABI and policy. It
 places outgoing ABI storage before preservation storage and accounts for
 call alignment and the target's return-address location. Geometry today
@@ -84,8 +83,9 @@ target's full storage view may cover more preserved units than those
 modified. Neither calculation alone fixes SP/FP offsets, actual
 loads and stores, unwind, probing, faults or execution authority.
 
-[Frame protocol](src/frame_protocol.rs) uses target encoders and independent
-replay over one packed byte buffer with a span per function. It leaves out
+[Frame planning](../09_post-allocation-machine-to-framed-machine/src/frame_protocol.rs)
+selects the protocol. [Frame encoding](../11_bound-framed-machine-to-selected-form-encoding/src/frame_protocol.rs)
+uses target encoders and produces protocol bytes over one packed byte buffer with a span per function. It leaves out
 the selected return instruction. [Frame application](src/frame_application.rs)
 admits the emitted fragments, adds one entry prologue and the required
 epilogue at each kept return, recomputes block, row and fixup offsets, and
@@ -98,12 +98,10 @@ just inserted. Inserting bytes is not publication.
 [Fragment emission](src/fragment_emission.rs) takes validated function
 realization and turns resolved machine bytes into unplaced function
 fragments. Beside the realization it keeps only the bound installation
-receipt and [`EmissionFacts`](src/emission_facts.rs): the facts settled
-before instruction selection that the current program does not carry and
-object and image emission still read (admitted lowering facts and the
-optimized abstract program with its projection identities). The native
-driver copies them out of stage 04's output; emission never holds that
-output. Construction refuses cohorts the receipt did not admit, facts naming
+receipt and [`EmissionFacts`](../../representations/post-allocation-machine/body-facts/src/lib.rs).
+Stage 04 publishes a compact projection of source operations, not the earlier
+program. Later stages add the physical facts that object and image construction
+need. Construction refuses cohorts the receipt did not admit, facts naming
 another Terminal program or entry, and execution roots whose pre-physical
 manifest differs from the allocation's. [Text placement](src/text_placement.rs) keeps the source and
 applied-frame identities while resolving internal calls and section offsets.
@@ -114,16 +112,12 @@ compile just produced
 Child manifests are rebound, so changing a rule does not mean copying its
 fields into parallel object, artifact and callable schemas.
 
-[Private callback materialization](src/private_callback.rs) turns a placed
-single-function section into its compiler-private machine-code record. It
-checks the settled boundary ABI against the target plan the section keeps,
-and rejects calls outside the private function. The coordinator supplies
-the callback identity and boundary entry plan; it neither extracts machine
-bytes nor rebuilds their ABI metadata. It reads the text-placement result and
-is not another pipeline stage.
+[Private callback materialization](../../driver/image/callback_thunks.rs)
+uses this stage to place the callable body. The driver then asks object and
+image construction to bind the callback entry to that placed body.
 
 An x86 interrupt handler needs to return with the interrupted program's registers
-and flags intact. The [native entry adapter](src/native_entry_bridge.rs) saves
+and flags intact. The [native entry adapter](../09_post-allocation-machine-to-framed-machine/entry-planning/src/native_entry_bridge.rs) saves
 all fifteen ordinary integer registers, clears the direction flag before calling
 the compiled body, restores those registers, and returns with `iretq`. The CPU's
 five-word return frame restores the original flags, instruction pointer and stack
@@ -151,7 +145,7 @@ prove full coverage; leaving one out requires validated removal of that
 exact occurrence. Neither frame geometry nor optimization supplies a
 missing firmware adapter or executable-region proof.
 
-The [image reporting projection](../images/image-emission/src/function_fragments.rs)
+The [image reporting projection](../15_objects-to-image/image-emission/src/function_fragments.rs)
 uses replayed fragment and frame data. Instruction counts mean selected spans,
 including zero-byte spans, not ISA instruction counts: one materialization may
 encode several instructions. Inserted prologue/epilogue bytes are counted

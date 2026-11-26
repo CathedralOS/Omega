@@ -132,9 +132,17 @@ pub(crate) struct FamilyChild {
     pub(crate) at: Vec<FamilyTerm>,
 }
 
+/// An integer operator in a computed index (`Length + 1`, `Length - 1`, `2 * N`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum IndexOp {
+    Add,
+    Sub,
+    Mul,
+}
+
 /// What a type argument of the family is, where a case or a formal names
 /// the family at arguments.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum FamilyTerm {
     /// The declaration's own parameter at this position.
     Index(u32),
@@ -144,6 +152,38 @@ pub(crate) enum FamilyTerm {
     /// Any other name: a formal or a local of the machine that names the
     /// type, by its symbol.
     Name(SymbolHandle),
+    Binary(IndexOp, Box<FamilyTerm>, Box<FamilyTerm>),
+}
+
+impl FamilyTerm {
+    fn map_names<E>(
+        &self,
+        f: &mut impl FnMut(SymbolHandle) -> Result<FamilyTerm, E>,
+    ) -> Result<FamilyTerm, E> {
+        Ok(match self {
+            Self::Name(symbol) => f(*symbol)?,
+            Self::Binary(op, left, right) => Self::Binary(
+                *op,
+                Box::new(left.map_names(f)?),
+                Box::new(right.map_names(f)?),
+            ),
+            other => other.clone(),
+        })
+    }
+
+    fn try_to_evidence<E>(
+        &self,
+        f: &mut impl FnMut(&FamilyTerm) -> Result<EvidenceTerm, E>,
+    ) -> Result<EvidenceTerm, E> {
+        match self {
+            Self::Binary(op, left, right) => Ok(EvidenceTerm::Binary(
+                *op,
+                Box::new(left.try_to_evidence(f)?),
+                Box::new(right.try_to_evidence(f)?),
+            )),
+            leaf => f(leaf),
+        }
+    }
 }
 
 /// A theorem over a family, as the signature needs it.
@@ -191,10 +231,7 @@ pub(crate) struct FamilyTheoremCase {
 /// and exists only for the checker, and what it is evidence of is the
 /// mathematical signature's to check.
 pub(super) fn evidence_witness() -> ValueType {
-    ValueType::Scalar(
-        ScalarType::Boolean,
-        crate::body::Qualification::NONE,
-    )
+    ValueType::Scalar(ScalarType::Boolean, crate::body::Qualification::NONE)
 }
 
 impl Program<'_> {
@@ -567,8 +604,8 @@ impl Program<'_> {
         let resolve = |terms: Vec<FamilyTerm>| -> Checked<Vec<FamilyTerm>> {
             terms
                 .into_iter()
-                .map(|term| match term {
-                    FamilyTerm::Name(symbol) => {
+                .map(|term| {
+                    term.map_names(&mut |symbol| {
                         if let Some(index) =
                             indices.iter().position(|(parameter, _)| *parameter == symbol)
                         {
@@ -582,8 +619,7 @@ impl Program<'_> {
                                 "step of a theorem that names a child at something other than an index or a payload value",
                             ))
                         }
-                    }
-                    other => Ok(other),
+                    })
                 })
                 .collect()
         };
@@ -831,17 +867,17 @@ impl Program<'_> {
             .enumerate()
             .filter(|(position, _)| family.type_at(*position).is_none())
             .map(|(_, argument)| {
-                Ok(match self.written_index(id, binders, *argument)? {
-                    WrittenIndex::Name(symbol) => named(symbol),
-                    WrittenIndex::Literal(value) => FamilyTerm::Literal(value),
-                })
+                Ok(self
+                    .written_index(id, binders, *argument)?
+                    .to_family_term(&named))
             })
             .collect()
     }
 
     /// One value argument as a type reference writes it: a name, resolved
     /// to its symbol (against `binders` when the typed trees kept only its
-    /// spelling), or a number. This is the one reader of an index, for a
+    /// spelling), a number, or an integer arithmetic expression built from
+    /// them (`Length + 1`). This is the one reader of an index, for a
     /// family and for data that holds evidence of one in an erased field.
     fn written_index(
         &self,
@@ -868,26 +904,71 @@ impl Program<'_> {
                     |(_, symbol)| Ok(WrittenIndex::Name(*symbol)),
                 ),
             TypeReferenceNode::ConstExpression(expression) => {
-                match typed.expression_table.expression(*expression) {
-                    ExpressionNode::Name(path) if path.symbol.is_valid() => {
-                        Ok(WrittenIndex::Name(path.symbol))
-                    }
-                    ExpressionNode::Integer(value) => literal(&value.to_string()),
+                self.written_index_expression(id, binders, *expression)
+            }
+            _ => Err(unserved(
+                "index of indexed data other than a name, an integer, or integer arithmetic",
+            )),
+        }
+    }
+
+    fn written_index_expression(
+        &self,
+        id: MachineId,
+        binders: &[(String, SymbolHandle)],
+        expression: ExpressionHandle,
+    ) -> Checked<WrittenIndex> {
+        use crate::source_state::expression::BinaryOperator;
+        let typed = self.typed;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        match typed.expression_table.expression(expression) {
+            ExpressionNode::Name(path) if path.symbol.is_valid() => {
+                Ok(WrittenIndex::Name(path.symbol))
+            }
+            ExpressionNode::Name(path) => {
+                match typed.expression_table.name_path_members(path.members) {
+                    [word] => binders
+                        .iter()
+                        .find(|(binder, _)| binder == word.as_str())
+                        .map(|(_, symbol)| WrittenIndex::Name(*symbol))
+                        .ok_or_else(|| {
+                            unserved("index of indexed data that names an unresolved binder")
+                        }),
                     _ => Err(unserved(
-                        "index of indexed data other than a name or an integer",
+                        "index of indexed data other than a name, an integer, or integer arithmetic",
                     )),
                 }
             }
+            ExpressionNode::Integer(value) => value
+                .to_string()
+                .parse::<i128>()
+                .map(WrittenIndex::Literal)
+                .map_err(|_| unserved("index of indexed data that is no integer")),
+            ExpressionNode::Binary(binary) => {
+                let op = match binary.operator {
+                    BinaryOperator::Add => IndexOp::Add,
+                    BinaryOperator::Subtract => IndexOp::Sub,
+                    BinaryOperator::Multiply => IndexOp::Mul,
+                    _ => {
+                        return Err(unserved(
+                            "index of indexed data with an operator other than +, -, or *",
+                        ));
+                    }
+                };
+                let left = self.written_index_expression(id, binders, binary.left)?;
+                let right = self.written_index_expression(id, binders, binary.right)?;
+                Ok(WrittenIndex::Binary(op, Box::new(left), Box::new(right)))
+            }
             _ => Err(unserved(
-                "index of indexed data other than a name or an integer",
+                "index of indexed data other than a name, an integer, or integer arithmetic",
             )),
         }
     }
 
     /// Checks the type of an erased field of evidence in a generic data
-    /// template: each index it writes is one of the template's own value
-    /// binders or a number (`Measured<Length, Total>` holding
-    /// `Vector<Length, Total>`).
+    /// template: each index it writes is built from the template's own value
+    /// binders and numbers (`Measured<Length, Total>` holding
+    /// `Vector<Length, Total>` or `Vector<Length + 1, Total>`).
     pub(super) fn evidence_field_indices(
         &self,
         id: MachineId,
@@ -911,15 +992,16 @@ impl Program<'_> {
             .type_reference_table
             .type_reference_handles(*arguments)
         {
-            if let WrittenIndex::Name(symbol) = self.written_index(id, &[], *argument)?
-                && !parameters.iter().any(|parameter| {
+            let index = self.written_index(id, &[], *argument)?;
+            if !index.every_name(&mut |symbol| {
+                parameters.iter().any(|parameter| {
                     parameter.symbol == symbol
                         && matches!(
                             parameter.kind,
                             TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
                         )
                 })
-            {
+            }) {
                 return Err(unserved(
                     "erased field of evidence at an index other than a value parameter of its data or a number",
                 ));
@@ -1019,33 +1101,29 @@ impl Program<'_> {
             .family_arguments(id, &family, &[], declared)?
             .into_iter()
             .map(|term| {
-                let written = match term {
-                    FamilyTerm::Literal(value) => WrittenIndex::Literal(value),
-                    FamilyTerm::Name(binder) => applied
-                        .iter()
-                        .find(|(parameter, _)| *parameter == binder)
-                        .map(|(_, written)| *written)
-                        .ok_or_else(|| {
-                            unserved("evidence in a field at an index its data does not bind")
-                        })?,
-                    FamilyTerm::Index(_) | FamilyTerm::Payload(_) => {
-                        return Err(unserved(
-                            "evidence in a field at an index its data does not bind",
-                        ));
-                    }
-                };
-                match written {
-                    WrittenIndex::Literal(value) => Ok(EvidenceTerm::Literal(value)),
-                    WrittenIndex::Name(symbol) => own
-                        .iter()
-                        .position(|parameter| *parameter == symbol)
-                        .map(|position| EvidenceTerm::Parameter(position as u32))
-                        .ok_or_else(|| {
-                            unserved(
-                                "data holding evidence at a value that is neither a number nor one of the machine's value parameters",
-                            )
-                        }),
-                }
+                term.try_to_evidence(&mut |leaf| {
+                    let written = match leaf {
+                        FamilyTerm::Literal(value) => WrittenIndex::Literal(*value),
+                        FamilyTerm::Name(binder) => applied
+                            .iter()
+                            .find(|(parameter, _)| *parameter == *binder)
+                            .map(|(_, written)| written.clone())
+                            .ok_or_else(|| {
+                                unserved("evidence in a field at an index its data does not bind")
+                            })?,
+                        FamilyTerm::Index(_) | FamilyTerm::Payload(_) => {
+                            return Err(unserved(
+                                "evidence in a field at an index its data does not bind",
+                            ));
+                        }
+                        FamilyTerm::Binary(..) => unreachable!(),
+                    };
+                    written.to_evidence_term(own, || {
+                        unserved(
+                            "data holding evidence at a value that is neither a number nor one of the machine's value parameters",
+                        )
+                    })
+                })
             })
             .collect::<Checked<_>>()?;
         Ok(Some(Applied {
@@ -1097,9 +1175,11 @@ impl Program<'_> {
         literal: ExpressionHandle,
         held: &Held,
         holders: &Holders,
+        index_equalities: &mut Vec<IndexEquality>,
     ) -> Checked<()> {
         let typed = self.typed;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let source = Some(typed.expression_table.source_span(literal));
         let ExpressionNode::StructLiteral(literal) = typed.expression_table.expression(literal)
         else {
             return Ok(());
@@ -1120,11 +1200,14 @@ impl Program<'_> {
                 .ok_or_else(|| {
                     unserved("evidence in a field that is no evidence the machine holds")
                 })?;
-            if passed != expected {
-                return Err(unserved(
-                    "evidence in a field at another index than the field's type takes",
-                ));
-            }
+            Self::require_same_indices(
+                id,
+                &passed,
+                &expected,
+                source,
+                "evidence in a field at another index than the field's type takes",
+                index_equalities,
+            )?;
         }
         Ok(())
     }
@@ -1360,8 +1443,7 @@ impl Program<'_> {
                 },
             ));
         }
-        let root =
-            crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
+        let root = crate::body::self_place().ok_or_else(|| unserved("self place identity"))?;
         let scope = ClauseScope {
             slots: &[],
             values: &[],
@@ -1426,6 +1508,16 @@ pub(crate) struct EvidenceUse {
     /// is left out; it is no hypothesis here.
     pub(crate) requires: Vec<Proposition>,
     pub(crate) constructions: Vec<Construction>,
+    pub(crate) index_equalities: Vec<IndexEquality>,
+}
+
+/// One index equality obligation between two computed indices of the same
+/// indexed family, proved via `LawProof::Integers`.
+#[derive(Debug, Clone)]
+pub(crate) struct IndexEquality {
+    pub(crate) left: EvidenceTerm,
+    pub(crate) right: EvidenceTerm,
+    pub(crate) source: Option<SourceSpan>,
 }
 
 /// One value of indexed data a machine builds with a case literal.
@@ -1442,11 +1534,18 @@ pub(crate) struct Construction {
 }
 
 /// An index or payload value where a running machine names evidence: one
-/// of the machine's own value parameters, or a number.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// of the machine's own value parameters, a number, or integer arithmetic.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum EvidenceTerm {
     Parameter(u32),
     Literal(i128),
+    Binary(IndexOp, Box<EvidenceTerm>, Box<EvidenceTerm>),
+}
+
+impl EvidenceTerm {
+    pub(crate) fn is_computed(&self) -> bool {
+        matches!(self, Self::Binary(..))
+    }
 }
 
 /// Indexed data as a running machine names it: the family and the index.
@@ -1467,14 +1566,57 @@ type Held = Vec<(SymbolHandle, Applied)>;
 type Holders = Vec<(SymbolHandle, TypeReferenceHandle)>;
 
 /// An index as a type reference writes it (`written_index`).
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum WrittenIndex {
     Name(SymbolHandle),
     Literal(i128),
+    Binary(IndexOp, Box<WrittenIndex>, Box<WrittenIndex>),
+}
+
+impl WrittenIndex {
+    fn to_family_term(&self, named: &impl Fn(SymbolHandle) -> FamilyTerm) -> FamilyTerm {
+        match self {
+            Self::Name(symbol) => named(*symbol),
+            Self::Literal(value) => FamilyTerm::Literal(*value),
+            Self::Binary(op, left, right) => FamilyTerm::Binary(
+                *op,
+                Box::new(left.to_family_term(named)),
+                Box::new(right.to_family_term(named)),
+            ),
+        }
+    }
+
+    fn every_name(&self, f: &mut impl FnMut(SymbolHandle) -> bool) -> bool {
+        match self {
+            Self::Name(symbol) => f(*symbol),
+            Self::Literal(_) => true,
+            Self::Binary(_, left, right) => left.every_name(f) && right.every_name(f),
+        }
+    }
+
+    fn to_evidence_term<E>(
+        &self,
+        own: &[SymbolHandle],
+        missing: impl Copy + Fn() -> E,
+    ) -> Result<EvidenceTerm, E> {
+        match self {
+            Self::Literal(value) => Ok(EvidenceTerm::Literal(*value)),
+            Self::Name(symbol) => own
+                .iter()
+                .position(|parameter| *parameter == *symbol)
+                .map(|position| EvidenceTerm::Parameter(position as u32))
+                .ok_or_else(missing),
+            Self::Binary(op, left, right) => Ok(EvidenceTerm::Binary(
+                *op,
+                Box::new(left.to_evidence_term(own, missing)?),
+                Box::new(right.to_evidence_term(own, missing)?),
+            )),
+        }
+    }
 }
 
 /// What a call writes for one parameter of what it calls.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Written {
     Value(EvidenceTerm),
     Type,
@@ -1568,6 +1710,7 @@ impl Program<'_> {
         let mut held: Held = Vec::new();
         let mut holders: Holders = Vec::new();
         let mut constructions = Vec::new();
+        let mut index_equalities = Vec::new();
         let mut found = false;
         for state in typed.machine_states(machine) {
             let formals = typed
@@ -1577,6 +1720,7 @@ impl Program<'_> {
             for formal in formals.iter() {
                 if self.holds_evidence(formal.type_reference) {
                     found = true;
+                    self.complete_index_operators(id, machine.symbol, formal.type_reference)?;
                     holders.push((formal.symbol, formal.type_reference));
                     continue;
                 }
@@ -1587,17 +1731,20 @@ impl Program<'_> {
                     return Err(unserved("indexed data in a formal that is not erased"));
                 }
                 found = true;
+                self.complete_index_operators(id, machine.symbol, formal.type_reference)?;
                 let applied = self.evidence_type(id, own, formal.type_reference)?;
                 held.push((formal.symbol, applied));
             }
             for statement in typed.statement_table.statements(state.statement_nodes) {
                 found |= self.evidence_statement(
                     id,
+                    machine.symbol,
                     own,
                     statement,
                     &mut held,
                     &mut holders,
                     &mut constructions,
+                    &mut index_equalities,
                 )?;
             }
         }
@@ -1670,6 +1817,7 @@ impl Program<'_> {
             parameters,
             requires,
             constructions,
+            index_equalities,
         }))
     }
 
@@ -1690,20 +1838,23 @@ impl Program<'_> {
         let at = self
             .family_arguments(id, &family, &[], reference)?
             .into_iter()
-            .map(|term| match term {
-                FamilyTerm::Literal(value) => Ok(EvidenceTerm::Literal(value)),
-                FamilyTerm::Name(symbol) => own
-                    .iter()
-                    .position(|parameter| *parameter == symbol)
-                    .map(|position| EvidenceTerm::Parameter(position as u32))
-                    .ok_or_else(|| {
-                        unserved(
-                            "indexed data at an index that is neither a number nor one of the machine's value parameters",
-                        )
-                    }),
-                FamilyTerm::Index(_) | FamilyTerm::Payload(_) => {
-                    Err(unserved("indexed data at one of its own indices outside its declaration"))
-                }
+            .map(|term| {
+                term.try_to_evidence(&mut |leaf| match leaf {
+                    FamilyTerm::Literal(value) => Ok(EvidenceTerm::Literal(*value)),
+                    FamilyTerm::Name(symbol) => own
+                        .iter()
+                        .position(|parameter| *parameter == *symbol)
+                        .map(|position| EvidenceTerm::Parameter(position as u32))
+                        .ok_or_else(|| {
+                            unserved(
+                                "indexed data at an index that is neither a number nor one of the machine's value parameters",
+                            )
+                        }),
+                    FamilyTerm::Index(_) | FamilyTerm::Payload(_) => Err(unserved(
+                        "indexed data at one of its own indices outside its declaration",
+                    )),
+                    FamilyTerm::Binary(..) => unreachable!(),
+                })
             })
             .collect::<Checked<_>>()?;
         Ok(Applied {
@@ -1792,16 +1943,73 @@ impl Program<'_> {
         Ok(Some(HandedOn { kinds, terms }))
     }
 
+    /// Completes any builtin arithmetic operators inside `ConstExpression`
+    /// index arguments of `reference` so open computed indices (`1 + Length`)
+    /// do not leave unresolved `CheckedOperator` selections.
+    pub(super) fn complete_index_operators(
+        &mut self,
+        id: MachineId,
+        owner: SymbolHandle,
+        reference: TypeReferenceHandle,
+    ) -> Checked<()> {
+        if !reference.is_valid() {
+            return Ok(());
+        }
+        let mut operators = Vec::new();
+        let mut types = vec![reference];
+        while let Some(current) = types.pop() {
+            if !self
+                .typed
+                .type_reference_table
+                .contains_type_reference(current)
+            {
+                continue;
+            }
+            match self.typed.type_reference_table.type_reference(current) {
+                TypeReferenceNode::Generic { arguments, .. } => {
+                    types.extend_from_slice(
+                        self.typed
+                            .type_reference_table
+                            .type_reference_handles(*arguments),
+                    );
+                }
+                TypeReferenceNode::ConstExpression(root) => {
+                    let mut expressions = vec![*root];
+                    while let Some(expr) = expressions.pop() {
+                        if !self.typed.expression_table.expression_is_valid(expr) {
+                            continue;
+                        }
+                        if let ExpressionNode::Binary(binary) =
+                            self.typed.expression_table.expression(expr)
+                        {
+                            operators.push(expr);
+                            expressions.push(binary.left);
+                            expressions.push(binary.right);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        if !operators.is_empty() {
+            self.complete_anonymous_operators(id, owner, &operators)?;
+        }
+        Ok(())
+    }
+
     /// Reads one statement of a running machine for evidence. Returns
     /// whether it held, built or passed any.
+    #[allow(clippy::too_many_arguments)]
     fn evidence_statement(
         &mut self,
         id: MachineId,
+        owner: SymbolHandle,
         own: &[SymbolHandle],
         statement: &StatementNode,
         held: &mut Held,
         holders: &mut Holders,
         constructions: &mut Vec<Construction>,
+        index_equalities: &mut Vec<IndexEquality>,
     ) -> Checked<bool> {
         let typed = self.typed;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
@@ -1812,6 +2020,7 @@ impl Program<'_> {
             if local.relevance != language_core::BindingRelevance::Erased {
                 return Err(unserved("indexed data in a local that is not erased"));
             }
+            self.complete_index_operators(id, owner, local.type_reference)?;
             let applied = self.evidence_type(id, own, local.type_reference)?;
             self.evidence_initializer(
                 id,
@@ -1821,6 +2030,7 @@ impl Program<'_> {
                 held,
                 holders,
                 constructions,
+                index_equalities,
             )?;
             held.push((local.symbol, applied));
             return Ok(true);
@@ -1829,6 +2039,7 @@ impl Program<'_> {
         // statement, its literal included, and then held.
         let holder = match statement {
             StatementNode::LocalData(local) if self.holds_evidence(local.type_reference) => {
+                self.complete_index_operators(id, owner, local.type_reference)?;
                 Some((local.symbol, local.type_reference))
             }
             _ => None,
@@ -1855,6 +2066,7 @@ impl Program<'_> {
                     .statement_table
                     .expression_handles(call.arguments)
                     .to_vec(),
+                Some(call.source_span),
             )),
             StatementNode::Transition(transition) => {
                 for target in [transition.target, transition.continuation] {
@@ -1870,6 +2082,7 @@ impl Program<'_> {
                                 .statement_table
                                 .expression_handles(*arguments)
                                 .to_vec(),
+                            Some(transition.source_span),
                         ));
                     }
                 }
@@ -1888,6 +2101,7 @@ impl Program<'_> {
                             .expression_table
                             .expression_handles(call.arguments)
                             .to_vec(),
+                        Some(typed.expression_table.source_span(handle)),
                     )),
                     ExpressionNode::StructLiteral(literal) => {
                         let data = typed.unique_data_definition_by_symbol(literal.type_symbol);
@@ -1909,17 +2123,31 @@ impl Program<'_> {
         }
         let mut found = !literals.is_empty() || holder.is_some();
         for literal in literals {
-            self.evidence_in_literal(id, own, literal, held, holders)?;
+            self.evidence_in_literal(id, own, literal, held, holders, index_equalities)?;
         }
-        for (target, written, arguments) in calls {
-            found |= self.evidence_call(id, own, target, &written, &arguments, held, holders)?;
+        for (target, written, arguments, source) in calls {
+            for argument in &written {
+                self.complete_index_operators(id, owner, argument.type_reference)?;
+            }
+            found |= self.evidence_call(
+                id,
+                own,
+                target,
+                &written,
+                &arguments,
+                held,
+                holders,
+                source,
+                index_equalities,
+            )?;
         }
         holders.extend(holder);
         Ok(found)
     }
 
     /// What a call writes for each parameter of what it calls: for a value,
-    /// a number or one of the calling machine's own value parameters.
+    /// a number, one of the calling machine's own value parameters, or an
+    /// integer arithmetic expression built from them.
     /// `kinds` are the parameters called, each with whether it is a value.
     fn evidence_values(
         &self,
@@ -1947,6 +2175,10 @@ impl Program<'_> {
             }
             let term = if let Some(literal) = &argument.const_literal {
                 literal.to_string().parse().ok().map(EvidenceTerm::Literal)
+            } else if argument.type_reference.is_valid() {
+                self.written_index(id, &[], argument.type_reference)
+                    .ok()
+                    .and_then(|index| index.to_evidence_term(own, || ()).ok())
             } else if argument.symbol.is_valid() {
                 own.iter()
                     .position(|parameter| *parameter == argument.symbol)
@@ -1978,16 +2210,23 @@ impl Program<'_> {
     ) -> Option<Applied> {
         let at = terms
             .iter()
-            .map(|term| match *term {
-                FamilyTerm::Literal(value) => Some(EvidenceTerm::Literal(value)),
-                FamilyTerm::Name(symbol) => {
-                    let position = kinds.iter().position(|(kind, _)| *kind == symbol)?;
-                    match written.get(position) {
-                        Some(Written::Value(term)) => Some(*term),
-                        _ => None,
+            .map(|term| {
+                term.try_to_evidence(&mut |leaf| match leaf {
+                    FamilyTerm::Literal(value) => Ok(EvidenceTerm::Literal(*value)),
+                    FamilyTerm::Name(symbol) => {
+                        let position = kinds
+                            .iter()
+                            .position(|(kind, _)| *kind == *symbol)
+                            .ok_or(())?;
+                        match written.get(position) {
+                            Some(Written::Value(term)) => Ok(term.clone()),
+                            _ => Err(()),
+                        }
                     }
-                }
-                FamilyTerm::Index(_) | FamilyTerm::Payload(_) => None,
+                    FamilyTerm::Index(_) | FamilyTerm::Payload(_) => Err(()),
+                    FamilyTerm::Binary(..) => unreachable!(),
+                })
+                .ok()
             })
             .collect::<Option<_>>()?;
         Some(Applied {
@@ -1996,8 +2235,42 @@ impl Program<'_> {
         })
     }
 
+    /// Checks that two applications of indexed data name the same family at
+    /// equal indices. Plain mismatches are refused directly; mismatches
+    /// involving a computed index become integer equalities for stage 06 to
+    /// prove in the kernel.
+    fn require_same_indices(
+        id: MachineId,
+        passed: &Applied,
+        expected: &Applied,
+        source: Option<source_text::SourceSpan>,
+        mismatch: &'static str,
+        index_equalities: &mut Vec<IndexEquality>,
+    ) -> Checked<()> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        if passed.record != expected.record || passed.at.len() != expected.at.len() {
+            return Err(unserved(mismatch));
+        }
+        for (left, right) in passed.at.iter().zip(&expected.at) {
+            if left == right {
+                continue;
+            }
+            if left.is_computed() || right.is_computed() {
+                index_equalities.push(IndexEquality {
+                    left: left.clone(),
+                    right: right.clone(),
+                    source,
+                });
+            } else {
+                return Err(unserved(mismatch));
+            }
+        }
+        Ok(())
+    }
+
     /// Checks one call: each argument for a formal that takes indexed data
     /// is evidence the machine holds, at the index the formal takes.
+    #[allow(clippy::too_many_arguments)]
     fn evidence_call(
         &mut self,
         id: MachineId,
@@ -2007,6 +2280,8 @@ impl Program<'_> {
         arguments: &[ExpressionHandle],
         held: &Held,
         holders: &Holders,
+        source: Option<source_text::SourceSpan>,
+        index_equalities: &mut Vec<IndexEquality>,
     ) -> Checked<bool> {
         let typed = self.typed;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
@@ -2097,11 +2372,14 @@ impl Program<'_> {
             let passed = self
                 .held_evidence(id, own, held, holders, argument)?
                 .ok_or_else(|| unserved("evidence passed that is no evidence the machine holds"))?;
-            if passed != expected {
-                return Err(unserved(
-                    "evidence passed at another index than the formal takes",
-                ));
-            }
+            Self::require_same_indices(
+                id,
+                &passed,
+                &expected,
+                source,
+                "evidence passed at another index than the formal takes",
+                index_equalities,
+            )?;
         }
         Ok(true)
     }
@@ -2110,6 +2388,7 @@ impl Program<'_> {
     /// evidence the machine already holds of the same thing, or a case
     /// literal, whose children must be evidence at the indices the case
     /// declares for them.
+    #[allow(clippy::too_many_arguments)]
     fn evidence_initializer(
         &mut self,
         id: MachineId,
@@ -2119,6 +2398,7 @@ impl Program<'_> {
         held: &Held,
         holders: &Holders,
         constructions: &mut Vec<Construction>,
+        index_equalities: &mut Vec<IndexEquality>,
     ) -> Checked<()> {
         let typed = self.typed;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
@@ -2137,11 +2417,14 @@ impl Program<'_> {
             .clone();
         let source = Some(typed.expression_table.source_span(initializer));
         if let Some(known) = self.held_evidence(id, own, held, holders, initializer)? {
-            if known != *applied {
-                return Err(unserved(
-                    "evidence held at another index than the local declares",
-                ));
-            }
+            Self::require_same_indices(
+                id,
+                &known,
+                applied,
+                source,
+                "evidence held at another index than the local declares",
+                index_equalities,
+            )?;
             return Ok(());
         }
         let (case, fields) = match typed.expression_table.expression(initializer) {
@@ -2208,11 +2491,22 @@ impl Program<'_> {
                     .ok_or_else(|| {
                         unserved("evidence passed that is no evidence the machine holds")
                     })?;
-                if passed != expected || expected != *applied {
-                    return Err(unserved(
-                        "evidence handed on at another index than the local declares",
-                    ));
-                }
+                Self::require_same_indices(
+                    id,
+                    &passed,
+                    &expected,
+                    source,
+                    "evidence handed on at another index than the local declares",
+                    index_equalities,
+                )?;
+                Self::require_same_indices(
+                    id,
+                    &expected,
+                    applied,
+                    source,
+                    "evidence handed on at another index than the local declares",
+                    index_equalities,
+                )?;
                 return Ok(());
             }
             _ => {
@@ -2273,11 +2567,17 @@ impl Program<'_> {
             let expected: Vec<_> = child
                 .at
                 .iter()
-                .map(|term| match *term {
-                    FamilyTerm::Index(index) => at.get(index as usize).copied(),
-                    FamilyTerm::Payload(position) => payload.get(position as usize).copied(),
-                    FamilyTerm::Literal(value) => Some(EvidenceTerm::Literal(value)),
-                    FamilyTerm::Name(_) => None,
+                .map(|term| {
+                    term.try_to_evidence(&mut |leaf| match leaf {
+                        FamilyTerm::Index(index) => at.get(*index as usize).cloned().ok_or(()),
+                        FamilyTerm::Payload(position) => {
+                            payload.get(*position as usize).cloned().ok_or(())
+                        }
+                        FamilyTerm::Literal(value) => Ok(EvidenceTerm::Literal(*value)),
+                        FamilyTerm::Name(_) => Err(()),
+                        FamilyTerm::Binary(..) => unreachable!(),
+                    })
+                    .ok()
                 })
                 .collect::<Option<_>>()
                 .ok_or_else(|| {
@@ -2292,11 +2592,14 @@ impl Program<'_> {
                 .ok_or_else(|| {
                     unserved("child of a literal that is no evidence the machine holds")
                 })?;
-            if passed != expected {
-                return Err(unserved(
-                    "child of a literal at another index than the case declares for it",
-                ));
-            }
+            Self::require_same_indices(
+                id,
+                &passed,
+                &expected,
+                source,
+                "child of a literal at another index than the case declares for it",
+                index_equalities,
+            )?;
         }
         constructions.push(Construction {
             record,

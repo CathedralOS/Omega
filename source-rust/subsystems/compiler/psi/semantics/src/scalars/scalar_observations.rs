@@ -69,6 +69,7 @@ pub fn storage_alignment_fact(
             OperationKind::EstablishPrimitiveLocal { .. }
                 | OperationKind::EstablishStructuralLocal {}
                 | OperationKind::EstablishZeroedStructural {}
+                | OperationKind::PackedIntegerUnary { .. } | OperationKind::PackedIntegerBinary { .. }
                 | OperationKind::EstablishScalarArray { .. }
                 | OperationKind::EstablishStructuralArray { .. }
                 | OperationKind::EstablishRecord { .. }

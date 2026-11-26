@@ -187,4 +187,5 @@ fn a_shared_product_entry_cannot_use_the_builds_meter_dependency() {
         report.contains("dependency `meter` is unavailable in the product scope"),
         "{report}"
     );
+    assert!(report.contains("configure.omg:1:5"), "{report}");
 }
