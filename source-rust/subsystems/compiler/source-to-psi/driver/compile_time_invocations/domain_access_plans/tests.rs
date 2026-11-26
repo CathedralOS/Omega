@@ -942,22 +942,18 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
     let prepared = PreparedBuildMachineProgram::prepare(&typed, None).unwrap();
     let facts = facts();
     let mut accounting = SourceCompletionAccounting::default();
-    let private_query = typed
-        .realized_machine_named("inaccessible_cell_field")
+    let (author, expression) = query_call(&typed, "describe_cell_field");
+    let description = prepared
+        .entry_call(author, expression, &[])
         .unwrap()
-        .symbol;
-    let error = prepared
-        .entry(private_query, private_query, &[])
-        .err()
-        .expect("this source cannot adopt another source file's private field");
-    assert!(
-        error.contains("a declaration query is outside its author's declaration scope"),
-        "{error}"
+        .invoke_recorded(target(&facts), &mut accounting)
+        .expect("a visible VecCell carrier exposes its structural fields");
+    assert_eq!(
+        field(&description, "name"),
+        &BuildTimeValue::Text(b"value".to_vec()),
     );
-    assert!(
-        accounting.receipts().is_empty(),
-        "visibility refusal precedes execution"
-    );
+    assert_eq!(field(&description, "declaration_position"), &BuildTimeValue::Int(0));
+
     let mut descriptions = Vec::new();
     for name in [
         "describe_rule_cell",
