@@ -124,45 +124,47 @@ impl Bounds {
 
     pub(super) fn partition(
         &self,
-        (start, end): Interval,
-        pieces: Vec<Interval>,
+        (start, end): &Interval,
+        pieces: &[Interval],
     ) -> Result<(), &'static str> {
-        if !self.ordered(&start, &end)? {
+        if !self.ordered(start, end)? {
             return Err("whole interval endpoints are not ordered");
         }
         let mut nonempty = Vec::new();
         for (a, b) in pieces {
-            if !self.ordered(&a, &b)? {
+            if !self.ordered(a, b)? {
                 return Err("piece endpoints are not ordered");
             }
             // Empty intervals have no location. This also covers an empty
             // suffix whose mathematical endpoint is not a representable address.
-            if self.compare(&a, &b)? != Some(Ordering::Equal) {
+            if self.compare(a, b)? != Some(Ordering::Equal) {
                 nonempty.push((a, b));
             }
         }
-        let mut cursor = start.clone();
-        let mut length = Term::literal(semantic_vocabulary::IntegerValue::Unsigned(0));
+        let mut cursor = start;
         while !nonempty.is_empty() {
             let mut next = None;
             for (index, (a, _)) in nonempty.iter().enumerate() {
-                if self.compare(&cursor, a)? == Some(Ordering::Equal)
+                if self.compare(cursor, a)? == Some(Ordering::Equal)
                     && next.replace(index).is_some()
                 {
                     return Err("interval pieces do not have a unique disjoint continuation");
                 }
             }
             let index = next.ok_or("interval pieces overlap or leave an unproved gap")?;
-            let (a, b) = nonempty.swap_remove(index);
-            length = Term::Add(Box::new(length), Box::new(Term::Subtract(Box::new(b.clone()), Box::new(a))));
-            closed_predicates::check_integer_math_term_size(&length, &length)
-                .map_err(|_| "interval length exceeds its proof budget")?;
-            cursor = b;
+            cursor = nonempty.swap_remove(index).1;
         }
-        if self.compare(&cursor, &end)? != Some(Ordering::Equal) {
+        if self.compare(cursor, end)? != Some(Ordering::Equal) {
             // Adjacency above makes the sum telescope. This second form also
             // proves joins whose authored length adds independent inputs.
-            let whole_length = Term::Subtract(Box::new(end), Box::new(start));
+            let whole_length = Term::Subtract(Box::new(end.clone()), Box::new(start.clone()));
+            let mut length = Term::literal(semantic_vocabulary::IntegerValue::Unsigned(0));
+            for (base, limit) in pieces {
+                let width = Term::Subtract(Box::new(limit.clone()), Box::new(base.clone()));
+                length = Term::Add(Box::new(length), Box::new(width));
+                closed_predicates::check_integer_math_term_size(&length, &length)
+                    .map_err(|_| "interval length exceeds its proof budget")?;
+            }
             if self.compare(&length, &whole_length)? != Some(Ordering::Equal) {
                 return Err("interval pieces do not reach the whole endpoint");
             }

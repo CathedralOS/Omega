@@ -540,8 +540,8 @@ pub(super) fn check(
                     pieces.push(flow.interval(module, &record, shape)?);
                 }
                 match (&originals[..], &pieces[..]) {
-                    ([whole], _) => flow.bounds.partition(whole.clone(), pieces)?,
-                    (_, [whole]) => flow.bounds.partition(whole.clone(), originals.clone())?,
+                    ([whole], _) => flow.bounds.partition(whole, &pieces)?,
+                    (_, [whole]) => flow.bounds.partition(whole, &originals)?,
                     _ => return Err("partition requires a single whole on one side"),
                 }
                 for (arrival, origin) in &flow.arrivals {
