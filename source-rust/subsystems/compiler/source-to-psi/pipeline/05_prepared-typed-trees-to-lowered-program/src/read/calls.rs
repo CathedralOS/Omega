@@ -3093,12 +3093,17 @@ impl<'t> Program<'t> {
                     PackedIntegerBinaryOperation::WrappingSubI16x8,
                 )
             }
-            PackedIntegerPrimitive::ShuffleI16x8 => {
-                let lanes: [u8; 8] = indices.try_into().map_err(|_| {
+            PackedIntegerPrimitive::UnpackLowWords
+            | PackedIntegerPrimitive::UnpackHighWords
+            | PackedIntegerPrimitive::UnpackLowDoublewords
+            | PackedIntegerPrimitive::UnpackHighDoublewords
+            | PackedIntegerPrimitive::UnpackLowQuadwords
+            | PackedIntegerPrimitive::UnpackHighQuadwords => {
+                let lanes = primitive.interleaved_lanes().ok_or_else(|| {
                     refuse(
                         id,
                         Construct::Machine,
-                        Unserved::Call("packed shuffle requires 8 lane indices"),
+                        Unserved::Call("packed interleave has no lane selection"),
                     )
                 })?;
                 crate::body::PackedIntegerOperation::Binary(
@@ -3128,14 +3133,6 @@ impl<'t> Program<'t> {
             PackedIntegerPrimitive::LoadI16x4ZeroExtend => {
                 crate::body::PackedIntegerOperation::Unary(
                     PackedIntegerUnaryOperation::LoadI16x4ZeroExtend,
-                )
-            }
-            PackedIntegerPrimitive::WidenU8x4ToI16x8 => crate::body::PackedIntegerOperation::Unary(
-                PackedIntegerUnaryOperation::WidenU8x4ToI16x8,
-            ),
-            PackedIntegerPrimitive::NarrowI16x8ToU8x4Saturating => {
-                crate::body::PackedIntegerOperation::Unary(
-                    PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating,
                 )
             }
             PackedIntegerPrimitive::WrappingAddU8x16 => {

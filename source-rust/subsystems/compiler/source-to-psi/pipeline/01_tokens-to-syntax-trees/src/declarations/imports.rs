@@ -103,6 +103,98 @@ fn file_component<'tokens, 'source>(
     Ok((input.name_until(rest), rest))
 }
 
+/// Core's packed-integer instruction contracts are reached only through `asm`.
+/// A written import of that file would turn the instructions back into
+/// ordinary callable core API.
+pub(crate) fn reject_packed_contract_imports(
+    trees: &SyntaxTrees,
+    roots: &syntax_trees::ParsedRootItems,
+) -> Result<(), ParseError> {
+    use language_core::inline_assembly::{
+        PACKED_INTEGER_CONTRACTS_COMPONENTS, PACKED_INTEGER_CONTRACTS_ROOT,
+    };
+    for handle in &roots.items[roots.import_range.clone()] {
+        let (root, components, span) = match trees.root_item(*handle) {
+            syntax_trees::item::Item::Use(UseItem::File {
+                root,
+                components,
+                span,
+                ..
+            }) => (root.as_ref().map(|root| root.as_str(trees)), *components, *span),
+            syntax_trees::item::Item::Use(UseItem::Namespace { path }) => {
+                let Some(head) = trees.items.identifier_path_members(*path).first() else {
+                    continue;
+                };
+                (None, *path, head.source_span())
+            }
+            _ => continue,
+        };
+        let written: Vec<&str> = trees
+            .items
+            .identifier_path_members(components)
+            .iter()
+            .map(|component| component.as_str(trees))
+            .collect();
+        let names_contracts = match root {
+            Some(root) => {
+                root == PACKED_INTEGER_CONTRACTS_ROOT && written == PACKED_INTEGER_CONTRACTS_COMPONENTS
+            }
+            None => {
+                written.first() == Some(&PACKED_INTEGER_CONTRACTS_ROOT)
+                    && written[1..] == PACKED_INTEGER_CONTRACTS_COMPONENTS
+            }
+        };
+        if names_contracts {
+            return Err(ParseError::at_source_span(
+                "core `assembly_packed_integer.omg` holds the checked asm instruction contracts; \
+                 write the instruction in an `asm { ... }` region instead of importing the file",
+                span,
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Import the packed-integer instruction contracts for this file's `asm`
+/// regions under the alias the assembly desugar names.
+pub(crate) fn import_packed_contracts(
+    trees: &mut SyntaxTrees,
+    roots: &mut syntax_trees::ParsedRootItems,
+    site: source_text::SourceSpan,
+) {
+    use language_core::inline_assembly::{
+        PACKED_INTEGER_CONTRACTS_ALIAS, PACKED_INTEGER_CONTRACTS_COMPONENTS,
+        PACKED_INTEGER_CONTRACTS_ROOT,
+    };
+    let mut components = HandleSpan::empty();
+    for component in PACKED_INTEGER_CONTRACTS_COMPONENTS {
+        components.push_contiguous(
+            trees
+                .items
+                .append_identifier_path_member(Identifier::new(component, site)),
+        );
+    }
+    let item = syntax_trees::item::Item::Use(UseItem::File {
+        root: Some(Identifier::new(PACKED_INTEGER_CONTRACTS_ROOT, site)),
+        components,
+        alias: Identifier::new(PACKED_INTEGER_CONTRACTS_ALIAS, site),
+        only_product_operands: false,
+        span: site,
+    });
+    let handle = trees.push_root_item(item);
+    let position = if roots.import_range.is_empty() {
+        0
+    } else {
+        roots.import_range.end
+    };
+    roots.items.insert(position, handle);
+    if roots.import_range.is_empty() {
+        roots.import_range = position..position + 1;
+    } else {
+        roots.import_range.end += 1;
+    }
+}
+
 pub(crate) fn check_file_aliases(
     trees: &SyntaxTrees,
     roots: &syntax_trees::ParsedRootItems,
