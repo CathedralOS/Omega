@@ -115,12 +115,13 @@ machine build(builder: @mutable Build) {
 /// must support that conclusion before Build can certify a physical exclusion.
 #[test]
 fn darwin_poll_exclusions_check_each_invocation() {
-    let build = r#"use main.omg as app;
+    let build = r#"use {omega}/language/core/external_binding.omg as native;
+use main.omg as app;
 machine build(builder: @mutable Build) {
     Build::application(builder, "poll_counts");
     Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
-    Build::bind_native::<Wait::poll>(builder, macos_arm64, ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
+    Build::bind_native::<|app|::Wait::poll>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
+        import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
         }
     });
