@@ -606,7 +606,7 @@ fn materialize_writes(elaboration: &mut Elaboration) -> Checked<()> {
             }
             terminal_check_tables::bindings::record_write(
                 id,
-                &mut tables.places,
+                &tables.places,
                 &mut tables.writes,
                 terminal_check_tables::bindings::WriteRow {
                     place,

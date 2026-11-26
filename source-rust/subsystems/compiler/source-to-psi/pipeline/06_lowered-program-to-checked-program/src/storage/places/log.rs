@@ -144,21 +144,16 @@ pub(super) fn places_are_interned(machine: MachineId, tables: &MachineTables) ->
             ));
         }
     }
-    let mut writes: Vec<Vec<terminal_check_tables::WriteId>> =
-        vec![Vec::new(); tables.places.len()];
-    for (write, row) in tables.writes.iter() {
-        writes
-            .get_mut(index(row.place.get()))
-            .ok_or_else(|| {
-                foreign(
-                    machine,
-                    Construct::Place(row.place),
-                    "a write row names a place past the end of this machine",
-                )
-            })?
-            .push(write);
+    for row in tables.writes.values() {
+        if tables.places.get(row.place).is_none() {
+            return Err(foreign(
+                machine,
+                Construct::Place(row.place),
+                "a write row names a place past the end of this machine",
+            ));
+        }
     }
-    for ((place, row), written) in tables.places.iter().zip(&writes) {
+    for (place, row) in tables.places.iter() {
         let concerns = Construct::Place(place);
         let listed = match row.origin {
             PlaceOrigin::Root(root) => tables.roots.get(root) == Some(&place),
@@ -203,13 +198,6 @@ pub(super) fn places_are_interned(machine: MachineId, tables: &MachineTables) ->
                     "a place row is not the projection its parent lists",
                 ));
             }
-        }
-        if row.writes != *written {
-            return Err(foreign(
-                machine,
-                concerns,
-                "a place's writes are not the rows of the log that name it",
-            ));
         }
     }
     Ok(())

@@ -617,21 +617,29 @@ fn knowledge_the_elaborator_supplies_is_never_used() {
 
 // A write log that is not what the operations store.
 
-/// Replaces the write log with `rows` and rebuilds each place's `writes`
-/// column from them, so the fault is in what the log says and nowhere else.
 fn relog(tables: &mut MachineTables, rows: Vec<WriteRow>) {
-    for place in tables.places.keys().collect::<Vec<_>>() {
-        tables.places.get_mut(place).unwrap().writes.clear();
-    }
     tables.writes = IdTable::default();
     for row in rows {
-        let write = tables.writes.push(row);
-        tables.places.get_mut(row.place).unwrap().writes.push(write);
+        tables.writes.push(row);
     }
 }
 
 fn logged(tables: &MachineTables) -> Vec<WriteRow> {
     tables.writes.values().copied().collect()
+}
+
+#[test]
+fn a_write_to_a_foreign_place_is_refused() {
+    let verdict = with_fault(paired, |elaboration| {
+        let tables = entry_tables(elaboration);
+        let mut rows = logged(tables);
+        rows[0].place = id(tables.places.len() as u64 + 1);
+        relog(tables, rows);
+    });
+    assert_refused(
+        verdict,
+        "a write row names a place past the end of this machine",
+    );
 }
 
 /// Explicit scalar binds supply the old zero-name slots. The writer itself

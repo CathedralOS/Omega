@@ -435,13 +435,30 @@ impl Lowering<'_> {
             .map(|operation| operation.id)
             .collect();
         call_operations.sort_unstable();
+        let mut overwrites: Vec<_> = self
+            .tables
+            .writes
+            .values()
+            .filter_map(|write| {
+                let (Content::Overwritten, ProgramPoint::AfterOperation(call)) =
+                    (write.content, write.at)
+                else {
+                    return None;
+                };
+                call_operations
+                    .binary_search(&call)
+                    .is_ok()
+                    .then_some((write.place, call))
+            })
+            .collect();
+        overwrites.sort_unstable();
         for slot in 0..self.demanded_contents.len() {
             let Some(scalar_type) = self.demanded_contents[slot] else {
                 continue;
             };
             let leaf = ExactPlaceId::new(slot as u64 + 1)
                 .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
-            let (named_entry, calls) = self.snapshot_boundaries(machine, leaf, &call_operations)?;
+            let (named_entry, calls) = self.snapshot_boundaries(machine, leaf, &overwrites)?;
             if named_entry {
                 self.value(
                     scalar_type,
@@ -469,7 +486,7 @@ impl Lowering<'_> {
             };
             let sum = ExactPlaceId::new(slot as u64 + 1)
                 .ok_or_else(|| self.internal("a storage observation identity overflow"))?;
-            let (named_entry, calls) = self.snapshot_boundaries(machine, sum, &call_operations)?;
+            let (named_entry, calls) = self.snapshot_boundaries(machine, sum, &overwrites)?;
             let mut cases: Vec<_> = self
                 .record_type(sum_type)?
                 .cases()
@@ -509,7 +526,7 @@ impl Lowering<'_> {
         &self,
         machine: &terminal_psi::TerminalMachine,
         place: ExactPlaceId,
-        call_operations: &[OperationId],
+        overwrites: &[(ExactPlaceId, OperationId)],
     ) -> Checked<(bool, Vec<OperationId>)> {
         let mut at = place;
         let mut calls = Vec::<OperationId>::new();
@@ -520,19 +537,13 @@ impl Lowering<'_> {
                 .places
                 .get(at)
                 .ok_or_else(|| self.internal("a demanded storage leaf has no place row"))?;
-            for write in &row.writes {
-                let write = self
-                    .tables
-                    .writes
-                    .get(*write)
-                    .ok_or_else(|| self.internal("a storage write has no row"))?;
-                if let (Content::Overwritten, ProgramPoint::AfterOperation(call)) =
-                    (write.content, write.at)
-                    && call_operations.binary_search(&call).is_ok()
-                {
-                    calls.push(call);
-                }
-            }
+            let start = overwrites.partition_point(|(place, _)| *place < at);
+            calls.extend(
+                overwrites[start..]
+                    .iter()
+                    .take_while(|(place, _)| *place == at)
+                    .map(|(_, call)| *call),
+            );
             match row.origin {
                 PlaceOrigin::Root(root) => break root,
                 PlaceOrigin::Projection { parent, segment } => {
