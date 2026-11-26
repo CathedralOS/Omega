@@ -79,7 +79,7 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
         FileSelection::Unbound
     ));
     let resolve = |index: usize| -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
-        let file = FileImport::from(unit, &unit.imports[index]).unwrap().unwrap();
+        let file = FileImport::from(unit, &unit.imports[index])?.expect("fixture selects a file");
         let selected = file.reconciled(
             &graph,
             Some(app),

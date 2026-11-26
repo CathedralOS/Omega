@@ -54,7 +54,11 @@ machine build(plan: @mutable BuildPlan) {
 }"#;
     let check = |source| {
         invoke(
-            &[("build.omg", prepare), ("stage.omg", source), ("helpers/board.omg", helper)],
+            &[
+                ("build.omg", prepare),
+                ("stage.omg", source),
+                ("helpers/board.omg", helper),
+            ],
             &["--check"],
         )
     };
@@ -63,7 +67,10 @@ machine build(plan: @mutable BuildPlan) {
     let obsolete = format!("use helpers;\n{stage}");
     let (status, report) = check(&obsolete);
     assert!(!status.success(), "{report}");
-    assert!(report.contains("Build import `helpers` requires an exact .omg filename"), "{report}");
+    assert!(
+        report.contains("Build import `helpers` requires an exact .omg filename"),
+        "{report}"
+    );
     assert!(report.contains("stage.omg:1:5"), "{report}");
 }
 
