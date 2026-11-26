@@ -61,7 +61,7 @@ pub(super) fn validate_alias_uniqueness(
         .zip(selected_package_names)
         .enumerate()
     {
-        let alias = dependency.resolved_alias(package_name);
+        let alias = dependency.source.resolved_alias(package_name);
         if let Some(first_occurrence) = aliases.insert(alias.clone(), occurrence) {
             return Err(DependencyAliasError::DuplicateAlias {
                 alias,

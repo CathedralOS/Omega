@@ -241,10 +241,11 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         {
             return Err("issued Build requests exceed the package resolution limit".into());
         }
-        let request = projected
+        let request = &projected
             .requests(purpose)
             .get(ordinal)
-            .ok_or("Build dependency occurrence has not been issued")?;
+            .ok_or("Build dependency occurrence has not been issued")?
+            .source;
         let origin = requester.acquisition_origin();
         if let Some(subject) = self.locked_source {
             admit_locked_issued_source_request(subject, origin, purpose, ordinal, request)?;

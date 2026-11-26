@@ -21,8 +21,13 @@ pub(super) struct ImportOccurrence {
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 enum ImportBinding {
-    Namespace { package_prefix_members: usize },
-    File { alias: String },
+    Namespace {
+        package_prefix_members: usize,
+    },
+    File {
+        alias: String,
+        package_alias: Option<String>,
+    },
 }
 
 impl ImportOccurrence {
@@ -31,6 +36,7 @@ impl ImportOccurrence {
         ordinal: usize,
         authored_path: String,
         alias: &str,
+        package_alias: Option<&str>,
     ) -> Self {
         Self {
             source,
@@ -38,6 +44,9 @@ impl ImportOccurrence {
             authored_path,
             binding: ImportBinding::File {
                 alias: alias.into(),
+                package_alias: package_alias
+                    .filter(|root| *root != "omega")
+                    .map(str::to_owned),
             },
         }
     }
@@ -69,7 +78,7 @@ impl ResolvedSourceImport {
         declaration: &source_admission::SourceFile,
     ) -> Self {
         Self {
-            occurrence: ImportOccurrence::file(source, ordinal, name, alias),
+            occurrence: ImportOccurrence::file(source, ordinal, name, alias, None),
             path: declaration.path.clone(),
         }
     }
@@ -305,11 +314,15 @@ pub(crate) fn retain_import_bindings(
         }
         use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
         bindings.push(match &occurrence.binding {
-            ImportBinding::File { alias } => SourceScopedTopLevelBinding::file_import(
+            ImportBinding::File {
+                alias,
+                package_alias,
+            } => SourceScopedTopLevelBinding::file_import(
                 occurrence.source,
                 declaration.source_id,
                 alias.as_str(),
-            ),
+            )
+            .from_dependency(package_alias.as_deref().zip(declaration.package_identity)),
             ImportBinding::Namespace {
                 package_prefix_members,
             } => SourceScopedTopLevelBinding::logical_module_import(
@@ -470,11 +483,18 @@ mod tests {
             });
         }
         storage.resolved_imports.push(ResolvedSourceImport {
-            occurrence: ImportOccurrence::file(author, 0, "{kit}/api.omg".into(), "chosen"),
+            occurrence: ImportOccurrence::file(
+                author,
+                0,
+                "{kit}/api.omg".into(),
+                "chosen",
+                Some("kit"),
+            ),
             path: "/build/api.omg".into(),
         });
         let build_binding =
-            SourceScopedTopLevelBinding::file_import(author, build_target, "chosen");
+            SourceScopedTopLevelBinding::file_import(author, build_target, "chosen")
+                .from_dependency(Some(("kit", build)));
         assert_eq!(
             retain_import_bindings(&storage).unwrap(),
             std::slice::from_ref(&build_binding)
@@ -485,7 +505,8 @@ mod tests {
         assert_eq!(
             retain_import_bindings(&storage).unwrap(),
             [
-                SourceScopedTopLevelBinding::product_file_import(author, product_target, "chosen"),
+                SourceScopedTopLevelBinding::product_file_import(author, product_target, "chosen")
+                    .from_dependency(Some(("kit", product))),
                 build_binding,
             ]
         );

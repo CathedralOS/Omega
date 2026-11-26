@@ -10,10 +10,10 @@ registration journey from
 [scoped execution](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding):
 
 ```omega
-let math: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "math" }));
+let math: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "math" }));
 
-let mutable host: DependencyDescription = dependency::from_source(Source::Path { location: "host" });
-dependency::with_alias(@mutable host, "host");
+let mutable host: DependencyDescription = |dependency|::from_source(Source::Path { location: "host" });
+|dependency|::with_alias(@mutable host, "host");
 let host_registration: DependencyRegistration = Build::build_dependency(builder, host);
 ```
 
@@ -36,28 +36,11 @@ use super::BuildEntrySyntaxProjection;
 use super::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
 use build_declarations::{DependencyOperation, DependencyPurpose};
 
-/// Owner of the ordinary dependency-description helpers.
-pub const DEPENDENCY_HELPER_OWNER: &str = "dependency";
-/// `dependency::from_source(source) -> DependencyDescription`.
 pub const FROM_SOURCE_HELPER_NAME: &str = "from_source";
-/// `dependency::with_alias(@mutable description, alias)`.
+/// `|dependency|::with_alias(@mutable description, alias)`.
 pub const WITH_ALIAS_HELPER_NAME: &str = "with_alias";
 /// The configured, unregistered description type.
 pub const DEPENDENCY_DESCRIPTION_TYPE_NAME: &str = "DependencyDescription";
-
-/// Whether a call names dependency registration or description vocabulary:
-/// a `Build::<operation>` registration or a `dependency::<helper>` call.
-pub fn is_dependency_call(owner: Option<&str>, target: &str) -> bool {
-    match owner {
-        Some(build_declarations::BUILD_TYPE_NAME) => {
-            DependencyOperation::classify(target).is_some()
-        }
-        Some(DEPENDENCY_HELPER_OWNER) => {
-            matches!(target, FROM_SOURCE_HELPER_NAME | WITH_ALIAS_HELPER_NAME)
-        }
-        _ => false,
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DependencyRow {
@@ -110,7 +93,7 @@ impl fmt::Display for DependencyRowError {
                 "dependency registration must call Build::dependency or Build::build_dependency with the root build machine's first parameter"
             }
             Self::WrongArguments => {
-                "dependency registration takes the builder operand and one description, written `_ = Build::dependency(builder, dependency::from_source(source));` or, with an alias, a `let mutable name: DependencyDescription = dependency::from_source(source);` local, one `dependency::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, with no generic, evidence or operational modifiers"
+                "dependency registration takes the builder operand and one description, written `_ = Build::dependency(builder, |dependency|::from_source(source));` or, with an alias, a `let mutable name: DependencyDescription = |dependency|::from_source(source);` local, one `|dependency|::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, with no generic, evidence or operational modifiers"
             }
         })
     }
@@ -205,7 +188,7 @@ fn registration(
     }))
 }
 
-// `dependency::from_source(source)` with exactly one source operand.
+// `|dependency|::from_source(source)` with exactly one source operand.
 fn fresh_description(
     syntax_trees: &SyntaxTrees,
     expression: ExpressionHandle,
@@ -213,8 +196,9 @@ fn fresh_description(
     let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression) else {
         return None;
     };
-    if call.target.as_str(syntax_trees) != FROM_SOURCE_HELPER_NAME
-        || expression_owner(syntax_trees, call.receiver) != Some(DEPENDENCY_HELPER_OWNER)
+    if super::dependency_import::helper(syntax_trees, call.target.as_str(syntax_trees))
+        != Some(FROM_SOURCE_HELPER_NAME)
+        || call.receiver.is_valid()
         || !call.target_is_static
         || !call.machine_arguments.is_empty()
         || !call.evidence_arguments.is_empty()
@@ -272,8 +256,9 @@ fn aliased_row(
         return Err(DependencyRowError::WrongArguments);
     };
     let configure = statement.call(syntax_trees);
-    if configure.target.as_str(syntax_trees) != WITH_ALIAS_HELPER_NAME
-        || !matches!(syntax_trees.expression_identifier_path(configure.receiver).as_deref(), Some([owner]) if owner.as_str(syntax_trees) == DEPENDENCY_HELPER_OWNER)
+    if super::dependency_import::helper(syntax_trees, configure.target.as_str(syntax_trees))
+        != Some(WITH_ALIAS_HELPER_NAME)
+        || configure.receiver.is_valid()
         || !configure.target_is_static
         || !configure.machine_arguments.is_empty()
         || !configure.evidence_arguments.is_empty()
@@ -318,7 +303,7 @@ mod tests {
     use super::super::{BuildDeclarationError, project_build_entry_syntax};
     use super::{
         DependencyOperation, DependencyPurpose, DependencyRow, DependencyRowError,
-        is_dependency_call, project_dependency_rows,
+        project_dependency_rows,
     };
     use syntax_trees::SyntaxTrees;
     use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -341,15 +326,16 @@ mod tests {
     #[test]
     fn rows_retain_their_purpose_alias_and_literal_occurrences() {
         let (trees, rows) = rows(
-            r#"machine build(builder: @mutable Build) {
+            r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
     Build::application(builder, "probe");
-    _ = Build::dependency(builder, dependency\from_source(Source::Path { location: "math" }));
-    let mutable other: DependencyDescription = dependency\from_source(Source::Path { location: "other" });
-    dependency\with_alias(@mutable other, "other");
+    _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "math" }));
+    let mutable other: DependencyDescription = |dependency|::from_source(Source::Path { location: "other" });
+    |dependency|::with_alias(@mutable other, "other");
     let other_registration: DependencyRegistration = Build::dependency(builder, other);
-    let git: DependencyRegistration = Build::build_dependency(builder, dependency\from_source(Source::Git { repository: "r", revision: "v" }));
-    let mutable host: DependencyDescription = dependency\from_source(Source::Path { location: "host" });
-    dependency\with_alias(@mutable host, "host");
+    let git: DependencyRegistration = Build::build_dependency(builder, |dependency|::from_source(Source::Git { repository: "r", revision: "v" }));
+    let mutable host: DependencyDescription = |dependency|::from_source(Source::Path { location: "host" });
+    |dependency|::with_alias(@mutable host, "host");
     _ = Build::build_dependency(builder, host);
 }
 "#,
@@ -389,11 +375,13 @@ mod tests {
     #[test]
     fn a_wrong_receiver_or_argument_shape_rejects_the_row() {
         let wrong_receiver = [
-            "_ = Build::dependency(helper, dependency\\from_source(Source::Path { location: \"x\" }));",
-            "let r: DependencyRegistration = Build::dependency(helper, dependency::from_source(Source::Path { location: \"x\" }));",
+            "_ = Build::dependency(helper, |dependency|::from_source(Source::Path { location: \"x\" }));",
+            "let r: DependencyRegistration = Build::dependency(helper, |dependency|::from_source(Source::Path { location: \"x\" }));",
         ];
         for statements in wrong_receiver {
-            let source = format!("machine build(builder: @mutable Build) {{\n{statements}\n}}\n");
+            let source = format!(
+                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable Build) {{\n{statements}\n}}\n"
+            );
             assert_eq!(
                 rows(&source).map(|pair| pair.1),
                 Err(DependencyRowError::WrongReceiver),
@@ -402,18 +390,18 @@ mod tests {
         }
         let wrong_arguments = [
             // The registration result is neither discarded nor bound.
-            "Build::dependency(builder, dependency\\from_source(Source::Path { location: \"x\" }))",
+            "Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"x\" }))",
             "_ = Build::dependency(builder)",
-            "_ = Build::build_dependency(builder, dependency\\from_source(Source::Path { location: \"x\" }), 1)",
+            "_ = Build::build_dependency(builder, |dependency|::from_source(Source::Path { location: \"x\" }), 1)",
             "_ = Build::dependency(builder, Source::Path { location: \"x\" })",
             // An alias configuration must follow its description directly.
-            "let mutable x: DependencyDescription = dependency\\from_source(Source::Path { location: \"x\" });\n    _ = Build::dependency(builder, x)",
-            "let x: DependencyDescription = dependency\\from_source(Source::Path { location: \"x\" });\n    dependency\\with_alias(@mutable x, \"x\");\n    _ = Build::dependency(builder, x)",
-            "let mutable x: DependencyDescription = dependency\\from_source(Source::Path { location: \"x\" });\n    dependency\\with_alias(@mutable x, \"x\");\n    _ = Build::dependency(builder, y)",
+            "let mutable x: DependencyDescription = |dependency|::from_source(Source::Path { location: \"x\" });\n    _ = Build::dependency(builder, x)",
+            "let x: DependencyDescription = |dependency|::from_source(Source::Path { location: \"x\" });\n    |dependency|::with_alias(@mutable x, \"x\");\n    _ = Build::dependency(builder, x)",
+            "let mutable x: DependencyDescription = |dependency|::from_source(Source::Path { location: \"x\" });\n    |dependency|::with_alias(@mutable x, \"x\");\n    _ = Build::dependency(builder, y)",
         ];
         for statement in wrong_arguments {
             let source = format!(
-                "machine build(builder: @mutable Build) {{\n    Build::application(builder, \"probe\");\n    {statement};\n}}\n"
+                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable Build) {{\n    Build::application(builder, \"probe\");\n    {statement};\n}}\n"
             );
             assert_eq!(
                 rows(&source).map(|pair| pair.1),
@@ -424,19 +412,13 @@ mod tests {
     }
 
     #[test]
-    fn vocabulary_is_recognized_only_under_its_owner() {
+    fn dependency_operations_use_their_current_names() {
         for operation in DependencyOperation::ALL {
-            assert!(is_dependency_call(Some("Build"), operation.name()));
-            assert!(!is_dependency_call(None, operation.name()));
-            assert!(!is_dependency_call(Some("Graph"), operation.name()));
             assert_eq!(
                 DependencyOperation::classify(operation.name()),
                 Some(operation)
             );
         }
-        assert!(is_dependency_call(Some("dependency"), "from_source"));
-        assert!(is_dependency_call(Some("dependency"), "with_alias"));
-        assert!(!is_dependency_call(Some("Build"), "from_source"));
         for retired in ["depend", "depend_as", "build_depend", "build_depend_as"] {
             assert_eq!(DependencyOperation::classify(retired), None, "{retired}");
         }
@@ -445,7 +427,7 @@ mod tests {
     #[test]
     fn rows_require_the_canonical_build_entry() {
         let syntax_trees = source_syntax::parse_text(
-            "machine helper() {\n    _ = Build::dependency(builder, dependency\\from_source(Source::Path { location: \"x\" }));\n}\n",
+            "machine helper() {\n    _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"x\" }));\n}\n",
         )
         .expect("parse")
         .syntax;
