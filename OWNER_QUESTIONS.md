@@ -64,27 +64,4 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="level-binder-spelling"></a>
-### 1. May a `core\Level` binder be named with a builtin type spelling such as `u`?
-
-[Builtin type names](wiki/spec/language/modules.md#builtin-type-names)
-(`role-separated-builtin-type-names`) decides by the role of the name being
-introduced: a type or namespace name may not use a builtin type spelling such
-as `u`, and a value name may. Its table lists generic type binders and generic
-value binders, but not a universe-level binder. Its use rules say a generic
-argument "takes its role from the selected declaration's binder" without saying
-which role a level argument, such as the `u` in `core\Type<u>`, reads. The proof
-specification spells levels `u`, `v` and `w` throughout
-([universes](wiki/spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types):
-`u: core\Level`, `let compose<u: core\Level, ...>`).
-
-Is a level binder a type-role name (so `u` is refused and the specification's
-examples are respelled), a value-role name (so `u` is allowed), or a role of its
-own with its own rule? The answer decides whether the documented
-universe-polymorphic definitions are valid as written. In the repository it
-decides `samples/cli/facts/representation_agreement`, whose
-`let same_result<u: core\Level, A: core\Type<u>>` stage 03 refuses as "spelled
-like a builtin type". A binder spelled otherwise, such as the `v` of `IsMere` in
-[quotients](wiki/spec/proofs/quotients.md), is not affected; level binders
-themselves are implementation work.
-[Audit, open question 1](wiki/drafts/designs/proof_kernel_core_audit.md#open-questions)
+None currently recorded.
