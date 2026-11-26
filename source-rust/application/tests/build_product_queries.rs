@@ -35,15 +35,13 @@ fn check(fixture: &str) -> (bool, String) {
 
 #[test]
 fn an_evaluated_product_locator_uses_the_alias_in_its_issuing_file() {
-    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+    let scratch = project::stage(
         "computed-product-locator",
-        false,
-    )
-    .unwrap();
-    std::fs::write(project.path().join("main.omg"), "public data Table { value: u8; }").unwrap();
-    std::fs::write(
-        project.path().join("build.omg"),
-        r#"use main.omg as selected;
+        &[
+            ("main.omg", "public data Table { value: u8; }"),
+            (
+                "build.omg",
+                r#"use main.omg as selected;
 use main.omg as unused;
 machine locator() -> @[u8] { "|selected|::Table" }
 machine build(builder: @mutable BuildPlan) {
@@ -51,13 +49,10 @@ machine build(builder: @mutable BuildPlan) {
     let schema: ProductTypeSchema = BuildDeclarations::schema(@builder.declarations, locator());
     _ = ProductTypeSchema::path(@schema);
 }"#,
-    )
-    .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "build.omg"])
-        .current_dir(project.path())
-        .output()
-        .unwrap();
+            ),
+        ],
+    );
+    let output = project::omega(scratch.path(), &["--check", "build.omg"]);
     let report = String::from_utf8_lossy(&output.stderr);
     assert!(
         output.status.success()
