@@ -3353,9 +3353,18 @@ pub(crate) mod element_views {
     #[derive(Clone)]
     enum ElementViewBacking {
         Structural { collection: TerminalStructuralValue },
+        SharedAggregate(std::sync::Arc<SharedAggregateArray>),
         ImmutableSequence(Arc<immutable_sequence::ImmutableStructuralSequence>),
         Typed(Arc<typed::TypedElementView>),
         Representation(Arc<representation::RepresentationView>),
+    }
+
+    /// A checked array presentation of another aggregate. Each read selects
+    /// the original scalar cells through the existing reference projection.
+    struct SharedAggregateArray {
+        collection: TerminalStructuralValue,
+        view: crate::storage::reference::AggregateViewTip,
+        home: Option<ElementViewHome>,
     }
 
     impl ElementView {
@@ -3375,6 +3384,12 @@ pub(crate) mod element_views {
                 retained.primitive_home(home.storage);
             }
             match &self.backing {
+                ElementViewBacking::SharedAggregate(array) => {
+                    retained.value(&array.collection);
+                    if let Some(home) = &array.home {
+                        retained.primitive_home(home.storage);
+                    }
+                }
                 ElementViewBacking::Typed(view) => view.retain_storage(retained),
                 ElementViewBacking::Representation(view) => view.retain_storage(retained),
                 ElementViewBacking::ImmutableSequence(elements) => {
@@ -3428,6 +3443,7 @@ pub(crate) mod element_views {
             match &self.backing {
                 ElementViewBacking::Representation(view) => view.retained_bytes(),
                 ElementViewBacking::Structural { .. }
+                | ElementViewBacking::SharedAggregate(_)
                 | ElementViewBacking::ImmutableSequence(_)
                 | ElementViewBacking::Typed(_) => None,
             }
@@ -3490,6 +3506,27 @@ pub(crate) mod element_views {
                 home: home.map(Arc::new),
                 descriptor_home: None,
                 access,
+            }
+        }
+
+        pub(crate) fn shared_aggregate_array(
+            collection: TerminalStructuralValue,
+            view: crate::storage::reference::AggregateViewTip,
+            home: Option<ElementViewHome>,
+            length: usize,
+            diagnostic_source: semantic_vocabulary::PlaceId,
+        ) -> Self {
+            Self {
+                diagnostic_source,
+                backing: ElementViewBacking::SharedAggregate(Arc::new(SharedAggregateArray {
+                    collection,
+                    view,
+                    home,
+                })),
+                window: 0..length,
+                home: None,
+                descriptor_home: None,
+                access: StructuralAccess::SharedBorrow,
             }
         }
 
@@ -4839,6 +4876,7 @@ pub(crate) mod element_views {
                 return Err(malformed());
             }
             match &view.backing {
+                ElementViewBacking::SharedAggregate(_) => return Err(malformed()),
                 ElementViewBacking::ImmutableSequence(_) => return Err(malformed()),
                 ElementViewBacking::Typed(_) => self
                     .write_typed_element(&view, index, path, element)
@@ -4920,6 +4958,27 @@ pub(crate) mod element_views {
                 return Err(malformed());
             }
             let element = match &view.backing {
+                ElementViewBacking::SharedAggregate(array) => {
+                    let position = view.window.start.checked_add(index).ok_or(malformed())?;
+                    let mut suffix = vec![StructuralPathSegment::FixedIndex(
+                        u64::try_from(position).map_err(|_| malformed())?,
+                    )];
+                    suffix.extend_from_slice(path);
+                    let (storage, logical, shared) = self.aggregate_view_primitive_access(
+                        &array.collection,
+                        array.view,
+                        &suffix,
+                        array.home.as_ref(),
+                        false,
+                    )?;
+                    self.read_primitive_storage(
+                        view.diagnostic_source,
+                        storage,
+                        logical,
+                        expected,
+                        shared,
+                    )?
+                }
                 ElementViewBacking::Typed(_) => {
                     self.read_typed_element(view, index, path, expected)?
                 }
