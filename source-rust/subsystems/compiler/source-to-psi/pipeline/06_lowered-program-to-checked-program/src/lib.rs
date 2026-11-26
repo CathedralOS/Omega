@@ -980,25 +980,17 @@ fn check_prepared_machine(
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
-    let PreparedMachine {
-        module,
-        lowered,
-        id,
-        types,
-        graph,
-        context,
-        ranking_bindings,
-        storage,
-        ref mut references,
-    } = prepared;
-    let invariants = &module.proofs.scalar_block_invariants;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
-    for (index, verdict) in membership_tests::judge(module, id, graph, tables)? {
+    let (module, id) = (prepared.module, prepared.id);
+    for (index, verdict) in membership_tests::judge(module, id, prepared.graph, tables)? {
         decided[index] = Some(verdict);
     }
     // Loans are judged by structure, not proved (`places::loans`).
-    let (lent, conflicts) = storage.loans(references, module, tables, borrow_ends)?;
+    let (lent, conflicts) =
+        prepared
+            .storage
+            .loans(prepared.references, module, tables, borrow_ends)?;
     for (obligation, verdict) in lent {
         let slot = decided
             .get_mut(usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX))
@@ -1020,28 +1012,18 @@ fn check_prepared_machine(
     // downstream obligations."). A declared one holds because every arrival
     // proves it, and the closure is accepted only when every obligation is
     // discharged (`judge`).
-    let declared = joins::prepare(
-        lowered, id, tables, graph, context, invariants, storage, references, activity,
-    )?;
-    let weakened_joins = joins::check(
-        &joins::Machine {
-            module,
-            lowered,
-            storage,
-            id,
-            types,
-            graph,
-            context,
-            ranking_bindings,
-            declared: &declared,
-            unreached,
-            law_instances,
-        },
-        tables,
-        &mut decided,
-        activity,
-        references,
-    )?;
+    let weakened_joins =
+        prepared.check_joins(tables, &mut decided, unreached, law_instances, activity)?;
+    let PreparedMachine {
+        lowered,
+        types,
+        graph,
+        context,
+        ranking_bindings,
+        storage,
+        ref mut references,
+        ..
+    } = prepared;
     // Certificates next; a published clause is then decided from its exits.
     // A machine stage 04 generated takes each one its generic form proved,
     // and searches only where none is carried (`discharge_carrying`).
@@ -1729,6 +1711,8 @@ pub(crate) struct ModuleReplays<'m> {
 
 /// What deciding one machine's obligations needs: value types, dominance,
 /// and the proposition context; filling the knowledge table on the way.
+// Checking reads the graph and context; test support also reads the rest.
+#[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
 pub(crate) struct Prepared {
     pub(crate) types: IdTable<ValueId, ScalarType>,
     pub(crate) graph: Graph,
@@ -1751,7 +1735,57 @@ struct PreparedMachine<'scope, 'analysis> {
     references: &'scope mut terminal_semantics::descriptor_results::DescriptorAnalysis<'analysis>,
 }
 
+impl PreparedMachine<'_, '_> {
+    /// Decides every arrival of this machine's joins into `decided`
+    /// (`joins::check`) and returns the weakened joins.
+    fn check_joins(
+        &mut self,
+        tables: &mut MachineTables,
+        decided: &mut [Option<Checked<Discharged>>],
+        unreached: &[ValueId],
+        law_instances: &[MachineId],
+        activity: &mut ProofSearchActivity,
+    ) -> Checked<Vec<BlockId>> {
+        joins::check(
+            &joins::Machine {
+                module: self.module,
+                lowered: self.lowered,
+                storage: self.storage,
+                id: self.id,
+                types: self.types,
+                graph: self.graph,
+                context: self.context,
+                ranking_bindings: self.ranking_bindings,
+                unreached,
+                law_instances,
+            },
+            tables,
+            decided,
+            activity,
+            self.references,
+        )
+    }
+
+    /// A replay on a copy of the machine's tables needs the knowledge its
+    /// joins admit, not their verdicts. Returns the values the integer rules
+    /// do not reach in that copy (`Unreached`).
+    fn replay_joins(
+        &mut self,
+        tables: &mut MachineTables,
+        unreached: &Unreached,
+        activity: &mut ProofSearchActivity,
+    ) -> Checked<Vec<ValueId>> {
+        let beyond = unreached.values(self.lowered, tables);
+        let mut decided = (0..tables.obligations.len())
+            .map(|_| None)
+            .collect::<Vec<_>>();
+        self.check_joins(tables, &mut decided, &beyond, &[], activity)?;
+        Ok(beyond)
+    }
+}
+
 impl Prepared {
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
     fn references<'a>(
         &'a self,
         types: &'a [terminal_psi::StructuralTypeDeclaration],
@@ -1774,7 +1808,10 @@ pub(crate) fn prepare(
 ) -> Checked<Prepared> {
     let module = formed.source();
     let inhabitation = prepare_inhabitation(module, id)?;
-    prepare_with_inhabitation(formed, domains, id, tables, &inhabitation)
+    with_prepared_machine(formed, domains, id, tables, &inhabitation, None, |_, _| {
+        Ok(())
+    })
+    .map(|(prepared, ())| prepared)
 }
 
 fn prepare_inhabitation(
@@ -1792,19 +1829,6 @@ fn prepare_inhabitation(
             "structural type contracts do not form one inhabitation family",
         )
     })
-}
-
-pub(crate) fn prepare_with_inhabitation(
-    formed: formation::FormedModule<'_>,
-    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
-    id: MachineId,
-    tables: &mut MachineTables,
-    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
-) -> Checked<Prepared> {
-    with_prepared_machine(formed, domains, id, tables, inhabitation, None, |_, _| {
-        Ok(())
-    })
-    .map(|(prepared, ())| prepared)
 }
 
 /// Keep analysis within one invocation while a caller checks the prepared
