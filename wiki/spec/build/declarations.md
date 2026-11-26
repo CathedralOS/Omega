@@ -96,6 +96,10 @@ or an ordinary helper assigns the product before returning.
 
 The driver reads the value in the returned plan. A helper may assign the field
 again before return. The final value must describe one complete product.
+Name and entry views must live through that return. A helper can accept
+`plan: @mutable BuildPlan<'s>` and `name: @'s [u8]` to assign a name with
+the plan's storage lifetime. Borrowing an array local to the Build cannot
+establish that lifetime. [Stored views](../language/lifetimes.md)
 An authored Build that returns an unselected product, an invalid name or
 path, an empty workspace, or a repeated member rejects. The `with_member(plan, catalog, path)` operation in
 `{omega}/build/workspace.omg` returns a new `WorkspaceMembers` value with

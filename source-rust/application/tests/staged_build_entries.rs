@@ -101,12 +101,35 @@ fn the_returned_product_is_the_last_value_in_the_plan() {
         r#"builder.product = BuildProduct::InterpretedBuild { entry: "not_selected.omg" };
         builder.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };"#,
     );
-    let last = build(r#"builder.product = BuildProduct::Package { name: "final_package" };"#);
+    let last = r#"machine build(plan: @mutable BuildPlan) {
+    let name: @[u8] = choose_name(true);
+    declare(plan, name);
+}
+machine choose_name(flag: bool) -> @[u8] {
+    match flag { true -> "final_package", _ -> "invalid-name" }
+}
+machine declare<'s>(plan: @mutable BuildPlan<'s>, name: @'s [u8]) {
+    plan.product = BuildProduct::Package { name: name };
+}"#;
     let (status, report) = invoke(
-        &[("build.omg", &first), ("configure.omg", &last)],
+        &[("build.omg", &first), ("configure.omg", last)],
         &["--check"],
     );
     assert!(status.success(), "{report}");
+}
+
+#[test]
+fn the_plan_cannot_return_a_name_borrowed_from_its_own_stack_frame() {
+    let entry = build(
+        r#"let name: [u8; 3] = [107u8, 105u8, 116u8];
+        builder.product = BuildProduct::Package { name: @name[..] };"#,
+    );
+    let (status, report) = invoke(&[("build.omg", &entry)], &["--check"]);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("local storage cannot establish that promise"),
+        "{report}"
+    );
 }
 
 #[test]
