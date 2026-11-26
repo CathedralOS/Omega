@@ -278,3 +278,22 @@ fn a_field_of_a_joined_record_reads_the_record_the_chosen_arm_hands_over() {
         program.judged(|_| {}).accepted();
     }
 }
+
+/// A field read still observes the element's declared bound at its actual
+/// index. Unread neighbors add no storage snapshots, regardless of capacity.
+#[test]
+fn a_readers_snapshots_depend_on_its_reads_not_on_the_array_capacity() {
+    let [small, large] = [32, 65_536].map(|length| {
+        let program = Program::of(&format!(
+            "data Cell requires value <= 31, {{ value: u64; }}
+             data Table {{ rows: [Cell; {length}]; }}
+             machine read(table: @Table) -> u64 crashes none {{ 31 -! table.rows[3].value }}"
+        ));
+        let lowered = program.lower();
+        let machine = lowered.machine("read");
+        let tables = lowered.elaboration.tables.machines.get(machine.id).unwrap();
+        (tables.places.len(), tables.values.len())
+    });
+    assert!(small.0 > 0);
+    assert_eq!(small, large, "an unread index acquired a snapshot");
+}
