@@ -1,13 +1,14 @@
-use rooms\Level;
+use generation/maze_builder.omg;
+use rooms/rooms.omg;
 
 data DungeonGenerator {
-    maze: MazeBuilder;
+    maze: |maze_builder|::MazeBuilder;
 }
 
 machine generate(
     dungeon_generator: @mutable DungeonGenerator,
     seed: u64 in Wrapping,
-    out_level: @mutable Level
+    out_level: @mutable |rooms|::Level
 ) {
-    build(@mutable dungeon_generator.maze, seed, out_level);
+    |maze_builder|::build(@mutable dungeon_generator.maze, seed, out_level);
 }

@@ -1,31 +1,31 @@
-use omega\language\core\min_u64;
-use rewards\Reward;
-use rewards\RewardKind;
+use inventory/items.omg;
+use rewards/rewards.omg;
+use {omega}/language/core/math.omg;
 
 data InventorySystem {
 }
 
-machine clear(inventory: @mutable Inventory) {
+machine clear(inventory: @mutable |items|::Inventory) {
     inventory.item_count = 0u64 as +Wrapping;
     inventory.gold = 0u32 as +Wrapping;
 }
 
 machine add_reward(
     inventory_system: @mutable InventorySystem,
-    inventory: @mutable Inventory,
-    reward: Reward
+    inventory: @mutable |items|::Inventory,
+    reward: |rewards|::Reward
 ) {
     transition reward.kind {
-        RewardKind::None -> {},
-        RewardKind::Gold -> add_gold(inventory_system, inventory, reward.gold),
-        RewardKind::Item -> add_item(inventory_system, inventory, reward.item),
-        RewardKind::GoldAndItem -> add_gold_and_item(inventory_system, inventory, reward)
+        |rewards|::RewardKind::None -> {},
+        |rewards|::RewardKind::Gold -> add_gold(inventory_system, inventory, reward.gold),
+        |rewards|::RewardKind::Item -> add_item(inventory_system, inventory, reward.item),
+        |rewards|::RewardKind::GoldAndItem -> add_gold_and_item(inventory_system, inventory, reward)
     }
 
 
     machine add_gold(
         inventory_system: @mutable InventorySystem,
-        inventory: @mutable Inventory,
+        inventory: @mutable |items|::Inventory,
         amount: u32 in Wrapping
     ) {
         inventory_system_add_gold(inventory, amount);
@@ -33,31 +33,31 @@ machine add_reward(
 
     machine add_item(
         inventory_system: @mutable InventorySystem,
-        inventory: @mutable Inventory,
-        kind: ItemKind
+        inventory: @mutable |items|::Inventory,
+        kind: |items|::ItemKind
     ) {
         inventory_system_add_item(inventory_system, inventory, kind);
     }
 
     machine add_gold_and_item(
         inventory_system: @mutable InventorySystem,
-        inventory: @mutable Inventory,
-        reward: Reward
+        inventory: @mutable |items|::Inventory,
+        reward: |rewards|::Reward
     ) {
         inventory_system_add_gold(inventory, reward.gold);
         inventory_system_add_item(inventory_system, inventory, reward.item);
     }
 }
 
-machine inventory_system_add_gold(inventory: @mutable Inventory,
+machine inventory_system_add_gold(inventory: @mutable |items|::Inventory,
     amount: u32 in Wrapping) {
     inventory.gold = inventory.gold + amount;
 }
 
 machine inventory_system_add_item(
     inventory_system: @mutable InventorySystem,
-    inventory: @mutable Inventory,
-    kind: ItemKind
+    inventory: @mutable |items|::Inventory,
+    kind: |items|::ItemKind
 ) {
     // Sentinel search: an index past the 32-slot capacity means "not found".
     // (Optional<T> case payloads are not used here yet; the old
@@ -73,8 +73,8 @@ machine inventory_system_add_item(
 
     machine increment_existing(
         inventory_system: @mutable InventorySystem,
-        inventory: @mutable Inventory,
-        kind: ItemKind,
+        inventory: @mutable |items|::Inventory,
+        kind: |items|::ItemKind,
         index: u64 in Wrapping
     ) {
         transition index < 32 {
@@ -85,23 +85,23 @@ machine inventory_system_add_item(
 
     machine append_item(
         inventory_system: @mutable InventorySystem,
-        inventory: @mutable Inventory,
-        kind: ItemKind
+        inventory: @mutable |items|::Inventory,
+        kind: |items|::ItemKind
     ) {
         inventory_system_append_item(inventory, kind);
     }
 
     machine increment_item(
         inventory_system: @mutable InventorySystem,
-        item: @mutable InventoryItem,
+        item: @mutable |items|::InventoryItem,
         amount: u32 in Wrapping
     ) {
         inventory_system_increment_item(item, amount);
     }
 }
 
-machine inventory_system_append_item(inventory: @mutable Inventory,
-    kind: ItemKind) {
+machine inventory_system_append_item(inventory: @mutable |items|::Inventory,
+    kind: |items|::ItemKind) {
     let index: u64 in Wrapping = inventory.item_count;
 
     transition index < 32 {
@@ -110,26 +110,26 @@ machine inventory_system_append_item(inventory: @mutable Inventory,
     }
 
 
-    machine append_item_at(inventory: @mutable Inventory,
-        kind: ItemKind,
+    machine append_item_at(inventory: @mutable |items|::Inventory,
+        kind: |items|::ItemKind,
         index: u64 in Wrapping) {
-        inventory.items[index as -Wrapping] = InventoryItem { kind: kind, count: 1u32 as +Wrapping };
+        inventory.items[index as -Wrapping] = |items|::InventoryItem { kind: kind, count: 1u32 as +Wrapping };
         inventory.item_count = inventory.item_count + 1;
     }
 }
 
 machine find_item(
     inventory_system: @mutable InventorySystem,
-    inventory: @Inventory,
-    kind: ItemKind
+    inventory: @|items|::Inventory,
+    kind: |items|::ItemKind
     ) -> u64 {
-    let count: u64 = min_u64(inventory.item_count as -Wrapping, inventory.items.length);
-    let items: @[InventoryItem] = @inventory.items[..count];
+    let count: u64 = |math|::min_u64(inventory.item_count as -Wrapping, inventory.items.length);
+    let items: @[|items|::InventoryItem] = @inventory.items[..count];
     find_item_at(items, kind, 0u64 as +Wrapping)
 }
 
-machine find_item_at(items: @[InventoryItem],
-    kind: ItemKind,
+machine find_item_at(items: @[|items|::InventoryItem],
+    kind: |items|::ItemKind,
     index: u64 in Wrapping) -> u64 {
     transition index < items.length {
         true -> inspect_item(items, kind, index),
@@ -137,23 +137,23 @@ machine find_item_at(items: @[InventoryItem],
     }
 
 
-    machine inspect_item(items: @[InventoryItem],
-        kind: ItemKind,
+    machine inspect_item(items: @[|items|::InventoryItem],
+        kind: |items|::ItemKind,
         index: u64 in Wrapping) -> u64
     requires index < items.length {
         let found: bool = items[index as -Wrapping].kind == kind;
         let next_index: u64 in Wrapping = index + 1;
 
         transition found {
-            true -> (index as u64),
+            true -> (index as -Wrapping),
             false -> scan_next(items, kind, next_index)
         }
     }
 
     // Both nested invocations forward completion. The explicit index contract
     // admits each read; terminal cycle lowering preserves constant stack use.
-    machine scan_next(items: @[InventoryItem],
-        kind: ItemKind,
+    machine scan_next(items: @[|items|::InventoryItem],
+        kind: |items|::ItemKind,
         next_index: u64 in Wrapping) -> u64 {
         transition next_index < items.length {
             true -> inspect_item(items, kind, next_index),
@@ -162,7 +162,7 @@ machine find_item_at(items: @[InventoryItem],
     }
 }
 
-machine inventory_system_increment_item(item: @mutable InventoryItem,
+machine inventory_system_increment_item(item: @mutable |items|::InventoryItem,
     amount: u32 in Wrapping) {
     item.count = item.count + amount;
 }

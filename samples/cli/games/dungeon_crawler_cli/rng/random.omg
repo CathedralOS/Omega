@@ -1,47 +1,48 @@
-use omega\language\core\narrow_u64_to_u32_wrapping;
+use rng/random_state.omg;
+use {omega}/language/core/numeric_conversion.omg;
 
 data Random {
 }
 
 machine seed(value: u64 in Wrapping,
-    state: @mutable RandomState) {
+    state: @mutable |random_state|::RandomState) {
     state.seed = value;
     state.calls = 0u64 as +Wrapping;
 }
 
-machine next_u32(state: @mutable RandomState) -> u32 {
+machine next_u32(state: @mutable |random_state|::RandomState) -> u32 {
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
     state.calls = state.calls + 1;
 
     transition {
-        _ -> (narrow_u64_to_u32_wrapping((state.seed >> 32) as u64))
+        _ -> (|numeric_conversion|::narrow_u64_to_u32_wrapping((state.seed >> 32) as -Wrapping))
     }
 }
 
 machine range(
     random: @mutable Random,
-    state: @mutable RandomState,
+    state: @mutable |random_state|::RandomState,
     exclusive_max: u32 in Wrapping
     ) -> u32
 requires exclusive_max > 0
 ensures result < exclusive_max
 {
-    let raw: u32 in Wrapping = next_u32(state) as u32 +Wrapping;
+    let raw: u32 in Wrapping = next_u32(state) as +Wrapping;
 
     transition {
-        _ -> ((raw % exclusive_max) as u32)
+        _ -> ((raw % exclusive_max) as -Wrapping)
     }
 }
 
 machine chance(
     random: @mutable Random,
-    state: @mutable RandomState,
+    state: @mutable |random_state|::RandomState,
     numerator: u32 in Wrapping,
     denominator: u32 in Wrapping
     ) -> bool
 requires denominator > 0
 {
-    let roll: u32 in Wrapping = range(random, state, denominator) as u32 +Wrapping;
+    let roll: u32 in Wrapping = range(random, state, denominator) as +Wrapping;
 
     transition {
         _ -> (roll < numerator)

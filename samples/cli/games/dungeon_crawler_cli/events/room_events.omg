@@ -1,63 +1,60 @@
-use enemies\EnemyTables;
-use enemies\roll_enemy;
-use rewards\RewardKind;
-use rewards\RewardTables;
-use rewards\roll_gold_cache;
-use rewards\roll_room_treasure;
-use rng\Random;
-use rng\RandomState;
-use rng\range;
+use enemies/enemy_tables.omg;
+use events/events.omg;
+use rewards/reward_tables.omg;
+use rewards/rewards.omg;
+use rng/random.omg;
+use rng/random_state.omg;
 
 data RoomEvents {
-    enemies: EnemyTables;
-    rewards: RewardTables;
-    rng: Random;
+    enemies: |enemy_tables|::EnemyTables;
+    rewards: |reward_tables|::RewardTables;
+    rng: |random|::Random;
 }
 
 machine roll_event(
     room_events: @mutable RoomEvents,
     depth: u32 in Wrapping,
-    random: @mutable RandomState,
-    event: @mutable RoomEvent
+    random: @mutable |random_state|::RandomState,
+    event: @mutable |events|::RoomEvent
 ) {
-    let roll: u32 in Wrapping = range(@mutable room_events.rng, random, 100u32 as +Wrapping) as u32 +Wrapping;
+    let roll: u32 in Wrapping = |random|::range(@mutable room_events.rng, random, 100u32 as +Wrapping) as +Wrapping;
     apply_event(room_events, depth, random, event, roll);
 
 }
 
-machine event_action(roll: u32 in Wrapping) -> RoomEventAction {
+machine event_action(roll: u32 in Wrapping) -> |events|::RoomEventAction {
     let is_quiet: bool = roll < 20;
     let is_fountain: bool = roll < 30;
     let is_reward: bool = roll < 60;
 
     transition {
-        is_quiet -> RoomEventAction::Quiet,
-        is_fountain -> RoomEventAction::Fountain,
-        is_reward -> RoomEventAction::Reward,
-        _ -> RoomEventAction::Enemy
+        is_quiet -> |events|::RoomEventAction::Quiet,
+        is_fountain -> |events|::RoomEventAction::Fountain,
+        is_reward -> |events|::RoomEventAction::Reward,
+        _ -> |events|::RoomEventAction::Enemy
     }
 }
 
 machine apply_event(
     room_events: @mutable RoomEvents,
     depth: u32 in Wrapping,
-    random: @mutable RandomState,
-    event: @mutable RoomEvent,
+    random: @mutable |random_state|::RandomState,
+    event: @mutable |events|::RoomEvent,
     roll: u32 in Wrapping
 ) {
     transition event_action(roll) {
-        RoomEventAction::Quiet -> no_event(event),
-        RoomEventAction::Fountain -> fountain(event),
-        RoomEventAction::Reward -> reward_event(room_events, depth, random, event, roll),
-        RoomEventAction::Enemy -> enemy(room_events, depth, random, event)
+        |events|::RoomEventAction::Quiet -> no_event(event),
+        |events|::RoomEventAction::Fountain -> fountain(event),
+        |events|::RoomEventAction::Reward -> reward_event(room_events, depth, random, event, roll),
+        |events|::RoomEventAction::Enemy -> enemy(room_events, depth, random, event)
     }
 
 
     machine reward_event(
         room_events: @mutable RoomEvents,
         depth: u32 in Wrapping,
-        random: @mutable RandomState,
-        event: @mutable RoomEvent,
+        random: @mutable |random_state|::RandomState,
+        event: @mutable |events|::RoomEvent,
         roll: u32 in Wrapping
     ) {
         transition roll < 45 {
@@ -66,48 +63,48 @@ machine apply_event(
         }
     }
 
-    machine no_event(event: @mutable RoomEvent) {
-        event.kind = RoomEventKind::Nothing;
+    machine no_event(event: @mutable |events|::RoomEvent) {
+        event.kind = |events|::RoomEventKind::Nothing;
         event.consumed = true;
-        event.reward.kind = RewardKind::None;
+        event.reward.kind = |rewards|::RewardKind::None;
     }
 
-    machine fountain(event: @mutable RoomEvent) {
-        event.kind = RoomEventKind::FountainOfLife;
+    machine fountain(event: @mutable |events|::RoomEvent) {
+        event.kind = |events|::RoomEventKind::FountainOfLife;
         event.consumed = false;
-        event.reward.kind = RewardKind::None;
+        event.reward.kind = |rewards|::RewardKind::None;
     }
 
     machine treasure(
         room_events: @mutable RoomEvents,
         depth: u32 in Wrapping,
-        random: @mutable RandomState,
-        event: @mutable RoomEvent
+        random: @mutable |random_state|::RandomState,
+        event: @mutable |events|::RoomEvent
     ) {
-        event.kind = RoomEventKind::Treasure;
+        event.kind = |events|::RoomEventKind::Treasure;
         event.consumed = false;
-        roll_room_treasure(@mutable room_events.rewards, depth, random, @mutable event.reward);
+        |reward_tables|::roll_room_treasure(@mutable room_events.rewards, depth, random, @mutable event.reward);
     }
 
     machine gold_cache(
         room_events: @mutable RoomEvents,
         depth: u32 in Wrapping,
-        random: @mutable RandomState,
-        event: @mutable RoomEvent
+        random: @mutable |random_state|::RandomState,
+        event: @mutable |events|::RoomEvent
     ) {
-        event.kind = RoomEventKind::GoldCache;
+        event.kind = |events|::RoomEventKind::GoldCache;
         event.consumed = false;
-        roll_gold_cache(@mutable room_events.rewards, depth, random, @mutable event.reward);
+        |reward_tables|::roll_gold_cache(@mutable room_events.rewards, depth, random, @mutable event.reward);
     }
 
     machine enemy(
         room_events: @mutable RoomEvents,
         depth: u32 in Wrapping,
-        random: @mutable RandomState,
-        event: @mutable RoomEvent
+        random: @mutable |random_state|::RandomState,
+        event: @mutable |events|::RoomEvent
     ) {
-        event.kind = RoomEventKind::Enemy;
+        event.kind = |events|::RoomEventKind::Enemy;
         event.consumed = false;
-        roll_enemy(@mutable room_events.enemies, depth, random, @mutable event.enemy);
+        |enemy_tables|::roll_enemy(@mutable room_events.enemies, depth, random, @mutable event.enemy);
     }
 }
