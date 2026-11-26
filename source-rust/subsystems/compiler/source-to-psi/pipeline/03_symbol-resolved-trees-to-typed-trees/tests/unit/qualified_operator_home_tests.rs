@@ -85,8 +85,7 @@ pub(crate) fn packages(
         let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
-        let parsed =
-            crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let parsed = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         parsed_units.push(parsed);
     }
     sources.retain_product_dependency_scope(
@@ -158,7 +157,10 @@ pub(crate) fn packages(
                 continue;
             }
             for item in unit.root_items() {
-                let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::Namespace { path: import }) = item else {
+                let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::Namespace {
+                    path: import,
+                }) = item
+                else {
                     continue;
                 };
                 let members = unit.items.identifier_path_members(*import);
@@ -209,8 +211,8 @@ const GENERIC_DOMAIN: &str = "public domain<T> T::Distance;";
 const GENERIC_OPERATOR: &str = "use units; public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance requires T == u32 { ((left as -Distance) +% right) as +Distance }";
 
 fn bundled_core_sources() -> Vec<(String, String)> {
-    let core =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../../source/library/core");
+    let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../../../source/library/core");
     let mut directories = vec![core.clone()];
     let mut files = Vec::new();
     while let Some(directory) = directories.pop() {
@@ -595,11 +597,11 @@ machine field(row: @Row) -> u16 in Wrapping { row.length }
             .unwrap();
         let query = |program: &crate::source_state::TypedTrees| {
             assert_eq!(
-                crate::typing_queries::declared_expression_type(program, owner, member),
+                crate::types::typing_queries::declared_expression_type(program, owner, member),
                 Some(expected)
             );
             assert_eq!(
-                crate::typing_queries::scoped_expression_type_reference(
+                crate::types::typing_queries::scoped_expression_type_reference(
                     program,
                     program.state_parameters(&state),
                     state.return_type,
@@ -623,11 +625,11 @@ machine field(row: @Row) -> u16 in Wrapping { row.length }
         node.member = "length".into();
         node.selection = MemberSelection::Unresolved;
         assert_eq!(
-            crate::typing_queries::declared_expression_type(&program, owner, member),
+            crate::types::typing_queries::declared_expression_type(&program, owner, member),
             None
         );
         assert_eq!(
-            crate::typing_queries::scoped_expression_type_reference(
+            crate::types::typing_queries::scoped_expression_type_reference(
                 &program,
                 program.state_parameters(&state),
                 state.return_type,
@@ -646,7 +648,7 @@ machine field(row: @Row) -> u16 in Wrapping { row.length }
             MemberSelection::CollectionMeasure(CollectionMeasure::Length)
         };
         assert_eq!(
-            crate::typing_queries::declared_expression_type(&program, owner, member),
+            crate::types::typing_queries::declared_expression_type(&program, owner, member),
             None,
             "an unsupported measure or a noncollection receiver supplies no type"
         );
@@ -997,11 +999,7 @@ fn qualified_unknown_names_keep_dependency_and_visibility_scope() {
         let program = packages(
             &[
                 (31, "client.omg", &text),
-                (
-                    41,
-                    "foreign/ghost.omg",
-                    "public machine ghost() {}",
-                ),
+                (41, "foreign/ghost.omg", "public machine ghost() {}"),
             ],
             &[],
             &[],
@@ -1134,11 +1132,20 @@ fn named_constants_select_operators_with_their_declared_type() {
     let target = program.machine_token_bindings()[0].symbol;
     let owners = crate::source_state::references::collect_program_operand_owners(&program);
     for (name, expected) in [("summed", 1), ("reversed", 1), ("shadowed", 0)] {
-        let owner = program.machines().iter().find(|m| m.name.as_str() == name).unwrap().symbol;
-        let selected = program.expression_table.iter_expressions().filter(|(id, node)| {
-            matches!(node, ExpressionNode::Call(call) if call.target_symbol == target)
-                && owners.expression_owners(*id).any(|found| found == owner)
-        }).count();
+        let owner = program
+            .machines()
+            .iter()
+            .find(|m| m.name.as_str() == name)
+            .unwrap()
+            .symbol;
+        let selected = program
+            .expression_table
+            .iter_expressions()
+            .filter(|(id, node)| {
+                matches!(node, ExpressionNode::Call(call) if call.target_symbol == target)
+                    && owners.expression_owners(*id).any(|found| found == owner)
+            })
+            .count();
         assert_eq!(selected, expected, "{name}");
     }
 }
@@ -1146,10 +1153,7 @@ fn named_constants_select_operators_with_their_declared_type() {
 #[test]
 fn imported_domain_operator_keeps_its_exact_home_and_lexical_module() {
     let program = typed(&[
-        (
-            "units/domains.omg",
-            "public domain u32::Distance;",
-        ),
+        ("units/domains.omg", "public domain u32::Distance;"),
         (
             "main.omg",
             "use units; public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { ((left as -Distance) +% (right as -Distance)) as +Distance }",
@@ -1237,7 +1241,10 @@ fn unknown_and_ambiguous_homes_reject_without_any_operator_use() {
 fn foreign_package_cannot_declare_the_imported_domains_operator() {
     let declaration = format!("use dep\\units; {OPERATOR}");
     let error = packages(
-        &[(31, "units/domains.omg", DOMAIN), (32, "main.omg", &declaration)],
+        &[
+            (31, "units/domains.omg", DOMAIN),
+            (32, "main.omg", &declaration),
+        ],
         &[(32, "dep", 31)],
         &[(1, 0, "dep::units", 1)],
     )

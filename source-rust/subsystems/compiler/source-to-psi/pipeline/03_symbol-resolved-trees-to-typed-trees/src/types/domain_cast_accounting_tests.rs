@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::source_state::statement::{StatementNode, TransitionTargetNode};
-use crate::typing_queries::{declared_callable_value_type, declared_place_type};
+use crate::types::typing_queries::{declared_callable_value_type, declared_place_type};
 use std::sync::Arc;
 
 fn source_result(
@@ -480,7 +480,8 @@ machine second(value: i64 in Marked) -> i64 { value as -Marked }
     let second_state = typed.machine_by_symbol(second).unwrap().states.start();
     typed.machine_states.get_mut(second_state).statement_nodes = first_state.statement_nodes;
     let refused =
-        crate::expression_meanings::prepare(&resolved, &mut typed, 0, 0, &[]).unwrap_err();
+        crate::expressions::expression_meanings::prepare(&resolved, &mut typed, 0, 0, &[])
+            .unwrap_err();
     assert!(
         refused
             .message
@@ -705,7 +706,10 @@ fn a_selected_index_constant_keeps_its_carrier_before_evaluation() {
         ("", "u32 in At<KEY>"),
         ("data Token<const N: u8> { value: u32; }", "Token<KEY>"),
         ("data Record { field: u32 in At<KEY>; }", "Record"),
-        ("data Choice { case Value(field: u32 in At<KEY>); }", "Choice"),
+        (
+            "data Choice { case Value(field: u32 in At<KEY>); }",
+            "Choice",
+        ),
     ] {
         for (carrier, value, accepted) in [("u8", "4u8", true), ("u64", "4u64", false)] {
             let source = format!(
@@ -721,7 +725,10 @@ fn a_selected_index_constant_keeps_its_carrier_before_evaluation() {
                     panic!("{applied} accepted a {carrier} constant in a u8 index");
                 };
                 assert!(refusal.message.contains("declared carrier"), "{refusal:?}");
-                let span = refusal.source_span.expect("point to the named constant").span;
+                let span = refusal
+                    .source_span
+                    .expect("point to the named constant")
+                    .span;
                 assert!(source[span.start..span.end].contains("KEY"), "{refusal:?}");
             }
         }
@@ -793,7 +800,10 @@ fn casts_retain_the_domain_declared_on_a_qualified_alias() {
     for (_, node) in typed.expression_table.expression_entries() {
         if let ExpressionNode::Cast(cast) = node
             && cast.form.entry().is_some()
-            && typed.expression_table.name_path_string(cast.semantic_domain).ends_with("Side")
+            && typed
+                .expression_table
+                .name_path_string(cast.semantic_domain)
+                .ends_with("Side")
         {
             assert!(cast.result_type.is_valid());
             assert_eq!(cast.semantic_domain_symbol, side.symbol);

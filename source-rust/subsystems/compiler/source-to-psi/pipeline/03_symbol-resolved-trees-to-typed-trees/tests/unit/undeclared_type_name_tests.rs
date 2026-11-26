@@ -6,8 +6,8 @@
 use crate::source_state::TypedTrees;
 use crate::source_state::deferred_refusals::DeferredRequest;
 
-const DECLARED: &str = include_str!("../tests/fixtures/type_names/run/declared/main.omg");
-const UNDECLARED: &str = include_str!("../tests/fixtures/type_names/fail/undeclared/main.omg");
+const DECLARED: &str = include_str!("../fixtures/type_names/run/declared/main.omg");
+const UNDECLARED: &str = include_str!("../fixtures/type_names/fail/undeclared/main.omg");
 
 /// Each declaration holding an undeclared type name, with the `(line,
 /// column)` of the name its row reports.

@@ -127,7 +127,7 @@ pub(crate) fn prepare_in_cohort(
     program: &mut TypedTrees,
     frontier: usize,
     conformance_frontier: usize,
-    owners: &crate::operand_owners::CohortOperandOwners,
+    owners: &crate::expressions::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
     let sites = program
         .expression_table
@@ -168,7 +168,7 @@ pub(crate) fn prepare_in_cohort(
     if synthesized.is_empty() && sites.is_empty() {
         return Ok(());
     }
-    let mut types = crate::typing_queries::DeclaredExpressionTypes::default();
+    let mut types = crate::types::typing_queries::DeclaredExpressionTypes::default();
     let mut preparation = Preparation {
         program,
         family: &family,
@@ -502,10 +502,9 @@ impl Preparation<'_> {
             }) =>
             {
                 match table.type_reference(*base_type) {
-                    TypeReferenceNode::FixedArray {
-                        element_type,
-                        ..
-                    } if self.program.closed_fixed_array_length(*base_type).is_some() => {
+                    TypeReferenceNode::FixedArray { element_type, .. }
+                        if self.program.closed_fixed_array_length(*base_type).is_some() =>
+                    {
                         self.program.primitive_type_reference(*element_type)
                             == Some(symbols::PrimitiveType::U8)
                     }
@@ -798,8 +797,7 @@ impl Preparation<'_> {
             target: crate::source_state::name::Identifier::generated("equals"),
             arguments,
             operational_acknowledgement: language_core::CallOperationalAcknowledgement {
-                origin:
-                    language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                origin: language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
                 ..Default::default()
             },
             authored_call_selection: None,
@@ -868,10 +866,9 @@ mod tests {
             machine point_different(left: Point, right: Point) -> bool { left != right }\n\
             machine custom_equal(left: Custom, right: Custom) -> bool { left == right }\n\
             machine custom_different(left: Custom, right: Custom) -> bool { left != right }";
-        let program = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", source,
-        )])
-        .unwrap();
+        let program =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
+                .unwrap();
         let machine = program
             .machines()
             .iter()
@@ -919,9 +916,8 @@ mod tests {
     #[test]
     fn borrowed_enum_comparison_observes_the_exact_referent() {
         let source = "data Kind [copy] { case First; case Last; } machine shared(kind: @Kind) -> bool { kind == Kind::First } machine exclusive(kind: @mutable Kind) -> bool { kind != Kind::Last }";
-        let checked = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", source,
-        )]);
+        let checked =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)]);
         assert!(checked.is_ok(), "{checked:?}");
 
         let different = format!(
@@ -940,10 +936,9 @@ mod tests {
     #[test]
     fn an_authored_row_cannot_replace_missing_quotient_observer_evidence() {
         let source = "data Point [copy] { x: i32; } Equality satisfies Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { false } }";
-        let mut program = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", source,
-        )])
-        .unwrap();
+        let mut program =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
+                .unwrap();
         let application = program
             .type_reference_table
             .type_reference_handles(program.conformances()[0].arguments)[0];
@@ -1050,10 +1045,9 @@ mod tests {
     #[test]
     fn preparing_the_family_keeps_reference_arguments_distinct() {
         let source = "data Point [copy] { x: i32; } ValueEquality satisfies Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { false } } ReferenceEquality satisfies Equatable<Point> { machine equals(left: @Point, right: @Point) -> bool { true } }";
-        let mut program = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", source,
-        )])
-        .unwrap();
+        let mut program =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
+                .unwrap();
         let operand = program
             .type_reference_table
             .type_reference_handles(program.conformances()[0].arguments)[0];
@@ -1091,9 +1085,8 @@ mod tests {
     #[test]
     fn substituted_type_fields_and_explicit_rows_keep_one_comparison_owner() {
         let source = "data Holder<T [copy]> [copy] { value: T; } HolderEquality satisfies Equatable<Holder<i32>> { } data Coin [copy] { value: i32; } CoinStructural satisfies Equatable<Coin> { } CoinFalse satisfies Equatable<Coin> { machine equals(left: @Coin, right: @Coin) -> bool { false } } machine compare(left: Holder<i32>, right: Holder<i32>) -> bool { left == right } machine invoke(left: Coin, right: Coin) -> bool { CoinStructural::equals(@left, @right) }";
-        let checked = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", source,
-        )]);
+        let checked =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)]);
         assert!(checked.is_ok(), "{checked:?}");
         let ambiguous = format!(
             "{source} machine ambiguous(left: Coin, right: Coin) -> bool {{ left == right }}"
@@ -1111,10 +1104,9 @@ mod tests {
     #[test]
     fn qualified_rows_do_not_share_a_comparison_with_each_other_or_the_plain_record() {
         let source = "data Point [copy] { x: i32; } domain Point::A; domain Point::B; AEquality satisfies Equatable<Point in A> { machine equals(left: @Point in A, right: @Point in A) -> bool { false } } BEquality satisfies Equatable<Point in B> { machine equals(left: @Point in B, right: @Point in B) -> bool { true } }";
-        let mut program = crate::qualified_operator_home_tests::checked_with_equality(&[(
-            "main.omg", source,
-        )])
-        .unwrap();
+        let mut program =
+            crate::qualified_operator_home_tests::checked_with_equality(&[("main.omg", source)])
+                .unwrap();
         let (family, _) = super::prepare_selections(&program).unwrap();
         assert_eq!(family.len(), 2);
         assert_ne!(family[0].identity, family[1].identity);

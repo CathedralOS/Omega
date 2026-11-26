@@ -30,10 +30,10 @@ use crate::source_state::types::{
     TypeReferenceNode,
 };
 use crate::tables::expression_table;
-use crate::type_reference::domain_constraints::{
+use crate::types::type_reference::domain_constraints::{
     normalize_domain_constraints_for_type, select_domain_candidates_where,
 };
-use crate::typing_queries::declared_expression_type as declared_type;
+use crate::types::typing_queries::declared_expression_type as declared_type;
 use diagnostics::Diagnostic;
 use language_core::cast_form::{CastEntry, CastEntryKind};
 use numerics::arithmetic::ArithmeticDomain;
@@ -44,7 +44,8 @@ use symbols::SymbolHandle;
 mod tests;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Atom {    Declared(SymbolHandle, semantic_vocabulary::SemanticDomainId),
+enum Atom {
+    Declared(SymbolHandle, semantic_vocabulary::SemanticDomainId),
     Policy(ArithmeticDomain),
 }
 
@@ -267,7 +268,7 @@ impl PreparedCasts {
         position: usize,
         source: &crate::source_resolved::SymbolResolvedTrees,
         program: &mut TypedTrees,
-        owners: &crate::operand_owners::CohortOperandOwners,
+        owners: &crate::expressions::operand_owners::CohortOperandOwners,
         cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
         let run = &self.runs[position];
@@ -370,7 +371,12 @@ fn ancestors(
                 .domain_arguments_for_instance(symbol, identity)
                 .ok_or_else(unavailable)?;
             let bindings = bindings.to_vec();
-            if !crate::type_reference::carrier_qualifications::substitute_indices(program, symbol, &bindings, &mut arguments) {
+            if !crate::types::type_reference::carrier_qualifications::substitute_indices(
+                program,
+                symbol,
+                &bindings,
+                &mut arguments,
+            ) {
                 return Err(unavailable());
             }
             parent_id = program.retain_domain_application(parent, carrier, &arguments)?;
@@ -707,32 +713,67 @@ fn named_domains(
             );
             let competing = candidates.len() > 1;
             if competing {
-                use crate::type_reference::carrier_qualifications::{CarrierQualifications, DomainUse};
-                for (excluded, side) in [(CastEntryKind::Add, &mut before), (CastEntryKind::Remove, &mut after)] {
-                    if entry.kind == excluded { continue; }
+                use crate::types::type_reference::carrier_qualifications::{
+                    CarrierQualifications, DomainUse,
+                };
+                for (excluded, side) in [
+                    (CastEntryKind::Add, &mut before),
+                    (CastEntryKind::Remove, &mut after),
+                ] {
+                    if entry.kind == excluded {
+                        continue;
+                    }
                     let available = side.get_or_insert_with(|| {
                         let mut available = CarrierQualifications::default();
                         for (other, cast, entry) in run {
-                            if entry.kind == excluded { continue; }
-                            if cast.semantic_domain.is_empty() { available.include_policy(cast.domain); continue; }
-                            let name = expression_table(program).name_path_string(cast.semantic_domain);
-                            let arguments = program.type_reference_table.type_reference_handles(cast.semantic_domain_arguments).to_vec();
-                            available.include(source, program, carrier, DomainUse {
-                                name: &name, arguments: &arguments, reference: authored_span(program, *other), retained: SymbolHandle::invalid()
-                            });
+                            if entry.kind == excluded {
+                                continue;
+                            }
+                            if cast.semantic_domain.is_empty() {
+                                available.include_policy(cast.domain);
+                                continue;
+                            }
+                            let name =
+                                expression_table(program).name_path_string(cast.semantic_domain);
+                            let arguments = program
+                                .type_reference_table
+                                .type_reference_handles(cast.semantic_domain_arguments)
+                                .to_vec();
+                            available.include(
+                                source,
+                                program,
+                                carrier,
+                                DomainUse {
+                                    name: &name,
+                                    arguments: &arguments,
+                                    reference: authored_span(program, *other),
+                                    retained: SymbolHandle::invalid(),
+                                },
+                            );
                         }
                         available
                     });
-                    available.retain_possible(source, program, carrier, &mut candidates, &arguments);
+                    available.retain_possible(
+                        source,
+                        program,
+                        carrier,
+                        &mut candidates,
+                        &arguments,
+                    );
                 }
             }
             let [domain] = candidates.as_slice() else {
                 let owner = program.display_type_reference(carrier);
                 let reason = match candidates.as_slice() {
-                    [] if competing => format!("names no eligible domain `{name}` on the qualifications of `{owner}`"),
+                    [] if competing => format!(
+                        "names no eligible domain `{name}` on the qualifications of `{owner}`"
+                    ),
                     [] => format!("names no visible domain `{name}` of `{owner}`"),
-                    [first, second, ..] => format!("names more than one visible domain `{name}` of `{owner}`: `{}` and `{}`",
-                        source.symbols.display_path(first.symbol, "::"), source.symbols.display_path(second.symbol, "::")),
+                    [first, second, ..] => format!(
+                        "names more than one visible domain `{name}` of `{owner}`: `{}` and `{}`",
+                        source.symbols.display_path(first.symbol, "::"),
+                        source.symbols.display_path(second.symbol, "::")
+                    ),
                     [_] => unreachable!(),
                 };
                 return Err(refuse(
@@ -743,12 +784,13 @@ fn named_domains(
                     ),
                 ));
             };
-            let (semantic_id, supplied) = crate::type_reference::selected_domain_application(
-                program,
-                domain.symbol,
-                carrier,
-                cast.semantic_domain_arguments,
-            )?;
+            let (semantic_id, supplied) =
+                crate::types::type_reference::selected_domain_application(
+                    program,
+                    domain.symbol,
+                    carrier,
+                    cast.semantic_domain_arguments,
+                )?;
             let arguments = program
                 .type_reference_table
                 .type_reference_handles(supplied)
@@ -757,7 +799,11 @@ fn named_domains(
             if domain.alias.is_some() {
                 crate::source_state::domain::expanded_alias_members(program, domain.symbol)
                     .map_err(|reason| {
-                        refuse(program, *handle, format!("cannot expand cast entry `{label}` ({reason})"))
+                        refuse(
+                            program,
+                            *handle,
+                            format!("cannot expand cast entry `{label}` ({reason})"),
+                        )
                     })?
                     .into_iter()
                     .map(|(member, identity)| {

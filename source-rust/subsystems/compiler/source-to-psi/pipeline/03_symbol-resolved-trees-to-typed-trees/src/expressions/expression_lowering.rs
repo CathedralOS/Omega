@@ -35,20 +35,20 @@ pub(crate) mod expression {
     */
 
     use crate::declaration_selection::AuthoredDeclarationSelectionExposure as SelectionExposure;
+    use crate::lowerer::Lowerer;
     use crate::source_resolved as resolved;
     use crate::source_state as typed;
-    use crate::lowerer::Lowerer;
     use crate::tables::resolved_expressions;
     use diagnostics::Diagnostic;
 
     pub(crate) mod domain_membership {
         use super::lower_expression_handle_from_table_with_symbol_substitution;
-        use crate::source_resolved as resolved;
-        use crate::source_state as typed;
         use crate::expressions::exhaustiveness::data_definition_index;
         use crate::lowerer::name::lower_name;
+        use crate::source_resolved as resolved;
+        use crate::source_state as typed;
         use crate::tables::{expression_table, expression_table_mut};
-        use crate::type_reference::domain_aliases::expand_domain_reference;
+        use crate::types::type_reference::domain_aliases::expand_domain_reference;
         use arena::HandleSpan;
         use diagnostics::Diagnostic;
         use symbols::SymbolHandle;
@@ -281,10 +281,14 @@ pub(crate) mod expression {
                     .ok_or_else(|| {
                         Diagnostic::error("indexed membership needs the operand's resolved carrier")
                     })?;
-                let indices = target.type_reference_table
+                let indices = target
+                    .type_reference_table
                     .insert_type_reference_handles(arguments.iter().copied());
-                (instance, _) = crate::type_reference::selected_domain_application(
-                    target, domain_symbol, carrier, indices,
+                (instance, _) = crate::types::type_reference::selected_domain_application(
+                    target,
+                    domain_symbol,
+                    carrier,
+                    indices,
                 )?;
                 let family = target
                     .domain_definition(domain_symbol)
@@ -382,7 +386,7 @@ pub(crate) mod expression {
                             case_membership
                         } else {
                             let arguments = program.child_type_references(membership.domain_arguments)
-                                .iter().map(|argument| crate::type_reference::lower_type_reference_into_trees_with_exposure(program, target, argument, None))
+                                .iter().map(|argument| crate::types::type_reference::lower_type_reference_into_trees_with_exposure(program, target, argument, None))
                                 .collect::<Result<Vec<_>, _>>()?;
                             lower_domain_membership_expression(
                                 program,
@@ -528,9 +532,9 @@ pub(crate) mod expression {
         }
     }
     pub(crate) mod name_paths {
+        use crate::lowerer::name::lower_name;
         use crate::source_resolved as resolved;
         use crate::source_state as typed;
-        use crate::lowerer::name::lower_name;
 
         pub(crate) fn lower_name_path_members_into_table(
             source: &resolved::expression::ExpressionTable,
@@ -717,8 +721,6 @@ pub(crate) mod expression {
         pub(crate) mod lowerer {
 
             use crate::declaration_selection::CollectionMeasure;
-            use crate::source_resolved as resolved;
-            use crate::source_state as typed;
             use crate::expressions::expression::domain_membership::{
                 lower_case_membership_expression, lower_domain_membership_expression,
             };
@@ -732,7 +734,9 @@ pub(crate) mod expression {
             };
             use crate::expressions::proposition::is_proposition_call_target;
             use crate::lowerer::name::lower_name;
-            use crate::type_reference::lower_type_reference_into_trees_with_exposure;
+            use crate::source_resolved as resolved;
+            use crate::source_state as typed;
+            use crate::types::type_reference::lower_type_reference_into_trees_with_exposure;
             use diagnostics::Diagnostic;
             use resolved::expression::display_name_path;
             use resolved::types::TypeReference;
@@ -846,7 +850,7 @@ pub(crate) mod expression {
                         // subject's record gives each place its field here.
                         // The arm keeps its own `has_rest`, so a field only
                         // `..` covers gets no row.
-                        let placed = crate::data_patterns::field_rows(
+                        let placed = crate::patterns::data_patterns::field_rows(
                             program,
                             self.source,
                             subject,
@@ -1251,7 +1255,7 @@ pub(crate) mod expression {
                         )));
                     };
 
-                    crate::call_and_product_selections::bind_generated_call_selection(
+                    crate::expressions::call_and_product_selections::bind_generated_call_selection(
                         self.target_trees,
                         *occurrence,
                         selected_target,
@@ -1326,13 +1330,13 @@ pub(crate) mod expression {
                             // A generated call owns the occurrence only when
                             // the answer the author got is that call's target.
                             let owned = if call.build_selection.is_valid() {
-                                crate::call_and_product_selections::bind_generated_call_selection(
+                                crate::expressions::call_and_product_selections::bind_generated_call_selection(
                                     self.target_trees,
                                     occurrence,
                                     selected,
                                 )?
                             } else {
-                                !crate::call_and_product_selections::names_replaced_prelude_operation(
+                                !crate::expressions::call_and_product_selections::names_replaced_prelude_operation(
                                     self.target_trees,
                                     occurrence,
                                     selected,
@@ -1598,7 +1602,7 @@ pub(crate) mod expression {
                                 && !cast.form.is_recast()
                                 && cast.form.entry().is_none()
                             {
-                                crate::type_reference::retain_arithmetic_result_type(
+                                crate::types::type_reference::retain_arithmetic_result_type(
                                     &program.symbols,
                                     &mut self.target_trees.type_reference_table,
                                     target_type,
@@ -1626,7 +1630,7 @@ pub(crate) mod expression {
                         resolved::expression::ExpressionNode::Call(call) => {
                             if let Some(program) = self.program
                                 && let Some(operation) =
-                                    crate::atomic_calls::select_expression(
+                                    crate::expressions::atomic_calls::select_expression(
                                         program,
                                         self.source,
                                         call,
@@ -1650,7 +1654,7 @@ pub(crate) mod expression {
                                 )?;
                                 return Ok(event);
                             }
-                            if crate::runtime_callables::callee_is_value(
+                            if crate::expressions::runtime_callables::callee_is_value(
                                 self.program,
                                 self.source,
                                 call.callee,
@@ -2008,7 +2012,7 @@ pub(crate) mod expression {
                         resolved::expression::ExpressionNode::Float(value) => {
                             if let Some(format) = value.landing() {
                                 self.retain_builtin_type_reference(
-                                    crate::typing_queries::float_literal_atom(format),
+                                    crate::types::typing_queries::float_literal_atom(format),
                                 )?;
                             }
                             Ok(self
@@ -2078,7 +2082,11 @@ pub(crate) mod expression {
                                 )))
                         }
                         resolved::expression::ExpressionNode::Member(member) => {
-                            let (selection, case_variant) = super::member_binding::selected_member(self.program, self.source, member)?;
+                            let (selection, case_variant) = super::member_binding::selected_member(
+                                self.program,
+                                self.source,
+                                member,
+                            )?;
                             if matches!(
                                 selection,
                                 typed::expression::MemberSelection::CollectionMeasure(
@@ -2483,7 +2491,9 @@ pub(crate) mod expression {
                         && call.arguments.len() == 1
                         && call.machine_arguments.is_empty()
                     {
-                        return Ok(Some(typed::expression::DataLayoutQueryRequest::LocationAlignment));
+                        return Ok(Some(
+                            typed::expression::DataLayoutQueryRequest::LocationAlignment,
+                        ));
                     }
                     if !call.arguments.is_empty() {
                         return Err(Diagnostic::error(format!(
@@ -2674,8 +2684,7 @@ pub(crate) mod expression {
                     };
                     let Some(holder) = program.data_definitions.iter().find(|definition| {
                         definition.symbol == literal.type_symbol
-                            && definition.supply_mode
-                                == language_core::DataSupplyMode::CheckedShape
+                            && definition.supply_mode == language_core::DataSupplyMode::CheckedShape
                     }) else {
                         return Vec::new();
                     };
@@ -2707,8 +2716,7 @@ pub(crate) mod expression {
                         .filter_map(|field| {
                             let evidence =
                                 resolved_data_definition_for_type(program, &field.type_reference)?;
-                            if evidence.supply_mode
-                                != language_core::DataSupplyMode::CheckedShape
+                            if evidence.supply_mode != language_core::DataSupplyMode::CheckedShape
                                 || !evidence.symbol.is_valid()
                                 || !evidence.type_parameters.is_empty()
                                 || evidence.name.as_str().contains('<')
@@ -2836,7 +2844,7 @@ pub(crate) mod expression {
                         .collect::<Result<Vec<_>, _>>()?;
                     let lowered = &self.lowered_expressions;
                     let source = self.source;
-                    let carrier = crate::domain_cast_accounting::type_for_domain_selection(
+                    let carrier = crate::types::domain_cast_accounting::type_for_domain_selection(
                         program,
                         self.target_trees,
                         self.source_owner,
@@ -2847,12 +2855,16 @@ pub(crate) mod expression {
                                 .rev()
                                 .find(|(_, _, handle)| *handle == subject)
                                 .and_then(|(original, _, _)| {
-                                    super::member_binding::declared_type(program, source, *original, 0)
+                                    super::member_binding::declared_type(
+                                        program, source, *original, 0,
+                                    )
                                 });
                             reference
-                                .map(|ty| lower_type_reference_into_trees_with_exposure(
-                                    program, typed, ty, None,
-                                ))
+                                .map(|ty| {
+                                    lower_type_reference_into_trees_with_exposure(
+                                        program, typed, ty, None,
+                                    )
+                                })
                                 .transpose()
                         },
                     )?;
@@ -2888,7 +2900,7 @@ pub(crate) mod expression {
                             "unknown domain `{domain_name}` in executable membership expression",
                         )).with_source_span(self.source.source_span(expression))
                         })?;
-                    let written = crate::type_reference::carrier_qualifications::DomainUse {
+                    let written = crate::types::type_reference::carrier_qualifications::DomainUse {
                         name: &domain_name,
                         arguments: &arguments,
                         reference: Some(at),
@@ -2957,11 +2969,13 @@ pub(crate) mod expression {
                     // A computed executable operand must complete once before those reads.
                     let source_span = self.target().source_span(value);
                     let capture = self.target().insert_match_subject(value);
-                    let saved = self.target().insert(ExpressionNode::SavedSubject(TableSavedSubject {
-                        component: Default::default(),
-                        capture,
-                        pattern_head: Default::default(),
-                    }));
+                    let saved =
+                        self.target()
+                            .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                                component: Default::default(),
+                                capture,
+                                pattern_head: Default::default(),
+                            }));
                     self.target().set_source_span(saved, source_span);
                     let predicate = lower_domain_membership_expression(
                         program,
@@ -2976,11 +2990,13 @@ pub(crate) mod expression {
                         value: predicate,
                         source_span,
                     }]);
-                    Ok(self.target().insert(ExpressionNode::Match(TableMatchExpression {
-                        subject: value,
-                        capture,
-                        arms,
-                    })))
+                    Ok(self
+                        .target()
+                        .insert(ExpressionNode::Match(TableMatchExpression {
+                            subject: value,
+                            capture,
+                            arms,
+                        })))
                 }
             }
 
@@ -3060,11 +3076,11 @@ pub(crate) mod expression {
         }
         pub(crate) mod member_binding {
             use super::lowerer::{ExpressionTableLowerer, resolved_data_definition_for_type};
-            use crate::source_resolved as resolved;
             use crate::expressions::call_results::{
                 declared_call_return, declared_type_method_target, peel,
             };
             use crate::lowerer::{exact_field_symbol, exact_top_level_data_symbol};
+            use crate::source_resolved as resolved;
             use symbols::{SymbolHandle, SymbolKind};
 
             use resolved::data::{DataField, DataMember};
@@ -3226,17 +3242,14 @@ pub(crate) mod expression {
                         )
                         .with_source_span(at));
                     };
-                    let field = crate::data_patterns::positional_field(
+                    let field = crate::patterns::data_patterns::positional_field(
                         program,
                         self.source,
                         member.receiver,
                         position,
                         at,
                     )?;
-                    Ok((
-                        field.symbol,
-                        crate::lowerer::name::lower_name(&field.name),
-                    ))
+                    Ok((field.symbol, crate::lowerer::name::lower_name(&field.name)))
                 }
             }
 
@@ -3330,7 +3343,7 @@ pub(crate) mod expression {
                 if let Some(position) = member.position {
                     // A positional pattern's read names no field: its place
                     // in the receiver's record selects one.
-                    return crate::data_patterns::subject_record_within(
+                    return crate::patterns::data_patterns::subject_record_within(
                         program,
                         expressions,
                         member.receiver,
@@ -4241,7 +4254,7 @@ pub(crate) mod expression {
             let program = program.ok_or_else(|| {
                 Diagnostic::error("structural static type argument requires its resolved program")
             })?;
-            crate::type_reference::lower_type_reference_into_trees_with_exposure(
+            crate::types::type_reference::lower_type_reference_into_trees_with_exposure(
                 program,
                 target,
                 program.child_type_reference(argument.type_reference),
@@ -4321,10 +4334,8 @@ pub(crate) mod expression {
             }),
             symbol: argument.symbol,
         };
-        let mut captured = crate::signatures::lexical_context::captured_arguments(
-            program,
-            selected.symbol,
-        );
+        let mut captured =
+            crate::signatures::lexical_context::captured_arguments(program, selected.symbol);
         if !captured.is_empty() {
             let application = selected.application.get_or_insert_with(|| {
                 Box::new(typed::expression::StaticSymbolApplication {

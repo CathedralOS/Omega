@@ -5,16 +5,16 @@ normalization (`progress`), target-machine family telescopes, and append-only
 seeded continuation (`seeded_continuation`).
 */
 
-use crate::declarations::data::lower_data_definition;
-use crate::declarations::domain::lower_domain_definition;
-use crate::declarations::machine::{
+use crate::declarations::items::data::lower_data_definition;
+use crate::declarations::items::domain::lower_domain_definition;
+use crate::declarations::items::machine::{
     lower_machine, lower_token_binding_view, settle_satisfied_declarations_from,
 };
-use crate::declarations::mathematical::lower_mathematical_definition;
-use crate::declarations::operator::lower_operator_definition;
-use crate::declarations::proposition::lower_proposition_definition;
-use crate::declarations::trait_definition::lower_trait_definition;
-use crate::declarations::type_aliases::lower_type_alias_definition;
+use crate::declarations::items::mathematical::lower_mathematical_definition;
+use crate::declarations::items::operator::lower_operator_definition;
+use crate::declarations::items::proposition::lower_proposition_definition;
+use crate::declarations::items::trait_definition::lower_trait_definition;
+use crate::declarations::items::type_aliases::lower_type_alias_definition;
 use crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness_in;
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::progress::normalize_machine_progress_premises;
@@ -22,8 +22,8 @@ use crate::source_resolved::SymbolResolvedTrees;
 use crate::source_state::TypedTrees;
 use crate::source_state::signature::AuthoredServiceReachTarget as ReachTarget;
 use crate::tables::resolved_expressions;
-use crate::type_reference::domain_constraints::normalize_domain_constraints;
-use crate::type_reference::{lower_type_reference_into_table, validate_computed_arguments};
+use crate::types::type_reference::domain_constraints::normalize_domain_constraints;
+use crate::types::type_reference::{lower_type_reference_into_table, validate_computed_arguments};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -447,7 +447,7 @@ pub(crate) mod progress {
                 }
                 None => {
                     substitution = Vec::new();
-                    crate::typing_queries::exact_declared_field(program, *projection)?
+                    crate::types::typing_queries::exact_declared_field(program, *projection)?
                 }
             };
             position = field.type_reference;
@@ -1881,7 +1881,7 @@ pub(crate) fn type_resolved_cohort(
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     let source = lowerer.source_trees;
-    crate::runtime_callables::lower_contracts(lowerer)?;
+    crate::expressions::runtime_callables::lower_contracts(lowerer)?;
     for declaration in source
         .const_declarations
         .iter()
@@ -1970,7 +1970,7 @@ pub(crate) fn type_resolved_cohort(
     }
     for measure in source.measures.iter().skip(cohort.measures) {
         lowerer.typed_trees.begin_declaration_output();
-        let measure = crate::declarations::measure::lower_measure_definition(lowerer, measure)?;
+        let measure = crate::declarations::items::measure::lower_measure_definition(lowerer, measure)?;
         lowerer.typed_trees.push_measure(measure);
     }
     for operator in source.operators.iter().skip(cohort.operators) {
@@ -1987,13 +1987,13 @@ pub(crate) fn type_resolved_cohort(
     }
     for conformance in source.conformances.iter().skip(cohort.conformances) {
         lowerer.typed_trees.begin_declaration_output();
-        crate::declarations::conformance::lower_conformance(lowerer, conformance)?;
+        crate::declarations::items::conformance::lower_conformance(lowerer, conformance)?;
     }
     for wire_schema in source.wire_schemas.iter().skip(cohort.wire_schemas) {
         lowerer.typed_trees.begin_declaration_output();
         let wire_schema = lowerer.with_type_reference_exposure(
             declaration_exposure(wire_schema.is_public),
-            |lowerer| crate::declarations::wire::lower_wire_schema(lowerer, wire_schema),
+            |lowerer| crate::declarations::items::wire::lower_wire_schema(lowerer, wire_schema),
         )?;
         lowerer.typed_trees.push_wire_schema(wire_schema);
     }
@@ -2019,7 +2019,11 @@ fn complete_retained_machine_body(
         .ok_or_else(lost_base)?
         .clone();
     let implementation = lowerer.source_trees.machine(symbol).ok_or_else(lost_base)?;
-    crate::declarations::machine::complete_machine_body(lowerer, implementation, &mut declaration)?;
+    crate::declarations::items::machine::complete_machine_body(
+        lowerer,
+        implementation,
+        &mut declaration,
+    )?;
     lowerer.typed_trees.set_machine(ordinal, declaration);
     Ok(())
 }
@@ -2065,13 +2069,13 @@ pub(crate) fn close_typed_cohort(
 ) -> Result<(), Diagnostic> {
     lower_service_applications(lowerer)?;
     check_static_value_shadowing(lowerer.source_trees, &lowerer.typed_trees)?;
-    crate::type_reference::alias_uses::check_applications(
+    crate::types::type_reference::alias_uses::check_applications(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
     // Result and effect queries must see the signature of the evaluated callee,
     // including calls in declaration contracts and initializers.
-    let mut callable_admission = crate::runtime_callables::bind_calls_in_cohort(
+    let mut callable_admission = crate::expressions::runtime_callables::bind_calls_in_cohort(
         &mut lowerer.typed_trees,
         cohort,
         cohort.typed_expressions,
@@ -2084,13 +2088,13 @@ pub(crate) fn close_typed_cohort(
         .type_reference_count();
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
     normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
-    crate::operand_owners::retain_cohort_static_argument_contexts(&mut lowerer.typed_trees, cohort)
+    crate::expressions::operand_owners::retain_cohort_static_argument_contexts(&mut lowerer.typed_trees, cohort)
         .map_err(Diagnostic::error)?;
     lowerer
         .typed_trees
         .instantiate_nominal_machine_parameter_contracts(cohort.typed_type_parameters)
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
-    if crate::operand_owners::cohort_may_need_applied_callable_signatures(
+    if crate::expressions::operand_owners::cohort_may_need_applied_callable_signatures(
         &lowerer.typed_trees,
         cohort,
     ) {
@@ -2099,8 +2103,8 @@ pub(crate) fn close_typed_cohort(
             .prepare_applied_callable_signatures()
             .map_err(|message| Diagnostic::error(message.to_owned()))?;
     }
-    let mut owners: Option<crate::operand_owners::CohortOperandOwners> = None;
-    crate::type_reference::normalize_const_argument_carriers_in_cohort(
+    let mut owners: Option<crate::expressions::operand_owners::CohortOperandOwners> = None;
+    crate::types::type_reference::normalize_const_argument_carriers_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort,
@@ -2111,18 +2115,18 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
-    crate::type_reference::domain_aliases::retain_member_applications(
+    crate::types::type_reference::domain_aliases::retain_member_applications(
         &mut lowerer.typed_trees,
         cohort.domain_definitions,
     )?;
-    crate::runtime_callables::validate_pending_token_shapes(
+    crate::expressions::runtime_callables::validate_pending_token_shapes(
         lowerer.source_trees,
         &lowerer.typed_trees,
     )?;
     let owners_ref = owners.get_or_insert_with(|| {
-        crate::operand_owners::CohortOperandOwners::collect(&lowerer.typed_trees, cohort)
+        crate::expressions::operand_owners::CohortOperandOwners::collect(&lowerer.typed_trees, cohort)
     });
-    crate::constructor_applications::prepare_in_cohort(
+    crate::declarations::constructor_applications::prepare_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort,
@@ -2168,13 +2172,13 @@ pub(crate) fn close_typed_cohort(
     {
         validate_computed_arguments(lowerer.source_trees)?;
     }
-    crate::equality_preparation::prepare_in_cohort(
+    crate::expressions::equality_preparation::prepare_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.conformances,
         owners_ref,
     )?;
-    crate::declarations::provider_defaults::finalize_provider_default_calls_in_cohort(
+    crate::declarations::items::provider_defaults::finalize_provider_default_calls_in_cohort(
         &mut lowerer.typed_trees,
         cohort,
     )?;
@@ -2183,30 +2187,30 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
-    callable_admission.extend(crate::runtime_callables::bind_calls_in_cohort(
+    callable_admission.extend(crate::expressions::runtime_callables::bind_calls_in_cohort(
         &mut lowerer.typed_trees,
         cohort,
         bound_expressions,
         bound_types,
     )?);
-    crate::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
-    crate::constructor_applications::retain_indexed_operand_types_in_cohort(
+    crate::expressions::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
+    crate::declarations::constructor_applications::retain_indexed_operand_types_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         owners_ref,
     )?;
-    crate::type_reference::direct::check_fixed_array_extent_carriers(
+    crate::types::type_reference::direct::check_fixed_array_extent_carriers(
         &lowerer.typed_trees,
         cohort.typed_type_references,
     )?;
     // Constructor and cast preparation may finish a callee's retained type.
     // Bind those values before attributing any still-unserved call request.
-    crate::typing_queries::defer_unbound_calls_in_cohort(
+    crate::types::typing_queries::defer_unbound_calls_in_cohort(
         &mut lowerer.typed_trees,
         cohort,
         owners_ref,
     )?;
-    crate::undeclared_type_names::defer_undeclared_type_names_in_cohort(
+    crate::types::undeclared_type_names::defer_undeclared_type_names_in_cohort(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         cohort,
@@ -2229,7 +2233,7 @@ fn lower_service_applications(lowerer: &mut Lowerer<'_>) -> Result<(), Diagnosti
                     .child_type_references(reference.arguments)
                     .iter()
                     .map(|argument| {
-                        crate::type_reference::lower_type_reference_into_table(lowerer, argument)
+                        crate::types::type_reference::lower_type_reference_into_table(lowerer, argument)
                     })
                     .collect::<Result<Vec<_>, Diagnostic>>()
             })?;
@@ -2505,7 +2509,7 @@ impl Lowerer<'_> {
             let authored_initializer = lower_expression_handle(self, original)?;
             let declaration = self.typed_trees.tables.const_declarations.get_mut(handle);
             declaration.authored_initializer = authored_initializer;
-            crate::constant_initializers::retain_entry(&mut self.typed_trees, handle)?;
+            crate::declarations::constant_initializers::retain_entry(&mut self.typed_trees, handle)?;
         }
         Ok(())
     }

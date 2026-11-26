@@ -1,4 +1,9 @@
-use typed_trees::{TypedTrees, data::DataMember, data_applications::{prepare, settle_const_argument}, types::{FixedArrayLength, TypeReferenceNode}};
+use typed_trees::{
+    TypedTrees,
+    data::DataMember,
+    data_applications::{prepare, settle_const_argument},
+    types::{FixedArrayLength, TypeReferenceNode},
+};
 
 #[test]
 fn a_computed_extent_rebuilds_dependent_payloads_at_their_original_handles() {

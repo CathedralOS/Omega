@@ -1,5 +1,9 @@
 //! Select a dot operation only when the receiver's bound type identifies core atomic storage.
 //! Until this point a callable field named `store` or `load` is an ordinary member call.
+use crate::expressions::call_results::peel;
+use crate::expressions::expression::table::member_binding::declared_type;
+use crate::expressions::statement::arguments::lower_statement_expression;
+use crate::lowerer::Lowerer;
 use crate::source_resolved as resolved;
 use crate::source_state::expression::{
     BinaryOperator, ExpressionHandle as TypedHandle, ExpressionNode as TypedNode,
@@ -7,10 +11,6 @@ use crate::source_state::expression::{
     TableNamePath,
 };
 use crate::source_state::statement::{StatementNode, TableAssignment, TableLocalData};
-use crate::expressions::call_results::peel;
-use crate::expressions::expression::table::member_binding::declared_type;
-use crate::expressions::statement::arguments::lower_statement_expression;
-use crate::lowerer::Lowerer;
 use crate::tables::{resolved_expressions, resolved_statements};
 use diagnostics::Diagnostic;
 use language_core::atomic::{

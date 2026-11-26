@@ -5,10 +5,10 @@ mathematical definitions, provider defaults, type aliases, and wire schemas.
 */
 
 pub(crate) mod conformance {
-    use crate::source_resolved::trait_definition::Conformance;
     use crate::lowerer::name::{lower_name, lower_names};
     use crate::lowerer::{Lowerer, declaration_exposure};
     use crate::signatures::type_parameters::lower_type_parameters;
+    use crate::source_resolved::trait_definition::Conformance;
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
 
@@ -28,7 +28,7 @@ pub(crate) mod conformance {
                 conformance.trait_name.as_str(),
             )));
         }
-        crate::type_reference::retain_type_reference_selection(
+        crate::types::type_reference::retain_type_reference_selection(
             symbol_resolved_trees,
             &mut lowerer.typed_trees,
             &conformance.trait_name,
@@ -46,9 +46,7 @@ pub(crate) mod conformance {
         {
             let argument =
                 lowerer.with_type_reference_exposure(conformance_exposure, |lowerer| {
-                    crate::type_reference::lower_type_reference_into_table(
-                        lowerer, argument,
-                    )
+                    crate::types::type_reference::lower_type_reference_into_table(lowerer, argument)
                 })?;
             lowerer
                 .typed_trees
@@ -137,13 +135,13 @@ pub(crate) mod conformance {
     }
 }
 pub(crate) mod data {
-    use crate::source_resolved as resolved;
-    use crate::source_state as typed;
     use crate::contracts::proof_facts::lower_proof_facts;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::{lower_name, lower_names};
     use crate::signatures::type_parameters::lower_type_parameters;
-    use crate::type_reference::{
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
+    use crate::types::type_reference::{
         lower_type_reference_into_table, retain_static_path_selection,
     };
     use arena::HandleSpan;
@@ -214,7 +212,7 @@ pub(crate) mod data {
                         lowerer.type_reference_exposure,
                         "quotient equivalence subject",
                     )?;
-                    crate::type_reference::retain_type_reference_selection(
+                    crate::types::type_reference::retain_type_reference_selection(
                         lowerer.source_trees,
                         &mut lowerer.typed_trees,
                         &selection.trait_name,
@@ -377,14 +375,14 @@ pub(crate) mod data {
     }
 }
 pub(crate) mod domain {
-    use crate::source_resolved as resolved;
-    use crate::source_state as typed;
     use crate::contracts::proof_facts::lower_proof_facts;
-    use crate::declarations::operator::lower_operator_definition;
+    use crate::declarations::items::operator::lower_operator_definition;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::lower_name;
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
     use crate::tables::expression_table_mut;
-    use crate::type_reference::lower_type_reference_into_table;
+    use crate::types::type_reference::lower_type_reference_into_table;
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
     use typed::static_applications::StaticMachineLifetimeBinding as LifetimeBinding;
@@ -401,7 +399,7 @@ pub(crate) mod domain {
                 .map(|constituent| -> Result<_, Diagnostic> {
                     let mut path = HandleSpan::empty();
                     let members = lowerer.source_trees.domain_path_members(constituent.domain);
-                    crate::type_reference::retain_static_path_selection(
+                    crate::types::type_reference::retain_static_path_selection(
                         &mut lowerer.typed_trees,
                         members,
                         constituent.domain_symbol,
@@ -461,13 +459,12 @@ pub(crate) mod domain {
                 .as_ref()
                 .map(|policy| {
                     Ok::<_, Diagnostic>(typed::domain::DomainAccessPolicy {
-                        selection:
-                            crate::expressions::expression::lower_static_machine_argument(
-                                Some(lowerer.source_trees),
-                                &mut lowerer.typed_trees,
-                                lowerer.type_reference_exposure,
-                                policy,
-                            )?,
+                        selection: crate::expressions::expression::lower_static_machine_argument(
+                            Some(lowerer.source_trees),
+                            &mut lowerer.typed_trees,
+                            lowerer.type_reference_exposure,
+                            policy,
+                        )?,
                         source_span: policy
                             .path
                             .last()
@@ -495,11 +492,10 @@ pub(crate) mod domain {
             );
         }
 
-        typed_domain.type_parameters =
-            crate::signatures::type_parameters::lower_type_parameters(
-                lowerer,
-                domain.type_parameters,
-            )?;
+        typed_domain.type_parameters = crate::signatures::type_parameters::lower_type_parameters(
+            lowerer,
+            domain.type_parameters,
+        )?;
 
         for operator in lowerer.source_trees.operator_definitions(domain.operators) {
             let operator = lowerer.with_type_reference_exposure(
@@ -524,7 +520,7 @@ pub(crate) mod domain {
         subject: typed::types::TypeReferenceHandle,
         owner: symbols::SymbolHandle,
     ) -> Result<typed::domain::CleanupSelection, Diagnostic> {
-        let authorization = crate::type_reference::retain_path_selection_occurrence(
+        let authorization = crate::types::type_reference::retain_path_selection_occurrence(
             &mut lowerer.typed_trees,
             &selection.path,
             selection.symbol,
@@ -585,19 +581,19 @@ pub(crate) mod domain {
     }
 }
 pub(crate) mod machine {
+    use crate::contracts::invocations::lower_authored_invocations;
     use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
     use crate::declaration_selection::AuthoredDeclarationSelectionKind;
-    use crate::source_resolved as resolved;
-    use crate::source_state as typed;
-    use crate::access_borrow_factory::access_borrow_factory;
-    use crate::contracts::invocations::lower_authored_invocations;
-    use crate::declarations::state::{complete_state_body, lower_state_declaration};
+    use crate::declarations::items::state::{complete_state_body, lower_state_declaration};
     use crate::expressions::expression::lower_expression_handle;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::{lower_name, lower_names};
     use crate::signatures::type_parameters::lower_type_parameters;
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
     use crate::tables::resolved_expressions;
-    use crate::type_reference::{
+    use crate::types::access_borrow_factory::access_borrow_factory;
+    use crate::types::type_reference::{
         lower_type_reference_into_table, retain_type_reference_selection,
     };
     use arena::HandleSpan;
@@ -812,10 +808,8 @@ pub(crate) mod machine {
 
         typed_machine.termination_plan.implementation_witness = None;
         typed_machine.type_parameters = lower_type_parameters(lowerer, machine.type_parameters)?;
-        let inherited = crate::signatures::lexical_context::enclosing_parameters(
-            lowerer.source_trees,
-            machine,
-        );
+        let inherited =
+            crate::signatures::lexical_context::enclosing_parameters(lowerer.source_trees, machine);
         if !inherited.is_empty() {
             // These are occurrences of their enclosing declaration's binders,
             // not new declarations. Reuse that owner's exact typed row, including
@@ -920,7 +914,7 @@ pub(crate) mod machine {
                 .source_trees
                 .child_type_references(conformance.arguments)
             {
-                let argument = crate::type_reference::lower_type_reference_into_table(
+                let argument = crate::types::type_reference::lower_type_reference_into_table(
                     lowerer, argument,
                 )?;
                 lowerer
@@ -978,12 +972,11 @@ pub(crate) mod machine {
         }
 
         let source = lowerer.source_trees;
-        typed_machine.conformance_bounds =
-            crate::signatures::evidence::lower_conformance_bounds(
-                lowerer,
-                crate::signatures::lexical_context::enclosing_bounds(source, machine)
-                    .chain(&machine.conformance_bounds),
-            )?;
+        typed_machine.conformance_bounds = crate::signatures::evidence::lower_conformance_bounds(
+            lowerer,
+            crate::signatures::lexical_context::enclosing_bounds(source, machine)
+                .chain(&machine.conformance_bounds),
+        )?;
 
         let invocation_parameters = lowerer
             .source_trees
@@ -1437,14 +1430,14 @@ pub(crate) mod machine {
     }
 }
 pub(crate) mod mathematical {
-    use crate::source_resolved as resolved;
-    use crate::source_state as typed;
     use crate::expressions::expression::lower_expression_handle;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::lower_name;
     use crate::signatures::type_parameters::lower_type_parameters;
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
     use crate::tables::{expression_table_mut, resolved_expressions};
-    use crate::type_reference::lower_type_reference_into_table;
+    use crate::types::type_reference::lower_type_reference_into_table;
     use diagnostics::Diagnostic;
 
     pub(crate) fn lower_mathematical_definition(
@@ -1545,7 +1538,7 @@ pub(crate) mod measure {
     use crate::lowerer::Lowerer;
     use crate::signatures::parameters::state_parameter;
     use crate::tables::{expression_table_mut, resolved_expressions};
-    use crate::type_reference::lower_type_reference_into_table;
+    use crate::types::type_reference::lower_type_reference_into_table;
     use diagnostics::Diagnostic;
 
     pub(crate) fn lower_measure_definition(
@@ -1559,7 +1552,7 @@ pub(crate) mod measure {
             .transpose()?;
 
         let return_type =
-            crate::type_reference::lower_return_type(lowerer, &measure.return_type)?;
+            crate::types::type_reference::lower_return_type(lowerer, &measure.return_type)?;
 
         let mut typed_measure = crate::source_state::measure::MeasureDefinition {
             symbol: measure.symbol,
@@ -1602,7 +1595,7 @@ pub(crate) mod operator {
     use crate::lowerer::name::{lower_name, lower_names};
     use crate::signatures::parameters::state_parameter;
     use crate::signatures::type_parameters::lower_type_parameters;
-    use crate::type_reference::lower_type_reference_into_table;
+    use crate::types::type_reference::lower_type_reference_into_table;
     use diagnostics::Diagnostic;
 
     pub(crate) fn lower_operator_definition(
@@ -1617,7 +1610,7 @@ pub(crate) mod operator {
             lifetime_parameters: lower_names(&operator.lifetime_parameters),
             type_parameters: Default::default(),
             parameters: Default::default(),
-            return_type: crate::type_reference::lower_return_type(
+            return_type: crate::types::type_reference::lower_return_type(
                 lowerer,
                 &operator.return_type,
             )?,
@@ -1656,12 +1649,12 @@ pub(crate) mod operator {
     }
 }
 pub(crate) mod proposition {
-    use crate::source_resolved as resolved;
-    use crate::source_state as typed;
     use crate::expressions::expression::lower_expression_handle_from_table_in_fact_position;
     use crate::lowerer::Lowerer;
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
     use crate::tables::resolved_expressions;
-    use crate::type_reference::lower_type_reference_into_table;
+    use crate::types::type_reference::lower_type_reference_into_table;
     use diagnostics::Diagnostic;
 
     use crate::expressions::proposition::{
@@ -1872,13 +1865,13 @@ pub(crate) mod provider_defaults {
     }
 }
 pub(crate) mod state {
-    use crate::source_resolved as resolved;
-    use crate::source_state as typed;
     use crate::expressions::statement::{LocalTypes, lower_statement};
     use crate::lowerer::Lowerer;
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
     use crate::tables::{expression_table, statement_table_mut};
-    use language_core::CallOperationalAcknowledgementOrigin;
     use diagnostics::Diagnostic;
+    use language_core::CallOperationalAcknowledgementOrigin;
     use symbols::SymbolHandle;
     use typed::expression::ExpressionHandle;
 
@@ -1890,7 +1883,7 @@ pub(crate) mod state {
             symbol: state.symbol,
             name: crate::lowerer::name::lower_name(&state.name),
             parameters: Default::default(),
-            return_type: crate::type_reference::lower_return_type(
+            return_type: crate::types::type_reference::lower_return_type(
                 lowerer,
                 &state.return_type,
             )?,
@@ -1950,10 +1943,8 @@ pub(crate) mod state {
             if let resolved::statement::StatementNode::ProofOutputBindingStatement(package) =
                 statement
             {
-                let call = crate::expressions::expression::lower_expression_handle(
-                    lowerer,
-                    package.call,
-                )?;
+                let call =
+                    crate::expressions::expression::lower_expression_handle(lowerer, package.call)?;
                 let runtime_call_statement_index = package
                     .bindings
                     .iter()
@@ -2176,14 +2167,14 @@ pub(crate) mod state {
 }
 pub(crate) mod trait_definition {
     use crate::declaration_selection::AuthoredDeclarationSelectionKind;
-    use crate::source_resolved as resolved;
-    use crate::source_resolved::signature::StateSignature;
-    use crate::source_state as typed;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::{lower_name, lower_names};
     use crate::signatures::callable_signature::lower_state_signature;
     use crate::signatures::type_parameters::lower_type_parameters;
-    use crate::type_reference::{
+    use crate::source_resolved as resolved;
+    use crate::source_resolved::signature::StateSignature;
+    use crate::source_state as typed;
+    use crate::types::type_reference::{
         lower_type_reference_into_table, retain_type_reference_selection,
     };
     use arena::HandleSpan;
@@ -2211,11 +2202,10 @@ pub(crate) mod trait_definition {
         typed_trait.type_parameters =
             lower_type_parameters(lowerer, trait_definition.type_parameters)?;
 
-        typed_trait.conformance_bounds =
-            crate::signatures::evidence::lower_conformance_bounds(
-                lowerer,
-                &trait_definition.conformance_bounds,
-            )?;
+        typed_trait.conformance_bounds = crate::signatures::evidence::lower_conformance_bounds(
+            lowerer,
+            &trait_definition.conformance_bounds,
+        )?;
 
         for requirement in lowerer
             .source_trees
@@ -2396,12 +2386,18 @@ pub(crate) mod trait_definition {
                             .collect(),
                     )
                 } else {
-                    typed::trait_definition::TraitRefinementReach::Concrete(clause.signature.service_reach_row)
+                    typed::trait_definition::TraitRefinementReach::Concrete(
+                        clause.signature.service_reach_row,
+                    )
                 };
                 typed_trait.refinement_clauses.push(TraitRefinementClause {
                     requirement: clause.requirement.as_ref().map(lower_name),
                     signature,
-                    service_reaches: clause.service_reaches.iter().map(|reference| lower_name(&reference.name)).collect(),
+                    service_reaches: clause
+                        .service_reaches
+                        .iter()
+                        .map(|reference| lower_name(&reference.name))
+                        .collect(),
                     service_reach,
                 });
             }
@@ -2411,12 +2407,12 @@ pub(crate) mod trait_definition {
     }
 }
 pub(crate) mod type_aliases {
-    use crate::source_resolved as resolved;
-    use crate::source_state as typed;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::{lower_name, lower_names};
     use crate::signatures::type_parameters::lower_type_parameters;
-    use crate::type_reference::lower_type_reference_into_table;
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
+    use crate::types::type_reference::lower_type_reference_into_table;
     use diagnostics::Diagnostic;
 
     pub(crate) fn lower_type_alias_definition(
@@ -2480,11 +2476,11 @@ pub(crate) mod type_aliases {
     }
 }
 pub(crate) mod wire {
-    use crate::source_resolved as resolved;
-    use crate::source_state as typed;
     use crate::lowerer::Lowerer;
     use crate::lowerer::name::lower_name;
-    use crate::type_reference::lower_type_reference_into_table;
+    use crate::source_resolved as resolved;
+    use crate::source_state as typed;
+    use crate::types::type_reference::lower_type_reference_into_table;
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
     use typed::wire::WireField;
