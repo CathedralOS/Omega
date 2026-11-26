@@ -371,7 +371,7 @@ struct Capture<'a> {
         RawDependencyKind,
     )>,
     seen_expressions: Membership<(SymbolHandle, ExpressionHandle, bool)>,
-    seen_types: Membership<(SymbolHandle, TypeReferenceHandle)>,
+    seen_types: Membership<(SymbolHandle, SymbolHandle, TypeReferenceHandle)>,
     product_type_inputs: Membership<ProductTypeInput>,
     product_alias_instances: Membership<TypeReferenceHandle>,
     seen_facts: Membership<(
@@ -1157,13 +1157,31 @@ impl TypedReferences for Capture<'_> {
             self.fail("source selection traversed a stale type");
             return false;
         }
-        if !self.seen_types.insert((self.owner, reference)) {
+        let reader = self.dependency_owner.unwrap_or(self.owner);
+        if !self.seen_types.insert((self.owner, reader, reference)) {
             return false;
+        }
+        let typed = self.typed;
+        match typed.supplied_invocation_type(reader, reference) {
+            Ok(Some((supplier, actual))) => {
+                // Read the retained input under the declaration that supplied
+                // it. The copied body still reads its own authored selections.
+                let previous = self.dependency_owner.take();
+                self.enter_lexical_scope(supplier);
+                crate::source_state::references::visit_type_reference(typed, self, actual);
+                self.leave_lexical_scope();
+                self.dependency_owner = previous;
+                return false;
+            }
+            Ok(None) => {}
+            Err(reason) => {
+                self.fail(reason);
+                return false;
+            }
         }
         if !self.product_alias_instances.contains(&reference) {
             return true;
         }
-        let typed = self.typed;
         for alias in typed
             .type_reference_table
             .type_alias_applications(reference)
