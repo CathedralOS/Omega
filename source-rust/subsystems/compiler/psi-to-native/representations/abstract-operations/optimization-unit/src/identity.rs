@@ -266,6 +266,10 @@ pub(crate) mod proposition_encoding {
         match proposition {
             Proposition::Truth => bytes.u8(1),
             Proposition::Falsehood => bytes.u8(2),
+            Proposition::IsMere(inner) => {
+                bytes.u8(24);
+                encode_proposition(bytes, inner);
+            }
             Proposition::Atom(id) => {
                 bytes.u8(3);
                 bytes.id(*id);
@@ -996,6 +1000,18 @@ pub(crate) mod proposition_encoding {
             let mut bytes = CanonicalBytes::collect();
             encode_proposition(&mut bytes, &proposition);
             bytes.finish()
+        }
+
+        #[test]
+        fn mere_proposition_identity_includes_its_operand() {
+            let encoded = |proposition| {
+                let mut bytes = CanonicalBytes::collect();
+                encode_proposition(&mut bytes, &proposition);
+                bytes.finish()
+            };
+            let mere = |inner| Proposition::IsMere(Box::new(inner));
+            assert_ne!(encoded(mere(Proposition::Truth)), encoded(Proposition::Truth));
+            assert_ne!(encoded(mere(Proposition::Truth)), encoded(mere(Proposition::Falsehood)));
         }
 
         #[test]
