@@ -162,6 +162,53 @@ enum PreparedParameter {
     },
 }
 
+fn build_identity_remap(
+    local: &TerminalIdentityTableBuilder,
+    global: &mut TerminalIdentityTableBuilder,
+) -> Vec<terminal_psi::TerminalIdentityIndex> {
+    let mut remap = vec![terminal_psi::TerminalIdentityIndex::ABSENT];
+    let mut index = 1u32;
+    while let Some(text) = local.text(terminal_psi::TerminalIdentityIndex(index)) {
+        remap.push(global.intern(text));
+        index += 1;
+    }
+    remap
+}
+
+fn remap_index(
+    remap: &[terminal_psi::TerminalIdentityIndex],
+    index: terminal_psi::TerminalIdentityIndex,
+) -> terminal_psi::TerminalIdentityIndex {
+    remap.get(index.0 as usize).copied().unwrap_or(index)
+}
+
+fn remap_machine_declaration(
+    remap: &[terminal_psi::TerminalIdentityIndex],
+    declaration: &mut CheckedMachineDeclaration,
+) {
+    declaration.machine =
+        NominalDeclarationIdentity::new(remap_index(remap, declaration.machine.identity()));
+    declaration.state =
+        NominalDeclarationIdentity::new(remap_index(remap, declaration.state.identity()));
+    declaration.semantic_declaration = remap_index(remap, declaration.semantic_declaration);
+    for ty in &mut declaration.parameter_types {
+        *ty = remap_index(remap, *ty);
+    }
+    declaration.callable = remap_index(remap, declaration.callable);
+    declaration.result_type = remap_index(remap, declaration.result_type);
+    if let Some(specialization) = &mut declaration.specialization {
+        specialization.template_entry = NominalDeclarationIdentity::new(remap_index(
+            remap,
+            specialization.template_entry.identity(),
+        ));
+        specialization.template =
+            NominalDeclarationIdentity::new(remap_index(remap, specialization.template.identity()));
+        specialization.template_callable = remap_index(remap, specialization.template_callable);
+        specialization.template_semantic_declaration =
+            remap_index(remap, specialization.template_semantic_declaration);
+    }
+}
+
 /// Callable headers retain exact source identities after source is released.
 /// Prepare the source and service identities once, then stamp real bodies and
 /// requirement descriptions without giving a requirement an executable body.
@@ -175,19 +222,19 @@ pub(crate) fn declare(
         Option<terminal_check_tables::contracts::StaticCallableEnvelope>,
     >,
     elaboration: &mut Elaboration,
+    parallel: bool,
 ) -> Result<Vec<(MachineId, PreparedApplication)>, DeclarationError> {
     let machines = &program.symbols;
     let signatures = &program.signatures;
     let requirement_sources = &program.declaration_sources;
     let requirement_signatures = &program.declaration_signatures;
-    let sources = source_admission::source_identity::toolchain_source_identities(
-        typed.symbols.source_files(),
-    );
+    let sources = program.exact_toolchain_sources();
     // A service is committed to by its portable identity, never by its
     // module-local number.
     let services: Vec<(semantic_vocabulary::ServiceId, String)> = elaboration
         .module
-        .interfaces.services
+        .interfaces
+        .services
         .iter()
         .map(|service| {
             (
@@ -246,23 +293,30 @@ pub(crate) fn declare(
     // portable toolchain ownership. Keep those declarations available to the
     // lowered authority judgment without exporting a fabricated source hash.
     let sources = match sources {
-        Err(_) if identities.is_invocation_scoped() => Ok(Vec::new()),
+        Err(_) if identities.is_invocation_scoped() => Ok(&[][..]),
         sources => sources,
     };
     let mut build_file_digests = Vec::new();
     let mut prepared = Vec::new();
-    for machine in &mut elaboration.module.machines {
-        // A requirement stands for a contract, not a source-produced body.
-        if elaboration.requirements.contains(&machine.id) {
-            continue;
-        }
-        let stated = match (
+    let requirements_list = &elaboration.requirements;
+    let static_reach_summaries = &elaboration.static_reach_summaries;
+    let static_reach_parameters = &elaboration.static_reach_parameters;
+    let module_entry = elaboration.module.entry;
+    let declare_machine = |machine: &TerminalMachine,
+                           identities: &mut TerminalIdentityTableBuilder,
+                           build_file_digests: &mut Vec<(source_text::SourceId, [u8; 32])>|
+     -> Result<PreparedDeclaration, &'static str> {
+        match (
             &sources,
             machines.get(machine.id),
             signatures.get(machine.id),
         ) {
-            (Ok(sources), Some(symbol), Some(signature)) => (|| {
-                let envelope = elaboration.module.execution.callables.machine_envelope(machine.id);
+            (Ok(sources), Some(symbol), Some(signature)) => {
+                let envelope = elaboration
+                    .module
+                    .execution
+                    .callables
+                    .machine_envelope(machine.id);
                 let generic = if envelope.is_none()
                     && program.is_generic_check_form()
                     && typed
@@ -270,11 +324,10 @@ pub(crate) fn declare(
                         .is_some_and(|source| crate::is_generic_template(typed, source))
                 {
                     Some(
-                        elaboration
-                            .static_reach_summaries
+                        static_reach_summaries
                             .binary_search_by_key(&machine.id, |row| row.machine)
                             .ok()
-                            .map(|position| &elaboration.static_reach_summaries[position].term)
+                            .map(|position| &static_reach_summaries[position].term)
                             .ok_or("generic template has no retained reach dependency")?,
                     )
                 } else {
@@ -317,9 +370,10 @@ pub(crate) fn declare(
                         binder_reach
                             .get(machine.id)
                             .ok_or("a machine has no prepared binder reach row")?,
-                        elaboration.module.entry == Some(terminal_psi::TargetMachineCallable::Machine(machine.id)),
+                        module_entry
+                            == Some(terminal_psi::TargetMachineCallable::Machine(machine.id)),
                     ),
-                    (&mut identities, &mut build_file_digests),
+                    (identities, build_file_digests),
                 )?;
                 let Some(term) = generic else {
                     return Ok(PreparedDeclaration::Runtime(declaration, application));
@@ -329,8 +383,7 @@ pub(crate) fn declare(
                 }
                 let mut projections = Vec::with_capacity(term.parameters.len());
                 for requirement in &term.parameters {
-                    let mut origins = elaboration
-                        .static_reach_parameters
+                    let mut origins = static_reach_parameters
                         .iter()
                         .filter(|row| row.owner == machine.id && row.requirement == *requirement);
                     let origin = origins
@@ -355,7 +408,7 @@ pub(crate) fn declare(
                         terminal_check_tables::contracts::GenericCallbackDependency {
                             parameter: origin.parameter,
                             requirement: *requirement,
-                            member: semantic_identity(typed, member, &mut identities)?,
+                            member: semantic_identity(typed, member, identities)?,
                         },
                     );
                 }
@@ -396,10 +449,73 @@ pub(crate) fn declare(
                         projections,
                     },
                 ))
-            })(),
+            }
             (Err(_), _, _) => Err("a toolchain source has no exact identity"),
             _ => Err("the machine has no typed-tree declaration"),
-        };
+        }
+    };
+    let mut outcomes_list: Vec<(MachineId, Result<PreparedDeclaration, &'static str>)> =
+        Vec::with_capacity(elaboration.module.machines.len());
+    if parallel && !identities.is_invocation_scoped() && elaboration.module.machines.len() >= 2 {
+        use rayon::prelude::*;
+        let per_machine: Vec<_> = elaboration
+            .module
+            .machines
+            .par_iter()
+            .with_max_len(1)
+            .map(|machine| {
+                if requirements_list.contains(&machine.id) {
+                    return None;
+                }
+                let mut local_identities = TerminalIdentityTableBuilder::default();
+                let mut local_digests = Vec::new();
+                let stated = declare_machine(machine, &mut local_identities, &mut local_digests);
+                Some((machine.id, stated, local_identities))
+            })
+            .collect();
+        for entry in per_machine.into_iter().flatten() {
+            let (id, mut stated, local_identities) = entry;
+            let remap = build_identity_remap(&local_identities, &mut identities);
+            match &mut stated {
+                Ok(PreparedDeclaration::Runtime(declaration, application)) => {
+                    remap_machine_declaration(&remap, declaration);
+                    if let Some(application) = application {
+                        for parameter in &mut application.telescope {
+                            if let PreparedParameter::Machine { selected, .. } = parameter {
+                                *selected = remap_index(&remap, *selected);
+                            }
+                        }
+                    }
+                }
+                Ok(PreparedDeclaration::Generic(generic)) => {
+                    remap_machine_declaration(&remap, &mut generic.declaration);
+                    for projection in &mut generic.projections {
+                        projection.member = remap_index(&remap, projection.member);
+                    }
+                }
+                Err(_) => {}
+            }
+            outcomes_list.push((id, stated));
+        }
+    } else {
+        for machine in &elaboration.module.machines {
+            if requirements_list.contains(&machine.id) {
+                continue;
+            }
+            let stated = declare_machine(machine, &mut identities, &mut build_file_digests);
+            outcomes_list.push((machine.id, stated));
+        }
+    }
+    let mut outcome_cursor = 0;
+    for machine in &mut elaboration.module.machines {
+        // A requirement stands for a contract, not a source-produced body.
+        if elaboration.requirements.contains(&machine.id) {
+            continue;
+        }
+        let (owner, stated) = &mut outcomes_list[outcome_cursor];
+        debug_assert_eq!(*owner, machine.id);
+        outcome_cursor += 1;
+        let stated = std::mem::replace(stated, Err("declaration already consumed"));
         match stated {
             Ok(PreparedDeclaration::Runtime(declaration, application)) => {
                 machine.declaration = Some(declaration);
@@ -421,32 +537,35 @@ pub(crate) fn declare(
     let result = (|| {
         for definition in program.predicate_definitions.iter().flatten() {
             let declaration = semantic_identity(typed, definition.symbol, &mut identities)?;
-            elaboration.module.scalars.scalar_predicate_definitions.push(
-                terminal_psi::ScalarPredicateDefinition {
+            elaboration
+                .module
+                .scalars
+                .scalar_predicate_definitions
+                .push(terminal_psi::ScalarPredicateDefinition {
                     declaration,
                     parameters: definition.parameters.clone(),
                     type_parameters: definition.type_parameters.clone(),
                     body: definition.body.clone(),
                 });
-            elaboration
-                .predicate_sources
-                .push(crate::PredicateSource {
-                    declaration,
-                    name: typed.symbols.display_path(definition.symbol, "::"),
-                    machine: definition.diagnostic,
-                    source_span: typed
-                        .symbols
-                        .symbol_provenance_source_span(definition.symbol)
-                        .filter(|span| *span != source_text::SourceSpan::default()),
-                });
+            elaboration.predicate_sources.push(crate::PredicateSource {
+                declaration,
+                name: typed.symbols.display_path(definition.symbol, "::"),
+                machine: definition.diagnostic,
+                source_span: typed
+                    .symbols
+                    .symbol_provenance_source_span(definition.symbol)
+                    .filter(|span| *span != source_text::SourceSpan::default()),
+            });
         }
         elaboration
             .module
-            .scalars.scalar_predicate_definitions
+            .scalars
+            .scalar_predicate_definitions
             .sort_unstable_by_key(|definition| definition.declaration);
         if elaboration
             .module
-            .scalars.scalar_predicate_definitions
+            .scalars
+            .scalar_predicate_definitions
             .windows(2)
             .any(|pair| pair[0].declaration == pair[1].declaration)
         {
@@ -455,12 +574,16 @@ pub(crate) fn declare(
         elaboration
             .predicate_sources
             .sort_unstable_by_key(|source| source.declaration);
-        if elaboration.module.execution.declaration_contracts.is_empty() {
+        if elaboration
+            .module
+            .execution
+            .declaration_contracts
+            .is_empty()
+        {
             return Ok(());
         }
-        let sources = sources
-            .as_ref()
-            .map_err(|_| "a public requirement toolchain source has no exact identity")?;
+        let sources =
+            sources.map_err(|_| "a public requirement toolchain source has no exact identity")?;
         for contract in &mut elaboration.module.execution.declaration_contracts {
             let original = *program
                 .declaration_representatives
@@ -498,14 +621,16 @@ pub(crate) fn declare(
         for (required, application, mut dispatch, result_lifetimes) in links {
             let application = elaboration
                 .module
-                .proofs.closed_conformance_applications
+                .proofs
+                .closed_conformance_applications
                 .get(application)
                 .ok_or("selected public contract lost its emitted application")?;
             dispatch.conformance_application_report_fingerprint = application.report_fingerprint;
             dispatch.conformance_application_commitment = application.commitment;
             let contract = elaboration
                 .module
-                .execution.declaration_contracts
+                .execution
+                .declaration_contracts
                 .iter_mut()
                 .find(|contract| contract.id == required)
                 .ok_or("selected application lost its exact public contract")?;
@@ -526,7 +651,8 @@ pub(crate) fn declare(
         }
         elaboration
             .module
-            .proofs.closed_conformance_applications
+            .proofs
+            .closed_conformance_applications
             .sort_unstable_by(|left, right| {
                 (
                     left.owner,
@@ -539,7 +665,11 @@ pub(crate) fn declare(
                         right.report_fingerprint,
                     ))
             });
-        elaboration.module.proofs.closed_conformance_applications.dedup();
+        elaboration
+            .module
+            .proofs
+            .closed_conformance_applications
+            .dedup();
         Ok(())
     })();
     elaboration.module.identities = identities.build();
@@ -982,8 +1112,7 @@ fn declaration(
             } else {
                 published.reach
             },
-            entries: if is_entry && matches!(signature.invokes, crate::Ceiling::Inferred)
-            {
+            entries: if is_entry && matches!(signature.invokes, crate::Ceiling::Inferred) {
                 &[]
             } else {
                 published.entries
@@ -2407,12 +2536,8 @@ fn commit_structural_guarantees(
     signature.membership_ensures.len().hash(commitment);
     for membership in &signature.membership_ensures {
         use crate::body::RuntimeMembershipSubject;
-        let identity = crate::qualifications::domain_identity(
-            typed,
-            sources,
-            membership.domain,
-            identities,
-        )?;
+        let identity =
+            crate::qualifications::domain_identity(typed, sources, membership.domain, identities)?;
         identities
             .text(identity)
             .ok_or("normal-result membership lost its canonical domain application")?

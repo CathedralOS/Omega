@@ -376,6 +376,7 @@ fn elaborate_source_for<'source>(
             "an incomplete Build snapshot reached source lowering",
         )]);
     }
+    let shared_for_warm = captures.clone();
     let mut program = read::Program::with_captures(typed, false, compilation.purpose, captures);
     program.local_summary_scope = Some(read::LocalSummaryScope::Compilation(
         compilation.subjects.to_vec(),
@@ -392,43 +393,72 @@ fn elaborate_source_for<'source>(
     // read yet (`read::Program::keep`). The first entry is the exception:
     // it is machine 1, the frame every other refusal is reported in.
     program.collected = Some(Vec::new());
-    let entry = if let Some((entry, others)) = compilation.entries.split_first() {
-        let entry = program.machine(*entry).map_err(alone)?;
-        program
-            .fixed_contracts
-            .push(read::FixedContract::Interface(entry));
-        for other in others {
-            match program.machine(*other) {
-                Ok(other) => program
-                    .fixed_contracts
-                    .push(read::FixedContract::Interface(other)),
-                Err(refused) => program.keep(Err(refused)).map_err(alone)?,
+    let parallel_machines = worker_budget::current_workers() > 1;
+    let mut read_all_bodies = || -> Result<_, Vec<Refusal>> {
+        let entry = if let Some((entry, others)) = compilation.entries.split_first() {
+            let entry = program.machine(*entry).map_err(alone)?;
+            program
+                .fixed_contracts
+                .push(read::FixedContract::Interface(entry));
+            for other in others {
+                match program.machine(*other) {
+                    Ok(other) => program
+                        .fixed_contracts
+                        .push(read::FixedContract::Interface(other)),
+                    Err(refused) => program.keep(Err(refused)).map_err(alone)?,
+                }
             }
+            Some(entry)
+        } else {
+            // A source check still claims every subject declaration. It creates
+            // a declaration module, not an executable entry inferred from a name
+            // or from whichever subject machine happens to be read first.
+            None
+        };
+        for selected in compilation.selected {
+            let read = program.selected_declarations(first, std::slice::from_ref(selected));
+            program.keep(read).map_err(alone)?;
         }
-        Some(entry)
-    } else {
-        // A source check still claims every subject declaration. It creates
-        // a declaration module, not an executable entry inferred from a name
-        // or from whichever subject machine happens to be read first.
-        None
+        for supply in compilation.supplies {
+            let read = program.supplied_slots(first, std::slice::from_ref(supply));
+            program.keep(read).map_err(alone)?;
+        }
+        program
+            .subject_declarations(
+                first,
+                compilation.subjects,
+                compilation.purpose,
+                domain_schemas,
+            )
+            .map_err(alone)?;
+        let bodies = read_bodies(&mut program, first).map_err(alone)?;
+        Ok((entry, bodies))
     };
-    for selected in compilation.selected {
-        let read = program.selected_declarations(first, std::slice::from_ref(selected));
-        program.keep(read).map_err(alone)?;
-    }
-    for supply in compilation.supplies {
-        let read = program.supplied_slots(first, std::slice::from_ref(supply));
-        program.keep(read).map_err(alone)?;
-    }
-    program
-        .subject_declarations(
-            first,
-            compilation.subjects,
-            compilation.purpose,
-            domain_schemas,
-        )
-        .map_err(alone)?;
-    let bodies = read_bodies(&mut program, first).map_err(alone)?;
+    let (entry, bodies) = if parallel_machines
+        && compilation.purpose == source_provenance::DependencyScope::Product
+        && !compilation.declaration_metadata.is_empty()
+    {
+        let (_, res) = rayon::join(
+            || {
+                if !compilation.subjects.is_empty() {
+                    rayon::join(
+                        || {
+                            let _ = shared_for_warm.calling_catalog(typed, compilation.purpose);
+                        },
+                        || {
+                            let _ = shared_for_warm.declaration_references(typed);
+                        },
+                    );
+                } else {
+                    let _ = shared_for_warm.calling_catalog(typed, compilation.purpose);
+                }
+            },
+            read_all_bodies,
+        );
+        res?
+    } else {
+        read_all_bodies()?
+    };
     // Past reading, each step works over the whole closure, so the first
     // refusal there ends it, except the storage plan of each machine
     // (`finish_storage`).
@@ -445,6 +475,7 @@ fn elaborate_source_for<'source>(
         compilation.calling,
         compilation.providers,
         &mut further,
+        parallel_machines,
     )
     .map_err(|first| {
         let mut refused = vec![first];
@@ -631,7 +662,15 @@ fn prepare_alternatives<'source>(
             program.publication = publication;
             program.alternative = Some(arguments);
             let entry = program.machine(template)?;
-            finish_reading(program, Some(entry), IdTable::default(), None, None, None)
+            finish_reading(
+                program,
+                Some(entry),
+                IdTable::default(),
+                None,
+                None,
+                None,
+                worker_budget::current_workers() > 1,
+            )
         })
         .collect()
 }
@@ -656,6 +695,7 @@ pub fn elaborate_generic_forms(
                 &[*template],
                 captures.clone(),
                 terminal_codec::TerminalPublication::Portable,
+                worker_budget::current_workers() > 1,
             )?
             .into_iter()
             .map(PreparedProgram::into_check_form)
@@ -671,6 +711,7 @@ fn prepare_generic_forms<'source>(
     templates: &[SymbolHandle],
     captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
+    parallel_machines: bool,
 ) -> Checked<Vec<PreparedProgram<'source>>> {
     let mut forms = Vec::new();
     for template in templates {
@@ -687,6 +728,7 @@ fn prepare_generic_forms<'source>(
                 None,
                 None,
                 None,
+                parallel_machines,
             )?);
             continue;
         }
@@ -701,6 +743,7 @@ fn prepare_generic_forms<'source>(
                 None,
                 None,
                 None,
+                parallel_machines,
             )?);
             continue;
         }
@@ -715,6 +758,7 @@ fn prepare_generic_forms<'source>(
                 None,
                 None,
                 None,
+                parallel_machines,
             )?);
             continue;
         }
@@ -729,6 +773,7 @@ fn prepare_generic_forms<'source>(
                 None,
                 None,
                 None,
+                parallel_machines,
             )?);
             continue;
         }
@@ -747,6 +792,7 @@ fn prepare_generic_forms<'source>(
                 None,
                 None,
                 None,
+                parallel_machines,
             )?);
             continue;
         }
@@ -757,6 +803,7 @@ fn prepare_generic_forms<'source>(
             true,
             captures.clone(),
             publication,
+            parallel_machines,
         ) {
             Ok(form) => forms.push(form),
             Err(rigid) => forms.extend(prepare_alternatives(
@@ -799,6 +846,7 @@ struct WitnessInputs<'scope> {
     captures: SharedReading,
     purpose: source_provenance::DependencyScope,
     outcome_subjects: Option<&'scope [Option<PackageKeyIdentity>]>,
+    parallel_machines: bool,
 }
 
 /// Elaborates the conformance witness of `implementation` for `requirement`:
@@ -834,6 +882,7 @@ pub fn elaborate_witness(
             captures: shared_reading(typed),
             purpose: declaration_context(typed, implementation),
             outcome_subjects: None,
+            parallel_machines: worker_budget::current_workers() > 1,
         },
     )
     .and_then(PreparedProgram::into_check_form)
@@ -843,12 +892,13 @@ pub fn elaborate_witness(
 fn witness_program<'source>(
     typed: &'source TypedTrees,
     implementation: SymbolHandle,
-    inputs: WitnessInputs<'_>,
+    inputs: &WitnessInputs<'_>,
 ) -> read::Program<'source> {
     let generic = typed
         .machine_by_symbol(implementation)
         .is_some_and(|machine| is_generic_template(typed, machine));
-    let mut program = read::Program::with_captures(typed, generic, inputs.purpose, inputs.captures);
+    let mut program =
+        read::Program::with_captures(typed, generic, inputs.purpose, inputs.captures.clone());
     program.local_summary_scope = inputs
         .outcome_subjects
         .map(|subjects| read::LocalSummaryScope::Witness(subjects.to_vec()));
@@ -874,7 +924,7 @@ fn selected_witness_is_declared<'source>(
     selected: &'source crate::source_state::signature::StateSignature,
     inputs: WitnessInputs<'_>,
 ) -> bool {
-    witness_program(typed, implementation, inputs)
+    witness_program(typed, implementation, &inputs)
         .witnessed(
             declaring_trait,
             requirement,
@@ -894,7 +944,8 @@ fn prepare_witness<'source>(
     expected: Option<&'source crate::source_state::signature::StateSignature>,
     inputs: WitnessInputs<'_>,
 ) -> Checked<PreparedProgram<'source>> {
-    let mut program = witness_program(typed, implementation, inputs);
+    let parallel_machines = inputs.parallel_machines;
+    let mut program = witness_program(typed, implementation, &inputs);
     let (entry, _) = program.witnessed(
         declaring_trait,
         requirement,
@@ -904,7 +955,15 @@ fn prepare_witness<'source>(
     )?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
     let bodies = witness_call(&mut program, entry, callee)?;
-    let mut prepared = finish_reading(program, Some(entry), bodies, None, None, None)?;
+    let mut prepared = finish_reading(
+        program,
+        Some(entry),
+        bodies,
+        None,
+        None,
+        None,
+        parallel_machines,
+    )?;
     if typed
         .trait_machine_signature(requirement)
         .is_some_and(|(owner, signature)| {
@@ -1148,8 +1207,16 @@ fn elaborate_form(
     captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
-    prepare_form(typed, purpose, entry, rigid, captures, publication)
-        .and_then(PreparedProgram::into_check_form)
+    prepare_form(
+        typed,
+        purpose,
+        entry,
+        rigid,
+        captures,
+        publication,
+        worker_budget::current_workers() > 1,
+    )
+    .and_then(PreparedProgram::into_check_form)
 }
 
 fn prepare_form<'source>(
@@ -1159,11 +1226,20 @@ fn prepare_form<'source>(
     rigid: bool,
     captures: SharedReading,
     publication: terminal_codec::TerminalPublication,
+    parallel_machines: bool,
 ) -> Checked<PreparedProgram<'source>> {
     let mut program = read::Program::with_captures(typed, rigid, purpose, captures);
     program.publication = publication;
     let entry = program.machine(entry)?;
-    finish_reading(program, Some(entry), IdTable::default(), None, None, None)
+    finish_reading(
+        program,
+        Some(entry),
+        IdTable::default(),
+        None,
+        None,
+        None,
+        parallel_machines,
+    )
 }
 
 /// Reads every body not yet in `bodies`, callees as they are discovered,
@@ -1178,6 +1254,7 @@ fn finish_reading<'source>(
     declared: Option<&'source TypedTrees>,
     calling: Option<CallingPolicySelections<'_>>,
     providers: Option<declare::provider_selections::ProviderSelections<'_>>,
+    parallel_machines: bool,
 ) -> Checked<PreparedProgram<'source>> {
     finish_reading_into(
         program,
@@ -1187,11 +1264,13 @@ fn finish_reading<'source>(
         calling,
         providers,
         &mut Vec::new(),
+        parallel_machines,
     )
 }
 
 /// `finish_reading`, putting each machine refused after the first one, where
 /// each machine is refused on its own, into `further`.
+#[allow(clippy::too_many_arguments)]
 fn finish_reading_into<'source>(
     mut program: read::Program<'source>,
     entry: Option<MachineId>,
@@ -1200,6 +1279,7 @@ fn finish_reading_into<'source>(
     calling: Option<CallingPolicySelections<'_>>,
     providers: Option<declare::provider_selections::ProviderSelections<'_>>,
     further: &mut Vec<Refusal>,
+    parallel_machines: bool,
 ) -> Checked<PreparedProgram<'source>> {
     // Refusals need a coordinate even for an empty declaration module. This
     // diagnostic anchor is never installed as an entry or an input boundary.
@@ -1242,7 +1322,8 @@ fn finish_reading_into<'source>(
         let components = prepare_call_components(&bodies, &mut program.signatures)?;
         program.finish_operational_envelopes(&bodies, &components)?;
         program.prepare_service_bindings(diagnostic)?;
-        if !program.prepare_calling_policies(diagnostic, calling, &mut policies)? {
+        let more = program.prepare_calling_policies(diagnostic, calling, &mut policies)?;
+        if !more {
             break components;
         }
     };
@@ -1273,7 +1354,7 @@ fn finish_reading_into<'source>(
         outcomes,
         mut source,
         ..
-    } = lower_program(
+    } = lower_program_with_parallel(
         entry,
         &bodies,
         &components,
@@ -1294,6 +1375,7 @@ fn finish_reading_into<'source>(
         program.publication,
         Some(program.typed),
         Some(&program),
+        parallel_machines,
     )?;
     elaboration.machines = program.symbols.clone();
     for schema in &elaboration.static_schemas {
@@ -1381,6 +1463,7 @@ fn finish_reading_into<'source>(
         &binder_reach,
         &checking_envelopes,
         &mut elaboration,
+        parallel_machines,
     )
     .map_err(|error| error.into_refusal(diagnostic, &program))?;
     let mut requirements = elaboration.requirements.clone();
@@ -1448,16 +1531,17 @@ fn finish_reading_into<'source>(
         &program,
         &program.requirements,
     )?;
-    references::results::publish(&mut elaboration, &program.selections).map_err(|refusal| {
-        let span = refusal.source_span.or_else(|| {
-            program
-                .names
-                .get(refusal.site.in_machine()?.0)
-                .and_then(|names| names.declared)
-        });
-        refusal.with_source_span(span)
-    })?;
-    finish_storage(diagnostic, &mut elaboration, further)?;
+    references::results::publish(&mut elaboration, &program.selections, parallel_machines)
+        .map_err(|refusal| {
+            let span = refusal.source_span.or_else(|| {
+                program
+                    .names
+                    .get(refusal.site.in_machine()?.0)
+                    .and_then(|names| names.declared)
+            });
+            refusal.with_source_span(span)
+        })?;
+    finish_storage(diagnostic, &mut elaboration, further, parallel_machines)?;
     elaboration.generic_storage = program.generic_storage_bindings(diagnostic)?;
     program.publish_opaque_carriers(
         diagnostic,
@@ -1629,6 +1713,43 @@ fn lower_program<'source>(
     publication: terminal_codec::TerminalPublication,
     typed_source: Option<&'source TypedTrees>,
     declarations: Option<&read::Program<'source>>,
+) -> Checked<PreparedProgram<'source>> {
+    lower_program_with_parallel(
+        entry,
+        bodies,
+        components,
+        signatures,
+        records,
+        requirements,
+        callables,
+        boundaries,
+        services,
+        external_providers,
+        static_contracts,
+        publication,
+        typed_source,
+        declarations,
+        worker_budget::current_workers() > 1,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn lower_program_with_parallel<'source>(
+    entry: Option<MachineId>,
+    bodies: &IdTable<MachineId, Body>,
+    components: &components::Components,
+    signatures: body::Signatures<'_>,
+    records: &IdTable<StructuralTypeId, RecordType>,
+    requirements: &[MachineId],
+    callables: &callables::CallableNamespace,
+    boundaries: &declare::boundaries::BoundaryNamespace,
+    services: &publication::reach::ServiceMap,
+    external_providers: &declare::external_providers::ExternalProviderNamespace,
+    static_contracts: &callables::static_contracts::StaticContracts,
+    publication: terminal_codec::TerminalPublication,
+    typed_source: Option<&'source TypedTrees>,
+    declarations: Option<&read::Program<'source>>,
+    parallel: bool,
 ) -> Checked<PreparedProgram<'source>> {
     let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     let mut required_ids = requirements.to_vec();
@@ -1865,8 +1986,9 @@ fn lower_program<'source>(
     };
     let mut loop_rows = terminal_check_tables::LoopCheckingRows::default();
     let mut static_reach_applications = Vec::new();
-    for position in 1..=bodies.len() as u64 {
-        let id = MachineId::new(position).ok_or_else(|| {
+    let decl_contracts_len = module.execution.declaration_contracts.len();
+    let lower_one = |position: usize| -> Checked<(lower::Lowered, bool)> {
+        let id = MachineId::new(position as u64).ok_or_else(|| {
             refuse(
                 diagnostic,
                 Construct::Machine,
@@ -1874,7 +1996,7 @@ fn lower_program<'source>(
             )
         })?;
         let component = components.invocation_members(id)?;
-        let contract = u64::try_from(module.execution.declaration_contracts.len())
+        let contract = u64::try_from(decl_contracts_len)
             .ok()
             .and_then(|count| count.checked_add(id.get()))
             .and_then(semantic_vocabulary::ContractId::new)
@@ -1885,7 +2007,7 @@ fn lower_program<'source>(
                     Unserved::Machine("contract identity overflow"),
                 )
             })?;
-        let mut lowered = lower::machine(
+        let mut lowered = lower::machine_with_read_only_qualifications(
             id,
             contract,
             bodies,
@@ -1898,7 +2020,7 @@ fn lower_program<'source>(
             callables,
             boundaries,
             requirements.contains(&id),
-            &mut qualifications,
+            &qualifications,
         )?;
         if let Some(typed) = typed_source {
             lower::operational::retain_callee_spans(typed, &mut lowered);
@@ -1909,6 +2031,21 @@ fn lower_program<'source>(
             lowered.machine.declared_suspension = bounds.suspension;
             lowered.machine.declared_blocking = bounds.blocking;
         }
+        Ok((lowered, component.len() > 1))
+    };
+    let lowered_machines: Vec<Checked<(lower::Lowered, bool)>> = if parallel && bodies.len() >= 2 {
+        use rayon::prelude::*;
+        (0..bodies.len())
+            .into_par_iter()
+            .with_max_len(1)
+            .map(|index| lower_one(index + 1))
+            .collect()
+    } else {
+        (1..=bodies.len()).map(lower_one).collect()
+    };
+    for lowered in lowered_machines {
+        let (mut lowered, cyclic) = lowered?;
+        lower::apply_machine_qualifications(&mut lowered, &mut qualifications)?;
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
@@ -1920,7 +2057,7 @@ fn lower_program<'source>(
             .proofs
             .theorem_applications
             .extend(lowered.theorem_applications);
-        if component.len() > 1 {
+        if cyclic {
             loop_rows.retain(&mut lowered.tables);
         }
         tables.machines.push(lowered.tables);
@@ -2111,8 +2248,8 @@ fn lower_program<'source>(
         },
     };
     if declarations.is_none() {
-        references::results::publish(&mut prepared.program, &[])?;
-        finish_storage(diagnostic, &mut prepared.program, &mut Vec::new())?;
+        references::results::publish(&mut prepared.program, &[], parallel)?;
+        finish_storage(diagnostic, &mut prepared.program, &mut Vec::new(), parallel)?;
     }
     Ok(prepared)
 }
@@ -2124,14 +2261,15 @@ fn finish_storage(
     diagnostic: MachineId,
     elaboration: &mut Elaboration,
     further: &mut Vec<Refusal>,
+    parallel: bool,
 ) -> Checked<()> {
     let mut unsupported: Vec<Refusal> = Vec::new();
     let names = &elaboration.names;
     let module = &mut elaboration.module;
     let tables = &mut elaboration.tables;
     let sources = &mut elaboration.sources;
-    references::ends::install(module, tables, sources, further)?;
-    references::default_obligations::install(module, tables, sources)?;
+    references::ends::install(module, tables, sources, further, parallel)?;
+    references::default_obligations::install(module, tables, sources, parallel)?;
     let sources = &*sources;
     // Each machine's storage plan comes from its own ownership walk over the
     // module; the walks run on the invocation's workers (`plan_then_apply`).
@@ -2139,8 +2277,9 @@ fn finish_storage(
     // blocks of no machine other than those in its descriptor graph
     // (`Plan::graphed_machines`). A refused walk names no graph, so it counts
     // as reading every machine.
-    lower::machine_order::plan_then_apply(
+    lower::machine_order::plan_then_apply_with(
         module,
+        parallel,
         |module, summaries, machine| storage_plan(module, summaries, machine, names, sources),
         |plan| match plan {
             Ok(Ok(plan)) => Some(plan.graphed_machines.as_slice()),
@@ -2162,8 +2301,8 @@ fn finish_storage(
         further.append(&mut unsupported);
         return Err(first);
     }
-    lower::publish_write_frames(module, tables)?;
-    publication::claims::publish(diagnostic, module)?;
+    lower::publish_write_frames_with(module, tables, parallel)?;
+    publication::claims::publish(diagnostic, module, parallel)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.execution.unoptimized_behavior = module

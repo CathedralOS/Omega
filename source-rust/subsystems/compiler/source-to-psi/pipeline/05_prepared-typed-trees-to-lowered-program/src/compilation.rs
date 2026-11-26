@@ -431,6 +431,7 @@ pub(crate) fn prepare_closure<'source>(
                                         captures: captures.clone(),
                                         purpose: compilation.purpose,
                                         outcome_subjects: Some(compilation.subjects),
+                                        parallel_machines: false,
                                     },
                                 )
                             })
@@ -500,18 +501,14 @@ pub(crate) fn prepare_closure<'source>(
         }
     }
     closure = closure.and_then(|mut elaboration| {
-        crate::declare::close_specializations(
-            &forms,
-            prepared_applications,
-            &mut elaboration,
-        )
-        .map_err(|(owner, reason)| {
-            crate::refuse(
-                owner,
-                terminal_check_tables::Construct::Machine,
-                crate::Unserved::Declaration(reason),
-            )
-        })?;
+        crate::declare::close_specializations(&forms, prepared_applications, &mut elaboration)
+            .map_err(|(owner, reason)| {
+                crate::refuse(
+                    owner,
+                    terminal_check_tables::Construct::Machine,
+                    crate::Unserved::Declaration(reason),
+                )
+            })?;
         // Proof scope retains the completed callable headers for later
         // admission. Capture commitments are part of those headers.
         crate::publication::finalize_source(
@@ -566,7 +563,7 @@ fn prepare_witnesses<'source>(
                 SymbolHandle,
                 Option<&_>,
             )| {
-                let prepared = crate::prepare_witness(
+                let mut prepared = crate::prepare_witness(
                     typed,
                     *declaring_trait,
                     *requirement,
@@ -577,37 +574,36 @@ fn prepare_witnesses<'source>(
                         captures: captures.clone(),
                         purpose,
                         outcome_subjects: Some(subjects),
+                        parallel_machines: worker_budget::current_workers() > 1
+                            && wave_end - next < 2,
                     },
-                );
-                prepared.and_then(|mut prepared| {
-                    crate::declare::close_specializations(
-                        forms,
-                        std::mem::take(&mut prepared.prepared_applications),
-                        &mut prepared.program,
+                )?;
+                crate::declare::close_specializations(
+                    forms,
+                    std::mem::take(&mut prepared.prepared_applications),
+                    &mut prepared.program,
+                )
+                .map_err(|(owner, reason)| {
+                    crate::refuse(
+                        owner,
+                        terminal_check_tables::Construct::Machine,
+                        crate::Unserved::Declaration(reason),
                     )
-                    .map_err(|(owner, reason)| {
-                        crate::refuse(
-                            owner,
-                            terminal_check_tables::Construct::Machine,
-                            crate::Unserved::Declaration(reason),
-                        )
-                    })?;
-                    prepared
-                        .finalize_check_form()
-                        .map(|prepared| (prepared.source, prepared.program))
-                })
+                })?;
+                prepared
+                    .finalize_check_form()
+                    .map(|prepared| (prepared.source, prepared.program))
             };
-        let wave_results: Vec<_> =
-            if worker_budget::current_workers() == 1 || wave_end - next < 2 {
-                rows[next..wave_end].iter().map(prepare_one).collect()
-            } else {
-                use rayon::prelude::*;
-                rows[next..wave_end]
-                    .par_iter()
-                    .with_max_len(1)
-                    .map(prepare_one)
-                    .collect()
-            };
+        let wave_results: Vec<_> = if worker_budget::current_workers() == 1 || wave_end - next < 2 {
+            rows[next..wave_end].iter().map(prepare_one).collect()
+        } else {
+            use rayon::prelude::*;
+            rows[next..wave_end]
+                .par_iter()
+                .with_max_len(1)
+                .map(prepare_one)
+                .collect()
+        };
         for prepared in wave_results {
             let mut witness = match prepared {
                 Ok((witness_source, program)) => {
@@ -730,9 +726,7 @@ pub(crate) fn prepare_selected_signatures<'source>(
         return Err(crate::refuse(
             pair[0].0.0,
             Construct::Machine,
-            crate::Unserved::Declaration(
-                "selected source call has duplicate emitted sites",
-            ),
+            crate::Unserved::Declaration("selected source call has duplicate emitted sites"),
         ));
     }
     let mut signatures = Vec::new();
@@ -883,15 +877,14 @@ fn prepare_generic_forms(
     struct PreparedGeneric<'source> {
         template: SymbolHandle,
         name: String,
-        forms: terminal_check_tables::Checked<
-            Vec<crate::publication::PreparedProgram<'source>>,
-        >,
+        forms: terminal_check_tables::Checked<Vec<crate::publication::PreparedProgram<'source>>>,
         applies: Option<Vec<usize>>,
     }
     let mut prepared = Vec::new();
     let mut next = 0;
     while next < templates.len() {
         let wave_end = templates.len();
+        let parallel_machines = worker_budget::current_workers() > 1 && wave_end - next < 2;
         let prepare_one = |&template: &SymbolHandle| {
             let elaborated = crate::prepare_generic_forms(
                 typed,
@@ -899,6 +892,7 @@ fn prepare_generic_forms(
                 &[template],
                 captures.clone(),
                 publication,
+                parallel_machines,
             );
             (
                 template,
@@ -906,17 +900,16 @@ fn prepare_generic_forms(
                 elaborated,
             )
         };
-        let wave_results: Vec<_> =
-            if worker_budget::current_workers() == 1 || wave_end - next < 2 {
-                templates[next..wave_end].iter().map(prepare_one).collect()
-            } else {
-                use rayon::prelude::*;
-                templates[next..wave_end]
-                    .par_iter()
-                    .with_max_len(1)
-                    .map(prepare_one)
-                    .collect()
-            };
+        let wave_results: Vec<_> = if worker_budget::current_workers() == 1 || wave_end - next < 2 {
+            templates[next..wave_end].iter().map(prepare_one).collect()
+        } else {
+            use rayon::prelude::*;
+            templates[next..wave_end]
+                .par_iter()
+                .with_max_len(1)
+                .map(prepare_one)
+                .collect()
+        };
         for (template, name, mut elaborated) in wave_results {
             let mut applies = Some(Vec::new());
             for form in elaborated.iter_mut().flatten() {

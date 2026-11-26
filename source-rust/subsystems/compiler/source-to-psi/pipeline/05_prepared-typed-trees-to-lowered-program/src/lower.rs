@@ -59,7 +59,7 @@ macro_rules! continuing {
 }
 
 mod calls;
-pub(crate) use calls::publish_write_frames;
+pub(crate) use calls::publish_write_frames_with;
 mod content_equations;
 mod control;
 mod join_reads;
@@ -118,6 +118,10 @@ pub(crate) struct Lowered {
     /// The block invariant of each loop head whose member has a `requires`,
     /// in head order: rows of the module's `scalar_block_invariants`.
     pub invariants: Vec<ScalarBlockInvariant>,
+    pub value_qualifications: Vec<Option<crate::body::Qualification>>,
+    pub coercions: Vec<terminal_psi::ScalarQualificationCoercion>,
+    pub structural_changes: Vec<terminal_psi::StructuralQualificationChange>,
+    pub control_scalar_uses: Vec<(ScalarType, crate::body::Qualification)>,
 }
 
 /// One member of the call component being lowered as a loop: its head block
@@ -134,6 +138,7 @@ struct Head {
 /// Lowers machine `id`. `component` holds the members of its call component
 /// when it lies on a call cycle (itself among them) and is empty otherwise;
 /// `bodies` is read for those members only.
+#[cfg(test)]
 pub(crate) fn machine(
     id: MachineId,
     contract: ContractId,
@@ -148,6 +153,41 @@ pub(crate) fn machine(
     boundaries: &crate::declare::boundaries::BoundaryNamespace,
     requirement: bool,
     qualifications: &mut crate::qualifications::Qualifications,
+) -> Checked<Lowered> {
+    let mut lowered = machine_with_read_only_qualifications(
+        id,
+        contract,
+        bodies,
+        component,
+        separate_entry,
+        signatures,
+        outcomes,
+        records,
+        structural_types,
+        callables,
+        boundaries,
+        requirement,
+        qualifications,
+    )?;
+    apply_machine_qualifications(&mut lowered, qualifications)?;
+    Ok(lowered)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn machine_with_read_only_qualifications(
+    id: MachineId,
+    contract: ContractId,
+    bodies: &IdTable<MachineId, Body>,
+    component: &[MachineId],
+    separate_entry: bool,
+    signatures: Signatures<'_>,
+    outcomes: &IdTable<MachineId, Outcome>,
+    records: &Records<'_>,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::declare::boundaries::BoundaryNamespace,
+    requirement: bool,
+    qualifications: &crate::qualifications::Qualifications,
 ) -> Checked<Lowered> {
     let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
     let signature = signatures.get(id.into(), id)?;
@@ -236,10 +276,7 @@ pub(crate) fn static_signature_header(
     boundaries: &crate::declare::boundaries::BoundaryNamespace,
     qualifications: &mut crate::qualifications::Qualifications,
 ) -> Checked<SignatureHeader> {
-    let policy = if matches!(
-        signature.crashes,
-        crate::body::CrashCeiling::Inferred
-    ) {
+    let policy = if matches!(signature.crashes, crate::body::CrashCeiling::Inferred) {
         crate::callables::headers::CallableCrashPolicy::Open
     } else {
         crate::callables::headers::CallableCrashPolicy::Closed
@@ -273,7 +310,7 @@ fn callable_header(
     // Header preparation constructs formals and the result without lowering
     // a body or looking up an invocation-specific public declaration.
     let declarations = IdTable::default();
-    let (mut lowering, _, formals, result) = begin(
+    let (lowering, _, formals, result) = begin(
         context,
         signature,
         Signatures {
@@ -304,9 +341,17 @@ fn callable_header(
             );
         }
     };
-    let mut header = lowering.signature_header(contract, formals, result, routes)?;
-    header.crash_policy = crash_policy;
-    Ok(header)
+    let (mut proof, value_qualifications) =
+        lowering.signature_header(contract, formals, result, routes)?;
+    qualify_contract_declarations(qualifications, context, &value_qualifications, &mut proof)?;
+    Ok(SignatureHeader {
+        crash_policy: crate::callables::headers::CallableCrashPolicy::Closed,
+        scalar_parameters: proof.parameters.clone(),
+        parameter_order: proof.parameter_order.clone(),
+        structural_parameters: proof.structural_parameters.clone(),
+        result: proof.result.clone(),
+        proof,
+    })
 }
 
 fn begin<'a>(
@@ -318,7 +363,7 @@ fn begin<'a>(
     callables: &'a crate::callables::CallableNamespace,
     boundaries: &'a crate::declare::boundaries::BoundaryNamespace,
     slots: &'a [ValueType],
-    qualifications: &'a mut crate::qualifications::Qualifications,
+    qualifications: &'a crate::qualifications::Qualifications,
 ) -> Checked<(Lowering<'a>, BlockId, Formals, TerminalMachineResult)> {
     let mut lowering = Lowering::new(
         id,
@@ -472,7 +517,9 @@ pub(crate) fn declaration_contract(
         })
         .collect::<Checked<Vec<_>>>()?;
     let mut contract = contract_header(id, signature, formals, result, ensures, &outcome);
-    lowering.qualify_contract(&mut contract)?;
+    lowering.qualify_content_equations(&mut contract)?;
+    let value_qualifications = lowering.value_qualifications;
+    qualify_contract_declarations(qualifications, caller, &value_qualifications, &mut contract)?;
     Ok(contract)
 }
 
@@ -486,9 +533,8 @@ impl<'a> Lowering<'a> {
         callables: &'a crate::callables::CallableNamespace,
         boundaries: &'a crate::declare::boundaries::BoundaryNamespace,
         slot_types: &'a [ValueType],
-        qualifications: &'a mut crate::qualifications::Qualifications,
+        qualifications: &'a crate::qualifications::Qualifications,
     ) -> Self {
-        let coercions_start = qualifications.catalog.coercions.len();
         Self {
             id,
             signature,
@@ -526,8 +572,10 @@ impl<'a> Lowering<'a> {
             slot_homes: &[],
             join_reads: None,
             qualifications,
-            coercions_start,
             value_qualifications: Vec::new(),
+            coercions: Vec::new(),
+            structural_changes: Vec::new(),
+            control_scalar_uses: Vec::new(),
             published: Vec::new(),
             heads: Vec::new(),
             invariants: Vec::new(),
@@ -797,14 +845,14 @@ struct Lowering<'a> {
     structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
     callables: &'a crate::callables::CallableNamespace,
     boundaries: &'a crate::declare::boundaries::BoundaryNamespace,
-    qualifications: &'a mut crate::qualifications::Qualifications,
-    /// The first qualification edge minted by this machine, carried from
-    /// construction instead of searching all preceding machines' edges.
-    coercions_start: usize,
+    qualifications: &'a crate::qualifications::Qualifications,
     /// Complete declared types indexed by the values this lowering minted.
     /// Synthetic proof temporaries have no qualification; expression results
     /// and formals set theirs through the same owner before publication.
     value_qualifications: Vec<Option<crate::body::Qualification>>,
+    coercions: Vec<terminal_psi::ScalarQualificationCoercion>,
+    structural_changes: Vec<terminal_psi::StructuralQualificationChange>,
+    control_scalar_uses: Vec<(ScalarType, crate::body::Qualification)>,
     /// What each root place is and the record type it holds, indexed by its
     /// `PlaceId`: the machine's structural place declarations.
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
@@ -993,20 +1041,7 @@ impl<'a> Lowering<'a> {
         Ok(())
     }
 
-    fn qualify_declaration(&mut self, value: &mut ValueDeclaration) -> Checked<()> {
-        let qualification = self
-            .value_qualifications
-            .get((value.id.get() - 1) as usize)
-            .copied()
-            .flatten()
-            .unwrap_or(crate::body::Qualification::NONE);
-        value.qualifications =
-            self.qualifications
-                .scalar(self.id, value.scalar_type, qualification)?;
-        Ok(())
-    }
-
-    fn qualify_contract(&mut self, contract: &mut MachineContract) -> Checked<()> {
+    fn qualify_contract(&self, contract: &mut MachineContract) -> Checked<()> {
         contract.membership_ensures = self
             .signature
             .membership_ensures
@@ -1016,16 +1051,6 @@ impl<'a> Lowering<'a> {
         contract.membership_ensures.sort();
         contract.membership_ensures.dedup();
         self.qualify_content_equations(contract)?;
-        for value in contract
-            .parameters
-            .iter_mut()
-            .chain(&mut contract.erased_scalar_formals)
-        {
-            self.qualify_declaration(value)?;
-        }
-        if let TerminalMachineResult::Scalar(value) = &mut contract.result {
-            self.qualify_declaration(value)?;
-        }
         Ok(())
     }
 
@@ -1373,12 +1398,12 @@ impl<'a> Lowering<'a> {
     }
 
     fn signature_header(
-        &mut self,
+        self,
         contract: ContractId,
         formals: Formals,
         result: TerminalMachineResult,
         crash_routes: Vec<terminal_psi::CrashRouteBucket>,
-    ) -> Checked<SignatureHeader> {
+    ) -> Checked<(MachineContract, Vec<Option<crate::body::Qualification>>)> {
         let ensures = self
             .signature
             .ensures
@@ -1406,14 +1431,7 @@ impl<'a> Lowering<'a> {
         let mut proof =
             contract_header(contract, self.signature, formals, result, ensures, &outcome);
         self.qualify_contract(&mut proof)?;
-        Ok(SignatureHeader {
-            crash_policy: crate::callables::headers::CallableCrashPolicy::Closed,
-            scalar_parameters: proof.parameters.clone(),
-            parameter_order: proof.parameter_order.clone(),
-            structural_parameters: proof.structural_parameters.clone(),
-            result: proof.result.clone(),
-            proof,
-        })
+        Ok((proof, self.value_qualifications))
     }
 
     fn finish(
@@ -1464,16 +1482,6 @@ impl<'a> Lowering<'a> {
             outcome,
         );
         self.qualify_contract(&mut contract)?;
-        for block in &mut blocks {
-            for value in &mut block.parameters {
-                self.qualify_declaration(value)?;
-            }
-            for operation in &mut block.operations {
-                if let terminal_psi::OperationResult::Scalar(value) = &mut operation.result {
-                    self.qualify_declaration(value)?;
-                }
-            }
-        }
         // Literal ordinals enumerate literals, while roots also include
         // records, parameters and operation results. Number the declarations
         // once here so those interleaved roots cannot leave literal gaps.
@@ -1511,8 +1519,6 @@ impl<'a> Lowering<'a> {
             contract,
         };
         self.publish_rankings(&mut machine)?;
-        self.qualifications
-            .complete(&machine, self.coercions_start)?;
         self.name_default_contents(&machine, structural_types)?;
         self.name_storage_contents(&machine)?;
         // A scalar machine has no structural place, so its place, root and
@@ -1529,6 +1535,85 @@ impl<'a> Lowering<'a> {
             source_constructions: self.source_constructions,
             source_folded_calls: self.source_folded_calls,
             invariants: self.invariants,
+            value_qualifications: self.value_qualifications,
+            coercions: self.coercions,
+            structural_changes: self.structural_changes,
+            control_scalar_uses: self.control_scalar_uses,
         })
     }
+}
+
+fn qualify_declaration_value(
+    qualifications: &mut crate::qualifications::Qualifications,
+    machine: MachineId,
+    value_qualifications: &[Option<crate::body::Qualification>],
+    value: &mut ValueDeclaration,
+) -> Checked<()> {
+    let qualification = value_qualifications
+        .get((value.id.get() - 1) as usize)
+        .copied()
+        .flatten()
+        .unwrap_or(crate::body::Qualification::NONE);
+    value.qualifications = qualifications.scalar(machine, value.scalar_type, qualification)?;
+    Ok(())
+}
+
+fn qualify_contract_declarations(
+    qualifications: &mut crate::qualifications::Qualifications,
+    machine: MachineId,
+    value_qualifications: &[Option<crate::body::Qualification>],
+    contract: &mut MachineContract,
+) -> Checked<()> {
+    for value in contract
+        .parameters
+        .iter_mut()
+        .chain(&mut contract.erased_scalar_formals)
+    {
+        qualify_declaration_value(qualifications, machine, value_qualifications, value)?;
+    }
+    if let TerminalMachineResult::Scalar(value) = &mut contract.result {
+        qualify_declaration_value(qualifications, machine, value_qualifications, value)?;
+    }
+    Ok(())
+}
+
+pub(crate) fn apply_machine_qualifications(
+    lowered: &mut Lowered,
+    qualifications: &mut crate::qualifications::Qualifications,
+) -> Checked<()> {
+    let id = lowered.machine.id;
+    for (scalar_type, qualification) in lowered.control_scalar_uses.drain(..) {
+        qualifications.scalar(id, scalar_type, qualification)?;
+    }
+    qualify_contract_declarations(
+        qualifications,
+        id,
+        &lowered.value_qualifications,
+        &mut lowered.machine.contract,
+    )?;
+    for block in &mut lowered.machine.blocks {
+        for value in &mut block.parameters {
+            qualify_declaration_value(qualifications, id, &lowered.value_qualifications, value)?;
+        }
+        for operation in &mut block.operations {
+            if let terminal_psi::OperationResult::Scalar(value) = &mut operation.result {
+                qualify_declaration_value(
+                    qualifications,
+                    id,
+                    &lowered.value_qualifications,
+                    value,
+                )?;
+            }
+        }
+    }
+    let coercions_start = qualifications.catalog.coercions.len();
+    qualifications
+        .catalog
+        .coercions
+        .append(&mut lowered.coercions);
+    qualifications
+        .structural_changes
+        .append(&mut lowered.structural_changes);
+    qualifications.complete(&lowered.machine, coercions_start)?;
+    Ok(())
 }
