@@ -1652,6 +1652,16 @@ impl<'a> Storage<'a> {
     /// Checks that every operation's owed clauses each have exactly one
     /// `DataDomain` row: a clause no row names would be dropped in silence.
     pub(crate) fn owed_are_minted(&self, tables: &MachineTables) -> Checked<()> {
+        let mut data_domain: Vec<(OperationId, ObligationId, u32)> = tables
+            .obligations
+            .iter()
+            .filter_map(|(id, row)| match row.kind {
+                ObligationKind::DataDomain { operation, clause } => Some((operation, id, clause)),
+                _ => None,
+            })
+            .collect();
+        data_domain.sort_unstable_by_key(|&(operation, id, _)| (operation, id));
+        let mut named = Vec::new();
         for block in &self.lowered.blocks {
             for operation in &block.operations {
                 let concerns = Construct::Operation(operation.id);
@@ -1662,20 +1672,12 @@ impl<'a> Storage<'a> {
                         self.foreign(concerns, "default restoration has no operation row")
                     })?
                     .len();
-                // ponytail: one scan of the obligation table per operation;
-                // a per-operation column if machines grow.
-                let mut named = vec![false; owed];
-                for (_, row) in tables.obligations.iter() {
-                    let ObligationKind::DataDomain {
-                        operation: owner,
-                        clause,
-                    } = row.kind
-                    else {
-                        continue;
-                    };
-                    if owner != operation.id {
-                        continue;
-                    }
+                named.clear();
+                named.resize(owed, false);
+                let start = data_domain.partition_point(|&(owner, _, _)| owner < operation.id);
+                let end = start
+                    + data_domain[start..].partition_point(|&(owner, _, _)| owner == operation.id);
+                for &(_, _, clause) in &data_domain[start..end] {
                     let slot = usize::try_from(clause)
                         .ok()
                         .and_then(|clause| named.get_mut(clause))

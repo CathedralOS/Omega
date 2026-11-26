@@ -162,22 +162,42 @@ impl<'source> PreparedClosure<'source> {
         let (subjects, purpose) = &self.roots;
         // The declarations over data that contains itself are read apart from
         // the closure: they become one kernel signature and no operations.
-        let mathematics = match crate::mathematics::read(typed, &self.roots, captures.clone()) {
+        let (mathematics_result, witnesses) = if worker_budget::current_workers() > 1 {
+            rayon::join(
+                || crate::mathematics::read(typed, &self.roots, captures.clone()),
+                || {
+                    prepare_witnesses(
+                        typed,
+                        &mut rows,
+                        &forms,
+                        &captures,
+                        *purpose,
+                        subjects,
+                        &mut source,
+                    )
+                },
+            )
+        } else {
+            (
+                crate::mathematics::read(typed, &self.roots, captures.clone()),
+                prepare_witnesses(
+                    typed,
+                    &mut rows,
+                    &forms,
+                    &captures,
+                    *purpose,
+                    subjects,
+                    &mut source,
+                ),
+            )
+        };
+        let mathematics = match mathematics_result {
             Ok(mathematics) => mathematics,
             Err(mut refused) => {
                 further.append(&mut refused);
                 Default::default()
             }
         };
-        let witnesses = prepare_witnesses(
-            typed,
-            &mut rows,
-            &forms,
-            &captures,
-            *purpose,
-            subjects,
-            &mut source,
-        );
         LoweredCompilationWithSource {
             source,
             program: TerminalCompilation::Prepared(PreparedCompilation {
@@ -218,66 +238,77 @@ pub(crate) fn prepare_closure<'source>(
         }
     }
     let captures = crate::shared_reading(typed);
-    let arrivals = compilation
-        .bindings
-        .iter()
-        .map(|binding| {
-            let requirement = crate::source_symbols::rejoin_declaration(
-                &binding.requirement,
-                &typed.symbols,
-                typed.traits().iter().flat_map(|owner| {
-                    typed
-                        .trait_machine_signatures(owner)
-                        .iter()
-                        .map(|row| row.symbol)
-                }),
-            )
-            .map_err(|detail| terminal_check_tables::Refusal {
-                reason: terminal_check_tables::RefusalReason::ForeignIdentity,
-                site: terminal_check_tables::RefusalSite::Program,
-                source_span: None,
-                detail: detail.to_owned(),
-            })?;
-            let (_, required) = typed.trait_machine_signature(requirement).ok_or_else(|| {
-                crate::refuse(
-                    semantic_vocabulary::MachineId::new(1).expect("nonzero diagnostic identity"),
-                    terminal_check_tables::Construct::Machine,
-                    crate::Unserved::Contract(
-                        "bound arrival lost its exact source signature",
-                    ),
+    let build_arrivals = || {
+        compilation
+            .bindings
+            .iter()
+            .map(|binding| {
+                let requirement = crate::source_symbols::rejoin_declaration(
+                    &binding.requirement,
+                    &typed.symbols,
+                    typed.traits().iter().flat_map(|owner| {
+                        typed
+                            .trait_machine_signatures(owner)
+                            .iter()
+                            .map(|row| row.symbol)
+                    }),
                 )
-            })?;
-            let source = binding.source_span.map_or(
-                crate::SourceOrigin::Unpositioned(
-                    crate::Unpositioned::ConformanceWitness,
-                ),
-                crate::SourceOrigin::Authored,
-            );
-            let mut witness = crate::read::logical::projected_arrival(
-                typed,
-                compilation.purpose,
-                required,
-                binding.implementation,
-                &binding.visible_parameters,
-                binding.address_model.as_ref(),
-                source,
-                captures.clone(),
-            )?;
-            witness.slot = binding.slot.clone();
-            Ok(witness)
-        })
-        .collect();
-    // Every refusal reading met is reported: the first as the closure's
-    // verdict, the rest beside it (`PreparedCompilation::further`).
-    let mut further = Vec::new();
-    let (mut closure, primary_source, signatures, prepared_applications, pending_publication) =
-        match crate::elaborate_source_for(
+                .map_err(|detail| terminal_check_tables::Refusal {
+                    reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                    site: terminal_check_tables::RefusalSite::Program,
+                    source_span: None,
+                    detail: detail.to_owned(),
+                })?;
+                let (_, required) =
+                    typed.trait_machine_signature(requirement).ok_or_else(|| {
+                        crate::refuse(
+                            semantic_vocabulary::MachineId::new(1)
+                                .expect("nonzero diagnostic identity"),
+                            terminal_check_tables::Construct::Machine,
+                            crate::Unserved::Contract(
+                                "bound arrival lost its exact source signature",
+                            ),
+                        )
+                    })?;
+                let source = binding.source_span.map_or(
+                    crate::SourceOrigin::Unpositioned(crate::Unpositioned::ConformanceWitness),
+                    crate::SourceOrigin::Authored,
+                );
+                let mut witness = crate::read::logical::projected_arrival(
+                    typed,
+                    compilation.purpose,
+                    required,
+                    binding.implementation,
+                    &binding.visible_parameters,
+                    binding.address_model.as_ref(),
+                    source,
+                    captures.clone(),
+                )?;
+                witness.slot = binding.slot.clone();
+                Ok(witness)
+            })
+            .collect::<Vec<_>>()
+    };
+    let elaborate_primary = || {
+        crate::elaborate_source_for(
             typed,
             compilation,
             publication,
             captures.clone(),
             domain_schemas,
-        ) {
+        )
+    };
+    let (arrivals, elaborated_primary) =
+        if worker_budget::current_workers() > 1 && !compilation.bindings.is_empty() {
+            rayon::join(build_arrivals, elaborate_primary)
+        } else {
+            (build_arrivals(), elaborate_primary())
+        };
+    // Every refusal reading met is reported: the first as the closure's
+    // verdict, the rest beside it (`PreparedCompilation::further`).
+    let mut further = Vec::new();
+    let (mut closure, primary_source, signatures, prepared_applications, pending_publication) =
+        match elaborated_primary {
             Ok(prepared) => (
                 Ok(prepared.program),
                 Some(prepared.source),
@@ -333,90 +364,121 @@ pub(crate) fn prepare_closure<'source>(
             }
             specializations.push(template);
         }
-        for (selection, selected) in closure.selections.iter().enumerate() {
-            if selected_failure.is_some() {
-                break;
-            }
-            let Some(implementation) = closure.machines.get(selected.implementation) else {
-                continue;
-            };
-            let signature = match selected_signature_key(selected).and_then(|key| {
-                signatures
-                    .binary_search_by_key(&key, |row| row.key)
-                    .map(|position| signatures[position].signature)
-                    .map_err(|_| {
-                        crate::refuse(
-                            selected.caller,
-                            terminal_check_tables::Construct::Machine,
-                            crate::Unserved::Declaration(
-                                "selected witness has no exact source call correspondence",
-                            ),
-                        )
-                    })
-            }) {
-                Ok(signature) => signature,
-                Err(reason) => {
-                    selected_failure = Some(reason);
-                    break;
-                }
-            };
-            let row = (
-                selected.declaring_trait,
-                selected.requirement,
-                selected.value_arguments.clone(),
-                *implementation,
-                Some(signature),
-            );
-            // A conformance row of the same implementation, read without the
-            // selected header, already owes the witness this call would. The
-            // call shares it when its header passes the row's checks and
-            // supplies no contract of its own; otherwise it is proved alone.
-            let position = rows
-                .iter()
-                .position(|known| *known == row)
-                .or_else(|| {
-                    rows.iter()
-                        .position(|known| {
-                            known.4.is_none()
-                                && (known.0, known.1, &known.2, known.3)
-                                    == (row.0, row.1, &row.2, row.3)
-                        })
-                        .filter(|_| {
-                            crate::selected_witness_is_declared(
-                                typed,
-                                row.0,
-                                row.1,
-                                &row.2,
-                                row.3,
-                                signature,
-                                crate::WitnessInputs {
-                                    captures: captures.clone(),
-                                    purpose: compilation.purpose,
-                                    outcome_subjects: Some(compilation.subjects),
-                                },
-                            )
-                        })
-                })
-                .unwrap_or_else(|| {
-                    rows.push(row);
-                    rows.len() - 1
-                });
-            selection_witnesses.push((selection, position));
-        }
-    }
-    if let Some(reason) = selected_failure {
-        closure = Err(reason);
     }
     // Template proof forms retain both the checked source context and the
     // actual publication mode of the invocation using their captures.
-    let mut forms = prepare_generic_forms(
-        typed,
-        compilation.purpose,
-        templates,
-        &captures,
-        publication,
-        &mut source,
-    );
+    let mut forms = if let Ok(closure_ref) = &closure {
+        let mut resolve_selections = || {
+            for (selection, selected) in closure_ref.selections.iter().enumerate() {
+                if selected_failure.is_some() {
+                    break;
+                }
+                let Some(implementation) = closure_ref.machines.get(selected.implementation) else {
+                    continue;
+                };
+                let signature = match selected_signature_key(selected).and_then(|key| {
+                    signatures
+                        .binary_search_by_key(&key, |row| row.key)
+                        .map(|position| signatures[position].signature)
+                        .map_err(|_| {
+                            crate::refuse(
+                                selected.caller,
+                                terminal_check_tables::Construct::Machine,
+                                crate::Unserved::Declaration(
+                                    "selected witness has no exact source call correspondence",
+                                ),
+                            )
+                        })
+                }) {
+                    Ok(signature) => signature,
+                    Err(reason) => {
+                        selected_failure = Some(reason);
+                        break;
+                    }
+                };
+                let row = (
+                    selected.declaring_trait,
+                    selected.requirement,
+                    selected.value_arguments.clone(),
+                    *implementation,
+                    Some(signature),
+                );
+                // A conformance row of the same implementation, read without the
+                // selected header, already owes the witness this call would. The
+                // call shares it when its header passes the row's checks and
+                // supplies no contract of its own; otherwise it is proved alone.
+                let position = rows
+                    .iter()
+                    .position(|known| *known == row)
+                    .or_else(|| {
+                        rows.iter()
+                            .position(|known| {
+                                known.4.is_none()
+                                    && (known.0, known.1, &known.2, known.3)
+                                        == (row.0, row.1, &row.2, row.3)
+                            })
+                            .filter(|_| {
+                                crate::selected_witness_is_declared(
+                                    typed,
+                                    row.0,
+                                    row.1,
+                                    &row.2,
+                                    row.3,
+                                    signature,
+                                    crate::WitnessInputs {
+                                        captures: captures.clone(),
+                                        purpose: compilation.purpose,
+                                        outcome_subjects: Some(compilation.subjects),
+                                    },
+                                )
+                            })
+                    })
+                    .unwrap_or_else(|| {
+                        rows.push(row);
+                        rows.len() - 1
+                    });
+                selection_witnesses.push((selection, position));
+            }
+        };
+        if worker_budget::current_workers() > 1
+            && !templates.is_empty()
+            && !closure_ref.selections.is_empty()
+        {
+            let (_, forms) = rayon::join(resolve_selections, || {
+                prepare_generic_forms(
+                    typed,
+                    compilation.purpose,
+                    templates,
+                    &captures,
+                    publication,
+                    &mut source,
+                )
+            });
+            forms
+        } else {
+            resolve_selections();
+            prepare_generic_forms(
+                typed,
+                compilation.purpose,
+                templates,
+                &captures,
+                publication,
+                &mut source,
+            )
+        }
+    } else {
+        prepare_generic_forms(
+            typed,
+            compilation.purpose,
+            templates,
+            &captures,
+            publication,
+            &mut source,
+        )
+    };
+    if let Some(reason) = selected_failure {
+        closure = Err(reason);
+    }
     // Policies discovered inside a check form owe their own conformance
     // witnesses too. Move those exact source rows into the existing worklist.
     for generic in &mut forms {
@@ -827,45 +889,65 @@ fn prepare_generic_forms(
     let mut prepared = Vec::new();
     let mut next = 0;
     while next < templates.len() {
-        let template = templates[next];
-        let mut elaborated = crate::prepare_generic_forms(
-            typed,
-            purpose,
-            &[template],
-            captures.clone(),
-            publication,
-        );
-        let mut applies = Some(Vec::new());
-        for form in elaborated.iter_mut().flatten() {
-            for application in &form.program.applications {
-                let Some(symbol) = form.program.machines.get(*application).copied() else {
-                    applies = None;
-                    continue;
-                };
-                let position = templates
-                    .iter()
-                    .position(|template| *template == symbol)
-                    .unwrap_or_else(|| {
-                        templates.push(symbol);
-                        templates.len() - 1
-                    });
-                if let Some(applies) = &mut applies {
-                    applies.push(position);
+        let wave_end = templates.len();
+        let prepare_one = |&template: &SymbolHandle| {
+            let elaborated = crate::prepare_generic_forms(
+                typed,
+                purpose,
+                &[template],
+                captures.clone(),
+                publication,
+            );
+            (
+                template,
+                typed.symbols.name(template).to_owned(),
+                elaborated,
+            )
+        };
+        let wave_results: Vec<_> =
+            if worker_budget::current_workers() == 1 || wave_end - next < 2 {
+                templates[next..wave_end].iter().map(prepare_one).collect()
+            } else {
+                use rayon::prelude::*;
+                templates[next..wave_end]
+                    .par_iter()
+                    .with_max_len(1)
+                    .map(prepare_one)
+                    .collect()
+            };
+        for (template, name, mut elaborated) in wave_results {
+            let mut applies = Some(Vec::new());
+            for form in elaborated.iter_mut().flatten() {
+                for application in &form.program.applications {
+                    let Some(symbol) = form.program.machines.get(*application).copied() else {
+                        applies = None;
+                        continue;
+                    };
+                    let position = templates
+                        .iter()
+                        .position(|known| *known == symbol)
+                        .unwrap_or_else(|| {
+                            templates.push(symbol);
+                            templates.len() - 1
+                        });
+                    if let Some(applies) = &mut applies {
+                        applies.push(position);
+                    }
+                }
+                for discovered in std::mem::take(&mut form.program.generic_templates) {
+                    if !templates.contains(&discovered) {
+                        templates.push(discovered);
+                    }
                 }
             }
-            for template in std::mem::take(&mut form.program.generic_templates) {
-                if !templates.contains(&template) {
-                    templates.push(template);
-                }
-            }
+            prepared.push(PreparedGeneric {
+                template,
+                name,
+                forms: elaborated,
+                applies,
+            });
         }
-        prepared.push(PreparedGeneric {
-            template,
-            name: typed.symbols.name(template).to_owned(),
-            forms: elaborated,
-            applies,
-        });
-        next += 1;
+        next = wave_end;
     }
     // Borrow the source forms' actual headers once. Closing applications adds
     // their receipts; it does not change the template's public contract hash.
@@ -882,53 +964,76 @@ fn prepare_generic_forms(
             (generic.template, commitment)
         })
         .collect();
-    prepared
-        .into_iter()
-        .map(|generic| {
-            let forms = generic.forms.and_then(|forms| {
-                let forms = forms
-                    .into_iter()
-                    .map(|mut prepared| {
-                        crate::declare::close_specializations_with_bases(
-                            &bases,
-                            std::mem::take(&mut prepared.prepared_applications),
-                            &mut prepared.program,
+    let finalize_one = |generic: PreparedGeneric<'_>| {
+        let forms = generic.forms.and_then(|forms| {
+            let forms = forms
+                .into_iter()
+                .map(|mut prepared| {
+                    crate::declare::close_specializations_with_bases(
+                        &bases,
+                        std::mem::take(&mut prepared.prepared_applications),
+                        &mut prepared.program,
+                    )
+                    .map_err(|(owner, reason)| {
+                        crate::refuse(
+                            owner,
+                            terminal_check_tables::Construct::Machine,
+                            crate::Unserved::Declaration(reason),
                         )
-                        .map_err(|(owner, reason)| {
-                            crate::refuse(
-                                owner,
-                                terminal_check_tables::Construct::Machine,
-                                crate::Unserved::Declaration(reason),
-                            )
-                        })?;
-                        prepared.finalize_check_form()
-                    })
-                    .collect::<terminal_check_tables::Checked<Vec<_>>>()?;
-                Ok(forms
-                    .into_iter()
-                    .map(|mut prepared| {
-                        use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
-                        prepared.source.generic_callable = typed
-                            .machine_by_symbol(generic.template)
-                            .filter(|machine| {
-                                machine.supplies_checked_body()
-                                    && machine.interface_exposure
-                                        == AuthoredDeclarationSelectionExposure::PublicInterface
-                            })
-                            .map(|machine| machine.symbol);
-                        source.forms.push(Some(prepared.source));
-                        prepared.program
-                    })
-                    .collect())
-            });
-            if forms.is_err() {
-                source.forms.push(None);
-            }
+                    })?;
+                    prepared.finalize_check_form()
+                })
+                .collect::<terminal_check_tables::Checked<Vec<_>>>()?;
+            Ok(forms
+                .into_iter()
+                .map(|mut prepared| {
+                    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+                    prepared.source.generic_callable = typed
+                        .machine_by_symbol(generic.template)
+                        .filter(|machine| {
+                            machine.supplies_checked_body()
+                                && machine.interface_exposure
+                                    == AuthoredDeclarationSelectionExposure::PublicInterface
+                        })
+                        .map(|machine| machine.symbol);
+                    (prepared.source, prepared.program)
+                })
+                .collect::<Vec<_>>())
+        });
+        (generic.template, generic.name, generic.applies, forms)
+    };
+    let finalized: Vec<_> = if worker_budget::current_workers() == 1 || prepared.len() < 2 {
+        prepared.into_iter().map(finalize_one).collect()
+    } else {
+        use rayon::prelude::*;
+        prepared
+            .into_par_iter()
+            .with_max_len(1)
+            .map(finalize_one)
+            .collect()
+    };
+    finalized
+        .into_iter()
+        .map(|(template, name, applies, forms)| {
+            let forms = match forms {
+                Ok(entries) => {
+                    let mut programs = Vec::with_capacity(entries.len());
+                    for (form_source, program) in entries {
+                        source.forms.push(Some(form_source));
+                        programs.push(program);
+                    }
+                    Ok(programs)
+                }
+                Err(refusal) => {
+                    source.forms.push(None);
+                    Err(refusal)
+                }
+            };
             GenericForms {
-                template: generic.template,
-                name: generic.name,
+                template,
+                name,
                 forms,
-                applies: generic.applies,
+                applies,
             }
         })
         .collect()
