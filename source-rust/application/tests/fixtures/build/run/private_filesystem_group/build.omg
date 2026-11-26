@@ -1,17 +1,18 @@
+use {omega}/language/core/external_binding.omg as native;
 use main.omg as app;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "private_kernel_fixture");
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
-    Build::bind_native::<|app|::FileCalls::open>(builder, linux_x86_64, ForeignBinding::Syscall { number: 257 });
-    Build::bind_native::<|app|::FileCalls::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
-    Build::bind_native::<|app|::FileCalls::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });
-    Build::bind_native::<|app|::FileCalls::close>(builder, linux_x86_64, ForeignBinding::Syscall { number: 3 });
-    Build::bind_native::<|app|::FileCalls::open>(builder, linux_arm64, ForeignBinding::Syscall { number: 56 });
-    Build::bind_native::<|app|::FileCalls::write>(builder, linux_arm64, ForeignBinding::Syscall { number: 64 });
-    Build::bind_native::<|app|::FileCalls::read>(builder, linux_arm64, ForeignBinding::Syscall { number: 63 });
-    Build::bind_native::<|app|::FileCalls::close>(builder, linux_arm64, ForeignBinding::Syscall { number: 57 });
+    Build::bind_native::<|app|::FileCalls::open>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 257 });
+    Build::bind_native::<|app|::FileCalls::write>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 1 });
+    Build::bind_native::<|app|::FileCalls::read>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 0 });
+    Build::bind_native::<|app|::FileCalls::close>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 3 });
+    Build::bind_native::<|app|::FileCalls::open>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 56 });
+    Build::bind_native::<|app|::FileCalls::write>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 64 });
+    Build::bind_native::<|app|::FileCalls::read>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 63 });
+    Build::bind_native::<|app|::FileCalls::close>(builder, linux_arm64, |native|::ForeignBinding::Syscall { number: 57 });
     let group: TestGroup = builder.tests.group::<|app|::Checks::file>();
     group.inputs.private_filesystem = true;
 }
