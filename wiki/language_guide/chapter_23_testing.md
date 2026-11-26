@@ -5,6 +5,8 @@ belong to it, and register the group in `build.omg`.
 
 ## A group and two tests
 
+In `arithmetic.omg`, declare the group and its two machines.
+
 ```omega
 trait Tests {
     machine arithmetic()
@@ -43,9 +45,11 @@ satisfies Tests::arithmetic
 ```
 
 ```omega
-machine build(builder: @mutable Build) {
-    Build::package(builder, "arithmetic_example");
-    _ = builder.tests.group::<Tests::arithmetic>();
+use arithmetic.omg as suite;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "arithmetic_example" };
+    _ = builder.tests.group::<|suite|::Tests::arithmetic>();
 }
 ```
 

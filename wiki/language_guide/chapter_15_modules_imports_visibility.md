@@ -6,13 +6,13 @@ filename, then select its declarations through the alias bound in this file.
 ## A package
 
 ```omega
-machine build(builder: @mutable Build) {
-    Build::package(builder, "arithmetic_kernels");
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "arithmetic_kernels" };
 }
 ```
 
-Use `Build::application` instead for a program, and `Build::member` to list
-the members of a workspace. Commit `omega.lock`: it pins dependency sources
+An executable returns `BuildProduct::Application`. A workspace returns
+`BuildProduct::Workspace` with its member directories. Commit `omega.lock`: it pins dependency sources
 and records what you reviewed. [Using source packages](packages.md) covers
 adding and updating dependencies.
 

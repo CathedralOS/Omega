@@ -114,39 +114,46 @@ Success means source checking completed; it does not create an executable.
 
 ## Build a native program
 
-A native application needs a selected program entry. The following minimal
-project exits with status 42; it deliberately does not depend on terminal output.
-Replace `RELEASE_COMMIT` with the full source commit printed by `omega --version`.
-The standard library is an ordinary pinned package, not an ambient global import.
+This program exits with status 42. Its Build selects the entry and grants the
+`system` package access to process exit. Replace `RELEASE_COMMIT` with the full
+source commit printed by `omega --version`.
 
-`build.omg`:
+`build.omg`
 
 ```omega
-machine build(builder: @mutable Build) {
-    Build::application(builder, "first_program");
-    let omega_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Git {
+use main.omg as app;
+use {omega}/build/dependency.omg;
+use {omega}/language/core/process_exit.omg as process;
+
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "first_program" };
+    let system: DependencyDescription = |dependency|::from_source(Source::Git {
         repository: "https://github.com/CathedralOS/Omega.git",
         revision: "RELEASE_COMMIT",
         selection: PackageSelection::Named { package: "system" }
-    }));
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    });
+    let allowed: [BoundaryServiceReference; 1] = [
+        Build::service::<|process|::ProcessExit>(plan)
+    ];
+    _ = |dependency|::add(plan, system, @allowed[..]);
+    Build::bind(plan, windows_x86_64::ProgramEntry, |app|::start);
+    Build::bind(plan, windows_arm64::ProgramEntry, |app|::start);
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::start);
+    Build::bind(plan, linux_arm64::ProgramEntry, |app|::start);
+    Build::bind(plan, macos_arm64::ProgramEntry, |app|::start);
 }
 ```
 
-`main.omg`:
+`main.omg`
 
 ```omega
-use omega::language::core::ProcessExit;
+use {omega}/language/core/process_exit.omg as process;
 
-data Main { }
-
-machine Main::main(context: @mutable Main)
-reaches ProcessExit
+public machine start()
+reaches |process|::ProcessExit
+crashes none
 {
-    ProcessExit::exit_process(42);
+    |process|::ProcessExit::exit_process(42);
 }
 ```
 
@@ -162,13 +169,12 @@ than automatically accepting unfamiliar dependencies. Then resume:
 
 ```sh
 omega packages update --resume --project . --offline
-omega --offline main.omg
+omega --offline --target windows_x86_64 --build-dir build/program build.omg
 ```
 
-Run `./build/omega-program` on macOS/Linux, or `./build/omega-program.exe` on
-Windows. Inspect `$?` immediately afterward in a POSIX shell, or `$LASTEXITCODE`
-in PowerShell: this example returns **42**, not the conventional success code 0.
-The release checks exercise this project shape from a fresh Git cache.
+Use your host target for both update and compilation. Run `./build/program/omega-program`
+on Linux or macOS, or `./build/program/omega-program.exe` on Windows. The process
+exits with **42**. Read `$?` in a POSIX shell or `$LASTEXITCODE` in PowerShell.
 
 ## Upgrade the compiler, not the project's dependencies
 
