@@ -7950,14 +7950,9 @@ pub(crate) mod storage_foundations {
             )
             .map_err(CodecError::MalformedStructuralFoundation)?;
             if contract.carrier != result.structural_type
-                || contract
-                    .qualifications
-                    .iter()
-                    .any(|domain| !result.qualifications.contains(domain))
-                || contract
-                    .projected_qualifications
-                    .iter()
-                    .any(|row| !result.projected_qualifications.contains(row))
+                || !terminal_payload_contract(machine, source.place).is_some_and(|declared| {
+                    declared.move_preserves_qualifications(&source.path, result)
+                })
             {
                 return malformed("owned value transfer loses source memberships");
             }
