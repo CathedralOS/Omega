@@ -320,15 +320,7 @@ impl ProviderPlan {
             "schema-package",
             self.schema.declaration.trait_package_identity,
         );
-        rendered.push_str("\npackage:");
-        match self.origin_package_identity {
-            Some(identity) => {
-                for byte in identity.digest() {
-                    rendered.push_str(&format!("{byte:02x}"));
-                }
-            }
-            None => rendered.push_str("<unbound>"),
-        }
+        push_package_identity(&mut rendered, "package", self.origin_package_identity);
         let mut methods: Vec<&ServiceMethod> = self.schema.declaration.methods.iter().collect();
         methods.sort_by(|left, right| {
             left.name
