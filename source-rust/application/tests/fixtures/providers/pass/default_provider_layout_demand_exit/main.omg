@@ -5,7 +5,7 @@
 // Expected exit: 0
 use {layout_default_kit}/main/layouts.omg;
 
-machine main() crashes Trap {
+public machine main() crashes Trap {
     let byte: u8 = |layouts|::Measure::measure();
     transition byte == 42u8 {
         true -> done(),

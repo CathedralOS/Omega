@@ -95,7 +95,7 @@ fn a_chosen_dependency_default_is_laid_out_for_its_target_and_runs() {
 fn an_unchosen_dependency_default_is_never_laid_out() {
     let root = default_only(
         "unreached",
-        "use {layout_default_kit}/main/layouts.omg;\n\nmachine main() {\n}\n",
+        "public machine main() {\n}\n",
     );
     assert_runs_on_each_engine(&root);
     let _ = std::fs::remove_dir_all(&root);
@@ -105,7 +105,8 @@ fn an_unchosen_dependency_default_is_never_laid_out() {
 fn a_chosen_dependency_default_with_an_invalid_layout_is_refused() {
     let main = std::fs::read_to_string(fixture().join("main.omg")).expect("kept program");
     let root = default_only("reached", &main);
-    let report = omega(&["--check", "main.omg"], &root);
+    // The authored Windows row must be valid even when the requested output is Linux.
+    let report = omega(&["--check", "--target", "linux_x86_64", "build.omg"], &root);
     let _ = std::fs::remove_dir_all(&root);
     assert!(
         report.contains(
@@ -132,8 +133,8 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
     std::fs::write(
         root.path().join("build.omg"),
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {
-        Build::package(builder, "layout_reach");
+machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "layout_reach" };
         Build::select_provider::<|app|::Reading, |app|::ConstantReading>(builder, alpha_bootstrap);
     }"#,
     )
@@ -252,8 +253,8 @@ fn an_unreached_layout_constant_keeps_its_initializer_without_target_geometry() 
     let root = TemporaryDirectory::create("entryless-layout-constant", false).unwrap();
     std::fs::write(
         root.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) {
-        Build::package(builder, "observed_packet");
+        r#"machine build(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Package { name: "observed_packet" };
     }"#,
     )
     .unwrap();
