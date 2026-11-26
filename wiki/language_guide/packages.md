@@ -10,16 +10,26 @@ this page explains the workflow.
 A library declares its own name in `build.omg`:
 
 ```omega
-machine build(builder: @mutable Build) {
-    Build::package(builder, "arithmetic_kernels");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "arithmetic_kernels" };
 }
 ```
 
-An executable uses `Build::application(builder, "name")`; a workspace lists
-`Build::member(builder, "path")` calls. Package and application names use lowercase
-underscore-separated words. The default alias is the declared name unchanged;
-use `--as` to choose another. See
-[build declarations](../spec/build/declarations.md) for identity and execution.
+An executable assigns `BuildProduct::Application { name: "editor" }` to the
+same field. A workspace returns a catalog of member paths.
+
+```omega
+use {omega}/build/workspace.omg;
+machine build(plan: @mutable BuildPlan) {
+    let packages: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, "packages/kit");
+    let members: WorkspaceMembers = |workspace|::with_member(plan, packages, "apps/editor");
+    plan.product = BuildProduct::Workspace { members: members };
+}
+```
+
+Package and application names use lowercase underscore-separated words. The
+declared name is the default alias. Use `--as` to choose another.
+[Build declarations](../spec/build/declarations.md)
 
 Renaming a package changes its key, even when its directory and source locator
 stay the same. Existing locks require a fresh update/review after a declaration
@@ -51,14 +61,14 @@ use {omega}/language/core/process_authority.omg as process;
 use {omega}/build/dependency.omg;
 use {system}/console.omg;
 
-machine build(build: @mutable Build) {
+machine build(build: @mutable BuildPlan) {
     let system: DependencyDescription =
         |dependency|::from_source(Source::Path { location: "vendor/system" });
     let allowed: [BoundaryServiceReference; 1] = [
         Build::service::<|process|::StandardOutput>(build)
     ];
     _ = |dependency|::add(build, system, @allowed[..]);
-    Build::build_entry(build, "build_0.omg");
+    build.product = BuildProduct::InterpretedBuild { entry: "build_0.omg" };
     Build::select_provider::<|console|::Console, |console|::InterpreterConsole>(
         build, interpreter
     );
@@ -76,9 +86,9 @@ use {omega}/build/dependency.omg;
 use generated.omg;
 use main.omg as editor;
 
-machine build(build: @mutable Build) {
+machine build(build: @mutable BuildPlan) {
     |generated|::announce("configuring editor");
-    Build::application(build, "editor");
+    build.product = BuildProduct::Application { name: "editor" };
     let system: PackageBinding = |dependency|::input(build, "system");
     let allowed: [BoundaryServiceReference; 1] = [
         Build::service::<|process|::StandardOutput>(build)
@@ -129,7 +139,7 @@ selected for this backing.
 
 ```omega
 machine register_firmware<Backing, const Files: Filesystem<Backing>>(
-    build: @mutable Build,
+    build: @mutable BuildPlan,
     child_filesystem: Backing
 ) -> DependencyRegistration {
     let source: Source = Source::Path { location: "deps/firmware" };
@@ -143,7 +153,7 @@ machine register_firmware<Backing, const Files: Filesystem<Backing>>(
 
 The driver installs the read-only view for the firmware Build before entry.
 When that Build reads `expected.sha256` through its filesystem library, it
-reads the copy. Its entry is still `machine build(build: @mutable Build)`.
+reads the copy. Its entry is still `machine build(build: @mutable BuildPlan)`.
 [Child Build filesystems and borrowing](../spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build)
 
 ## Giving one dependency network access
@@ -153,8 +163,8 @@ Suppose only the board package needs to fetch firmware. The caller runs
 which child gets its network grant when it registers the dependencies.
 
 ```omega
-machine build(build: @mutable Build) {
-    Build::package(build, "release");
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Package { name: "release" };
     Build::dependency(build, Source::Path { location: "board" }, Networking::Inherit);
     Build::dependency(build, Source::Path { location: "assets" });
 }

@@ -49,7 +49,7 @@ fn project(
             fs::create_dir(&meter).unwrap();
             fs::write(
                 meter.join("build.omg"),
-                r#"machine build(builder: @mutable Build) { Build::package(builder, "meter"); }"#,
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "meter" }; }"#,
             )
             .unwrap();
             (
@@ -77,9 +77,9 @@ fn project(
         format!(
             r#"use {{omega}}/build/dependency.omg;
 {provider_files}
-machine build(builder: @mutable Build) {{
+machine build(builder: @mutable BuildPlan) {{
     {registration}
-    Build::build_entry(builder, "configure.omg");
+    builder.product = BuildProduct::InterpretedBuild {{ entry: "configure.omg" }};
     {selection}
 }}"#
         ),
@@ -97,18 +97,18 @@ machine build(builder: @mutable Build) {{
         format!(
             r#"use {import_root}main.omg as api;
 {product_import}
-machine build(builder: @mutable Build) {{
+machine build(builder: @mutable BuildPlan) {{
     {before_read}
     let observed: u32 = |api|::Meter::read();
-    Build::application(builder, "staged_provider");
+    builder.product = BuildProduct::Application {{ name: "staged_provider" }};
     transition observed {{
         17u32 -> select_return(builder),
         23u32 -> select_trap(builder),
         _ -> reject(builder)
     }}
-    machine select_return(builder: @mutable Build) {{ Build::bind(builder, {target}::ProgramEntry, {qualifier}return_normally); }}
-    machine select_trap(builder: @mutable Build) {{ Build::bind(builder, {target}::ProgramEntry, {qualifier}trap); }}
-    machine reject(builder: @mutable Build) {{ Build::application(builder, "unknown_reading"); }}
+    machine select_return(builder: @mutable BuildPlan) {{ Build::bind(builder, {target}::ProgramEntry, {qualifier}return_normally); }}
+    machine select_trap(builder: @mutable BuildPlan) {{ Build::bind(builder, {target}::ProgramEntry, {qualifier}trap); }}
+    machine reject(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Unselected; }}
 }}
 {shared_entries}"#
         ),
@@ -187,7 +187,7 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
 
 #[test]
 fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
-    let poison = r#"Build::build_entry(builder, "../successor-started.omg");"#;
+    let poison = r#"Build::include_source(builder, "../successor-started.omg", "");"#;
     let fixture = project(
         "linux_x86_64",
         None,
@@ -202,7 +202,21 @@ fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
         "{report}"
     );
     assert!(
-        !report.contains("requires a canonical package-relative .omg filename"),
+        !report.contains("invalid generated source filename"),
+        "{report}"
+    );
+
+    let admitted = project(
+        "linux_x86_64",
+        Some("Seventeen"),
+        ProviderSource::Dependency,
+        poison,
+        ProductEntries::Separate,
+    );
+    let (output, report) = run(&admitted, "psi");
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("invalid generated source filename `../successor-started.omg`"),
         "{report}"
     );
 }
