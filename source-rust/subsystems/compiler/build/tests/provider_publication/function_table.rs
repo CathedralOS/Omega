@@ -40,9 +40,9 @@ machine main() {}
         let root = scratch.path().join("build.omg");
         let build = r#"use {omega}/language/core/external_binding.omg as native;
 use {omega}/language/core/reflect/reflect.omg as reflect;
-machine build(builder: @mutable Build) {
+machine build<'selection>(builder: @mutable Build) {
     Build::application(builder, "firmware");
-    let binding: |native|::FunctionFieldBinding = |native|::FunctionFieldBinding {
+    let binding: |native|::FunctionFieldBinding<'selection> = |native|::FunctionFieldBinding {
         table: |reflect|::parameter(FORMAL),
         field: |reflect|::field(FIELD),
     };
