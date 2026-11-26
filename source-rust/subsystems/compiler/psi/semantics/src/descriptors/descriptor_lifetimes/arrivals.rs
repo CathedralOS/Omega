@@ -110,6 +110,20 @@ impl DescriptorFlowBinding {
         })
     }
 
+    /// Borrowing an indexed element continues to demand its source descriptor
+    /// while the header is used. The selected element is a distinct place:
+    /// this relationship copies neither descriptor contents nor permission.
+    pub(crate) fn indexed_borrow_source(&self) -> Option<&DescriptorLocation> {
+        if !matches!(&self.source, DescriptorFlowSource::Contents(_))
+            || self.access == StructuralAccess::Owned
+            || self.source_access != self.access
+        {
+            return None;
+        }
+        let (descriptor, projection) = self.captured_storage.as_ref()?;
+        projection.is_captured_element().then_some(descriptor)
+    }
+
     pub fn locations(&self) -> Option<(&DescriptorLocation, &DescriptorLocation)> {
         Some((self.source.exact_location()?, &self.parameter))
     }
