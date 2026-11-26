@@ -386,6 +386,26 @@ impl Projection {
         Some(result)
     }
 
+    /// A window changes the origin of an index but preserves its element
+    /// type. Its selections can inventory carriers without identifying a
+    /// physical location. A reference crossing may introduce another lender.
+    pub(crate) fn captured_window_carrier_path(&self) -> Option<Vec<StructuralPathSegment>> {
+        let mut path = Vec::new();
+        let mut window = false;
+        for step in self.address.as_ref()? {
+            match step {
+                AddressStep::Path(segments, _)
+                    if !segments.contains(&StructuralPathSegment::Referent) =>
+                {
+                    path.extend_from_slice(segments);
+                }
+                AddressStep::Window { .. } => window = true,
+                _ => return None,
+            }
+        }
+        window.then_some(path)
+    }
+
     /// Validate the complete retained address without erasing dynamic
     /// capture coordinates. A window is complete but not a single path;
     /// erased or forgotten addresses never form a complete storage family.
