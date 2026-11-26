@@ -2,10 +2,11 @@
 // standard-library package, so no ProcessExit authority; compile-checked
 // only (same posture as cli/basics/standalone).
 
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "synthesized_equatable" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, synthesized_equatable);
-    Build::bind(builder, linux_x86_64::ProgramEntry, synthesized_equatable);
-    Build::bind(builder, linux_arm64::ProgramEntry, synthesized_equatable);
-    Build::bind(builder, macos_arm64::ProgramEntry, synthesized_equatable);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::synthesized_equatable);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::synthesized_equatable);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::synthesized_equatable);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::synthesized_equatable);
 }

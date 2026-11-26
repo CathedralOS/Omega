@@ -1,4 +1,5 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "issued_handle" };
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
 }
