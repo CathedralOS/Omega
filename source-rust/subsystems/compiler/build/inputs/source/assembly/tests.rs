@@ -514,30 +514,33 @@ fn a_prepared_build_library_can_import_a_later_frozen_file() {
             &mut Default::default(),
             &mut Default::default(),
         )?;
-        Ok::<_, Vec<diagnostics::Diagnostic>>(
-            storage
-                .resolved_imports
-                .into_iter()
-                .map(|import| import.path)
-                .collect::<Vec<_>>(),
-        )
+        let pending = crate::source::source_imports::pending_build_imports(&storage);
+        let paths = storage
+            .resolved_imports
+            .into_iter()
+            .map(|import| import.path)
+            .collect::<Vec<_>>();
+        Ok::<_, Vec<diagnostics::Diagnostic>>((paths, pending))
     };
-    let expected = vec![
+    let expected = (
+        vec![
         root.join(source_admission::GENERATED_SOURCE_DIRECTORY)
             .join("value.omg"),
-    ];
+    ],
+        Vec::new(),
+    );
     assert_eq!(
         assemble(vec![value.clone(), user.clone()]).unwrap(),
         expected
     );
     assert_eq!(assemble(vec![user.clone(), value]).unwrap(), expected);
-    let errors = assemble(vec![user]).unwrap_err();
-    assert!(
-        errors[0]
-            .message
-            .contains("no admitted logical file `value.omg`"),
-        "{errors:?}"
-    );
+    let (paths, pending) = assemble(vec![user]).unwrap();
+    assert!(paths.is_empty());
+    let [missing] = pending.as_slice() else {
+        panic!("missing imported file: {pending:?}")
+    };
+    assert!(matches!(&missing.target, source_compiler::SourceImportTarget::File { root: None, path, alias } if path == "value.omg" && alias == "value"));
+    assert_eq!(missing.declarations.len(), 1);
     let collision = assemble(vec![generated("authored.omg", "public data Other {}")]).unwrap_err();
     assert!(
         collision[0]
