@@ -500,6 +500,7 @@ fn protocol_action(
             return Err(refused("a description query cannot mutate Build bindings"));
         }
         Protocol::AwaitProvider => Action::AwaitProvider,
+        Protocol::DescribeService => Action::DescribeService,
         Protocol::Prepare => Action::Prepare,
         Protocol::PrepareTests => Action::PrepareTests,
         Protocol::Bind | Protocol::BindDescription => Action::Bind,
@@ -531,6 +532,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "prepare_dependency" => Request::PrepareDependency,
         "input_binding" => Request::InputBinding,
         "add_binding" => Request::AddBinding,
+        "extend_reach" => Request::ExtendReach,
         "write_log" => Request::LogLine,
         "configure_test_fixture" => Request::ConfigureTestFixture,
         "configure_test_engine" => Request::ConfigureTestEngine,

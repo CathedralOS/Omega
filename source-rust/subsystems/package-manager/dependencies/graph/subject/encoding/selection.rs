@@ -88,6 +88,7 @@ fn encode_subject_to(
         encoder.count(dependency.ordinal)?;
         encoder.byte(dependency.purpose.canonical_tag());
         encode_dependency_request(encoder, Request::from(&dependency.request), limits)?;
+        encode_reach(encoder, &dependency.max_reach, limits)?;
         encoder.bytes_bounded(
             dependency.provider.canonical_bytes(),
             limits.maximum_record_bytes,
@@ -113,7 +114,8 @@ fn encode_dependency_scope(
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     encoder.count(dependencies.authored_dependencies().len())?;
     for request in dependencies.authored_dependencies() {
-        encode_dependency_request(encoder, Request::from(request), limits)?;
+        encode_dependency_request(encoder, Request::from(&request.source), limits)?;
+        encode_reach(encoder, &request.max_reach, limits)?;
     }
     Ok(())
 }
@@ -253,6 +255,18 @@ fn encode_optional_alias(
             encoder.byte(1);
             encoder.bytes_bounded(alias.as_str().as_bytes(), maximum_identity_bytes)?;
         }
+    }
+    Ok(())
+}
+
+fn encode_reach(
+    encoder: &mut Encoder,
+    reach: &semantic_vocabulary::dependency_reach::DependencyReach,
+    limits: CanonicalSourceClosureSubjectLimits,
+) -> Result<(), CanonicalSourceClosureSubjectError> {
+    encoder.count(reach.services().count())?;
+    for service in reach.services() {
+        encoder.bytes_bounded(service.as_bytes(), limits.maximum_identity_bytes)?;
     }
     Ok(())
 }

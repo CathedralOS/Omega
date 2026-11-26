@@ -4,10 +4,10 @@
 use super::error::DependencyProjectionError;
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
 use crate::declarations::editable_build::{
-    DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, is_dependency_call,
-    package_authored_type_name,
+    DEPENDENCY_DESCRIPTION_TYPE_NAME, FROM_SOURCE_HELPER_NAME, WITH_ALIAS_HELPER_NAME,
+    imported_dependency_helper, package_authored_type_name,
 };
-use build_declarations::BUILD_TYPE_NAME;
+use build_declarations::{BUILD_TYPE_NAME, DependencyOperation};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::Item;
@@ -23,7 +23,6 @@ pub(super) fn reject_authored_toolchain_vocabulary(
                     BUILD_TYPE_NAME
                         | SOURCE_TYPE_NAME
                         | PACKAGE_SELECTION_TYPE_NAME
-                        | DEPENDENCY_HELPER_OWNER
                         | DEPENDENCY_DESCRIPTION_TYPE_NAME
                         | REGISTRATION_TYPE_NAME
                 ) =>
@@ -36,10 +35,9 @@ pub(super) fn reject_authored_toolchain_vocabulary(
         }
         if let Item::Machine(machine) = item
             && let Some(owner) = machine.attached_data.as_ref()
-            && is_dependency_call(
-                Some(owner.as_str(syntax_trees)),
-                machine_leaf_name(machine.name.as_str(syntax_trees)),
-            )
+            && owner.as_str(syntax_trees) == BUILD_TYPE_NAME
+            && DependencyOperation::classify(machine_leaf_name(machine.name.as_str(syntax_trees)))
+                .is_some()
         {
             return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
                 name: format!(
@@ -96,10 +94,18 @@ pub(super) fn reject_unprojected_dependency_syntax(
                 }
             }
             ExpressionNode::Call(call)
-                if is_dependency_call(
-                    expression_owner(syntax_trees, call.receiver),
-                    call.target.as_str(syntax_trees),
-                ) && !accepted_calls.contains(&expression_handle) =>
+                if ((expression_owner(syntax_trees, call.receiver) == Some(BUILD_TYPE_NAME)
+                    && DependencyOperation::classify(call.target.as_str(syntax_trees))
+                        .is_some())
+                    || (!call.receiver.is_valid()
+                        && matches!(
+                            imported_dependency_helper(
+                                syntax_trees,
+                                call.target.as_str(syntax_trees)
+                            ),
+                            Some(FROM_SOURCE_HELPER_NAME | WITH_ALIAS_HELPER_NAME)
+                        )))
+                    && !accepted_calls.contains(&expression_handle) =>
             {
                 return Err(DependencyProjectionError::UnsupportedDependencyShape);
             }

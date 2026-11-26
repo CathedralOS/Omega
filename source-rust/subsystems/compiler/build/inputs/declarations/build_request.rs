@@ -14,6 +14,7 @@ pub enum BuildRequest {
     ArtifactOnly,
     Dependency {
         purpose: DependencyPurpose,
+        max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
         alias: Option<ProjectName>,
         source: BuildDependencySource,
     },

@@ -481,7 +481,7 @@ fn properties(bounds: crate::source_state::data::DataProperties) -> String {
     )
 }
 
-fn machine_contract(
+pub(crate) fn machine_contract(
     program: &TypedTrees,
     contract: &MachineParameterContract,
     context: &TypeIdentityContext<'_>,

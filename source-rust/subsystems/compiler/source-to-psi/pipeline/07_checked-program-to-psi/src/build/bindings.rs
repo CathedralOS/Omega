@@ -73,6 +73,7 @@ pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProv
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
 pub enum TerminalBuildBindingOperation {
     AwaitProvider,
+    DescribeService,
     Prepare,
     PrepareTests, // A group selection prepared on the original tests facet.
     Bind,
@@ -390,6 +391,7 @@ pub(crate) mod build_requests {
         GitDependency,
         InputBinding,
         AddBinding,
+        ExtendReach,
         PrepareDependency,
         LogLine,
         PublishSource,

@@ -25,7 +25,20 @@ impl BodyServiceReaches {
 
 pub fn body_service_reaches(
     module: &TerminalModule,
+    implementations: &[crate::callable_values::CallableBoundaryImplementation],
 ) -> std::result::Result<BodyServiceReaches, String> {
+    let mut installed = std::collections::BTreeMap::new();
+    for implementation in implementations {
+        if module.boundary_machine(implementation.boundary).is_none()
+            || module.machine(implementation.machine).is_none()
+            || installed
+                .insert(implementation.boundary, implementation.machine)
+                .is_some()
+        {
+            return Err("body service reach has ambiguous or absent provider bindings".into());
+        }
+    }
+
     if module
         .machines
         .windows(2)
@@ -163,7 +176,13 @@ pub fn body_service_reaches(
                             "body service boundary actuals disagree with its complete formal telescope".into(),
                         );
                     }
-                    union(&mut rows[position], &boundary.published_service_ceiling);
+                    if boundary.service_reach_is_installation_bound
+                        && let Some(&provider) = installed.get(&boundary.id)
+                    {
+                        predecessors[machine_position(provider)?].push(position);
+                    } else {
+                        union(&mut rows[position], &boundary.published_service_ceiling);
+                    }
                 }
             }
         }

@@ -161,7 +161,7 @@ impl PendingSourceResolution {
     }
 
     pub(crate) fn source(&self) -> &DependencySourceRequest {
-        &self.owner.requester.dependency_requests(self.purpose)[self.dependency_index]
+        &self.owner.requester.dependency_requests(self.purpose)[self.dependency_index].source
     }
 
     pub(crate) fn fail<E>(self, error: E) -> PackageSourceClosureResolutionError<E> {

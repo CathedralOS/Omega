@@ -318,7 +318,7 @@ fn a_boundary_call_composes_the_declared_interval_law_at_its_normal_result() {
     let mut roots = [input.place, result.place];
     roots.sort_unstable();
     assert_eq!([a.root, b.root], roots);
-    assert!(boundary_calls::verify_machine(&module, machine).is_ok());
+    assert!(boundary_calls::verify_machine(module, machine).is_ok());
 
     let mut forged = module.clone();
     forged.machines[ordinal].content_partition_compositions[0].input_claims =

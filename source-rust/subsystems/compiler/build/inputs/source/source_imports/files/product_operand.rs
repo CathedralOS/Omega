@@ -62,6 +62,7 @@ pub(crate) fn product_file_sources<'graph>(
                 import.ordinal,
                 import.target.to_string(),
                 alias,
+                root.as_deref(),
             ),
             scope: source_provenance::DependencyScope::Product,
             request: ReconciledPackageImportRequest::file(
