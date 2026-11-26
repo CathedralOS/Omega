@@ -1,6 +1,5 @@
 //! Open the Product dependency named by a declaration query at its issuing occurrence.
 
-use super::super::LogicalSourceDiscovery;
 use super::{ProductQueryInputs, SourceStorage};
 use diagnostics::Diagnostic;
 use source_admission::SourceFile;
@@ -12,7 +11,6 @@ pub(super) struct DeclarationLookup {
     author: SourceFile,
     span: Span,
     alias: Option<String>,
-    members: Vec<String>,
 }
 
 impl ProductQueryInputs {
@@ -20,15 +18,14 @@ impl ProductQueryInputs {
         // A file-qualified operand can be resolved entirely from its actual import.
         // An unqualified operand can also name a declaration in the successor entry.
         if let Ok(name) = std::str::from_utf8(path) {
-            let (alias, members) = match name.split_once("::") {
-                Some((alias, members)) => (Some(alias.to_owned()), members),
-                None => (None, name),
-            };
+            let alias = name
+                .strip_prefix('|')
+                .and_then(|qualified| qualified.split_once("|::"))
+                .map(|(alias, _)| alias.to_owned());
             self.declarations.push(DeclarationLookup {
                 author: author.clone(),
                 span,
                 alias,
-                members: members.split("::").map(str::to_owned).collect(),
             });
         }
         self
@@ -37,7 +34,7 @@ impl ProductQueryInputs {
     /// File aliases that an executed Product query selected, in its issuing source.
     pub fn queried_file_aliases(&self) -> impl Iterator<Item = (&SourceFile, &str)> {
         self.declarations.iter().filter_map(|lookup| {
-            let alias = lookup.file_alias()?;
+            let alias = lookup.alias.as_deref()?;
             Some((&lookup.author, alias))
         })
     }
@@ -66,10 +63,6 @@ impl ProductQueryInputs {
 }
 
 impl DeclarationLookup {
-    fn file_alias(&self) -> Option<&str> {
-        self.alias.as_deref()?.strip_prefix('|')?.strip_suffix('|')
-    }
-
     fn sources(
         &self,
         inputs: &ProductQueryInputs,
@@ -83,17 +76,7 @@ impl DeclarationLookup {
                     "Product query author lost its admitted source correspondence",
                 )]
             })?;
-        let local_entry = || {
-            inputs
-                .successor_entry()
-                .map(|entry| storage.default_package_root().join(entry.as_str()))
-                .into_iter()
-                .collect()
-        };
-        let Some(qualifier) = &self.alias else {
-            return Ok(local_entry());
-        };
-        if let Some(alias) = self.file_alias() {
+        if let Some(alias) = &self.alias {
             return super::super::files::product_file_sources(
                 storage,
                 SourceSpan::new(author, self.span),
@@ -101,28 +84,10 @@ impl DeclarationLookup {
                 inputs.graphs().chain(inputs.named_source.iter()),
             );
         }
-        let Some(package) = storage
-            .sources
-            .product_dependency_at(SourceSpan::new(author, self.span), qualifier)
-        else {
-            return Ok(local_entry());
-        };
-        let root = inputs
-            .graphs()
-            .find_map(|graph| graph.package_root(package))
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "Product declaration dependency has no admitted source capture",
-                )]
-            })?;
-        let excluded = storage
-            .package_roots
-            .iter()
-            .filter(|owner| owner.root != root && owner.root.starts_with(root))
-            .map(|owner| owner.root.clone())
-            .collect();
-        storage
-            .package_roots
-            .select_declaring(root, &self.members, &storage.filesystem, excluded)
+        Ok(inputs
+            .successor_entry()
+            .map(|entry| storage.default_package_root().join(entry.as_str()))
+            .into_iter()
+            .collect())
     }
 }

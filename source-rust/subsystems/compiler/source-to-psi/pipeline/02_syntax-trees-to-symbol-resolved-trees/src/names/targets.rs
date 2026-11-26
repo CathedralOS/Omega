@@ -1093,7 +1093,6 @@ mod static_namespaces {
             reference,
         );
         if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module)
-            && !symbols.is_source_package_qualifier(reference, receiver_name)
             && declared_owner.is_none()
         {
             // A source-free qualified operation has a declaration too. Only an
@@ -1658,29 +1657,15 @@ mod tests {
         assert_eq!(call.machine_name, "kit::work");
     }
 
-    /*
-        A one-segment machine in the same module still has the generated
-        `entry` state. The module receiver and the static pass both keep it.
-    */
     #[test]
-    fn module_receiver_call_keeps_the_generated_entry_state() {
-        let text = r#"
-            machine work() -> i32 { 1 }
-            machine caller() -> i32 { kit.work() }
-        "#;
-        let call = resolved_call_in("kit", text, "work");
+    fn file_qualified_machine_call_keeps_the_generated_entry_state() {
+        let call = resolved_file_call("machine work() -> i32 { 1 }", "|kit|::work");
         assert_eq!(call.symbols_kind, SymbolKind::State);
         assert_eq!(call.state_name, "entry");
         assert_eq!(call.machine_name, "work");
-
-        let text = r#"
-            machine work() -> i32 { 1 }
-            machine caller() -> i32 { kit\work() }
-        "#;
-        let call = resolved_call_in("kit", text, "kit::work");
-        assert_eq!(call.symbols_kind, SymbolKind::State);
-        assert_eq!(call.state_name, "entry");
-        assert_eq!(call.machine_name, "work");
+        assert!(source_is_rejected(
+            r"machine caller() -> i32 { kit\work() }"
+        ));
     }
 
     /*
@@ -1742,19 +1727,17 @@ mod tests {
         );
     }
 
-    // Selecting an imported callable does not expose its module by itself.
-    // Every call form must still use that exact selection; a lexical value
-    // or another member of the same module cannot borrow it.
+    // Selecting a file member in a call leaves ordinary value receivers local.
     #[test]
-    fn imported_callable_paths_bind_without_exposing_their_module() {
+    fn file_qualified_calls_and_value_receivers_have_distinct_owners() {
         let library = "public machine work() -> u64 { 7 } public machine sibling() -> u64 { 8 }";
         let caller = r#"
-            use omega\language\core\kit\work;
-            machine expression() -> u64 { kit\work() }
-            machine statement() { kit\work(); }
-            machine parameter_shadow(kit: u64) { kit\work(); }
-            machine local_shadow() { let kit: u64 = 0; kit\work(); }
-            machine unimported() { kit\sibling(); }
+            use {omega}/language/core/kit/work.omg as kit;
+            machine expression() -> u64 { |kit|::work() }
+            machine statement() { |kit|::work(); }
+            machine parameter_shadow(kit: u64) { kit.work(); }
+            machine local_shadow() { let kit: u64 = 0; kit.work(); }
+            machine unimported() { sibling(); }
         "#;
         let mut sources = crate::source_inputs::SourceMap::default();
         let library_id = sources
@@ -1785,11 +1768,8 @@ mod tests {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),
             top_level_bindings: vec![
-                crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                    caller_id,
-                    library_id,
-                    "omega::language::core::kit::work",
-                    3,
+                crate::source_symbols::SourceScopedTopLevelBinding::file_import(
+                    caller_id, library_id, "kit",
                 ),
             ],
             retained_base: None,
@@ -1813,7 +1793,7 @@ mod tests {
             .expressions
             .iter_expressions()
             .find_map(|(_, node)| match node {
-                ExpressionNode::Call(call) if call.target.as_str() == "kit::work" => Some(call),
+                ExpressionNode::Call(call) if call.target.as_str() == "|kit|::work" => Some(call),
                 _ => None,
             })
             .expect("the imported expression call");
@@ -1865,13 +1845,15 @@ mod tests {
                     !call.target_symbol.is_valid(),
                     "{name} cannot borrow the imported declaration"
                 );
-                assert!(!call.receiver.is_empty());
                 if let Some(kind) = shadow {
+                    assert!(!call.receiver.is_empty());
                     assert!(
                         call.receiver_root_symbol.is_valid(),
                         "{name} keeps its lexical value"
                     );
                     assert_eq!(program.symbols.get(call.receiver_root_symbol).kind, kind);
+                } else {
+                    assert!(call.receiver.is_empty());
                 }
             }
         }
@@ -1896,41 +1878,22 @@ mod tests {
         assert_eq!(call.state_name, "kit::combine");
     }
 
-    /*
-        `operator combine` in the `kit` directory stores the leaf. The same
-        receiver still finds it by the display path `kit::combine`.
-    */
     #[test]
-    fn module_receiver_call_resolves_a_leaf_operator() {
-        let call = resolved_call_in(
-            "kit",
-            r#"
-            operator combine(left: i32, right: i32) -> i32;
-            machine caller() -> i32 { kit.combine() }
-            "#,
-            "combine",
+    fn file_qualified_call_selects_its_operator() {
+        let call = resolved_file_call(
+            "operator combine(left: i32, right: i32) -> i32;",
+            "|kit|::combine",
         );
-        assert!(call.target_symbol.is_valid());
         assert_eq!(call.symbols_kind, SymbolKind::Operator);
         assert_eq!(call.state_name, "combine");
     }
 
-    /*
-        A proposition name is one identifier (`parse_proposition_definition`),
-        so `proposition kit::holds` never becomes a symbol. The leaf form
-        inside the module still resolves through the receiver.
-    */
     #[test]
-    fn module_receiver_call_resolves_a_leaf_proposition() {
-        let call = resolved_call_in(
-            "kit",
-            r#"
-            proposition holds(a: i32, b: i32) = a == b;
-            machine caller() -> i32 { kit.holds() }
-            "#,
-            "holds",
+    fn file_qualified_call_selects_its_proposition() {
+        let call = resolved_file_call(
+            "proposition holds(a: i32, b: i32) = a == b;",
+            "|kit|::holds",
         );
-        assert!(call.target_symbol.is_valid());
         assert_eq!(call.symbols_kind, SymbolKind::Proposition);
         assert_eq!(call.state_name, "holds");
     }
@@ -1947,22 +1910,9 @@ mod tests {
         );
     }
 
-    /*
-        A mathematical `let` name is one identifier (`parse_let_definition`).
-        `let kit::holds(...)` is not a declaration. The leaf form still
-        resolves through the module receiver.
-    */
     #[test]
-    fn module_receiver_call_resolves_a_leaf_mathematical_definition() {
-        let call = resolved_call_in(
-            "kit",
-            r#"
-            let holds(value: i32): i32 = value;
-            machine caller() -> i32 { kit.holds() }
-            "#,
-            "holds",
-        );
-        assert!(call.target_symbol.is_valid());
+    fn file_qualified_call_selects_its_mathematical_definition() {
+        let call = resolved_file_call("let holds(value: i32): i32 = value;", "|kit|::holds");
         assert_eq!(call.symbols_kind, SymbolKind::MathematicalDefinition);
         assert_eq!(call.state_name, "holds");
     }
@@ -2129,6 +2079,42 @@ mod tests {
             retained_base: None,
         })
         .expect("resolve");
+        selected_call(&program, target)
+    }
+
+    fn resolved_file_call(declaration: &str, target: &str) -> ResolvedCall {
+        let caller = format!("use api/kit.omg; machine caller() -> i32 {{ {target}() }}");
+        let mut sources = crate::source_inputs::SourceMap::default();
+        let mut syntax = syntax_trees::SyntaxTrees::default();
+        for (path, text) in [
+            ("root/api/kit.omg", declaration),
+            ("root/main.omg", caller.as_str()),
+        ] {
+            let source = sources.add_with_metadata(
+                path.into(),
+                text.to_owned(),
+                "root".into(),
+                None,
+                source_admission::SourceOrigin::User,
+            );
+            let tokens = Lexer::new(text).tokenize().unwrap();
+            crate::resolution::frontend_fixture::parse(&mut syntax, source.source_id, &tokens)
+                .unwrap();
+        }
+        let program = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+        selected_call(&program, target)
+    }
+
+    fn selected_call(
+        program: &crate::source_resolved::SymbolResolvedTrees,
+        target: &str,
+    ) -> ResolvedCall {
         let target_symbol = program
             .tables
             .bodies
@@ -2191,13 +2177,8 @@ mod tests {
 
     /*
         A Build operand names a declaration the way any other source name does
-        (modules spec, "Resolution"). Two toolchain modules `a` and `b` both
-        declare `boundary trait Clock`. The Build file's imports decide which
-        `Clock` its `select_provider` subject and its `Clock::now` requirement
-        operand name: importing `a` selects `a`'s, importing both is ambiguous,
-        and importing neither leaves `Clock` unnamed. Before the fix the
-        requirement operand took `a`'s `Clock::now` even when only `b` was
-        imported, because its lookup started from the first root `Clock`.
+        (modules spec, "Resolution"). Two files each declare Clock. A provider
+        and its required operation must come from the explicitly selected file.
     */
     #[test]
     fn build_operands_follow_imports_and_refuse_ambiguity() {
@@ -2210,7 +2191,8 @@ mod tests {
                 group::<Clock::now>(builder);
             }
         "#;
-        let resolve_with = |imports: &[&str]| {
+        let resolve_with = |imports: &[&str], alias: &str| {
+            let caller = caller.replace("Clock", &format!("|{alias}|::Clock"));
             let mut sources = crate::source_inputs::SourceMap::default();
             let mut units = Vec::new();
             for path in ["toolchain/a/clock.omg", "toolchain/b/clock.omg"] {
@@ -2228,13 +2210,13 @@ mod tests {
             let caller_id = sources
                 .add_with_metadata(
                     "app/build.omg".into(),
-                    caller.into(),
+                    caller.clone(),
                     "app".into(),
                     None,
                     source_admission::SourceOrigin::User,
                 )
                 .source_id;
-            units.push((caller_id, caller));
+            units.push((caller_id, caller.as_str()));
             let mut syntax = syntax_trees::SyntaxTrees::new(caller_id);
             for (id, text) in &units {
                 let tokens = Lexer::new(text).tokenize().expect("tokenize unit");
@@ -2245,11 +2227,10 @@ mod tests {
                 .iter()
                 .map(|module| {
                     let index = if *module == "a" { 0 } else { 1 };
-                    crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                    crate::source_symbols::SourceScopedTopLevelBinding::file_import(
                         caller_id,
                         units[index].0,
-                        &format!("omega::language::core::{module}::Clock"),
-                        3,
+                        *module,
                     )
                 })
                 .collect();
@@ -2308,7 +2289,7 @@ mod tests {
         };
 
         assert_eq!(
-            resolve_with(&["a"]),
+            resolve_with(&["a", "b"], "a"),
             (
                 Some((SymbolKind::Trait, "a".to_owned())),
                 Some((SymbolKind::State, "a".to_owned()))
@@ -2316,20 +2297,20 @@ mod tests {
             "the imported Clock is the operand"
         );
         assert_eq!(
-            resolve_with(&["b"]),
+            resolve_with(&["a", "b"], "b"),
             (
                 Some((SymbolKind::Trait, "b".to_owned())),
                 Some((SymbolKind::State, "b".to_owned()))
             ),
-            "import order, not root order, selects the operand"
+            "the selected alias determines the operand"
         );
         assert_eq!(
-            resolve_with(&["a", "b"]),
+            resolve_with(&["b"], "a"),
             (None, None),
-            "two imported Clocks are ambiguous"
+            "the selected alias must have its own binding"
         );
         assert_eq!(
-            resolve_with(&[]),
+            resolve_with(&[], "a"),
             (None, None),
             "an unimported Clock is unnamed"
         );

@@ -239,7 +239,8 @@ pub(crate) mod domain_constraints {
             if let (Some(reference), [first, second, ..]) = (reference, matches.as_slice()) {
                 let mut imports = source
                     .symbols
-                    .source_module_import_paths(reference.source_id)
+                    .source_file_aliases(reference.source_id)
+                    .map(|alias| format!("|{alias}|"))
                     .collect::<Vec<_>>();
                 imports.sort_unstable();
                 imports.dedup();

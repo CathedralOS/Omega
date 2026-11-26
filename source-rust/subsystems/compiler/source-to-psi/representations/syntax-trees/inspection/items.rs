@@ -111,9 +111,6 @@ pub enum ItemSnapshot {    Capability {
         parameters: Vec<StateParameterSnapshot>,
         body: PropositionBodySnapshot,
     },
-    Use {
-        path: Vec<IdentifierSnapshot>,
-    },
     FileImport {
         root: Option<IdentifierSnapshot>,
         components: Vec<IdentifierSnapshot>,
@@ -614,13 +611,7 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 }
             },
         },
-        Item::Use(crate::item::UseItem::Namespace { path }) => ItemSnapshot::Use {
-            path: snapshot_identifier_slice(
-                syntax_trees,
-                syntax_trees.items.identifier_path_members(*path),
-            ),
-        },
-        Item::Use(crate::item::UseItem::File {
+        Item::Use(crate::item::UseItem {
             root,
             components,
             alias,

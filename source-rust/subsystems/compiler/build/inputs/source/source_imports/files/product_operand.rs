@@ -18,14 +18,20 @@ pub(crate) fn product_file_sources<'graph>(
     graphs: impl IntoIterator<Item = &'graph PackageCompilationInputs>,
 ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
     let author = occurrence.source_id;
-    let import = storage.source_roots.iter().find(|(_, roots)| roots.source_id == author)
-        .and_then(|(_, roots)| roots.build_imports.iter().find(|import| matches!(&import.target, SourceImportTarget::File { alias: name, .. } if name == alias)));
+    let import = storage
+        .source_roots
+        .iter()
+        .find(|(_, roots)| roots.source_id == author)
+        .and_then(|(_, roots)| {
+            roots
+                .build_imports
+                .iter()
+                .find(|import| import.target.alias == alias)
+        });
     let Some(import) = import else {
         return Ok(Vec::new());
     };
-    let SourceImportTarget::File { root, path, .. } = &import.target else {
-        unreachable!()
-    };
+    let SourceImportTarget { root, path, .. } = &import.target;
     let capture = |root: &std::path::Path, logical: &str| {
         captured_file(root, std::path::Path::new(logical), &storage.filesystem)?
             .map(|file| vec![file])
@@ -74,7 +80,7 @@ pub(crate) fn product_file_sources<'graph>(
             ),
         };
         return request
-            .resolve_for_exact_target(graph, &mut storage.package_roots, &storage.sources)
+            .resolve_for_exact_target(graph, &storage.sources)
             .map(|resolved| resolved.into_iter().map(|file| file.path).collect());
     }
     if root.is_none() {

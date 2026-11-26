@@ -100,21 +100,18 @@ impl Default for Item {
 
 #[derive(
     Debug,
+    Default,
     Clone,
     syntax_trees_derive::SyntaxEquivalent,
     syntax_trees_derive::SyntaxRelocate,
     record_storage::Record,
 )]
-pub enum UseItem {    Namespace {
-        path: HandleSpan<Identifier>,
-    },
-    File {
-        root: Option<Identifier>,
-        components: HandleSpan<Identifier>,
-        alias: Identifier,
-        qualifiers: Vec<FileQualifier>,
-        span: source_text::SourceSpan,
-    },
+pub struct UseItem {
+    pub root: Option<Identifier>,
+    pub components: HandleSpan<Identifier>,
+    pub alias: Identifier,
+    pub qualifiers: Vec<FileQualifier>,
+    pub span: source_text::SourceSpan,
 }
 
 /// One written use of a file alias, at its opening bar in the importing file.
@@ -149,14 +146,6 @@ pub enum FileQualifierRole {
     /// Ordinary Build reflection when the declaration is supplied to the Build.
     /// Otherwise the genuine core operation may select a Product declaration.
     Description,
-}
-
-impl Default for UseItem {
-    fn default() -> Self {
-        Self::Namespace {
-            path: HandleSpan::empty(),
-        }
-    }
 }
 
 #[derive(
