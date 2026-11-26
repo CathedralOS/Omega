@@ -1,3 +1,4 @@
+use main.omg as app;
 use {omega}/language/core/external_binding.omg as native;
 use {omega}/language/core/process_exit.omg;
 
@@ -15,8 +16,8 @@ machine build(builder: @mutable Build) {
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
             library: "kernel32.dll", export: "ExitProcess"
         } });
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
 }

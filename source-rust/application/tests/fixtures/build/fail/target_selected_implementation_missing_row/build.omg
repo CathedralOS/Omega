@@ -1,10 +1,12 @@
+use main.omg as app;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "target_selected_implementation_missing_row");
-    Build::select_provider::<TargetConstants, LinuxConstants>(builder, linux_x86_64);
-    Build::select_provider::<TargetConstants, LinuxConstants>(builder, linux_arm64);
-    Build::select_provider::<TargetConstants, MacosConstants>(builder, macos_arm64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::select_provider::<|app|::TargetConstants, |app|::LinuxConstants>(builder, linux_x86_64);
+    Build::select_provider::<|app|::TargetConstants, |app|::LinuxConstants>(builder, linux_arm64);
+    Build::select_provider::<|app|::TargetConstants, |app|::MacosConstants>(builder, macos_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }

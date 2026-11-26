@@ -1,11 +1,13 @@
+use main.omg as app;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "nested_result_summary");
-    Build::select_provider::<SelectedEvaluate, Evaluator>(builder, windows_x86_64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::select_provider::<SelectedEvaluate, Evaluator>(builder, linux_x86_64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::select_provider::<SelectedEvaluate, Evaluator>(builder, macos_arm64);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::select_provider::<SelectedEvaluate, Evaluator>(builder, linux_arm64);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::select_provider::<|app|::SelectedEvaluate, |app|::Evaluator>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::SelectedEvaluate, |app|::Evaluator>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::SelectedEvaluate, |app|::Evaluator>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::SelectedEvaluate, |app|::Evaluator>(builder, linux_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }
