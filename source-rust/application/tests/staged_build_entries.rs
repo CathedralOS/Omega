@@ -34,6 +34,47 @@ fn build(body: &str) -> String {
 }
 
 #[test]
+fn a_returned_build_requires_the_filename_even_when_the_namespace_exists() {
+    let prepare = r#"machine build(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::InterpretedBuild { entry: "stage.omg" };
+    }"#;
+    let helper = "public machine enabled() -> bool { true }";
+    let stage = r#"use helpers/board.omg;
+machine build(plan: @mutable BuildPlan) {
+    transition |board|::enabled() {
+        true -> ready(plan),
+        false -> missing(plan)
+    }
+    machine ready(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::Package { name: "board" };
+    }
+    machine missing(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::InterpretedBuild { entry: "unreachable.omg" };
+    }
+}"#;
+    let check = |source| {
+        invoke(
+            &[
+                ("build.omg", prepare),
+                ("stage.omg", source),
+                ("helpers/board.omg", helper),
+            ],
+            &["--check"],
+        )
+    };
+    let (status, report) = check(stage);
+    assert!(status.success(), "{report}");
+    let obsolete = format!("use helpers;\n{stage}");
+    let (status, report) = check(&obsolete);
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("Build import `helpers` requires an exact .omg filename"),
+        "{report}"
+    );
+    assert!(report.contains("stage.omg:1:5"), "{report}");
+}
+
+#[test]
 fn a_build_cannot_register_a_library_for_its_own_activation() {
     let source = r#"use {omega}/build/dependency.omg;
 machine build(plan: @mutable BuildPlan) {

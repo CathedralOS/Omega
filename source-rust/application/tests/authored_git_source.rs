@@ -58,7 +58,7 @@ fn an_authored_git_pin_rebuilds_offline_without_the_tracking_ref_or_a_lock() {
     fs::create_dir(&project).unwrap();
     fs::write(
         remote.join("build.omg"),
-        r#"machine build(build: @mutable Build) { Build::package(build, "answers"); }"#,
+        r#"machine build(build: @mutable BuildPlan) { build.product = BuildProduct::Package { name: "answers" }; }"#,
     )
     .unwrap();
     fs::write(
@@ -71,8 +71,8 @@ fn an_authored_git_pin_rebuilds_offline_without_the_tracking_ref_or_a_lock() {
     git(&remote, &["commit", "--quiet", "-m", "publish answer"]);
     let pin = git(&remote, &["rev-parse", "HEAD"]);
     fs::write(project.join("build.omg"), format!(r#"use {{omega}}/build/dependencies/providers/git.omg as upstream;
-machine build(build: @mutable Build) {{
-    Build::application(build, "pinned");
+machine build(build: @mutable BuildPlan) {{
+    build.product = BuildProduct::Application {{ name: "pinned" }};
     let answers: DependencyDescription = |upstream|::dependency(
         "pinned_answers", "ssh://git@pin.invalid/answers.git", "refs/heads/no-such-tracking-ref", "{pin}");
     _ = Build::dependency(build, answers);

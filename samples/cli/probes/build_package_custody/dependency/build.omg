@@ -5,7 +5,7 @@
 // product source. A separately promised output holds a copy of those bytes.
 
 use {omega}/build/dependency.omg;
-use generator;
+use {generator}/main.omg as generator;
 
 machine build(builder: @mutable BuildPlan)
 suspends
@@ -15,7 +15,7 @@ suspends
     |dependency|::with_alias(@mutable generator_dependency, "generator");
     let generator_registration: DependencyRegistration = Build::build_dependency(builder, generator_dependency);
     suspend Build::prepare_dependency(builder, generator_registration);
-    let answer: i32 = generator\generation_value();
+    let answer: i32 = |generator|::generation_value();
     transition answer == 7 {
         true -> generate(builder),
         _ -> wrong()

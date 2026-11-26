@@ -20,8 +20,8 @@ fn check(name: &str, imports: &str, body: &str, product: &str) -> (bool, String)
         root.join("build.omg"),
         format!(
             "{imports}use {{omega}}/build/dependency.omg;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"deferred\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"deferred\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     let mutable lib_request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: \"dep\" }});
     |dependency|::with_alias(@mutable lib_request, \"lib\");
@@ -33,8 +33,8 @@ machine build(builder: @mutable Build) {{
     .expect("staged Build");
     std::fs::write(
         root.join("dep/build.omg"),
-        "machine build(builder: @mutable Build) {
-    Build::package(builder, \"kit_package\");
+        "machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: \"kit_package\" };
 }
 ",
     )
@@ -46,7 +46,7 @@ machine build(builder: @mutable Build) {{
     .expect("staged dependency source");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .arg("--check")
-        .arg("main.omg")
+        .arg("build.omg")
         .current_dir(&root)
         .stdin(std::process::Stdio::null())
         .output()

@@ -1,8 +1,8 @@
-use naming;
+use naming/naming.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "separate_build_product_imports_exit");
-    transition naming\enabled() {
+    transition |naming|::enabled() {
         true -> bind_entries(builder),
         false -> unexpected_branch(builder)
     }

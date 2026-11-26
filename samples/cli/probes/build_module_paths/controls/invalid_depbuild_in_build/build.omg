@@ -1,8 +1,8 @@
 use {omega}/build/dependency.omg;
-use kit\build;
-machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Application { name: "invalid_depbuild_in_build" };
-    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
-    |dependency|::with_alias(@mutable kit_dependency, "kit");
-    let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
+
+machine build(plan: @mutable BuildPlan) {
+    let mutable kit: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable kit, "kit");
+    _ = |dependency|::add(plan, kit);
+    plan.product = BuildProduct::InterpretedBuild { entry: "stage.omg" };
 }

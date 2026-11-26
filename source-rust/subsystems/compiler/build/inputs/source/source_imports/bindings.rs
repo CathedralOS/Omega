@@ -104,7 +104,7 @@ impl PendingPackageImport {
             return Ok(self.request.exact_file(packages)?.into_iter().collect());
         }
         self.request
-            .logical_sources(packages, discovery, self.scope)
+            .logical_sources(packages, discovery)
     }
 
     pub(crate) fn resolve_for_exact_target(
@@ -194,9 +194,6 @@ impl PendingPackageImport {
             })]);
         }
         if paths.is_empty() {
-            if self.request.is_unbound_build_import(self.scope) {
-                return Ok(Vec::new());
-            }
             return Err(vec![self.occurrence.error(format!(
                 "import `{}` selects no authored or generated logical source namespace",
                 self.occurrence.authored_path,

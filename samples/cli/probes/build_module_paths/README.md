@@ -8,7 +8,7 @@ the last names the module file.
 - `invalid_undeclared_dir`: `use ghost::main` with no declared alias
   and no `ghost/` directory resolves the prefix as an own-package
   directory and rejects "captured entry is absent: ghost".
-- `invalid_depbuild_in_build`: `use kit::build` inside build.omg
-  over a aliased `Build::build_dependency` edge — dependency build files are
-  load-protected in BOTH scopes ("may not load dependency build
-  file"), not just product imports.
+- `invalid_depbuild_in_build` registers a package under the alias `kit`
+  and returns `stage.omg` as its next Build. That Build tries to import
+  `{kit}/build.omg`. The dependency’s entered Build file is private to
+  its planning sequence.

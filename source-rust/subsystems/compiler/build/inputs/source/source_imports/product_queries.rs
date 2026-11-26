@@ -541,11 +541,6 @@ impl ProductQueryInputs {
                         .as_ref()
                         .is_some_and(|original| std::ptr::eq(original, inputs))
                 });
-                let importer = if mounted_owner {
-                    source_provenance::DependencyScope::Product
-                } else {
-                    authored.scope
-                };
                 let purpose = |inputs: &PackageCompilationInputs| {
                     if mounted_owner {
                         DependencyPurpose::Product
@@ -553,7 +548,7 @@ impl ProductQueryInputs {
                         super::source_import_scope(inputs, authored.scope, &authored.path)
                     }
                 };
-                if let Some(file) = super::files::FileImport::from(authored, import) {
+                if let Some(file) = super::files::FileImport::from(authored, import)? {
                     // Installed sources do not inherit the caller’s dependency aliases.
                     let mount = file
                         .root
@@ -634,11 +629,7 @@ impl ProductQueryInputs {
                             let paths = request.logical_sources(
                                 inputs,
                                 &mut storage.package_roots,
-                                importer,
                             )?;
-                            if paths.is_empty() && request.is_unbound_build_import(importer) {
-                                continue;
-                            }
                             (request.expected_root, paths, prefix)
                         }
                     }
@@ -686,27 +677,7 @@ impl ProductQueryInputs {
                         .iter()
                         .map(|name| name.as_str().to_owned())
                         .collect::<Vec<_>>();
-                    // The Build sources of the unbound root keep their
-                    // deferred imports while a query is answered.
-                    let own_build_import = authored.scope
-                        == source_provenance::DependencyScope::Build
-                        && prefix == 0
-                        && root == storage.default_package_root();
-                    let paths = if own_build_import {
-                        storage.package_roots.select_declaring(
-                            &root,
-                            &logical,
-                            &storage.filesystem,
-                            Vec::new(),
-                        )?
-                    } else {
-                        storage
-                            .package_roots
-                            .select(&root, &logical, &storage.filesystem)?
-                    };
-                    if paths.is_empty() && own_build_import {
-                        continue;
-                    }
+                    let paths = storage.package_roots.select(&root, &logical, &storage.filesystem)?;
                     (root, paths, prefix)
                 };
                 if paths.is_empty() {
