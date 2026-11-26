@@ -171,7 +171,7 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
     .unwrap();
     std::fs::write(
         project.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "inspection_ambiguity"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "inspection_ambiguity" }; }"#,
     )
     .unwrap();
     // A second file on disk joins this lookup only when the package imports it.
@@ -378,6 +378,90 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
             "{observed:?}"
         );
     }
+}
+
+#[test]
+fn reopened_uefi_image_retains_its_checked_physical_entry_and_subsystem() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let library = root.join("source/library");
+    let consumer = TemporaryDirectory::create("saved-uefi-consumer", false).unwrap();
+    let program = consumer.path().join("firmware.psi");
+    let (manifest, image) = {
+        let producer = TemporaryDirectory::create("saved-uefi-producer", false).unwrap();
+        let system = library.join("system").to_string_lossy().replace('\\', "/");
+        let build = r#"use {omega}/build/dependency.omg;
+use {system}/uefi_x86_64_entry.omg as firmware;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "firmware" };
+    builder.subsystem = Subsystem::EfiApplication;
+    let system: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "SYSTEM_SOURCE" }));
+    Build::select_provider::<|firmware|::UefiPhysicalEntry, RejectArrival>(builder, uefi_x86_64);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, semantic_entry);
+}
+"#;
+        std::fs::write(
+            producer.path().join("build.omg"),
+            build.replace("SYSTEM_SOURCE", &system),
+        )
+        .unwrap();
+        std::fs::write(producer.path().join("main.omg"), r#"use {omega}/language/core/extent.omg as memory;
+use {system}/uefi_x86_64_entry.omg as firmware;
+RejectArrival satisfies |firmware|::UefiPhysicalEntry {
+    machine enter(image_handle: |firmware|::EfiImageHandle, system_table: @|firmware|::EfiSystemTable) -> |firmware|::EfiStatus
+    reaches none crashes none {
+        |firmware|::EfiStatus { code: 0x8000000000000002 }
+    }
+}
+machine semantic_entry(image: |memory|::Extent in |memory|::Extent::Granted, storage: |memory|::Extent in |memory|::Extent::Granted)
+crashes Abort { crash Abort; }
+"#).unwrap();
+        let issue = |flag: &str, destination: &Path| {
+            let out = omega(producer.path())
+                .env("OMEGA_LIBRARY_ROOT", &library)
+                .args(["--target", "uefi_x86_64", flag])
+                .arg(destination)
+                .arg("build.omg")
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "{out:?}");
+            out
+        };
+        let direct = consumer.path().join("direct");
+        issue("--build-dir", &direct);
+        let out = issue("--emit-psi", &program);
+        let stdout = String::from_utf8(out.stdout).unwrap();
+        let manifest = stdout
+            .lines()
+            .find_map(|line| line.strip_prefix("Psi manifest "))
+            .unwrap();
+        (
+            manifest.to_owned(),
+            std::fs::read(direct.join("omega-program.exe")).unwrap(),
+        )
+    };
+    let replay = omega(consumer.path())
+        .env("OMEGA_LIBRARY_ROOT", consumer.path().join("absent-library"))
+        .args([
+            "--trusted-artifact",
+            &manifest,
+            "--target",
+            "uefi_x86_64",
+            "--build-dir",
+            "reopened",
+        ])
+        .arg(&program)
+        .output()
+        .unwrap();
+    assert!(replay.status.success(), "{replay:?}");
+    let reopened = std::fs::read(consumer.path().join("reopened/omega-program.exe")).unwrap();
+    let pe = u32::from_le_bytes(reopened[0x3c..0x40].try_into().unwrap()) as usize;
+    assert_eq!(&reopened[pe..pe + 6], b"PE\0\0\x64\x86");
+    let subsystem = pe + 24 + 68;
+    assert_eq!(
+        u16::from_le_bytes(reopened[subsystem..subsystem + 2].try_into().unwrap()),
+        10
+    );
+    assert_eq!(reopened, image);
 }
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
