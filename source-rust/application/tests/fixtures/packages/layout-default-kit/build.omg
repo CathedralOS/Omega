@@ -6,8 +6,8 @@
 
 use main/layouts.omg;
 
-machine build(builder: @mutable Build) {
-    Build::package(builder, "layout_default_kit");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "layout_default_kit" };
     Build::select_provider::<|layouts|::Measure, |layouts|::PairMeasure>(builder, linux_x86_64);
     Build::select_provider::<|layouts|::Measure, |layouts|::PairMeasure>(builder, linux_arm64);
     Build::select_provider::<|layouts|::Measure, |layouts|::PairMeasure>(builder, macos_arm64);
