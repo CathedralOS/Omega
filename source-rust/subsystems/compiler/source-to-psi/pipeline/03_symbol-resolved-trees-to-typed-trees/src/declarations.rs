@@ -1773,10 +1773,11 @@ pub(crate) mod provider_defaults {
     use crate::tables::expression_table;
     use diagnostics::Diagnostic;
 
-    pub(crate) fn finalize_provider_default_calls(
+    pub(crate) fn finalize_provider_default_calls_in_cohort(
         typed: &mut TypedTrees,
+        cohort: &crate::lowerer::TypingCohort<'_>,
     ) -> Result<(), Diagnostic> {
-        for position in 0..typed.machines().len() {
+        for position in cohort.typed_machines..typed.machines().len() {
             let machine = typed.machines().at(position);
             if machine.name.as_str().ends_with("::provider_defaults")
                 && machine.purpose != crate::source_state::machine::MachinePurpose::ProviderDefaults
@@ -1788,10 +1789,13 @@ pub(crate) mod provider_defaults {
         let occurrences = typed
             .machines()
             .iter()
-            .filter(|machine| {
-                machine.purpose == crate::source_state::machine::MachinePurpose::ProviderDefaults
+            .enumerate()
+            .filter(|(ordinal, machine)| {
+                cohort.owns_machine(*ordinal, machine.symbol)
+                    && machine.purpose
+                        == crate::source_state::machine::MachinePurpose::ProviderDefaults
             })
-            .flat_map(|machine| provider_default_call_occurrences(typed, machine))
+            .flat_map(|(_, machine)| provider_default_call_occurrences(typed, machine))
             .collect::<Vec<_>>();
         if occurrences.is_empty() {
             return Ok(());

@@ -102,30 +102,73 @@ fn candidates_with(
     )
     .map_err(|error| Error::from_graph(module, error))?;
     graph.sort_unstable_by_key(|machine| machine.id);
-    let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
-    if let Some(summaries) = summaries {
-        summaries.share_with(&mut analysis);
-    }
+    let needs_analysis: Vec<bool> = module
+        .machines
+        .iter()
+        .map(|machine| !machine.blocks.is_empty() && has_borrowed_storage(machine))
+        .collect();
+    let active_count = needs_analysis.iter().filter(|active| **active).count();
+    let compute_machine = |machine: &terminal_psi::TerminalMachine,
+                           analysis: &mut DescriptorAnalysis<'_>|
+     -> Result<Candidates, Error> {
+        let prepared = graph
+            .binary_search_by_key(&machine.id, |prepared| prepared.id)
+            .map(|position| &graph[position])
+            .map_err(|_| Error {
+                machine: machine.id,
+                operation: None,
+                detail: "reference disposition lost its prepared descriptor graph".into(),
+            })?;
+        let flow = analysis
+            .flow_arc(machine.id)
+            .map_err(|error| Error::from_graph(module, error))?;
+        machine_candidates(module, machine, prepared, &flow, analysis)
+    };
+    let per_machine: Vec<Result<Candidates, Error>> = if worker_budget::current_workers() > 1
+        && active_count >= 2
+    {
+        use rayon::prelude::*;
+        module
+            .machines
+            .par_iter()
+            .zip(needs_analysis.par_iter())
+            .with_max_len(1)
+            .map(|(machine, &active)| {
+                if !active {
+                    return Ok(Candidates::new());
+                }
+                let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(
+                    &module.types.structural_types,
+                    &graph,
+                );
+                if let Some(summaries) = summaries {
+                    summaries.share_with(&mut analysis);
+                }
+                compute_machine(machine, &mut analysis)
+            })
+            .collect()
+    } else {
+        let mut analysis =
+            DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
+        if let Some(summaries) = summaries {
+            summaries.share_with(&mut analysis);
+        }
+        module
+            .machines
+            .iter()
+            .zip(needs_analysis.iter())
+            .map(|(machine, &active)| {
+                if !active {
+                    Ok(Candidates::new())
+                } else {
+                    compute_machine(machine, &mut analysis)
+                }
+            })
+            .collect()
+    };
     let mut result = IdTable::default();
-    for machine in &module.machines {
-        let candidates = if machine.blocks.is_empty() || !has_borrowed_storage(machine) {
-            Candidates::new()
-        } else {
-            let prepared = graph
-                .binary_search_by_key(&machine.id, |prepared| prepared.id)
-                .map(|position| &graph[position])
-                .map_err(|_| Error {
-                    machine: machine.id,
-                    operation: None,
-                    detail: "reference disposition lost its prepared descriptor graph".into(),
-                })?;
-            let flow = analysis
-                .flow_arc(machine.id)
-                .map_err(|error| Error::from_graph(module, error))?;
-            machine_candidates(module, machine, prepared, &flow, &mut analysis)?
-        };
-        let owner = result.push(candidates);
+    for (machine, candidates) in module.machines.iter().zip(per_machine) {
+        let owner = result.push(candidates?);
         if owner != machine.id {
             return Err(Error {
                 machine: machine.id,

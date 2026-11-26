@@ -52,6 +52,10 @@ public machine member(builder: @mutable Build, path: @[u8]) reaches BuildRequest
     BuildRequestOperations::member(builder, path);
 }
 
+public machine build_entry(builder: @mutable Build, path: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::build_entry(builder, path);
+}
+
 // The executed request is joined with the application role and required outputs.
 public machine artifact_only(builder: @mutable Build) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::artifact_only(builder);

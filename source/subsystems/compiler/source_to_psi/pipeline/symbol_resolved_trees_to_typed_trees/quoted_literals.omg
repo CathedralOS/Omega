@@ -60,14 +60,14 @@ data DecodedByte [copy] {
 machine decode_byte(sources: @|source|::SourceSet, source_id: |source|::SourceId, index: u64 in Trapping) -> DecodedByte
 crashes Trap
 {
-    let byte = |source|::source_set_byte_or_nul(sources, source_id, index);
+    let byte: u8 = |source|::source_set_byte_or_nul(sources, source_id, index);
     transition byte == 92 {
         true -> escape(sources, source_id, index),
         _ -> DecodedByte { value: byte as u64 +Trapping, next: index + 1 }
     }
 
     machine escape(sources: @|source|::SourceSet, source_id: |source|::SourceId, index: u64 in Trapping) -> DecodedByte {
-        let kind = |source|::source_set_byte_or_nul(sources, source_id, index + 1);
+        let kind: u8 = |source|::source_set_byte_or_nul(sources, source_id, index + 1);
         transition kind == 120 {
             true -> hex(sources, source_id, index),
             _ -> DecodedByte { value: simple_escape(kind), next: index + 2 }
@@ -75,8 +75,8 @@ crashes Trap
     }
 
     machine hex(sources: @|source|::SourceSet, source_id: |source|::SourceId, index: u64 in Trapping) -> DecodedByte {
-        let first = |source|::source_set_byte_or_nul(sources, source_id, index + 2);
-        let second = |source|::source_set_byte_or_nul(sources, source_id, index + 3);
+        let first: u8 = |source|::source_set_byte_or_nul(sources, source_id, index + 2);
+        let second: u8 = |source|::source_set_byte_or_nul(sources, source_id, index + 3);
         let high: u64 in Trapping = hex_value(first);
         let low: u64 in Trapping = hex_value(second);
         DecodedByte { value: high * 16 + low, next: index + 4 }
@@ -101,8 +101,8 @@ crashes Trap
 
     machine read(sources: @|source|::SourceSet, source_id: |source|::SourceId, index: u64 in Trapping, end: u64 in Trapping,
         length: u64 in Trapping, utf8: Utf8, nul_free: bool, ascii: bool) -> QuotedLiteral {
-        let byte = decode_byte(sources, source_id, index);
-        let status = utf8_after(utf8, byte.value);
+        let byte: DecodedByte = decode_byte(sources, source_id, index);
+        let status: Utf8 = utf8_after(utf8, byte.value);
         transition { _ -> scan(sources, source_id, byte.next, end, length + 1, status, nul_free && byte.value != 0, ascii && byte.value < 128) }
     }
 

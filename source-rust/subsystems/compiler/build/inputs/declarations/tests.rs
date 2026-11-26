@@ -32,6 +32,30 @@ fn requirements_with_crash_routes(source: &str) -> Vec<String> {
 }
 
 #[test]
+fn successor_entry_selects_one_package_relative_omega_file() {
+    use crate::BuildEntryPath;
+    for path in ["configure.omg", "stages/compile.omg", "build.lock.omg"] {
+        assert_eq!(BuildEntryPath::parse(path.into()).unwrap().as_str(), path);
+    }
+    for path in [
+        "",
+        "build",
+        ".omg",
+        "a/.omg",
+        "stage/",
+        "../outside.omg",
+        "./main.omg",
+        "/main.omg",
+        "a//main.omg",
+        r"C:\main.omg",
+        "a/C:/main.omg",
+        "build.omg/../main.omg",
+    ] {
+        assert!(BuildEntryPath::parse(path.into()).is_err(), "{path}");
+    }
+}
+
+#[test]
 fn every_build_host_operation_writes_its_crash_ceiling() {
     assert_eq!(
         requirements_with_crash_routes(&crate::build_prelude().declarations),

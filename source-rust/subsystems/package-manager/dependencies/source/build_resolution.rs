@@ -16,6 +16,10 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct DeclaredBuildSource {
     pub(super) custody: PackageSourceCustody,
+    pub(super) frozen: std::collections::BTreeMap<
+        (build_declarations::DependencyPurpose, usize),
+        build_execution::host::requests::FrozenBuildBinding,
+    >,
     pub(super) root_request: PackageRootSourceRequest,
 }
 
@@ -86,6 +90,18 @@ pub enum BuildSourceAcquisition {
 }
 
 impl PendingBuildSource {
+    pub(crate) fn requester(&self) -> PackageKeyIdentity {
+        self.request.requester().key().identity()
+    }
+
+    pub(crate) fn frozen_binding<'a>(
+        &self,
+        from: &'a DeclaredBuildSource,
+    ) -> Option<&'a build_execution::host::requests::FrozenBuildBinding> {
+        from.frozen
+            .get(&(self.request.purpose(), self.request.dependency_index()))
+    }
+
     pub fn select(self, acquired: AcquiredBuildSource) -> Result<BuildSourceAcquisition, String> {
         if let Some(custody) = self
             .request

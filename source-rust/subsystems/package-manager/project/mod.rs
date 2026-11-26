@@ -1,5 +1,7 @@
 //! Prepare a project by resolving its package dependencies and asking Build to execute each declaration.
 mod services;
+mod stages;
+mod successor_inputs;
 #[cfg(all(test, unix))]
 mod workspace_tests;
 
@@ -13,7 +15,7 @@ use artifacts::compile_timings::{CompileTimings, StageMeta};
 use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
-use project_build::{PlanningRequest, PlanningSources, ReturnedPlanningStage};
+use project_build::ReturnedPlanningStage;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -192,43 +194,9 @@ impl SourceHost<'_, '_> {
             .admit_build_descent(&self.active, acquired)?;
         self.acquisitions.admit_locked_activation(acquired)?;
         self.active.push(acquired.clone());
-        let mut requests = BTreeMap::new();
-        let result = (|| -> Result<_, PackageCommandError> {
-            let sources = if libraries.is_empty() {
-                PlanningSources::Captured(acquired.source_capture())
-            } else {
-                PlanningSources::CapturedWithLibraries {
-                    source: acquired.source_capture(),
-                    libraries: self.supplied_libraries(acquired, libraries)?,
-                }
-            };
-            let execution = self
-                .session
-                .source_build_inputs(self.profile, snapshot, dependency)?;
-            let stage = project_build::prepare(
-                PlanningRequest {
-                    root: entry,
-                    sources,
-                    execution,
-                    artifact_only: false,
-                },
-                Default::default(),
-                planning_timings(self.timings),
-            )?;
-            Ok(project_build::interpret(
-                stage,
-                &mut services::SourceServices {
-                    host: self,
-                    acquired,
-                    requests: &mut requests,
-                },
-            )?)
-        })();
+        let result = self.execute_stages(entry, acquired, snapshot, dependency, libraries);
         self.active.pop();
-        let stage = result?;
-        self.session
-            .record_source_completion(stage.source_completion_accounting().clone());
-        Ok(ExecutedBuild { stage, requests })
+        result
     }
 
     fn resolve(
@@ -254,7 +222,7 @@ impl SourceHost<'_, '_> {
             ReturnedPlanningStage,
         )>::new();
         let mut reused = Vec::<usize>::new();
-        let mut next = declaration.resolve()?;
+        let mut next = declaration.clone().resolve()?;
         loop {
             let pending = match next {
                 ExecutedSourceResolution::Complete(graph) => {
@@ -293,7 +261,21 @@ impl SourceHost<'_, '_> {
                 }
                 ExecutedSourceResolution::Request(pending) => pending,
             };
-            let mut acquisition = self.acquisitions.acquire(pending)?;
+            let requester = std::iter::once(&declaration)
+                .chain(returns.iter().map(|(_, declared, _)| declared))
+                .chain(self.settled.iter().map(|settled| &settled.declaration))
+                .find(|declared| declared.identity() == pending.requester())
+                .ok_or_else(|| {
+                    "source resolution lost the requesting Build declaration".to_owned()
+                })?;
+            let frozen = pending
+                .frozen_binding(requester)
+                .map(|binding| {
+                    self.frozen_library(binding.library())
+                        .map(|index| self.settled[index].source.clone())
+                })
+                .transpose()?;
+            let mut acquisition = self.acquisitions.acquire_or_reuse(pending, frozen)?;
             next = loop {
                 match acquisition {
                     BuildSourceAcquisition::Reused(next) => break next,

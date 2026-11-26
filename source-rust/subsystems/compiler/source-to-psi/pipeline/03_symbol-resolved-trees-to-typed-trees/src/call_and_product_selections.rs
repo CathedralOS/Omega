@@ -1416,12 +1416,59 @@ pub(crate) mod construction_destinations {
         arguments: Vec<ExpressionHandle>,
     }
 
+    #[cfg(test)]
     pub(crate) fn prepare(
         source: &crate::source_resolved::SymbolResolvedTrees,
         program: &mut TypedTrees,
         expression_frontier: usize,
         machine_frontier: usize,
         completed_machines: &[SymbolHandle],
+    ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
+        let mut completed = completed_machines
+            .iter()
+            .map(|symbol| crate::lowerer::symbol_key(*symbol))
+            .collect::<Vec<_>>();
+        completed.sort_unstable();
+        let owners = crate::operand_owners::CohortOperandOwners::full(program);
+        prepare_inner(
+            source,
+            program,
+            expression_frontier,
+            machine_frontier,
+            &completed,
+            &owners,
+        )
+    }
+
+    pub(crate) fn prepare_in_cohort(
+        source: &crate::source_resolved::SymbolResolvedTrees,
+        program: &mut TypedTrees,
+        cohort: &crate::lowerer::TypingCohort<'_>,
+        owners: &crate::operand_owners::CohortOperandOwners,
+    ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
+        let mut completed = cohort
+            .completed_machines
+            .iter()
+            .map(|symbol| crate::lowerer::symbol_key(*symbol))
+            .collect::<Vec<_>>();
+        completed.sort_unstable();
+        prepare_inner(
+            source,
+            program,
+            cohort.typed_expressions,
+            cohort.typed_machines,
+            &completed,
+            owners,
+        )
+    }
+
+    fn prepare_inner(
+        source: &crate::source_resolved::SymbolResolvedTrees,
+        program: &mut TypedTrees,
+        expression_frontier: usize,
+        machine_frontier: usize,
+        completed: &[(u32, u32)],
+        owners: &crate::operand_owners::CohortOperandOwners,
     ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
         let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle, SymbolHandle)>::new();
         let mut calls = Vec::new();
@@ -1434,11 +1481,10 @@ pub(crate) mod construction_destinations {
         // carries instead (`defer_to_holders`).
         let mut deferred = Vec::<(ExpressionHandle, DeferredRequest)>::new();
 
-        for (handle, expression) in program.expression_table.expression_entries() {
-            if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier)
-            {
-                continue;
-            }
+        for (handle, expression) in program
+            .expression_table
+            .iter_expressions_from(expression_frontier + 1)
+        {
             match expression {
                 ExpressionNode::StructLiteral(_) => constructors.push(handle),
                 ExpressionNode::Call(call) => {
@@ -1480,11 +1526,6 @@ pub(crate) mod construction_destinations {
             }
         }
 
-        let mut completed = completed_machines
-            .iter()
-            .map(|symbol| crate::lowerer::symbol_key(*symbol))
-            .collect::<Vec<_>>();
-        completed.sort_unstable();
         for (ordinal, machine) in program.machines().iter().enumerate() {
             if ordinal < machine_frontier
                 && completed
@@ -1688,7 +1729,7 @@ pub(crate) mod construction_destinations {
                 destinations.push((argument, reference, call.target));
             }
         }
-        let mut receiving = DestinationPreparation::new(source, program);
+        let mut receiving = DestinationPreparation::new(source, owners);
         receiving.mark_pending(program, &pending_destinations);
         for (value, destination, lifetime_owner) in destinations {
             receiving.land_one(program, value, destination, lifetime_owner)?;
@@ -1753,7 +1794,7 @@ pub(crate) mod construction_destinations {
                 .into_iter()
                 .map(|constructor| (constructor, DeferredRequest::ConstructorFieldSelection)),
         );
-        defer_to_holders(program, deferred)?;
+        defer_to_holders(program, owners, deferred)?;
         Ok(receiving.cast_destinations)
     }
 
@@ -1780,12 +1821,12 @@ pub(crate) mod construction_destinations {
     /// refuses here.
     fn defer_to_holders(
         program: &mut TypedTrees,
+        owners: &crate::operand_owners::CohortOperandOwners,
         deferred: Vec<(ExpressionHandle, DeferredRequest)>,
     ) -> Result<(), Diagnostic> {
         if deferred.is_empty() {
             return Ok(());
         }
-        let owners = crate::source_state::references::collect_program_operand_owners(program);
         let mut rows = Vec::new();
         for (value, request) in deferred {
             let source_span = program.expression_table.source_span(value);
@@ -1958,12 +1999,10 @@ pub(crate) mod construction_destinations {
     impl<'a> DestinationPreparation<'a> {
         fn new(
             source: &'a crate::source_resolved::SymbolResolvedTrees,
-            program: &TypedTrees,
+            owners: &'a crate::operand_owners::CohortOperandOwners,
         ) -> Self {
             Self {
-                calls: crate::constructor_applications::CallResultSelections::new(
-                    source, program,
-                ),
+                calls: crate::constructor_applications::CallResultSelections::new(source, owners),
                 cast_destinations: Vec::new(),
                 contexts: Vec::new(),
                 unselected: Vec::new(),
@@ -3229,7 +3268,8 @@ pub(crate) mod construction_destinations {
                 "arithmetic:Saturating"
             );
             let mut absent = program.clone();
-            let absent_context = DestinationPreparation::new(&source, &absent);
+            let absent_owners = crate::operand_owners::CohortOperandOwners::full(&absent);
+            let absent_context = DestinationPreparation::new(&source, &absent_owners);
             absent_context
                 .complete_unreceived_calls(&mut absent, &[value])
                 .unwrap();
@@ -3245,7 +3285,8 @@ pub(crate) mod construction_destinations {
                     .expression_owners(value)
                     .collect::<Vec<_>>()
             );
-            let mut receiving = DestinationPreparation::new(&source, &program);
+            let owners = crate::operand_owners::CohortOperandOwners::full(&program);
+            let mut receiving = DestinationPreparation::new(&source, &owners);
             receiving.mark_pending(&program, &[value]);
             receiving
                 .complete_unreceived_calls(&mut program, &[value])
@@ -3294,7 +3335,8 @@ pub(crate) mod construction_destinations {
                     name: "Record".into(),
                 });
             let source = crate::source_resolved::SymbolResolvedTrees::default();
-            let mut receiving = DestinationPreparation::new(&source, &program);
+            let owners = crate::operand_owners::CohortOperandOwners::full(&program);
+            let mut receiving = DestinationPreparation::new(&source, &owners);
             assert!(
                 !receiving
                     .land_one(&mut program, value, unrelated, owner,)
@@ -4065,21 +4107,17 @@ pub(crate) mod qualification_casts {
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
 
-    pub(crate) fn normalize_qualification_casts(
+    pub(crate) fn normalize_qualification_casts_in_cohort(
         source: &crate::source_resolved::SymbolResolvedTrees,
         program: &mut TypedTrees,
-        expression_frontier: usize,
-        type_frontier: usize,
+        cohort: &crate::lowerer::TypingCohort<'_>,
+        owners: &crate::operand_owners::CohortOperandOwners,
         cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
+        let expression_frontier = cohort.typed_expressions;
         let sites = expression_table(program)
-            .expression_entries()
+            .iter_expressions_from(expression_frontier + 1)
             .filter_map(|(handle, expression)| {
-                if usize::try_from(handle.arena_index())
-                    .is_ok_and(|index| index <= expression_frontier)
-                {
-                    return None;
-                }
                 let ExpressionNode::Cast(_) = expression else {
                     return None;
                 };
@@ -4112,11 +4150,11 @@ pub(crate) mod qualification_casts {
                 target.result_type = result.unwrap_or_default();
             }
         }
-        crate::expression_meanings::prepare(
+        crate::expression_meanings::prepare_in_cohort(
             source,
             program,
-            expression_frontier,
-            type_frontier,
+            cohort,
+            owners,
             cast_destinations,
         )?;
         let mut updates = Vec::with_capacity(sites.len());

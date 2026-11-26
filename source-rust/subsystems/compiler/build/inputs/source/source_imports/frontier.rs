@@ -20,13 +20,15 @@ use std::path::{Path, PathBuf};
 
 #[derive(Clone, Default, record_storage::Record)]
 pub(crate) struct SourceStorage {
+    // Already checked by predecessor Builds. An explicit Product import can still select them.
+    pub(crate) previous_build_files: std::sync::Arc<[PathBuf]>,
     pub(crate) entry: Option<crate::source::entry::NamedSource>,
     pub filesystem: source_capture::SourceFileSystem, // Captured virtual source filesystem.
     pub source_roots: Arena<SourceRoots>,             // Per-source parsed root `ItemHandle` lists.
     pub sources: SourceMap,                           // Active `SourceMap` selection cohort.
     pub syntax_trees: SourceSyntax,                   // Parsed syntax forest for the active cohort.
     pub resolved_imports: Vec<super::ResolvedSourceImport>, // Discovered imports resolved to paths.
-    default_package_root: PathBuf, // Root directory of the primary package or standalone project.
+    pub(super) default_package_root: PathBuf, // Root directory of the primary package or standalone project.
     default_package_identity: Option<PackageKeyIdentity>, // Bound `PackageKeyIdentity` (`None` while an anonymous Build is unbound).
     anonymous_capture: Option<std::sync::Arc<source_capture::CapturedSourceTree>>, // Original root capture retained through named and completed source joins.
     pub(crate) unbound_acquisition: Option<crate::CapturedLocalSource>,
@@ -160,24 +162,29 @@ impl SourceStorage {
     /// A named Product checks every declaration owned by its subject, including
     /// modules that no entry imports. Units already checked under Build authority
     /// enter Product scope only through its normal entry and import requests.
-    pub(crate) fn product_subject_sources(&mut self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+    pub(crate) fn product_subject_sources(&self) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let root = &self.default_package_root;
-        let excluded = self
-            .package_roots
-            .iter()
-            .filter(|package| package.root != *root && package.root.starts_with(root))
-            .map(|package| package.root.clone())
+        let nested_packages: Vec<_> = self.package_roots.iter()
+            .map(|package| package.root.as_path())
+            .filter(|package| *package != root && package.starts_with(root))
             .collect();
         let build_units = self
             .sources
             .selected_files()
             .filter(|file| file.dependency_scope == source_provenance::DependencyScope::Build)
             .map(|file| file.path.as_path())
+            .chain(self.previous_build_files.iter().map(PathBuf::as_path))
             .collect::<std::collections::HashSet<_>>();
-        let mut paths = self
-            .package_roots
-            .select_owned(root, &[], &self.filesystem, excluded)?;
-        paths.retain(|path| !build_units.contains(path.as_path()));
+        let mut paths = self.filesystem.captured_files(root).map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "cannot enumerate Product subject {}: {reason}", root.display()
+            ))]
+        })?;
+        paths.retain(|path| {
+            path.extension().is_some_and(|extension| extension == "omg")
+                && !build_units.contains(path.as_path())
+                && !nested_packages.iter().any(|package| path.starts_with(package))
+        });
         Ok(paths)
     }
 
@@ -489,7 +496,9 @@ impl SourceStorage {
 
     pub(crate) fn for_compilation(default_package_root: PathBuf, toolchain_root: PathBuf) -> Self {
         Self {
-            default_package_root: normalize_directory(default_package_root),
+            // The acquisition already issued this canonical root. A later host rename
+            // or symlink replacement must not change the captured package owner.
+            default_package_root,
             toolchain_root: Some(normalize_directory(toolchain_root)),
             ..Self::default()
         }

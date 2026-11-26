@@ -667,7 +667,10 @@ struct CallIndexes {
     scopes: CallScopes,
 }
 impl CallIndexes {
-    fn collect(program: &typed::TypedTrees) -> Result<Self, Diagnostic> {
+    fn collect(
+        program: &typed::TypedTrees,
+        cohort: Option<&crate::lowerer::TypingCohort<'_>>,
+    ) -> Result<Self, Diagnostic> {
         let mut contexts = Self {
             expressions: ArenaAssociations::prepare(
                 program
@@ -690,7 +693,10 @@ impl CallIndexes {
             ),
             scopes: CallScopes::prepare(program),
         };
-        for machine in program.machines() {
+        for (ordinal, machine) in program.machines().iter().enumerate() {
+            if cohort.is_some_and(|cohort| !cohort.owns_machine(ordinal, machine.symbol)) {
+                continue;
+            }
             for state in program.machine_states(machine) {
                 let owner = CallOwner::State {
                     machine: machine.symbol,
@@ -830,6 +836,7 @@ impl RuntimeCallableAdmission {
 struct CallInventory<'program> {
     program: &'program typed::TypedTrees,
     indexes: CallIndexes,
+    cohort_declarations: Option<Vec<(u32, u32)>>,
     owner: CallOwner,
     scope: usize,
     outer: Vec<(CallOwner, usize)>,
@@ -879,6 +886,13 @@ impl Extend<symbols::SymbolHandle> for CallInventory<'_> {
 }
 impl typed::references::TypedReferences for CallInventory<'_> {
     fn declaration(&mut self, owner: symbols::SymbolHandle) -> bool {
+        if let Some(cohort) = &self.cohort_declarations
+            && cohort
+                .binary_search(&crate::lowerer::symbol_key(owner))
+                .is_err()
+        {
+            return false;
+        }
         self.select_owner(CallOwner::Declaration { owner });
         true
     }
@@ -1077,14 +1091,56 @@ impl typed::references::TypedReferences for CallInventory<'_> {
 
 /// The shared declaration walk supplies all current expression owners. Bind only
 /// new or unresolved uses, in operand dependency order, before effect admission.
-pub(crate) fn bind_calls(
+pub(crate) fn bind_calls_in_cohort(
     program: &mut typed::TypedTrees,
+    cohort: &crate::lowerer::TypingCohort<'_>,
     expression_frontier: usize,
     type_frontier: usize,
 ) -> Result<RuntimeCallableAdmission, Diagnostic> {
+    let has_new_callable_type = program
+        .type_reference_table
+        .type_reference_rows_from(type_frontier)
+        .any(|(_, node)| matches!(node, typed::types::TypeReferenceNode::Callable { .. }));
+    let has_new_runtime_expr = program
+        .expression_table
+        .iter_expressions_from(expression_frontier + 1)
+        .any(|(_, node)| {
+            matches!(
+                node,
+                typed::expression::ExpressionNode::Call(call) if call.runtime_call.is_some()
+            )
+        });
+    let is_initial_cohort_bind = expression_frontier == cohort.typed_expressions
+        && type_frontier == cohort.typed_type_references;
+    let has_new_runtime_stmt = is_initial_cohort_bind
+        && program
+            .machines()
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, machine)| cohort.owns_machine(*ordinal, machine.symbol))
+            .any(|(_, machine)| {
+                program.machine_states(machine).iter().any(|state| {
+                    program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .iter()
+                        .any(|statement| {
+                            statement
+                                .as_call()
+                                .is_some_and(|call| call.runtime_call.is_some())
+                        })
+                })
+            });
+    if !has_new_callable_type && !has_new_runtime_expr && !has_new_runtime_stmt {
+        return Ok(RuntimeCallableAdmission::default());
+    }
+    let scope_cohort = is_initial_cohort_bind && !cohort.is_fresh();
+    let cohort_declarations = scope_cohort.then(|| cohort.declaration_keys(program));
+    let indexes = CallIndexes::collect(program, scope_cohort.then_some(cohort))?;
     let mut inventory = CallInventory {
         program,
-        indexes: CallIndexes::collect(program)?,
+        indexes,
+        cohort_declarations,
         owner: CallOwner::default(),
         scope: 0,
         outer: Vec::new(),

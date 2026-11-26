@@ -84,6 +84,7 @@ mod equality_preparation;
 mod expression_lowering;
 mod expression_meanings;
 mod lowerer;
+mod operand_owners;
 mod operator_calls;
 mod runtime_callables;
 mod statement_lowering;
@@ -111,6 +112,9 @@ mod applied_service_tests;
 
 #[cfg(test)]
 mod relation_family_tests;
+
+#[cfg(test)]
+mod cohort_equivalence_tests;
 
 pub(crate) use contracts_and_signatures::{contracts, signatures};
 

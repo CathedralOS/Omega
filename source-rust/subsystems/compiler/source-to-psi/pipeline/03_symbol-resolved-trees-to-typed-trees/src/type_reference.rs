@@ -154,11 +154,13 @@ pub(crate) mod domain_constraints {
     ) -> Result<(), Diagnostic> {
         let sites = program
             .type_reference_table
-            .constrained_type_reference_sites()
-            .into_iter()
-            .filter(|(site, _, _)| {
-                usize::try_from(site.arena_index())
-                    .is_ok_and(|index| index > type_reference_frontier)
+            .type_reference_rows_from(type_reference_frontier)
+            .filter_map(|(site, node)| match node {
+                crate::source_state::types::TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => Some((site, *base_type, *constraints)),
+                _ => None,
             })
             .collect::<Vec<_>>();
 
@@ -217,8 +219,15 @@ pub(crate) mod domain_constraints {
                 .source_selection
                 .map(|selection| selection.source_span)
                 .filter(|span| span.span.start != span.span.end);
-            let (matches, names_no_visible_domain) =
-                written_domain_candidates(source, program, site, carrier, &domain_constraint, reference, &mut available)?;
+            let (matches, names_no_visible_domain) = written_domain_candidates(
+                source,
+                program,
+                site,
+                carrier,
+                &domain_constraint,
+                reference,
+                &mut available,
+            )?;
             /*
                 Distinct visible domains competing for one authored spelling
                 reject: neither the referencing module, its package nor import
@@ -283,7 +292,8 @@ pub(crate) mod domain_constraints {
                 carrier,
                 domain_constraint.arguments.as_slice().into(),
             )?;
-            let semantic_id = program.retain_domain_application(domain.symbol, carrier, &indices)?;
+            let semantic_id =
+                program.retain_domain_application(domain.symbol, carrier, &indices)?;
             if domain.alias.is_none() {
                 normalized.push(TypeConstraintNode::Domain(DomainConstraint {
                     product_input: domain_constraint.product_input,
@@ -416,8 +426,18 @@ pub(crate) mod domain_constraints {
         if constraint.subject != DomainConstraintSubject::Declared
             || (reference.is_none() && !constraint.symbol.is_valid())
         {
-            return Ok((select_domain_candidates(source, program, carrier, name, reference,
-                constraint.symbol, &constraint.arguments), false));
+            return Ok((
+                select_domain_candidates(
+                    source,
+                    program,
+                    carrier,
+                    name,
+                    reference,
+                    constraint.symbol,
+                    &constraint.arguments,
+                ),
+                false,
+            ));
         }
         let visible = select_domain_candidates_where(
             source,
@@ -460,7 +480,13 @@ pub(crate) mod domain_constraints {
             let available = available.get_or_insert_with(|| {
                 CarrierQualifications::for_type(source, program, site, plain)
             });
-            available.retain_possible(source, program, plain, &mut compatible, &constraint.arguments);
+            available.retain_possible(
+                source,
+                program,
+                plain,
+                &mut compatible,
+                &constraint.arguments,
+            );
             if compatible.is_empty()
                 && let Some(at) = reference
             {
@@ -604,7 +630,9 @@ pub(crate) mod domain_constraints {
     ) -> Vec<crate::source_state::domain::DomainDefinition> {
         let selected = match reference {
             Some(span) => source.symbols.top_level_candidates_from_source(
-                authored_name, &[symbols::SymbolKind::Domain], span,
+                authored_name,
+                &[symbols::SymbolKind::Domain],
+                span,
             ),
             None if retained.is_valid() => vec![retained],
             None => Vec::new(),
@@ -616,7 +644,8 @@ pub(crate) mod domain_constraints {
                 .source_reference_can_see_symbol(reference.unwrap_or_default(), domain.symbol)
         };
         if !selected.is_empty() {
-            selected.into_iter()
+            selected
+                .into_iter()
                 .filter_map(|symbol| domain_by_symbol(program, symbol))
                 .filter(|domain| visible(domain) && accepts(domain))
                 .cloned()
@@ -658,10 +687,10 @@ mod domain_exposure_tests;
 
 use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
 use crate::declaration_selection::AuthoredDeclarationSelectionKind;
+use crate::lowerer::Lowerer;
 use crate::source_resolved as resolved;
 use crate::source_selections::AuthoredDeclarationSelectionOccurrenceId;
 use crate::source_state as typed;
-use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
@@ -679,8 +708,10 @@ pub(crate) mod alias_uses {
         reference: SourceSpan,
     ) -> Result<(), Diagnostic> {
         if !source.symbols.symbols().nodes().is_valid(declaration) {
-            return Err(Diagnostic::error("type alias application has a stale declaration")
-                .with_source_span(reference));
+            return Err(
+                Diagnostic::error("type alias application has a stale declaration")
+                    .with_source_span(reference),
+            );
         }
         let selected_source = source.symbols.symbol_source_span(declaration).or_else(|| {
             if source.symbols.source_map().is_some() {
@@ -774,7 +805,8 @@ pub(crate) mod alias_uses {
                 .data_type_parameters
                 .span(alias.type_parameters)
                 .ok_or_else(|| {
-                    crate::unavailable_judgment("declared type alias parameters").with_source_span(site)
+                    crate::unavailable_judgment("declared type alias parameters")
+                        .with_source_span(site)
                 })?;
             let actuals = program
                 .type_reference_table
@@ -792,7 +824,9 @@ pub(crate) mod alias_uses {
             let supplying_owner = if application.supplied_operand_owner.is_valid() {
                 application.supplied_operand_owner
             } else {
-                program.type_reference_table.operand_lifetime_owner(application.application)
+                program
+                    .type_reference_table
+                    .operand_lifetime_owner(application.application)
             };
             typed_trees::data_applications::check_supplied_lifetimes(
                 program,
@@ -800,7 +834,9 @@ pub(crate) mod alias_uses {
                 supplying_owner,
                 &application.lifetime_arguments,
             )
-            .map_err(|reason| Diagnostic::error(format!("type alias {reason}")).with_source_span(site))?;
+            .map_err(|reason| {
+                Diagnostic::error(format!("type alias {reason}")).with_source_span(site)
+            })?;
             let mut const_parameters = None;
             for (position, (formal, actual)) in formals.iter().zip(actuals).enumerate() {
                 if matches!(formal.kind, typed::data::TypeParameterKind::Const { .. }) {
@@ -841,8 +877,12 @@ pub(crate) mod alias_uses {
                     ))
                     .with_source_span(site));
                 }
-                typed_trees::data_applications::check_type_argument(program, *actual, supplying_owner)
-                    .map_err(|reason| Diagnostic::error(reason).with_source_span(site))?;
+                typed_trees::data_applications::check_type_argument(
+                    program,
+                    *actual,
+                    supplying_owner,
+                )
+                .map_err(|reason| Diagnostic::error(reason).with_source_span(site))?;
                 type_argument_meets_bounds(program, formal, *actual).map_err(|stop| {
                     match stop {
                         Stop::Rejected(reason) => Diagnostic::error(reason),
@@ -854,9 +894,11 @@ pub(crate) mod alias_uses {
             }
         }
         let mut owners = None;
+        let cohort = crate::lowerer::TypingCohort::with_type_references(completed_references);
         for (owner, argument, site, request) in pending {
             super::const_arguments::closed_applications::defer_to_holders(
                 program,
+                &cohort,
                 &mut owners,
                 owner,
                 &[argument],
@@ -986,21 +1028,31 @@ pub(crate) mod const_arguments {
         use crate::source_state::types::TypeReferenceHandle;
         use symbols::SymbolHandle;
 
+        #[cfg(test)]
         pub(crate) fn normalize(
             source: &crate::source_resolved::SymbolResolvedTrees,
             program: &mut TypedTrees,
             frontier: usize,
         ) -> Result<(), Diagnostic> {
+            let mut owners = None;
+            let cohort = crate::lowerer::TypingCohort::with_type_references(frontier);
+            normalize_in_cohort(source, program, &cohort, &mut owners)
+        }
+
+        pub(crate) fn normalize_in_cohort(
+            source: &crate::source_resolved::SymbolResolvedTrees,
+            program: &mut TypedTrees,
+            cohort: &crate::lowerer::TypingCohort<'_>,
+            owners: &mut Option<crate::operand_owners::CohortOperandOwners>,
+        ) -> Result<(), Diagnostic> {
+            let frontier = cohort.typed_type_references;
             // A shared argument may appear in several receiving applications.
             // Check each carrier while the selected declaration and any typed
             // literal still exist, then publish the canonical keys together.
             let mut applications = program
                 .type_reference_table
-                .type_reference_rows()
+                .type_reference_rows_from(frontier)
                 .filter_map(|(reference, node)| {
-                    if reference.arena_index() as usize <= frontier {
-                        return None;
-                    }
                     let TypeReferenceNode::Generic {
                         base_symbol,
                         arguments,
@@ -1023,13 +1075,18 @@ pub(crate) mod const_arguments {
                 .collect::<Vec<_>>();
             // A qualifier applies the selected domain's own telescope. Resolve it with
             // the same carrier and source visibility that establish its semantic identity.
-            for (site, carrier, constraints) in program
+            let constrained_sites = program
                 .type_reference_table
-                .constrained_type_reference_sites()
-            {
-                if site.arena_index() as usize <= frontier {
-                    continue;
-                }
+                .type_reference_rows_from(frontier)
+                .filter_map(|(site, node)| match node {
+                    TypeReferenceNode::Constrained {
+                        base_type,
+                        constraints,
+                    } => Some((site, *base_type, *constraints)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            for (site, carrier, constraints) in constrained_sites {
                 for constraint in program.type_reference_table.constraints(constraints) {
                     let crate::source_state::types::TypeConstraintNode::Domain(domain) = constraint
                     else {
@@ -1079,29 +1136,36 @@ pub(crate) mod const_arguments {
                     continue;
                 };
                 let scope = application.arguments.scope(program).ok_or_else(|| {
-                    Diagnostic::error("an applied service lost the receiver of its static arguments")
+                    Diagnostic::error(
+                        "an applied service lost the receiver of its static arguments",
+                    )
                 })?;
-                applications.push((
-                    scope.declaration.symbol,
-                    program
-                        .trait_type_parameters(scope.declaration)
+                let args: Vec<_> = program
+                    .trait_type_parameters(scope.declaration)
+                    .iter()
+                    .map(|binder| scope.parameter_argument(program, binder.symbol))
+                    .collect();
+                if frontier == 0
+                    || args
                         .iter()
-                        .map(|binder| scope.parameter_argument(program, binder.symbol))
-                        .collect(),
-                    scope.argument_owner,
-                ));
+                        .any(|argument| argument.arena_index() as usize > frontier)
+                {
+                    applications.push((scope.declaration.symbol, args, scope.argument_owner));
+                }
             }
-            applications.extend(program.conformances().iter().map(|declaration| {
-                (
-                    declaration.trait_symbol,
-                    program
-                        .type_reference_table
-                        .type_reference_handles(declaration.arguments)
-                        .to_vec(),
-                    declaration.symbol,
-                )
-            }));
-            for machine in program.machines() {
+            applications.extend(program.conformances().iter().skip(cohort.conformances).map(
+                |declaration| {
+                    (
+                        declaration.trait_symbol,
+                        program
+                            .type_reference_table
+                            .type_reference_handles(declaration.arguments)
+                            .to_vec(),
+                        declaration.symbol,
+                    )
+                },
+            ));
+            for machine in program.machines().iter().skip(cohort.typed_machines) {
                 applications.extend(program.machine_trait_conformances(machine).iter().map(
                     |edge| {
                         (
@@ -1115,7 +1179,7 @@ pub(crate) mod const_arguments {
                     },
                 ));
             }
-            for declaration in program.traits() {
+            for declaration in program.traits().iter().skip(cohort.traits) {
                 applications.extend(
                     program
                         .trait_requirements(declaration)
@@ -1145,23 +1209,27 @@ pub(crate) mod const_arguments {
             let bounds = program
                 .machines()
                 .iter()
+                .skip(cohort.typed_machines)
                 .map(|item| (item.symbol, &item.conformance_bounds))
                 .chain(
                     program
                         .traits()
                         .iter()
+                        .skip(cohort.traits)
                         .map(|item| (item.symbol, &item.conformance_bounds)),
                 )
                 .chain(
                     program
                         .data_definitions()
                         .iter()
+                        .skip(cohort.data_definitions)
                         .map(|item| (item.symbol, &item.conformance_bounds)),
                 )
                 .chain(
                     program
                         .type_aliases()
                         .iter()
+                        .skip(cohort.type_aliases)
                         .map(|item| (item.symbol, &item.conformance_bounds)),
                 );
             for (owner, bounds) in bounds {
@@ -1174,7 +1242,9 @@ pub(crate) mod const_arguments {
                     (bound.trait_symbol, bound.arguments.clone(), owner)
                 }));
             }
-            for (argument, spelling) in replacements(program, frontier, applications)? {
+            for (argument, spelling) in
+                replacements_in_cohort(program, cohort, frontier, owners, applications)?
+            {
                 program
                     .type_reference_table
                     .substitute_node(argument, canonical_argument(spelling));
@@ -1222,9 +1292,11 @@ pub(crate) mod const_arguments {
                     );
                 }
                 complete.extend_from_slice(&indices);
-                let values = replacements(
+                let values = replacements_in_cohort(
                     program,
+                    &crate::lowerer::TypingCohort::default(),
                     0,
+                    &mut None,
                     [(declaration, complete, SymbolHandle::invalid())],
                 )?;
                 if !values.is_empty() {
@@ -1248,15 +1320,16 @@ pub(crate) mod const_arguments {
             Ok((id, normalized))
         }
 
-        fn replacements(
+        fn replacements_in_cohort(
             program: &mut TypedTrees,
+            cohort: &crate::lowerer::TypingCohort<'_>,
             frontier: usize,
+            owners: &mut Option<crate::operand_owners::CohortOperandOwners>,
             applications: impl IntoIterator<
                 Item = (SymbolHandle, Vec<TypeReferenceHandle>, SymbolHandle),
             >,
         ) -> Result<Vec<(TypeReferenceHandle, String)>, Diagnostic> {
             let mut replacements = Vec::new();
-            let mut owners = None;
             for (declaration, arguments, owner) in applications {
                 if let Some(sort) = program.symbols.universe_sort_for_symbol(declaration) {
                     // `core::Type<u>` and `core::Strict<u>` apply one universe
@@ -1291,7 +1364,8 @@ pub(crate) mod const_arguments {
                             .collect::<Vec<_>>();
                         defer_to_holders(
                             program,
-                            &mut owners,
+                            cohort,
+                            owners,
                             owner,
                             &demanded,
                             DeferredRequest::ConstArgumentAdmission,
@@ -1323,7 +1397,12 @@ pub(crate) mod const_arguments {
                         continue;
                     }
                     match const_argument(
-                        program, declaration, parameter, argument, &parameters, &arguments,
+                        program,
+                        declaration,
+                        parameter,
+                        argument,
+                        &parameters,
+                        &arguments,
                     )? {
                         ConstArgument::Canonical(spelling) => {
                             replacements.push((argument, spelling));
@@ -1331,7 +1410,8 @@ pub(crate) mod const_arguments {
                         ConstArgument::Unchanged => {}
                         ConstArgument::RequiresTyping => defer_to_holders(
                             program,
-                            &mut owners,
+                            cohort,
+                            owners,
                             owner,
                             &[argument],
                             DeferredRequest::ConstArgumentAdmission,
@@ -1664,14 +1744,15 @@ pub(crate) mod const_arguments {
         /// reader to raise it and refuses here with `unheld`.
         pub(crate) fn defer_to_holders(
             program: &mut TypedTrees,
-            owners: &mut Option<crate::source_state::references::ProgramOperandOwners>,
+            cohort: &crate::lowerer::TypingCohort<'_>,
+            owners: &mut Option<crate::operand_owners::CohortOperandOwners>,
             owner: symbols::SymbolHandle,
             arguments: &[crate::source_state::types::TypeReferenceHandle],
             request: DeferredRequest,
             unheld: Diagnostic,
         ) -> Result<(), Diagnostic> {
             let owners = owners.get_or_insert_with(|| {
-                crate::source_state::references::collect_program_operand_owners(program)
+                crate::operand_owners::CohortOperandOwners::collect(program, cohort)
             });
             let mut holders = arguments
                 .iter()
@@ -2245,19 +2326,18 @@ pub(crate) mod const_arguments {
                                 }),
                             ));
                         program.push_const_declaration(ConstDeclaration {
-                        symbol: zero,
-                        declared_type: carrier,
-                        materialized_initializer,
-                        evaluated_value: Some(
-                            numeric_literals::EvaluatedConstant::Encoded(
+                            symbol: zero,
+                            declared_type: carrier,
+                            materialized_initializer,
+                            evaluated_value: Some(numeric_literals::EvaluatedConstant::Encoded(
                                 application_identity::const_value::CanonicalConstIdentity::integer(
-                                    LandedIntegerType::U64, 0,
+                                    LandedIntegerType::U64,
+                                    0,
                                 )
                                 .encoding,
-                            ),
-                        ),
-                        ..Default::default()
-                    });
+                            )),
+                            ..Default::default()
+                        });
                         let left = program.expression_table.insert_tree(&Expression::Name(
                             NamePath::resolved(vec![Identifier::generated("ZERO")], zero, zero),
                         ));
@@ -2509,7 +2589,11 @@ pub(crate) mod const_arguments {
                             symbol,
                             declared_type,
                             evaluated_value: Some(numeric_literals::EvaluatedConstant::Encoded(
-                                application_identity::const_value::CanonicalConstIdentity::integer(LandedIntegerType::U8, 1).encoding,
+                                application_identity::const_value::CanonicalConstIdentity::integer(
+                                    LandedIntegerType::U8,
+                                    1,
+                                )
+                                .encoding,
                             )),
                             ..Default::default()
                         });
@@ -2607,7 +2691,7 @@ pub(crate) mod const_arguments {
         }
     }
 
-    pub(crate) use closed_applications::normalize as normalize_const_argument_carriers;
+    pub(crate) use closed_applications::normalize_in_cohort as normalize_const_argument_carriers_in_cohort;
     pub(crate) use closed_applications::{canonical_domain_indices, selected_domain_application};
 }
 pub(crate) mod constraints {
@@ -2630,9 +2714,7 @@ pub(crate) mod constraints {
         for constraint in type_references(source_trees).constraints(constraints) {
             let constraint = match constraint {
                 resolved::types::TypeConstraintNode::Named(name) => {
-                    typed::types::TypeConstraintNode::Named(
-                        crate::lowerer::name::lower_name(name),
-                    )
+                    typed::types::TypeConstraintNode::Named(crate::lowerer::name::lower_name(name))
                 }
                 resolved::types::TypeConstraintNode::Domain(domain) => {
                     let arguments = type_references(source_trees)
@@ -2713,11 +2795,9 @@ pub(crate) mod constraints {
         exposure: Option<AuthoredDeclarationSelectionExposure>,
     ) -> Result<typed::types::TypeConstraintNode, Diagnostic> {
         match constraint {
-            resolved::types::TypeConstraint::Named(name) => {
-                Ok(typed::types::TypeConstraintNode::Named(
-                    crate::lowerer::name::lower_name(name),
-                ))
-            }
+            resolved::types::TypeConstraint::Named(name) => Ok(
+                typed::types::TypeConstraintNode::Named(crate::lowerer::name::lower_name(name)),
+            ),
             resolved::types::TypeConstraint::Domain(domain) => {
                 let arguments = source_trees
                     .tables
@@ -2952,10 +3032,8 @@ pub(crate) mod direct {
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
             }
             resolved::types::TypeReference::Callable { contract, .. } => {
-                let contract = crate::runtime_callables::lower_contract_reference(
-                    typed_trees,
-                    *contract,
-                )?;
+                let contract =
+                    crate::runtime_callables::lower_contract_reference(typed_trees, *contract)?;
                 Ok(typed_trees
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::Callable { contract }))
@@ -3862,8 +3940,7 @@ pub(crate) mod generic_origins {
                 .expressions
                 .source_span(source.expression);
             self.failure.get_or_insert_with(|| {
-                crate::unavailable_judgment("closed const argument replay")
-                    .with_source_span(span)
+                crate::unavailable_judgment("closed const argument replay").with_source_span(span)
             });
             None
         }
@@ -3982,9 +4059,7 @@ pub(crate) mod table {
                     typed::types::TypeReferenceNode::Reference {
                         referee,
                         access: *access,
-                        lifetime: lifetime
-                            .as_ref()
-                            .map(crate::lowerer::name::lower_name),
+                        lifetime: lifetime.as_ref().map(crate::lowerer::name::lower_name),
                     },
                 ))
             }
@@ -4093,10 +4168,8 @@ pub(crate) mod table {
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
             }
             resolved::types::TypeReferenceNode::Callable { contract } => {
-                let contract = crate::runtime_callables::lower_contract_reference(
-                    typed_trees,
-                    *contract,
-                )?;
+                let contract =
+                    crate::runtime_callables::lower_contract_reference(typed_trees, *contract)?;
                 Ok(typed_trees
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::Callable { contract }))
@@ -4201,7 +4274,8 @@ pub(crate) fn retain_supplied_operand_owner(
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
 pub(crate) use computed_results::retain_computed_result_types;
 pub(crate) use const_arguments::{
-    canonical_domain_indices, normalize_const_argument_carriers, selected_domain_application,
+    canonical_domain_indices, normalize_const_argument_carriers_in_cohort,
+    selected_domain_application,
 };
 pub(crate) use generic_origins::validate_computed_arguments;
 

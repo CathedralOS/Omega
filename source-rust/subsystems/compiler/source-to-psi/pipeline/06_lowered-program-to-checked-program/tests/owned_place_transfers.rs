@@ -182,7 +182,7 @@ const CELLS: &str = "data Cell { v: u8; } data Pair { left: Cell; right: Cell; }
 #[test]
 fn a_field_moved_out_of_borrowed_storage_is_stored_back_at_the_same_path() {
     let restored = Program::of(&format!(
-        "{CELLS} machine edit(p: @mutable Pair) {{ let old = move p.left; p.left = move old; }}"
+        "{CELLS} machine edit(p: @mutable Pair) {{ let old: Cell = move p.left; p.left = move old; }}"
     ));
     let edit = restored.machine("edit");
     let p = formal(edit, 0);
@@ -224,7 +224,7 @@ fn a_field_moved_out_of_borrowed_storage_is_stored_back_at_the_same_path() {
     const NOT_RESTORED: &str =
         "the place does not hold a value again where the machine returns the borrow";
     let sibling = Program::of(&format!(
-        "{CELLS} machine edit(p: @mutable Pair) {{ let old = move p.left; p.right = move old; }}"
+        "{CELLS} machine edit(p: @mutable Pair) {{ let old: Cell = move p.left; p.right = move old; }}"
     ));
     let rejection = sibling.judged(|_| {}).rejected();
     assert!(
@@ -283,7 +283,7 @@ fn a_store_fills_the_vacant_field_and_replaces_the_live_sibling() {
     let replace = |destination: &str| {
         Program::of(&format!(
             "{PAIR} machine replace(p: Pair, new: Token) -> Token {{ \
-             let mutable q = move p; let old = move q.left; q.{destination} = move new; old }}"
+             let mutable q: Pair = move p; let old: Token = move q.left; q.{destination} = move new; old }}"
         ))
     };
     let mut vacant_store = None;

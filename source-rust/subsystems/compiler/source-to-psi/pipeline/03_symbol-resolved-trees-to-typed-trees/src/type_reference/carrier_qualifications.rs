@@ -187,7 +187,8 @@ impl CarrierQualifications {
                 continue;
             };
             for (mut symbol, indices) in members {
-                let Ok(indices) = super::canonical_domain_indices(program, symbol, carrier, indices.into())
+                let Ok(indices) =
+                    super::canonical_domain_indices(program, symbol, carrier, indices.into())
                 else {
                     continue;
                 };

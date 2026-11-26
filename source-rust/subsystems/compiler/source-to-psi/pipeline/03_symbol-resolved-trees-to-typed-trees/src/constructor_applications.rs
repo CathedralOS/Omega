@@ -11,18 +11,29 @@ use crate::source_state::{TypedTrees, data::TypeParameterKind};
 use diagnostics::Diagnostic;
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 
+#[cfg(test)]
 pub(crate) fn prepare(
     source: &crate::source_resolved::SymbolResolvedTrees,
     program: &mut TypedTrees,
     frontier: usize,
 ) -> Result<(), Diagnostic> {
+    let cohort = crate::lowerer::TypingCohort::for_expressions(frontier);
+    let owners = crate::operand_owners::CohortOperandOwners::full(program);
+    prepare_in_cohort(source, program, &cohort, &owners)
+}
+
+pub(crate) fn prepare_in_cohort(
+    source: &crate::source_resolved::SymbolResolvedTrees,
+    program: &mut TypedTrees,
+    cohort: &crate::lowerer::TypingCohort<'_>,
+    owners: &crate::operand_owners::CohortOperandOwners,
+) -> Result<(), Diagnostic> {
+    let frontier = cohort.typed_expressions;
     let expressions: Vec<_> = program
         .expression_table
-        .expression_entries()
-        .filter(|(handle, _)| handle.arena_index() as usize > frontier)
+        .iter_expressions_from(frontier + 1)
         .map(|(handle, _)| handle)
         .collect();
-    let owners = crate::source_state::references::collect_program_operand_owners(program);
     for expression in expressions {
         infer(program, expression, &mut Vec::new())?;
         let needs_owner = match program.expression_table.expression(expression) {
@@ -36,7 +47,7 @@ pub(crate) fn prepare(
         if !needs_owner {
             continue;
         }
-        let Some(caller) = expression_owner(program, &owners, expression) else {
+        let Some(caller) = expression_owner(program, owners, expression) else {
             continue;
         };
         if let ExpressionNode::Cast(cast) = program.expression_table.expression(expression)
@@ -106,68 +117,43 @@ pub(crate) fn prepare(
             }
         }
     }
-    let statements: Vec<_> = program
-        .machines()
-        .iter()
-        .flat_map(|machine| {
-            program.machine_states(machine).iter().flat_map(|state| {
-                state.statement_nodes.handles().filter_map(|handle| {
-                    let call = program.statement_table.statement(handle).as_call()?;
-                    Some((
-                        machine.symbol,
-                        handle,
-                        CallInput {
-                            target: call.target_symbol,
-                            name: call.target.clone(),
-                            application: call.authored_machine_application,
-                            explicit: !call.machine_arguments.is_empty(),
-                            ordinary: call.receiver.is_empty()
-                                && !call.static_machine_parameter.is_valid()
-                                && call.static_requirement_dispatch.is_none()
-                                && call.installed_interrupt_operation.is_none()
-                                && call.machine_arguments.is_empty()
-                                && call.evidence_arguments.is_empty(),
-                            selection: call.authored_call_selection,
-                            source_span: call.source_span,
-                            expected_result: None,
-                            binding: None,
-                            arguments: program
-                                .statement_table
-                                .expression_handles(call.arguments)
-                                .to_vec(),
-                        },
-                    ))
-                })
-            })
-        })
-        .collect();
-    for (caller, handle, mut input) in statements {
-        let previous = (input.target, input.application);
-        select_call(source, program, &mut input, caller)?;
-        let application = infer_call(program, &mut input, caller)?;
-        if input.target == previous.0 && application.is_none_or(|next| next == previous.1) {
+    let mut statements = Vec::new();
+    let mut terminal_calls = Vec::new();
+    for (ordinal, machine) in program.machines().iter().enumerate() {
+        if !cohort.owns_machine(ordinal, machine.symbol) {
             continue;
         }
-        if let Some(call) = program.statement_table.call_mut(handle) {
-            call.target_symbol = input.target;
-            if let Some(application) = application {
-                call.authored_machine_application = application;
-            }
-        }
-    }
-    let terminal_calls: Vec<_> = program
-        .machines()
-        .iter()
-        .flat_map(|machine| {
-            program.machine_states(machine).iter().flat_map(|state| {
-                state.statement_nodes.handles().flat_map(|statement| {
-                    program
-                        .statement_table
-                        .statement(statement)
-                        .as_transition()
-                        .into_iter()
-                        .flat_map(|transition| transition.targets())
-                        .filter_map(|handle| {
+        for state in program.machine_states(machine) {
+            for handle in state.statement_nodes.handles() {
+                match program.statement_table.statement(handle) {
+                    crate::source_state::statement::StatementNode::Call(call) => {
+                        statements.push((
+                            machine.symbol,
+                            handle,
+                            CallInput {
+                                target: call.target_symbol,
+                                name: call.target.clone(),
+                                application: call.authored_machine_application,
+                                explicit: !call.machine_arguments.is_empty(),
+                                ordinary: call.receiver.is_empty()
+                                    && !call.static_machine_parameter.is_valid()
+                                    && call.static_requirement_dispatch.is_none()
+                                    && call.installed_interrupt_operation.is_none()
+                                    && call.machine_arguments.is_empty()
+                                    && call.evidence_arguments.is_empty(),
+                                selection: call.authored_call_selection,
+                                source_span: call.source_span,
+                                expected_result: None,
+                                binding: None,
+                                arguments: program
+                                    .statement_table
+                                    .expression_handles(call.arguments)
+                                    .to_vec(),
+                            },
+                        ));
+                    }
+                    crate::source_state::statement::StatementNode::Transition(transition) => {
+                        for target_handle in transition.targets() {
                             let crate::source_state::statement::TransitionTargetNode::Named {
                                 path,
                                 static_machine_parameter,
@@ -176,17 +162,17 @@ pub(crate) fn prepare(
                                 source_span,
                                 authored_call_selection,
                                 ..
-                            } = program.statement_table.transition_target(handle)
+                            } = program.statement_table.transition_target(target_handle)
                             else {
-                                return None;
+                                continue;
                             };
                             let [name] = program.statement_table.name_path_members(path.members)
                             else {
-                                return None;
+                                continue;
                             };
-                            Some((
+                            terminal_calls.push((
                                 machine.symbol,
-                                handle,
+                                target_handle,
                                 CallInput {
                                     target: path.symbol,
                                     name: name.clone(),
@@ -207,12 +193,28 @@ pub(crate) fn prepare(
                                         .expression_handles(*arguments)
                                         .to_vec(),
                                 },
-                            ))
-                        })
-                })
-            })
-        })
-        .collect();
+                            ));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    for (caller, handle, mut input) in statements {
+        let previous = (input.target, input.application);
+        select_call(source, program, &mut input, caller)?;
+        let application = infer_call(program, &mut input, caller)?;
+        if input.target == previous.0 && application.is_none_or(|next| next == previous.1) {
+            continue;
+        }
+        if let Some(call) = program.statement_table.call_mut(handle) {
+            call.target_symbol = input.target;
+            if let Some(application) = application {
+                call.authored_machine_application = application;
+            }
+        }
+    }
     for (caller, handle, mut input) in terminal_calls {
         let original = input.target;
         if original.is_valid() || !input.ordinary {
@@ -234,34 +236,29 @@ pub(crate) fn prepare(
 /// Index and range lookup consumes the operand's complete declared type, not
 /// its storage carrier. Run after application views and casts are normalized:
 /// a template field has no applied type to retain during constructor inference.
-pub(crate) fn retain_indexed_operand_types(
+pub(crate) fn retain_indexed_operand_types_in_cohort(
     program: &mut TypedTrees,
     frontier: usize,
+    owners: &crate::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
     let operands = program
         .expression_table
-        .expression_entries()
-        .filter_map(|(expression, node)| {
-            if expression.arena_index() as usize <= frontier {
-                return None;
-            }
-            let ExpressionNode::Indexed(_) = node else {
-                return None;
-            };
-            Some(expression)
+        .iter_expressions_from(frontier + 1)
+        .filter_map(|(expression, node)| match node {
+            ExpressionNode::Indexed(_) => Some(expression),
+            _ => None,
         })
         .collect::<Vec<_>>();
-    let owners = crate::source_state::references::collect_program_operand_owners(program);
     let mut declared = crate::typing_queries::DeclaredExpressionTypes::default();
     for expression in operands {
-        retain_indexed_operand_type(program, &owners, &mut declared, expression)?;
+        retain_indexed_operand_type(program, owners, &mut declared, expression)?;
     }
     Ok(())
 }
 
 pub(crate) fn retain_indexed_operand_type(
     program: &mut TypedTrees,
-    owners: &crate::source_state::references::ProgramOperandOwners,
+    owners: &crate::operand_owners::CohortOperandOwners,
     declared: &mut crate::typing_queries::DeclaredExpressionTypes,
     expression: ExpressionHandle,
 ) -> Result<(), Diagnostic> {
@@ -358,7 +355,7 @@ fn retain_builtin_range_type(
 
 fn expression_owner(
     program: &TypedTrees,
-    owners: &crate::source_state::references::ProgramOperandOwners,
+    owners: &crate::operand_owners::CohortOperandOwners,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let mut callers = owners.expression_owners(expression);
@@ -433,18 +430,15 @@ impl CallInput {
 /// It chooses a result-domain overload; it grants no domain membership.
 pub(crate) struct CallResultSelections<'a> {
     source: &'a crate::source_resolved::SymbolResolvedTrees,
-    owners: crate::source_state::references::ProgramOperandOwners,
+    owners: &'a crate::operand_owners::CohortOperandOwners,
 }
 
 impl<'a> CallResultSelections<'a> {
     pub(crate) fn new(
         source: &'a crate::source_resolved::SymbolResolvedTrees,
-        program: &TypedTrees,
+        owners: &'a crate::operand_owners::CohortOperandOwners,
     ) -> Self {
-        Self {
-            source,
-            owners: crate::source_state::references::collect_program_operand_owners(program),
-        }
+        Self { source, owners }
     }
 
     pub(crate) fn source(&self) -> &'a crate::source_resolved::SymbolResolvedTrees {
@@ -457,7 +451,7 @@ impl<'a> CallResultSelections<'a> {
         expression: ExpressionHandle,
         expected: Option<TypeReferenceHandle>,
     ) -> Result<(), Diagnostic> {
-        let Some(caller) = expression_owner(program, &self.owners, expression) else {
+        let Some(caller) = expression_owner(program, self.owners, expression) else {
             return Ok(());
         };
         let Some(mut input) = CallInput::expression(program, expression, expected) else {
@@ -1462,7 +1456,7 @@ mod tests {
         "#,
         )])
         .unwrap();
-        let owners = crate::source_state::references::collect_program_operand_owners(&program);
+        let owners = crate::operand_owners::CohortOperandOwners::full(&program);
         let buffer = program
             .data_definitions()
             .iter()
@@ -1536,7 +1530,7 @@ mod tests {
         "#,
         )])
         .unwrap();
-        let owners = crate::source_state::references::collect_program_operand_owners(&program);
+        let owners = crate::operand_owners::CohortOperandOwners::full(&program);
         let mut observed = Vec::new();
         for (expression, node) in program.expression_table.expression_entries() {
             let ExpressionNode::Indexed(indexed) = node else {

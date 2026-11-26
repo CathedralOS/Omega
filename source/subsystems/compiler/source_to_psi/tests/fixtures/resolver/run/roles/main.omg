@@ -8,13 +8,13 @@ machine start() crashes Trap {
     resolver.output.accepted = false;
     resolver.output.diagnostic.code = |names|::ResolveDiagnosticCode::UnresolvedImport;
     |resolution_state|::initialize(@mutable resolver);
-    let high = 131071u64 as +Trapping;
-    let neighbor = 131070u64 as +Trapping;
+    let high: u64 in Trapping = 131071u64 as +Trapping;
+    let neighbor: u64 in Trapping = 131070u64 as +Trapping;
     |resolution_state|::resolver_set_role(@mutable resolver, neighbor, |resolution_state|::NameRole::Target);
     |resolution_state|::resolver_set_role(@mutable resolver, high, |resolution_state|::NameRole::Callee);
-    let target = |resolution_state|::resolver_role(@resolver, neighbor);
-    let callee = |resolution_state|::resolver_role(@resolver, high);
-    let first = |resolution_state|::resolver_role(@resolver, 0u64 as +Trapping);
+    let target: |resolution_state|::NameRole = |resolution_state|::resolver_role(@resolver, neighbor);
+    let callee: |resolution_state|::NameRole = |resolution_state|::resolver_role(@resolver, high);
+    let first: |resolution_state|::NameRole = |resolution_state|::resolver_role(@resolver, 0u64 as +Trapping);
     transition resolver.output.accepted && resolver.output.binding_count == 0
         && resolver.output.diagnostic.code == |names|::ResolveDiagnosticCode::None
         && target == |resolution_state|::NameRole::Target && callee == |resolution_state|::NameRole::Callee

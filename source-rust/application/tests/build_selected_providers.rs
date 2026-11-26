@@ -186,8 +186,8 @@ boundary trait Service<T> { machine value() -> u32 reaches none crashes none; }
 First satisfies Service<Tag in Tag::Left> { machine value() -> u32 { 29u32 } }
 Second satisfies Service<Tag in Tag::Right> { machine value() -> u32 { 37u32 } }
 machine entry() crashes Trap {
-    let left = Service::<Tag in Tag::Left>::value();
-    let right = Service::<Tag in Tag::Right>::value();
+    let left: u32 = Service::<Tag in Tag::Left>::value();
+    let right: u32 = Service::<Tag in Tag::Right>::value();
     transition left == 29u32 && right == 37u32 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
@@ -234,8 +234,8 @@ boundary trait Reading<T> { machine read() -> u32 reaches none crashes none; }
 Words satisfies Reading<Packet<u32>> { machine read() -> u32 { 29u32 } }
 Wide satisfies Reading<Packet<u64>> { machine read() -> u32 { 37u32 } }
 machine entry() crashes Trap {
-    let word = Reading::<Packet<u32>>::read();
-    let wide = Reading::<Packet<u64>>::read();
+    let word: u32 = Reading::<Packet<u32>>::read();
+    let wide: u32 = Reading::<Packet<u64>>::read();
     transition word == 29u32 && wide == 37u32 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }
@@ -264,7 +264,7 @@ fn an_ordinary_build_helper_forwards_the_type_of_its_checked_alias() {
     let product = r#"boundary trait Reading<T> { machine read() -> u32 reaches none crashes none; }
 Words satisfies Reading<u32> { machine read() -> u32 { 29u32 } }
 machine entry() crashes Trap {
-    let word = Reading::<u32>::read();
+    let word: u32 = Reading::<u32>::read();
     transition word == 29u32 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

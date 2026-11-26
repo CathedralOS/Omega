@@ -36,6 +36,14 @@ pub fn build_prelude() -> BuildPrelude {
     }
 }
 
+/// Logical files exported by the compiler-owned Build library.
+pub fn build_file_namespace(root: Option<&str>, path: &str) -> Option<&'static str> {
+    match (root, path) {
+        (Some("omega"), "build/dependency.omg") => Some("dependency"),
+        _ => None,
+    }
+}
+
 const MODULES: &[(&str, &str)] = &[
     ("dependency", include_str!("prelude/modules/dependency.omg")),
     ("Build", include_str!("prelude/modules/build_operations.omg")),

@@ -143,12 +143,12 @@ fn errors_found_after_an_expression_is_built_report_where_the_fault_is() {
     let mut wrong = Vec::new();
     for (source, expected) in [
         (
-            "machine main() {\n    let values = [1, 2, 3];\n    let tail = values[1..=];\n}\n",
-            "case.omg:3:24: inclusive range `..=` requires an end expression",
+            "machine main() {\n    let values: [u8; 3] = [1, 2, 3];\n    let tail: @[u8] = values[1..=];\n}\n",
+            "case.omg:3:31: inclusive range `..=` requires an end expression",
         ),
         (
-            "machine main() {\n    let values = [1, 2, 3];\n    let all = values[..=];\n}\n",
-            "case.omg:3:22: inclusive range `..=` requires an end expression",
+            "machine main() {\n    let values: [u8; 3] = [1, 2, 3];\n    let all: @[u8] = values[..=];\n}\n",
+            "case.omg:3:29: inclusive range `..=` requires an end expression",
         ),
         (
             "machine plan(builder: Build) {\n    builder.roots.bind(slot, entry);\n}\n",
@@ -156,8 +156,8 @@ fn errors_found_after_an_expression_is_built_report_where_the_fault_is() {
         ),
 
         (
-            "machine main() {\n    let size = (Describe::<u8>)(1);\n}\n",
-            "case.omg:2:16: a declaration description is not an executable callable value",
+            "machine main() {\n    let size: u64 = (Describe::<u8>)(1);\n}\n",
+            "case.omg:2:21: a declaration description is not an executable callable value",
         ),
     ] {
         let reported = parse_diagnostic(source);
@@ -174,12 +174,12 @@ fn errors_found_after_an_expression_is_built_report_where_the_fault_is() {
 fn a_source_that_ends_early_reports_the_end_of_the_file() {
     assert_eq!(
         [
-            parse_diagnostic("machine main() {\n    let size = 1;\n"),
-            parse_diagnostic("machine main() {\n    let size ="),
+            parse_diagnostic("machine main() {\n    let size: u64 = 1;\n"),
+            parse_diagnostic("machine main() {\n    let size: u64 ="),
         ],
         [
             "case.omg:3:1: expected expression",
-            "case.omg:2:15: expected expression",
+            "case.omg:2:20: expected expression",
         ]
     );
 }

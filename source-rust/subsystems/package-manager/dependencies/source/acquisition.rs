@@ -94,6 +94,14 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         self.locked_activations = true;
     }
 
+    /// A version 4 lock records one Build callable per source occurrence.
+    pub fn admit_successor(&self) -> Result<(), String> {
+        if self.locked_activations {
+            return Err("a version 4 package lock cannot authorize a successor Build entry".into());
+        }
+        Ok(())
+    }
+
     /// Admit a package's Build activation only when the lock accepted its
     /// exact source. Call this before the Build is scheduled to run.
     pub fn admit_locked_activation(&self, acquired: &AcquiredBuildSource) -> Result<(), String> {
@@ -119,6 +127,14 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         &mut self,
         pending: PendingBuildSource,
     ) -> Result<BuildSourceAcquisition, String> {
+        self.acquire_or_reuse(pending, None)
+    }
+
+    pub(crate) fn acquire_or_reuse(
+        &mut self,
+        pending: PendingBuildSource,
+        frozen: Option<AcquiredBuildSource>,
+    ) -> Result<BuildSourceAcquisition, String> {
         if pending.request.root_request() != &self.root_request
             && !self
                 .sources
@@ -134,6 +150,9 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             && let Err(error) = admit_locked_source_request(source, &pending.request)
         {
             return Err(pending.request.fail(error).to_string());
+        }
+        if let Some(frozen) = frozen {
+            return pending.select(frozen);
         }
         let requester = pending.request.requester();
         let origin = SourceAcquisitionOrigin {
@@ -161,6 +180,9 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         purpose: build_declarations::DependencyPurpose,
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
+        if requests.iter().filter(|issued| matches!(issued.request(), build_declarations::BuildRequest::Dependency {purpose: registered, ..} if *registered == purpose)).nth(ordinal).is_some_and(|issued| issued.forwarded().is_some()) {
+            return Err("a forwarded binding requires its already settled source".into());
+        }
         self.acquire_requests(
             requester,
             requests.iter().map(|issued| issued.request()),
@@ -176,6 +198,12 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         purpose: build_declarations::DependencyPurpose,
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
+        if result
+            .frozen_dependencies()
+            .contains_key(&(purpose, ordinal))
+        {
+            return Err("a frozen binding requires its already settled source".into());
+        }
         self.acquire_requests(requester, result.requests(), purpose, ordinal)
     }
 
@@ -185,6 +213,17 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         requests: impl Iterator<Item = &'request build_declarations::BuildRequest>,
         purpose: build_declarations::DependencyPurpose,
         ordinal: usize,
+    ) -> Result<AcquiredSourceSelection, String> {
+        self.acquire_requests_or_reuse(requester, requests, purpose, ordinal, None)
+    }
+
+    pub(crate) fn acquire_requests_or_reuse<'request>(
+        &mut self,
+        requester: &AcquiredBuildSource,
+        requests: impl Iterator<Item = &'request build_declarations::BuildRequest>,
+        purpose: build_declarations::DependencyPurpose,
+        ordinal: usize,
+        frozen: Option<AcquiredBuildSource>,
     ) -> Result<AcquiredSourceSelection, String> {
         if !self.sources.iter().any(|source| {
             source.lineage == requester.lineage
@@ -210,7 +249,10 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         if let Some(subject) = self.locked_source {
             admit_locked_issued_source_request(subject, origin, purpose, ordinal, request)?;
         }
-        self.acquire_source(origin, request)
+        match frozen {
+            Some(source) => Ok(AcquiredSourceSelection::Source(source)),
+            None => self.acquire_source(origin, request),
+        }
     }
 
     fn acquire_source(
@@ -605,10 +647,10 @@ impl AcquiredBuildSource {
         returned: &build_execution::ReturnedBuild,
     ) -> Result<DeclaredBuildSource, String> {
         returned.require_source_acquisition(self.source_capture())?;
-        self.declare_requests(
-            returned.declaration(),
-            returned.source_requests(),
-        )
+        let mut source =
+            self.declare_requests(returned.declaration(), returned.source_requests())?;
+        source.frozen = returned.frozen_dependencies();
+        Ok(source)
     }
 
     pub fn declare_source_result(
@@ -616,7 +658,9 @@ impl AcquiredBuildSource {
         result: &build_execution::BuildSourceResult<'_>,
     ) -> Result<DeclaredBuildSource, String> {
         result.require_source_acquisition(self.source_capture())?;
-        self.declare_requests(result.declaration(), result.source_requests())
+        let mut source = self.declare_requests(result.declaration(), result.source_requests())?;
+        source.frozen = result.frozen_dependencies();
+        Ok(source)
     }
 
     fn declare_requests<'request>(
@@ -651,6 +695,7 @@ impl AcquiredBuildSource {
         )
         .with_captured_source(std::sync::Arc::clone(self.capture.tree()));
         Ok(DeclaredBuildSource {
+            frozen: Default::default(),
             custody,
             root_request: self.root_request.clone(),
         })

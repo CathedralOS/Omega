@@ -344,3 +344,147 @@ machine build(builder: @mutable Build) {{
         assert!(!products.settle_rechecks(target).unwrap().is_enabled());
     });
 }
+
+#[test]
+fn supplied_build_library_reach_depends_on_its_invoked_exports() {
+    configure();
+    let temp = TemporaryDirectory::create("library-reach", false).unwrap();
+    let client = temp.path().join("client");
+    write_package(
+        &client.join("helper"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "helper"); }"#,
+        r#"public boundary trait AuditEffect {}
+public machine charged() reaches AuditEffect {}
+public machine free() {}"#,
+    );
+    let libraries = [BuildLibraryRequest {
+        alias: ProjectName::parse("checking").unwrap(),
+        source: BuildDependencySource::Path("helper".into()),
+    }];
+    for export in ["free", "charged"] {
+        write_package(
+            &client,
+            &format!(
+                r#"use {{checking}}/main.omg as helper;
+machine build(builder: @mutable Build) {{
+    |helper|::{export}();
+    Build::package(builder, "client");
+}}"#
+            ),
+            "public machine main() {}",
+        );
+        let result = open_products(
+            ProjectInput::WithBuildLibraries {
+                file: &client.join("build.omg"),
+                libraries: &libraries,
+            },
+            &[TargetProfile::host_if_supported().unwrap()],
+            true,
+            false,
+            &temp.path().join("out"),
+            None,
+        );
+        if export == "free" {
+            result.unwrap();
+        } else {
+            let Err(error) = result else {
+                panic!("the reachable charged export exceeded its empty ceiling")
+            };
+            let message = error.to_string();
+            for expected in ["checking", "charged", "AuditEffect"] {
+                assert!(message.contains(expected), "{message}");
+            }
+        }
+    }
+}
+
+#[test]
+fn dependency_input_forwards_the_frozen_alias_to_the_product() {
+    configure();
+    let temp = TemporaryDirectory::create("forward-build-input", false).unwrap();
+    let client = temp.path().join("client");
+    write_package(
+        &client,
+        r#"use {omega}/build/dependency.omg as dep;
+machine build(builder: @mutable Build) {
+    let input: PackageBinding = |dep|::input(builder, "layout");
+    let registration: DependencyRegistration = |dep|::add(builder, input);
+    Build::package(builder, "client");
+}"#,
+        r#"use {layout}/main.omg as layout;
+public machine answer() -> i32 { |layout|::answer() }"#,
+    );
+    write_package(
+        &client.join("supplier"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "board_layout"); }"#,
+        "public machine answer() -> i32 { 42 }",
+    );
+    let libraries = [BuildLibraryRequest {
+        alias: ProjectName::parse("layout").unwrap(),
+        source: BuildDependencySource::Path("supplier".into()),
+    }];
+    let target = TargetProfile::host_if_supported().unwrap();
+    let products = open_products(
+        ProjectInput::WithBuildLibraries {
+            file: &client.join("build.omg"),
+            libraries: &libraries,
+        },
+        &[target],
+        true,
+        false,
+        &temp.path().join("out"),
+        None,
+    )
+    .unwrap();
+    let product = products.select(target).unwrap();
+    let inputs = product.package_inputs().unwrap();
+    let child = inputs
+        .dependency_target_for_purpose(inputs.root(), DependencyPurpose::Build, "layout")
+        .unwrap();
+    assert_eq!(inputs.package_name(child), Some("board_layout"));
+    assert_eq!(
+        inputs.dependency_target_for_purpose(inputs.root(), DependencyPurpose::Product, "layout"),
+        Some(child)
+    );
+}
+
+#[test]
+fn package_bindings_require_an_incoming_alias_and_issued_value() {
+    configure();
+    let temp = TemporaryDirectory::create("absent-build-input", false).unwrap();
+    let root = temp.path().join("project");
+    for (operation, diagnostic) in [
+        (
+            r#"let input: PackageBinding = |dep|::input(builder, "missing");"#,
+            "no incoming package binding",
+        ),
+        (
+            r#"let edge: DependencyRegistration = |dep|::add(builder, PackageBinding {});"#,
+            "requires a PackageBinding this activation issued",
+        ),
+    ] {
+        write_package(
+            &root,
+            &format!(
+                r#"use {{omega}}/build/dependency.omg as dep;
+machine build(builder: @mutable Build) {{ Build::package(builder, "project"); {operation} }}"#
+            ),
+            "public machine main() {}",
+        );
+        let result = open_products(
+            ProjectInput::WithBuildLibraries {
+                file: &root.join("build.omg"),
+                libraries: &[],
+            },
+            &[TargetProfile::host_if_supported().unwrap()],
+            true,
+            false,
+            &temp.path().join("out"),
+            None,
+        );
+        let Err(error) = result else {
+            panic!("invalid binding accepted")
+        };
+        assert!(error.to_string().contains(diagnostic), "{error}");
+    }
+}

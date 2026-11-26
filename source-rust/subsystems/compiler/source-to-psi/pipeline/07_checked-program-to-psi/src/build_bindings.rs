@@ -379,13 +379,15 @@ pub(crate) mod build_requests {
     pub use semantic_vocabulary::source_selections::BuildCallSite;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum TerminalBuildRequestOperation {
-        Package,
+    pub enum TerminalBuildRequestOperation {        Package,
         Application,
         Member,
+        BuildEntry,
         ArtifactOnly,
         PathDependency,
         GitDependency,
+        InputBinding,
+        AddBinding,
         PrepareDependency,
         LogLine,
         PublishSource,

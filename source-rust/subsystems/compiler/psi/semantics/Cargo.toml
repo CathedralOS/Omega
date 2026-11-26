@@ -33,3 +33,5 @@ terminal-psi = { path = ".." }
 proof-admission = { path = "proofs/bounded" }
 
 proof-applications = { path = "../proofs/applications" }
+worker-budget = { path = "../../foundation/worker-budget" }
+rayon = "1.11"

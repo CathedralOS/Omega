@@ -910,7 +910,7 @@ fn receipt_storage_inputs_include_a_type_inferred_from_a_call() {
     let typed = typed_source(
         "data Packet { byte: u8; }
          machine make_packet() -> Packet { Packet { byte: 3u8 } }
-         machine read_packet() -> u8 { let packet = make_packet(); packet.byte }",
+         machine read_packet() -> u8 { let packet: Packet = make_packet(); packet.byte }",
     );
     let reader = typed.realized_machine_named("read_packet").unwrap().symbol;
     let packet = typed.data_definition_by_name_str("Packet").unwrap().symbol;

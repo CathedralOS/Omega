@@ -1177,10 +1177,21 @@ fn unbound_call_path(
 /// terminal call is examined for the machines of this cohort only, as before.
 /// A request in an expression no declaration owns has no reader to raise it
 /// and still refuses here.
+#[cfg(test)]
 pub(crate) fn defer_unbound_calls(
     program: &mut TypedTrees,
     frontier: usize,
     completed: &[SymbolHandle],
+) -> Result<(), Diagnostic> {
+    let cohort = crate::lowerer::TypingCohort::for_machines(frontier, completed);
+    let mut owners = crate::operand_owners::CohortOperandOwners::full(program);
+    defer_unbound_calls_in_cohort(program, &cohort, &mut owners)
+}
+
+pub(crate) fn defer_unbound_calls_in_cohort(
+    program: &mut TypedTrees,
+    cohort: &crate::lowerer::TypingCohort<'_>,
+    owners: &mut crate::operand_owners::CohortOperandOwners,
 ) -> Result<(), Diagnostic> {
     use crate::source_state::statement::TransitionTargetNode;
     let mut in_expressions = Vec::new();
@@ -1197,6 +1208,7 @@ pub(crate) fn defer_unbound_calls(
         byte_domain_clauses = program
             .domain_definitions()
             .iter()
+            .skip(cohort.domain_definitions)
             .filter_map(|domain| {
                 let predicate = crate::source_state::byte_predicates::primitive_byte_slice_domain(
                     program,
@@ -1213,7 +1225,10 @@ pub(crate) fn defer_unbound_calls(
         byte_domain_clauses
             .sort_unstable_by_key(|(handle, _)| (handle.arena_index(), handle.generation()));
         byte_domain_clauses.dedup();
-        for (handle, expression) in program.expression_table.expression_entries() {
+        for (handle, expression) in program
+            .expression_table
+            .iter_expressions_from(cohort.typed_expressions + 1)
+        {
             if let ExpressionNode::Name(path) = expression {
                 if !path.symbol.is_valid()
                     && !path.reserved_result_of.is_valid()
@@ -1304,7 +1319,9 @@ pub(crate) fn defer_unbound_calls(
             }
         }
         for (ordinal, machine) in program.machines().iter().enumerate() {
-            let in_cohort = ordinal >= frontier || completed.contains(&machine.symbol);
+            if !cohort.owns_machine(ordinal, machine.symbol) {
+                continue;
+            }
             for state in program.machine_states(machine) {
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     if let Some(call) = statement.as_call() {
@@ -1374,9 +1391,6 @@ pub(crate) fn defer_unbound_calls(
                     let Some(transition) = statement.as_transition() else {
                         continue;
                     };
-                    if !in_cohort {
-                        continue;
-                    }
                     for target in transition.targets() {
                         let TransitionTargetNode::Named {
                             path,
@@ -1421,7 +1435,12 @@ pub(crate) fn defer_unbound_calls(
             }
         }
         if !in_expressions.is_empty() {
-            let owners = crate::source_state::references::collect_program_operand_owners(program);
+            if in_expressions
+                .iter()
+                .any(|(handle, ..)| handle.arena_index() as usize > owners.covered_expressions())
+            {
+                owners.refresh(program, cohort);
+            }
             for (handle, request, bare, path) in in_expressions {
                 let source_span = program.expression_table.source_span(handle);
                 let mut owned = false;

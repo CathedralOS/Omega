@@ -30,6 +30,7 @@ source-admission = { path = "../../source-to-psi/representations/source-files/cu
 source-text = { path = "../../../../foundation/source-text" }
 evaluation-receipts = { path = "receipts" }
 terminal-interpreter = { path = "../../../interpreter" }
+terminal-semantics = { path = "../../psi/semantics" }
 terminal-work = { path = "../../psi/semantics/work" }
 terminal-codec = { path = "../../psi/artifact/codec" }
 syntax-trees = { path = "../../source-to-psi/representations/syntax-trees" }

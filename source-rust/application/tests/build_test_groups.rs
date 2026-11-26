@@ -434,7 +434,7 @@ fn a_group_selects_engines_for_one_target_without_weakening_required_runs() {
     } else {
         "linux_arm64"
     };
-    let group = "let group = builder.tests.group::<Tests::arithmetic>();";
+    let group = "let group: TestGroup = builder.tests.group::<Tests::arithmetic>();";
     let choose = |target, engine, policy| {
         format!(
             "TestGroup::engine(group, {target}, TestEngine::{engine}, TestEnginePolicy::{policy});"

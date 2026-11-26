@@ -6,7 +6,7 @@ use super::{
     AssembledSyntax, BuildSourceSelection, DeferredProductSources, ImmutableSourceParseCheckpoint,
 };
 use crate::PackageCompilationInputs;
-use crate::source::entry::StageRoots;
+use crate::source::entry::{CapturedBuildEntry, StageRoots};
 use crate::source::source_imports::{
     ImportQueue, PackageImportPhase, SourceStorage, discover_imports, discover_package_imports,
 };
@@ -284,7 +284,6 @@ impl ImmutableSourceParseCheckpoint {
         requests.extend(load_imports(
             storage,
             &mut imports,
-            &self.root_path,
             Some(inputs),
             PackageImportPhase::TargetIndependent,
             timings,
@@ -350,7 +349,7 @@ impl ImmutableSourceParseCheckpoint {
                     .collect::<Vec<_>>()
             })?;
         Self::prepare(
-            root_path,
+            CapturedBuildEntry::Initial(root_path),
             package_inputs.as_ref(),
             source_capture,
             timings,
@@ -359,15 +358,23 @@ impl ImmutableSourceParseCheckpoint {
     }
 
     pub fn prepare(
-        root_path: &Path,
+        entry: CapturedBuildEntry<'_>,
         package_inputs: Option<&PackageCompilationInputs>,
         source_capture: Option<&crate::CapturedLocalSource>,
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<Self, Vec<Diagnostic>> {
+        entry.check_capture(package_inputs, source_capture)?;
+        let root_path = entry.path();
         let mut source_storage =
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
-        let project = StageRoots::prepare(root_path, &mut source_storage)?;
+        if let CapturedBuildEntry::Successor {
+            previous_build_files, ..
+        } = entry
+        {
+            source_storage.previous_build_files = previous_build_files.into();
+        }
+        let project = StageRoots::prepare(entry, &mut source_storage)?;
         let mut imports = ImportQueue::default();
         if let Some((path, _)) = &project.build {
             imports.seed(path.clone(), source_provenance::DependencyScope::Build);
@@ -375,7 +382,6 @@ impl ImmutableSourceParseCheckpoint {
         let package_imports = load_imports(
             &mut source_storage,
             &mut imports,
-            root_path,
             package_inputs,
             PackageImportPhase::TargetIndependent,
             timings,
@@ -463,14 +469,7 @@ impl ImmutableSourceParseCheckpoint {
                 &storage.filesystem,
             )?,
             None => (
-                discover_imports(
-                    &parsed,
-                    &self.root_path,
-                    &storage.toolchain_contract_custody,
-                    &storage.filesystem,
-                    &mut storage.resolved_imports,
-                    &mut storage.package_roots,
-                )?,
+                discover_imports(&parsed, storage)?,
                 Vec::new(),
             ),
         };
@@ -483,7 +482,6 @@ impl ImmutableSourceParseCheckpoint {
         requests.extend(load_imports(
             storage,
             &mut imports,
-            &self.root_path,
             package_inputs,
             PackageImportPhase::TargetIndependent,
             timings,

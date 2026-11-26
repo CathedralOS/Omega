@@ -66,7 +66,7 @@ impl Unavailable {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Error {
     /// A supported ownership check found unavailable storage at an exact site.
     Unavailable(Unavailable),
@@ -1076,6 +1076,7 @@ static NO_NOMINAL_CALLS: [terminal_psi::generic_calls::NominalCallArgument; 0] =
 pub struct AffineSummaries<'m> {
     summaries: crate::descriptor_results::ModuleSummaries<'m>,
     fences: fences::CallFences<'m>,
+    type_permissions: Result<(), Error>,
 }
 
 impl<'m> AffineSummaries<'m> {
@@ -1086,6 +1087,7 @@ impl<'m> AffineSummaries<'m> {
                 &NO_NOMINAL_CALLS,
             ),
             fences: fences::CallFences::new(module),
+            type_permissions: validate_type_permissions(&module.types.structural_types),
         }
     }
 
@@ -1584,6 +1586,54 @@ fn prepare_disposition(
     Ok(supported)
 }
 
+fn validate_type_permissions(types: &[StructuralTypeDeclaration]) -> Result<(), Error> {
+    // A parent's permission cannot erase the custody of its represented
+    // children. Check direct dependencies once; no recursive rescanning is
+    // needed because every declaration in the dense catalog is visited.
+    for (slot, declaration) in types.iter().enumerate() {
+        if index(declaration.id.get())? != slot {
+            return Err(Error::malformed("types are not in dense identity order"));
+        }
+        let field_children = declaration
+            .shape
+            .direct_fields()
+            .unwrap_or(&[])
+            .iter()
+            .chain(
+                declaration
+                    .shape
+                    .sum_cases()
+                    .unwrap_or(&[])
+                    .iter()
+                    .flat_map(|case| &case.fields),
+            )
+            .filter_map(|field| match field.field_type {
+                terminal_psi::StructuralFieldType::Structural(child) => Some(child),
+                _ => None,
+            });
+        let element_child = match declaration.shape {
+            terminal_psi::StructuralTypeShape::FixedArray { element, .. } => Some(element),
+            _ => None,
+        };
+        for child in field_children.chain(element_child) {
+            let child = types
+                .get(index(child.get())?)
+                .ok_or(Error::malformed("nested type is outside the catalog"))?;
+            if declaration.is_copyable() && !child.is_copyable()
+                || declaration.no_code_affine_cleanup
+                    && (!child.no_code_affine_cleanup
+                        || child.multiplicity == terminal_psi::StructuralMultiplicity::Linear)
+                || declaration.descriptor_cleanup && !child.descriptor_cleanup
+            {
+                return Err(Error::malformed(
+                    "parent type permissions erase a nested ownership obligation",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn analyze(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
@@ -1609,49 +1659,14 @@ fn analyze(
             ..Plan::default()
         });
     }
-    // A parent's permission cannot erase the custody of its represented
-    // children. Check direct dependencies once; no recursive rescanning is
-    // needed because every declaration in the dense catalog is visited.
-    for (slot, declaration) in types.iter().enumerate() {
-        if index(declaration.id.get())? != slot {
-            return Err(Error::malformed("types are not in dense identity order"));
-        }
-        let mut children = declaration
-            .shape
-            .direct_fields()
-            .unwrap_or(&[])
-            .iter()
-            .chain(
-                declaration
-                    .shape
-                    .sum_cases()
-                    .unwrap_or(&[])
-                    .iter()
-                    .flat_map(|case| &case.fields),
-            )
-            .filter_map(|field| match field.field_type {
-                terminal_psi::StructuralFieldType::Structural(child) => Some(child),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        if let terminal_psi::StructuralTypeShape::FixedArray { element, .. } = declaration.shape {
-            children.push(element);
-        }
-        for child in children {
-            let child = types
-                .get(index(child.get())?)
-                .ok_or(Error::malformed("nested type is outside the catalog"))?;
-            if declaration.is_copyable() && !child.is_copyable()
-                || declaration.no_code_affine_cleanup
-                    && (!child.no_code_affine_cleanup
-                        || child.multiplicity == terminal_psi::StructuralMultiplicity::Linear)
-                || declaration.descriptor_cleanup && !child.descriptor_cleanup
-            {
-                return Err(Error::malformed(
-                    "parent type permissions erase a nested ownership obligation",
-                ));
-            }
-        }
+    if let Some(summaries) = walks.and_then(|walks| {
+        walks
+            .summaries
+            .filter(|summaries| std::ptr::eq(summaries.fences.module(), walks.module))
+    }) {
+        summaries.type_permissions.clone()?;
+    } else {
+        validate_type_permissions(types)?;
     }
     let mut contracts = vec![None; machine.structural_places.len()];
     // Read static whole-origin restrictions once with the custody declarations.
