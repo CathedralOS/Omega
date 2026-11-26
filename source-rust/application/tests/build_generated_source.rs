@@ -4,9 +4,14 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
-fn run(project: &Path, engine: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--engine", engine, "build.omg"])
+fn run(project: &Path, engine: &str, inputs: &[&str]) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+    command.args(["run", "--engine", engine]);
+    for path in inputs {
+        command.args(["--build-input", path]);
+    }
+    command
+        .arg("build.omg")
         .current_dir(project)
         .stdin(Stdio::null())
         .output()
@@ -44,18 +49,29 @@ fn handwritten_product_calls_a_generated_file() {
         ("public machine read() -> u8 { 17u8 }", true),
         ("public machine read() -> u8 { missing() }", false),
     ] {
+        fs::write(project.path().join("asset.txt"), body).unwrap();
+        let length = body.len();
         let source = format!(
             r#"use main.omg as app;
             machine build(builder: @mutable Build) {{
                 Build::application(builder, "frozen");
-                Build::include_source(builder, "generated.omg", "{body}");
+                let asset: BuildPath = BuildSource::resolve(@builder.source, "asset.txt");
+                let reader: i32 = BuildSource::open(@builder.source, asset, 0);
+                let mutable bytes: [u8; {length}];
+                _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], {length});
+                _ = BuildSource::close(@builder.source, reader);
+                Build::include_source(builder, "generated.omg", @bytes[..]);
                 Build::bind(builder, {}::ProgramEntry, |app|::launch);
             }}"#,
             host.target_name()
         );
         fs::write(project.path().join("build.omg"), source).unwrap();
         for engine in ["psi", "native"] {
-            let result = run(project.path(), engine);
+            let result = run(
+                project.path(),
+                engine,
+                &["build.omg", "main.omg", "asset.txt"],
+            );
             let report = report(&result);
             assert_eq!(result.status.success(), valid, "{engine}: {report}");
             if !valid {
@@ -80,7 +96,7 @@ fn a_build_cannot_import_its_own_future_product_file() {
     "#,
     )
     .unwrap();
-    let result = run(project.path(), "psi");
+    let result = run(project.path(), "psi", &["build.omg"]);
     assert!(!result.status.success());
     assert!(report(&result).contains("no admitted logical file `generated.omg`"));
 }
