@@ -369,13 +369,6 @@ fn elaborate_source_for<'source>(
     captures: SharedReading,
     domain_schemas: &[prepared_source::DomainSchema],
 ) -> Result<PreparedProgram<'source>, Vec<Refusal>> {
-    if typed.is_legacy_build_prefix() {
-        return Err(vec![Refusal::at(
-            RefusalReason::ForeignIdentity,
-            terminal_check_tables::RefusalSite::Program,
-            "an incomplete Build snapshot reached source lowering",
-        )]);
-    }
     let shared_for_warm = captures.clone();
     let mut program = read::Program::with_captures(typed, false, compilation.purpose, captures);
     program.local_summary_scope = Some(read::LocalSummaryScope::Compilation(
