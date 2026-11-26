@@ -139,10 +139,11 @@ fn directory_grants_leave_the_drivers_product_publication_and_root_imports_alone
     fs::write(
         app.join("build.omg"),
         format!(
-            r#"use helper.omg;
+            r#"use main.omg as app;
+use helper.omg;
 machine build(plan: @mutable BuildPlan) {{
     |helper|::select(plan);
-    Build::bind(plan, {}::ProgramEntry, main);
+    Build::bind(plan, {}::ProgramEntry, |app|::main);
 }}"#,
             target.target_name()
         ),
