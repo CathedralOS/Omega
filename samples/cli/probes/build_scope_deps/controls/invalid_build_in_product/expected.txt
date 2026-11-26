@@ -1,3 +1,2 @@
-checked compilation failed for package `invalid_build_in_product`
-main.omg names build dependency `kit` (package `scope_kernel`
-a product import may only select product dependencies. Register the Product dependency with `Build::dependency(builder, description)` in the requesting package's build.omg.
+dependency `scope_kernel` is unavailable in the product scope
+main.omg:1:5

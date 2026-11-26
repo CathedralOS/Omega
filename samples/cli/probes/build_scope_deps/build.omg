@@ -1,12 +1,4 @@
-use {omega}/build/dependency.omg;
-use kit;
-machine build(builder: @mutable BuildPlan)
-suspends
-{
-    builder.product = BuildProduct::Application { name: "build_scope_deps" };
-    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
-    |dependency|::with_alias(@mutable kit_dependency, "kit");
-    let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
-    suspend Build::prepare_dependency(builder, kit_registration);
-    let x: i32 = kit\v();
+machine build(plan: @mutable BuildPlan) {
+    _ = Build::dependency(plan, Source::Path { location: "dep" });
+    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
 }
