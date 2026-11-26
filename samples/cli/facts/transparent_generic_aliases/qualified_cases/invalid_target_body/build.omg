@@ -1,12 +1,12 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     Build::select_provider::<SelectedCases, CaseFactory>(builder, windows_x86_64);
     Build::select_provider::<SelectedCases, CaseFactory>(builder, linux_x86_64);
     Build::select_provider::<SelectedCases, CaseFactory>(builder, macos_arm64);
     Build::select_provider::<SelectedCases, CaseFactory>(builder, linux_arm64);
     Build::select_provider::<SelectedCases, CaseFactory>(builder, macos_x86_64);
-    Build::application(builder, "transparent_alias_qualified_cases_target_body");
+    builder.product = BuildProduct::Application { name: "transparent_alias_qualified_cases_target_body" };
     let mutable leaf_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "leaf" });
     |dependency|::with_alias(@mutable leaf_dependency, "leaf");
     let leaf_registration: DependencyRegistration = Build::dependency(builder, leaf_dependency);

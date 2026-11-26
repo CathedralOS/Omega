@@ -1,4 +1,4 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "indexed_storage_address_identity_const_name");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "indexed_storage_address_identity_const_name" };
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

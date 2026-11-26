@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "bounded_products_target_body");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "bounded_products_target_body" };
     Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
     Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);

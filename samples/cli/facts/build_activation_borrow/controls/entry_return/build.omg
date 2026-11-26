@@ -9,8 +9,8 @@ machine bind_configuration(configuration: @mutable Configuration) {
     Build::bind(configuration.builder, windows_x86_64::ProgramEntry, main);
 }
 data ConfigurationEnvelope<'activation, 'storage> { configuration: Configuration<'activation, 'storage>; }
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_activation_borrow_entry_return");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_activation_borrow_entry_return" };
     let mutable envelope: ConfigurationEnvelope = ConfigurationEnvelope { configuration: wrap(builder) };
     bind_configuration(@mutable envelope.configuration);
 }

@@ -1,6 +1,6 @@
 use omega\language\core\DllImport;
 use omega\language\core\ForeignBinding;
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     Build::bind_native::<Reader::acquire>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
         object: "libomega_retention_fixture.so", symbol: "retention_acquire", version: "RETAIN_1.0",
     } });
@@ -49,7 +49,7 @@ machine build(builder: @mutable Build) {
     Build::bind_native::<Reader::release>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName {
         library: "omega_retention_fixture.dll", export: "retention_release",
     } });
-    Build::application(builder, "foreign_retained_shared_borrow");
+    builder.product = BuildProduct::Application { name: "foreign_retained_shared_borrow" };
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

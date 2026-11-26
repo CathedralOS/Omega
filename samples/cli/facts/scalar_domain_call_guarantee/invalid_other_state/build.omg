@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "scalar_domain_call_guarantee_other_state");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "scalar_domain_call_guarantee_other_state" };
     Build::select_provider::<Query, Actual>(builder, linux_arm64);
     Build::select_provider::<Query, Actual>(builder, linux_x86_64);
     Build::select_provider::<Query, Actual>(builder, macos_arm64);

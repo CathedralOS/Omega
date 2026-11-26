@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "provider_contract_endpoint_probe");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "provider_contract_endpoint_probe" };
     Build::select_provider::<Endpoint, Actual>(builder, linux_arm64);
     Build::select_provider::<Endpoint, Actual>(builder, linux_x86_64);
     Build::select_provider::<Endpoint, Actual>(builder, macos_arm64);

@@ -8,8 +8,8 @@ machine bind_configuration(configuration: @mutable Configuration) {
     Build::bind(configuration.builder, macos_arm64::ProgramEntry, SelectedEntry::enter);
     Build::bind(configuration.builder, windows_x86_64::ProgramEntry, SelectedEntry::enter);
 }
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_activation_borrow_target_body");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_activation_borrow_target_body" };
     let mutable configuration: Configuration = wrap(builder);
     bind_configuration(@mutable configuration);
 }

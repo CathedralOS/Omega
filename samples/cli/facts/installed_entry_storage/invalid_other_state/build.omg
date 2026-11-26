@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "installed_entry_storage_other_state_invalid");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "installed_entry_storage_other_state_invalid" };
     Build::bind(builder, macos_arm64::ProgramEntry, start);
     Build::bind(builder, linux_x86_64::ProgramEntry, start);
     Build::bind(builder, linux_arm64::ProgramEntry, start);
