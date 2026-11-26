@@ -4807,13 +4807,21 @@ impl Denotation {
 
     fn order_antisymmetry_evidence(
         &mut self,
-        l: &ScalarTerm,
-        r: &ScalarTerm,
+        order: &Proposition,
         fwd: TermHandle,
         bwd: TermHandle,
         concl: TermHandle,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let (lt, rt) = (self.fixed_scalar_term(l)?, self.fixed_scalar_term(r)?);
+        let (lt, rt) = match order {
+            Proposition::LessOrEqual(left, right) => (
+                self.fixed_scalar_term(left)?,
+                self.fixed_scalar_term(right)?,
+            ),
+            Proposition::IntegerMathLessOrEqual(left, right) => {
+                (self.math_term(left)?, self.math_term(right)?)
+            }
+            _ => return Err(BoundedDenotationError::Unsupported("antisymmetry order")),
+        };
         let ev = self.law(CoreLaw::LeAntisym, &[lt, rt, fwd, bwd])?;
         let Some((c, al, ar)) = self.identity_parts(concl) else {
             return Err(BoundedDenotationError::Unsupported(
@@ -7319,12 +7327,9 @@ impl<'a> Elaboration<'a> {
                 .map_err(BoundedDenotationError::Certificate)?;
                 self.rules
                     .insert(AcceptedProofRule::IntegerOrderAntisymmetry);
-                let Proposition::LessOrEqual(l, r) = &forward.conclusion else {
-                    unreachable!()
-                };
                 let concl = self.denotation.denote(&proof.conclusion)?;
                 self.denotation
-                    .order_antisymmetry_evidence(l, r, fe, be, concl)
+                    .order_antisymmetry_evidence(&forward.conclusion, fe, be, concl)
             }
             ProofRule::IntegerMathOrderTranslation { relation, addend } => {
                 let ev = ops.take(relation);
@@ -8795,6 +8800,38 @@ mod tests {
                 ),
             );
         }
+    }
+
+    #[test]
+    fn two_mathematical_orders_certify_equality_of_their_exact_endpoints() {
+        let carrier = u64_ty();
+        let at = |id| IntegerMathTerm::embed(val(id, carrier)).unwrap();
+        let a = at(2);
+        let b = IntegerMathTerm::Add(Box::new(at(0)), Box::new(at(1)));
+        let (a, b) = if a <= b { (a, b) } else { (b, a) };
+        let premises = [
+            Proposition::IntegerMathLessOrEqual(a.clone(), b.clone()),
+            Proposition::IntegerMathLessOrEqual(b.clone(), a.clone()),
+        ];
+        let goal = Proposition::IntegerMathEqual(a, b);
+        let proof = node(
+            goal.clone(),
+            ProofRule::IntegerOrderAntisymmetry {
+                forward: Box::new(assume(0, premises[0].clone())),
+                backward: Box::new(assume(1, premises[1].clone())),
+            },
+        );
+        let context = ctx_int(&[0, 1, 2], carrier);
+        verify_and_forge(&context, &goal, &premises, &[], &proof);
+        expect_err(&context, &goal, &premises[..1], &[], &proof);
+        let wrong = Proposition::IntegerMathEqual(at(0), at(2));
+        expect_err(
+            &context,
+            &wrong,
+            &premises,
+            &[],
+            &node(wrong.clone(), proof.rule),
+        );
     }
 
     // ------------------------------------------------------------------------

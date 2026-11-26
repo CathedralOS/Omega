@@ -422,3 +422,109 @@ machine build_entry() { let checked: u64 = check(3); }",
         "too-tight guarantee over type-bound definition must not accept: {tight:?}"
     );
 }
+
+/// Adjoining address ranges share a mathematical endpoint. Its checked
+/// equality remains available beneath a sum, including at a one-past bound.
+#[test]
+fn a_translated_endpoint_equality_preserves_the_original_bound() {
+    let check = |shared_endpoint: &str| {
+        judge_build(&format!(
+            "machine build_entry(a: addr, x: u64, b: addr, y: u64)
+requires embed(b) + embed(y) <= addr::Bound{shared_endpoint}
+ensures embed(a) + (embed(x) + embed(y)) <= addr::Bound
+{{}}"
+        ))
+        .unwrap()
+    };
+    for equality in ["embed(a) + embed(x) == embed(b)", "embed(b) == embed(a) + embed(x)"] {
+        let RouteVerdict::Accepted(accepted) = check(&format!(", {equality}")) else {
+            panic!("the original bound should follow through {equality}");
+        };
+        accepted.publish_invocation().unwrap();
+    }
+    for unrelated in ["", ", embed(a) == embed(b) + embed(x)"] {
+        let verdict = check(unrelated);
+        assert!(
+            matches!(verdict, RouteVerdict::Incomplete(ref unproved) | RouteVerdict::Rejected { ref unproved, .. }
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+            "{verdict:?}"
+        );
+    }
+}
+
+/// Concrete field observations establish both orders of the mathematical
+/// endpoint. An endpoint one byte beyond it satisfies only one order.
+#[test]
+fn mathematical_equality_joins_the_two_proved_endpoint_orders() {
+    let check = |base| {
+        judge_build(&format!(
+            "data Region {{ base: addr; length: u64; }}
+machine build_entry(a: @Region, b: @Region)
+requires a.base == 10, a.length == 16, b.base == {base}
+ensures embed(b.base) == embed(a.base) + embed(a.length)
+{{}}"
+        ))
+        .unwrap()
+    };
+    let RouteVerdict::Accepted(accepted) = check(26) else {
+        panic!("the two endpoint bounds should establish equality");
+    };
+    accepted.publish_invocation().unwrap();
+    for base in [25, 27] {
+        let verdict = check(base);
+        assert!(
+            matches!(verdict, RouteVerdict::Incomplete(ref unproved) | RouteVerdict::Rejected { ref unproved, .. }
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+            "{verdict:?}"
+        );
+    }
+}
+
+#[test]
+fn a_nonpositive_displacement_preserves_a_shared_upper_endpoint() {
+    let check = |guard| {
+        judge_build(&format!(
+            "machine build_entry(a: addr, x: u64) -> u64
+ensures embed(a) == embed(a) + embed(result)
+{{ match x == {guard} {{ true -> x, false -> 0, }} }}"
+        ))
+        .unwrap()
+    };
+    let RouteVerdict::Accepted(accepted) = check(0) else {
+        panic!("each return displaces the address by zero");
+    };
+    accepted.publish_invocation().unwrap();
+    let rejected = check(1);
+    assert!(
+        matches!(rejected, RouteVerdict::Incomplete(ref unproved) | RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{rejected:?}"
+    );
+}
+
+#[test]
+fn an_integer_disjunct_can_establish_a_conditional_address_guarantee() {
+    let check = |empty_base| {
+        judge_build(&format!(
+            "machine build_entry(base: addr, requested: u64, length: u64) -> addr
+requires requested <= length, embed(base) + embed(length) <= addr::Bound
+ensures requested != 0 || result == base {{
+    match requested == 0 || requested == length {{
+        true -> {empty_base},
+        false -> base + requested,
+    }}
+}}"
+        ))
+        .unwrap()
+    };
+    let RouteVerdict::Accepted(checked) = check("base") else {
+        panic!("the interior arm proves the displacement is nonzero");
+    };
+    checked.publish_invocation().unwrap();
+    let wrong = check("0");
+    assert!(
+        matches!(wrong, RouteVerdict::Incomplete(ref failed) | RouteVerdict::Rejected { unproved: ref failed, .. }
+            if failed.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{wrong:?}"
+    );
+}
