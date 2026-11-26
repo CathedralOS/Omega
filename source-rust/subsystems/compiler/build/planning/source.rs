@@ -223,7 +223,7 @@ pub fn prepare(
         PlanningSources::Package(inputs) => (Some(inputs), None, Vec::new()),
     };
     let supplied_libraries: Arc<[_]> = supplied_libraries.into();
-    let mut execution = execution.resolve_compilation_defaults(inputs);
+    let mut execution = execution.resolve_compilation_defaults(inputs, capture.is_some());
     let profile = execution.profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Build execution requires an explicit profile on an uncatalogued host",

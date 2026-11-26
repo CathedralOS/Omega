@@ -173,7 +173,7 @@ impl PackageBuildSession {
             filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
             evaluation_sponsor: Some(self.evaluation_sponsor.clone()),
             snapshot: Some(snapshot.unwrap_or_else(|| {
-                package_compilation::BuildSnapshotRequest::new(std::iter::empty())
+                package_compilation::BuildSnapshotRequest::for_activation(dependency_activation)
             })),
             dependency_activation,
             ..Default::default()
