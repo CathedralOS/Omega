@@ -9,6 +9,18 @@ use target::TargetProfile;
 impl PackagePolicyProviderBinding {
     pub(crate) fn validate_native(&self, target: TargetProfile) -> Result<(), &'static str> {
         match self {
+            Self::FunctionField {target:selected, selector, producer} if selected == target.identity().as_str() => {
+                let table = &selector.table;
+                let field = &selector.field;
+                if table.requirement_identity.is_empty() || table.requirement_application.is_empty()
+                    || table.parameter_identity.is_empty() || table.qualified_type.is_empty() || table.source_revision.is_empty()
+                    || field.member_identity.is_empty() || field.owner_identity.is_empty() || field.owner_application.is_empty()
+                    || field.name.is_empty() || field.qualified_type.is_empty() || field.source_revision.is_empty()
+                    || field.is_erased || !field.case_identity.is_empty() {
+                    return Err("function table binding lost its live record field or declared formal");
+                }
+                validate_producer(producer)
+            }
             Self::Import {
                 target: selected,
                 producer,
@@ -40,6 +52,7 @@ impl PackagePolicyProviderBinding {
             return Err("provider intrinsic execution is attached to another mechanism");
         }
         match self {
+            Self::FunctionField { .. } => self.validate_native(target)?,
             Self::Import {
                 target: binding_target,
                 producer,

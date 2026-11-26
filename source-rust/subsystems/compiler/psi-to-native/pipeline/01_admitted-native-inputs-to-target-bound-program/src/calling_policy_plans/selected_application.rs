@@ -73,6 +73,7 @@ pub(crate) fn native_calling_results(
     profile: target::TargetProfile,
     program: &super::CallingProgram,
     bindings: &[crate::target_supply::NormalizedNativeSupply],
+    selected: &[calling_conventions::BoundaryCallingApplication],
     retained: Option<&NativeCallingResults>,
 ) -> Result<NativeCallingResults, Vec<Diagnostic>> {
     let artifact = *program.artifact.manifest().identity().as_bytes();
@@ -138,11 +139,6 @@ pub(crate) fn native_calling_results(
         let abi = module
             .calling_abi_signature(application)
             .ok_or_else(|| failure(format!("native boundary `{name}` lost its declaration ABI")))?;
-        if !default_abi_eligible(abi) {
-            return Err(failure(format!(
-                "native boundary `{name}` needs its selected custom calling policy"
-            )));
-        }
         abi.physical_owner
             .as_ref()
             .map_err(|reason| failure(reason.clone()))?;
@@ -155,8 +151,17 @@ pub(crate) fn native_calling_results(
                 "native boundary `{name}` has another declaration's calling ABI"
             )));
         }
+        if let Some(application) = selected.iter().find(|application| application.abi == key && application.target == profile.native_target()) {
+            result.retain(origin, application.clone());
+            continue;
+        }
+        if !default_abi_eligible(abi) {
+            return Err(failure(format!(
+                "native boundary `{name}` needs its selected custom calling policy"
+            )));
+        }
         let policy = match &supplied.binding {
-            provider_plans::EvaluatedNativeBinding::Import(_) => {
+            provider_plans::EvaluatedNativeBinding::Import(_) | provider_plans::EvaluatedNativeBinding::FunctionField(_) => {
                 calling_conventions::CallingPolicy::native_for_target(profile.native_target())
             }
             provider_plans::EvaluatedNativeBinding::Syscall(_) => {

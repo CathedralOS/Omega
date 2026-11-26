@@ -49,7 +49,7 @@ pub use boundary::{
     NativeBindingExecution, NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
     NormalizedForeignCallMechanism, NormalizedForeignExecution, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
-    ProviderPlanReportIdentity, conventional_atomic_once_layout,
+    ProviderPlanReportIdentity, TableBindingSource, conventional_atomic_once_layout,
     conventional_atomic_once_layout_closed, conventional_float_class_layout,
 };
 pub use descriptor_input::DescriptorInputGuard;

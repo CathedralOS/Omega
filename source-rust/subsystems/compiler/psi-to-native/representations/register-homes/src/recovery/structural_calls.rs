@@ -1088,7 +1088,7 @@ fn decode_call_binding(
                     byte_offset,
                     table_operand,
                     dispatch_only,
-                    same_stack_contribution: contribution,
+                    source: target_vocabulary::TableBindingSource::Provider(contribution),
                 }
             }
             _ => return Err(FixedViewCopyDecodeError::InvalidForeignTargetProfile),

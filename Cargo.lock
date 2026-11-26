@@ -734,6 +734,7 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "language-core",
+ "native-binding-admission",
  "native-execution-reach",
  "native-intrinsics",
  "provider-plans",

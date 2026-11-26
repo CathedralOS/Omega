@@ -58,6 +58,11 @@ impl PackagePolicyProviderEvaluatedSyscall {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackagePolicyProviderBinding {
+    FunctionField {
+        target: String,
+        selector: Box<semantic_vocabulary::FunctionFieldBinding>,
+        producer: PackagePolicyEvaluatedBindingProducer,
+    },
     Import {
         target: String,
         locator: PackageReviewForeignLocator,

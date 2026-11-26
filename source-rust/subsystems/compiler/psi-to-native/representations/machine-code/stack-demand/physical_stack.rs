@@ -40,9 +40,10 @@ impl ForeignStackExtent {
                 ..
             }
             | Mechanism::Table {
-                same_stack_contribution,
-                ..
+                source: target_vocabulary::TableBindingSource::Provider(same_stack_contribution), ..
             } => Self::Admitted(same_stack_contribution.clone()),
+            Mechanism::Table { source: target_vocabulary::TableBindingSource::HostedBinding { receipt, .. }, .. }
+                => Self::Hosted { receipt:Some(*receipt) },
             Mechanism::CompilerImport { import, .. } => Self::CompilerImport(*import),
             Mechanism::HostedImport { receipt, .. } => Self::Hosted {
                 receipt: Some(*receipt),

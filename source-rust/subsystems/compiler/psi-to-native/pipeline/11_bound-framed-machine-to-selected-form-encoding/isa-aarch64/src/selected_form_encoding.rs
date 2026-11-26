@@ -12890,7 +12890,7 @@ mod normalized_foreign_call {
                         byte_offset,
                         table_operand,
                         dispatch_only: false,
-                        same_stack_contribution: contribution,
+                        source: target_operations::TableBindingSource::Provider(contribution),
                     };
                 let encoded = encode_aarch64_selected_table_call_form(
                     &record,
@@ -12947,7 +12947,7 @@ mod normalized_foreign_call {
                     byte_offset: 8,
                     table_operand: 1,
                     dispatch_only: true,
-                    same_stack_contribution: contribution,
+                    source: target_operations::TableBindingSource::Provider(contribution),
                 };
             let constraint =
                 crate::machine_effects::normalized_foreign_constraint(&record).unwrap();

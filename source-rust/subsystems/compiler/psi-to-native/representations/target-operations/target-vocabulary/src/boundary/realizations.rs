@@ -238,8 +238,39 @@ pub enum NormalizedForeignCallMechanism {
         /// The supplied table's position among all operands, including private callbacks.
         table_operand: u32,
         dispatch_only: bool,
-        same_stack_contribution: provider_stack_contribution::AdmittedSameStackContribution,
+        source: TableBindingSource,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TableBindingSource {
+    Provider(provider_stack_contribution::AdmittedSameStackContribution),
+    HostedBinding {
+        receipt: [u8; 32],
+        requirement_identity: String,
+    },
+}
+
+impl TableBindingSource {
+    pub fn commitment(&self) -> [u8; 32] {
+        let mut digest =
+            wire::digest_encoder::DomainDigestEncoder::new(b"omega.table-call-source.v1\0");
+        match self {
+            Self::Provider(contribution) => {
+                digest.byte(0);
+                digest.raw(&contribution.commitment().as_bytes());
+            }
+            Self::HostedBinding {
+                receipt,
+                requirement_identity,
+            } => {
+                digest.byte(1);
+                digest.raw(receipt);
+                digest.bytes(requirement_identity.as_bytes());
+            }
+        }
+        digest.finish()
+    }
 }
 
 impl NormalizedForeignCallMechanism {
@@ -256,9 +287,10 @@ impl NormalizedForeignCallMechanism {
                 ..
             }
             | Self::Table {
-                same_stack_contribution,
+                source: TableBindingSource::Provider(same_stack_contribution),
                 ..
             } => Some(same_stack_contribution),
+            Self::Table { source: TableBindingSource::HostedBinding { .. }, .. } => None,
             Self::SystemCall(_) | Self::HostedImport { .. } | Self::CompilerImport { .. } => None,
         }
     }
@@ -298,7 +330,8 @@ impl NormalizedForeignCallBinding {
     /// its full receipt, calling application and declared contract.
     pub fn native_binding_receipt(&self) -> Option<[u8; 32]> {
         match &self.mechanism {
-            NormalizedForeignCallMechanism::HostedImport { receipt, .. } => Some(*receipt),
+            NormalizedForeignCallMechanism::HostedImport { receipt, .. }
+            | NormalizedForeignCallMechanism::Table { source: TableBindingSource::HostedBinding { receipt, .. }, .. } => Some(*receipt),
             NormalizedForeignCallMechanism::SystemCall(binding) => match binding.execution {
                 NormalizedForeignExecution::NativeBinding(receipt) => Some(receipt),
                 _ => None,
@@ -440,6 +473,9 @@ impl NormalizedForeignCallBinding {
         | NormalizedForeignCallMechanism::CompilerImport {
             requirement_identity,
             ..
+        }
+        | NormalizedForeignCallMechanism::Table {
+            source: TableBindingSource::HostedBinding { requirement_identity, .. }, ..
         } = &self.mechanism
         {
             return Some(requirement_identity);
@@ -505,6 +541,10 @@ impl NormalizedForeignCallBinding {
                     && call.policy == CallingPolicy::native_for_target(target)
                     && call.entry_control == EntryControl::CallReturn
             }
+            NormalizedForeignCallMechanism::Table {
+                target, source: TableBindingSource::HostedBinding { receipt, requirement_identity }, ..
+            } if target.program_entry_slot().schema != target::ProgramEntrySchema::HostedApplication
+                || *receipt == [0;32] || requirement_identity.is_empty() => false,
             NormalizedForeignCallMechanism::Import { .. }
             | NormalizedForeignCallMechanism::Table { .. } => {
                 call.policy == CallingPolicy::native_for_target(target)

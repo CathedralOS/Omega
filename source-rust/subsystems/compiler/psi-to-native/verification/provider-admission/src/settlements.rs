@@ -470,7 +470,7 @@ fn rejoin_normalized_foreign_call(
                         .and_then(|projection| projection.operand_for_formal(0))
                         .map_err(|error| vec![Diagnostic::error(error)])?,
                     dispatch_only,
-                    same_stack_contribution: same_stack.clone(),
+                    source: target_operations::TableBindingSource::Provider(same_stack.clone()),
                 },
             });
         }

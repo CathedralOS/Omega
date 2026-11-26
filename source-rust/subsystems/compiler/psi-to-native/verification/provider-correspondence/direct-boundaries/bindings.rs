@@ -178,6 +178,8 @@ impl DirectBoundaryLeaf {
                 provider_plans::EvaluatedNativeBinding::Syscall(syscall),
                 calling_conventions::ExternalBindingKind::Syscall { number },
             ) if syscall.number() == *number => {}
+            (provider_plans::EvaluatedNativeBinding::FunctionField(field), calling_conventions::ExternalBindingKind::FunctionField(candidate))
+                if *candidate == native_binding_admission::resolve_function_field(module, boundary, field)? => {}
             _ => return Err("plain binding changes its normalized execution mechanism".into()),
         }
         Ok(boundary)

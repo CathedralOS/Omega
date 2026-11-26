@@ -23,36 +23,16 @@ enum Fixture {
     Pair,
 }
 
-/// Writes the provider library, `main.omg` and the `build.omg` that binds the
-/// provider, and returns the temporary directory and the source root.
-fn write_provider_fixture(fixture: Fixture) -> (TemporaryDirectory, std::path::PathBuf) {
-    let forward = fixture == Fixture::Forwarded;
-    let directory = TemporaryDirectory::create("provider-reference", false).unwrap();
-    let root = directory.path().join("source");
-    std::fs::create_dir(&root).unwrap();
+fn compile_provider(
+    directory: &TemporaryDirectory,
+    source: &str,
+    symbols: &str,
+) -> std::path::PathBuf {
     let library = directory.path().join("libomega_reference.so");
     let provider = directory.path().join("provider.c");
     let version = directory.path().join("provider.map");
-    std::fs::write(
-        &provider,
-        if forward {
-            "#include <stdint.h>\nstatic int32_t cell = 37;\nconst int32_t *omega_reference_cell(void) { return &cell; }\nint32_t omega_reference_read(const int32_t *value) { return *value; }\n"
-        } else if fixture == Fixture::Pair {
-            "#include <stdint.h>\nstruct Pair { int32_t left; int32_t right; };\nstatic const struct Pair cell = { 37, 91 };\nconst struct Pair *omega_reference_cell(void) { return &cell; }\n"
-        } else {
-            "#include <stdint.h>\nstatic int32_t cell = 37;\nconst int32_t *omega_reference_cell(void) { return &cell; }\n"
-        },
-    )
-    .unwrap();
-    std::fs::write(
-        &version,
-        if forward {
-            "REFERENCE_1.0 { global: omega_reference_cell; omega_reference_read; local: *; };\n"
-        } else {
-            "REFERENCE_1.0 { global: omega_reference_cell; local: *; };\n"
-        },
-    )
-    .unwrap();
+    std::fs::write(&provider, source).unwrap();
+    std::fs::write(&version, symbols).unwrap();
     compile(
         Command::new(std::env::var_os("CC").unwrap_or_else(|| "cc".into()))
             .args([
@@ -62,6 +42,30 @@ fn write_provider_fixture(fixture: Fixture) -> (TemporaryDirectory, std::path::P
             .arg(&provider)
             .arg("-o")
             .arg(&library),
+    );
+    library
+}
+
+/// Writes the provider library, `main.omg` and the `build.omg` that binds the
+/// provider, and returns the temporary directory and the source root.
+fn write_provider_fixture(fixture: Fixture) -> (TemporaryDirectory, std::path::PathBuf) {
+    let forward = fixture == Fixture::Forwarded;
+    let directory = TemporaryDirectory::create("provider-reference", false).unwrap();
+    let root = directory.path().join("source");
+    std::fs::create_dir(&root).unwrap();
+    let library = compile_provider(&directory,
+if forward {
+            "#include <stdint.h>\nstatic int32_t cell = 37;\nconst int32_t *omega_reference_cell(void) { return &cell; }\nint32_t omega_reference_read(const int32_t *value) { return *value; }\n"
+        } else if fixture == Fixture::Pair {
+            "#include <stdint.h>\nstruct Pair { int32_t left; int32_t right; };\nstatic const struct Pair cell = { 37, 91 };\nconst struct Pair *omega_reference_cell(void) { return &cell; }\n"
+        } else {
+            "#include <stdint.h>\nstatic int32_t cell = 37;\nconst int32_t *omega_reference_cell(void) { return &cell; }\n"
+        },
+if forward {
+            "REFERENCE_1.0 { global: omega_reference_cell; omega_reference_read; local: *; };\n"
+        } else {
+            "REFERENCE_1.0 { global: omega_reference_cell; local: *; };\n"
+        },
     );
     std::fs::write(
         root.join("main.omg"),
@@ -140,15 +144,22 @@ machine build(builder: @mutable Build) {{
     (directory, root)
 }
 
-/// Keep each engine’s artifacts inside the fixture’s scratch directory.
+/// Run one explicit engine in the fixture's source root.
 fn run(
     directory: &TemporaryDirectory,
     root: &std::path::Path,
     engine: &str,
     file: &str,
 ) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_omega"))
+    omega_command(directory, root)
         .args(["run", "--engine", engine, "--keep", file])
+        .output()
+        .unwrap()
+}
+
+fn omega_command(directory: &TemporaryDirectory, root: &std::path::Path) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+    command
         .current_dir(root)
         .env(
             "OMEGA_LIBRARY_ROOT",
@@ -157,9 +168,8 @@ fn run(
         .env("TMPDIR", directory.path())
         .env_remove("OMEGA_HOST_PACKAGE_LOCK")
         .env_remove("OMEGA_HOST_PACKAGE_LOCK_SHA256")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .unwrap()
+        .stdin(std::process::Stdio::null());
+    command
 }
 
 fn execute_provider_fixture(fixture: Fixture) {
@@ -258,4 +268,140 @@ fn the_program_file_alone_supplies_no_provider() {
         !report.lines().any(|line| line == "native exit 0"),
         "{report}"
     );
+}
+
+#[test]
+fn native_table_uses_the_runtime_receiver_and_keeps_the_nonfirst_abi_argument() {
+    let directory = TemporaryDirectory::create("provider-table", false).unwrap();
+    let root = directory.path().join("source");
+    std::fs::create_dir(&root).unwrap();
+    let library = compile_provider(
+        &directory,
+        r"
+#include <stdint.h>
+struct protocol;
+typedef int32_t (*operation)(int32_t, const struct protocol *);
+struct protocol { uint64_t marker; operation apply; };
+static int32_t add(int32_t value, const struct protocol *p) { return value + (int32_t)p->marker; }
+static int32_t sub(int32_t value, const struct protocol *p) { return value - (int32_t)p->marker; }
+static const struct protocol tables[] = {{7, add}, {3, sub}};
+struct issued { struct protocol table; };
+struct issued provide(uint32_t slot) { return (struct issued){tables[slot & 1]}; }
+",
+        "TABLE_1 { global: provide; local: *; };",
+    );
+    let program = r"
+use {omega}/language/core/access/access.omg as policy;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/reflect/reflect.omg as reflection;
+public data Protocol { marker: u64; apply: addr; }
+public domain Protocol::Initialized access ProtocolIssuance;
+ProtocolIssuance satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflection|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |policy|::new_plan(@schema, |layout|::Issuance::Only { routes: [
+            |reflection|::callable(TableSource::provide)
+        ] })
+    }
+}
+public data IssuedTable { table: Protocol in Protocol::Initialized; }
+public boundary trait TableSource {
+    machine provide(slot: u32) -> IssuedTable reaches none crashes none ensures result.table in Protocol::Initialized;
+}
+public boundary trait Operation {
+    machine apply(value: i32, table: @Protocol in Protocol::Initialized) -> i32 reaches none crashes none;
+}
+machine main() reaches TableSource + Operation invokes TableSource invokes Operation crashes Trap {
+    let left: IssuedTable = TableSource::provide(0u32);
+    let right: IssuedTable = TableSource::provide(1u32);
+    let first: i32 = Operation::apply(25i32, @left.table);
+    let second: i32 = Operation::apply(25i32, @right.table);
+    transition first == 32i32 && second == 22i32 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+";
+    std::fs::write(root.join("main.omg"), program).unwrap();
+    let build = r#"use {omega}/language/core/external_binding.omg as native;
+use {omega}/language/core/reflect/reflect.omg as reflection;
+machine build<'selection>(builder: @mutable Build) {
+    Build::application(builder, "table_calls");
+    Build::bind(builder, TARGET::ProgramEntry, main);
+    Build::bind_native::<TableSource::provide>(builder, TARGET,
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned {
+            object: "LIBRARY", symbol: "provide", version: "TABLE_1"
+        } });
+    let binding: |native|::FunctionFieldBinding<'selection> = |native|::FunctionFieldBinding {
+        table: |reflection|::parameter(Operation::apply::table),
+        field: |reflection|::field(Protocol::apply),
+    };
+    Build::bind_native::<Operation::apply>(builder, TARGET, binding);
+}
+"#;
+    std::fs::write(
+        root.join("build.omg"),
+        build
+            .replace("TARGET", target::TargetProfile::host().target_name())
+            .replace("LIBRARY", library.to_str().unwrap()),
+    )
+    .unwrap();
+    let observation = directory.path().join("observation");
+    let output = omega_command(&directory, &root)
+        .args(["run", "--engine", "native", "--outputs"])
+        .arg(&observation)
+        .arg("build.omg")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let status = std::fs::read_to_string(observation.join("termination.tsv")).unwrap();
+    assert!(status.starts_with("native\texit\t0\t"), "{status}");
+
+    // Erasing the requirement's input qualification permits ordinary records
+    // in source. Native publication must still require evidence for the table.
+    let unrestricted = program.replace("table: @Protocol in Protocol::Initialized", "table: @Protocol");
+    std::fs::write(root.join("main.omg"), unrestricted).unwrap();
+    let unchecked = omega_command(&directory, &root)
+        .arg("--build-dir")
+        .arg(directory.path().join("unchecked"))
+        .arg("build.omg")
+        .output()
+        .unwrap();
+    assert!(!unchecked.status.success());
+    let diagnostic = String::from_utf8_lossy(&unchecked.stderr);
+    assert!(diagnostic.contains("native function table needs provenance"), "{diagnostic}");
+
+    let expected = "let left: IssuedTable = TableSource::provide(0u32);";
+    let unissued = program
+        .replace(
+            expected,
+            "let left: Protocol = Protocol { marker: 7, apply: 0 as addr };",
+        )
+        .replace("@left.table)", "@left)");
+    let overwritten = program
+        .replace(
+            expected,
+            "let mutable left: IssuedTable = TableSource::provide(0u32);",
+        )
+        .replace(
+            "    let first:",
+            "    left.table.apply = 0 as addr;\n    let first:",
+        );
+    for (input, reason) in [
+        (unissued, "carries no domain"),
+        (overwritten, "establishment routes"),
+    ] {
+        std::fs::write(root.join("main.omg"), input).unwrap();
+        let outcome = omega_command(&directory, &root)
+            .args(["--emit-psi", "refused.psi", "build.omg"])
+            .output()
+            .unwrap();
+        let diagnostic = String::from_utf8_lossy(&outcome.stderr);
+        assert!(
+            !outcome.status.success() && diagnostic.contains(reason),
+            "{diagnostic}"
+        );
+    }
 }

@@ -273,7 +273,14 @@ public data StatePlan {
     preemption: Preemption;
 }
 
+// Select an identity from this invocation's BoundarySignature.native_parameters.
+public data TableArguments [copy] {
+    case PassAll;
+    case DispatchOnly(parameter: u64);
+}
+
 public data BoundaryEntryPlan {
+    table_arguments: TableArguments;
     call: CallPlan;
     state: StatePlan;
 }

@@ -54,6 +54,33 @@ pub(in crate::encoding::recovery) fn binding(
             machine_identity: reader.string()?,
             machine_package_identity: reader.option(package)?,
         },
+        8 => Binding::FunctionField {
+            target: reader.string()?,
+            selector: Box::new(semantic_vocabulary::FunctionFieldBinding {
+                table: semantic_vocabulary::ParameterDescription {
+                    requirement_identity: reader.bytes()?,
+                    requirement_application: reader.bytes()?,
+                    parameter_identity: reader.bytes()?,
+                    qualified_type: reader.bytes()?,
+                    declaration_position: reader.u64()?,
+                    source_revision: reader.bytes()?,
+                },
+                field: semantic_vocabulary::FieldInfoDescription {
+                    member_identity: reader.bytes()?,
+                    case_identity: reader.bytes()?,
+                    owner_identity: reader.bytes()?,
+                    owner_application: reader.bytes()?,
+                    name: reader.bytes()?,
+                    qualified_type: reader.bytes()?,
+                    declaration_position: reader.u64()?,
+                    has_stable_number: reader.boolean()?,
+                    is_erased: reader.boolean()?,
+                    stable_number: reader.u64()?,
+                    source_revision: reader.bytes()?,
+                },
+            }),
+            producer: producer(reader)?,
+        },
         7 => Binding::Import {
             target: reader.string()?,
             locator: locator(reader)?,

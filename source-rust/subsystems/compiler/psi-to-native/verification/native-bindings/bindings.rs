@@ -4,6 +4,9 @@
 
 #![forbid(unsafe_code)]
 
+mod function_field;
+pub use function_field::{FunctionFieldDispatch, function_field_dispatch, resolve_function_field};
+
 use std::sync::Arc;
 
 use provider_plans::{EvaluatedBindingReceipt, EvaluatedNativeBinding, ServiceSchema};
@@ -136,6 +139,13 @@ pub fn validate_receipt(
     }
     // Reconstruct the materialized mechanism as well as its receipt.
     match binding {
+        EvaluatedNativeBinding::FunctionField(field) => {
+            provider_plans::EvaluatedFunctionField::from_retained_evidence(
+                field.target(),
+                Box::new(field.selector().clone()),
+                receipt.clone(),
+            )?;
+        }
         EvaluatedNativeBinding::Import(import) => {
             provider_plans::EvaluatedForeignImport::from_retained_evidence(
                 import.locator().clone(),
@@ -191,6 +201,25 @@ impl<'input> CheckedNativeBinding<'input> {
     }
 
     pub fn admit(
+        row: &'input RetainedNativeBinding,
+        retained: &RetainedNativeBindings,
+        module: &'input terminal_psi::TerminalModule,
+        profile: target::TargetProfile,
+    ) -> Result<Self, String> {
+        let contract = Self::admit_requirement(row, &retained.identities, module, profile)?;
+        if let EvaluatedNativeBinding::FunctionField(field) = &row.binding {
+            function_field::check_table_issuers(
+                module,
+                contract.boundary,
+                field,
+                retained,
+                profile,
+            )?;
+        }
+        Ok(contract)
+    }
+
+    fn admit_requirement(
         row: &'input RetainedNativeBinding,
         identities: &TerminalIdentityTable,
         module: &'input terminal_psi::TerminalModule,
@@ -302,12 +331,12 @@ fn validate_native_declared_types(
 
 pub fn validate_native_binding_execution(
     row: &RetainedNativeBinding,
-    identities: &TerminalIdentityTable,
+    retained: &RetainedNativeBindings,
     module: &terminal_psi::TerminalModule,
     profile: target::TargetProfile,
     application: &calling_conventions::BoundaryCallingApplication,
 ) -> Result<target_vocabulary::NativeBindingExecution, String> {
-    CheckedNativeBinding::admit(row, identities, module, profile)?.execution(application)
+    CheckedNativeBinding::admit(row, retained, module, profile)?.execution(application)
 }
 
 fn validate_native_calling(
@@ -320,7 +349,7 @@ fn validate_native_calling(
     let abi = module.calling_abi_identity(row.boundary)?;
     if application.abi != abi
         || application.target != profile.native_target()
-        || application.dispatch_only_formal.is_some()
+        || (application.dispatch_only_formal.is_some() && !matches!(row.binding, EvaluatedNativeBinding::FunctionField(_)))
     {
         return Err("calling application changed its exact ABI, target or dispatch".into());
     }
@@ -397,14 +426,13 @@ fn validate_native_calling_plan(
 /// Replay the evaluated mechanism as well as its contract and calling plan.
 pub fn validate_native_binding_realization(
     row: &RetainedNativeBinding,
-    identities: &TerminalIdentityTable,
+    retained: &RetainedNativeBindings,
     module: &terminal_psi::TerminalModule,
     profile: target::TargetProfile,
     application: &calling_conventions::BoundaryCallingApplication,
     binding: &target_vocabulary::NormalizedForeignCallBinding,
 ) -> Result<target_vocabulary::NativeBindingExecution, String> {
-    let execution =
-        validate_native_binding_execution(row, identities, module, profile, application)?;
+    let execution = validate_native_binding_execution(row, retained, module, profile, application)?;
     if binding.boundary_entry_plan != *application.plan.plan()
         || !binding.has_valid_entry_mechanism()
     {
@@ -425,6 +453,20 @@ pub fn validate_native_binding_realization(
             evaluated.locator() == locator
                 && *receipt == execution.receipt()
                 && declared == Some(requirement_identity.as_str())
+        }
+        (
+            EvaluatedNativeBinding::FunctionField(field),
+            target_vocabulary::NormalizedForeignCallMechanism::Table {
+                target, byte_offset, table_operand, dispatch_only,
+                source: target_vocabulary::TableBindingSource::HostedBinding { receipt, requirement_identity },
+            },
+        ) => {
+            let boundary = module.boundary_machine(row.boundary).ok_or("function field lost its exact declaration")?;
+            let dispatch = function_field_dispatch(module, boundary, field, application)?;
+            *target == profile && *receipt == execution.receipt()
+                && module.identities.text(boundary.identity) == Some(requirement_identity.as_str())
+                && *byte_offset == dispatch.byte_offset && *table_operand == dispatch.table_operand
+                && *dispatch_only == dispatch.dispatch_only
         }
         (
             EvaluatedNativeBinding::Syscall(evaluated),

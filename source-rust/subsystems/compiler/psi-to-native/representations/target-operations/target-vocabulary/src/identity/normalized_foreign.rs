@@ -192,14 +192,17 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
             byte_offset,
             table_operand,
             dispatch_only,
-            same_stack_contribution,
+            source,
         } => {
             encode_string(bytes, "@table");
             encode_string(bytes, target.target_name());
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
             bytes.extend_from_slice(&table_operand.to_le_bytes());
             bytes.push(u8::from(*dispatch_only));
-            same_stack_contribution
+            bytes.extend_from_slice(&source.commitment());
+            encode_call_plan(bytes, &binding.boundary_entry_plan.call);
+            encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
+            return;
         }
         crate::NormalizedForeignCallMechanism::SystemCall(kernel) => {
             encode_string(bytes, "");

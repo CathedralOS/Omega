@@ -39,9 +39,7 @@ pub mod boundary_application_settlement {
     pub fn settle(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         selected: &selected_provider_plans::SelectedProviderPlanFacts,
-        provenance: &[provider_admission::CompilerIntrinsicPlanProvenance<
-            '_,
-        >],
+        provenance: &[provider_admission::CompilerIntrinsicPlanProvenance<'_>],
         calling: &[calling_conventions::BoundaryCallingApplication],
         native_bindings: &native_binding_admission::RetainedNativeBindings,
         profile: Option<target::TargetProfile>,
@@ -114,7 +112,7 @@ pub mod boundary_application_settlement {
             })?;
             let execution = native_binding_admission::validate_native_binding_execution(
                 row,
-                &native_bindings.identities,
+                native_bindings,
                 module,
                 profile,
                 application,

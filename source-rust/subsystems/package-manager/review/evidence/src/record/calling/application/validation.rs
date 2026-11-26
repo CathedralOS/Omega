@@ -190,10 +190,16 @@ impl PackagePolicyCallingPlan {
                 return Err("calling native origin differs from its physical placement");
             }
         }
+        if self
+            .dispatch_only_formal
+            .is_some_and(|ordinal| ordinal as usize >= self.semantic_parameters.len())
+        {
+            return Err("calling table dispatch names an absent semantic formal");
+        }
         for (ordinal, formal) in self.semantic_parameters.iter().enumerate() {
             if self.shape_graph.parameters[ordinal] != formal.shape_root
                 || self.native_parameters.iter().filter(|native| matches!(native.origin,
-                    PackagePolicyNativeParameterOrigin::SemanticFormal { formal_ordinal, .. } if formal_ordinal as usize == ordinal)).count() != 1
+                    PackagePolicyNativeParameterOrigin::SemanticFormal { formal_ordinal, .. } if formal_ordinal as usize == ordinal)).count() != usize::from(self.dispatch_only_formal != Some(ordinal as u32))
             {
                 return Err("calling semantic formal has no unique native placement");
             }

@@ -16,7 +16,7 @@ use terminal_work::WorkUsage;
 
 pub(super) fn evaluate_terminal_calling_policy(
     invocation: TerminalCallingPolicyInvocation<'_>,
-) -> Result<(ValidatedBoundaryEntryPlan, WorkUsage), String> {
+) -> Result<(ValidatedBoundaryEntryPlan, Option<u32>, WorkUsage), String> {
     let TerminalCallingPolicyInvocation {
         artifact,
         analysis,
@@ -177,10 +177,10 @@ pub(super) fn evaluate_terminal_calling_policy(
     account
         .charge_result_custody(cells, bytes)
         .map_err(|error| format!("calling policy result custody: {error}"))?;
-    let plan = decode_boundary_plan_result(&value)?;
-    let validated = validate_calling_policy_result(plan, signature)?;
+    let (plan, dispatch) = decode_boundary_plan_result(&value)?;
+    let (validated, dispatch_only) = validate_calling_policy_result(plan, signature, dispatch)?;
     instance
         .close()
         .map_err(|error| format!("calling policy close: {error:?}"))?;
-    Ok((validated, meter.into_usage()))
+    Ok((validated, dispatch_only, meter.into_usage()))
 }

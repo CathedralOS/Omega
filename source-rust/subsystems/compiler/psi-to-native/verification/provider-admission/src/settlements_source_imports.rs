@@ -129,7 +129,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                         &provider_plan.target,
                     )
                     .map_err(|error| vec![error])?,
-                    provider: provider_plan.identity_digest(),
+                    authority: terminal_authority_receipts::TableBindingAuthority::Provider(provider_plan.identity_digest()),
                     calling: provider_plans::BoundaryCallingPlanCommitment::from_digest(
                         validated.contract_commitment_digest(),
                     ),

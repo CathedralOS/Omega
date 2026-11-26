@@ -135,14 +135,14 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             byte_offset,
             table_operand,
             dispatch_only,
-            same_stack_contribution,
+            source,
         } => {
             digest.byte(3);
             hash_bytes(&mut digest, target.target_name().as_bytes());
             digest.raw(&byte_offset.to_le_bytes());
             digest.raw(&table_operand.to_le_bytes());
             digest.byte(u8::from(*dispatch_only));
-            digest.raw(&same_stack_contribution.commitment().as_bytes());
+            digest.raw(&source.commitment());
         }
         target_vocabulary::NormalizedForeignCallMechanism::Import {
             locator,

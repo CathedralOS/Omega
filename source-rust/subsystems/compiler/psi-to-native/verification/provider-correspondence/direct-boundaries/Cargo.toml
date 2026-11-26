@@ -8,6 +8,7 @@ version.workspace = true
 path = "bindings.rs"
 
 [dependencies]
+native-binding-admission = { path = "../../native-bindings" }
 native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
 selected-provider-plans = { path = "../../../../build/providers/selections" }
 calling-conventions = { path = "../../../targets/calling-conventions" }

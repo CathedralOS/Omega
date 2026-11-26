@@ -23,7 +23,7 @@ pub use realizations::{
     HostedWriteByteI32Realization, LinuxWriteLineRealization, MetadataOnlyPortRealization,
     NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
     NormalizedForeignCallMechanism, NormalizedForeignExecution, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
+    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, TableBindingSource,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
