@@ -106,7 +106,7 @@ produces the program, and rejects a raw fused-multiply-add plan. The same
 compile does not recheck the output; output breaking this stage's contract is
 a bug here, for focused tests and explicit validator requests to find.
 
-The [independent audit](../preparation/legalization_target.rs)
+The [independent audit](../preparation/legalization/target.rs)
 in this stage's validator matches every graph to its source and
 optimized operations. Direct-native tests run it on the saved artifact, outside
 graph construction; a default compile does not. It checks source order, value
