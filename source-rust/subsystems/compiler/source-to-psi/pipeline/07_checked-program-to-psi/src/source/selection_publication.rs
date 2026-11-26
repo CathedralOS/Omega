@@ -2452,6 +2452,78 @@ machine entry() -> u32 crashes none {{
     }
 
     #[test]
+    fn generic_forwarding_keeps_the_type_argument_in_its_callers_scope() {
+        let source = accepted_source(
+            r#"
+data Supplied {}
+data Written {}
+boundary trait Sink {
+    machine take<Argument>() -> u32 reaches none crashes none;
+}
+machine forward<Argument>() -> u32 reaches none crashes none {
+    let written: Written = Written {};
+    Sink::take::<Argument>()
+}
+machine direct<Argument>() -> u32 reaches none crashes none {
+    let written: Supplied = Supplied {};
+    Sink::take::<Argument>()
+}
+machine entry() -> u32 reaches none crashes none {
+    _ = direct::<Supplied>();
+    forward::<Supplied>()
+}
+"#,
+            &[],
+        );
+        let publication = prepare(&source, source.module(), None).unwrap();
+        let questions = &publication.questions;
+        let owners = |name: &str| {
+            let declaration = questions
+                .declarations
+                .iter()
+                .find(|(_, d)| d.name == name)
+                .unwrap()
+                .0;
+            questions
+                .questions
+                .iter()
+                .filter(|(_, q)| q.selected == SelectionReference::Declaration(declaration))
+                .map(|(_, q)| {
+                    questions
+                        .declarations
+                        .get(q.occurrence.lexical_owner)
+                        .unwrap()
+                        .name
+                        .as_str()
+                })
+                .collect::<Vec<_>>()
+        };
+        let supplied = owners("Supplied");
+        assert!(supplied.contains(&"entry"), "{supplied:?}");
+        assert!(
+            !supplied
+                .iter()
+                .any(|name| name.starts_with("forward$specialized")),
+            "{supplied:?}"
+        );
+        // The same caller input cannot authorize a reference the other
+        // helper independently wrote to that very declaration.
+        assert!(
+            supplied
+                .iter()
+                .any(|name| name.starts_with("direct$specialized")),
+            "{supplied:?}"
+        );
+        let written = owners("Written");
+        assert!(
+            written
+                .iter()
+                .any(|name| name.starts_with("forward$specialized")),
+            "{written:?}"
+        );
+    }
+
+    #[test]
     fn static_formation_scope_is_metadata_not_a_product_selection() {
         let (program, _) = closed_requirement_formed_in_build(false);
         let source = accept_formation_program(program).unwrap();

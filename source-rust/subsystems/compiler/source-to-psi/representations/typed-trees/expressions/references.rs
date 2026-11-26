@@ -2844,7 +2844,19 @@ pub fn visit_static_argument(
     }
     // A literal supplies its value, not a declaration. Keep every nonempty
     // handle so the receiving owner still authenticates malformed references.
-    if argument.symbol != SymbolHandle::invalid() {
+    // A named data argument already selects its declaration through its
+    // type occurrence. The occurrence retains the supplying invocation even
+    // when a generic callable forwards it across a source boundary.
+    let named_data = program.symbols.symbols().nodes().is_valid(argument.symbol)
+        && program.symbols.get(argument.symbol).kind == symbols::SymbolKind::Data
+        && program
+            .type_reference_table
+            .contains_type_reference(argument.type_reference)
+        && matches!(program.type_reference_node(argument.type_reference),
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::Generic { base_symbol: symbol, .. }
+            if *symbol == argument.symbol);
+    if argument.symbol != SymbolHandle::invalid() && !named_data {
         visit_callable_symbol(program, retained, argument.symbol);
     }
     visit_type_reference(program, retained, argument.type_reference);
