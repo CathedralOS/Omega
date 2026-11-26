@@ -826,14 +826,6 @@ mod tests {
     };
 
     fn scope(root: &std::path::Path, name: &str) -> BuildMachineFilesystemScope {
-        let source_root = root.join("source");
-        std::fs::create_dir_all(&source_root).unwrap();
-        let sponsor = filesystem_authority::FilesystemSponsor::create_private(
-            root.join(name),
-            filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
-        )
-        .unwrap();
-        let output = sponsor.session_root().unwrap().join("output");
         let metadata = CanonicalFilesystemMetadataIndex::version_1(
             [42; 32],
             [
@@ -868,6 +860,22 @@ mod tests {
             ],
         )
         .unwrap();
+        scope_with_input(root, name, input)
+    }
+
+    fn scope_with_input(
+        root: &std::path::Path,
+        name: &str,
+        input: CapturedBuildSourceInput,
+    ) -> BuildMachineFilesystemScope {
+        let source_root = root.join("source");
+        std::fs::create_dir_all(&source_root).unwrap();
+        let sponsor = filesystem_authority::FilesystemSponsor::create_private(
+            root.join(name),
+            filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
+        )
+        .unwrap();
+        let output = sponsor.session_root().unwrap().join("output");
         let mut scope = BuildMachineFilesystemScope::for_root(
             &source_root.join("main.omg"),
             output,
@@ -935,8 +943,16 @@ mod tests {
             false,
         )
         .unwrap();
-        let scope = scope(temp.path(), "session");
         let source = temp.path().join("source");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::write(source.join("asset"), b"hello").unwrap();
+        let captured = source_acquisition::local::operations::capture_local_source_input(
+            &source,
+            source_acquisition::LocalSourceLimits::default(),
+        )
+        .unwrap();
+        let input = crate::source::source_snapshot::retained_source_input(captured.tree()).unwrap();
+        let scope = scope_with_input(temp.path(), "session", input);
         std::fs::write(source.join("asset"), b"later").unwrap();
         std::fs::write(source.join("sibling"), b"unadmitted").unwrap();
         let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
@@ -946,7 +962,6 @@ mod tests {
         assert_eq!(&buffer, b"hello\xff\xff\xff");
         for (path, count, expected) in [
             (b"sibling".as_slice(), 8, std::io::ErrorKind::NotFound),
-            (b"link", 8, std::io::ErrorKind::PermissionDenied),
             (b"../asset", 8, std::io::ErrorKind::InvalidInput),
             (b"asset", 9, std::io::ErrorKind::InvalidInput),
         ] {

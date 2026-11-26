@@ -1687,7 +1687,28 @@ pub(crate) mod values {
                                 || members.iter().any(|(_, element)| matches!(element, Element::Structural(index) if nodes[*index].requires_erased_establishment));
                             (Shape::Record(members), count, requires_erased)
                         }
-                        StructuralTypeShape::Sum { .. } if allow_cases => (Shape::Sum, None, false),
+                        StructuralTypeShape::Sum { cases } if allow_cases => {
+                            // A concrete result carries one tag and the fields of its active case.
+                            // Bound every case here; materialization checks its exact active leaves.
+                            let mut maximum = 1u64;
+                            let mut requires_erased = false;
+                            for case in cases {
+                                let mut count = 1u64;
+                                for field in &case.fields {
+                                    let leaves = match field.field_type {
+                                        StructuralFieldType::Structural(id) => {
+                                            let node = &nodes[child(id)?];
+                                            requires_erased |= node.requires_erased_establishment;
+                                            node.count.ok_or(malformed())?
+                                        }
+                                        _ => 1,
+                                    };
+                                    count = count.checked_add(leaves).ok_or(malformed())?;
+                                }
+                                maximum = maximum.max(count);
+                            }
+                            (Shape::Sum, Some(maximum), requires_erased)
+                        }
                         StructuralTypeShape::FixedArray {
                             element,
                             length: terminal_psi::ArrayExtent::Literal(length),
