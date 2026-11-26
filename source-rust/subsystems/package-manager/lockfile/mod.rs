@@ -105,6 +105,22 @@ impl PackageLockTarget {
     }
 
     fn validate(&self) -> Result<(), Error> {
+        if self
+            .source
+            .catalog_dependencies()
+            .iter()
+            .any(|input| input.observer.member().is_none())
+        {
+            return Err(Error::WorkspaceRootInput);
+        }
+        if self
+            .source
+            .catalog_dependencies()
+            .iter()
+            .any(|dependency| dependency.preparation.is_some())
+        {
+            return Err(Error::MultipleBuildEntries);
+        }
         let roster =
             PackageOccurrenceRoster::derive(&self.source).map_err(|error| match error {
                 self::PackageOccurrenceRosterError::AllocationFailed => Error::AllocationFailed,

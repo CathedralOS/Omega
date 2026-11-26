@@ -8,7 +8,9 @@ use super::super::{
 };
 use super::super::{request_view::Request, usage::Budget};
 use super::framing::Encoder;
-use super::source::{encode_package_key, encode_source_identity, encode_source_lineage};
+use super::source::{
+    encode_package_key, encode_resolution, encode_source_identity, encode_source_lineage,
+};
 use crate::declarations::AliasName;
 use crate::declarations::dependencies::read::{
     DependencyProjections, PackageSelection, ProjectedDependencies,
@@ -79,12 +81,31 @@ fn encode_subject_to(
 
     encoder.count(catalog_dependencies.len())?;
     for dependency in catalog_dependencies {
-        encode_source_identity(encoder, &dependency.observer, limits.maximum_identity_bytes)?;
-        encode_package_navigation(
-            encoder,
-            &dependency.navigation,
-            limits.maximum_request_bytes,
-        )?;
+        match &dependency.observer {
+            super::super::CatalogObserver::Member { source, navigation } => {
+                encoder.byte(0);
+                encode_source_identity(encoder, source, limits.maximum_identity_bytes)?;
+                encode_package_navigation(encoder, navigation, limits.maximum_request_bytes)?;
+            }
+            super::super::CatalogObserver::Workspace {
+                lineage,
+                resolution,
+            } => {
+                encoder.byte(1);
+                encode_source_lineage(encoder, lineage, limits.maximum_identity_bytes)?;
+                encode_resolution(encoder, resolution)?;
+            }
+        }
+        if let Some(stage) = &dependency.preparation {
+            encoder.byte(1);
+            encoder.count(stage.ordinal)?;
+            encoder.bytes_bounded(
+                stage.successor.as_str().as_bytes(),
+                limits.maximum_request_bytes,
+            )?;
+        } else {
+            encoder.byte(0);
+        }
         encoder.count(dependency.ordinal)?;
         encoder.byte(dependency.purpose.canonical_tag());
         encode_dependency_request(encoder, Request::from(&dependency.request), limits)?;

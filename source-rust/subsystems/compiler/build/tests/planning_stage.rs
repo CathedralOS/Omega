@@ -355,7 +355,7 @@ machine build(builder: @mutable Build) suspends {
         let value: i32 = |scores|::value();
     }
     machine done(builder: @mutable Build) {
-        Build::bind(builder, linux_x86_64\ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, main);
     }
 }
 "#).unwrap();
@@ -491,7 +491,7 @@ machine build(builder: @mutable Build) {
     transition valid { true -> named(builder), false -> wrong(builder), }
     machine named(builder: @mutable Build) {
         Build::application(builder, "consumer");
-        Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     }
     machine wrong(builder: @mutable Build) { Build::application(builder, "wrong"); }
 }

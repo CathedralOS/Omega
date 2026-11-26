@@ -31,12 +31,47 @@ pub(super) fn load_imports(
     )
 }
 
+#[derive(Clone, Copy)]
 pub(super) enum SourceRouting<'inputs> {
     Compilation {
         package_inputs: Option<&'inputs PackageCompilationInputs>,
         phase: PackageImportPhase,
     },
     Query(&'inputs crate::source::source_imports::ProductQueryInputs),
+}
+
+/// Provider declarations can be in files outside the ordinary import closure.
+/// Load each needed file from the same immutable mounts that supplied this Build.
+pub(super) fn load_provider_sources(
+    storage: &mut SourceStorage,
+    imports: &mut ImportQueue,
+    routing: SourceRouting<'_>,
+    providers: &crate::InterpretedProviderSelections,
+    timings: &mut CompileTimings,
+    catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
+) -> Result<(), Vec<Diagnostic>> {
+    if providers.is_empty() {
+        return Ok(());
+    }
+    let mut queued = std::collections::HashSet::new();
+    loop {
+        let mut added = false;
+        for path in providers.required_source_paths(&storage.sources)? {
+            if queued.insert(path.clone()) {
+                imports.seed(path, source_provenance::DependencyScope::Build);
+                added = true;
+            }
+        }
+        if !added {
+            return Ok(());
+        }
+        let unresolved = load_source_frontiers(storage, imports, routing, timings, catalogue)?;
+        if let Some(first) = unresolved.first() {
+            return Err(vec![Diagnostic::error(format!(
+                "interpreter provider import has no supplied source: {first:?}"
+            ))]);
+        }
+    }
 }
 
 pub(super) fn load_source_frontiers(

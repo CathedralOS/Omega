@@ -4,11 +4,13 @@
 // unexecuted Build dependency: explicit provider readiness replaced that old
 // host-library route, which would reject before exercising this obligation.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "product_entry_query_build_scope_alias");
-    let mutable support_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "helper" });
-    dependency\with_alias(@mutable support_dependency, "support");
+    let mutable support_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "helper" });
+    |dependency|::with_alias(@mutable support_dependency, "support");
     let support_registration: DependencyRegistration = Build::build_dependency(builder, support_dependency);
     let entry: ProductEntryRef = BuildProduct::entry(@builder.product, "support::setup::launch", "windows_x86_64::ProgramEntry");
-    Build::bind(builder, windows_x86_64\ProgramEntry, entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
 }

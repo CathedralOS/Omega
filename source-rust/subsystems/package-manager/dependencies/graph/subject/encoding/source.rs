@@ -95,7 +95,7 @@ pub(super) fn encode_source_lineage(
     Ok(())
 }
 
-fn encode_resolution(
+pub(super) fn encode_resolution(
     encoder: &mut Encoder,
     resolution: &ImmutableSourceResolution,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {

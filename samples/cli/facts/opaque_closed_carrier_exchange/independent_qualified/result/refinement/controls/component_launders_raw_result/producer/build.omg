@@ -12,10 +12,10 @@ machine build(builder: @mutable Build) {
  Build::select_provider::<AddressBridge, AddressBridgeProvider>(builder, cross_platform_cli);
  Build::select_provider::<AddressBridge, AddressBridgeProvider>(builder, local_unchecked);
  Build::select_provider::<AddressBridge, AddressBridgeProvider>(builder, alpha_bootstrap);
- Build::bind(builder, linux_x86_64\ProgramEntry, component_entry);
- Build::bind(builder, linux_arm64\ProgramEntry, component_entry);
- Build::bind(builder, macos_arm64\ProgramEntry, component_entry);
- Build::bind(builder, windows_x86_64\ProgramEntry, component_entry);
+ Build::bind(builder, linux_x86_64::ProgramEntry, component_entry);
+ Build::bind(builder, linux_arm64::ProgramEntry, component_entry);
+ Build::bind(builder, macos_arm64::ProgramEntry, component_entry);
+ Build::bind(builder, windows_x86_64::ProgramEntry, component_entry);
 
     Build::bind_native::<AddressParts::make>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {

@@ -7,8 +7,8 @@ machine rebind<'activation>(builder: @'activation Build) {
 machine build(builder: @mutable Build) {
     Build::application(builder, "builder_rebind_scope");
     rebind(builder);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }

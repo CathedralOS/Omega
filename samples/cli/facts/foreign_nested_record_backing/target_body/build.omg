@@ -54,8 +54,8 @@ machine build(builder: @mutable Build) {
     Build::select_provider::<PendingTransfer, PendingTransferCode>(builder, macos_arm64);
     Build::select_provider::<PendingTransfer, PendingTransferCode>(builder, windows_x86_64);
     Build::application(builder, "foreign_nested_record_backing");
-    Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64\ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64\ProgramEntry, entry_start);
-    Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
 }

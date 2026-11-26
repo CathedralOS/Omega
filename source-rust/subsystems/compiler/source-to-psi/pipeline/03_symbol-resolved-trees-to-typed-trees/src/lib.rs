@@ -8,12 +8,13 @@ generated-source continuations (`lower_seeded_extension` and
 /*
 Our typing route runs through two shared cohort operations in `lowerer.rs`
 (`type_resolved_cohort` and `close_typed_cohort`). Before erasing resolved
-membership nodes, `equality_and_exhaustiveness.rs` validates bare case
+membership nodes, `patterns/equality_and_exhaustiveness.rs` validates bare case
 equality and match exhaustiveness. After typed data applications acquire their
-substituted fields, `equality_preparation.rs` selects exact core comparisons.
-`declarations.rs` then lowers every declaration family through
-`contracts_and_signatures.rs`, `type_reference.rs`, `expression_lowering.rs`,
-`statement_lowering.rs`, and `call_and_product_selections.rs`.
+substituted fields, `expressions/equality_preparation.rs` selects exact core
+comparisons. `declarations/items.rs` then lowers every declaration family through
+`declarations/contracts_and_signatures.rs`, `types/type_reference.rs`,
+`expressions/expression_lowering.rs`, `statements/statement_lowering.rs`, and
+`expressions/call_and_product_selections.rs`.
 */
 
 /*
@@ -63,6 +64,7 @@ fn try_resolve_fixture(
 }
 
 #[cfg(test)]
+#[path = "../tests/unit/data_application_tests.rs"]
 mod data_application_tests;
 
 // An incomplete typing check refuses at the point where its required
@@ -71,66 +73,86 @@ fn unavailable_judgment(construct: &str) -> diagnostics::Diagnostic {
     diagnostics::Diagnostic::error(format!("typing could not complete the check ({construct})"))
 }
 
-mod atomic_calls;
-mod call_and_product_selections;
-mod constant_initializers;
-mod constructor_applications;
-mod contracts_and_signatures;
-mod data_patterns;
-mod declarations;
-mod domain_cast_accounting;
-mod equality_and_exhaustiveness;
-mod equality_preparation;
-mod expression_lowering;
-mod expression_meanings;
+mod declarations {
+    pub(crate) mod constant_initializers;
+    pub(crate) mod constructor_applications;
+    pub(crate) mod contracts_and_signatures;
+    pub(crate) mod items;
+}
+
+mod patterns {
+    pub(crate) mod data_patterns;
+    pub(crate) mod equality_and_exhaustiveness;
+}
+
+mod statements {
+    pub(crate) mod statement_lowering;
+}
+
+mod types {
+    pub(crate) mod access_borrow_factory;
+    pub(crate) mod domain_cast_accounting;
+    pub(crate) mod type_reference;
+    pub(crate) mod typing_queries;
+    pub(crate) mod undeclared_type_names;
+}
+
 mod lowerer;
-mod operand_owners;
-mod operator_calls;
-mod runtime_callables;
-mod statement_lowering;
-mod type_reference;
-mod typing_queries;
-mod undeclared_type_names;
 
 #[cfg(test)]
+#[path = "../tests/unit/ranking_defaults_tests.rs"]
 mod ranking_defaults_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/qualified_operator_home_tests.rs"]
 mod qualified_operator_home_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/operand_owner_tests.rs"]
 mod operand_owner_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/undeclared_type_name_tests.rs"]
 mod undeclared_type_name_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/bodyless_headers_tests.rs"]
 mod bodyless_headers_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/applied_service_tests.rs"]
 mod applied_service_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/relation_family_tests.rs"]
 mod relation_family_tests;
 
 #[cfg(test)]
+#[path = "../tests/unit/cohort_equivalence_tests.rs"]
 mod cohort_equivalence_tests;
 
-pub(crate) use contracts_and_signatures::{contracts, signatures};
+pub(crate) use declarations::contracts_and_signatures::{contracts, signatures};
 
 pub(crate) mod expressions {
-    pub(crate) use crate::call_and_product_selections::{
+    pub(crate) mod atomic_calls;
+    pub(crate) mod call_and_product_selections;
+    pub(crate) mod equality_preparation;
+    pub(crate) mod expression_lowering;
+    pub(crate) mod expression_meanings;
+    pub(crate) mod operand_owners;
+    pub(crate) mod operator_calls;
+    pub(crate) mod runtime_callables;
+
+    pub(crate) use crate::expressions::call_and_product_selections::{
         build_selections, call_results, capture_product_operands, construction_destinations,
         installed_interrupts, product_queries, product_selections, qualification_casts,
     };
-    pub(crate) use crate::equality_and_exhaustiveness::{
+    pub(crate) use crate::expressions::expression_lowering::expression;
+    pub(crate) use crate::patterns::equality_and_exhaustiveness::{
         equality, exhaustiveness, proposition,
     };
-    pub(crate) use crate::expression_lowering::expression;
-    pub(crate) use crate::statement_lowering::statement;
+    pub(crate) use crate::statements::statement_lowering::statement;
 }
-
-mod access_borrow_factory;
 
 pub(crate) mod tables {
     use crate::source_resolved::SymbolResolvedTrees;
@@ -172,8 +194,6 @@ pub(crate) mod tables {
 }
 
 #[cfg(any(test, feature = "test-support"))]
-pub use access_borrow_factory::{access_borrow_factory, access_borrow_factory_of};
-#[cfg(any(test, feature = "test-support"))]
 pub use lowerer::lower_symbol_resolved_trees;
 #[cfg(any(test, feature = "test-support"))]
 pub use lowerer::seeded_continuation::{
@@ -184,3 +204,5 @@ pub use lowerer::seeded_continuation::{
 pub use lowerer::seeded_continuation::{
     SeededTypingBase, lower_symbol_resolved_trees_to_seeded_base,
 };
+#[cfg(any(test, feature = "test-support"))]
+pub use types::access_borrow_factory::{access_borrow_factory, access_borrow_factory_of};

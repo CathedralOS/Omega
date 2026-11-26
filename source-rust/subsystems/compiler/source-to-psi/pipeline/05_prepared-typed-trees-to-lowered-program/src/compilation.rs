@@ -2,6 +2,8 @@
 //! Generic dependency discovery, selected witnesses and source correspondence
 //! belong here; the next stage only judges the modules and relationships emitted.
 
+pub mod source_roster;
+
 use crate::source_state::TypedTrees;
 use lowered_source_publication::{LoweredSourcePublication, PublicationSource};
 use lowered_source_publication_issuer::LOWERING;
@@ -57,7 +59,7 @@ pub(super) fn bind_source(
     owner: crate::PreparedTypedTrees,
     publication: terminal_codec::TerminalPublication,
     prepared: LoweredCompilationWithSource,
-    roster: Option<crate::source_roster::SourceCompilationRoster>,
+    roster: Option<crate::compilation::source_roster::SourceCompilationRoster>,
 ) -> LoweredSourcePublication {
     LoweredSourcePublication::from_lowering(
         LOWERING,

@@ -11,7 +11,7 @@ use terminal_check_tables::Checked;
 
 use super::{Program, services};
 use crate::body::ValueType;
-use crate::static_contracts::{
+use crate::callables::static_contracts::{
     SourceConformance, SourceImplementation, SourceSchema, SourceSchemaRequirement,
     SourceServiceCeiling, StaticProviderCandidate, StaticSourceEnvelope,
 };
@@ -198,7 +198,7 @@ impl<'program> Program<'program> {
         boundary: bool,
     ) -> Checked<StaticSourceEnvelope> {
         let written =
-            crate::reach::has_authored_ceiling(self.typed, context, signature.symbol)?;
+            crate::publication::reach::has_authored_ceiling(self.typed, context, signature.symbol)?;
         let service_reach = if written {
             if signature.service_reach_is_installation_bound && !boundary {
                 return Err(services::unavailable(
@@ -839,7 +839,7 @@ impl<'program> Program<'program> {
             let start = self.static_contracts.conformances.len();
             self.static_contracts.formed.insert(
                 position,
-                crate::static_contracts::FormedConformance {
+                crate::callables::static_contracts::FormedConformance {
                     declaration: symbol,
                     application: selected_identity.map(str::to_owned),
                     questions: start..start,
@@ -1114,7 +1114,7 @@ impl<'program> Program<'program> {
         self.static_contracts.conformances.extend(questions);
         self.static_contracts.formed.insert(
             position,
-            crate::static_contracts::FormedConformance {
+            crate::callables::static_contracts::FormedConformance {
                 declaration: symbol,
                 application: selected_identity.map(str::to_owned),
                 questions: start..self.static_contracts.conformances.len(),

@@ -21,7 +21,7 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 use super::network::bounded_git_fetch_arguments;
-use super::recorded_objects::recorded_revision_needs_fetch;
+use super::exact_objects::exact_revision_needs_fetch;
 use super::selection::GitRevisionSelection;
 
 #[allow(clippy::too_many_arguments)]
@@ -56,8 +56,8 @@ pub(super) fn inspect_verified_git_cache_entry<Evidence, PlannerError>(
     )?;
 
     let fetch_remote = match selection {
-        GitRevisionSelection::Recorded(recorded) => {
-            recorded_revision_needs_fetch(executor, &repository, recorded, limits)?
+        GitRevisionSelection::Exact(revision) => {
+            exact_revision_needs_fetch(executor, &repository, revision, limits)?
         }
         GitRevisionSelection::Ordinary(None) if !fetch_remote && is_object_id(requested_rev) => {
             matches!(
@@ -127,7 +127,7 @@ pub(super) fn inspect_verified_git_cache_entry<Evidence, PlannerError>(
         .into());
     }
     repository.verify_current(limits)?;
-    authenticate_git_commit(executor, &repository, &commit, &tree)?;
+    authenticate_git_commit(executor, &repository, &commit, Some(&tree))?;
     let evidence = inspect(executor, &repository, &commit, &tree, limits)?;
     repository.verify_current(limits)?;
     Ok(evidence)

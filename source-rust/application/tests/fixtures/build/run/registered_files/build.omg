@@ -1,7 +1,7 @@
 machine build(builder: @mutable Build) {
     Build::application(builder, "registered_files");
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind_native::<FileCalls::open>(builder, linux_x86_64, ForeignBinding::Syscall { number: 257 });
     Build::bind_native::<FileCalls::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
     Build::bind_native::<FileCalls::read>(builder, linux_x86_64, ForeignBinding::Syscall { number: 0 });

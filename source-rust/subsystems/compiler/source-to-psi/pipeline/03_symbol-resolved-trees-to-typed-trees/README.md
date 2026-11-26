@@ -4,6 +4,23 @@ The contract is [build execution](../../../../../../wiki/spec/build/execution.md
 This note maps its Rust implementation. Limits on which appended cohorts
 (groups of declarations) work are compiler limits, not a separate language.
 
+## Source layout
+
+[`src/lib.rs`](src/lib.rs) exposes the stage API; [`src/lowerer.rs`](src/lowerer.rs)
+runs fresh typing and generated-source continuation through the same cohort operations.
+The remaining source is grouped by the work it owns:
+
+- [`declarations/`](src/declarations/) lowers declaration families, their contracts,
+  signatures, constructors and constant initializers.
+- [`expressions/`](src/expressions/) lowers expression meanings and selects calls,
+  operators, products and operand owners.
+- [`patterns/`](src/patterns/) resolves data patterns, case equality and exhaustiveness.
+- [`statements/`](src/statements/) lowers statements and their retained assignments.
+- [`types/`](src/types/) lowers type references and handles qualification, borrow
+  requests and declared-type queries.
+- [`tests/unit/`](tests/unit/) holds the stage-wide unit tests; local helper tests
+  stay with their owning module.
+
 ## Entry points
 
 - Package capture supplies the files and grants for the invocation. [Filesystem scope](../../../build/inputs/build_execution/filesystem_scope.rs)
@@ -24,7 +41,7 @@ This note maps its Rust implementation. Limits on which appended cohorts
 
 A positional pattern, `(first, _, ..)`, names no field, and a final `..` in
 any data pattern stands for the fields it leaves out. Typing is the first
-stage that knows the subject's record, so [data_patterns.rs](src/data_patterns.rs)
+stage that knows the subject's record, so [data_patterns.rs](src/patterns/data_patterns.rs)
 gives each such row its declared field there: a place selects the field at
 that position in declaration order, and `..` becomes one waived row per
 remaining field of a `let` pattern. The read of a positional binding becomes
@@ -46,7 +63,7 @@ selection records on the declaration. No allowlist of generated-source shapes
 or recursive type checker exists. Unsupported source is rejected by the usual
 resolution, typing, proof, ownership or realization code.
 
-Within a cohort, [expression meanings](src/expression_meanings.rs) prepares
+Within a cohort, [expression meanings](src/expressions/expression_meanings.rs) prepares
 domain casts and selected operator calls from operands outward. A cast can
 give an operator its operand type, and an operator can give an enclosing cast
 its result type. The selected call keeps its static arguments and the

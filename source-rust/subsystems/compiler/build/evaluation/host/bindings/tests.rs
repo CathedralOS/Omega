@@ -22,10 +22,10 @@ machine build(builder: @mutable Build) {
     second(builder);
 }
 machine first(builder: @mutable Build) {
-    Build::bind(builder, linux_x86_64\ProgramEntry, one);
+    Build::bind(builder, linux_x86_64::ProgramEntry, one);
 }
 machine second(builder: @mutable Build) {
-    Build::bind(builder, windows_x86_64\ProgramEntry, two);
+    Build::bind(builder, windows_x86_64::ProgramEntry, two);
 }
 "#;
 

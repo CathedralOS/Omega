@@ -92,7 +92,7 @@ fn build_with(
         format!(
             "machine build(builder: @mutable Build) {{
     Build::application(builder, \"{name}\");
-    Build::bind(builder, {target}\\ProgramEntry, main);
+    Build::bind(builder, {target}::ProgramEntry, main);
 {registration}
 }}
 "
@@ -305,7 +305,7 @@ fn rejected_roster(source: &str, requirement: &str) -> [String; 2] {
         format!(
             r#"machine build(builder: @mutable Build) {{
         Build::application(builder, "rejected_roster");
-        Build::bind(builder, linux_arm64\ProgramEntry, main);
+        Build::bind(builder, linux_arm64::ProgramEntry, main);
         _ = builder.tests.group::<{requirement}>();
     }}"#
         ),
@@ -371,7 +371,7 @@ machine main() {}";
 #[test]
 fn a_batch_build_announces_both_targets_before_any_test_verdict() {
     let registration = format!(
-        r"Build::bind(builder, linux_arm64\ProgramEntry, main);
+        r"Build::bind(builder, linux_arm64::ProgramEntry, main);
 {GROUP}"
     );
     let (ok, output) = build_with(

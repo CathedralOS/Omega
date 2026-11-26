@@ -1,0 +1,582 @@
+//! Publish one canonical service namespace and each call's public reach.
+//!
+//! Source envelopes retain source service identities until the complete used
+//! closure is known. Only ServiceMap converts them to hermetically ordered
+//! Terminal identities. The receiving checker independently judges every call.
+
+use crate::source_state::TypedTrees;
+use arena::IdTable;
+use semantic_vocabulary::ServiceReachId;
+use semantic_vocabulary::{MachineId, ServiceId};
+use terminal_check_tables::{Checked, Construct};
+use terminal_psi::{
+    ServiceDeclaration, TerminalCallableEnvelope, TerminalCallableInvocation,
+    TerminalCallableTermination, TerminalModule,
+};
+
+use crate::{Elaboration, Unserved, refuse};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SourceInvocation {
+    Parameter(u32),
+    Service(ServiceReachId),
+}
+
+impl Ord for SourceInvocation {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let key = |target: &Self| match target {
+            Self::Parameter(position) => (0u8, *position),
+            Self::Service(service) => (1, service.0),
+        };
+        key(self).cmp(&key(other))
+    }
+}
+impl PartialOrd for SourceInvocation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// These identities belong to frozen typed trees, not a Terminal namespace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SourceEnvelope {
+    pub service_reach: Vec<ServiceReachId>,
+    pub invocations: Vec<SourceInvocation>,
+    pub suspends: bool,
+    pub blocks: bool,
+    pub termination: TerminalCallableTermination,
+}
+
+#[derive(Debug, Clone)]
+struct ServiceSource {
+    id: ServiceId,
+    identity: String,
+    name: String,
+    parents: Vec<ServiceId>,
+    schema: crate::source_state::service_declarations::RetainedServiceSurface,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ServiceMap {
+    declarations: Vec<ServiceSource>,
+    bindings: Vec<(ServiceReachId, ServiceId)>,
+}
+impl ServiceMap {
+    pub(crate) fn prepare(
+        typed: &TypedTrees,
+        context: MachineId,
+        registry: &IdTable<
+            ServiceId,
+            (
+                crate::source_state::trait_definition::AppliedTraitScope<'_>,
+                Vec<ServiceId>,
+            ),
+        >,
+        bindings: Vec<(ServiceReachId, ServiceId)>,
+        catalog: crate::source_state::service_declarations::ServiceCatalog<'_>,
+    ) -> Checked<Self> {
+        let mut identities = Vec::with_capacity(registry.len());
+        for (_, (scope, parents)) in registry.iter() {
+            if !scope.declaration.is_boundary {
+                return Err(unavailable(
+                    context,
+                    "ordinary trait cannot enter the service namespace",
+                ));
+            }
+            for parent in parents {
+                let (parent_scope, _) = registry.get(*parent).ok_or_else(|| {
+                    unavailable(context, "service parent has no exact registry row")
+                })?;
+                if !parent_scope.declaration.is_boundary {
+                    return Err(unavailable(
+                        context,
+                        "service parent names an ordinary contract trait",
+                    ));
+                }
+            }
+            let identity = scope
+                .portable_application_identity(typed)
+                .and_then(|identity| typed.type_identity_text(identity))
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    unavailable(
+                        context,
+                        "service has no complete exact application identity",
+                    )
+                })?;
+            identities.push(identity);
+        }
+        let mut ordered = identities.iter().map(String::as_str).collect::<Vec<_>>();
+        ordered.sort_unstable();
+        if ordered.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(unavailable(
+                context,
+                "distinct source services have one application identity",
+            ));
+        }
+        let applications = registry
+            .iter()
+            .zip(&identities)
+            .map(|((_, (scope, _)), identity)| (scope.declaration.symbol, identity.as_str()))
+            .collect::<Vec<_>>();
+        let schemas = catalog
+            .retain_service_applications(&applications)
+            .map_err(|error| crate::read::services::unavailable(context, error.message))?;
+        let declarations = registry
+            .iter()
+            .zip(identities)
+            .zip(schemas)
+            .map(
+                |(((id, (scope, parents)), identity), schema)| ServiceSource {
+                    id,
+                    identity,
+                    name: scope.declaration.name.as_str().to_owned(),
+                    parents: parents.clone(),
+                    schema,
+                },
+            )
+            .collect();
+        for (_, id) in &bindings {
+            if registry.get(*id).is_none() {
+                return Err(unavailable(
+                    context,
+                    "source service binding has no exact registry row",
+                ));
+            }
+        }
+        Ok(Self {
+            declarations,
+            bindings,
+        })
+    }
+    pub(crate) fn service(&self, context: MachineId, source: ServiceReachId) -> Checked<ServiceId> {
+        self.bindings
+            .iter()
+            .find_map(|(known, id)| (*known == source).then_some(*id))
+            .ok_or_else(|| {
+                unavailable(context, "service is outside the retained canonical closure")
+            })
+    }
+    pub(crate) fn identity(&self, service: ServiceId) -> Option<&str> {
+        self.declarations
+            .iter()
+            .find(|source| source.id == service)
+            .map(|source| source.identity.as_str())
+    }
+    pub(crate) fn row(
+        &self,
+        context: MachineId,
+        sources: &[ServiceReachId],
+    ) -> Checked<Vec<ServiceId>> {
+        let mut row = sources
+            .iter()
+            .map(|source| self.service(context, *source))
+            .collect::<Checked<Vec<_>>>()?;
+        row.sort();
+        row.dedup();
+        Ok(row)
+    }
+    pub(crate) fn envelope(
+        &self,
+        context: MachineId,
+        source: &SourceEnvelope,
+    ) -> Checked<TerminalCallableEnvelope> {
+        let mut invocations = source
+            .invocations
+            .iter()
+            .map(|target| match target {
+                SourceInvocation::Parameter(position) => {
+                    Ok(TerminalCallableInvocation::Parameter(*position))
+                }
+                SourceInvocation::Service(service) => self
+                    .service(context, *service)
+                    .map(TerminalCallableInvocation::Service),
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        invocations.sort();
+        invocations.dedup();
+        Ok(TerminalCallableEnvelope {
+            service_reach: self.row(context, &source.service_reach)?,
+            invocations,
+            suspends: source.suspends,
+            blocks: source.blocks,
+            termination: source.termination.clone(),
+        })
+    }
+    pub(crate) fn publish(
+        &self,
+        context: MachineId,
+        module: &mut TerminalModule,
+    ) -> Checked<Vec<String>> {
+        if !module.interfaces.services.is_empty() {
+            return Err(unavailable(
+                context,
+                "service namespace was already published",
+            ));
+        }
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        let mut names = Vec::with_capacity(self.declarations.len());
+        let mut schemas = Vec::with_capacity(self.declarations.len());
+        let prepared = (|| {
+            for source in &self.declarations {
+                let schema = source
+                    .schema
+                    .surface()
+                    .map_err(|error| crate::read::services::unavailable(context, error.message))?;
+                if schema.declaration.root_application_identity() != Some(source.identity.as_str())
+                {
+                    return Err(unavailable(
+                        context,
+                        "service schema changed its exact namespace application",
+                    ));
+                }
+                let declaration = schema.nominal_identity.as_ref().map_err(|error| {
+                    crate::read::services::unavailable(context, error.message.clone())
+                })?;
+                let application = identities.intern(&source.identity);
+                schemas.push(terminal_psi::TerminalServiceSchema {
+                    declaration: identities.intern(declaration),
+                    application,
+                    surface: std::sync::Arc::clone(schema.declaration),
+                });
+                module.interfaces.services.push(ServiceDeclaration {
+                    id: source.id,
+                    identity: application,
+                    parents: source.parents.clone(),
+                });
+                names.push(source.name.clone());
+            }
+            Ok(())
+        })();
+        module.identities = identities.build();
+        prepared?;
+        module.interfaces.service_schemas =
+            terminal_psi::TerminalServiceSchema::join(&module.interfaces.service_schemas, &schemas)
+                .map_err(|reason| crate::read::services::unavailable(context, reason))?;
+        Ok(names)
+    }
+}
+
+pub use terminal_check_tables::contracts::ServiceReach;
+
+fn unavailable(context: MachineId, detail: &'static str) -> terminal_check_tables::Refusal {
+    refuse(context, Construct::Machine, Unserved::Machine(detail))
+}
+
+pub(crate) fn source_closure(
+    typed: &TypedTrees,
+    context: MachineId,
+    roots: &[ServiceReachId],
+) -> Checked<Vec<ServiceReachId>> {
+    let mut pending = roots.iter().map(|id| (*id, false)).collect::<Vec<_>>();
+    let mut active = Vec::new();
+    let mut completed = Vec::new();
+    while let Some((id, exiting)) = pending.pop() {
+        let id = typed.service_reaches.canonical_id(id);
+        let definition = typed
+            .service_reaches
+            .definition(id)
+            .ok_or_else(|| unavailable(context, "service reach names an unknown declaration"))?;
+        if exiting {
+            if active.pop() != Some(id) {
+                return Err(unavailable(
+                    context,
+                    "service closure lost its active declaration",
+                ));
+            }
+            completed.push(id);
+            continue;
+        }
+        if active.contains(&id) {
+            return Err(unavailable(context, "service inheritance has a cycle"));
+        }
+        if completed.contains(&id) {
+            continue;
+        }
+        active.push(id);
+        pending.push((id, true));
+        pending.extend(definition.parents.iter().map(|parent| (*parent, false)));
+    }
+    completed.sort_by_key(|id| id.0);
+    completed.dedup();
+    Ok(completed)
+}
+
+/// Writtenness comes from the exact source declaration, including a closed
+/// requirement's retained template. A normalized empty row cannot supply it.
+pub(crate) fn has_authored_ceiling(
+    typed: &TypedTrees,
+    context: MachineId,
+    symbol: symbols::SymbolHandle,
+) -> Checked<bool> {
+    authored_ceiling_owner(typed, context, symbol).map(|owner| owner.is_some())
+}
+
+pub(crate) fn authored_ceiling_owner(
+    typed: &TypedTrees,
+    context: MachineId,
+    symbol: symbols::SymbolHandle,
+) -> Checked<Option<symbols::SymbolHandle>> {
+    let mut current = symbol;
+    let mut visited = Vec::new();
+    loop {
+        if !typed.symbols.symbols().nodes().is_valid(current) || visited.contains(&current) {
+            return Err(unavailable(
+                context,
+                "service ceiling has stale or cyclic declaration provenance",
+            ));
+        }
+        visited.push(current);
+        if typed
+            .authored_service_reach_rows_for(current)
+            .next()
+            .is_some()
+        {
+            return Ok(Some(current));
+        }
+        if let Some(application) = typed.closed_requirement_application(current) {
+            current = application.template;
+            continue;
+        }
+        if let Some(machine) = typed.machine_by_own_or_state_symbol(current) {
+            if machine.symbol != current {
+                current = machine.symbol;
+                continue;
+            }
+            if let Some(template) = crate::template_of(typed, current) {
+                current = template;
+                continue;
+            }
+        }
+        return Ok(None);
+    }
+}
+
+/// An interned empty row also represents an omitted clause. Only authored
+/// provenance (including a generated machine's template) establishes a promise.
+pub(crate) fn written_ceiling(
+    typed: &TypedTrees,
+    context: MachineId,
+    symbol: symbols::SymbolHandle,
+) -> Checked<Option<Vec<ServiceReachId>>> {
+    let machine = typed
+        .machine_by_symbol(symbol)
+        .ok_or_else(|| unavailable(context, "reach header has no exact machine declaration"))?;
+    authored_source_ceiling(typed, context, symbol, machine.service_reach_row)
+}
+
+/// Source provenance distinguishes omission from an explicitly empty row.
+/// Members belong to the prepared application, whose receiver and method
+/// arguments have already been substituted into this row.
+pub(crate) fn authored_source_ceiling(
+    typed: &TypedTrees,
+    context: MachineId,
+    symbol: symbols::SymbolHandle,
+    row: semantic_vocabulary::ServiceReachRowId,
+) -> Checked<Option<Vec<ServiceReachId>>> {
+    if !has_authored_ceiling(typed, context, symbol)? {
+        return Ok(None);
+    }
+    crate::read::services::finite_reach(typed, context, row).map(Some)
+}
+
+/// State canonical rows from actual lowered direct, callable and boundary calls.
+/// No acceptance follows from this computation; the receiving judgment checks it.
+pub(crate) fn publish(
+    entry: Option<MachineId>,
+    services: &ServiceMap,
+    elaboration: &mut Elaboration,
+) -> Checked<()> {
+    // A declaration module has no executable root. Its diagnostic coordinate
+    // still locates failures while every machine's reach is published below.
+    let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
+    if !elaboration.reach.ceilings.is_empty() || !elaboration.reach.names.is_empty() {
+        return Err(unavailable(
+            diagnostic,
+            "service request metadata was already published",
+        ));
+    }
+    elaboration.reach.names = services.publish(diagnostic, &mut elaboration.module)?;
+    let mut ceilings = Vec::with_capacity(elaboration.module.machines.len());
+    for machine in &elaboration.module.machines {
+        // Lowering retained the authored bound and its applied service
+        // identities. Publish those records for named machines and for
+        // conformance entries built from requirement signatures.
+        // A bodyless requirement keeps its authored bound too. Retaining
+        // that contract creates neither an executable body nor an envelope.
+        ceilings.push(machine.declared_service_reach.clone());
+    }
+    let mut published = ceilings
+        .iter()
+        .map(|ceiling| ceiling.clone().unwrap_or_default())
+        .collect::<Vec<_>>();
+    let position = |machine: MachineId| {
+        usize::try_from(machine.get() - 1)
+            .map_err(|_| unavailable(diagnostic, "machine coordinate exceeds host width"))
+    };
+    // Logical requirements have no body from which to infer reach. Calls use
+    // their retained abstract bounds without publishing an executable declaration.
+    // An omitted bound remains open in requirement_ceilings.
+    for requirement in &elaboration.requirements {
+        let ceiling = elaboration
+            .requirement_ceilings
+            .get(*requirement)
+            .ok_or_else(|| unavailable(*requirement, "requirement lost its service ceiling"))?;
+        if let crate::Ceiling::Authored(reach) = &ceiling.reaches {
+            *published.get_mut(position(*requirement)?).ok_or_else(|| {
+                unavailable(
+                    *requirement,
+                    "requirement has no published reach coordinate",
+                )
+            })? = reach.clone();
+        }
+    }
+    loop {
+        let mut changed = false;
+        for machine in &elaboration.module.machines {
+            let caller = position(machine.id)?;
+            if ceilings
+                .get(caller)
+                .ok_or_else(|| unavailable(machine.id, "machine has no authored reach metadata"))?
+                .is_some()
+            {
+                continue;
+            }
+            let mut contributed = Vec::new();
+            for call in machine.module_invocations() {
+                let row = published
+                    .get(position(call.inputs.callee)?)
+                    .ok_or_else(|| {
+                        unavailable(machine.id, "reach call names a machine outside the module")
+                    })?;
+                union(&mut contributed, row);
+            }
+            for call in machine.callable_invocations() {
+                let contract = elaboration
+                    .module
+                    .execution
+                    .callables
+                    .contract(call.inputs.contract)
+                    .ok_or_else(|| {
+                        unavailable(machine.id, "reach call lost its retained callable contract")
+                    })?;
+                union(&mut contributed, &contract.envelope.service_reach);
+            }
+            for call in machine.boundary_invocations() {
+                let boundary = elaboration
+                    .module
+                    .boundary_machine(call.boundary)
+                    .ok_or_else(|| {
+                        unavailable(
+                            machine.id,
+                            "reach call lost its retained boundary declaration",
+                        )
+                    })?;
+                union(&mut contributed, &boundary.published_service_ceiling);
+            }
+            let row = published
+                .get_mut(caller)
+                .ok_or_else(|| unavailable(machine.id, "caller lost its published reach row"))?;
+            let before = row.len();
+            union(row, &contributed);
+            changed |= row.len() != before;
+        }
+        if !changed {
+            break;
+        }
+    }
+    for machine in &mut elaboration.module.machines {
+        let at = position(machine.id)?;
+        let ceiling = ceilings
+            .get(at)
+            .ok_or_else(|| unavailable(machine.id, "machine lost its reach ceiling"))?;
+        let row = published
+            .get(at)
+            .ok_or_else(|| unavailable(machine.id, "machine lost its published reach"))?;
+        machine.declared_service_reach = ceiling.clone();
+        machine.published_service_ceiling = row.clone();
+        if let Some(named) = elaboration
+            .module
+            .execution
+            .callables
+            .machine_envelopes
+            .get_mut(at)
+            .and_then(Option::as_mut)
+            && (named.machine != machine.id || named.envelope.service_reach != *row)
+        {
+            return Err(unavailable(
+                machine.id,
+                "source and lowered reach projections disagree",
+            ));
+        }
+    }
+    if let Some(entry) = entry {
+        elaboration.module.interfaces.root_service_reach.concrete = published
+            .get(position(entry)?)
+            .ok_or_else(|| unavailable(entry, "program entry has no published reach"))?
+            .clone();
+    }
+    for ceiling in ceilings {
+        elaboration.reach.ceilings.push(ceiling);
+    }
+    Ok(())
+}
+fn union<T: Ord + Clone>(to: &mut Vec<T>, from: &[T]) {
+    to.extend_from_slice(from);
+    to.sort();
+    to.dedup();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
+    use crate::source_symbols::SymbolTableBuilder;
+    use symbols::{SymbolKind, SymbolNameRef};
+
+    #[test]
+    fn ordinary_contract_traits_cannot_enter_the_service_namespace() {
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declaration = symbols
+            .insert_children(
+                root,
+                [(SymbolKind::Trait, SymbolNameRef::Static("Contract"))],
+            )
+            .handle_at(0);
+        let typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let ordinary = TraitDefinition {
+            symbol: declaration,
+            name: crate::source_state::name::Identifier::generated("Contract"),
+            is_boundary: false,
+            ..Default::default()
+        };
+        let mut registry = IdTable::default();
+        registry.push((AppliedTraitScope::abstract_scope(&ordinary), Vec::new()));
+        let context = crate::source_state::provider_declarations::ProviderPlanningContext::new(
+            &typed,
+            source_provenance::DependencyScope::Product,
+        );
+        let catalog = std::sync::Arc::new(
+            crate::source_state::service_declarations::PreparedServiceCatalog::prepare(
+                context,
+                &[],
+            ),
+        );
+        let refusal = ServiceMap::prepare(
+            &typed,
+            MachineId::new(1).unwrap(),
+            &registry,
+            Vec::new(),
+            catalog.bind(context).unwrap(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            refusal.detail,
+            "machine ordinary trait cannot enter the service namespace"
+        );
+    }
+}

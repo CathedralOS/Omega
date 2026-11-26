@@ -1,5 +1,5 @@
-use omega\language\core\ProgramImage;
+use {omega}/language/core/program_image.omg as image;
 
-public CatalogImage satisfies ProgramImage {
+public CatalogImage satisfies |image|::ProgramImage {
     machine retained_suffix_start() -> addr { 64 }
 }

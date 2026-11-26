@@ -176,7 +176,7 @@ machine build(builder: @mutable Build) suspends {
         _ -> wrong(builder)
     }
     machine bind_entry(builder: @mutable Build) {
-        Build::bind(builder, HOST\ProgramEntry, entry(builder, "HOST::ProgramEntry"));
+        Build::bind(builder, HOST::ProgramEntry, entry(builder, "HOST::ProgramEntry"));
     }
     machine wrong(builder: @mutable Build) { Build::application(builder, "wrong"); }
 }
@@ -244,7 +244,7 @@ machine build(builder: @mutable Build) suspends {
     dependency\with_alias(@mutable product_request, "kit");
     let for_product: DependencyRegistration = Build::dependency(builder, product_request);
     suspend Build::prepare_dependency(builder, for_product);
-    Build::bind(builder, HOST\ProgramEntry, |selector|::select(builder, "HOST::ProgramEntry"));
+    Build::bind(builder, HOST::ProgramEntry, |selector|::select(builder, "HOST::ProgramEntry"));
 }
 "#.replace("HOST", target.target_name());
     std::fs::write(root.join("build.omg"), build).unwrap();

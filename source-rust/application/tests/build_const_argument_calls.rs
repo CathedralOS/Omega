@@ -44,7 +44,7 @@ fn check(name: &str, declarations: &str, held: &str) -> (bool, String) {
             "{declarations}
 machine build(builder: @mutable Build) {{
     Build::application(builder, \"computed\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
     let held: {held};
 }}
 "

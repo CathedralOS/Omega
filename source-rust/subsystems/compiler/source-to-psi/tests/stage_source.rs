@@ -675,6 +675,7 @@ fn a_projected_snapshot_cannot_supply_a_complete_build_invocation() {
         &[Some(package)],
         None,
         None,
+        &Default::default(),
     ) else {
         panic!("a partial snapshot supplied a complete Build invocation");
     };
@@ -703,6 +704,7 @@ fn publish_build(
         &[Some(package)],
         None,
         None,
+        &Default::default(),
     )
     .map_err(|failure| failure.diagnostics)?;
     judged

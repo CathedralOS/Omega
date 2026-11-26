@@ -1,13 +1,15 @@
 // window_demo is a REAL windowed application: the GUI subsystem keeps Windows from
 // attaching a console box (PE Subsystem 2).
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "window_demo");
     builder.identifier = "com.omega.window-demo";
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../source/library/system"
     }));
-    Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64\ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::select_provider::<Gui, WindowsGuiProvider>(builder, windows_x86_64);
     Build::select_provider::<Gui, MacosGuiProvider>(builder, macos_arm64);
     builder.subsystem = Subsystem::Gui;

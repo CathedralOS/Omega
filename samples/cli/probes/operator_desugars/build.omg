@@ -4,8 +4,8 @@
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "operator_desugars");
-    Build::bind(builder, windows_x86_64\ProgramEntry, operator_desugars);
-    Build::bind(builder, linux_x86_64\ProgramEntry, operator_desugars);
-    Build::bind(builder, linux_arm64\ProgramEntry, operator_desugars);
-    Build::bind(builder, macos_arm64\ProgramEntry, operator_desugars);
+    Build::bind(builder, windows_x86_64::ProgramEntry, operator_desugars);
+    Build::bind(builder, linux_x86_64::ProgramEntry, operator_desugars);
+    Build::bind(builder, linux_arm64::ProgramEntry, operator_desugars);
+    Build::bind(builder, macos_arm64::ProgramEntry, operator_desugars);
 }

@@ -890,7 +890,7 @@ pub(crate) fn declare<'a, 'b>(
             types,
             zero_eligibility: zero_eligibility(types),
             inhabitation: terminal_semantics::inhabitation::Inhabitation::prepare(
-                &crate::inhabitation::SourceContracts(types),
+                &crate::body::inhabitation::SourceContracts(types),
             )
             .map_err(|_| {
                 refuse(

@@ -17,6 +17,7 @@ pub struct BuildExecutionContract {
 
 #[derive(Default)]
 pub struct BuildExecutionInputs {
+    pub interpreter_providers: crate::InterpretedProviderSelections,
     pub profile: Option<TargetProfile>, // Compilation requests default to the host, independently of Product target.
     pub directory: Option<PathBuf>, // Writable staging, separate from immutable source snapshots.
     pub filesystem_sponsor: Option<filesystem_authority::FilesystemSponsor>,
@@ -30,6 +31,26 @@ pub struct BuildExecutionInputs {
 }
 
 impl BuildExecutionInputs {
+    /// Authenticate supplied package defaults before selecting Build source files.
+    pub fn admit_interpreter_providers(
+        &mut self,
+        inputs: Option<&crate::PackageCompilationInputs>,
+        libraries: &[crate::source_imports::SuppliedBuildLibrary],
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        if let Some(inputs) = inputs {
+            self.interpreter_providers.extend_package_defaults(
+                inputs.admitted_package_provider_selections(
+                    build_declarations::DependencyPurpose::Build,
+                )?,
+            );
+        }
+        for library in libraries {
+            self.interpreter_providers
+                .extend_package_defaults(library.provider_defaults()?);
+        }
+        Ok(())
+    }
+
     pub fn contract(&self) -> BuildExecutionContract {
         BuildExecutionContract {
             profile: self.profile,

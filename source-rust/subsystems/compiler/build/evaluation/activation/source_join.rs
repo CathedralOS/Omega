@@ -198,7 +198,16 @@ impl ReturnedBuild {
         inputs: Option<&PackageCompilationInputs>,
         initially_unbound: bool,
     ) -> Result<(), String> {
-        if !self.supplied_libraries().is_empty() && self.source_join.is_none() {
+        // A workspace publishes a member roster. Its incoming libraries were
+        // acquired before entry; there is no named Product graph to join them to.
+        let workspace_roster = matches!(self.declaration(), Some(BuildDeclaration::Workspace(_)))
+            && inputs.is_none()
+            && !self
+                .requests
+                .iter()
+                .any(|issued| matches!(issued.request(), BuildRequest::Dependency { .. }));
+        if !workspace_roster && !self.supplied_libraries().is_empty() && self.source_join.is_none()
+        {
             return Err(
                 "Build completion requires the source join for its supplied libraries".into(),
             );

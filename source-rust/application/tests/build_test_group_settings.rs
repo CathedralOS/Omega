@@ -4,7 +4,7 @@ use std::process::{Command, Stdio};
 
 const BUILD: &str = r#"machine build(builder: @mutable Build) suspends {
     Build::application(builder, "group_settings");
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
     let muted: TestGroup = builder.tests.group::<Checks::muted>();
     muted.disabled = false;
     let dependency: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "kit" }));
@@ -97,7 +97,7 @@ machine write() satisfies Checks<WriteFixture>::memory crashes Trap { crash Trap
 machine main() {}"#;
     let configuration = r#"machine build(builder: @mutable Build) {
     Build::application(builder, "applied_groups");
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
     _ = builder.tests.group::<Checks<ScanFixture>::memory>();
     let writes: TestGroup = builder.tests.group::<Checks<WriteFixture>::memory>();
     writes.disabled = true;

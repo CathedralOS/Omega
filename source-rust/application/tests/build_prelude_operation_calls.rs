@@ -46,7 +46,7 @@ fn an_executed_exclusion_checks_the_selected_callee() {
     let build = r#"
 machine build(builder: @mutable Build) {
     Build::application(builder, "excluding");
-    Build::bind(builder, HOST\ProgramEntry, main);
+    Build::bind(builder, HOST::ProgramEntry, main);
     exclude(builder, CrashCause::Trap);
 }
 machine exclude(builder: @mutable Build, cause: CrashCause) {
@@ -90,7 +90,7 @@ fn a_direct_build_exclusion_checks_an_evaluated_physical_class() {
     let build = r#"
 machine build(builder: @mutable Build) {
     Build::application(builder, "excluding");
-    Build::bind(builder, HOST\ProgramEntry, main);
+    Build::bind(builder, HOST::ProgramEntry, main);
     let authority: PhysicalAuthorityClass = PhysicalAuthorityClass::ProcessOutput;
     Build::exclude_physical_authority(builder, authority);
 }
@@ -115,7 +115,7 @@ fn darwin_poll_exclusions_check_each_invocation() {
     let build = r#"
 machine build(builder: @mutable Build) {
     Build::application(builder, "poll_counts");
-    Build::bind(builder, macos_arm64\ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind_native::<Wait::poll>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
@@ -173,7 +173,7 @@ fn a_build_without_exclusions_is_not_refused_for_one() {
         "no-exclusion",
         "machine build(builder: @mutable Build) {
     Build::application(builder, \"plain\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
 ",
         "machine main() {}",
@@ -193,7 +193,7 @@ fn a_build_that_queries_a_product_entry_is_not_refused_for_its_selection() {
         "query-entry",
         "machine build(builder: @mutable Build) {
     Build::application(builder, \"querying\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, entry(builder, \"linux_x86_64::ProgramEntry\"));
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry(builder, \"linux_x86_64::ProgramEntry\"));
 }
 machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
     BuildProduct::entry(@builder.product, \"main\", slot)

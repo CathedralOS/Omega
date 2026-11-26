@@ -1,7 +1,9 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
  Build::application(builder, "independent_opaque_import_alias");
- let mutable renamed_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../../producer" });
- dependency\with_alias(@mutable renamed_dependency, "renamed");
+ let mutable renamed_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../producer" });
+ |dependency|::with_alias(@mutable renamed_dependency, "renamed");
  let renamed_registration: DependencyRegistration = Build::dependency(builder, renamed_dependency);
  Build::select_representation::<renamed\InternetAddress, renamed\AddressRepresentation>(builder);
  Build::select_provider::<renamed\AddressBridge, renamed\AddressBridgeProvider>(builder, linux_arm64, CompositionMode::Independent);
@@ -13,8 +15,8 @@ machine build(builder: @mutable Build) {
  Build::select_provider::<renamed\AddressBridge, renamed\AddressBridgeProvider>(builder, cross_platform_cli, CompositionMode::Independent);
  Build::select_provider::<renamed\AddressBridge, renamed\AddressBridgeProvider>(builder, local_unchecked, CompositionMode::Independent);
  Build::select_provider::<renamed\AddressBridge, renamed\AddressBridgeProvider>(builder, alpha_bootstrap, CompositionMode::Independent);
- Build::bind(builder, linux_x86_64\ProgramEntry, main);
- Build::bind(builder, linux_arm64\ProgramEntry, main);
- Build::bind(builder, macos_arm64\ProgramEntry, main);
- Build::bind(builder, windows_x86_64\ProgramEntry, main);
+ Build::bind(builder, linux_x86_64::ProgramEntry, main);
+ Build::bind(builder, linux_arm64::ProgramEntry, main);
+ Build::bind(builder, macos_arm64::ProgramEntry, main);
+ Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }

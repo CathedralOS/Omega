@@ -1205,7 +1205,7 @@ mod header_reading_tests {
             assert!(captured.questions.iter().any(|question| {
                 question.lexical_owner == selected
                     && question.target
-                        == crate::selection_questions::RawSelectionTarget::Intrinsic(
+                        == crate::publication::selection_questions::RawSelectionTarget::Intrinsic(
                             crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                         )
             }));
@@ -1227,7 +1227,7 @@ mod header_reading_tests {
                 assert!(captured.questions.iter().any(|question| {
                     question.lexical_owner == unread
                         && question.target
-                            == crate::selection_questions::RawSelectionTarget::Intrinsic(
+                            == crate::publication::selection_questions::RawSelectionTarget::Intrinsic(
                                 crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                             )
                 }));
@@ -1291,7 +1291,7 @@ mod header_reading_tests {
         );
         assert!(!signature.requires.is_empty());
         program.completed_operators.finish();
-        crate::selection_questions::capture_with_bodies(
+        crate::publication::selection_questions::capture_with_bodies(
             &typed,
             &program.admitted_declarations,
             &program.admitted_bodies,
@@ -1524,7 +1524,7 @@ mod header_reading_tests {
                     question.lexical_owner == requirement
                         && question.occurrence == occurrence
                         && question.target
-                            == crate::selection_questions::RawSelectionTarget::Intrinsic(
+                            == crate::publication::selection_questions::RawSelectionTarget::Intrinsic(
                                 crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                             )
                 }));
@@ -1562,7 +1562,7 @@ mod header_reading_tests {
         let mut program = Program::new(&typed, false);
         program.admitted_declarations.include(owner);
         program.completed_operators.finish();
-        let unresolved = crate::selection_questions::capture(
+        let unresolved = crate::publication::selection_questions::capture(
             &typed,
             &program.admitted_declarations,
             &program.completed_operators,
@@ -1577,7 +1577,7 @@ mod header_reading_tests {
         assert_eq!(program.admitted_signature_views.len(), 1);
         assert_eq!(program.admitted_signature_views[0].symbol, requirement);
         program.completed_operators.finish();
-        crate::selection_questions::capture(
+        crate::publication::selection_questions::capture(
             &typed,
             &program.admitted_declarations,
             &program.completed_operators,

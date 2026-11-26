@@ -6,6 +6,8 @@ use super::{PlanningServices, refusal};
 mod build_recheck;
 #[path = "product_queries.rs"]
 mod product_queries;
+#[path = "successor_providers.rs"]
+mod successor_providers;
 use artifacts::compile_timings::{CompileTimings, counters::BuildExecutionPurpose};
 use build_execution::{
     BuildEvaluationRequest, CompileFailure, EvaluatedBuild, PreparedBuildEvaluation,
@@ -198,6 +200,7 @@ pub fn prepare(
     let mut entry = CapturedBuildEntry::Initial(request.root);
     let mut preparations = super::BuildPreparations::default();
     let successor_source;
+    let mut execution = request.execution;
     let (inputs, capture, supplied_libraries) = match request.sources {
         PlanningSources::Captured(capture) => (None, Some(capture), Vec::new()),
         PlanningSources::CapturedWithLibraries { source, libraries } => {
@@ -209,6 +212,7 @@ pub fn prepare(
                     "the requested entry differs from the preparing Build's selection".into(),
                 ));
             }
+            execution.interpreter_providers = successor.providers;
             successor_source = successor.capture;
             preparations = successor.preparations;
             entry = CapturedBuildEntry::Successor {
@@ -220,7 +224,7 @@ pub fn prepare(
         PlanningSources::Package(inputs) => (Some(inputs), None, Vec::new()),
     };
     let supplied_libraries: Arc<[_]> = supplied_libraries.into();
-    let execution = request.execution.resolve_compilation_defaults(inputs);
+    let mut execution = execution.resolve_compilation_defaults(inputs);
     let profile = execution.profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Build execution requires an explicit profile on an uncatalogued host",
@@ -231,6 +235,7 @@ pub fn prepare(
             .require_execution_profile(profile)
             .map_err(refusal)?;
     }
+    execution.admit_interpreter_providers(inputs, &supplied_libraries)?;
     let assembled = {
         let mut catalogue = preparation.catalogue()?;
         let checkpoint = ImmutableSourceParseCheckpoint::prepare(
@@ -241,10 +246,18 @@ pub fn prepare(
             &mut catalogue,
         )?;
         if supplied_libraries.is_empty() {
-            checkpoint.assemble(inputs, &mut timings, &mut catalogue)?.1
+            checkpoint
+                .assemble(
+                    inputs,
+                    &execution.interpreter_providers,
+                    &mut timings,
+                    &mut catalogue,
+                )?
+                .1
         } else {
             checkpoint.assemble_supplied_build_libraries(
                 Arc::clone(&supplied_libraries),
+                &execution.interpreter_providers,
                 &mut timings,
                 &mut catalogue,
             )?
@@ -503,6 +516,7 @@ impl PlanningSource {
                 inputs,
                 &evaluated.configuration.root_binding_requests,
                 &evaluated.configuration.declared_product_selections,
+                &evaluated.interpreter_providers,
                 &mut self.timings,
                 &mut *self.preparation.catalogue()?,
             )

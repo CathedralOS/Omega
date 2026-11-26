@@ -2,7 +2,7 @@
 //! keep the public requirement separate from the selected implementation.
 
 use super::Program;
-use crate::static_contracts::SourceRecordBinding;
+use crate::callables::static_contracts::SourceRecordBinding;
 use crate::source_state::data::TypeParameter;
 use crate::source_state::signature::StateSignature;
 use crate::source_state::trait_definition::AppliedTraitScope;

@@ -14,7 +14,7 @@ resolution and typing loop for deferred bodies. [Source driver](../source_to_psi
 | [Type declarations and bodies](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | The resolved program becomes [typed source](../representations/typed-trees/typed_trees.rs). |
 | [Prepare typed source](04_typed-trees-to-prepared-typed-trees/src/lib.rs) | After [compile-time evaluation](../driver/compile_time_invocations.rs), the ordered passes produce the prepared trees that stage 05 accepts. |
 | [Lower to Terminal](05_prepared-typed-trees-to-lowered-program/src/compilation.rs) | Typed source becomes the [complete checker input](../representations/lowered-program/lowered_program.rs), including demanded generic bodies and witnesses. |
-| [Check the program](06_lowered-program-to-checked-program/src/verdict.rs) | The checker issues its verdict and evidence over the lowered input. The [accepted-source factory](07_checked-program-to-psi/src/accepted.rs) binds that judgment to its source. |
+| [Check the program](06_lowered-program-to-checked-program/src/verdict.rs) | The checker issues its verdict and evidence over the lowered input. The [accepted-source factory](07_checked-program-to-psi/src/production/accepted.rs) binds that judgment to its source. |
 | [Close logical provider demand](07_checked-program-to-psi/src/provider_supply/mod.rs) | The source owner records the reached requirements and selected checked bodies for the requested roots. [The source compiler](../source_to_psi.rs) binds those choices to the published artifact and deployment for [native admission](../../psi-to-native/driver/inputs/published_application.rs). |
 
 The [Product driver](../driver/compile_product.rs) coordinates the numbered stages. Its [constant evaluation](../driver/compile_time_invocations/constants.rs) and [call evaluation](../driver/compile_time_invocations/calls.rs) answer requests from source preparation and return to the waiting stage.
@@ -771,12 +771,12 @@ requires is not a drop schedule. Proof discharge, flow invalidation and ABI
 placement happen later.
 
 The typing coordinator orders declaration lowering and finalization.
-[Conformances](03_symbol-resolved-trees-to-typed-trees/src/declarations.rs)
+[Conformances](03_symbol-resolved-trees-to-typed-trees/src/declarations/items.rs)
 own header selection, lifetime arguments, realization parameter binding and
 publication; proposition definitions live with declarations, while proposition
 applications remain expressions. Shared
-[type parameters](03_symbol-resolved-trees-to-typed-trees/src/contracts_and_signatures.rs)
-and [callable signatures](03_symbol-resolved-trees-to-typed-trees/src/contracts_and_signatures.rs)
+[type parameters](03_symbol-resolved-trees-to-typed-trees/src/declarations/contracts_and_signatures.rs)
+and [callable signatures](03_symbol-resolved-trees-to-typed-trees/src/declarations/contracts_and_signatures.rs)
 are independent of data and state declaration lowering. Contract facts,
 invocations and parameter-domain obligations have shared owners; type-reference
 normalization owns domain-alias expansion and domain constraints. Both full
@@ -787,7 +787,7 @@ Missing measure-body field selectors bind through the exact measure parameter's
 declared nominal type. Existing nonzero selectors remain unchanged for checking;
 typing does not replace conflicting identities with a same-spelled field.
 
-[Call-result typing](03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs)
+[Call-result typing](03_symbol-resolved-trees-to-typed-trees/src/expressions/call_and_product_selections.rs)
 selects computed-receiver methods from the producer's exact declared return type
 after receiver children lower, never from its body or a returned-place proof.
 Preserve already-resolved pattern-bound call targets and root/member identity.

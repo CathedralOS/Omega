@@ -32,7 +32,10 @@ that lists one, because use it would publish a source-produced body with no
 declaration identity.
 */
 
-#[path = "declare_selected.rs"]
+pub(crate) mod boundaries;
+pub(crate) mod external_providers;
+pub mod provider_selections;
+pub(crate) mod references;
 mod selected;
 
 use diagnostics::Diagnostic;
@@ -165,7 +168,7 @@ enum PreparedParameter {
 pub(crate) fn declare(
     typed: &TypedTrees,
     program: &crate::read::Program<'_>,
-    outcomes: &arena::IdTable<MachineId, crate::outcome::Outcome>,
+    outcomes: &arena::IdTable<MachineId, crate::body::outcome::Outcome>,
     binder_reach: &arena::IdTable<MachineId, BinderReach>,
     checking_envelopes: &IdTable<
         MachineId,
@@ -2837,7 +2840,7 @@ pub(crate) fn provider_declaration(
     signature: &Signature,
     proof: &terminal_psi::MachineContract,
     envelope: &terminal_psi::TerminalCallableEnvelope,
-    services: &crate::reach::ServiceMap,
+    services: &crate::publication::reach::ServiceMap,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
     let mut declaration = boundary_declaration(typed, source, signature, proof, identities)?;

@@ -499,10 +499,15 @@ fn a_retained_provider_choice_is_not_rejoined_by_name_alone() {
     let retained = super::capture_provider_selection(&package.typed, &selected[0]).unwrap();
     let moved = format!("\ndata Padding {{}}{PRODUCT}");
     let mut consumer = Fixture::new(TWO_CHOICES, &moved, None).typed;
-    let changed = "retained declaration is absent or changed in the admitted source context";
     let error = super::rejoin_provider_defaults(&mut consumer, std::slice::from_ref(&retained))
         .unwrap_err();
-    assert_eq!(error[0].message, changed);
+    assert_eq!(
+        error[0].message,
+        format!(
+            "provider declaration in `{}` is absent or changed in the receiving Product sources",
+            retained.provider.source().path.display()
+        )
+    );
 
     let mut consumer = Fixture::new(TWO_CHOICES, PRODUCT, None).typed;
     let mut mismatched = retained;
@@ -510,7 +515,10 @@ fn a_retained_provider_choice_is_not_rejoined_by_name_alone() {
     assert_ne!(mismatched.provider_identity, second.provider_identity);
     mismatched.provider_identity = second.provider_identity;
     let error = super::rejoin_provider_defaults(&mut consumer, &[mismatched]).unwrap_err();
-    assert_eq!(error[0].message, changed);
+    assert_eq!(
+        error[0].message,
+        "retained declaration is absent or changed in the admitted source context"
+    );
 }
 
 #[test]

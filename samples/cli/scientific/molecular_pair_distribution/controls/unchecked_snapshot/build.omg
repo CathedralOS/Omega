@@ -1,9 +1,11 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "molecular_pair_distribution");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../../../source/library/system" }));
-    Build::bind(builder, linux_x86_64\ProgramEntry, invalid);
-    Build::bind(builder, linux_arm64\ProgramEntry, invalid);
-    Build::bind(builder, windows_x86_64\ProgramEntry, invalid);
-    Build::bind(builder, macos_arm64\ProgramEntry, invalid);
-    Build::bind(builder, macos_x86_64\ProgramEntry, invalid);
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../../source/library/system" }));
+    Build::bind(builder, linux_x86_64::ProgramEntry, invalid);
+    Build::bind(builder, linux_arm64::ProgramEntry, invalid);
+    Build::bind(builder, windows_x86_64::ProgramEntry, invalid);
+    Build::bind(builder, macos_arm64::ProgramEntry, invalid);
+    Build::bind(builder, macos_x86_64::ProgramEntry, invalid);
 }

@@ -126,9 +126,10 @@ pub(in super::super) fn validate_subject(
             ));
         }
         validate_dependency_selection_kind(
-            edge,
-            &packages[requester],
-            &navigations[requester],
+            &edge.request,
+            packages[requester].key().source_lineage(),
+            packages[requester].resolution(),
+            &edge.selected,
             &navigations[selected],
             budget,
         )?;

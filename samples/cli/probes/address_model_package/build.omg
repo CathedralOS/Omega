@@ -1,10 +1,12 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "address_model_package");
-    let mutable model_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "model" });
-    dependency\with_alias(@mutable model_dependency, "model");
+    let mutable model_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "model" });
+    |dependency|::with_alias(@mutable model_dependency, "model");
     let model_registration: DependencyRegistration = Build::dependency(builder, model_dependency);
-    Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64\ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64\ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

@@ -15,5 +15,5 @@ record-storage = { path = "../../../../../foundation/record-storage" }
 optimization-selections = { path = "../../../foundation/optimization-selections" }
 
 [dev-dependencies]
-source-syntax = { path = "../../../source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax" }
+source-syntax = { path = "../../../source-to-psi/source-syntax" }
 syntax-trees = { path = "../../../source-to-psi/representations/syntax-trees" }

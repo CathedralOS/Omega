@@ -34,7 +34,7 @@ impl Program<'_> {
         discards_result: bool,
     ) -> Checked<Statement> {
         let mut expression = self.expression(id, slots, expression, None)?;
-        crate::operational::boundary(&mut expression);
+        crate::lower::operational::boundary(&mut expression);
         Ok(Statement::Evaluate {
             expression,
             discards_result,
@@ -579,7 +579,7 @@ impl Program<'_> {
             self.expression(id, slots, local.initial_value, declared)?
         };
         if !local.is_operand_capture {
-            crate::operational::boundary(&mut value);
+            crate::lower::operational::boundary(&mut value);
         }
         let Some(value_type) = value.result else {
             return Err(refuse(

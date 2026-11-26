@@ -65,7 +65,7 @@ fn check_product(name: &str, product: &str, bindings: &str) -> String {
 use omega\\language\\core\\ForeignBinding;
 machine build(builder: @mutable Build) {{
     Build::application(builder, \"bound\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {bindings}}}
 "
         ),
@@ -214,7 +214,7 @@ machine build(builder: @mutable Build) {{
     let mutable library: DependencyDescription = dependency\\from_source(Source::Path { location: \"bound_library\" });
     dependency\\with_alias(@mutable library, \"bound\");
     let registration: DependencyRegistration = Build::dependency(builder, library);
-    Build::bind(builder, windows_x86_64\\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
 }
 ",
     )
