@@ -2,7 +2,7 @@
 //! exposes every field. Passing one field to an opaque callee exposes the
 //! whole selected field, while its siblings remain in the caller.
 
-use std::collections::{HashMap, HashSet};
+use arena::{IdSet, IdTable};
 
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, Proposition, ScalarTerm, StructuralFieldId,
@@ -14,15 +14,27 @@ use terminal_psi::{
 
 struct Formal<'a> {
     record: &'a [StructuralFieldDeclaration],
-    exposed: HashSet<TerminalIdentityIndex>,
+    exposed: IdSet<StructuralFieldId>,
 }
 
 #[derive(Default)]
-pub(super) struct Fields<'a>(HashMap<PlaceId, Formal<'a>>);
+pub(super) struct Fields<'a>(IdTable<PlaceId, Option<Formal<'a>>>);
 
 enum Field {
     Name(TerminalIdentityIndex),
     Id(StructuralFieldId),
+}
+
+impl Formal<'_> {
+    fn field_id(&self, field: Field) -> Option<StructuralFieldId> {
+        self.record
+            .iter()
+            .find(|candidate| match field {
+                Field::Name(name) => candidate.identity == name,
+                Field::Id(id) => candidate.id == id,
+            })
+            .map(|candidate| candidate.id)
+    }
 }
 
 impl Fields<'_> {
@@ -31,30 +43,24 @@ impl Fields<'_> {
             return false;
         };
         self.0
-            .get(&root)
-            .is_some_and(|formal| !formal.exposed.contains(field))
+            .get(root)
+            .and_then(Option::as_ref)
+            .is_some_and(|formal| {
+                formal
+                    .field_id(Field::Name(*field))
+                    .is_some_and(|id| !formal.exposed.contains(id))
+            })
     }
 
     fn expose(&mut self, root: PlaceId, field: Option<Field>) {
-        let Some(formal) = self.0.get_mut(&root) else {
+        let Some(slot) = self.0.get_mut(root) else {
             return;
         };
-        let name = field.and_then(|field| match field {
-            Field::Name(name) => formal
-                .record
-                .iter()
-                .any(|field| field.identity == name)
-                .then_some(name),
-            Field::Id(id) => formal
-                .record
-                .iter()
-                .find(|field| field.id == id)
-                .map(|field| field.identity),
-        });
-        if let Some(name) = name {
-            formal.exposed.insert(name);
+        let Some(formal) = slot.as_mut() else { return };
+        if let Some(id) = field.and_then(|field| formal.field_id(field)) {
+            formal.exposed.insert(id);
         } else {
-            self.0.remove(&root);
+            *slot = None;
         }
     }
 
@@ -87,7 +93,6 @@ pub(super) fn observed<'a>(
     types: &'a [StructuralTypeDeclaration],
     unconditional: bool,
 ) -> Fields<'a> {
-    let mut fields = Fields::default();
     // Claims, ranked transitions, and content proofs can mention storage
     // outside the body's executable operands.
     if machine.ranked_scc.is_some()
@@ -103,7 +108,7 @@ pub(super) fn observed<'a>(
         || !machine.contract.membership_ensures.is_empty()
         || !machine.contract.outcome_specific_ensures.is_empty()
     {
-        return fields;
+        return Fields::default();
     }
     let lookup = |id| {
         types
@@ -111,47 +116,36 @@ pub(super) fn observed<'a>(
             .ok()
             .map(|i| &types[i])
     };
-    for formal in &machine.structural_parameters {
+    let formals = machine.structural_parameters.iter().filter_map(|formal| {
         if !formal.qualifications.is_empty()
             || !formal.projected_qualifications.is_empty()
             || !formal.additional_input_qualifications.is_empty()
         {
-            continue;
+            return None;
         }
-        let Some(ty) = lookup(formal.structural_type) else {
-            continue;
-        };
-        let Some(record) = ty.shape.record_fields() else {
-            continue;
-        };
+        let ty = lookup(formal.structural_type)?;
+        let record = ty.shape.record_fields()?;
         if terminal_psi::structural_type_has_borrowed_storage_by(lookup, ty.id) {
-            continue;
+            return None;
         }
-        if let Some(required) = predicate_fields(ty) {
-            fields.0.insert(
-                formal.place,
-                Formal {
-                    record,
-                    exposed: HashSet::new(),
-                },
-            );
-            for id in required {
-                fields.expose(formal.place, Some(Field::Id(id)));
-            }
-        }
-    }
+        let exposed = predicate_fields(ty, record)?;
+        Some((formal.place, Some(Formal { record, exposed })))
+    });
+    let mut fields = Fields(
+        IdTable::from_rows_with_gaps(formals, machine.structural_places.len()).unwrap_or_default(),
+    );
     if fields.0.is_empty() {
         return fields;
     }
     for operation in machine.operations() {
         if let Some(result) = operation.result.structural() {
-            fields.0.remove(&result.place);
+            fields.expose(result.place, None);
         }
         for (operand, _) in operation.kind.storage_uses() {
             match operand {
                 StructuralStorageUse::Projection(access) => fields.projection(access),
                 StructuralStorageUse::Place(root) => {
-                    fields.0.remove(&root);
+                    fields.expose(root, None);
                 }
                 StructuralStorageUse::Canonical { root, path } => {
                     fields.canonical(root, path, None)
@@ -177,8 +171,11 @@ pub(super) fn observed<'a>(
 
 /// Scalar field bounds expose their declared paths even when only the checker
 /// reads them. Keep the complete inventory for other kinds of type predicate.
-fn predicate_fields(ty: &StructuralTypeDeclaration) -> Option<HashSet<StructuralFieldId>> {
-    let mut fields = HashSet::new();
+fn predicate_fields(
+    ty: &StructuralTypeDeclaration,
+    record: &[StructuralFieldDeclaration],
+) -> Option<IdSet<StructuralFieldId>> {
+    let mut fields = IdSet::new();
     for clause in &ty.requires {
         if !matches!(
             clause,
@@ -198,7 +195,9 @@ fn predicate_fields(ty: &StructuralTypeDeclaration) -> Option<HashSet<Structural
             ScalarTerm::BooleanField { path, .. }
             | ScalarTerm::IntegerField { path, .. }
             | ScalarTerm::IeeeFloatField { path, .. } => {
-                if let Some(CanonicalStructuralPathSegment::Field(field)) = path.first() {
+                if let Some(CanonicalStructuralPathSegment::Field(field)) = path.first()
+                    && record.iter().any(|candidate| candidate.id == *field)
+                {
                     fields.insert(*field);
                 } else {
                     closed = false;
