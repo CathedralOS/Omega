@@ -1,5 +1,5 @@
 // Expected exit: 0.
-// `reflect\inspect_record_fields<Reading, note>` calls `note` once per field
+// `|reflect|::inspect_record_fields::<Reading, note>` calls `note` once per field
 // of `Reading`, in declared order, at that field's type: `note<u64>` for
 // `value`, then `note<bool>` for `flag`. So `first_seen` records the call at
 // position 0 and `last` ends at 1, the position of `flag`. `note` admits only

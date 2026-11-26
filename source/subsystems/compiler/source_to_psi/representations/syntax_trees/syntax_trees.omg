@@ -615,7 +615,7 @@ public data Contract [copy] {
     source_span: |source|::SourceSpan;
 }
 
-// A name path, such as `a\b\c` or `a\Type::member`, as a contiguous range of
+// A name path, such as `Type::member` or `|file|::Type::member`, as a contiguous range of
 // `SyntaxTrees::members`: a domain's establishment routes and alias
 // constituents, and a membership test's domain. A membership path owns its
 // exact range of type-reference handles in `SyntaxTrees::type_arguments`.
