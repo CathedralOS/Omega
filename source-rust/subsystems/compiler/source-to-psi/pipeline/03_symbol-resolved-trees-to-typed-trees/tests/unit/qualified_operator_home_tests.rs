@@ -778,6 +778,7 @@ fn generic_operator_shapes_match_complete_qualifications_in_both_orders() {
             Ok(Some("|units|::Distance::right")),
         ),
         (
+            "u32 in |units|::Distance & |units|::Other",
             "u32",
             unqualified_only(
                 "-Distance -Other",
