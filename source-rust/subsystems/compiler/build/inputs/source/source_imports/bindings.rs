@@ -226,7 +226,7 @@ pub(crate) fn pending_build_imports(
             continue;
         }
         for import in &roots.build_imports {
-            if import.used_in(DependencyScope::Build)
+            if import.requires_build_binding()
                 && selected
                     .binary_search(&(roots.source_id.0, import.ordinal))
                     .is_err()

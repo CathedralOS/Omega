@@ -390,29 +390,8 @@ fn lower_item_with_exposure(
                 },
             );
         }
-        Item::Use(syntax::item::UseItem::Namespace { path }) => {
-            lowerer
-                .namespace_declarations
-                .record_import(syntax_trees, *path);
-        }
-        Item::Use(syntax::item::UseItem::File {
-            root,
-            components,
-            alias,
-            span,
-            qualifiers,
-        }) if qualifiers.iter().any(|usage| !usage.product_operand) => {
-            lowerer.namespace_declarations.record_file_import(
-                syntax_trees,
-                root.as_ref(),
-                *components,
-                alias,
-                *span,
-            );
-        }
-        // A Build import used only to name a Product entry binds no
-        // declaration the Build itself may call.
-        Item::Use(syntax::item::UseItem::File { .. }) | Item::Capability(_) | Item::Package(_) => {}
+        Item::Use(import) => lowerer.namespace_declarations.record_import(syntax_trees, import),
+        Item::Capability(_) | Item::Package(_) => {}
     }
 
     Ok(())

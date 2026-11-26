@@ -15,10 +15,10 @@ pub(crate) struct FileQualifiers<'source> {
     uses: RefCell<BTreeMap<usize, (&'source str, QualifierUse)>>,
 }
 
-enum QualifierUse {
-    Host,
+enum QualifierUse {    Host,
     Product,
     RootOperand(Option<String>),
+    Description(String),
 }
 
 impl<'source> FileQualifiers<'source> {
@@ -93,6 +93,27 @@ impl<'source> FileQualifiers<'source> {
         let ExpressionNode::Call(call) = trees.expressions.expression(expression) else {
             return;
         };
+        if let Some((alias, member)) = call
+            .target
+            .as_str(trees)
+            .strip_prefix('|')
+            .and_then(|path| path.split_once("|::"))
+            && matches!(member, "parameter" | "field")
+            && call.target_is_static
+            && !call.receiver.is_valid()
+            && call.machine_arguments.is_empty()
+            && let [argument] = trees.expressions.expression_handles(call.arguments)
+            && let ExpressionNode::Name {
+                members,
+                application: None,
+            } = trees.expressions.expression(*argument)
+        {
+            self.mark(
+                trees.expressions.identifier_path_members(*members),
+                QualifierUse::Description(alias.to_owned()),
+            );
+            return;
+        }
         if call.machine_arguments.is_empty() || !call.target_is_static || !call.receiver.is_valid()
         {
             return;
@@ -135,8 +156,15 @@ impl<'source> FileQualifiers<'source> {
         }
         let mut traits = BTreeSet::new();
         let mut named_record = false;
+        let mut description_apis = BTreeSet::new();
         for root in &roots.items {
             match trees.root_item(*root) {
+                Item::Use(syntax_trees::item::UseItem::File { root: Some(root), components, alias, .. })
+                    if root.as_str(trees) == "omega" && trees.items.identifier_path_members(*components)
+                        .iter().map(|part| part.as_str(trees)).eq(["language", "core", "reflect", "reflect"]) =>
+                {
+                    description_apis.insert(alias.as_str(trees));
+                }
                 Item::Trait(schema) => {
                     let name = schema.name.as_str(trees);
                     traits.insert(name);
@@ -152,11 +180,16 @@ impl<'source> FileQualifiers<'source> {
             }
         }
         for (&offset, (alias, role)) in uses.iter() {
-            let product = match role {
-                QualifierUse::Product => true,
-                QualifierUse::Host => false,
+            use syntax_trees::item::FileQualifierRole;
+            let role = match role {
+                QualifierUse::Product => FileQualifierRole::Product,
+                QualifierUse::Host => FileQualifierRole::Code,
+                QualifierUse::Description(api) if description_apis.contains(api.as_str()) => FileQualifierRole::Description,
+                QualifierUse::Description(_) => FileQualifierRole::Code,
                 QualifierUse::RootOperand(schema) => {
-                    !named_record && !schema.as_deref().is_some_and(|name| traits.contains(name))
+                    if !named_record && !schema.as_deref().is_some_and(|name| traits.contains(name)) {
+                        FileQualifierRole::Product
+                    } else { FileQualifierRole::Code }
                 }
             };
             aliases
@@ -164,7 +197,7 @@ impl<'source> FileQualifiers<'source> {
                 .or_default()
                 .push(syntax_trees::item::FileQualifier {
                     offset,
-                    product_operand: product,
+                    role,
                 });
         }
         aliases

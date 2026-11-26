@@ -232,16 +232,7 @@ impl<'base> ConstantSelection<'base> {
                         ));
                     }
                 }
-                Item::Use(syntax_trees::item::UseItem::Namespace { path }) => namespaces.record_import(syntax, *path),
-                Item::Use(syntax_trees::item::UseItem::File {
-                    root,
-                    components,
-                    alias,
-                    span,
-                    qualifiers,
-                }) if qualifiers.iter().any(|usage| !usage.product_operand) => {
-                    namespaces.record_file_import(syntax, root.as_ref(), *components, alias, *span)
-                }
+                Item::Use(import) => namespaces.record_import(syntax, import),
                 _ => {}
             }
         }
