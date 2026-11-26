@@ -34,7 +34,10 @@ impl HandoffSources<'_> {
             };
             let inputs =
                 self.dependency_inputs(&supplier.build, subject.purpose, deployment, products)?;
-            let validated = supplier.build.open_product(inputs)?;
+            let validated = supplier
+                .build
+                .open_pending(inputs, project_build::DependencyCheck::FullPackage)?
+                .settle()?;
             let mut timings = artifacts::compile_timings::CompileTimings::default();
             let result = validated
                 .product_stage(&[deployment])?

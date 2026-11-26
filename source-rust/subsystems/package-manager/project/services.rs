@@ -508,7 +508,9 @@ impl HandoffSources<'_> {
         project_build::with_build_rechecks(|| {
             let opened = self
                 .dependency_inputs(settled, purpose, target, products)
-                .and_then(|inputs| settled.open_pending(inputs));
+                .and_then(|inputs| {
+                    settled.open_pending(inputs, project_build::DependencyCheck::DemandedClosure)
+                });
             if alongside
                 && opened.is_ok()
                 && products
@@ -547,7 +549,8 @@ impl HandoffSources<'_> {
             let opened = self
                 .dependency_inputs(settled, purpose, target, products)
                 .and_then(|inputs| {
-                    let pending = settled.open_pending(inputs)?;
+                    let pending = settled
+                        .open_pending(inputs, project_build::DependencyCheck::DemandedClosure)?;
                     let handoff = pending.build_handoff(target);
                     Ok((pending, handoff))
                 });
@@ -604,7 +607,10 @@ impl HandoffSources<'_> {
                 .ok_or_else(|| refused("dependency graph has no corresponding settled Build"))?;
             let child_inputs =
                 self.dependency_inputs(&child.build, purpose, deployment, products)?;
-            let product = child.build.open_pending(child_inputs)?;
+            let product = child.build.open_pending(
+                child_inputs,
+                project_build::DependencyCheck::DemandedClosure,
+            )?;
             let bundle = product.build_handoff(deployment);
             // Keep the Product before its handoff can fail, so its recheck is
             // settled, and reported first, either way.

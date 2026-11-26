@@ -91,6 +91,14 @@ pub trait PlanningServices {
 
 impl PlanningServices for () {}
 
+/// A dependency usually contributes the declarations its caller reaches. A registration
+/// can instead make the entire package a subject, including its own Build helpers.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum DependencyCheck {
+    DemandedClosure,
+    FullPackage,
+}
+
 /// A named dependency's original Build has settled against this exact source graph.
 pub struct SettledDependency {
     evaluated: EvaluatedBuild,
@@ -111,10 +119,8 @@ impl SettledDependency {
         &self,
         inputs: PackageCompilationInputs,
     ) -> Result<PlannedProduct, CompileFailure> {
-        self.require_own_graph(&inputs)?;
-        self.source
-            .clone()
-            .open_product(self.evaluated.clone(), Some(&inputs))
+        self.open_pending(inputs, DependencyCheck::DemandedClosure)?
+            .settle()
     }
 
     /// Open the Product while this Build is checked again on the Product's
@@ -123,11 +129,16 @@ impl SettledDependency {
     pub fn open_pending(
         &self,
         inputs: PackageCompilationInputs,
+        scope: DependencyCheck,
     ) -> Result<PendingProduct, CompileFailure> {
         self.require_own_graph(&inputs)?;
-        self.source
-            .clone()
-            .open_pending(self.evaluated.clone(), Some(&inputs))
+        let mut evaluated = self.evaluated.clone();
+        if scope == DependencyCheck::FullPackage
+            && evaluated.subject_validation == build_execution::BuildSubjectValidation::EntryOnly
+        {
+            evaluated.subject_validation = build_execution::BuildSubjectValidation::NeedsOwnerCheck;
+        }
+        self.source.clone().open_pending(evaluated, Some(&inputs))
     }
 
     fn require_own_graph(&self, inputs: &PackageCompilationInputs) -> Result<(), CompileFailure> {

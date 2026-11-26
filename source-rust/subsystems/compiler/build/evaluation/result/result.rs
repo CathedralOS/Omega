@@ -38,9 +38,8 @@ pub struct EvaluatedBuild {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BuildSubjectValidation {
     EntryOnly,
-    /// The whole subject was checked before Build ran, under a check-only owner.
-    /// It is checked again under the owner the returned Build establishes.
-    CheckedUnderProvisionalOwner,
+    /// The complete Build still needs checking under the owner its return established.
+    NeedsOwnerCheck,
     Checked,
 }
 

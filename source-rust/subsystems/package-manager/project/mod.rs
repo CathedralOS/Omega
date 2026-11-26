@@ -63,7 +63,9 @@ impl PackageReviewBuilds {
             )]
             .into());
         }
-        build.open_product(inputs.clone())
+        build
+            .open_pending(inputs.clone(), project_build::DependencyCheck::FullPackage)?
+            .settle()
     }
 }
 

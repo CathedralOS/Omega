@@ -280,7 +280,7 @@ pub fn prepare_build_evaluation(
     let subject_validation = if dependency_activation {
         BuildSubjectValidation::EntryOnly
     } else if check_only.is_some() {
-        BuildSubjectValidation::CheckedUnderProvisionalOwner
+        BuildSubjectValidation::NeedsOwnerCheck
     } else {
         BuildSubjectValidation::Checked
     };
