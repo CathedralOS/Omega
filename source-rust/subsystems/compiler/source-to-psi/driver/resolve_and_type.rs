@@ -17,13 +17,14 @@ use authored_completion::AuthoredCompletions;
 mod storage;
 
 #[derive(Clone, Default)]
-pub(crate) enum BodyDemandRequest {
-    #[default]
+pub(crate) enum BodyDemandRequest {    #[default]
     Default,
     DeclarationEntryFiles(Vec<source_text::SourceId>),
     BuildDemand {
         entry_machine: source_text::SourceSpan,
         subject_files: Vec<source_text::SourceId>,
+        provider_conformances: Vec<(std::path::PathBuf, source_text::Span)>,
+        pending: super::compile_build::imports::DeferredBuildImports,
     },
     ProductDemand {
         subject_files: Vec<source_text::SourceId>,
@@ -290,6 +291,8 @@ fn initial_demand_roots(
         BodyDemandRequest::BuildDemand {
             entry_machine,
             subject_files,
+            provider_conformances,
+            ..
         } => {
             let mut roots = Vec::new();
             for symbol in frontier.pending_machines() {
@@ -302,11 +305,7 @@ fn initial_demand_roots(
                     roots.push(symbol);
                 }
             }
-            let mut sources = subject_files.clone();
-            if !sources.contains(&entry_machine.source_id) {
-                sources.push(entry_machine.source_id);
-            }
-            (roots, Vec::new(), sources)
+            (roots, provider_conformances.clone(), subject_files.clone())
         }
         BodyDemandRequest::ProductDemand {
             subject_files,
@@ -330,12 +329,24 @@ fn next_demand_batch_for_request(
     completed_roots: &mut Vec<symbols::SymbolHandle>,
 ) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
     let (initial, provider_conformances, subject_sources) = initial_demand_roots(frontier, request);
+    let require_imports = |batch: &[symbols::SymbolHandle]| {
+        if let BodyDemandRequest::BuildDemand { pending, .. } = request {
+            let symbols = &frontier.trees().symbols;
+            pending.require(
+                batch
+                    .iter()
+                    .filter_map(|&symbol| symbols.symbol_provenance_source_span(symbol)),
+            )?;
+        }
+        Ok::<(), Vec<Diagnostic>>(())
+    };
     if !initial.is_empty() {
         for symbol in &initial {
             if !completed_roots.contains(symbol) {
                 completed_roots.push(*symbol);
             }
         }
+        require_imports(&initial)?;
         return Ok(initial);
     }
     if completed_roots.is_empty() {
@@ -351,6 +362,7 @@ fn next_demand_batch_for_request(
                 BodyDemandRequest::BuildDemand {
                     entry_machine,
                     subject_files,
+                    ..
                 } => {
                     symbols.symbol_source_span(machine.symbol) == Some(*entry_machine)
                         || symbols
@@ -375,22 +387,28 @@ fn next_demand_batch_for_request(
     }
     let mut batch =
         frontier.demand_closure_batch(completed_roots, &provider_conformances, &subject_sources)?;
-    // Every batch pays for a whole-program `finish_resolution`, and the call
-    // graph only reveals one layer per batch. Take the other pending bodies
-    // of each demanded body's file with it: files are cohesive, so this
-    // turns tens of one-body batches into a few file-sized ones while still
-    // leaving the files nothing reaches unread.
-    let symbols = &frontier.trees().symbols;
-    let mut files: Vec<source_text::SourceId> = batch
-        .iter()
-        .filter_map(|&symbol| symbols.symbol_provenance_source_span(symbol))
-        .map(|span| span.source_id)
-        .collect();
-    files.sort_unstable_by_key(|id| id.0);
-    files.dedup();
-    for symbol in frontier.pending_machines_in_sources(&files) {
-        if !batch.contains(&symbol) {
-            batch.push(symbol);
+    if matches!(request, BodyDemandRequest::BuildDemand { .. }) {
+        // One authored file may implement several stages, each with different imports.
+        require_imports(completed_roots)?;
+        require_imports(&batch)?;
+    } else {
+        // Every batch pays for a whole-program `finish_resolution`, and the call
+        // graph only reveals one layer per batch. Take the other pending bodies
+        // of each demanded body's file with it: files are cohesive, so this
+        // turns tens of one-body batches into a few file-sized ones while still
+        // leaving the files nothing reaches unread.
+        let symbols = &frontier.trees().symbols;
+        let mut files: Vec<source_text::SourceId> = batch
+            .iter()
+            .filter_map(|&symbol| symbols.symbol_provenance_source_span(symbol))
+            .map(|span| span.source_id)
+            .collect();
+        files.sort_unstable_by_key(|id| id.0);
+        files.dedup();
+        for symbol in frontier.pending_machines_in_sources(&files) {
+            if !batch.contains(&symbol) {
+                batch.push(symbol);
+            }
         }
     }
     for &symbol in &batch {

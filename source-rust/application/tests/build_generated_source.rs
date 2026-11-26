@@ -48,6 +48,8 @@ fn handwritten_product_calls_a_generated_file() {
     let project =
         TemporaryDirectory::create("handwritten-import-of-generated-file", false).unwrap();
     let main = r#"use generated.omg;
+use unused.omg;
+public machine preparing() -> u8 { 1u8 }
 public machine launch() crashes Trap {
     transition |generated|::read() == 17u8 { true -> done(), false -> wrong() }
     machine done() {}
@@ -72,7 +74,9 @@ machine build(plan: @mutable BuildPlan) {{
     ] {
         fs::write(project.path().join("asset.txt"), body).unwrap();
         let source = format!(
-            r#"machine build(plan: @mutable BuildPlan) {{
+            r#"use main.omg as shared;
+machine build(plan: @mutable BuildPlan) {{
+    _ = |shared|::preparing();
     copy::<{main_length}>(plan, "main.omg", "main.omg");
     copy::<{asset_length}>(plan, "asset.txt", "generated.omg");
     copy::<{entry_length}>(plan, "next.template", "next.omg");
@@ -107,6 +111,8 @@ machine copy<const N: u64>(plan: @mutable BuildPlan, source: @[u8], destination:
             assert_eq!(result.status.success(), valid, "{engine}: {report}");
             if valid {
                 assert_returned(project.path(), engine);
+                assert!(!report.contains("unused file import `generated`"), "{report}");
+                assert_eq!(report.matches("unused file import `unused`").count(), 1, "{report}");
             } else {
                 assert!(
                     report.contains("no visible declaration"),
@@ -127,19 +133,42 @@ fn a_build_cannot_import_its_own_future_product_file() {
         r#"
         use generated.omg;
         machine build(plan: @mutable BuildPlan) {
+            _ = BuildSource::resolve(@plan.source, "../entered");
             let file: BuildPath = BuildOutput::resolve(@plan.output, "generated.omg");
             let writer: i32 = BuildOutput::create(@mutable plan.output, file, 0);
             _ = BuildOutput::write(@mutable plan.output, writer, "public machine read() -> u8 { 17u8 }");
             _ = BuildOutput::close(@mutable plan.output, writer);
-            let value: u8 = |generated|::read();
             plan.product = BuildProduct::Package { name: "future" };
+            transition plan.tests.disabled { true -> read_future(), false -> done() }
+            machine read_future() { _ = |generated|::read(); }
+            machine done() {}
         }
     "#,
     )
     .unwrap();
     let result = run(project.path(), "psi", &["build.omg"]);
     assert!(!result.status.success());
-    assert!(report(&result).contains("no admitted logical file `generated.omg`"));
+    let missing = report(&result);
+    assert!(
+        missing.contains("no admitted logical file `generated.omg`"),
+        "{missing}"
+    );
+    assert!(!missing.contains("Build activation failed"), "{missing}");
+
+    // The first host operation gives a distinct, observable refusal once the
+    // source checker admits the same Build with its import supplied.
+    fs::write(
+        project.path().join("generated.omg"),
+        "public machine read() -> u8 { 17u8 }",
+    )
+    .unwrap();
+    let entered = run(project.path(), "psi", &["build.omg", "generated.omg"]);
+    assert!(!entered.status.success());
+    let message = report(&entered);
+    assert!(
+        message.contains("Build path is not a canonical relative path"),
+        "{message}"
+    );
 }
 
 #[test]

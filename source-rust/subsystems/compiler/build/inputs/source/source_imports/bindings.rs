@@ -180,6 +180,10 @@ impl PendingPackageImport {
                 }
             }
         }
+        if exact_file && paths.is_empty() && self.scope == DependencyScope::Build {
+            // The Build entry's selected declarations decide whether this missing file is required.
+            return Ok(Vec::new());
+        }
         if exact_file && paths.len() != 1 {
             return Err(vec![self.occurrence.error(if paths.is_empty() {
                 format!(
@@ -235,6 +239,7 @@ pub(crate) fn pending_build_imports(
                     source: roots.source_id,
                     span: import.span,
                     target: import.target.clone(),
+                    declarations: import.build_use_owners().collect(),
                 });
             }
         }

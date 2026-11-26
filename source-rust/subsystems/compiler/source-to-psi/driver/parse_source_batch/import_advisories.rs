@@ -11,7 +11,16 @@ use syntax_trees::item::{Item, UseItem};
 pub struct FileImportAdvisories(BTreeMap<(PathBuf, usize, Arc<str>), (String, bool)>);
 
 impl FileImportAdvisories {
-    pub fn observe(&mut self, stage: &ParsedStageSources, scope: DependencyScope) {
+    pub fn observe(
+        &mut self,
+        stage: &ParsedStageSources,
+        scope: DependencyScope,
+        pending: &[crate::PendingBuildImport],
+    ) {
+        let postponed: std::collections::BTreeSet<_> = pending
+            .iter()
+            .map(|import| (import.source.0, import.span.start))
+            .collect();
         let syntax = &stage.syntax.trees;
         for handle in syntax.root_item_handles() {
             let Item::Use(UseItem::File {
@@ -30,8 +39,11 @@ impl FileImportAdvisories {
                 continue;
             }
             let identity = (file.path.clone(), span.span.start, Arc::clone(&file.source));
-            // A designated Product operand is still a use written by this Build.
-            let seen = !qualifiers.is_empty();
+            let seen = !qualifiers.is_empty()
+                && (!postponed.contains(&(span.source_id.0, span.span.start))
+                    || qualifiers
+                        .iter()
+                        .any(|usage| usage.role != syntax_trees::item::FileQualifierRole::Code));
             self.0
                 .entry(identity)
                 .or_insert_with(|| (alias.as_str(syntax).to_owned(), false))

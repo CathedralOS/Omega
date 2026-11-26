@@ -230,10 +230,14 @@ impl SourceImport {
     /// query. Only an ordinary Build reference makes a host binding mandatory.
     pub fn requires_build_binding(&self) -> bool {
         matches!(&self.target, SourceImportTarget::Namespace(_))
-            || self
-                .qualifiers
-                .iter()
-                .any(|usage| usage.role == syntax_trees::item::FileQualifierRole::Code)
+            || self.build_use_owners().next().is_some()
+    }
+
+    pub fn build_use_owners(&self) -> impl Iterator<Item = source_text::Span> + '_ {
+        self.qualifiers
+            .iter()
+            .filter(|usage| usage.role == syntax_trees::item::FileQualifierRole::Code)
+            .map(|usage| usage.declaration)
     }
 
     pub fn used_in(&self, scope: source_provenance::DependencyScope) -> bool {

@@ -129,6 +129,8 @@ pub enum UseItem {    Namespace {
     record_storage::Record,
 )]
 pub struct FileQualifier {
+    /// The enclosing machine name or other root declaration in this file.
+    pub declaration: source_text::Span,
     pub offset: usize,
     pub role: FileQualifierRole,
 }

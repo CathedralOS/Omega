@@ -19,6 +19,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Machine> {
+    let declaration_start = input;
     let (spelling, input) = if !input.at_path_head()
         && input.tokens.first().is_some_and(|token| {
             token.punctuation().is_some() && token.punctuation() != Some(PunctuationKind::Semicolon)
@@ -74,6 +75,12 @@ pub(crate) fn parse_machine<'tokens, 'source>(
 
     let body_start = input;
     let (body, input) = parse_body(syntax_trees, input, machine_return_type.is_valid())?;
+    if let Some(uses) = input.file_qualifiers {
+        uses.close_declaration(
+            declaration_start.source_span_until(input).span,
+            name.source_span().span,
+        );
+    }
     if body.is_some()
         && (!type_parameters.is_empty() || !conformance_bounds.is_empty())
         && let Some(uses) = input.file_qualifiers

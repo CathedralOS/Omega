@@ -941,6 +941,7 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
         pending_imports: missing
             .iter()
             .map(|(name, span)| source_compiler::PendingBuildImport {
+                declarations: Vec::new(),
                 source: root,
                 span: *span,
                 target: source_compiler::SourceImportTarget::Namespace(vec![(*name).into()]),
@@ -948,7 +949,12 @@ fn build_reports_each_unbound_import_at_its_authored_span_before_typing() {
             .collect(),
         entry: SourceSpan::new(root, span("build")),
     };
-    let Err(errors) = stage.prepare(&Default::default(), "linux_x86_64", None) else {
+    let Err(errors) = stage.prepare(
+        &Default::default(),
+        "linux_x86_64",
+        None,
+        &Default::default(),
+    ) else {
         panic!("a Build with unbound imports was prepared");
     };
     assert_eq!(errors.len(), missing.len());
@@ -976,7 +982,7 @@ fn typed_build(
         entry,
     };
     Ok(stage
-        .prepare(&Default::default(), "linux_x86_64", None)?
+        .prepare(&Default::default(), "linux_x86_64", None, &Default::default())?
         .program)
 }
 
