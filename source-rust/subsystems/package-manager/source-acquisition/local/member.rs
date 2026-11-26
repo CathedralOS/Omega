@@ -141,6 +141,7 @@ mod tests {
         fs::create_dir_all(member.join("units")).unwrap();
         fs::write(member.join("units/x.omg"), "original bytes").unwrap();
         fs::write(member.join("omega.lock"), "local control").unwrap();
+        fs::write(member.join("font.bin"), [0_u8, 127, 255]).unwrap();
         let catalog = capture_local_source_input(&root, LocalSourceLimits::default()).unwrap();
         let standalone = capture_local_source_input(&member, LocalSourceLimits::default()).unwrap();
         fs::remove_dir_all(&root).unwrap();
@@ -151,6 +152,9 @@ mod tests {
             )
             .unwrap();
         assert_eq!(frozen, standalone);
+        assert!(frozen.tree().entries().any(|(path, node)| {
+            path == Path::new("font.bin") && matches!(node, source_capture::CapturedSourceNode::File{bytes,..} if bytes.as_ref() == [0, 127, 255])
+        }));
         assert_eq!(
             &*frozen
                 .tree()

@@ -3,7 +3,7 @@ mod services;
 mod stages;
 mod successor_inputs;
 mod workspace_check;
-pub use workspace_check::{discover_check_root, open_check_subjects};
+pub use workspace_check::{CheckSubject, discover_check_root, open_check_subjects};
 #[cfg(all(test, unix))]
 mod workspace_tests;
 
