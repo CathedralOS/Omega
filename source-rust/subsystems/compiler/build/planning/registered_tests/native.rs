@@ -23,7 +23,13 @@ pub(super) fn capture(
         BoundedProcessPrepared::new(command, limits.process, "registered native test")
             .map_err(|error| EngineError::Failed(format!("cannot prepare the test: {error}")))?;
     let declared = private_root
-        .map(|(scratch, files)| prepared.use_private_filesystem(scratch, files))
+        .map(|(scratch, files)| {
+            prepared.use_private_filesystem(
+                scratch,
+                files,
+                bounded_process::PrivateFilesystemPurpose::NativeTest,
+            )
+        })
         .transpose()
         .map_err(|reason| {
             EngineError::Failed(format!("cannot prepare declared files: {reason}"))

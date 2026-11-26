@@ -47,6 +47,7 @@ use std::process::ExitCode;
 static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() -> ExitCode {
+    build_program_launch::run_worker_if_requested();
     terminal_runtime::run_native_provider_worker_if_requested();
     let (invocation, output) = match arguments::parse(std::env::args_os().skip(1)) {
         Ok(parsed) => parsed,
