@@ -27,28 +27,35 @@ impl RestrictedBuildGrants for Accepted {
     }
 }
 
-const BUILD: &str = r#"use {omega}/build/program.omg;
-data Packer {}
+const ROOT_MARKERS: &str = r#"data Packer {}
 data Other {}
 machine unused(arguments: @[@[u8]]) -> |program|::RunResult blocks {
     block |program|::run::<Other>(arguments)
 }
-machine build(builder: @mutable Build) blocks {
+"#;
+
+fn authored_launcher(program: &str, declarations: &str) -> String {
+    let body = r#"machine build(builder: @mutable BuildPlan) blocks {
     let arguments: [@[u8]; 3] = ["", "two words", "last"];
-    let outcome: |program|::RunResult = block |program|::run::<Packer>(@arguments[..]);
+    let outcome: |program|::RunResult = block |program|::run::<PROGRAM_TYPE>(@arguments[..]);
     transition outcome {
         |program|::RunResult::Exited { status } -> exited(builder, status),
         _ -> failed(builder)
     }
-    machine exited(builder: @mutable Build, status: u32) {
+    machine exited(builder: @mutable BuildPlan, status: u32) {
         transition status {
             47 -> success(builder),
             _ -> failed(builder)
         }
     }
-    machine success(builder: @mutable Build) { Build::package(builder, "launched"); }
-    machine failed(builder: @mutable Build) { Build::package(builder, "launch_failed"); }
+    machine success(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "launched" }; }
+    machine failed(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "launch_failed" }; }
 }"#;
+    format!(
+        "use {{omega}}/build/program.omg;\n{declarations}\n{}",
+        body.replace("PROGRAM_TYPE", program)
+    )
+}
 
 #[test]
 fn an_exact_accepted_binding_runs_the_authored_build_launcher() {
@@ -60,7 +67,7 @@ fn an_exact_accepted_binding_runs_the_authored_build_launcher() {
     let app = temp.path().join("app");
     std::fs::create_dir(&app).unwrap();
     let entry = app.join("build.omg");
-    std::fs::write(&entry, BUILD).unwrap();
+    std::fs::write(&entry, authored_launcher("Packer", ROOT_MARKERS)).unwrap();
     let profile = target::TargetProfile::host_if_supported().unwrap();
     let source =
         package_manager::operations::begin_local_project_preparation(&entry, &[profile], true)
@@ -68,31 +75,11 @@ fn an_exact_accepted_binding_runs_the_authored_build_launcher() {
             .acquire_root()
             .unwrap();
 
-    let guest = temp.path().join("guest.c");
-    std::fs::write(
-        &guest,
-        r#"#include <string.h>
-int main(int count, char **args) {
-    return count == 4 && !strcmp(args[1], "") && !strcmp(args[2], "two words")
-        && !strcmp(args[3], "last") ? 47 : 9;
-}"#,
-    )
-    .unwrap();
-    let image = temp.path().join("program");
-    assert!(
-        Command::new("cc")
-            .args(["-static", "-O2"])
-            .arg(&guest)
-            .arg("-o")
-            .arg(&image)
-            .status()
-            .unwrap()
-            .success()
-    );
-
+    let image = build_guest(temp.path());
     let public = PathBuf::from(env!("CARGO_BIN_EXE_omega"));
     let invocation = |selector: &str| BuildProgramInvocation {
         allow: true,
+        inherited: Vec::new(),
         reviewed_root_name: Some("board".into()),
         worker: Some(public.clone()),
         bindings: vec![BuildProgramBinding::new(selector.to_owned(), image.clone()).unwrap()],
@@ -318,6 +305,35 @@ int main(int count, char **args) {
     assert_eq!(std::fs::read(&lock).unwrap(), locked);
 }
 
+fn build_guest(root: &Path) -> PathBuf {
+    compile_guest(
+        root,
+        r#"#include <string.h>
+int main(int count, char **args) {
+    return count == 4 && !strcmp(args[1], "") && !strcmp(args[2], "two words")
+        && !strcmp(args[3], "last") ? 47 : 9;
+}"#,
+    )
+}
+
+fn compile_guest(root: &Path, program: &str) -> PathBuf {
+    let guest = root.join("guest.c");
+    std::fs::write(&guest, program).unwrap();
+    let image = root.join("program");
+    assert!(
+        Command::new("cc")
+            .args(["-static", "-O2"])
+            .arg(&guest)
+            .arg("-o")
+            .arg(&image)
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    image
+}
+
 fn require_undelegated_child_refusal(root: &Path, cli: &Path, image: &Path, library: &Path) {
     let parent = root.join("parent");
     let child = root.join("child");
@@ -331,18 +347,18 @@ fn require_undelegated_child_refusal(root: &Path, cli: &Path, image: &Path, libr
     }
     std::fs::write(parent.join("build.omg"), r#"use {omega}/build/dependency.omg;
 data Packer {}
-machine build(builder: @mutable Build) {
-    Build::package(builder, "parent");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "parent" };
     _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../child" }));
 }"#).unwrap();
     std::fs::write(
         child.join("build.omg"),
         r#"use {omega}/build/program.omg;
 data Packer {}
-machine build(builder: @mutable Build) blocks {
+machine build(builder: @mutable BuildPlan) blocks {
     let args: [@[u8]; 1] = ["child"];
     _ = block |program|::run::<Packer>(@args[..]);
-    Build::package(builder, "child");
+    builder.product = BuildProduct::Package { name: "child" };
 }"#,
     )
     .unwrap();
@@ -359,4 +375,156 @@ machine build(builder: @mutable Build) blocks {
         !result.status.success() && message.contains("Packer") && message.contains("ceiling"),
         "{message}"
     );
+}
+
+#[test]
+fn a_reviewed_program_crosses_only_the_registering_dependency_edge() {
+    let temp = TemporaryDirectory::create("delegated-build-program", false).unwrap();
+    let parent = temp.path().join("parent");
+    let child = temp.path().join("child");
+    for directory in [&parent, &child] {
+        std::fs::create_dir(directory).unwrap();
+        std::fs::write(
+            directory.join("main.omg"),
+            "public machine answer() -> u32 { 47u32 }",
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        parent.join("build.omg"),
+        r#"use {omega}/build/program.omg;
+machine build(builder: @mutable BuildPlan) suspends {
+    let child: DependencyRegistration = Build::dependency(builder,
+        Source::Path { location: "../child" },
+        ProgramLaunch::Inherit::<|program|::RunResult>());
+    suspend Build::prepare_dependency(builder, child);
+    let needed: RequiredOutput = BuildOutput::require(@mutable builder.output, "receipt.txt");
+    let receipt_file: BuildPath = BuildOutput::resolve(@builder.output, "receipt.txt");
+    let result: OutputCompletion = BuildOutput::complete(@mutable builder.output, needed, receipt_file);
+    transition result {
+        OutputCompletion::Sealed { receipt } -> installed(builder),
+        OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
+    }
+    machine installed(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "parent" }; }
+    machine failed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
+        BuildOutput::fail(@mutable builder.output, obligation, "delegated writer did not write the parent's output");
+    }
+}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        child.join("build.omg"),
+        authored_launcher("|program|::RunResult", ""),
+    )
+    .unwrap();
+    let image = compile_guest(
+        temp.path(),
+        r#"#include <stdio.h>
+#include <string.h>
+int main(int count, char **args) {
+    char source[4096] = {0};
+    FILE *input = fopen("/build.omg", "rb");
+    if (!input || !fread(source, 1, sizeof(source)-1, input) || fclose(input) != 0) return 5;
+    if (!strstr(source, "ProgramLaunch::Inherit")) return 6;
+    FILE *output = fopen("/receipt.txt", "wb");
+    if (!output || fputs("forwarded", output) < 0 || fclose(output) != 0) return 7;
+    return count == 4 && !strcmp(args[1], "") && !strcmp(args[2], "two words")
+        && !strcmp(args[3], "last") ? 47 : 9;
+}"#,
+    );
+    let cli = Path::new(env!("CARGO_BIN_EXE_omega"));
+    let library = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source/library");
+    let run = |args: &[&str]| {
+        let output = Command::new(cli)
+            .current_dir(&parent)
+            .env("OMEGA_LIBRARY_ROOT", &library)
+            .args(args)
+            .args(["--allow", "ProgramLaunch", "--program", "RunResult"])
+            .arg(&image)
+            .args([
+                "--program-read",
+                "build.omg",
+                "--program-write",
+                "receipt.txt",
+            ])
+            .output()
+            .unwrap();
+        let report = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        (output.status.code(), report)
+    };
+    let vote = |path: &Path| {
+        let source = std::fs::read_to_string(path).unwrap();
+        assert!(source.contains(" pending\n"), "{source}");
+        std::fs::write(path, source.replace(" pending\n", " accept\n")).unwrap();
+        source
+    };
+    let phase = parent.join("build/package-manager/review-build.txt");
+    let lock = parent.join("omega.lock");
+    let (status, report) = run(&["packages", "update"]);
+    assert_eq!(status, Some(3), "{report}");
+    assert!(vote(&phase).contains("root Build entry"));
+    let (status, report) = run(&["packages", "update", "--resume"]);
+    assert_eq!(status, Some(3), "{report}");
+    let child_review = vote(&phase);
+    assert!(
+        child_review.contains("dependency") && child_review.contains("program-owner toolchain"),
+        "{child_review}"
+    );
+    assert!(!lock.exists());
+    let (status, report) = run(&["packages", "update", "--resume"]);
+    assert_eq!(status, Some(3), "{report}");
+    let target = target::TargetProfile::host_if_supported().unwrap();
+    let graph = vote(&parent.join(format!(
+        "build/package-manager/review-{}.txt",
+        target.target_name()
+    )));
+    assert!(
+        graph.contains("launched") && !graph.contains("launch_failed"),
+        "{graph}"
+    );
+    let (status, report) = run(&["packages", "update", "--resume"]);
+    assert_eq!(status, Some(0), "{report}");
+    let (status, report) = run(&["build", "build.omg"]);
+    assert_eq!(status, Some(0), "{report}");
+
+    // The same acquired child is already settled when the second registration
+    // asks for it. Its stronger first edge cannot lend the second its program.
+    let accepted_lock = std::fs::read(&lock).unwrap();
+    let build = parent.join("build.omg");
+    let source = std::fs::read_to_string(&build).unwrap();
+    let second_edge = r#"suspend Build::prepare_dependency(builder, child);
+    let mutable other: DependencyDescription = |dependency|::from_source(Source::Path { location: "../child" });
+    |dependency|::with_alias(@mutable other, "second");
+    let sibling: DependencyRegistration = Build::dependency(builder, other);
+    suspend Build::prepare_dependency(builder, sibling);"#;
+    std::fs::write(
+        &build,
+        format!(
+            "use {{omega}}/build/dependency.omg;\n{}",
+            source.replace(
+                "suspend Build::prepare_dependency(builder, child);",
+                second_edge
+            )
+        ),
+    )
+    .unwrap();
+    let (mut status, mut report) = run(&["packages", "update"]);
+    for _ in 0..2 {
+        if status != Some(3) {
+            break;
+        }
+        vote(&phase);
+        (status, report) = run(&["packages", "update", "--resume"]);
+    }
+    assert_eq!(status, Some(1), "{report}");
+    assert!(
+        report.contains("registration lacks the reviewed ProgramLaunch binding")
+            && report.contains("RunResult"),
+        "{report}"
+    );
+    assert_eq!(std::fs::read(lock).unwrap(), accepted_lock);
 }

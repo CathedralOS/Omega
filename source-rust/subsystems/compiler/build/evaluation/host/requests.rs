@@ -16,14 +16,14 @@ normal-return settlement charges result custody and publishes the log bytes.
 
 use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName};
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+mod dependency_options;
 mod input_bindings;
 mod output;
-mod reach;
 mod workspace;
+pub(crate) use dependency_options::ReflectedServices;
 pub use input_bindings::FrozenBuildBinding;
 use input_bindings::InputBindings;
 pub(crate) use output::BuildRequestOutput;
-pub(crate) use reach::ReflectedServices;
 use source_compiler::publication::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
 };
@@ -39,12 +39,17 @@ const REGISTRATIONS_POISONED: &str = "Build registration lock was poisoned";
 pub struct IssuedBuildRequest {
     request: BuildRequest,
     forwarded: Option<FrozenBuildBinding>,
+    programs: Vec<package_compilation::DelegatedProgram>,
     _storage: Option<EvaluationStorageLease>,
 }
 
 impl IssuedBuildRequest {
     pub fn forwarded(&self) -> Option<&FrozenBuildBinding> {
         self.forwarded.as_ref()
+    }
+
+    pub fn delegated_programs(&self) -> &[package_compilation::DelegatedProgram] {
+        &self.programs
     }
 
     pub fn request(&self) -> &BuildRequest {
@@ -56,7 +61,7 @@ pub struct TerminalBuildRequestHost {
     programs: Arc<super::programs::ProgramInstallation>,
     filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
     inputs: InputBindings,
-    reach: reach::ReachSets,
+    options: dependency_options::IssuedDependencyOptions,
     workspace: workspace::WorkspaceCatalogs,
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildRequestCall]>,
@@ -132,7 +137,7 @@ impl TerminalBuildRequestHost {
             calls: Arc::clone(calls),
             inputs: InputBindings::new(libraries),
             workspace: Default::default(),
-            reach: reach::ReachSets::from_module(
+            options: dependency_options::IssuedDependencyOptions::from_module(
                 artifact.module(),
                 calls
                     .iter()
@@ -149,7 +154,7 @@ impl TerminalBuildRequestHost {
     }
 
     pub(crate) fn reflected_services(&self) -> Arc<ReflectedServices> {
-        Arc::clone(&self.reach.reflections)
+        Arc::clone(&self.options.reflections)
     }
 
     pub(crate) fn workspace_members(
@@ -520,6 +525,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 | Operation::InputBinding
                 | Operation::AddBinding
                 | Operation::ExtendReach
+                | Operation::ForwardProgram { .. }
                 | Operation::ExtendWorkspace
         );
         if structural_arguments.first() != Some(&self.host.original)
@@ -578,6 +584,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::InputBinding => (0, 2),
             Operation::AddBinding => (0, 3),
             Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
+            Operation::ForwardProgram { .. } => (0, 1),
             Operation::PathDependency => (2, 4),
             Operation::GitDependency => (3, 6),
             Operation::ConfigureTestFixture
@@ -631,13 +638,25 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 )
                 .map(TerminalEffectResult::Structural);
         }
+        if let Operation::ForwardProgram { program } = call.action {
+            let terminal_psi::BoundaryMachineResult::Structural(result) = result else {
+                return Err(refuse(
+                    "a forwarded program requires its opaque dependency options",
+                ));
+            };
+            return self
+                .host
+                .options
+                .forward_program(program, result.structural_type, self.host.account.as_ref())
+                .map(TerminalEffectResult::Structural);
+        }
         if call.action == Operation::ExtendReach {
             let terminal_psi::BoundaryMachineResult::Structural(result) = result else {
                 return Err(refuse("Build service set requires its opaque result"));
             };
             return self
                 .host
-                .reach
+                .options
                 .extend(
                     &structural_arguments[1],
                     &structural_arguments[2],
@@ -646,18 +665,27 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 )
                 .map(TerminalEffectResult::Structural);
         }
-        let max_reach = if matches!(
+        let (max_reach, forwarded_programs) = if matches!(
             call.action,
             Operation::PathDependency | Operation::GitDependency | Operation::AddBinding
         ) {
-            self.host.reach.get(
+            self.host.options.get(
                 structural_arguments
                     .last()
-                    .ok_or_else(|| refuse("Build dependency lost its service set"))?,
+                    .ok_or_else(|| refuse("Build dependency lost its registration options"))?,
             )?
         } else {
             Default::default()
         };
+        let programs = forwarded_programs
+            .into_iter()
+            .map(|program| {
+                self.host
+                    .programs
+                    .delegated(program, &self.host.filesystem)
+                    .map_err(TerminalEffectRejection::new)
+            })
+            .collect::<Result<_, _>>()?;
         let forwarded = if call.action == Operation::AddBinding {
             if byte_sequence_arguments[1].is_some() {
                 return Err(refuse(
@@ -766,7 +794,10 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 return Err(refuse("Build request did not complete its host request"));
             }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
-            Operation::InputBinding | Operation::ExtendReach | Operation::ExtendWorkspace => {
+            Operation::InputBinding
+            | Operation::ExtendWorkspace
+            | Operation::ExtendReach
+            | Operation::ForwardProgram { .. } => {
                 return Err(refuse(
                     "Build input binding or service set already returned",
                 ));
@@ -828,6 +859,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             _ => None,
         };
         requests.push(IssuedBuildRequest {
+            programs,
             request,
             forwarded,
             _storage: storage,

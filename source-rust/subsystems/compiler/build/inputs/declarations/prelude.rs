@@ -37,7 +37,14 @@ pub fn build_prelude() -> BuildPrelude {
 }
 
 const MODULES: &[(&str, &str)] = &[
-    (crate::BUILD_MODULE_NAME, include_str!("prelude/modules/build_operations.omg")),
+    (
+        "ProgramLaunch",
+        include_str!("prelude/modules/program_launch.omg"),
+    ),
+    (
+        crate::BUILD_MODULE_NAME,
+        include_str!("prelude/modules/build_operations.omg"),
+    ),
     (
         "BuildSource",
         include_str!("prelude/modules/build_source.omg"),

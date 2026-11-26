@@ -118,7 +118,9 @@ pub(crate) fn produce(
                     site: call.site,
                     action,
                 });
-            } else if launcher {
+            } else if launcher
+                || (protocol("BuildRequestOperations") && call.name == "forward_program")
+            {
                 let application = elaboration
                     .boundaries
                     .get(boundary)
@@ -144,7 +146,11 @@ pub(crate) fn produce(
                 let program = authored_span(source, authored)?;
                 companions.requests.push(TerminalBuildRequestCall {
                     site: call.site,
-                    action: TerminalBuildRequestOperation::LaunchProgram { program },
+                    action: if launcher {
+                        TerminalBuildRequestOperation::LaunchProgram { program }
+                    } else {
+                        TerminalBuildRequestOperation::ForwardProgram { program }
+                    },
                 });
             } else if protocol(SELECTION_PROTOCOL) {
                 designated += 1;

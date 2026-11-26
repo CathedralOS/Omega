@@ -14,6 +14,14 @@ pub struct BuildDependencySelection {
     pub package: PackageKeyIdentity,
 }
 
+/// Live backing explicitly installed on one executed dependency registration.
+/// Source reuse and program delegation are independent parts of the same edge.
+#[derive(Clone, Default)]
+pub struct DependencyBacking {
+    pub frozen: Option<crate::host::requests::FrozenBuildBinding>,
+    pub programs: Vec<package_compilation::DelegatedProgram>,
+}
+
 impl ReturnedBuild {
     fn supplied_libraries(&self) -> &[package_compilation::source_imports::SuppliedBuildLibrary] {
         self.original_sources
@@ -76,19 +84,22 @@ impl ReturnedBuild {
     /// request log remains the record of just the operations it performed.
     /// The frozen sources of issued forwarding requests and of the incoming Build
     /// edges appended by source_requests, in that same purpose-local order.
-    pub fn frozen_dependencies(
+    pub fn dependency_backings(
         &self,
-    ) -> std::collections::BTreeMap<
-        (DependencyPurpose, usize),
-        crate::host::requests::FrozenBuildBinding,
-    > {
-        let mut frozen = std::collections::BTreeMap::new();
+    ) -> std::collections::BTreeMap<(DependencyPurpose, usize), DependencyBacking> {
+        let mut backings = std::collections::BTreeMap::new();
         let mut next = [0usize; 2];
         for issued in &self.requests {
             if let BuildRequest::Dependency { purpose, .. } = issued.request() {
                 let ordinal = &mut next[usize::from(purpose.canonical_tag())];
-                if let Some(binding) = issued.forwarded() {
-                    frozen.insert((*purpose, *ordinal), binding.clone());
+                if issued.forwarded().is_some() || !issued.delegated_programs().is_empty() {
+                    backings.insert(
+                        (*purpose, *ordinal),
+                        DependencyBacking {
+                            frozen: issued.forwarded().cloned(),
+                            programs: issued.delegated_programs().to_vec(),
+                        },
+                    );
                 }
                 *ordinal += 1;
             }
@@ -96,16 +107,19 @@ impl ReturnedBuild {
         if let Some(sources) = &self.original_sources {
             let first = next[usize::from(DependencyPurpose::Build.canonical_tag())];
             for index in 0..sources.libraries.len() {
-                frozen.insert(
+                backings.insert(
                     (DependencyPurpose::Build, first + index),
-                    crate::host::requests::FrozenBuildBinding::new(
-                        std::sync::Arc::clone(&sources.libraries),
-                        index,
-                    ),
+                    DependencyBacking {
+                        frozen: Some(crate::host::requests::FrozenBuildBinding::new(
+                            std::sync::Arc::clone(&sources.libraries),
+                            index,
+                        )),
+                        programs: Vec::new(),
+                    },
                 );
             }
         }
-        frozen
+        backings
     }
 
     pub fn source_requests(&self) -> impl Iterator<Item = &BuildRequest> {

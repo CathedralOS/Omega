@@ -9,12 +9,17 @@ use super::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachine
 use super::{BuildMachineExecutionMode, BuildMachineFilesystemAccess};
 pub use build_consent::{
     ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
-    RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite, RestrictedProgramLaunch,
+    RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite, RestrictedBuildSubject,
+    RestrictedProgramLaunch,
 };
 use evaluation_accounting::BuildEvaluationSponsor;
 use filesystem_authority::FilesystemGrantRoot;
 
 pub trait RestrictedBuildGrants: Send {
+    fn subject(&self) -> Option<RestrictedBuildSubject> {
+        None
+    }
+
     fn admits(
         &mut self,
         site: &RestrictedBuildSite,

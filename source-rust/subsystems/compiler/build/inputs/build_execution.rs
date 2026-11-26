@@ -2,7 +2,10 @@
 //! Completing the activation settles its output files and transfers the immutable source bytes.
 
 mod programs;
-pub use programs::{BuildProgramBinding, BuildProgramInvocation};
+pub use programs::{
+    BuildProgramBinding, BuildProgramInvocation, DelegatedProgram, ForwardedProgramFiles,
+    ProgramOutputBacking, ProgramOutputSink,
+};
 
 mod build_admission;
 pub mod build_value;
@@ -30,7 +33,7 @@ pub use observations::*;
 pub use restricted_requests::{
     ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
     RestrictedBuildGrants, RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite,
-    RestrictedProgramLaunch,
+    RestrictedBuildSubject, RestrictedProgramLaunch,
 };
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 pub use source_publications::BuildSourcePublications;
