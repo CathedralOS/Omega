@@ -9405,10 +9405,7 @@ impl TypedTrees {
     ) -> Result<(), &'static str> {
         use data::{MachineParameterContract::Nominal, TypeParameterKind::Machine};
 
-        // A lexical declaration can carry its enclosing machine's exact binder.
-        // The receiver arguments and the supplying binder determine the applied
-        // signature. Every occurrence of that application must share its rows.
-        let mut applications = std::collections::BTreeMap::new();
+        let mut pending = Vec::new();
         for (handle, parameter) in self.data_type_parameters.iter_from(first_parameter) {
             let Machine {
                 contract:
@@ -9423,42 +9420,49 @@ impl TypedTrees {
             else {
                 continue;
             };
-            let key = (
+            // A lexical helper captures the supplying declaration's binder. Its
+            // requirement is the same application only for the same receiver
+            // and argument tuple. Record that earlier row before mutating the indexed table.
+            let earlier = self.with_type_parameter_declarations(parameter.symbol, |rows| {
+                rows.iter().copied().take_while(|&row| row != handle).find(|&row| {
+                    matches!(&self.data_type_parameters.get(row).kind, Machine {
+                        contract: Nominal {
+                            receiving_trait: receiver, requirement: member, receiving_arguments: arguments, ..
+                        },
+                    } if receiver == receiving_trait && member == requirement && arguments == receiving_arguments)
+                })
+            });
+            pending.push((
+                handle,
+                earlier,
                 parameter.symbol,
                 *receiving_trait,
                 *requirement,
                 receiving_arguments.clone(),
-            );
-            let (_, occurrences) = applications.entry(key).or_insert_with(|| {
-                // A later source cohort can capture a previously prepared binder.
-                let earlier = self.with_type_parameter_declarations(parameter.symbol, |rows| {
-                    rows.iter().copied().find(|&row| {
-                        matches!(&self.data_type_parameters.get(row).kind, Machine {
-                            contract: Nominal {
-                                receiving_trait: receiver, requirement: member, receiving_arguments: arguments,
-                                instantiated: Some(_), ..
-                            },
-                        } if receiver == receiving_trait && member == requirement && arguments == receiving_arguments)
-                    })
-                });
-                (earlier, Vec::new())
-            });
-            occurrences.push(handle);
+            ));
         }
-        for ((binder, receiver, member, arguments), (prior, handles)) in applications {
-            let kind = if let Some(row) = prior {
-                self.data_type_parameters.get(row).kind.clone()
+        for (handle, earlier, binder, receiver, requirement, arguments) in pending {
+            let kind = earlier.map(|row| &self.data_type_parameters.get(row).kind);
+            let kind = if let Some(
+                prepared @ Machine {
+                    contract:
+                        Nominal {
+                            instantiated: Some(_),
+                            ..
+                        },
+                },
+            ) = kind
+            {
+                prepared.clone()
             } else {
                 let contract = CallableApplication {
                     region_scope: self.declaration_scope_parent(binder),
                     ..CallableApplication::default()
                 }
-                .nominal_contract(self, receiver, member, arguments)?;
+                .nominal_contract(self, receiver, requirement, arguments)?;
                 Machine { contract }
             };
-            for handle in handles {
-                self.data_type_parameters.get_mut(handle).kind = kind.clone();
-            }
+            self.data_type_parameters.get_mut(handle).kind = kind;
         }
         Ok(())
     }
