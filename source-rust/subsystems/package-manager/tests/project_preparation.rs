@@ -28,10 +28,11 @@ fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_ta
     let client = temp.path().join("client");
     write_package(
         &client,
-        r#"use main.omg as app;
+        r#"use {omega}/build/dependency.omg;
+use main.omg as app;
 machine build(builder: @mutable Build) {
     Build::application(builder, "client");
-    let product_dep: DependencyDescription = dependency\from_source(Source::Path { location: "library" });
+    let product_dep: DependencyDescription = |dependency|::from_source(Source::Path { location: "library" });
     _ = Build::dependency(builder, product_dep);
     Build::bind(builder, windows_x86_64\ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
@@ -172,10 +173,11 @@ fn a_dependency_recheck_can_finish_after_the_consuming_product_opens() {
     let client = temp.path().join("client");
     write_package(
         &client,
-        r#"use main.omg as app;
+        r#"use {omega}/build/dependency.omg;
+use main.omg as app;
 machine build(builder: @mutable Build) {
     Build::application(builder, "client");
-    _ = Build::dependency(builder, dependency\from_source(Source::Path { location: "library" }));
+    _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "library" }));
     Build::bind(builder, windows_x86_64\ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64\ProgramEntry, |app|::main);
     Build::bind(builder, macos_arm64\ProgramEntry, |app|::main);
@@ -271,14 +273,19 @@ fn root_recheck_finishes_after_its_own_product_opens(dependency: bool) {
     let temp = TemporaryDirectory::create("project-root-recheck", false).unwrap();
     let client = temp.path().join("client");
     let registration = if dependency {
-        r#"_ = Build::dependency(builder, dependency\from_source(Source::Path { location: "library" }));"#
+        r#"_ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "library" }));"#
+    } else {
+        ""
+    };
+    let import = if dependency {
+        "use {omega}/build/dependency.omg;\n"
     } else {
         ""
     };
     write_package(
         &client,
         &format!(
-            r#"use main.omg as app;
+            r#"{import}use main.omg as app;
 machine build(builder: @mutable Build) {{
     Build::application(builder, "client");
     {registration}

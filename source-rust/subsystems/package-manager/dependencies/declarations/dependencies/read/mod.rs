@@ -7,13 +7,13 @@ requests by their authorized context (`Product` vs. `Build`) so each scope
 retains separate requester-local ordering and alias validation without falling
 back to the other. `PackageSelection` records request custody inside an
 acquired repository source (`Root` when omitted), and `resolved_alias` derives
-the requester-local import name from either an explicit `dependency::with_alias` override
+the requester-local import name from either an explicit `|dependency|::with_alias` override
 or the dependency's own declared package name.
 */
 
 mod aliases;
 mod error;
-mod extraction;
+
 mod policy;
 mod projection;
 mod source_literal;
@@ -25,7 +25,7 @@ use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
 use build_declarations::BuildRequest;
 pub use build_declarations::DependencyPurpose;
-pub(crate) use extraction::extract_scoped_from_source;
+pub(crate) use projection::{EditableSource, extract_scoped_from_source, project_source_for_edit};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PackageSelection {

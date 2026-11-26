@@ -14,7 +14,6 @@ anywhere in the file fails with that operation's `Unsupported*Shape` error.
 */
 
 use super::BuildDeclarationError;
-use super::dependency_rows::is_dependency_call;
 use super::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
 use super::{
     APPLICATION_MACHINE_NAME, ARTIFACT_ONLY_MACHINE_NAME, BUILD_MACHINE_NAME,
@@ -330,7 +329,7 @@ fn reject_authored_toolchain_vocabulary(
         }
         let leaf = machine_leaf_name(machine.name.as_str(syntax_trees));
         if DeclarationOperation::classify(leaf).is_some()
-            || is_dependency_call(Some(BUILD_TYPE_NAME), leaf)
+            || DependencyOperation::classify(leaf).is_some()
         {
             return Err(BuildDeclarationError::AuthoredToolchainVocabulary {
                 name: machine.name.as_str(syntax_trees).to_owned(),

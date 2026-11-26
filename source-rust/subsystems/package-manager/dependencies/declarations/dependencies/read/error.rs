@@ -63,13 +63,13 @@ impl fmt::Display for DependencyProjectionError {
                 "package build machine's first parameter must be `builder: @mutable Build`",
             ),
             Self::UnsupportedDependencyShape => formatter.write_str(
-                "automatic dependency editing requires unconditional direct `_ = Build::dependency(builder, dependency::from_source(Source::...));` registrations, or a `let mutable name: DependencyDescription = dependency::from_source(Source::...);` local directly followed by `dependency::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, in the root build entry; dependency helpers, conditional registrations, state transitions, and reused descriptions are not editable dependency declaration forms",
+                "automatic dependency editing requires unconditional direct `_ = Build::dependency(builder, |dependency|::from_source(Source::...));` registrations, or a `let mutable name: DependencyDescription = |dependency|::from_source(Source::...);` local directly followed by `|dependency|::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, in the root build entry; dependency helpers, conditional registrations, state transitions, and reused descriptions are not editable dependency declaration forms",
             ),
             Self::WrongDependencyReceiver => formatter.write_str(
                 "dependency request must use a static Build call with the root build machine's first parameter as its first operand",
             ),
             Self::WrongDependencyArguments => formatter.write_str(
-                "`Build::dependency` and `Build::build_dependency` take the builder operand followed by one description, either `dependency::from_source(Source::...)` or the aliased description local just configured by `dependency::with_alias`, and accept no generic, evidence, or operational modifiers",
+                "`Build::dependency` and `Build::build_dependency` take the builder operand followed by one description, either `|dependency|::from_source(Source::...)` or the aliased description local just configured by `|dependency|::with_alias`, and accept no generic, evidence, or operational modifiers",
             ),
             Self::AliasNotString => {
                 formatter.write_str("dependency alias must be a direct string literal")

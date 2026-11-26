@@ -10,7 +10,8 @@ use crate::declarations::dependencies::edit::{
     BuildDependencyManualReason, BuildFileReplacement,
 };
 use crate::declarations::dependencies::read::{
-    DependencyPurpose, DependencySourceRequest, extract_scoped_from_source,
+    DependencyPurpose, DependencySourceRequest, EditableSource, extract_scoped_from_source,
+    project_source_for_edit,
 };
 use std::path::PathBuf;
 
@@ -19,8 +20,11 @@ pub(crate) fn plan_dependency_addition_from_source(
     source: String,
     request: &DependencySourceRequest,
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
-    let requests =
-        extract_scoped_from_source(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
+    let EditableSource {
+        parsed,
+        requests,
+        import,
+    } = project_source_for_edit(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
     if requests
         .iter()
         .any(|(purpose, existing)| purpose.is_product() && existing == request)
@@ -28,14 +32,15 @@ pub(crate) fn plan_dependency_addition_from_source(
         return Ok(BuildDependencyEditPlan::Unchanged);
     }
     let digest = source_digest(&source);
-    let statement = canonical_dependency_statement(DependencyPurpose::Product, request, &source);
-    let Some(layout) = discover_build_layout(&source)? else {
+    let statement =
+        canonical_dependency_statement(DependencyPurpose::Product, request, &source, &import.alias);
+    let Some(layout) = discover_build_layout(&parsed) else {
         return Ok(manual_patch(
             build_path,
             digest,
             BuildDependencyManualReason::NonCanonicalBuildBodyLayout,
             None,
-            statement,
+            import.manual_proposal(statement),
         ));
     };
     let Some(layout) = layout else {
@@ -44,7 +49,7 @@ pub(crate) fn plan_dependency_addition_from_source(
             digest,
             BuildDependencyManualReason::NonCanonicalBuildSignature,
             None,
-            statement,
+            import.manual_proposal(statement),
         ));
     };
     let Some(replacement) = layout.insert_statement(&source, &statement) else {
@@ -53,16 +58,16 @@ pub(crate) fn plan_dependency_addition_from_source(
             digest,
             BuildDependencyManualReason::NonCanonicalBuildBodyLayout,
             None,
-            statement,
+            import.manual_proposal(statement),
         ));
     };
     validated_automatic_addition(
         build_path,
         digest,
-        replacement,
+        import.include_in(replacement),
         requests,
         (DependencyPurpose::Product, request.clone()),
-        statement,
+        import.manual_proposal(statement),
     )
 }
 
@@ -96,8 +101,11 @@ pub(crate) fn plan_dependency_replacement_from_source(
     accepted: &DependencySourceRequest,
     candidate: &DependencySourceRequest,
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
-    let requests =
-        extract_scoped_from_source(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
+    let EditableSource {
+        parsed,
+        requests,
+        import,
+    } = project_source_for_edit(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
     let scoped_contains = |request: &DependencySourceRequest| {
         requests
             .iter()
@@ -111,25 +119,35 @@ pub(crate) fn plan_dependency_replacement_from_source(
                 build_path,
                 source_digest(&source),
                 BuildDependencyManualReason::AcceptedRequestMissing,
-                Some(canonical_dependency_statement(purpose, accepted, &source)),
-                canonical_dependency_statement(purpose, candidate, &source),
+                Some(canonical_dependency_statement(
+                    purpose,
+                    accepted,
+                    &source,
+                    &import.alias,
+                )),
+                import.manual_proposal(canonical_dependency_statement(
+                    purpose,
+                    candidate,
+                    &source,
+                    &import.alias,
+                )),
             )
         });
     }
     let digest = source_digest(&source);
-    let current_statement = canonical_dependency_statement(purpose, accepted, &source);
-    let proposed_statement = canonical_dependency_statement(purpose, candidate, &source);
-    macro_rules! patch {
-        ($reason:expr) => {
-            manual_patch(
-                build_path,
-                digest,
-                $reason,
-                Some(current_statement),
-                proposed_statement,
-            )
-        };
-    }
+    let current_statement =
+        canonical_dependency_statement(purpose, accepted, &source, &import.alias);
+    let proposed_statement =
+        canonical_dependency_statement(purpose, candidate, &source, &import.alias);
+    let patch = |reason| {
+        manual_patch(
+            build_path.clone(),
+            digest,
+            reason,
+            Some(current_statement),
+            import.manual_proposal(proposed_statement.clone()),
+        )
+    };
     let accepted_indices = requests
         .iter()
         .enumerate()
@@ -143,29 +161,29 @@ pub(crate) fn plan_dependency_replacement_from_source(
         } else {
             BuildDependencyManualReason::AcceptedRequestAmbiguous
         };
-        return Ok(patch!(reason));
+        return Ok(patch(reason));
     };
     if scoped_contains(candidate) {
-        return Ok(patch!(BuildDependencyManualReason::CandidateAlreadyPresent));
+        return Ok(patch(BuildDependencyManualReason::CandidateAlreadyPresent));
     }
-    let Some(layout) = discover_build_layout(&source)? else {
-        return Ok(patch!(
+    let Some(layout) = discover_build_layout(&parsed) else {
+        return Ok(patch(
             BuildDependencyManualReason::NonCanonicalBuildBodyLayout
         ));
     };
     let Some(layout) = layout else {
-        return Ok(patch!(
+        return Ok(patch(
             BuildDependencyManualReason::NonCanonicalBuildSignature
         ));
     };
     if layout.dependency_rows().len() != requests.len() {
-        return Ok(patch!(
+        return Ok(patch(
             BuildDependencyManualReason::NonCanonicalDependencyRows
         ));
     }
     let row = &layout.dependency_rows()[*accepted_index];
     if row.contains_comment {
-        return Ok(patch!(
+        return Ok(patch(
             BuildDependencyManualReason::DependencyRowContainsComment
         ));
     }
@@ -173,7 +191,7 @@ pub(crate) fn plan_dependency_replacement_from_source(
     let mut expected = requests;
     expected[*accepted_index] = (purpose, candidate.clone());
     if extract_scoped_from_source(&replacement).ok().as_ref() != Some(&expected) {
-        return Ok(patch!(BuildDependencyManualReason::GeneratedEditRejected));
+        return Ok(patch(BuildDependencyManualReason::GeneratedEditRejected));
     }
     Ok(BuildDependencyEditPlan::Automatic(
         BuildFileReplacement::new(build_path, digest, replacement),
@@ -206,11 +224,12 @@ mod tests {
     };
     use std::path::PathBuf;
 
-    const ROOT: &str = r#"machine build(builder: @mutable Build) {
+    const ROOT: &str = r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
     Build::application(builder, "probe");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../library/system" }));
-    let mutable kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "kit" });
-    dependency\with_alias(@mutable kit_dependency, "kit");
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../library/system" }));
+    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "kit" });
+    |dependency|::with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
 }
 "#;
@@ -227,6 +246,62 @@ mod tests {
             panic!("expected an automatic edit, got {plan:?}")
         };
         replacement.replacement_source().to_owned()
+    }
+
+    #[test]
+    fn adds_the_installed_file_once_and_reuses_its_actual_alias() {
+        let plain = "machine build(builder: @mutable Build) {\n    Build::application(builder, \"probe\");\n}\n";
+        for (imports, expected, inserted) in [
+            ("", "dependency", true),
+            ("use {vendor}/build/dependency.omg;\n", "dependency_2", true),
+            ("use {omega}/build/dependency.omg as pkg;\n", "pkg", false),
+        ] {
+            let original = format!("{imports}{plain}").replace('\n', "\r\n");
+            let request = path(Some("kit"), "../kit");
+            let edit = plan_dependency_addition_from_source(
+                "build.omg".into(),
+                original.clone(),
+                &request,
+            )
+            .unwrap();
+            let BuildDependencyEditPlan::Automatic(edit) = edit else {
+                panic!("missing edit for {original}")
+            };
+            let source = edit.replacement_source();
+            assert_eq!(source.matches("{omega}/build/dependency.omg").count(), 1);
+            assert_eq!(
+                source.matches("use ").count(),
+                imports.lines().count() + usize::from(inserted)
+            );
+            assert!(source.contains(&format!("|{expected}|::from_source(")));
+            assert!(source.contains(&format!("|{expected}|::with_alias(")));
+            assert!(!source.replace("\r\n", "").contains('\n'));
+            assert_eq!(
+                extract_scoped_from_source(source).unwrap(),
+                [(DependencyPurpose::Product, request.clone())]
+            );
+            let candidate = path(Some("kit"), "../next");
+            let change = plan_dependency_replacement_from_source(
+                "build.omg".into(),
+                source.to_owned(),
+                DependencyPurpose::Product,
+                &request,
+                &candidate,
+            )
+            .unwrap();
+            let BuildDependencyEditPlan::Automatic(change) = change else {
+                panic!("missing update")
+            };
+            assert_eq!(
+                extract_scoped_from_source(change.replacement_source()).unwrap(),
+                [(DependencyPurpose::Product, candidate)]
+            );
+            let spoof = source.replace(
+                "{omega}/build/dependency.omg",
+                "{vendor}/wrong/dependency.omg",
+            );
+            assert!(extract_scoped_from_source(&spoof).is_err());
+        }
     }
 
     #[test]
@@ -252,7 +327,7 @@ mod tests {
         );
         assert!(
             edited.contains(
-                "    let mutable other_dependency: DependencyDescription = dependency\\from_source(Source::Path { location: \"../other\" });\n    dependency\\with_alias(@mutable other_dependency, \"other\");\n    let other_registration: DependencyRegistration = Build::dependency(builder, other_dependency);\n}"
+                "    let mutable other_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: \"../other\" });\n    |dependency|::with_alias(@mutable other_dependency, \"other\");\n    let other_registration: DependencyRegistration = Build::dependency(builder, other_dependency);\n}"
             ),
             "{edited}"
         );
@@ -275,7 +350,7 @@ mod tests {
             .expect("plan"),
         );
         assert!(
-            edited.contains("    let system_registration_2: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path { location: \"../vendor/system\" }));\n}"),
+            edited.contains("    let system_registration_2: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"../vendor/system\" }));\n}"),
             "{edited}"
         );
     }
@@ -300,7 +375,8 @@ mod tests {
             ]
         );
         assert!(
-            edited.contains("\n    dependency\\with_alias(@mutable kit_dependency_2, \"kit\");\n"),
+            edited
+                .contains("\n    |dependency|::with_alias(@mutable kit_dependency_2, \"kit\");\n"),
             "{edited}"
         );
     }
