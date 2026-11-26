@@ -78,7 +78,12 @@ fn handwritten_product_calls_a_generated_file() {
             let report = report(&result);
             assert_eq!(result.status.success(), valid, "{engine}: {report}");
             if !valid {
-                assert!(report.contains("missing"), "{engine}: {report}");
+                assert!(
+                    report.contains("no visible declaration"),
+                    "{engine}: {report}"
+                );
+                assert!(report.contains("generated.omg"), "{engine}: {report}");
+                assert!(report.contains("unused"), "{engine}: {report}");
             }
         }
     }

@@ -10,6 +10,8 @@ The executable calls the dependency’s handwritten `main.omg`, which imports
 `generated.omg` by its logical filename. The generated machine in turn calls
 the handwritten `seed.omg`. The executable checks that the complete path returns 7.
 
+The [refusal controls](../build_retry_reseal_controls/) are separate projects.
+
 - `invalid_build_imports_its_generated` imports the future Product file into
   the Build that would emit it. Build source is fixed before execution.
 - `invalid_foreign_include` tries to publish a file outside the dependency.
