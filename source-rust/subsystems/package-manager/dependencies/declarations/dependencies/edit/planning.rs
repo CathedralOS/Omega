@@ -22,9 +22,11 @@ pub(crate) fn plan_dependency_addition_from_source(
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
     let EditableSource {
         parsed,
+        entry,
         requests,
         import,
     } = project_source_for_edit(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
+    let receiver = entry.receiver_name(&parsed.syntax);
     if requests
         .iter()
         .any(|(purpose, existing)| purpose.is_product() && existing == request)
@@ -33,8 +35,8 @@ pub(crate) fn plan_dependency_addition_from_source(
     }
     let digest = source_digest(&source);
     let statement =
-        canonical_dependency_statement(DependencyPurpose::Product, request, &source, &import.alias);
-    let Some(layout) = discover_build_layout(&parsed) else {
+        canonical_dependency_statement(DependencyPurpose::Product, request, &source, &import.alias, receiver);
+    let Some(layout) = discover_build_layout(&parsed, receiver) else {
         return Ok(manual_patch(
             build_path,
             digest,
@@ -103,9 +105,11 @@ pub(crate) fn plan_dependency_replacement_from_source(
 ) -> Result<BuildDependencyEditPlan, BuildDependencyEditError> {
     let EditableSource {
         parsed,
+        entry,
         requests,
         import,
     } = project_source_for_edit(&source).map_err(BuildDependencyEditError::InvalidBuild)?;
+    let receiver = entry.receiver_name(&parsed.syntax);
     let scoped_contains = |request: &DependencySourceRequest| {
         requests
             .iter()
@@ -124,21 +128,23 @@ pub(crate) fn plan_dependency_replacement_from_source(
                     accepted,
                     &source,
                     &import.alias,
+                    receiver,
                 )),
                 import.manual_proposal(canonical_dependency_statement(
                     purpose,
                     candidate,
                     &source,
                     &import.alias,
+                    receiver,
                 )),
             )
         });
     }
     let digest = source_digest(&source);
     let current_statement =
-        canonical_dependency_statement(purpose, accepted, &source, &import.alias);
+        canonical_dependency_statement(purpose, accepted, &source, &import.alias, receiver);
     let proposed_statement =
-        canonical_dependency_statement(purpose, candidate, &source, &import.alias);
+        canonical_dependency_statement(purpose, candidate, &source, &import.alias, receiver);
     let patch = |reason| {
         manual_patch(
             build_path.clone(),
@@ -166,7 +172,7 @@ pub(crate) fn plan_dependency_replacement_from_source(
     if scoped_contains(candidate) {
         return Ok(patch(BuildDependencyManualReason::CandidateAlreadyPresent));
     }
-    let Some(layout) = discover_build_layout(&parsed) else {
+    let Some(layout) = discover_build_layout(&parsed, receiver) else {
         return Ok(patch(
             BuildDependencyManualReason::NonCanonicalBuildBodyLayout
         ));
@@ -246,6 +252,30 @@ machine build(builder: @mutable Build) {
             panic!("expected an automatic edit, got {plan:?}")
         };
         replacement.replacement_source().to_owned()
+    }
+
+    #[test]
+    fn add_and_replace_use_the_parameter_bound_by_the_entry() {
+        let initial = "machine build(plan: @mutable Build) {\n    Build::package(plan, \"client\");\n}\n";
+        let first = path(Some("selected"), "../first");
+        let second = path(Some("selected"), "../second");
+        let file = PathBuf::from("build.omg");
+        let BuildDependencyEditPlan::Automatic(added) =
+            plan_dependency_addition_from_source(file.clone(), initial.to_owned(), &first).unwrap()
+        else {
+            panic!("expected an edit for a renamed Build parameter");
+        };
+        let added = added.replacement_source();
+        assert!(added.contains("Build::dependency(plan, selected_dependency)"));
+        let BuildDependencyEditPlan::Automatic(replaced) = plan_dependency_replacement_from_source(
+            file, added.to_owned(), DependencyPurpose::Product, &first, &second,
+        ).unwrap() else {
+            panic!("expected an update for the renamed Build parameter");
+        };
+        let updated = replaced.replacement_source();
+        assert_eq!(extract_scoped_from_source(updated).unwrap(), [(DependencyPurpose::Product, second)]);
+        let wrong_receiver = updated.replace("Build::dependency(plan,", "Build::dependency(builder,");
+        assert!(extract_scoped_from_source(&wrong_receiver).is_err());
     }
 
     #[test]

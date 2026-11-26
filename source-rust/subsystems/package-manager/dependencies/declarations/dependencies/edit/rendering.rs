@@ -10,8 +10,6 @@ use crate::declarations::editable_build::{
 };
 use build_declarations::BUILD_TYPE_NAME;
 
-use super::BUILDER_PARAMETER_NAME;
-
 // `build_source` is the build file the statement joins; the registration and
 // description locals take names it does not already use.
 pub(crate) fn canonical_dependency_statement(
@@ -19,6 +17,7 @@ pub(crate) fn canonical_dependency_statement(
     request: &DependencySourceRequest,
     build_source: &str,
     import: &str,
+    receiver: &str,
 ) -> String {
     let operation = purpose.operation().name();
     let base = match request.explicit_alias() {
@@ -57,14 +56,14 @@ pub(crate) fn canonical_dependency_statement(
     let description = format!("|{import}|::{FROM_SOURCE_HELPER_NAME}({source})");
     let Some(alias) = request.explicit_alias() else {
         return format!(
-            "let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_TYPE_NAME}::{operation}({BUILDER_PARAMETER_NAME}, {description});"
+            "let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_TYPE_NAME}::{operation}({receiver}, {description});"
         );
     };
     let local = fresh_local(build_source, &format!("{base}_dependency"));
     format!(
         "let mutable {local}: {DEPENDENCY_DESCRIPTION_TYPE_NAME} = {description};\n\
          |{import}|::{WITH_ALIAS_HELPER_NAME}(@mutable {local}, {});\n\
-         let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_TYPE_NAME}::{operation}({BUILDER_PARAMETER_NAME}, {local});",
+         let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_TYPE_NAME}::{operation}({receiver}, {local});",
         source_text::display_literal_bytes(alias.as_str().as_bytes())
     )
 }

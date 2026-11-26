@@ -106,12 +106,13 @@ pub fn project_dependency_rows(
     build: &BuildEntrySyntaxProjection,
 ) -> Result<Vec<DependencyRow>, DependencyRowError> {
     let entry = syntax_trees.items.state(build.build_entry());
+    let receiver = build.receiver_name(syntax_trees);
     let statements = syntax_trees.items.statements(entry.statements);
     let mut rows = Vec::new();
     let mut position = 0;
     while position < statements.len() {
         let handle = statements[position];
-        if let Some(registration) = registration(syntax_trees, handle)? {
+        if let Some(registration) = registration(syntax_trees, handle, receiver)? {
             let source = fresh_description(syntax_trees, registration.description)
                 .ok_or(DependencyRowError::WrongArguments)?;
             rows.push(DependencyRow {
@@ -129,6 +130,7 @@ pub fn project_dependency_rows(
                 &statements[position..],
                 local,
                 source,
+                receiver,
             )?;
             position += row.statements.len();
             rows.push(row);
@@ -151,6 +153,7 @@ struct Registration {
 fn registration(
     syntax_trees: &SyntaxTrees,
     statement: StatementHandle,
+    receiver: &str,
 ) -> Result<Option<Registration>, DependencyRowError> {
     let (expression, discarded) = match syntax_trees.statements.statement(statement) {
         StatementNode::Call(statement) => (statement.expression, Some(statement.discards_result)),
@@ -174,7 +177,7 @@ fn registration(
     if discarded == Some(false) || (discarded.is_none() && !call.target_is_static) {
         return Err(DependencyRowError::WrongArguments);
     }
-    let operands = direct_build_call_operands(syntax_trees, call).map_err(|error| match error {
+    let operands = direct_build_call_operands(syntax_trees, call, receiver).map_err(|error| match error {
         DirectBuildCallError::WrongReceiver => DependencyRowError::WrongReceiver,
         DirectBuildCallError::WrongArguments => DependencyRowError::WrongArguments,
     })?;
@@ -244,6 +247,7 @@ fn aliased_row(
     statements: &[StatementHandle],
     local: &syntax_trees::statement::TableLocalData,
     source: ExpressionHandle,
+    receiver: &str,
 ) -> Result<DependencyRow, DependencyRowError> {
     let name = local.name.as_str(syntax_trees);
     let [declaration, configuration, registration, ..] = statements else {
@@ -279,7 +283,7 @@ fn aliased_row(
     if !borrow.access.is_exclusive() || single_name(syntax_trees, borrow.target) != Some(name) {
         return Err(DependencyRowError::WrongArguments);
     }
-    let Some(register) = self::registration(syntax_trees, *registration)? else {
+    let Some(register) = self::registration(syntax_trees, *registration, receiver)? else {
         return Err(DependencyRowError::WrongArguments);
     };
     if single_name(syntax_trees, register.description) != Some(name) {
