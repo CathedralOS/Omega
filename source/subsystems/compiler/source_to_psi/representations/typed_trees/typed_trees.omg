@@ -1,14 +1,7 @@
-use foundation\ExactInteger;
-use foundation\Rational;
-use foundation\is_carrier;
-use representations\source_files\SourceSpan;
-use representations\symbol_resolved_trees\BuiltinType;
-use representations\symbol_resolved_trees\DomainBinding;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ExpressionKind;
-use representations\syntax_trees\ReferenceAccess;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\syntax_trees_expression;
+use foundation/integers.omg;
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
 
 // The types of one compilation and what typing records about its syntax.
 // Types are interned: one row per distinct type, so two types are equal
@@ -56,13 +49,13 @@ public data TypeKind [copy] {
 // Fields a kind does not carry are zero.
 public data TypeRow [copy] {
     kind: TypeKind;
-    builtin: BuiltinType;
-    domain: DomainBinding;
+    builtin: |symbol_resolved_trees|::BuiltinType;
+    domain: |symbol_resolved_trees|::DomainBinding;
     // A `Declared` qualifier's domain declaration or a `Case` qualifier's
     // case; zero for an arithmetic policy or none.
     domain_item: u64 in Trapping;
     item: u64 in Trapping;
-    access: ReferenceAccess;
+    access: |syntax_trees|::ReferenceAccess;
     inner: u64 in Trapping;
     length: u64 in Trapping;
     first_argument: u64 in Trapping;
@@ -169,7 +162,7 @@ public data TypeDiagnosticCode [copy] {
 
 public data TypeDiagnostic [copy] {
     code: TypeDiagnosticCode;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 // The declared field a construction's written value establishes or a
@@ -198,7 +191,7 @@ requires
     expression_types: [u64; 131072];
     selections: [Selection; 131072];
     adaptations: [Adaptation; 131072];
-    values: [ExactInteger; 131072];
+    values: [|integers|::ExactInteger; 131072];
     // The denominator of an anonymous expression's exact rational value, in
     // lowest terms; zero (the absence state) or one is integral.
     denominators: [u64; 131072];
@@ -225,7 +218,7 @@ requires
     accepted: bool;
 }
 
-public machine typing_reject(typing: @mutable Typing, code: TypeDiagnosticCode, source_span: SourceSpan) {
+public machine typing_reject(typing: @mutable Typing, code: TypeDiagnosticCode, source_span: |source|::SourceSpan) {
     typing.accepted = false;
     typing.diagnostic.code = code;
     typing.diagnostic.source_span = source_span;
@@ -370,7 +363,7 @@ crashes Trap
     }
 }
 
-public machine typing_value(typing: @Typing, index: u64 in Trapping) -> ExactInteger
+public machine typing_value(typing: @Typing, index: u64 in Trapping) -> |integers|::ExactInteger
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -378,11 +371,11 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typing: @Typing, index: u64 in Trapping) -> ExactInteger {
+    machine read(typing: @Typing, index: u64 in Trapping) -> |integers|::ExactInteger {
         typing.values[index as -Trapping]
     }
 
-    machine invalid() -> ExactInteger {
+    machine invalid() -> |integers|::ExactInteger {
         crash Trap;
     }
 }
@@ -391,7 +384,7 @@ crashes Trap
 // landing. Runtime typed operations never acquire this annotation. Consumers
 // use its completed integral value rather than imposing runtime carrier rules
 // on its anonymous intermediates; destination qualification remains separate.
-public machine typing_landed_integer(typing: @Typing, handle: u64 in Trapping, expression: Expression) -> bool
+public machine typing_landed_integer(typing: @Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) -> bool
 crashes Trap
 {
     let selection: Selection = typing_selection(typing, handle);
@@ -399,14 +392,14 @@ crashes Trap
         Selection::None -> classified(typing, handle, expression),
         _ -> no()
     }
-    machine classified(typing: @Typing, handle: u64 in Trapping, expression: Expression) -> bool {
+    machine classified(typing: @Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression) -> bool {
         let adaptation: Adaptation = typing_adaptation(typing, handle);
         let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
         let row: TypeRow = type_table_row(@typing.types, type_handle);
-        let numeric: bool = expression.kind == ExpressionKind::Integer
-            || expression.kind == ExpressionKind::Unary || expression.kind == ExpressionKind::Binary;
+        let numeric: bool = expression.kind == |syntax_trees|::ExpressionKind::Integer
+            || expression.kind == |syntax_trees|::ExpressionKind::Unary || expression.kind == |syntax_trees|::ExpressionKind::Binary;
         typing.accepted && adaptation == Adaptation::Landed && numeric
-            && row.kind == TypeKind::Builtin && is_carrier(row.builtin)
+            && row.kind == TypeKind::Builtin && |integers|::is_carrier(row.builtin)
             && integral_denominator(typing, handle)
     }
     machine integral_denominator(typing: @Typing, handle: u64 in Trapping) -> bool {
@@ -417,12 +410,12 @@ crashes Trap
 }
 
 // An anonymous expression's exact rational: its value over its denominator.
-public machine rational(typing: @Typing, index: u64 in Trapping) -> Rational
+public machine rational(typing: @Typing, index: u64 in Trapping) -> |integers|::Rational
 crashes Trap
 {
-    let numerator: ExactInteger = typing_value(typing, index);
+    let numerator: |integers|::ExactInteger = typing_value(typing, index);
     let denominator: u64 in Trapping = typing_denominator(typing, index);
-    Rational { numerator: numerator, denominator: denominator as -Trapping +Wrapping }
+    |integers|::Rational { numerator: numerator, denominator: denominator as -Trapping +Wrapping }
 }
 
 // A quoted literal's predicate roster (`rosters`); zero for any other
@@ -506,7 +499,7 @@ crashes Trap
     machine invalid() -> u64 in Trapping { crash Trap; }
 }
 
-public machine set_rational(typing: @mutable Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping)
+public machine set_rational(typing: @mutable Typing, index: u64 in Trapping, value: |integers|::Rational, origin: u64 in Trapping)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -514,7 +507,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mutable Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping) {
+    machine write(typing: @mutable Typing, index: u64 in Trapping, value: |integers|::Rational, origin: u64 in Trapping) {
         typing.values[index as -Trapping] = value.numerator;
         typing.denominators[index as -Trapping] = value.denominator as -Wrapping;
         transition origin > 0 || value.denominator <= 1 {
@@ -536,7 +529,7 @@ crashes Trap
     }
 }
 
-public machine typing_set_value(typing: @mutable Typing, index: u64 in Trapping, value: ExactInteger)
+public machine typing_set_value(typing: @mutable Typing, index: u64 in Trapping, value: |integers|::ExactInteger)
 crashes Trap
 {
     transition index < typing.expression_count {
@@ -544,7 +537,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typing: @mutable Typing, index: u64 in Trapping, value: ExactInteger) {
+    machine write(typing: @mutable Typing, index: u64 in Trapping, value: |integers|::ExactInteger) {
         typing.values[index as -Trapping] = value;
         typing.denominators[index as -Trapping] = 0;
         typing.fractional_origins[index as -Trapping] = 0;
@@ -661,11 +654,11 @@ crashes Trap
 public machine type_row_of(kind: TypeKind) -> TypeRow {
     TypeRow {
         kind: kind,
-        builtin: BuiltinType::Bool,
-        domain: DomainBinding::Unqualified,
+        builtin: |symbol_resolved_trees|::BuiltinType::Bool,
+        domain: |symbol_resolved_trees|::DomainBinding::Unqualified,
         domain_item: 0 as +Trapping,
         item: 0 as +Trapping,
-        access: ReferenceAccess::Shared,
+        access: |syntax_trees|::ReferenceAccess::Shared,
         inner: 0 as +Trapping,
         length: 0 as +Trapping,
         first_argument: 0 as +Trapping,
@@ -694,7 +687,7 @@ public machine never_type(table: @TypeTable, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let row: TypeRow = type_table_row(table, handle);
-    row.kind == TypeKind::Builtin && row.builtin == BuiltinType::Never
+    row.kind == TypeKind::Builtin && row.builtin == |symbol_resolved_trees|::BuiltinType::Never
 }
 
 public machine type_table_argument(table: @TypeTable, index: u64 in Trapping) -> u64 in Trapping
@@ -843,7 +836,7 @@ crashes Trap
 // `row` with its domain qualifier removed: the carrier it qualifies.
 public machine type_row_carrier(row: TypeRow) -> TypeRow {
     let mutable carrier: TypeRow = row;
-    carrier.domain = DomainBinding::Unqualified;
+    carrier.domain = |symbol_resolved_trees|::DomainBinding::Unqualified;
     carrier.domain_item = 0 as +Trapping;
     carrier
 }
@@ -933,19 +926,19 @@ public machine carrier_width(row: TypeRow) -> u64 in Trapping {
         _ -> width(0 as +Trapping)
     }
 
-    machine builtin(builtin: BuiltinType) -> u64 in Trapping {
+    machine builtin(builtin: |symbol_resolved_trees|::BuiltinType) -> u64 in Trapping {
         transition builtin {
-            BuiltinType::Bool -> width(1 as +Trapping),
-            BuiltinType::U8 -> width(1 as +Trapping),
-            BuiltinType::I8 -> width(1 as +Trapping),
-            BuiltinType::U16 -> width(2 as +Trapping),
-            BuiltinType::I16 -> width(2 as +Trapping),
-            BuiltinType::U32 -> width(4 as +Trapping),
-            BuiltinType::I32 -> width(4 as +Trapping),
-            BuiltinType::F32 -> width(4 as +Trapping),
-            BuiltinType::U64 -> width(8 as +Trapping),
-            BuiltinType::I64 -> width(8 as +Trapping),
-            BuiltinType::F64 -> width(8 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::Bool -> width(1 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::U8 -> width(1 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::I8 -> width(1 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::U16 -> width(2 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::I16 -> width(2 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::U32 -> width(4 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::I32 -> width(4 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::F32 -> width(4 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::U64 -> width(8 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::I64 -> width(8 as +Trapping),
+            |symbol_resolved_trees|::BuiltinType::F64 -> width(8 as +Trapping),
             _ -> width(0 as +Trapping)
         }
     }
@@ -959,20 +952,20 @@ public machine carrier_width(row: TypeRow) -> u64 in Trapping {
 // operand chain to name the original borrow or reference value,
 // including a cast applied to another cast. Syntax children precede parents;
 // an impossible nondecreasing edge fails rather than erasing a loan.
-public machine reference_cast_source(syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine reference_cast_source(syntax: @|syntax_trees|::SyntaxTrees, typing: @Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> next(syntax, typing, handle) }
-    machine next(syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping) -> u64 in Trapping {
-        let expression: Expression = syntax_trees_expression(syntax, handle);
+    machine next(syntax: @|syntax_trees|::SyntaxTrees, typing: @Typing, handle: u64 in Trapping) -> u64 in Trapping {
+        let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, handle);
         let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
         let row: TypeRow = type_table_row(@typing.types, type_handle);
-        transition expression.kind == ExpressionKind::Cast && row.kind == TypeKind::Reference {
+        transition expression.kind == |syntax_trees|::ExpressionKind::Cast && row.kind == TypeKind::Reference {
             true -> child(syntax, typing, handle, expression.left),
             _ -> result(handle)
         }
     }
-    machine child(syntax: @SyntaxTrees, typing: @Typing, parent: u64 in Trapping, operand: u64 in Trapping) -> u64 in Trapping {
+    machine child(syntax: @|syntax_trees|::SyntaxTrees, typing: @Typing, parent: u64 in Trapping, operand: u64 in Trapping) -> u64 in Trapping {
         transition operand < parent {
             true -> next(syntax, typing, operand),
             _ -> invalid()
