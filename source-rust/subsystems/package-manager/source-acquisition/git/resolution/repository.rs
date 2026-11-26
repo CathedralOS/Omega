@@ -56,7 +56,7 @@ pub(super) fn inspect_verified_git_cache_entry<Evidence, PlannerError>(
     )?;
 
     let fetch_remote = match selection {
-        GitRevisionSelection::Recorded(recorded) => {
+        GitRevisionSelection::Exact(recorded) => {
             recorded_revision_needs_fetch(executor, &repository, recorded, limits)?
         }
         GitRevisionSelection::Ordinary(None) if !fetch_remote && is_object_id(requested_rev) => {

@@ -1,10 +1,5 @@
-// Whole-repository Git resolution at an exact recorded commit and root-tree ID
-// (`resolve_git_source_at_revision_in_lane`, `GitExactRevisionAcquisition`).
-//
-// `Offline` inspects verified cached objects only and preserves a healthy cache
-// when the recorded commit or root tree is absent; `AllowFetch` probes cached
-// objects first and performs one bounded fetch of the recorded commit on a
-// typed absence before running full object authentication.
+//! Resolve a full commit, optionally checking its tree against an independent record.
+//! Online resolution fetches the commit when missing. Offline resolution uses retained objects.
 
 use crate::error::SourceResolveError;
 use crate::git::executable::selection::PrimaryGitSelection;
@@ -15,7 +10,7 @@ use crate::observations::resolved::ResolvedGitSource;
 use crate::storage::RetainedStorageLane;
 
 use super::acquisition::resolve_whole_git_source_from_retained_lanes;
-use super::selection::{GitRevisionSelection, RecordedGitRevision};
+use super::selection::{GitRevisionSelection, ExactGitRevision};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GitExactRevisionAcquisition {
@@ -32,12 +27,12 @@ pub fn resolve_git_source_at_revision_in_lane(
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    let recorded = RecordedGitRevision::new(request, commit, tree, acquisition)?;
+    let recorded = ExactGitRevision::new(request, commit, tree, acquisition)?;
     resolve_whole_git_source_from_retained_lanes(
         primary_git,
         &[lane],
         request,
         limits,
-        GitRevisionSelection::Recorded(&recorded),
+        GitRevisionSelection::Exact(&recorded),
     )
 }

@@ -43,16 +43,20 @@ impl<'a> GitResolutionOptions<'a> {
                 },
             }));
         }
+        if self.pins.is_none()
+            && let Ok(commit) = GitCommitId::parse_hex(request.requested_revision())
+        {
+            return Ok(Some(ExactGitSource {
+                commit,
+                tree: None,
+                acquisition: if self.offline {
+                    GitExactRevisionAcquisition::Offline
+                } else {
+                    GitExactRevisionAcquisition::AllowFetch
+                },
+            }));
+        }
         if self.offline {
-            if self.pins.is_none()
-                && let Ok(commit) = GitCommitId::parse_hex(request.requested_revision())
-            {
-                return Ok(Some(ExactGitSource {
-                    commit,
-                    tree: None,
-                    acquisition: GitExactRevisionAcquisition::Offline,
-                }));
-            }
             return Err(pin_error(
                 request,
                 "offline resolution forbids new or refreshed Git selection; an unchanged recorded pin is required",
@@ -199,8 +203,14 @@ mod tests {
         assert_eq!(selected.commit.to_hex(), hex);
         assert_eq!(selected.tree, None);
         assert_eq!(selected.acquisition, GitExactRevisionAcquisition::Offline);
+        let online = GitResolutionOptions::default();
+        let fetched = online.exact_revision(&request(hex)).unwrap().unwrap();
+        assert_eq!(fetched.commit, selected.commit);
+        assert_eq!(fetched.tree, None);
+        assert_eq!(fetched.acquisition, GitExactRevisionAcquisition::AllowFetch);
         for floating in ["stable", "refs/heads/stable", &hex[..12]] {
             assert!(options.exact_revision(&request(floating)).is_err());
+            assert!(online.exact_revision(&request(floating)).unwrap().is_none());
         }
     }
 }

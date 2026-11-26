@@ -17,12 +17,12 @@ use crate::identity::GitObjectIdAlgorithm;
 use crate::limits::{GIT_CONFIG_SHA1, GIT_CONFIG_SHA256, LocalSourceLimits};
 
 use super::exact_revision::GitExactRevisionAcquisition;
-use super::selection::RecordedGitRevision;
+use super::selection::ExactGitRevision;
 
 pub(super) fn recorded_revision_needs_fetch(
     executor: &GitExecutor,
     repository: &VerifiedGitRepository,
-    recorded: &RecordedGitRevision,
+    recorded: &ExactGitRevision,
     limits: LocalSourceLimits,
 ) -> Result<bool, SourceResolveError> {
     repository.verify_current(limits)?;
