@@ -1,3 +1,4 @@
+use {omega}/language/core/foundation.omg as proof;
 use conversion.omg as conversions;
 
 // Compiler-owned relationship between provider-backed opaque semantics and a
@@ -39,7 +40,7 @@ public trait RepresentationModel<Value, Frame> {
     reaches none terminates
     requires represents(frame, left)
     requires represents(frame, right)
-    ensures core\Identity::<Value>(left, right);
+    ensures |proof|::Identity::<Value>(left, right);
 }
 
 // These guarantees constrain the selected TryFrom implementation. A separate

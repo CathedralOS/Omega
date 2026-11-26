@@ -1,3 +1,5 @@
+use {omega}/language/core/foundation.omg as proof;
+
 // Seq<T> is ordinary generic recursive data. It is proof-only: the computed
 // classification finds it recursive through `tail`, so it has no runtime
 // layout. The proof views (Seq/Bag/Range atoms) resolve into this type; Bag
@@ -86,7 +88,7 @@ terminates by s
 // length of the empty sequence is Zero (compute-mode: unfold the Empty arm).
 machine length_empty()
 ensures
-    core\Identity::<Nat>(length(Seq::Empty), Nat::Zero)
+    |proof|::Identity::<Nat>(length(Seq::Empty), Nat::Zero)
 {
 }
 
@@ -95,7 +97,7 @@ ensures
 // Lean analog: `List.length_cons`.
 machine length_cons(x: u64, s: Seq<u64>)
 ensures
-    core\Identity::<Nat>(length(Seq::Cons { head: x, tail: s }), Nat::Succ { prev: length(s) })
+    |proof|::Identity::<Nat>(length(Seq::Cons { head: x, tail: s }), Nat::Succ { prev: length(s) })
 {
 }
 
@@ -114,7 +116,7 @@ terminates by s
 machine append_empty_right(s: Seq<u64>) -> Seq<u64>
 terminates by s
 ensures
-    core\Identity::<Seq<u64>>(append(s, Seq::Empty), s)
+    |proof|::Identity::<Seq<u64>>(append(s, Seq::Empty), s)
 {
     transition s {
         Seq::Empty -> Seq::Empty,
@@ -127,7 +129,7 @@ ensures
 machine append_assoc(s: Seq<u64>, t: Seq<u64>, u: Seq<u64>) -> Seq<u64>
 terminates by s
 ensures
-    core\Identity::<Seq<u64>>(append(append(s, t), u), append(s, append(t, u)))
+    |proof|::Identity::<Seq<u64>>(append(append(s, t), u), append(s, append(t, u)))
 {
     transition s {
         Seq::Empty -> Seq::Empty,
@@ -142,7 +144,7 @@ ensures
 public machine length_append(s: Seq<u64>, t: Seq<u64>) -> Nat
 terminates by s
 ensures
-    core\Identity::<Nat>(length(append(s, t)), add(length(s), length(t)))
+    |proof|::Identity::<Nat>(length(append(s, t)), add(length(s), length(t)))
 {
     transition s {
         Seq::Empty -> Nat::Zero,
@@ -174,7 +176,7 @@ terminates by s
 machine length_reverse(s: Seq<u64>) -> Nat
 terminates by s
 ensures
-    core\Identity::<Nat>(length(reverse(s)), length(s))
+    |proof|::Identity::<Nat>(length(reverse(s)), length(s))
 {
     transition s {
         Seq::Empty -> Nat::Zero,
@@ -202,7 +204,7 @@ ensures
 machine reverse_append(s: Seq<u64>, t: Seq<u64>) -> Seq<u64>
 terminates by s
 ensures
-    core\Identity::<Seq<u64>>(reverse(append(s, t)), append(reverse(t), reverse(s)))
+    |proof|::Identity::<Seq<u64>>(reverse(append(s, t)), append(reverse(t), reverse(s)))
 {
     transition s {
         Seq::Empty -> ra_base(t),
@@ -230,7 +232,7 @@ ensures
 machine reverse_reverse(s: Seq<u64>) -> Seq<u64>
 terminates by s
 ensures
-    core\Identity::<Seq<u64>>(reverse(reverse(s)), s)
+    |proof|::Identity::<Seq<u64>>(reverse(reverse(s)), s)
 {
     transition s {
         Seq::Empty -> Seq::Empty,
@@ -259,7 +261,7 @@ machine snoc(s: Seq<u64>, x: u64) -> Seq<u64>
 // Lean analog: `List.reverse_concat`.
 machine reverse_snoc(s: Seq<u64>, x: u64) -> Seq<u64>
 ensures
-    core\Identity::<Seq<u64>>(reverse(snoc(s, x)), Seq::Cons { head: x, tail: reverse(s) })
+    |proof|::Identity::<Seq<u64>>(reverse(snoc(s, x)), Seq::Cons { head: x, tail: reverse(s) })
 {
     _ = reverse_append(s, Seq::Cons { head: x, tail: Seq::Empty });
     transition { _ -> (reverse(s)) }
@@ -272,7 +274,7 @@ ensures
 // Lean analog: `List.length_concat`.
 machine length_snoc(s: Seq<u64>, x: u64) -> Nat
 ensures
-    core\Identity::<Nat>(length(snoc(s, x)), Nat::Succ { prev: length(s) })
+    |proof|::Identity::<Nat>(length(snoc(s, x)), Nat::Succ { prev: length(s) })
 {
     _ = length_append(s, Seq::Cons { head: x, tail: Seq::Empty });
     _ = add_one_right(length(s));
@@ -284,7 +286,7 @@ ensures
 // same right-associated shape. Lean analog: `List.concat_append` mirrored.
 machine snoc_append(s: Seq<u64>, t: Seq<u64>, x: u64) -> Seq<u64>
 ensures
-    core\Identity::<Seq<u64>>(snoc(append(s, t), x), append(s, snoc(t, x)))
+    |proof|::Identity::<Seq<u64>>(snoc(append(s, t), x), append(s, snoc(t, x)))
 {
     _ = append_assoc(s, t, Seq::Cons { head: x, tail: Seq::Empty });
     transition { _ -> (append(s, t)) }
@@ -297,7 +299,7 @@ ensures
 // Lean analog: `List.reverse_cons`.
 machine snoc_reverse(x: u64, s: Seq<u64>) -> Seq<u64>
 ensures
-    core\Identity::<Seq<u64>>(reverse(Seq::Cons { head: x, tail: s }), snoc(reverse(s), x))
+    |proof|::Identity::<Seq<u64>>(reverse(Seq::Cons { head: x, tail: s }), snoc(reverse(s), x))
 {
     transition { _ -> (reverse(s)) }
 }

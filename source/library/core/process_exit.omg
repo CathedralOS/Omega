@@ -1,3 +1,5 @@
+use {omega}/language/core/never.omg;
+
 // Canonical process-exit boundary owned by core
 // (wiki/spec/language/process_exit.md).
 //
@@ -12,7 +14,7 @@
 // execution domain by the admitted entry/runtime environment; declaring the
 // reach or selecting a provider grants none of it.
 public boundary trait ProcessExit {
-    machine exit_process(return_code: i32) -> Never
+    machine exit_process(return_code: i32) -> |never|::Never
     reaches
         ProcessExit
     crashes none

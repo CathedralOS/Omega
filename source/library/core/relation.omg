@@ -1,24 +1,26 @@
+use {omega}/language/core/foundation.omg as proof;
+
 // Proof-only relation properties.
 //
-// A relation is a family of types `R: C -> C -> core\Type`, not an
+// A relation is a family of types `R: C -> C -> |proof|::Type`, not an
 // executable Boolean decision procedure: `R(a, b)` holds when it has a
 // witness. Each independent property owns exactly one law. The composite
 // traits inherit those requirements without redeclaring or renaming them, so
 // selecting a different proof conformance does not change the relation's
 // nominal identity.
 
-public trait Reflexive<C, R: C -> C -> core\Type> {
+public trait Reflexive<C, R: C -> C -> |proof|::Type> {
     machine reflexive(value: C)
     ensures R(value, value);
 }
 
-public trait Symmetric<C, R: C -> C -> core\Type> {
+public trait Symmetric<C, R: C -> C -> |proof|::Type> {
     machine symmetric(left: C, right: C)
     requires R(left, right)
     ensures R(right, left);
 }
 
-public trait Transitive<C, R: C -> C -> core\Type> {
+public trait Transitive<C, R: C -> C -> |proof|::Type> {
     machine transitive(left: C, middle: C, right: C)
     requires
         R(left, middle),
@@ -26,39 +28,39 @@ public trait Transitive<C, R: C -> C -> core\Type> {
     ensures R(left, right);
 }
 
-public trait Antisymmetric<C, R: C -> C -> core\Type> {
+public trait Antisymmetric<C, R: C -> C -> |proof|::Type> {
     machine antisymmetric(left: C, right: C)
     requires
         R(left, right),
         R(right, left)
-    ensures core\Identity::<C>(left, right);
+    ensures |proof|::Identity::<C>(left, right);
 }
 
-public let IsMere<v: core\Level>(P: core\Type<v>): core\Type<v> =
-    (p: P) -> (q: P) -> core\Identity::<P>(p, q);
+public let IsMere<v: |proof|::Level>(P: |proof|::Type<v>): |proof|::Type<v> =
+    (p: P) -> (q: P) -> |proof|::Identity::<P>(p, q);
 
-public trait MereRelation<C, R: C -> C -> core\Type> {
+public trait MereRelation<C, R: C -> C -> |proof|::Type> {
     machine proofs_agree(a: C, b: C)
     ensures IsMere(R(a, b));
 }
 
-public trait Equivalence<C, R: C -> C -> core\Type>:
+public trait Equivalence<C, R: C -> C -> |proof|::Type>:
     Reflexive<C, R>
     + Symmetric<C, R>
     + Transitive<C, R> {
 }
 
-public trait MereEquivalence<C, R: C -> C -> core\Type>:
+public trait MereEquivalence<C, R: C -> C -> |proof|::Type>:
     Equivalence<C, R>
     + MereRelation<C, R> {
 }
 
-public trait Preorder<C, R: C -> C -> core\Type>:
+public trait Preorder<C, R: C -> C -> |proof|::Type>:
     Reflexive<C, R>
     + Transitive<C, R> {
 }
 
-public trait PartialOrder<C, R: C -> C -> core\Type>:
+public trait PartialOrder<C, R: C -> C -> |proof|::Type>:
     Preorder<C, R>
     + Antisymmetric<C, R> {
 }
