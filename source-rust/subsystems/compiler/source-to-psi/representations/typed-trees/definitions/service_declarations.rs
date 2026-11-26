@@ -1246,18 +1246,9 @@ pub mod projection {
                     &result_type,
                 )
                 .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
-                parameter_type_identities: program
-                    .state_signature_parameters(signature)
-                    .iter()
-                    .map(|parameter| {
-                        identities.intern(
-                            &program
-                                .type_identity_text(
-                                    scope.type_identity(program, parameter.type_reference),
-                                )
-                                .unwrap_or_default(),
-                        )
-                    })
+                parameter_type_identities: program.requirement_operand_type_identities(scope, signature)
+                    .into_iter()
+                    .map(|identity| identities.intern(&program.type_identity_text(identity).unwrap_or_default()))
                     .collect(),
                 entry_claims: service_entry_claims(program, scope, signature, identities),
                 has_result: signature.return_type.is_valid(),

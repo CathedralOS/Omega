@@ -1304,25 +1304,58 @@ impl PolicySource<'_> {
             requirement.clone(),
             declarations,
         )?;
-        let (parameters, result) = if signature.symbol == declared_signature.symbol {
-            (callable.parameters.clone(), callable.return_type.clone())
+        // Static arguments can change the formal types while each call still
+        // introduces its own loans. Render the whole applied signature in one
+        // scope so an elided input and a result can refer to the same binder.
+        let (parameters, result, lifetime_count) = if let Some(application) = self
+            .typed()
+            .closed_requirement_application(signature.symbol)
+        {
+            let scope = application
+                .trait_scope
+                .scope(self.typed())
+                .ok_or_else(|| unavailable("the selected requirement's exact receiver"))?;
+            let (types, result, elided) = self
+                .typed()
+                .exact_requirement_definition_types(
+                    &scope,
+                    signature,
+                    self.sources().exact_toolchain_sources(),
+                )
+                .ok_or_else(|| unavailable("the selected requirement's exact signature"))?;
+            let count = signature
+                .lifetime_parameters
+                .len()
+                .checked_add(elided)
+                .ok_or_else(|| unavailable("a portable requirement lifetime count"))?;
+            let module = declarations.accepted.module();
+            let groups = terminal_semantics::references::boundary_result_lifetimes(
+                &module.types.structural_types,
+                boundary,
+            )
+            .map_err(unavailable)?;
+            check_requirement_result_lifetimes(
+                module,
+                boundary,
+                &groups,
+                count,
+                &types,
+                signature.return_type.is_valid().then_some(result.as_str()),
+            )?;
+            let parameters = self.scoped_requirement_parameters(
+                signature, &types,
+                review_evidence::record::PackageReviewSemanticDependencyExposure::PrivateImplementation,
+            )?;
+            let result = signature.return_type.is_valid().then_some(
+                review_evidence::record::PackageReviewTypeIdentity { canonical: result },
+            );
+            (parameters, result, count)
         } else {
-            // An applied method has its own types in the selected provider row.
-            // Its declaration's binders cannot stand in for applied lifetimes.
-            if callable.lifetime_parameter_count != 0 {
-                return Err(unavailable(
-                    "the applied requirement's lifetime substitution",
-                ));
-            }
-            let parameters = self.requirement_parameters(signature)?;
-            let result = signature
-                .return_type
-                .is_valid()
-                .then(|| {
-                    self.type_identity_for_private_contract(signature.symbol, signature.return_type)
-                })
-                .transpose()?;
-            (parameters, result)
+            (
+                callable.parameters.clone(),
+                callable.return_type.clone(),
+                callable.lifetime_parameter_count,
+            )
         };
         let invocation_authority = callable
             .declared_synchronous_invocations
@@ -1351,9 +1384,7 @@ impl PolicySource<'_> {
                 schema_lifetime_arguments: Vec::new(),
                 application_lifetime_parameter_count: 0,
                 requirement_lifetime_arguments: Vec::new(),
-                requirement_lifetime_parameter_count: u32::try_from(
-                    callable.lifetime_parameter_count,
-                )
+                requirement_lifetime_parameter_count: u32::try_from(lifetime_count)
                 .map_err(|_| unavailable("a portable requirement lifetime count"))?,
                 static_parameters: callable.type_parameters.clone(),
                 parameters,
@@ -1546,25 +1577,10 @@ impl PolicySource<'_> {
                 .is_ok_and(|row| row.lifetime_parameter_count != 0);
         let (parameters, return_type, lifetime_parameter_count) = if scoped {
             let metadata = metadata.map_err(unavailable)?;
-            if !groups.is_empty() {
-                let result = metadata.result_type.as_deref().ok_or_else(|| {
-                    unavailable("a declared result for the boundary lifetime groups")
-                })?;
-                let declared =
-                    terminal_semantics::references::boundary_result_lifetimes_from_signature(
-                        declarations.accepted.module(),
-                        boundary,
-                        metadata.lifetime_parameter_count,
-                        &metadata.parameter_types,
-                        result,
-                    )
-                    .map_err(unavailable)?;
-                if declared != groups {
-                    return Err(unavailable(
-                        "boundary result lifetime groups matching the declared signature",
-                    ));
-                }
-            }
+            check_requirement_result_lifetimes(
+                declarations.accepted.module(), boundary, &groups, metadata.lifetime_parameter_count,
+                &metadata.parameter_types, metadata.result_type.as_deref(),
+            )?;
             let parameters = self.scoped_requirement_parameters(
                     signature, &metadata.parameter_types,
                     review_evidence::record::PackageReviewSemanticDependencyExposure::PrivateImplementation,
@@ -1737,6 +1753,31 @@ fn boundary_callable(boundary: BoundaryCallable) -> PackagePolicyCallable {
             paths: Vec::new(),
         },
     }
+}
+
+fn check_requirement_result_lifetimes(
+    module: &terminal_psi::TerminalModule,
+    boundary: &BoundaryMachineDeclaration,
+    groups: &[terminal_psi::DeclaredResultLifetime],
+    count: usize,
+    parameters: &[String],
+    result: Option<&str>,
+) -> Result<(), Vec<Diagnostic>> {
+    if groups.is_empty() {
+        return Ok(());
+    }
+    let result =
+        result.ok_or_else(|| unavailable("a declared result for the boundary lifetime groups"))?;
+    let declared = terminal_semantics::references::boundary_result_lifetimes_from_signature(
+        module, boundary, count, parameters, result,
+    )
+    .map_err(unavailable)?;
+    if declared != groups {
+        return Err(unavailable(
+            "boundary result lifetime groups matching the declared signature",
+        ));
+    }
+    Ok(())
 }
 
 /// Project the complete schema once the caller has joined its declaration and
