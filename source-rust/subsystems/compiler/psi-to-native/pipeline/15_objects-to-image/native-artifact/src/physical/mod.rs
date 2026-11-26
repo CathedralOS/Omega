@@ -25,7 +25,6 @@ mod fragment_publication;
 mod originals;
 pub use originals::{NativePhysicalOriginals, PrivatePhysicalOriginal};
 pub(crate) mod identity_bytes {
-    use super::canonical_usize;
 
     pub(crate) fn terminal_identity_bytes(terminal: terminal_psi::TerminalPsiIdentity) -> Vec<u8> {
         let mut canonical = Vec::with_capacity(40);
@@ -45,7 +44,7 @@ pub(crate) mod identity_bytes {
     ) {
         crate::codec_bytes::push_encoded(canonical, machine.get().to_le_bytes());
         crate::codec_bytes::push_encoded(canonical, operation.get().to_le_bytes());
-        canonical.extend_from_slice(&canonical_usize(operation_ordinal));
+        crate::codec_bytes::push_count_u64(canonical, operation_ordinal);
     }
 
     pub(crate) fn append_boundary_occurrence_identity(
@@ -56,7 +55,16 @@ pub(crate) mod identity_bytes {
         operation_ordinal: usize,
     ) {
         crate::codec_bytes::push_encoded(canonical, machine.get().to_le_bytes());
-        match site.into() {
+        append_invocation_site(canonical, site.into());
+        crate::codec_bytes::push_encoded(canonical, boundary.get().to_le_bytes());
+        crate::codec_bytes::push_count_u64(canonical, operation_ordinal);
+    }
+
+    pub(crate) fn append_invocation_site(
+        canonical: &mut Vec<u8>,
+        site: semantic_vocabulary::InvocationSite,
+    ) {
+        match site {
             semantic_vocabulary::InvocationSite::Operation(operation) => {
                 canonical.push(0);
                 crate::codec_bytes::push_encoded(canonical, operation.get().to_le_bytes());
@@ -78,8 +86,6 @@ pub(crate) mod identity_bytes {
                 crate::codec_bytes::push_encoded(canonical, action_ordinal.to_le_bytes());
             }
         }
-        crate::codec_bytes::push_encoded(canonical, boundary.get().to_le_bytes());
-        canonical.extend_from_slice(&canonical_usize(operation_ordinal));
     }
 }
 mod operator_applications;
@@ -89,7 +95,6 @@ pub(crate) use replay::PhysicalEvidencePass;
 
 use crate::NativeSelectedProviderPlanDigest;
 use boundary_applications::OperatorApplicationCoverageRef;
-pub(crate) use derivation::hashing::{canonical_usize, hash_bytes, hash_call_site_owner};
 pub(crate) use derivation::{NativePhysicalEvidenceDerivation, derive_physical_evidence};
 pub(crate) use fragment_publication::derive_scope as derive_fragment_publication_scope;
 use optimization_core::{
@@ -366,13 +371,6 @@ impl PhysicalChildParent {
         }
     }
 
-    pub(crate) const fn occurrence_role_tag(&self) -> u8 {
-        match self {
-            Self::OperatorApplicationCoverage(_) => 1,
-            Self::BoundaryTraitSettlement(_) => 2,
-        }
-    }
-
     pub(crate) fn owns_occurrence(
         &self,
         terminal: TerminalPsiIdentity,
@@ -456,8 +454,6 @@ impl NormalizedForeignCallbackRelocation {
         kind: object_file::RelocationKind,
     }
 }
-
-impl NormalizedForeignCallbackRelocations {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NormalizedForeignCallImportField {
@@ -684,47 +680,6 @@ impl NativePhysicalEvidence {
     pub const fn identity(&self) -> &[u8; 32] {
         &self.identity
     }
-
-    pub fn into_parts(self) -> NativePhysicalEvidenceParts {
-        NativePhysicalEvidenceParts {
-            projection: self.projection,
-            children: self.children,
-            private_functions: self.private_functions,
-            identity: self.identity,
-        }
-    }
-
-    pub fn from_replayed_parts(parts: NativePhysicalEvidenceParts) -> Self {
-        Self {
-            projection: parts.projection,
-            children: parts.children,
-            private_functions: parts.private_functions,
-            identity: parts.identity,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct BoundaryTraitSettlementParts {
-    pub occurrence: OptimizedBoundaryOccurrence,
-    pub requirement_identity: String,
-    pub selected_supply: NativeSelectedSupply,
-    pub target: NativeTarget,
-    pub role: BoundaryTraitSettlementRole,
-    pub identity: [u8; 32],
-}
-
-impl From<BoundaryTraitSettlementParts> for BoundaryTraitSettlement {
-    fn from(parts: BoundaryTraitSettlementParts) -> Self {
-        Self {
-            occurrence: parts.occurrence,
-            requirement_identity: parts.requirement_identity,
-            selected_supply: parts.selected_supply,
-            target: parts.target,
-            role: parts.role,
-            identity: parts.identity,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -739,14 +694,6 @@ pub struct NativePhysicalChildParts {
     pub object_bytes_digest: [u8; 32],
     pub final_image_bytes_digest: [u8; 32],
     pub relocation: PhysicalRelocationDisposition,
-    pub identity: [u8; 32],
-}
-
-#[derive(Debug)]
-pub struct NativePhysicalEvidenceParts {
-    pub projection: NativeOptimizationProjection,
-    pub children: Vec<NativePhysicalChild>,
-    pub private_functions: Vec<PrivatePhysicalEvidence>,
     pub identity: [u8; 32],
 }
 
