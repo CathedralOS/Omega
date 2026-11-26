@@ -327,21 +327,29 @@ mod tests {
         let capture = |name: &str| {
             let root = directory.path().join(name);
             std::fs::create_dir(&root).unwrap();
-            std::fs::write(root.join("entry.omg"), "machine build(builder: @mutable Build) {}").unwrap();
+            std::fs::write(
+                root.join("entry.omg"),
+                "machine build(builder: @mutable Build) {}",
+            )
+            .unwrap();
             crate::capture_anonymous_compilation_source(&root).unwrap()
         };
         let first = capture("first");
         let second = capture("second");
-        let close = |acquisition: &crate::CapturedLocalSource| AnonymousSourceCapture {
-            build_owner: None,
-            root: acquisition.canonical_live_root().into(),
-            capture: Arc::clone(acquisition.tree()),
-            acquisition: Some(acquisition.clone()),
-            filesystem: Default::default(),
-            semantic_dependencies: vec![[13; 32]],
-            sources: Arc::default(),
-            toolchain_contract_custody: Default::default(),
-        }.complete_product([]).unwrap();
+        let close = |acquisition: &crate::CapturedLocalSource| {
+            AnonymousSourceCapture {
+                build_owner: None,
+                root: acquisition.canonical_live_root().into(),
+                capture: Arc::clone(acquisition.tree()),
+                acquisition: Some(acquisition.clone()),
+                filesystem: Default::default(),
+                semantic_dependencies: vec![[13; 32]],
+                sources: Arc::default(),
+                toolchain_contract_custody: Default::default(),
+            }
+            .complete_product([])
+            .unwrap()
+        };
         let a = close(&first);
         let b = close(&second);
         assert_eq!(a.owner(), b.owner());

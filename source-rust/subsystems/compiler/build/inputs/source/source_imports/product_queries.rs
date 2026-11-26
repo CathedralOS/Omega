@@ -93,15 +93,20 @@ mod tests {
         let package = package(1, "meter", "public machine read() {}");
         let at = |digit: char| {
             let revision = ImmutableSourceResolution::git(
-                GitCommitId::parse_hex(&digit.to_string().repeat(40)).unwrap(), tree.clone(),
-            ).unwrap();
+                GitCommitId::parse_hex(&digit.to_string().repeat(40)).unwrap(),
+                tree.clone(),
+            )
+            .unwrap();
             graph(1, package.clone().with_resolution(&revision))
         };
         let same = vec![dependency("first", at('1')), dependency("second", at('1'))];
         ProductQueryInputs::new(None, same).unwrap();
         let different = vec![dependency("first", at('1')), dependency("second", at('3'))];
         let reason = ProductQueryInputs::new(None, different).unwrap_err();
-        assert!(reason.contains("disagree about a shared package source"), "{reason}");
+        assert!(
+            reason.contains("disagree about a shared package source"),
+            "{reason}"
+        );
     }
 
     #[test]

@@ -65,12 +65,13 @@ impl NamedSource {
 /// The command operand can name a directory or a Product source. A returned
 /// Build entry selects one particular file in the already acquired source.
 #[derive(Clone, Copy)]
-pub enum CapturedBuildEntry<'a> {
-    Initial(&'a Path),
+pub enum CapturedBuildEntry<'source> {
+    Initial(&'source Path),
     Successor {
-        path: &'a Path,
-        previous_build_files: &'a [PathBuf],
-        source_owner: Option<&'a crate::CompletedAnonymousSource>,
+        path: &'source Path,
+        previous_build_files: &'source [PathBuf],
+        /// Identity issued from this capture after its anonymous Build returned.
+        source_owner: Option<&'source crate::CompletedAnonymousSource>,
     },
 }
 

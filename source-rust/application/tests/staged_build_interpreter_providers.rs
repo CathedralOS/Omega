@@ -148,34 +148,35 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    for (provider, source, psi_termination, native_trap) in [
-        ("Seventeen", ProviderSource::Dependency, "psi\treturn", false),
-        ("TwentyThree", ProviderSource::Dependency, "psi\tcrash\tTrap", true),
-        ("Seventeen", ProviderSource::Local, "psi\treturn", false),
-        ("TwentyThree", ProviderSource::Local, "psi\tcrash\tTrap", true),
-    ] {
-        let fixture = project(
-            host.target_name(),
-            Some(provider),
-            source,
-            "",
-            ProductEntries::Separate,
-        );
-        for engine in ["native", "psi"] {
-            let (output, report) = run(&fixture, engine);
-            assert!(output.status.success(), "{provider} {engine}: {report}");
-            let termination =
-                fs::read_to_string(fixture.path().join(engine).join("termination.tsv")).unwrap();
-            if engine == "psi" {
-                assert_eq!(termination.trim_end(), psi_termination, "{provider}");
-            } else {
-                let columns: Vec<_> = termination.trim_end().split('\t').collect();
-                let expected = if native_trap {
-                    matches!(columns.as_slice(), ["native", _, _, "trap", _])
+    for source in [ProviderSource::Dependency, ProviderSource::Local] {
+        for (provider, psi_termination, native_trap) in [
+            ("Seventeen", "psi\treturn", false),
+            ("TwentyThree", "psi\tcrash\tTrap", true),
+        ] {
+            let fixture = project(
+                host.target_name(),
+                Some(provider),
+                source,
+                "",
+                ProductEntries::Separate,
+            );
+            for engine in ["native", "psi"] {
+                let (output, report) = run(&fixture, engine);
+                assert!(output.status.success(), "{provider} {engine}: {report}");
+                let termination =
+                    fs::read_to_string(fixture.path().join(engine).join("termination.tsv"))
+                        .unwrap();
+                if engine == "psi" {
+                    assert_eq!(termination.trim_end(), psi_termination, "{provider}");
                 } else {
-                    matches!(columns.as_slice(), ["native", "exit", "0", _, _])
-                };
-                assert!(expected, "{provider}: {termination}");
+                    let columns: Vec<_> = termination.trim_end().split('\t').collect();
+                    let expected = if native_trap {
+                        matches!(columns.as_slice(), ["native", _, _, "trap", _])
+                    } else {
+                        matches!(columns.as_slice(), ["native", "exit", "0", _, _])
+                    };
+                    assert!(expected, "{provider}: {termination}");
+                }
             }
         }
     }

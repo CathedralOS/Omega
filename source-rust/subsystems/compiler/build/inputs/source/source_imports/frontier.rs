@@ -873,8 +873,8 @@ mod tests {
     use super::SourceStorage;
     use source_admission::SourceOrigin;
     use source_admission::SourceResolutionStratum;
-    use source_provenance::DependencyScope;
     use source_compiler::{ParsedSourceBatch, ParsedSourceSummary};
+    use source_provenance::DependencyScope;
     use source_text::{SourceId, SourceSpan, Span};
     use std::{path::PathBuf, sync::Arc};
 
