@@ -533,8 +533,8 @@ pub struct BuildLibraryRequest {
     pub source: build_declarations::BuildDependencySource,
 }
 
-/// The initial file and any Build libraries explicitly supplied by its invoker.
 pub enum ProjectInput<'a> {
+    /// The caller's explicit source entry.
     File(&'a Path),
     WithBuildLibraries {
         file: &'a Path,
