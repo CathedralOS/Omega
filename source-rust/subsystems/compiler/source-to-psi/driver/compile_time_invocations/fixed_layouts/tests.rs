@@ -108,7 +108,7 @@ fn generic_layout_policy_retains_its_declared_machine_and_observed_geometry() {
     };
     // Different records can have identical geometry. Typing must refuse the
     // wrong FixedLayout application before its policy can be evaluated.
-    let refusal = subject("OtherPair").err().expect("wrong policy subject");
+    let refusal = subject("OtherPair").expect_err("wrong policy subject");
     assert!(
         refusal.contains("implementation `PairLayout<OtherPair>` does not supply the declared `FixedLayout` application of `LayoutStorage`"),
         "{refusal}"
