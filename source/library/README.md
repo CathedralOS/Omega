@@ -32,18 +32,20 @@ implementations or claim a consumer is validated without running its checks.
 
 ## Core integer and float APIs
 
-Carrier queries live in `omega::language::core::integer`, and floating properties
-and representations in `omega::language::core::float`:
+Import the files that declare the carrier queries and bit conversions.
 
 ```omega
-integer::min<u32>()
-integer::max<u32>()
-float::min<f32>()
-float::max<f32>()
-float::epsilon<f32>()
-float::min_positive_normal<f32>()
-float::min_positive_subnormal<f32>()
+use {omega}/language/core/integer/integer.omg;
+use {omega}/language/core/float/float.omg;
+
+machine word_max() -> u32 { |integer|::max::<u32>() }
+machine bits(value: f32) -> u32 { |float|::to_bits(value) }
 ```
+
+The integer file declares `min` and `max`. The float file also declares
+`min`, `max`, `epsilon`, `min_positive_normal` and `min_positive_subnormal`.
+For example, the source spelling of the single-precision epsilon query is
+`|float|::epsilon::<f32>()`.
 
 [Numeric values](../../wiki/spec/language/numeric_values.md#core-integer-and-float-apis)
 owns the query, classification and bit-preservation contracts. Float `min` and
@@ -82,7 +84,7 @@ and old/replacement backing. Automatic reclamation must satisfy the ordinary
 infallible, terminating, nonblocking and nonsuspending cleanup contract;
 otherwise release is explicit.
 
-The concrete `allocation::vec` is a `u32` customer, not the completed generic container.
+The concrete [vector implementation](allocation/vec/vec.omg) operates on `u32`.
 Reconcile the core placeholder and library implementation rather than creating
 two meanings of `Vec`. `EXTENT-LIBRARY-TRANSFORMS` in [TASKS.md](../../TASKS.md)
 owns this and the selected `Allocator` service; provisional `Arena` source is
@@ -107,17 +109,20 @@ loan and consumer behavior while completing the migration.
 
 ## Core slice iteration
 
-`use omega::language::core::iteration;` supplies an ordinary checked traversal:
+Import the traversal from the core iteration file and supply a callback for the
+element type.
 
 ```omega
+use {omega}/language/core/iteration.omg;
+
 machine clear_one(command: @mutable Command)
-satisfies ElementStep<Command>::apply {
+satisfies |iteration|::ElementStep<Command>::apply {
     command.direction = -1;
     command.attack = false;
 }
 
 machine clear_commands(commands: @mutable [Command]) terminates {
-    for_each<Command, clear_one>(commands);
+    |iteration|::for_each::<Command, clear_one>(commands);
 }
 ```
 
@@ -169,7 +174,7 @@ distinct.
 ## C record storage
 
 `CLayout<T> = LayoutStorage<T, CAbiPolicy<T>>` is an ordinary transparent alias
-in `omega::language::core::c_layout`. The policy computes offsets, alignment and
+in [the core C layout file](core/c_layout.omg). The policy computes offsets, alignment and
 trailing padding. Geometry grants no storage, foreign, atomic or access authority.
 
 The scoped consumers are the
