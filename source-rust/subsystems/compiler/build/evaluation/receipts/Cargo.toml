@@ -14,3 +14,6 @@ evaluation-contracts = { path = "../accounting/contracts" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 psi-program-identity = { path = "../../../psi/identities/program" }
 wire = { path = "../../../../../foundation/wire" }
+
+[dev-dependencies]
+evaluation-accounting = { path = "../accounting" }

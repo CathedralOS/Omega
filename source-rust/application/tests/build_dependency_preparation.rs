@@ -1,32 +1,10 @@
-/*
-
-End-to-end CLI check that a Build can wait for a Product dependency it
-registered to be prepared (`omega --check`).
-
-`suspend Build::prepare_dependency(builder, registered);` asks the build
-evaluator to make one registered dependency ready before the Build goes on
-(`wiki/spec/build/scoped_execution.md`, "Dependency declarations and
-binding"). The Build parks at that call. The evaluator acquires the
-dependency, runs its Build, prepares its Product and resumes the Build where
-it stopped; nothing before the call runs again.
-
-`registered` is the value `Build::dependency` returned. The evaluator
-issued it, so it knows which registration to prepare. A
-`DependencyRegistration {}` written in source has the same type and names no
-registration.
-
-Each program below is the same project with one line of its Build changed.
-The first prepares the dependency and compiles. The second prepares a
-dependency whose own Build declares two project roles: the refusal names that
-dependency, which shows the evaluator really ran its Build at the wait. The
-third hands over a registration it wrote itself and is refused for that.
-
-*/
+//! A Build can wait for a dependency before it finishes defining its Product.
+//! The evaluator runs the selected package's Build and resumes the parked
+//! caller at the wait. Preparing an unissued registration must fail there.
 
 use std::process::Command;
 
-/// `omega --check` on a project whose Build registers the Product dependency
-/// in `dep/` as `kit`, then runs `after`. The dependency's Build is `dep`.
+/// Run a Build whose application entry is bound only after the wait.
 fn check(name: &str, after: &str, dep: &str) -> (bool, String) {
     let root = std::env::temp_dir().join(format!(
         "omega-build-dependency-preparation-{}-{name}",
@@ -34,20 +12,17 @@ fn check(name: &str, after: &str, dep: &str) -> (bool, String) {
     ));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(root.join("dep")).expect("staging directory");
-    std::fs::write(root.join("main.omg"), "machine main() { }\n").expect("staged program");
+    std::fs::write(root.join("main.omg"), "public machine main() { }\n").expect("staged program");
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "use {{omega}}/build/dependency.omg;
-machine build(builder: @mutable Build)
-suspends
-{{
-    Build::application(builder, \"prepares\");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: \"dep\" }});
-    |dependency|::with_alias(@mutable request, \"kit\");
-    let registered: DependencyRegistration = Build::dependency(builder, request);
-{after}}}
+            "use main.omg as app;
+machine build(plan: @mutable BuildPlan) suspends {{
+    let registered: DependencyRegistration = Build::dependency(plan, Source::Path {{ location: \"dep\" }});
+{after}
+    plan.product = BuildProduct::Application {{ name: \"prepares\" }};
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+}}
 "
         ),
     )
@@ -59,8 +34,7 @@ suspends
     )
     .expect("staged dependency source");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
+        .args(["run", "--engine", "psi", "build.omg"])
         .current_dir(&root)
         .stdin(std::process::Stdio::null())
         .output()
@@ -72,49 +46,42 @@ suspends
     )
 }
 
-const PACKAGE: &str = "machine build(builder: @mutable Build) {
-    Build::package(builder, \"kit_package\");
+const PACKAGE: &str = "machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: \"kit_package\" };
 }
 ";
+const WAIT: &str = "    suspend Build::prepare_dependency(plan, registered);";
 
 #[test]
 fn a_build_waits_for_its_registered_dependency_and_goes_on() {
-    let (compiled, stderr) = check(
-        "prepared",
-        "    suspend Build::prepare_dependency(builder, registered);
-    BuildLog::write_line(@mutable builder.log, \"after preparation\");
-",
-        PACKAGE,
-    );
-    assert!(compiled, "{stderr}");
+    let (ran, stderr) = check("prepared", WAIT, PACKAGE);
+    assert!(ran, "{stderr}");
 }
 
 #[test]
 fn the_wait_runs_the_build_of_the_dependency_it_names() {
-    let (compiled, stderr) = check(
-        "two-roles",
-        "    suspend Build::prepare_dependency(builder, registered);
-",
-        "machine build(builder: @mutable Build) {
-    Build::package(builder, \"kit_package\");
-    Build::package(builder, \"second_role\");
-}
-",
+    let (ran, stderr) = check(
+        "failing-child",
+        WAIT,
+        "machine build(plan: @mutable BuildPlan) crashes Trap { crash Trap; }\n",
     );
-    assert!(!compiled);
-    assert!(stderr.contains("project role"), "{stderr}");
+    assert!(!ran);
+    assert!(
+        stderr.contains("while preparing the dependency"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("Trap"), "{stderr}");
 }
 
 #[test]
 fn a_registration_the_build_wrote_itself_names_no_dependency() {
-    let (compiled, stderr) = check(
+    let (ran, stderr) = check(
         "forged",
         "    let forged: DependencyRegistration = DependencyRegistration {};
-    suspend Build::prepare_dependency(builder, forged);
-",
+    suspend Build::prepare_dependency(plan, forged);",
         PACKAGE,
     );
-    assert!(!compiled);
+    assert!(!ran);
     assert!(
         stderr.contains("requires a registration this activation issued"),
         "{stderr}"

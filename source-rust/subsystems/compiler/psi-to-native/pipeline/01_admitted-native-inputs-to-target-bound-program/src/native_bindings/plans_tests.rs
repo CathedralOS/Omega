@@ -35,7 +35,7 @@ fn supply(target: ProductTarget, locator: NativeBindingLocator) -> NativeBinding
         supplier_package: semantic_vocabulary::PackageKeyIdentity::from_digest([3; 32]).unwrap(),
         source_occurrence_digest: [5; 32],
         evaluation: Arc::new(NativeBuildEvaluation {
-            execution_history: Arc::default(),
+            dependency_preparations: Arc::default(),
             terminal_code: terminal_psi::TerminalPsiIdentity {
                 vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
                 program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([7; 32]),
