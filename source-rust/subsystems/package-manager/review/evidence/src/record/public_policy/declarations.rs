@@ -68,7 +68,8 @@ pub struct PackagePolicyDomainShape {
     pub alias_expansion: Option<Vec<PackageReviewNominalIdentity>>,
     pub classification: Option<PackageReviewDomainClassification>,
     pub semantic_roles: Vec<PackageReviewDomainSemanticRole>,
-    pub establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
+    /// None permits unrestricted issuance. Some(empty) permits no issuer.
+    pub issuance: Option<Vec<PackageReviewDomainEstablishmentRoute>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
