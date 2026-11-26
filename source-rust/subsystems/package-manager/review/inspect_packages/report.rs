@@ -198,6 +198,10 @@ fn contents(
                     "preparing Build {:?} callable {:?} selected {:?}",
                     stage.file, stage.callable, stage.successor.as_str()
                 )?;
+                writeln!(output, "preparation concrete-reach {:?}", stage.concrete_reach)?;
+                for (requirement, upper_bound) in &stage.installation_reach {
+                    writeln!(output, "  installed requirement {requirement:?} reach upper-bound {upper_bound:?}")?;
+                }
                 build_snapshot(output, Some(&stage.observation), verbose)?;
             }
             if let Some(last) = review.preparations().last() {

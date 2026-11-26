@@ -116,6 +116,11 @@ fn fresh_audit_reports_each_build_and_a_version_four_lock_refuses_the_chain() {
         .filter(|line| line.starts_with("preparing Build") || line.starts_with("final Build"))
         .collect();
     assert_eq!(stages.len(), 3, "{report}");
+    assert_eq!(
+        report.matches("preparation concrete-reach ").count(),
+        2,
+        "{report}"
+    );
     assert!(
         stages[0].starts_with("preparing Build \"build.omg\"")
             && stages[0].ends_with("selected \"prepare.omg\""),

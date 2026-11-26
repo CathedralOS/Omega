@@ -19,14 +19,7 @@ use source_acquisition::ImmutableSourceResolution;
 
 use review_evidence::record::SemanticBindingReviewCandidate;
 
-/// The entry that ran and the immutable observations it made before choosing its successor.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ReviewedPreparation {
-    pub file: String,
-    pub callable: String,
-    pub successor: build_declarations::BuildEntryPath,
-    pub observation: BuildObservationSummary,
-}
+use project_build::ReviewedPreparation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CompilerIssuedPackageReview {

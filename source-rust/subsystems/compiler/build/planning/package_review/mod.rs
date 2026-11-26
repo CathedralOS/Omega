@@ -9,6 +9,7 @@ mod input;
 mod native_bindings;
 mod numeric;
 mod policy;
+mod preparations;
 mod provider_grants;
 mod provider_rows;
 mod providers;
@@ -17,6 +18,8 @@ mod services;
 mod telescope;
 mod terminal_permissions;
 mod traits;
+
+pub use preparations::ReviewedPreparation;
 
 use diagnostics::Diagnostic;
 use package_compilation::{
@@ -31,6 +34,7 @@ pub struct CheckedPackagePolicy {
     pub source_completion_accounting:
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
     pub selected_build_machine_identity: String,
+    pub preparations: Vec<ReviewedPreparation>,
     pub policy: PackagePolicyBaseline,
     pub semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     pub component_description: Option<IndependentComponentDescription>,
@@ -108,6 +112,9 @@ impl crate::ProductStage<'_> {
                 )]
             })?;
         Ok(CheckedPackagePolicy {
+            preparations: evaluation.preparations.iter().map(|(next, stage)| {
+                ReviewedPreparation::from_stage(next, stage)
+            }).collect::<Result<_, _>>()?,
             sources,
             policy,
             source_completion_accounting: std::mem::take(accounting),
