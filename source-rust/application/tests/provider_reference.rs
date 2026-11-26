@@ -122,14 +122,14 @@ machine main() reaches Source invokes Source crashes Trap {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            r#"
+            r#"use main.omg as app;
 use {{omega}}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: "provider_reference" }};
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::bind_native::<Source::cell>(builder, {target}, |native|::ForeignBinding::DllImport {{
         import: |native|::DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_cell", version: "REFERENCE_1.0" }}
     }});
@@ -320,11 +320,12 @@ machine main() reaches none crashes Trap {
 }
 ";
     std::fs::write(root.join("main.omg"), program).unwrap();
-    let build = r#"use {omega}/language/core/external_binding.omg as native;
+    let build = r#"use main.omg as app;
+use {omega}/language/core/external_binding.omg as native;
 use {omega}/language/core/reflect/reflect.omg as reflection;
 machine build<'selection>(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "table_calls" };
-    Build::bind(builder, TARGET::ProgramEntry, main);
+    Build::bind(builder, TARGET::ProgramEntry, |app|::main);
     Build::bind_native::<TableSource::provide>(builder, TARGET,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned {
             object: "LIBRARY", symbol: "provide", version: "TABLE_1"
