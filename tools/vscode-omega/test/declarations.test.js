@@ -169,10 +169,10 @@ test('use lines and where they point', () => {
     'use calling.omg as abi;',
     'use {omega}/language/core/numeric_conversion.omg;',
     'use omega\\language\\core\\Extent::Granted;',
-    'use omega_language_std\\Console;',
+    'use system\\Console;',
     'use actors\\state\\Mood;',
     'use kit\\main as k;',
-    'use {omega_language_std}/filesystem_host.omg as paths;',
+    'use {system}/filesystem_host.omg as paths;',
     'use {wav_output}/wav_output/wav_output.omg as output;',
   ].join('\n'));
   const uses = scan.parseUses(masked);
@@ -185,10 +185,10 @@ test('use lines and where they point', () => {
   assert.deepEqual(target(2, 'Granted'), { library: 'core' });
   assert.deepEqual(target(2, 'Vacant', { qualifier: 'Extent' }), { library: 'core' });
   assert.equal(target(2, 'Unrelated'), null);
-  assert.deepEqual(target(3, 'Console'), { library: 'std' });
+  assert.deepEqual(target(3, 'Console'), { module: 'system', dependency: 'system', inside: '' });
   assert.deepEqual(target(4, 'Mood'), { module: 'actors/state', dependency: 'actors', inside: 'state' });
   assert.deepEqual(target(5, 'start', { alias: 'k' }), { module: 'kit/main', dependency: 'kit', inside: 'main' });
-  assert.deepEqual(target(6, 'Path', { alias: 'paths' }), { library: 'std', file: 'filesystem_host.omg' });
+  assert.deepEqual(target(6, 'Path', { alias: 'paths' }), { dependency: 'system', file: 'filesystem_host.omg' });
   assert.deepEqual(target(7, 'write_wav', { alias: 'output' }), { dependency: 'wav_output', file: 'wav_output/wav_output.omg' });
 });
 

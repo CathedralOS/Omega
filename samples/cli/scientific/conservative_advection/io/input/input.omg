@@ -2,8 +2,8 @@
 // after the coefficient and decimal exponent are complete; boundary decisions
 // never depend on repeated floating-point digit addition or exponent scaling.
 use omega\language\core\StandardInput;
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 use omega\language\core\F64::from_u64;
 use model\scale;
 public data Input {

@@ -26,7 +26,7 @@ it does not close the wider mutation-summary requirements.
 
 ## Execution
 
-Every positive place, including root `main.omg`, binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, and declares `Expected exit: 0`. None depends on `source/library/std`.
+Every positive place, including root `main.omg`, binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, and declares `Expected exit: 0`. None depends on `source/library/system`.
 
 ```sh
 omega run --both samples/cli/facts/may_write_nested_helper/local/main.omg

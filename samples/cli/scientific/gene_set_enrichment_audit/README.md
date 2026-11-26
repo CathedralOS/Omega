@@ -40,7 +40,7 @@ which tests the reverse-minimum step rather than independent p*3/rank scaling.
 `domain/sets.omg` owns bounded parsing and set storage; `domain/exact.omg` owns
 integer combinatorics and fractions; `domain/report.omg` owns dynamic formatting.
 `main.omg` owns admission, analysis, stable ranks and reporting. There are no
-shared numerics imports or changes. The existing std Console provider and exact
+shared numerics imports or changes. The existing system Console provider and exact
 Linux program-entry contract are the only runtime facilities.
 
 ## Reference and validation

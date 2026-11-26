@@ -8,7 +8,7 @@ or generated from a validated plan; neither origin bypasses conformance checks.
 Named decision: `standard-fallible-representation-conversions`, settled
 2026-10-27. Core defines the common conversion requirements; a representation
 package supplies their explicitly selected ordinary implementations. A C
-policy may ship in core or std; protobuf and other formats may be independently
+policy may ship in core or system; protobuf and other formats may be independently
 authored packages. Their names are not compiler built-ins. Fixed-memory layout
 and variable-length wire encoding have distinct consuming capabilities even
 when both expose a library family such as `CLayout<T>` or `ProtoLayout<T>`.

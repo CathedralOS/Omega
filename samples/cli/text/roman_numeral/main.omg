@@ -14,7 +14,7 @@ requires
 domain [u8; 7]::Utf8
 requires
     valid_utf8(self);
-use omega_language_std\Console;
+use system\Console;
 
 data RomanParse {
     case Invalid;

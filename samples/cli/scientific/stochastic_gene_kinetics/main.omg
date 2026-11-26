@@ -3,8 +3,8 @@ use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 2 (EOF).
 // Expected output contains: invalid input: one digit 0..9 and LF required
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 use omega\language\core\narrow_i64_to_u64_saturating;
 use kinetics;
 use kinetics\Model;

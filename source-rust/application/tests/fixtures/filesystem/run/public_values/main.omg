@@ -1,15 +1,15 @@
 // Expected exit: 0
 // Portable read/write, positioned I/O, bounded copy and metadata round trips.
-use omega_language_std\FilesystemService;
-use omega_language_std;
-use omega_language_std\File;
-use omega_language_std\OpenResult;
-use omega_language_std\IoResult;
-use omega_language_std\UnitResult;
-use omega_language_std\ErrorKind;
-use omega_language_std\MetadataResult;
-use omega_language_std\DirEntryResult;
-use omega_language_std\DirEntry;
+use system\FilesystemService;
+use system;
+use system\File;
+use system\OpenResult;
+use system\IoResult;
+use system\UnitResult;
+use system\ErrorKind;
+use system\MetadataResult;
+use system\DirEntryResult;
+use system\DirEntry;
 
 machine ok(result: UnitResult) -> bool {
     transition result { UnitResult::Ok -> true, _ -> false }

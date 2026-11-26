@@ -406,7 +406,7 @@ mod tests {
     #[test]
     fn unrelated_bundled_packages_do_not_supply_missing_alias_diagnostics() {
         let (root, packages) = captured_root();
-        assert_eq!(known_package_spelling(&packages, root, "omega_language_std"), None);
+        assert_eq!(known_package_spelling(&packages, root, "system"), None);
         assert_eq!(known_package_spelling(&packages, root, "local_route_test"), None);
     }
 

@@ -82,7 +82,7 @@ From the repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's absolute
 ```sh
 sample=samples/cli/independent/range_only_localization
 omega packages update --project "$sample" --target linux_x86_64
-# Read the pending review, accept the local std entry/provider decisions,
+# Read the pending review, accept the local system entry/provider decisions,
 # then resume using the normal package-review workflow.
 omega packages update --resume --project "$sample"
 omega --check --target linux_x86_64 "$sample/main.omg"

@@ -4,7 +4,7 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0 with input.txt. Empty stdin exits 64.
 // Expected output contains: ADVECTED
 // W2-03: bounded stdin-driven periodic conservative first-order upwind.
-use omega_language_std\Console;
+use system\Console;
 use io\input;
 use io\report;
 use io\decimal;

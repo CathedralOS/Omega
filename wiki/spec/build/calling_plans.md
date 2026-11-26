@@ -61,7 +61,7 @@ policy's evaluated plan is the sole source of foreign ABI rules for that call.
 The compiler checks the plan against the signature and target and uses it to
 emit calls and entries.
 
-The `std\calling` vocabulary describes normalized signatures, placement, machine
+The `system\calling` vocabulary describes normalized signatures, placement, machine
 state, acceptance, and rejection. Its quantities use `u64`, not `addr`; narrowing
 to a compiler field requires a checked range conversion. Policies choose from
 closed primitives; they cannot emit instructions, supply relocation bytes,

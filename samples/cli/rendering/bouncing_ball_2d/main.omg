@@ -13,8 +13,8 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: O
 use omega\language\core\I32::from_f64;
-use omega_language_std\Console;
-use omega_language_std\Clock;
+use system\Console;
+use system\Clock;
 
 
 data Main

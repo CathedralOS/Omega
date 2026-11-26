@@ -3,8 +3,8 @@ use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Offline controller: input selection, validation, exhaustive search, reporting.
 // No source outside this application supplies any controller algorithm.
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use controller\model;
 use controller\model\Problem;
 use controller\model\Plan;

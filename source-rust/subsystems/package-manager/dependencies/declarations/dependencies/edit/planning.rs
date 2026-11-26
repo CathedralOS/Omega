@@ -208,7 +208,7 @@ mod tests {
 
     const ROOT: &str = r#"machine build(builder: @mutable Build) {
     Build::application(builder, "probe");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../library/std" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../library/system" }));
     let mutable kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "kit" });
     dependency\with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
@@ -234,7 +234,7 @@ mod tests {
         assert_eq!(
             extract_scoped_from_source(ROOT).expect("project"),
             [
-                (DependencyPurpose::Product, path(None, "../library/std")),
+                (DependencyPurpose::Product, path(None, "../library/system")),
                 (DependencyPurpose::Build, path(Some("kit"), "kit")),
             ]
         );
@@ -270,12 +270,12 @@ mod tests {
             plan_dependency_addition_from_source(
                 PathBuf::from("build.omg"),
                 ROOT.to_owned(),
-                &path(None, "../vendor/std"),
+                &path(None, "../vendor/system"),
             )
             .expect("plan"),
         );
         assert!(
-            edited.contains("    let std_registration_2: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path { location: \"../vendor/std\" }));\n}"),
+            edited.contains("    let system_registration_2: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path { location: \"../vendor/system\" }));\n}"),
             "{edited}"
         );
     }
@@ -295,7 +295,7 @@ mod tests {
         assert_eq!(
             extract_scoped_from_source(&edited).expect("reproject"),
             [
-                (DependencyPurpose::Product, path(None, "../library/std")),
+                (DependencyPurpose::Product, path(None, "../library/system")),
                 (DependencyPurpose::Build, path(Some("kit"), "../kit")),
             ]
         );

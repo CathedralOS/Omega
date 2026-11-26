@@ -2,7 +2,7 @@ use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete bounded planar partition application. No external numeric package.
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\U64::from_f64;
 use domain\model;
 use domain\model\Partition;

@@ -16,7 +16,7 @@ It was published from commit `c5c47a53b080` with the change that introduced sema
 | Saved file SHA-256, 228690 bytes | `f053200ece36b7f6b113dc47e7b3cbdb1b886225f7eed9e69b4d67fac9362845` |
 | main.omg SHA-256 | `073768333496caabb3c28a753482d2888a9a527b0765f7f12941332eba6c8e58` |
 | build.omg SHA-256 | `9483243b6476c41b95be5c949a0e39901e44096d881995872d51df51683d3d5d` |
-| `source/library/std/targets/linux_x86_64/entry.omg` SHA-256 | `cce757bb5e3cc2ddbfe2db44fe03510a97b56fa6cc80db210d4d0402bdb2878b` |
+| `source/library/system/targets/linux_x86_64/entry.omg` SHA-256 | `cce757bb5e3cc2ddbfe2db44fe03510a97b56fa6cc80db210d4d0402bdb2878b` |
 
 ## Historical wire specimen
 

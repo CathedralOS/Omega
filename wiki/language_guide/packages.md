@@ -48,12 +48,12 @@ and describes a Linux editor. Both programs import the same helper.
 ```omega
 // build.omg
 use {omega}/build/dependency.omg;
-use {std}/console.omg;
+use {system}/console.omg;
 
 machine build(build: @mutable Build) {
-    let std: DependencyDescription =
-        |dependency|::from_source(Source::Path { location: "vendor/std" });
-    |dependency|::add(build, std, max_reach: [StandardOutput]);
+    let system: DependencyDescription =
+        |dependency|::from_source(Source::Path { location: "vendor/system" });
+    |dependency|::add(build, system, max_reach: [StandardOutput]);
     Build::build_entry(build, "build_0.omg");
     Build::select_provider::<|console|::Console, |console|::InterpreterConsole>(
         build, interpreter
@@ -61,7 +61,7 @@ machine build(build: @mutable Build) {
 }
 ```
 
-Here `vendor/std` declares the package name `std`. The console references
+Here `vendor/system` declares the package name `system`. The console references
 in the selection are designated product operands. The preparing entry never
 calls the console. Its caller supplies the child's admitted output sink.
 
@@ -74,15 +74,15 @@ use main.omg as editor;
 machine build(build: @mutable Build) reaches StandardOutput {
     |generated|::announce("configuring editor");
     Build::application(build, "editor");
-    let std: PackageBinding = |dependency|::input(build, "std");
-    |dependency|::add(build, std, max_reach: [StandardOutput]);
+    let system: PackageBinding = |dependency|::input(build, "system");
+    |dependency|::add(build, system, max_reach: [StandardOutput]);
     Build::bind(build, linux_x86_64::ProgramEntry, |editor|::main);
 }
 ```
 
 ```omega
 // generated.omg, supplied in the frozen source view of both programs
-use {std}/console.omg;
+use {system}/console.omg;
 
 public machine announce(message: @[u8]) reaches StandardOutput {
     |console|::Console::write_line(message);
@@ -100,7 +100,7 @@ machine main() reaches StandardOutput {
 
 The first message reaches the interpreter's diagnostic sink. When the editor
 runs, its message reaches Linux standard output through the provider selected
-by the `std` package for that target. The intermediate Build forwards the
+by the `system` package for that target. The intermediate Build forwards the
 package once. Individual callers just use `Console`. A generator can supply
 `generated.omg` by writing it into the source view before handoff.
 The successor API and interpreter adapter are specified implementation work.

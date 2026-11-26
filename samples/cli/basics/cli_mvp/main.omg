@@ -1,7 +1,7 @@
 use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
-// The minimal Omega program -- "hello world". `main` prints a line through the std
+// The minimal Omega program -- "hello world". `main` prints a line through the system
 // console boundary and exits cleanly. This is the simplest end-to-end smoke test
 // (frontend + codegen + host console) and the runnable baseline behind every other
 // sample. Annotated so the samples harness value-asserts it (runs + checks the
@@ -9,7 +9,7 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: Hello, Omega.
 
-use omega_language_std\Console;
+use system\Console;
 
 data Main {
     pause: [u8; 256];

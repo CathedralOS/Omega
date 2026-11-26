@@ -34,7 +34,7 @@ missed lanes, demonstrating a nonzero coverage deficit without depositing into
 gaps. Waste and duplicate counts should be zero for this planner.
 
 The application owns all storage, parsing, algorithms and rendering under
-`domain/`. Its only dependency is the stable bundled std Console provider.
+`domain/`. Its only dependency is the stable bundled system Console provider.
 No in-progress numerics library or other worker output is imported.
 
 ## Frozen acceptance

@@ -13,7 +13,7 @@ the first sample where `+` selection is gated by a `requires` domain fact.
   the `a + b` site, discharging both operand facts.
 
 The machine combines 3 + 4 = 7 under proof, reads it back, and accepts.
-Compile-checked only (no std dependency):
+Compile-checked only (no system dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/additive_domain_requires/main.omg

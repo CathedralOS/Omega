@@ -7,12 +7,12 @@
 // non-aliased requirement identity.
 //
 //   * `use omega\language\core\format_lineage` — the
-//     std lineage trait via a path dependency.
+//     system lineage trait via a path dependency.
 //   * Two `satisfies` rows differing only in the
 //     lineage marker type.
 //
 // Compile-checked only: path-depends on
-// source/library/std; run a check target, not native.
+// source/library/system; run a check target, not native.
 
 use omega\language\core\FormatMigration;
 

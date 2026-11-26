@@ -1,6 +1,6 @@
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
-use omega_language_std\Console;
+use system\Console;
 use alignment\local;
 
 // Scores and coordinates are nonnegative and at most 48. Emit decimal rather

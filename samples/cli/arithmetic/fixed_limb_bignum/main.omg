@@ -26,7 +26,7 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: PASS
 
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\narrow_u32_to_u8_wrapping;
 use omega\language\core\narrow_u64_to_u32_wrapping;
 use omega\language\core\widen_u32_to_u64;

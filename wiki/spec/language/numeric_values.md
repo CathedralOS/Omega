@@ -14,7 +14,7 @@ does not introduce another authored type form.
 `min`, `max`, `abs`, `clamp` and `sqrt` are ordinary bundled-library machines,
 not language functions or compiler-known source builtins. They belong in
 `core`'s math surface (`source/library/core/math.omg`), which holds
-foundational language-facing mechanisms; `std` holds only adapters to the
+foundational language-facing mechanisms; `system` holds only adapters to the
 execution environment. They resolve through ordinary imports and declaration identity,
 and publish their types, preconditions and guarantees as ordinary contracts.
 This settles `executable-numeric-builtins` against the builtin route. A missing
@@ -33,7 +33,7 @@ available to implement library code. An optional optimization may realize a
 checked operation with a suitable instruction, but does not make any of these
 five names intrinsic or replace the ordinary call path. No reserved-name,
 qualified-name or implicit-import compatibility route preserves the rejected
-builtins. Library placement does not authorize a dependency from `core` to `std`.
+builtins. Library placement does not authorize a dependency from `core` to `system`.
 
 ## Core integer and float APIs
 

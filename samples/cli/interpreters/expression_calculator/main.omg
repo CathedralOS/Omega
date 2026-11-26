@@ -25,8 +25,8 @@ use omega\language\core\ProcessExit;
 // '0'..'9' 48..57, space 32, tab 9, LF 10.
 // Unary minus is stored as operator 126 so it stays distinct from binary '-'.
 
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 
 data Token [copy] {
     case Number(value: i32 in Wrapping);

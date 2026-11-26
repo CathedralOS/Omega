@@ -5,7 +5,7 @@
 // checks all target-scoped bodies as siblings (`wiki/spec/build/configuration.md#multi-target-compilation`).
 // When the package graph contains a single supplier for a contract package, we seed
 // that package's source root; when no package supplies it and no accepted binding
-// overrides it, we fall back to the bundled `std` subtree and register closed
+// overrides it, we fall back to the bundled `system` subtree and register closed
 // toolchain-contract custody (`register_custody`). When multiple suppliers exist,
 // we require an accepted semantic binding to disambiguate.
 
@@ -57,7 +57,7 @@ pub(super) fn entry_contract_seeds_from_graphs(
     graphs: &[&PackageCompilationInputs],
     source_storage: &SourceStorage,
 ) -> Result<Vec<EntryContractSeed>, Vec<diagnostics::Diagnostic>> {
-    let bundled_root = crate::source::source_imports::bundled_omega_root()?.join("std");
+    let bundled_root = crate::source::source_imports::bundled_omega_root()?.join("system");
     let mut seeds = Vec::new();
     for profile in target::TargetProfile::ALL {
         let slot = profile.program_entry_slot();

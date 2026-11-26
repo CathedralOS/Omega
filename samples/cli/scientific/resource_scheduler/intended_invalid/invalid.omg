@@ -2,7 +2,7 @@ use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete negative source control: this literal start exceeds its required
 // finite mathematical contract. The checker must reject before any native run.
-use omega_language_std\Console;
+use system\Console;
 
 machine validate_start(start: i32)
     requires start >= 0 && start <= 20

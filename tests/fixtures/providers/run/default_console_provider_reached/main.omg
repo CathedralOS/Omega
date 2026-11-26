@@ -1,6 +1,6 @@
 use omega\language\core\ProcessExit;
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 
 // Expected exit: 0. Expected stdout: "K\n".
 // The application's Build selects no provider. The standard library's Build

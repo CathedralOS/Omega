@@ -132,7 +132,7 @@ review settlement (`omega update`) now fails inside the
 That is the recorded selected-provider frontier family (the same class
 as the ~90 `Service field Main::<field> requires a selected Fused
 provider` rejections in the native-matrix host docs), not a
-subject-level defect: `omega --check` on `source/library/std/main.omg`
+subject-level defect: `omega --check` on `source/library/system/main.omg`
 passes clean, so the rejection lives in the package-candidate check's
 provider-plan join. A settlement-rejected `(subject, target)` still has
 no commit-able record shape — that schema gap is owned by

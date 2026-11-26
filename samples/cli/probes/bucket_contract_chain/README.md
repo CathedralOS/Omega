@@ -24,7 +24,7 @@ The machine pushes 7, reads slot 0, pops it, and accepts only `first == 7`
 and `popped == 7`. An undischarged `push`/`pop`/`get` call is a compile
 error (the fail/collections corpus twins pin that side).
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/bucket_contract_chain/main.omg

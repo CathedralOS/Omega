@@ -11,7 +11,7 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: #
 use omega\language\core\F64::from_i32;
-use omega_language_std\Console;
+use system\Console;
 
 data Main
 requires self.x >= 0 && self.x <= 64,

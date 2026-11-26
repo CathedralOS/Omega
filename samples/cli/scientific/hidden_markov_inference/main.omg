@@ -3,8 +3,8 @@ use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 64 (empty stdin is invalid).
 // Expected numerical outputs are frozen independently in expected.json.
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use omega\language\core\F64::from_i64;
 use domain\inference;
 use domain\inference\Model;

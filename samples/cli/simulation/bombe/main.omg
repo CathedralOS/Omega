@@ -57,7 +57,7 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: verified
 
-use omega_language_std\Console;
+use system\Console;
 
 data Main {
     fwd_left: [i32; 26];   // rotor I    "EKMFLGDQVZNTOWYHXUSPAIBRCJ"

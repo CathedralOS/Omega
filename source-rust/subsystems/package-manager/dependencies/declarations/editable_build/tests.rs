@@ -58,11 +58,11 @@ fn projects_package_application_and_workspace_declarations() {
     ));
     assert_eq!(
         project(
-            r#"machine build(builder: @mutable Build) { Build::member(builder, "omega/std"); Build::member(builder, "source/compiler"); }"#,
+            r#"machine build(builder: @mutable Build) { Build::member(builder, "omega/system"); Build::member(builder, "source/compiler"); }"#,
         ),
         Ok(BuildDeclaration::Workspace(WorkspaceDeclaration {
             members: vec![
-                WorkspaceMemberPath::parse("omega/std").unwrap(),
+                WorkspaceMemberPath::parse("omega/system").unwrap(),
                 WorkspaceMemberPath::parse("source/compiler").unwrap(),
             ],
         }))

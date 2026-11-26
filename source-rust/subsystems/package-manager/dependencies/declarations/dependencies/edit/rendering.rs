@@ -72,7 +72,7 @@ pub(crate) fn canonical_dependency_statement(
 const REGISTRATION_TYPE_NAME: &str = "DependencyRegistration";
 
 // A snake_case identifier from a location's last path segment, so an
-// unaliased `../library/std` registration reads `std_registration`.
+// unaliased `../library/system` registration reads `system_registration`.
 fn local_base(location: &str) -> String {
     let segment = location
         .trim_end_matches('/')

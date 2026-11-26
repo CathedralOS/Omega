@@ -109,7 +109,7 @@ contract checking. A test entry is a root for the runner, not a bodyless
 `boundary machine`, a new trusted assumption, or a privileged function.
 No test-only main, call permission, or automatic crash allowance is introduced.
 
-Std's optional `testing\Test::run` is an ordinary convenience requirement:
+System's optional `testing\Test::run` is an ordinary convenience requirement:
 parameterless, resultless, service-free, permitting `Trap`. It is not core
 vocabulary, a compiler-recognized identity, or a fixed taxonomy of categories.
 Projects may register it, arbitrary project requirements, or both. Templates
@@ -167,7 +167,7 @@ providers, enter [install/update review](../packages/acceptance.md#restricted-bu
 before execution. Retain their package, test purpose and group, logical scope,
 limits, and target/execution context. New or widened requests require matching
 lock acceptance and actual executor grants. A dependency's lock, runtime
-permission, group declaration, or std implementation supplies neither. Missing
+permission, group declaration, or system implementation supplies neither. Missing
 analysis is not an empty request. Disabled/unselected configurations make no
 execution claim; later enabling them requires fresh applicable checking.
 

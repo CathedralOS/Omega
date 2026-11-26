@@ -50,7 +50,7 @@ calling-application roster, including exact declaration ABI keys and ordered
 static operands, rather than interpreting that roster as the retired optional
 calling fields. Complete commitments, schema coverage and admission stay checked.
 The affected public packages, issuer refusals, selected-observer trap and four
-native image formats were also freshly observed. The Std-backed root and its
+native image formats were also freshly observed. The System-backed root and its
 cleanup twin retain their separate, fresh Main-producer
 `ba899a24b8bb835013cc3db2ca7b8d4b70b7cd35` observations: their Build closures
 have no independent component descriptions and do not enter the changed reader.
@@ -193,7 +193,7 @@ All nine places and all nine independent places report `native exit 0` and `inte
 0`; the eighteen cleanup twins reject at checking with `contains independently invoked
 nominal cleanup` and `v1 carriers must be inert storage`. Each positive differs from its
 twin only by the added `drop_address_word` obligation. The root `main.omg` retains its
-Console/std route and needs an accepted macOS program-entry binding (`omega packages
+Console/system route and needs an accepted macOS program-entry binding (`omega packages
 update` review) before it checks on a fresh host.
 
 The parent still requires complete composition-edge rejection of provider,

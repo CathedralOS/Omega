@@ -22,14 +22,14 @@ fn invoke(wrong_proof: bool) -> (Output, String) {
         original
     };
     std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    // The Build normally resolves its std dependency beside the checkout.
+    // The Build normally resolves its system dependency beside the checkout.
     // Keep that source when the twin moves into its private working directory.
     let build = std::fs::read_to_string(fixture.join("build.omg")).unwrap();
     let std_location = support::repository_root()
-        .join("source/library/std")
+        .join("source/library/system")
         .to_string_lossy()
         .replace('\\', "/");
-    let location = "../../../../../../../../../../../source/library/std";
+    let location = "../../../../../../../../../../../source/library/system";
     assert!(build.contains(location));
     std::fs::write(
         scratch.path().join("build.omg"),

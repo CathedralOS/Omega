@@ -1,6 +1,6 @@
 use omega\language\core\StandardOutput;
 use model;
-use omega_language_std\Console;
+use system\Console;
 // Four decimal digits per integer. Inputs bound every reported sum below 10000.
 machine number(value: i32 in Wrapping) reaches StandardOutput {
     Console::write_byte((value / 1000 % 10 + 48) as i32);

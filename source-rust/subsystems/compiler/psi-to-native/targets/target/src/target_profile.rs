@@ -75,13 +75,13 @@ pub enum ProgramEntryPhysicalContractPackage {
 impl ProgramEntryPhysicalContractPackage {
     pub const fn manifest_identity(self) -> &'static str {
         match self {
-            Self::UefiX64 => "omega::language::std::targets::uefi_x86_64::entry",
-            Self::MacosArm64 => "omega::language::std::targets::macos_arm64::entry",
-            Self::MacosX64 => "omega::language::std::targets::macos_x86_64::entry",
-            Self::LinuxX86_64 => "omega::language::std::targets::linux_x86_64::entry",
-            Self::LinuxArm64 => "omega::language::std::targets::linux_arm64::entry",
-            Self::WindowsX64 => "omega::language::std::targets::windows_x86_64::entry",
-            Self::WindowsArm64 => "omega::language::std::targets::windows_arm64::entry",
+            Self::UefiX64 => "omega::language::system::targets::uefi_x86_64::entry",
+            Self::MacosArm64 => "omega::language::system::targets::macos_arm64::entry",
+            Self::MacosX64 => "omega::language::system::targets::macos_x86_64::entry",
+            Self::LinuxX86_64 => "omega::language::system::targets::linux_x86_64::entry",
+            Self::LinuxArm64 => "omega::language::system::targets::linux_arm64::entry",
+            Self::WindowsX64 => "omega::language::system::targets::windows_x86_64::entry",
+            Self::WindowsArm64 => "omega::language::system::targets::windows_arm64::entry",
         }
     }
 
@@ -97,7 +97,7 @@ impl ProgramEntryPhysicalContractPackage {
                     $path,
                     include_bytes!(concat!(
                         env!("CARGO_MANIFEST_DIR"),
-                        "/../../../../../../source/library/std/",
+                        "/../../../../../../source/library/system/",
                         $path
                     )),
                 )
@@ -871,7 +871,7 @@ mod tests {
             .expect("Windows x86-64 must select its closed physical-contract package");
         assert_eq!(
             physical_package.manifest_identity(),
-            "omega::language::std::targets::windows_x86_64::entry"
+            "omega::language::system::targets::windows_x86_64::entry"
         );
         eq!(physical_package.package_relative_source() => "targets/windows_x86_64/entry.omg");
         assert_eq!(physical_package.contract_name(), "Windows x86-64");
@@ -934,7 +934,7 @@ mod tests {
             .expect("UEFI must select its closed physical-contract package");
         assert_eq!(
             physical_package.manifest_identity(),
-            "omega::language::std::targets::uefi_x86_64::entry"
+            "omega::language::system::targets::uefi_x86_64::entry"
         );
         eq!(physical_package.package_relative_source() => "uefi_x86_64_entry.omg");
         assert_eq!(
@@ -1112,7 +1112,7 @@ mod tests {
             .expect("macOS x86-64 must select its closed physical-contract package");
         assert_eq!(
             physical_package.manifest_identity(),
-            "omega::language::std::targets::macos_x86_64::entry"
+            "omega::language::system::targets::macos_x86_64::entry"
         );
         eq!(physical_package.package_relative_source() => "targets/macos_x86_64/entry.omg");
         assert_eq!(physical_package.contract_name(), "macOS x86-64");

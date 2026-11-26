@@ -7,4 +7,4 @@ logical Nat law views and Float::equal are visible. Source checking is the only
 intended route; the control must never be accepted or executed.
 
 This preserves the existing ring_law_unproven_rejected theorem obligation in a
-complete std-free project with an ordinary resultless ProgramEntry binding.
+complete system-free project with an ordinary resultless ProgramEntry binding.

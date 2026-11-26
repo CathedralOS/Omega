@@ -13,7 +13,7 @@ operators in one program.
 
 The machine walks v through the compound chain to 2, checks the bitwise
 results (8, 14, 6), the negation (-10), and the shift (512).
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/operator_desugars/main.omg

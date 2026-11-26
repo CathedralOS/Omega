@@ -11,7 +11,7 @@ sample spanning multiple source files under one package.
 
 The machine builds `Right { value: Left { value: 7 } }` across the file
 boundary, reads through both levels, and accepts on 7. Compile-checked
-only (no std dependency):
+only (no system dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/module_file_chain/main.omg

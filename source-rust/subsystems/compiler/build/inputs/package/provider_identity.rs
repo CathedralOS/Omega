@@ -312,8 +312,8 @@ mod tests {
         ] {
             let file = SourceFile {
                 source_id: SourceId(0),
-                package_root: PathBuf::from("std"),
-                path: PathBuf::from("std").join("entry.omg"),
+                package_root: PathBuf::from("system"),
+                path: PathBuf::from("system").join("entry.omg"),
                 package_identity: None,
                 dependency_scope: DependencyScope::Product,
                 origin,

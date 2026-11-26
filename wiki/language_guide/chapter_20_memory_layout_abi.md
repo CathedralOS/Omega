@@ -103,7 +103,7 @@ is declared with that shape, and a checked adapter converts.
 
 Omega uses its own calling convention by default, including at a boundary.
 If the other side expects a different convention, declare it on the trait.
-For example, std declares its Linux x86-64 kernel policy on the byte-view
+For example, system declares its Linux x86-64 kernel policy on the byte-view
 requirements, including `read`.
 
 ```omega
@@ -113,7 +113,7 @@ boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling
 ```
 
 ```omega
-// In std's build machine
+// In system's build machine
 Build::bind_native::<PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
     ForeignBinding::Syscall { number: 0 });
 ```
@@ -122,11 +122,11 @@ The policy fixes argument placement, register preservation and kernel entry.
 Build supplies the syscall number. Remove `: Calling<LinuxX86ByteViewCalling>`
 from this trait and the compiler must reject the binding because an ordinary
 Omega call cannot enter the kernel. Other foreign ABIs work the same way.
-For example, std's `WindowsX64ScalarCalling` policy sets
+For example, system's `WindowsX64ScalarCalling` policy sets
 `plan.call.shadow_bytes = 32;` to tell the caller how much stack space
 to reserve for the callee. Your package can use the same registers,
 stack slots and entry controls to describe its own convention entirely in Omega.
-See the [Windows x64 policy](../../source/library/std/targets/windows_x86_64/calling.omg)
+See the [Windows x64 policy](../../source/library/system/targets/windows_x86_64/calling.omg)
 and [calling plans](../spec/build/calling_plans.md#authorship-and-evaluation).
 
 ## Functions supplied through a table

@@ -4,7 +4,7 @@ See [scientific validation](../README.md) for the current status of this sampleâ
 
 A bounded stdin application fitting a proper rigid transform to paired 3D
 points. All computation is private Omega source using f64 operations and the
-existing std Console provider. The independent Python oracle is a qualification
+existing system Console provider. The independent Python oracle is a qualification
 tool, not the application. Build metadata explicitly binds Linux x86_64,
 Windows x86_64 and macOS arm64 program entries. Qualification here covers Linux.
 
@@ -99,8 +99,8 @@ typing or cast error.
 From the repository root, activate the documented toolchain. Set
 `OMEGA_LIBRARY_ROOT` to this checkout's absolute `source/library`. Use a compiler
 built from the recorded producer revision. Ordinary package review accepts the
-local sample/std declarations and the sample's three Console runtime permissions:
-input, output and process exit. std's filesystem source-risk declaration alone
+local sample/system declarations and the sample's three Console runtime permissions:
+input, output and process exit. system's filesystem source-risk declaration alone
 is not a host filesystem grant. Inspect the pending review before resuming;
 retain all genuine authority and custody checks.
 

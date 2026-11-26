@@ -71,9 +71,9 @@ This application’s resultless `entry_start` reads stdin and calls Console
 and ProcessExit. The frontend resolves ground service ceilings and checks
 them over selected calls. To emit these boundary operations, the compiler
 also needs the target’s selected provider and process-entry environment.
-The [standard library Build](../../library/std/build.omg) selects `NativeProcessExit`
+The [standard library Build](../../library/system/build.omg) selects `NativeProcessExit`
 and `AlphaConsole` on `alpha_bootstrap`. The standalone entry adapter must
-establish the process domain and supply the [read and write operations](../../library/std/targets/alpha_bootstrap/console.omg).
+establish the process domain and supply the [read and write operations](../../library/system/targets/alpha_bootstrap/console.omg).
 The current closed source-set packet records the Build inputs separately and
 carries no installation of those capabilities.
 

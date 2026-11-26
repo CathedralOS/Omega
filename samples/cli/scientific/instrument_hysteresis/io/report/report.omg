@@ -1,5 +1,5 @@
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 // All authored output integers have magnitude <= 51200000 (256 rows).
 public machine number(value: i32 in Wrapping) reaches StandardOutput {
     transition value < 0 {

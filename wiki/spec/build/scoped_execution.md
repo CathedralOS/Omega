@@ -142,8 +142,8 @@ root or builder state.
 | Build entry and transitive helpers | Its package-local Build sources, core, and libraries supplied for this invocation | Admitted build evaluator on the host |
 | Product source and its generated source | Its package-local product sources, core, and its ordinary dependencies | Selected product target |
 
-Core's exact toolchain vocabulary is directly available. Std is an ordinary
-package: a build-only std use requires a build dependency, a product use an
+Core's exact toolchain vocabulary is directly available. System is an ordinary
+package: a build-only system use requires a build dependency, a product use an
 ordinary dependency, and both uses require both edges. Import spelling does not
 grant an exception or host authority. A build dependency's ordinary dependencies
 are its library implementation dependencies in the host/build graph, not edges

@@ -4,7 +4,7 @@ use omega\language\core\ProcessExit;
 // no bound. `requires true` makes the helper's input contract complete, so
 // it must accept every `u64` position; the benign value its one caller
 // supplies cannot narrow that by private entry inference.
-use omega_language_std\Console;
+use system\Console;
 data Main { }
 machine select(records: @[u64; 3], position: u64) -> u64 requires true {
     records[position]

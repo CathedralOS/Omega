@@ -16,7 +16,7 @@ use omega\language\core\ProcessExit;
 // then their HP is summed: 20 + 2 + 15 + (-2) = 35. Exit: 35.
 // Expected exit: 35.
 
-use omega_language_std\Console;
+use system\Console;
 
 data Monster {
     hp: i32 in Wrapping;

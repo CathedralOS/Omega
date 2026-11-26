@@ -3,8 +3,8 @@ use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0
 // Empty input exits normally; frozen nonempty streams and status-3 limits are in data/.
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use omega\language\core\widen_u8_to_i32;
 use codec\field;
 use codec\field\Frame;

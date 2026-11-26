@@ -3,7 +3,7 @@ use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 2. Empty stdin is invalid; valid input returns 0.
 // Expected output contains: INVALID reaction input
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\narrow_u64_to_i64_saturating;
 use domain\input;
 use domain\input\Input;

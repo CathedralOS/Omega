@@ -1,7 +1,7 @@
 # Constrained pendulum motion (NEW021)
 
 This is a complete Linux x86-64 Omega application. Its private integrator and
-numeric reporter use stable core float operations and the bundled std console.
+numeric reporter use stable core float operations and the bundled system console.
 There are no worker-produced numerics imports or shared library modifications.
 
 The scientific sample model is a unit point mass on a massless rigid rod,

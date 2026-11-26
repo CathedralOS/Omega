@@ -11,7 +11,7 @@ use domain\regions;
 use domain\regions\label_regions;
 use domain\output;
 use domain\output\render;
-use omega_language_std\Console;
+use system\Console;
 
 data Main { }
 

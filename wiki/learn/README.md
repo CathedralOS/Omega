@@ -21,7 +21,7 @@ bun build.ts && bun serve.ts
 - `tools/verify.ts` (`bun run verify`) — compile-checks every code figure
   against `omega --check` (default `target/debug/omega` of this checkout; set
   `OMEGA_EXE` to override, `ONLY=<chapter id>` to filter) in persistent fixture dirs under `scratch/verify/`
-  (each figure's `omega.lock` survives, keeping the std snapshot warm),
+  (each figure's `omega.lock` survives, keeping the system snapshot warm),
   completes the `omega packages update` package-review ceremony when the compiler asks
   for entry-binding acceptance, and pins every marginalia key to a real code
   line. The build-machine figure verifies as a real `build.omg` + `main.omg`

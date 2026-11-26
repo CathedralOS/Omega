@@ -13,7 +13,7 @@ with `match` producing fresh enum/record values.
 
 The machine swaps `Pair<20u64, 1i32>` into `Pair<1i32, 20u64>`, classifies
 code 7 to `Verdict::Fresh(7)`, and accepts only when the swapped fields
-and the fresh payload agree. Compile-checked only (no std dependency, no
+and the fresh payload agree. Compile-checked only (no system dependency, no
 ProcessExit provider):
 
 ```sh

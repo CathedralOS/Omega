@@ -1,0 +1,55 @@
+use time_host.omg as time_host;
+use linux_x86_64_time_host.omg as adapter;
+
+// linux_x86_64 `TimeHost` provider.
+//
+// Linux publishes no scalar nanosecond clock read. `clock_gettime` writes a
+// two-field 64-bit `struct __kernel_timespec` through a caller-supplied
+// pointer, so this provider owns one multiply-and-add to produce the trait's
+// single tick count. That is the ONLY arithmetic the per-OS layer does: epoch
+// and unit conversion still happens once in `system/time.omg`, as D11 requires.
+//
+// Every foreign constant below was read out of the kernel sources rather than
+// assumed from the Darwin provider or from the sibling arm64 file:
+//   `228  common  clock_gettime    sys_clock_gettime`
+//     — arch/x86/entry/syscalls/syscall_64.tbl
+//   `7    common  poll             sys_poll`
+//     — the same table; `targets/linux_x86_64/clock_impl.omg` already binds it.
+//   `#define CLOCK_REALTIME 0` and `#define CLOCK_MONOTONIC 1`
+//     — include/uapi/linux/time.h. Darwin's selectors are DIFFERENT numbers
+//       for the same names, which is why the Darwin provider passes 8.
+//   `struct __kernel_timespec { __kernel_time64_t tv_sec; long long tv_nsec; }`
+//     — include/uapi/linux/time_types.h.
+// The arm64 sibling binds the same two calls at different numbers (the
+// asm-generic table), so neither Linux file is the other with the target
+// renamed.
+//
+
+// Per-target raw seam. `LinuxClockWait` and `LinuxArmClockWait` are the
+// one-member clock-wait traits; this trait owns the time-host read and wait.
+boundary trait LinuxX64TimeRead {
+    machine clock_gettime(clock_id: u32, instant: @mutable |adapter|::LinuxX64TimeHostInstant) -> i64
+    reaches |time_host|::TimeHost
+    crashes none;
+    machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
+    reaches |time_host|::TimeHost
+    blocks
+    crashes none;
+}
+
+machine linux_x86_64_time_host_wait_part(timeout_milliseconds: i32)
+reaches |time_host|::TimeHost
+blocks
+{
+    transition { _ -> block wait(timeout_milliseconds) }
+
+    machine wait(timeout_milliseconds: i32) {
+        let outcome: i32 = block LinuxX64TimeRead::poll(0, 0, timeout_milliseconds);
+        transition outcome == 0 {
+            true -> done(),
+            _ -> block wait(timeout_milliseconds)
+        }
+    }
+
+    machine done() { }
+}

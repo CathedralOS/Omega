@@ -63,7 +63,7 @@ adaptation requires a checked adapter, not an asserted locator conversion.
 Ordinary library packages follow [their resolved package owners](declarations.md#ordinary-library-packages)
 regardless of distribution. Only declarations genuinely requiring compiler
 realization retain exact sealed custody under the catalog and its source/owner
-correspondence rules; ordinary `std` wrappers do not become compiler-owned by
+correspondence rules; ordinary `system` wrappers do not become compiler-owned by
 living beside such a declaration. Separate any necessary primitive or entry
 bridge explicitly while preserving checked bindings and behavioral contracts.
 Neither a bundled path nor a copied name, signature or source file establishes
@@ -222,7 +222,7 @@ firmware issuance: program-constructed tables remain valid when their existing
 contracts establish the required facts.
 
 The migration includes repairing the UEFI allocation/release boundary in
-`source/library/std/uefi_x86_64_handoff.omg`. A table borrow and raw
+`source/library/system/uefi_x86_64_handoff.omg`. A table borrow and raw
 address/page-count integers alone do not establish allocation ownership or
 permission to release it. Use existing [allocation](../resources/allocation.md)
 and [foreign-storage custody](foreign_storage.md) contracts to connect an issued

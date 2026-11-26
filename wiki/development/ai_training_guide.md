@@ -61,7 +61,7 @@ organization, proof discipline, and documentation:
 | [`samples/cli/systems/file_journal/main.omg`](../../samples/cli/systems/file_journal/main.omg) | Portable OS boundary (`FilesystemService`, explicit `reaches` capabilities) with linear `File` handles threaded through state transitions and explicitly closed. |
 | [`samples/cli/collections/generic_ring_buffer/main.omg`](../../samples/cli/collections/generic_ring_buffer/main.omg) | Compact data invariant (`data Ring [copy] requires head < 8, tail < 8`), `@mutable` borrows, saturating arithmetic. *(Strip the trailing `[press Enter to close]` demo pause before training.)* |
 | [`samples/cli/systems/wire_protocol/main.omg`](../../samples/cli/systems/wire_protocol/main.omg) | Wire schema with numbered fields (`#0`, `#1`), ZII-zero failure enum (`case Invalid; case Sound;`), composing with `CompactBinary`. |
-| [`source/library/std/time.omg`](../../source/library/std/time.omg) *(Conditional Gold)* | Strongest API and rationale-header taste in the repo (ZII-zero `case Overflow`, normalization invariants, checked/saturating arithmetic). **Normalize before ingestion:** update its older `use *.omg` / `\|alias\|::` import syntax and strip `TASKS_TIME.md` references. |
+| [`source/library/system/time.omg`](../../source/library/system/time.omg) *(Conditional Gold)* | Strongest API and rationale-header taste in the repo (ZII-zero `case Overflow`, normalization invariants, checked/saturating arithmetic). **Normalize before ingestion:** update its older `use *.omg` / `\|alias\|::` import syntax and strip `TASKS_TIME.md` references. |
 
 ### Anti-Pattern Set (do not imitate; penalize in curation and RL)
 
@@ -90,7 +90,7 @@ Use this manifest to separate clean training signal from quarantined material:
 | Bucket | Repository paths | Policy |
 | --- | --- | --- |
 | **Clean Primary** | `wiki/spec/`, `wiki/language_guide/`, `source/library/core/CompactBinary/`, curated `samples/cli/{algorithms,collections,systems,text,audio,interpreters}/` | Include directly. Keep multi-file packages together in one training document/context so the model learns flat module organization, not just isolated functions. |
-| **Conditional (Normalize First)** | `source/library/std/`, `source/subsystems/`, `samples/cli/scientific/` | Run the pre-ingestion filters below before including: verify current `use` syntax, strip `TASKS_*.md` / milestone references, and exclude workaround files. |
+| **Conditional (Normalize First)** | `source/library/system/`, `source/subsystems/`, `samples/cli/scientific/` | Run the pre-ingestion filters below before including: verify current `use` syntax, strip `TASKS_*.md` / milestone references, and exclude workaround files. |
 | **Eval-Only (Hold Out)** | Positive/negative twin pairs (`invalid_*` samples), sampled `samples/cli/facts/` | Hold out for verifier and soundness-boundary evaluation; never dump into pretraining bulk. |
 | **Quarantine (Never Train)** | `wiki/drafts/`, `wiki/proposals/`, `_recycling/`, `samples/cli/facts/`, `samples/cli/probes/`, `TASKS*.md`, `OWNER_*.md`, git history of retired dialects | Hard-exclude from pretraining, mid-training, and SFT. |
 

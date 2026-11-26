@@ -196,7 +196,7 @@ machine build_entry() {{ }}
     }
 }
 
-/// A boundary requirement with its own lifetime, as std's
+/// A boundary requirement with its own lifetime, as system's
 /// `WindowsFilesystemRemovalIo::open<'scope>`. A trait's schema cannot state
 /// the requirement's own regions, so the requirement is a template: its
 /// contract is checked once in its own form, and the program checks each call

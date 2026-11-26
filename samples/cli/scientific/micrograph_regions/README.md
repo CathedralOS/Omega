@@ -48,7 +48,7 @@ are checked exactly.
 `main.omg` owns the entrypoint; `domain/input.omg` owns bounded parsing and image
 storage; `domain/regions.omg` owns labeling and measurement; `domain/output.omg`
 owns serialization. `build.omg` binds the exact entry machine for Linux x86-64,
-Linux ARM64, Windows x86-64 and macOS ARM64 using existing std providers. Only the
+Linux ARM64, Windows x86-64 and macOS ARM64 using existing system providers. Only the
 available Linux x86-64 executor is validated here.
 
 From the repository root, with an exact compiler binary chosen as `OMEGA`:
@@ -57,7 +57,7 @@ From the repository root, with an exact compiler binary chosen as `OMEGA`:
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 SAMPLE=samples/cli/independent/micrograph_regions
 "$OMEGA" update --project "$SAMPLE"
-# If a review is required, inspect the proposal and accept its local std/entry
+# If a review is required, inspect the proposal and accept its local system/entry
 # decisions, then resume the normal documented review flow:
 "$OMEGA" update --resume --project "$SAMPLE"
 "$OMEGA" --check "$SAMPLE/main.omg"

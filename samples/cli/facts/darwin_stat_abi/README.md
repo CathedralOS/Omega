@@ -6,8 +6,8 @@ Parent: LIBRARY-REPRESENTATION-FAMILIES in [TASKS.md](../../../../TASKS.md).
 Nearest row: [explicit nested C representations](../c_layout_nested_representation/README.md).
 This row adds a real platform ABI boundary, not a larger mixed-width count: the
 actual Darwin SDK `struct stat` contains four complete timespecs, signed 32-bit
-device identifiers and the reserved tail through byte 143. Both std and these
-consumers import [the same ABI definitions](../../../../source/library/std/macos_arm64_filesystem_abi.omg).
+device identifiers and the reserved tail through byte 143. Both system and these
+consumers import [the same ABI definitions](../../../../source/library/system/macos_arm64_filesystem_abi.omg).
 No sample duplicates the Omega struct and no test-only public accessor is added.
 
 The C fixture fills and verifies all 23 scalar field components. Each guard
@@ -23,7 +23,7 @@ implementation. All four hosted entry bindings remain explicit. Field values
 are established by a mutable C exchange; the compiler cannot substitute stale
 zero initializer facts or assume the foreign checker succeeds.
 
-Psi 00–05 retains the exact public std type, selected child plans and policy
+Psi 00–05 retains the exact public system type, selected child plans and policy
 identity; borrowed inputs retain source backing and copy obligations. Psi 06–08
 and Omega 00–02 must preserve the complete selected C field geometry and ABI
 pointer lane. Omega 03–09 must emit the stores, copies, projections and foreign

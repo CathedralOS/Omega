@@ -12,7 +12,7 @@ use omega\language\core\ProcessExit;
 domain [u8]::Utf8
 requires
     valid_utf8(self);
-use omega_language_std\Console;
+use system\Console;
 
 data Item<'view> {
     id: i32;

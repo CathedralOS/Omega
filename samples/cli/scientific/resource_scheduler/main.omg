@@ -7,8 +7,8 @@ use omega\language\core\ProcessExit;
 // header pins the closed-stdin INVALID response of a manual empty-stdin run.
 // Expected exit: 2.
 // Expected output contains: INVALID
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use domain\model;
 use domain\model\Problem;
 use domain\model\Schedule;

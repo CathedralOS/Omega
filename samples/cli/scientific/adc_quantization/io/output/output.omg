@@ -1,5 +1,5 @@
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\narrow_i64_to_i32_trapping;
 // Every emitted quantity is below 10^12 in magnitude by the input envelope.
 public machine integer(value: i64 in Wrapping) reaches StandardOutput

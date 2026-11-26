@@ -1,5 +1,5 @@
 use main.omg as construction;
-use {omega_language_std}/console.omg;
+use {system}/console.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "omega_compiler_construction");
@@ -23,6 +23,6 @@ machine build(builder: @mutable Build) {
         location: "../../foundation/wire"
     }));
     let standard: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
-        location: "../../library/std"
+        location: "../../library/system"
     }));
 }

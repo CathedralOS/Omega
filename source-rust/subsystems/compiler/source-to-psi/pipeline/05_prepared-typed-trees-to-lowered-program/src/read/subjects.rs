@@ -205,7 +205,7 @@ impl Program<'_> {
     /// every one of them through the same reader their calls take.
     ///
     /// A library may apply such a requirement only inside its own generic
-    /// machines (std's `macos_window_create<const Count: u64>` calls
+    /// machines (system's `macos_window_create<const Count: u64>` calls
     /// `send_string<Count>`), so its own check may close no application at
     /// all. Then the claim has no contract to read, and none is published:
     /// each consumer that applies the requirement closes that application and

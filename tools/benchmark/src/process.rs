@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 /// RLIMIT_AS (Linux only) counts reserved virtual memory, not use: at 16 GiB a
-/// release compiler checking a std project cannot reserve its worker-thread
+/// release compiler checking a system project cannot reserve its worker-thread
 /// stacks and panics, while 64 GiB passes `prime_counter`. The 8 GiB memory
 /// limits below are enforced only by Windows job objects, so on Linux this cap
 /// is the only memory bound. `--address-space-gib` sets it for one invocation.

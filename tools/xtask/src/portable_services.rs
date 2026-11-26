@@ -1,15 +1,15 @@
-//! `check-portable-services`: compare how each target family of `std`
+//! `check-portable-services`: compare how each target family of `system`
 //! implements every portable call, and report differences nobody has reviewed.
 //!
 //! [Three layers](wiki/spec/build/platform_services.md#three-layers) says a
-//! portable service "is identical on every target". `std` keeps one POSIX
+//! portable service "is identical on every target". `system` keeps one POSIX
 //! adapter family (Linux and macOS) and one Windows family, so a refusal or a
 //! limit that only one family applies makes the same call mean different
 //! things on different targets. This check finds such differences from the
 //! source text alone, in well under a second and without building anything.
 //!
 //! For each `Build::select_provider::<Service, Provider>(builder, target)` row in
-//! `std/build.omg` that covers all five hosted targets, it reads each target's
+//! `system/build.omg` that covers all five hosted targets, it reads each target's
 //! provider block and follows each member through local machines and the raw
 //! providers selected for that target. It collects four kinds of fact:
 //! - `refuse K`: an `ErrorKind::K }` the adapter returns itself;
@@ -48,7 +48,7 @@ pub const HOSTED_TARGETS: [&str; 5] = [
     "windows_x86_64",
     "windows_arm64",
 ];
-const STD_ROOT: &str = "source/library/std";
+const SYSTEM_ROOT: &str = "source/library/system";
 const BASELINE: &str = "tools/ratchets/portable_services.txt";
 const CONCERNS: &str = "OWNER_CODE_CONCERNS.md";
 pub fn run(args: &[String]) -> Result<(), u8> {
@@ -73,7 +73,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     }
     let root = crate::repo_root()?;
     let started = Instant::now();
-    let rows = match collect_rows(&root.join(STD_ROOT)) {
+    let rows = match collect_rows(&root.join(SYSTEM_ROOT)) {
         Ok(rows) => rows,
         Err(error) => {
             eprintln!("check-portable-services: {error}");
@@ -123,7 +123,7 @@ fn usage() -> &'static str {
     "\
 usage: cargo xtask check-portable-services [--observe] [--list]
 
-Compare the refusals, limits and constants each target family of std applies
+Compare the refusals, limits and constants each target family of system applies
 to every portable call, and fail on a difference the reviewed baseline
 (tools/ratchets/portable_services.txt) does not record, or on a baseline row
 that no longer appears.
@@ -342,13 +342,13 @@ pub fn compare(rows: &[Row], baseline: &Baseline) -> Comparison {
 // ---------------------------------------------------------------------------
 // Extraction
 
-/// Reads `std` and returns every row, sorted.
-pub fn collect_rows(std_root: &Path) -> Result<Vec<Row>, String> {
-    let build = read(&std_root.join("build.omg"))?;
+/// Reads `system` and returns every row, sorted.
+pub fn collect_rows(system_root: &Path) -> Result<Vec<Row>, String> {
+    let build = read(&system_root.join("build.omg"))?;
     let selections = provider_selections(&strip_comments(&build));
     let mut families = Vec::with_capacity(HOSTED_TARGETS.len());
     for target in HOSTED_TARGETS {
-        let mut family = Family::load(std_root, target)?;
+        let mut family = Family::load(system_root, target)?;
         for (service, providers) in &selections {
             if let Some(provider) = providers.get(target) {
                 family
@@ -414,7 +414,7 @@ fn file_aliases(build: &str) -> HashMap<&str, &str> {
         .collect()
 }
 
-/// A provider as `dir\Name` relative to `std`. `|alias|::Name` names a
+/// A provider as `dir\Name` relative to `system`. `|alias|::Name` names a
 /// declaration in the file the alias imports, so it takes that file's
 /// directory; a bare or backslash path is already relative.
 fn provider_path(name: &str, aliases: &HashMap<&str, &str>) -> String {

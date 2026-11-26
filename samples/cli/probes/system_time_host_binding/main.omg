@@ -1,0 +1,28 @@
+use omega\language\core\ProcessExit;
+// Both native code and the CLI's Psi interpreter read the host clock.
+// Exit 70 when sleep_for reports 50 ms and at least that much time has
+// elapsed since instant_now.
+use system\Duration;
+use system\Instant;
+use system\TimeHost;
+use system\elapsed_since;
+use system\instant_now;
+use system\sleep_for;
+
+data Main {
+}
+
+machine entry_start() reaches ProcessExit + TimeHost {
+    let mutable entry: Main;
+    let start: Instant = instant_now();
+    let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
+    let slept: u32 = block sleep_for(pause);
+    let elapsed: Duration = elapsed_since(start);
+    let long_enough: bool = elapsed.seconds > 0 || elapsed.subsecond_nanoseconds >= 50000000;
+    transition slept == 50 && long_enough {
+        true -> pass(),
+        _ -> fail()
+    }
+    machine pass() { ProcessExit::exit_process(70); }
+    machine fail() { ProcessExit::exit_process(1); }
+}

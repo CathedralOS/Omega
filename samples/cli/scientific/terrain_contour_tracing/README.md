@@ -65,7 +65,7 @@ printf '10000020000\n' | $OMEGA run --both --keep samples/cli/independent/terrai
 The separate complete `controls/intended_invalid` project deliberately reads
 index 2 of a two-element array. Its check must fail for the documented bounds
 rule (`wiki/spec/language/numeric_values.md#collection-bounds`), not package preparation, imports or
-entry binding. Review its std dependency independently; do not count an
+entry binding. Review its system dependency independently; do not count an
 unrelated refusal as intended-invalid acceptance.
 
 Build outputs and local package decisions are ignored. See the bundled
@@ -79,12 +79,12 @@ Recorded outcome on main base `33e34fd97e763f4725c6290f0a0d6ea1ec829224`:
 - Default sandbox check: custody refusal because synthetic `/` ownership is
   UID 65534. Supported per-command host execution reached ordinary checking.
 - Three application checks resolved authored arithmetic and borrow errors;
-  the final check reports only the missing accepted std entry binding.
+  the final check reports only the missing accepted system entry binding.
 - `omega packages update` checked both source packages and produced a 285-decision
   review. Source rendering exceeded its resource limit; exact local sources
   are available. The first capture correctly refused a concurrent validator
   edit; the second completed with exit 3 and no accepted lock.
-- Automatic approval rejected the scoped acceptance request for broad std
+- Automatic approval rejected the scoped acceptance request for broad system
   external supplies and FilesystemHost scope. Acceptance was not retried;
   the review remains entirely pending and no accepted lock exists.
 - Native compile: exit 1, unaccepted entry binding. `run --both --keep` with

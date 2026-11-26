@@ -16,19 +16,19 @@ use omega\language\core\ProcessExit;
 // 12     remove_dir_all removes a tree 21 directories deep.
 // 13     remove_dir_all removes a directory of more than 4096 entries.
 
-use omega_language_std\ErrorKind;
-use omega_language_std\File;
-use omega_language_std\IoResult;
-use omega_language_std\Metadata;
-use omega_language_std\MetadataResult;
-use omega_language_std\OpenOptions;
-use omega_language_std\OpenResult;
-use omega_language_std\Permissions;
-use omega_language_std\PosixMetadataResult;
-use omega_language_std\UnitResult;
-use omega_language_std;
+use system\ErrorKind;
+use system\File;
+use system\IoResult;
+use system\Metadata;
+use system\MetadataResult;
+use system\OpenOptions;
+use system\OpenResult;
+use system\Permissions;
+use system\PosixMetadataResult;
+use system\UnitResult;
+use system;
 
-use omega_language_std\FilesystemService;
+use system\FilesystemService;
 
 data Main {
 }

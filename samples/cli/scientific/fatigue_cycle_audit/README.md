@@ -31,7 +31,7 @@ addition. All zero/constant histories emit no cycle rows.
 `domain/input.omg` owns parsing and curve/history validation;
 `domain/cycles.omg` owns private bounded reversal/cycle storage and counting;
 `domain/report.omg` owns output. `main.omg` owns dispatch and process status.
-Bindings use the ordinary Linux x86-64 std Console provider and explicit Build
+Bindings use the ordinary Linux x86-64 system Console provider and explicit Build
 entry binding. Dynamic indices are guarded before every access. Value arithmetic
 uses declared Wrapping carriers because array element refinements are unavailable;
 validated loads are <=9, there are <=16 reversals and emitted half units <=15,

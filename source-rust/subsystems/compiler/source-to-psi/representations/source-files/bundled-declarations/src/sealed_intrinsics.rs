@@ -158,11 +158,11 @@ mod tests {
                 SealedIntrinsicCatalog::classify(site(
                     "console.omg",
                     &requirement,
-                    crate::bytes(BundledFile::StdConsole)
+                    crate::bytes(BundledFile::SystemConsole)
                 )),
                 None,
             );
-            let mut edited = crate::bytes(BundledFile::StdConsole).to_vec();
+            let mut edited = crate::bytes(BundledFile::SystemConsole).to_vec();
             edited.push(b' ');
             assert_eq!(
                 SealedIntrinsicCatalog::classify(site("console.omg", &requirement, &edited)),
@@ -172,7 +172,7 @@ mod tests {
                 SealedIntrinsicCatalog::classify(site(
                     "copied/console.omg",
                     &requirement,
-                    crate::bytes(BundledFile::StdConsole)
+                    crate::bytes(BundledFile::SystemConsole)
                 )),
                 None,
             );

@@ -11,7 +11,7 @@ use omega\language\core\ProcessExit;
 // `marked` relies on zero-init; `line` is explicitly spaced. Pure compute + stdout.
 // Expected exit: 0.
 // Expected output contains: 47
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\narrow_i32_to_u8_trapping;
 
 data Main {

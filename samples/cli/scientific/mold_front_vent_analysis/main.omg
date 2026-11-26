@@ -5,8 +5,8 @@ use omega\language\core\ProcessExit;
 // Closed stdin is an invalid request; native fixture runs supply data/*.in.
 // Expected exit: 64.
 // Expected output contains: INVALID_INPUT
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use model\fill;
 use model\fill\Cavity;
 use model\fill\valid;

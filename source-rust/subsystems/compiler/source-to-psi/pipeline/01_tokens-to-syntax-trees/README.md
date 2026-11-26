@@ -82,7 +82,7 @@ inspected on 2026-11-16, not a cross-language speed comparison:
 | --- | --- | --- |
 | [Clang](https://github.com/llvm/llvm-project/tree/main/clang/lib/Parse) | `ParseAST.cpp` drives translation-unit parsing; `ParseDecl`, `ParseExpr` and `ParseStmt` files own grammar domains | Make the entry do real coordination and let the reader follow grammar names |
 | [Rust](https://github.com/rust-lang/rust/tree/master/compiler/rustc_parse/src/parser) | Separate expression, item, statement, type, pattern, path and generic parsing | Split by language concepts; avoid our former grammar re-export facade |
-| [Zig](https://github.com/ziglang/zig/blob/master/lib/std/zig/Parse.zig) | A central parser with grammar comments, indexed node tables, extra data and reusable scratch lists | Keep grammar intent near the code; shared scratch and compact storage merit measurements, not automatic adoption |
+| [Zig](https://github.com/ziglang/zig/blob/master/lib/system/zig/Parse.zig) | A central parser with grammar comments, indexed node tables, extra data and reusable scratch lists | Keep grammar intent near the code; shared scratch and compact storage merit measurements, not automatic adoption |
 | [Odin](https://github.com/odin-lang/Odin/blob/master/src/parser.cpp) | A large parser file covers expressions, statements, declarations and package work | A clear filename helps, but one large file does not supply navigable domains at our scale |
 | [Go](https://go.dev/src/cmd/compile/internal/syntax/parser.go) | A central recursive-descent parser with file/declaration entry and precedence-based expression parsing | Keep control flow direct; there is no need to introduce a parser generator |
 

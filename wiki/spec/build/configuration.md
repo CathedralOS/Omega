@@ -166,7 +166,7 @@ package-local concrete satisfiers for Psi execution before successful
 publication. Groups own provider configuration, not new authority. Root grants
 can only be attenuated; selecting a real provider cannot escape virtual backing.
 The group and global `disabled` fields default to false. No registered groups
-means no automatic tests, not an implicit core/std dependency or hidden group.
+means no automatic tests, not an implicit core/system dependency or hidden group.
 Group selection belongs to evaluated build configuration; it does not change
 the target-independent dependency-request and final-join rules.
 

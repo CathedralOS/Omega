@@ -4,7 +4,7 @@ See [scientific validation](../README.md) for the current status of this sampleâ
 
 This complete Omega console application minimizes integer shipping cost for
 three sources and three destinations. It owns its parser, storage, exact solver
-and formatting. It depends only on the stable bundled std Console provider.
+and formatting. It depends only on the stable bundled system Console provider.
 
 Supply is shipped exactly and every demand is met exactly. The input is one
 line containing fifteen whitespace-separated decimal integers: three supplies,

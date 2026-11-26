@@ -18,7 +18,7 @@ use omega\language\core\ProcessExit;
 // Sorting [29, 10, 14, 37, 13] ascending puts the minimum, 10, at index 0.
 // Expected exit: 10.
 
-use omega_language_std\Console;
+use system\Console;
 
 data Main
 requires

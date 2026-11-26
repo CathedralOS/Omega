@@ -7,7 +7,7 @@ The lowered-form checker refuses a construct it cannot judge yet with a
 `terminal_check_tables::Refusal`, which holds the machine and, when the
 construct has one, its source span. The refusal used to reach the user with
 neither: the message named the machine only as text, and no span was set,
-so a refusal inside a dependency such as `std` printed no file at all and the
+so a refusal inside a dependency such as `system` printed no file at all and the
 author had to bisect the dependency's source to find it.
 
 We stage a program whose dependency `kit` (declared package `kernel`) holds

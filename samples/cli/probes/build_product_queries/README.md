@@ -7,6 +7,6 @@ through the `kit` dependency alias.
 
 - `invalid_product_entry` queries `custody_kernel` as a machine.
 - `invalid_product_schema` queries the alias `kit` as a data declaration.
-- `invalid_product_provider` queries `omega::language::std` as a provider.
+- `invalid_product_provider` queries `omega::language::system` as a provider.
 - `invalid_build_in_product` calls `Build::application()` from a Product
   machine. The Product call site has no visible Build declaration.

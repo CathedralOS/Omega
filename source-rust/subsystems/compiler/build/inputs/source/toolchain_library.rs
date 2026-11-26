@@ -1,6 +1,6 @@
 // Toolchain library root discovery and release content-digest verification (`configure`, `root`, `identity`).
 //
-// Locates the compiler's own bundled `source/library` (`core`, `std`, etc.), never a
+// Locates the compiler's own bundled `source/library` (`core`, `system`, etc.), never a
 // requester-local substitute. Release builds enforce `OMEGA_RELEASE_LIBRARY_SHA256`
 // with no checkout fallback. Development builds prefer `OMEGA_DEVELOPMENT_LIBRARY_ROOT`
 // while it still holds `core/`, and otherwise recover `source/library` by walking
@@ -101,7 +101,7 @@ fn validate(root: &Path, expected: Option<&str>) -> Result<PathBuf, String> {
     }
     let root = root.canonicalize().map_err(|error| format!(
         "missing Omega toolchain library at {}: {error}; reinstall the complete bundle or set OMEGA_LIBRARY_ROOT", root.display()))?;
-    if !root.join("core").is_dir() || !root.join("std/build.omg").is_file() {
+    if !root.join("core").is_dir() || !root.join("system/build.omg").is_file() {
         return Err(format!(
             "incomplete Omega toolchain library at {}",
             root.display()

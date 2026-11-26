@@ -6,7 +6,7 @@ Fact: a crash-entry u64 equal to 7 reached through a field of a field discharges
 
 `packet.leaf.bits` is two field steps. The entry equality on that path is the operand `maybe_zero` guards with `crashes Trap value == 0`. `read_bits` publishes no crash ceiling. A single field and a dynamic index are other rows (`crash_entry_representation_view`, `indexed_crash_guard`).
 
-The acceptance command is `omega run --both <place>/main.omg`. Every positive declares exit 0 and binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`. No place depends on `std`.
+The acceptance command is `omega run --both <place>/main.omg`. Every positive declares exit 0 and binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`. No place depends on `system`.
 
 Windows x86-64 measured 2026-10-21 at `ba1d8505b883b1e956ad907068da2a34e8967bae` with `omega run --both`, stdin closed, on an opt-level 1 producer. Root and all nine places exited 0 natively and interpreted. Each reject twin rejected with an uncovered Trap crash route. The compiler was not edited.
 

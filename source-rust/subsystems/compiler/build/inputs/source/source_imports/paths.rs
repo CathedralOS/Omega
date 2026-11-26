@@ -35,10 +35,10 @@ pub fn bundled_core_root() -> Result<PathBuf, Vec<Diagnostic>> {
 /// executing its Build. Its own package name selects that registered root, just
 /// as PackageCompilationInputs::package_name does for a reconciled package.
 pub(super) fn contract_package_prefix(root: &Path, first: &str) -> Result<usize, Vec<Diagnostic>> {
-    if first != "omega_language_std" {
+    if first != "system" {
         return Ok(0);
     }
-    Ok(usize::from(root == bundled_omega_root()?.join("std")))
+    Ok(usize::from(root == bundled_omega_root()?.join("system")))
 }
 
 #[cfg(test)]
@@ -47,10 +47,10 @@ mod contract_package_names {
 
     #[test]
     fn only_the_installed_standard_library_owns_its_name() {
-        let std = bundled_omega_root().unwrap().join("std");
-        assert_eq!(contract_package_prefix(&std, "omega_language_std").unwrap(), 1);
-        assert_eq!(contract_package_prefix(&std, "unrelated").unwrap(), 0);
-        let other = std.join("otherwise_identically_named_package");
-        assert_eq!(contract_package_prefix(&other, "omega_language_std").unwrap(), 0);
+        let system = bundled_omega_root().unwrap().join("system");
+        assert_eq!(contract_package_prefix(&system, "system").unwrap(), 1);
+        assert_eq!(contract_package_prefix(&system, "unrelated").unwrap(), 0);
+        let other = system.join("otherwise_identically_named_package");
+        assert_eq!(contract_package_prefix(&other, "system").unwrap(), 0);
     }
 }

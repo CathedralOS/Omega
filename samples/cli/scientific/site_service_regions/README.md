@@ -47,7 +47,7 @@ the application harness always checks it separately.
 
 From repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's
 `source/library` and use a compiler built from its recorded base. First prepare
-and review the existing std package through the ordinary documented workflow:
+and review the existing system package through the ordinary documented workflow:
 
 ```text
 omega packages update --project samples/cli/independent/site_service_regions --target linux_x86_64

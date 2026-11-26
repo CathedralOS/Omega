@@ -674,7 +674,7 @@ fn a_description_is_made_from_a_source_and_taken_apart_for_a_request() {
             r#"
 data Source<'storage> {{ location: @'storage [u8]; }}
 data Description<'storage> {{ source: Source<'storage>; explicit_alias: bool; alias: @'storage [u8]; }}
-machine build_entry() {{ register(from_source(Source {{ location: "std" }})); }}
+machine build_entry() {{ register(from_source(Source {{ location: "system" }})); }}
 machine from_source<'storage>(source: Source<'storage>) -> Description<'storage> {{
     Description {{ source: source, explicit_alias: false, alias: "" }}
 }}

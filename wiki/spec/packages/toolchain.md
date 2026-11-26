@@ -4,21 +4,21 @@ The file-import root `{omega}/language/core/` is bundled as part of the language
 on it, its version is the language version, and two core versions cannot coexist
 in one graph. This is explicit semantic coupling, not an implicit package default.
 
-Std has no equivalent privilege. It is an ordinary fetchable convenience package
+System has no equivalent privilege. It is an ordinary fetchable convenience package
 that may be replaced, split, omitted, or retired. Its name, repository, lineage,
 path, filenames, and same-spelled declarations confer no compiler authority.
-Freestanding programs need no std, and the compiler-owned Build protocol works
+Freestanding programs need no system, and the compiler-owned Build protocol works
 without it. Package-aware compilation admits only core's magic toolchain mount;
 ordinary libraries use declared dependency edges and package-local imports.
 
 Ownership comes from that resolved graph, not from executing a library's build
-file. Repeated selection of the same std instance preserves one ordinary package
+file. Repeated selection of the same system instance preserves one ordinary package
 owner; core preserves its exact toolchain owner. Neither may collapse onto an
 anonymous root's owner or acquire authority merely because a default build
 supplied it. [Default builds](../build/declarations.md#default-builds-and-anonymous-owner-identity)
 preserve supplied provenance and use content identity only when none exists.
 
-Core is available in both checked build and product contexts. Std use in build
+Core is available in both checked build and product contexts. System use in build
 code requires a build dependency; product use requires an ordinary dependency;
 both uses require both edges. Neither edge grants ambient host services or makes
 host and target type instances interchangeable. See

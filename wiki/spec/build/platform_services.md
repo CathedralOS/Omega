@@ -94,7 +94,7 @@ Named decision: `portable-service-per-family-binding-carrier`, settled
    `WindowsHandle`) and never appear in the portable API. Operations that exist
    on only one family are reachable only through that family's raw trait.
 3. **Target implementations.** Ordinary named implementations
-  (`source/library/std/targets/<target>/`) implement the portable service over
+  (`source/library/system/targets/<target>/`) implement the portable service over
   the raw service. Build selects them through explicit target-keyed provider
   rows; neither the folder name nor an OS-prefixed machine declaration supplies
   selection. All translation between the portable shape and the OS shape

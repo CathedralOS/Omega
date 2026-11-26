@@ -9,7 +9,7 @@ use omega\language\core\ProcessExit;
 // explicit state arguments, not persistent fields.
 // Expected exit: 111.
 
-use omega_language_std\Console;
+use system\Console;
 
 data Main { }
 machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {

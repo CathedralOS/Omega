@@ -1,7 +1,7 @@
 # Synthetic instrument hysteresis
 
 IND15 is a complete console application with private calibration, trace analysis,
-parsing and reporting modules. It uses only the ordinary bundled std console
+parsing and reporting modules. It uses only the ordinary bundled system console
 provider. No numerics package or active worker is a dependency.
 
 Feed ASCII `stimulus response_milli` records, each terminated by LF, then EOF.

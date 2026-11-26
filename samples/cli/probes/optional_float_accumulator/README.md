@@ -3,7 +3,7 @@
 Depend-free compile-scope probe: an `Optional<f64>` presence-case dispatch
 inside an f64 accumulation loop. It is the first sample to exercise
 `Optional` as user data (its only prior uses are internal carriers inside
-the std packages) and to run a float accumulator across a state-machine
+the system packages) and to run a float accumulator across a state-machine
 counter without the standard-library package.
 
 `term(n)` returns `Optional::Some` for `n` in 1..=8 — the first eight

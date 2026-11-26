@@ -15,7 +15,7 @@ builtin arithmetic fallback — only the machines homed in the domain serve
   `Coordinate<3>` machines (the mix itself is a fail-corpus shape)
 
 The machine computes `(40 + 2) * 2 == 84` on axis 7, then `20 + 1 == 21`
-on axis 3. Compile-checked only (no std dependency, no ProcessExit
+on axis 3. Compile-checked only (no system dependency, no ProcessExit
 provider):
 
 ```sh

@@ -6,7 +6,7 @@ use omega\language\core\ProcessExit;
 // Expected output contains: ERROR missing-sequence
 // Independent bounded local biological alignment. Every score and path is
 // computed from stdin at runtime; no fixture selection or reference imports.
-use omega_language_std\Console;
+use system\Console;
 use input\sequence;
 use alignment\local;
 use output\report;

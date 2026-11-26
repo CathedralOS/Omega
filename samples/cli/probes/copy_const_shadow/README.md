@@ -13,7 +13,7 @@ name shadowing — the first sample declaring all three.
 
 The machine reads the constant twice, shadows it twice, and accepts when
 every read agrees on 1 (constant) or 9 (parameter). Compile-checked only
-(no std dependency, no ProcessExit provider):
+(no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/copy_const_shadow/main.omg

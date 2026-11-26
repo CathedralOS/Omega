@@ -5,8 +5,8 @@ use omega\language\core\max_i32;
 
 // Expected exit: 0.
 // Expected output contains: trace rows ambiguous plateaus reversals max_width 0 0 0 0 0
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use domain\calibration;
 use domain\calibration\Calibration;
 use domain\calibration\initialize;

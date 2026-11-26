@@ -1,6 +1,6 @@
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
-use omega_language_std\Console;
+use system\Console;
 data Model { z: [f64; 5]; }
 data Main { model: Model; }
 machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {

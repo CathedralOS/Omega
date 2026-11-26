@@ -82,7 +82,7 @@ omega run --both --keep "$project/main.omg" < "$project/data/circular.stdin"
 /path/to/terminal-observer "$project" /path/to/terminal-observations
 ```
 
-Std source-risk disclosures do not authorize host access. Package preparation
+System source-risk disclosures do not authorize host access. Package preparation
 and the Terminal observer retain the normal acceptance, executable identity,
 provider, authority and custody checks. Denial is a blocker. `run --both` checks
 termination parity when both routes complete. Its default reference work can be

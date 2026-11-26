@@ -1,5 +1,5 @@
 use omega\language\core\ProcessExit;
-use omega_language_std\Console;
+use system\Console;
 
 public boundary trait Reader { machine read() -> i32 reaches none crashes none; }
 public ProviderReaderImplementation satisfies Reader {

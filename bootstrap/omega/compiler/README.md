@@ -734,7 +734,7 @@ retained as an exact span on the same machine row; selection and activation
 remain later phases.
 
 A data declaration can bind lifetimes and forward them through a named field
-type. In `source/library/std/calling.omg`, the `Rejected` case of
+type. In `source/library/system/calling.omg`, the `Rejected` case of
 `BoundaryPlanResult<'reason>` stores a `CallingPolicyRejection<'reason>`.
 The parser retains each binder and argument in source order. The checker
 rejects duplicate binders, unbound field lifetimes and applications with the
@@ -745,7 +745,7 @@ See [lifetimes and carried borrows](../../../wiki/spec/language/lifetimes.md).
 A nongeneric domain declaration retains its visibility, name, carrier type,
 and ordered predicate expressions. For example,
 `public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);`
-in `source/library/std/calling.omg` retains the slice carrier and the call on
+in `source/library/system/calling.omg` retains the slice carrier and the call on
 its borrowed subject. A declaration ending directly in `;` has zero predicates.
 The parser rejects the retired subject binder and brace body. The compiler
 reports incomplete at the domain keyword until it checks the carrier and its
@@ -811,7 +811,7 @@ passing its own signed parameter. Changing that value or shadowing the primitive
 leaves this forwarding subset. The v1 package installs neither a provider nor
 a process domain. Calling the requirement, primitive or wrapper still refuses.
 [Provider checker](resolution/providers.epsilon) ·
-[Standard provider](../../../source/library/std/process_exit.omg)
+[Standard provider](../../../source/library/system/process_exit.omg)
 
 The same proof of an empty default domain applies to ordinary checked
 machines. A machine returning such a type can end in a checked Trap or

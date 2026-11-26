@@ -1,5 +1,5 @@
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 use planner\solver\TransportPlan;
 
 // Fixed signed four-digit objective keeps the table machine-readable. All

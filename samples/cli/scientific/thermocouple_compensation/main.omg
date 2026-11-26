@@ -18,7 +18,7 @@ use domain\model\enumerate;
 use domain\report;
 use domain\report\field;
 use omega\language\core\F64::from_i32;
-use omega_language_std\Console;
+use system\Console;
 
 data Application { reader: Reader; }
 

@@ -13,7 +13,7 @@ use omega\language\core\ProcessExit;
 // [5, 10, 15, 20, 25] the reverse sum is 75.
 // Expected exit: 75.
 
-use omega_language_std\Console;
+use system\Console;
 
 data Main
 requires self.i >= -1 && self.i <= 4

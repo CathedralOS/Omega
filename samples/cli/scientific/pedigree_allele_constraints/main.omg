@@ -5,7 +5,7 @@ use omega\language\core\ProcessExit;
 // Empty stdin is an invalid request (the sample harness EOF case).
 // Expected exit: 64.
 // Expected output contains: INVALID INPUT
-use omega_language_std\Console;
+use system\Console;
 use domain\model;
 use domain\model\Pedigree;
 use domain\input;

@@ -17,7 +17,7 @@ never overflow. Arithmetic and oracle tolerances are exactly zero.
 
 The private search enumerates base-three words in lexicographic action order
 (-1, 0, 1), retaining a candidate only on strict cost improvement. It owns all
-optimization and storage; it imports only stable std console facilities.
+optimization and storage; it imports only stable system console facilities.
 `controller/model.omg` owns the model and limits, `controller/search.omg` owns
 exhaustive optimization, `data/fixtures.omg` owns scenarios and `io/render.omg`
 formats computed results. Build metadata binds `main` explicitly.

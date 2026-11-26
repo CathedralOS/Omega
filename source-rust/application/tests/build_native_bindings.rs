@@ -262,7 +262,7 @@ fn a_program_receives_the_bindings_of_the_standard_library() {
     );
 }
 
-/// The same Console program cross-compiles for Windows ARM64: std selects its
+/// The same Console program cross-compiles for Windows ARM64: system selects its
 /// shared Windows console adapter there, reached through MSVCRT imports placed
 /// by AAPCS64. No ARM64 host runs it here.
 #[test]

@@ -12,7 +12,7 @@ first sample reading and writing `[i32; N]` by index.
 - The guard accepts only the rewritten sum: 10 + 40 + 20 = 70 — pinning
   both the literal assignment and the per-element write.
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/indexed_storage/main.omg

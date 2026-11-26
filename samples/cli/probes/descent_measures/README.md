@@ -14,7 +14,7 @@ shipped module.
   over `embed`, which neither Wrapping nor Saturating could stand in for.
 
 The entry accepts only `countdown(4, 0) == 10` and `climb(4, 0, 0) == 4`.
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/descent_measures/main.omg

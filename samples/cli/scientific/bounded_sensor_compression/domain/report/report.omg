@@ -3,7 +3,7 @@ use omega\language\core\ProcessExit;
 use domain\model\SensorBlock;
 use domain\model\SensorStream;
 use domain\model\InputBuffer;
-use omega_language_std\Console;
+use system\Console;
 
 // Render actual computed integers through the existing byte provider.
 public machine number(value: i32) reaches StandardOutput

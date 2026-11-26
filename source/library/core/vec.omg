@@ -86,7 +86,7 @@ boundary trait VecAccess {
 
     // Infallible under its proof obligation, matching
     // `FixedVecAccess::pop`. A future dynamic-failure `try_pop` may return
-    // `Optional<T>` from std.
+    // `Optional<T>` from system.
     machine pop<T>(items: @mutable Vec<T>) -> T
     reaches none
     requires

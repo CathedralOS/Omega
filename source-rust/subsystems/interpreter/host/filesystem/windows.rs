@@ -264,7 +264,7 @@ impl Call {
                     && scalar(arguments[4], 0)
                     && scalar(arguments[5], 2)
             }
-            // std reopens a pinned original with exactly its read or write
+            // system reopens a pinned original with exactly its read or write
             // ceiling, full sharing and no flags; its granted mask came from
             // NtQueryObject's ObjectBasicInformation (class 0, 56 bytes).
             b"ReOpenFile" => {

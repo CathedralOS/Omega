@@ -1,7 +1,7 @@
 // EOF-terminated signed integers, |token| <= 1000000; at most 4095 bytes.
 use omega\language\core\StandardInput;
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 
 
 public data Input { tokens: [i32; 98]; count: u64; valid: bool; negative: bool; }

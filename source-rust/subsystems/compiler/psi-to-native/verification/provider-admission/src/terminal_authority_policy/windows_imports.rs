@@ -227,7 +227,7 @@ mod tests {
             TerminalAuthorityDisposition::from_filesystem_facets(Facet::ALL)
         );
 
-        // These actual std imports previously entered the Time and Console
+        // These actual system imports previously entered the Time and Console
         // cohorts after filesystem lookup. Preserve their physical meanings
         // while preventing those method names from classifying other exports.
         for (export, classes) in [

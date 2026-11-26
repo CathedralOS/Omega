@@ -8,8 +8,8 @@ machine hosted_entry() reaches ProcessExit {
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "theorem_proof_parameters");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
-        location: "../../../../../../../../../../../source/library/std"
+    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+        location: "../../../../../../../../../../../source/library/system"
     }));
     Build::bind(builder, windows_x86_64\ProgramEntry, hosted_entry);
     Build::bind(builder, windows_arm64\ProgramEntry, hosted_entry);

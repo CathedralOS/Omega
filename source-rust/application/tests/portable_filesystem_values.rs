@@ -150,7 +150,7 @@ Build::bind(builder, macos_arm64\ProgramEntry, main);
 #[test]
 fn raw_windows_filesystem_methods_publish_the_shared_path_domain() {
     let project = Project::new("windows-path-signatures");
-    let library = support::repository_root().join("source/library/std");
+    let library = support::repository_root().join("source/library/system");
     for file in ["filesystem_host.omg", "windows_filesystem_host.omg"] {
         project.write(file, &std::fs::read_to_string(library.join(file)).unwrap());
     }
@@ -166,7 +166,7 @@ fn raw_windows_filesystem_methods_publish_the_shared_path_domain() {
 #[test]
 fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
     let project = Project::new("values");
-    let library = support::repository_root().join("source/library/std");
+    let library = support::repository_root().join("source/library/system");
     let main = include_str!("fixtures/filesystem/run/windows_adapter_values/main.omg");
     project.write("main.omg", main);
     stage_adapter_operations(&project, &library);
@@ -193,16 +193,16 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
 #[test]
 fn windows_directory_names_retain_unsigned_counts_and_the_first_error() {
     let project = Project::new("windows-directory-names");
-    let stdlib = support::repository_root().join("source/library/std");
-    let library = stdlib.join("targets/windows_x86_64");
-    let host = std::fs::read_to_string(stdlib.join("windows_filesystem_host.omg")).unwrap();
+    let system_library = support::repository_root().join("source/library/system");
+    let library = system_library.join("targets/windows_x86_64");
+    let host = std::fs::read_to_string(system_library.join("windows_filesystem_host.omg")).unwrap();
     project.write(
         "windows_filesystem_host.omg",
         &declaration(&host, "public data WindowsDirectoryCountResult "),
     );
     project.write(
         "filesystem_host.omg",
-        &std::fs::read_to_string(stdlib.join("filesystem_host.omg")).unwrap(),
+        &std::fs::read_to_string(system_library.join("filesystem_host.omg")).unwrap(),
     );
     project.write(
         "control.omg",
@@ -240,7 +240,7 @@ fn windows_canonicalize_preserves_a_long_resolved_path_and_short_buffers() {
         "native.omg",
         include_str!("fixtures/filesystem/run/windows_long_canonical/native.omg"),
     );
-    let library = support::repository_root().join("source/library/std/targets/windows_x86_64");
+    let library = support::repository_root().join("source/library/system/targets/windows_x86_64");
     let query = std::fs::read_to_string(library.join("windows_filesystem_path_query.omg")).unwrap();
     let mut program =
         include_str!("fixtures/filesystem/run/windows_long_canonical/main.omg").to_owned();
@@ -259,7 +259,7 @@ fn windows_canonicalize_preserves_a_long_resolved_path_and_short_buffers() {
 #[test]
 fn windows_input_paths_preserve_a_surrogate_pair_at_the_native_limit() {
     let project = Project::new("windows-input-path");
-    let library = support::repository_root().join("source/library/std/targets/windows_x86_64");
+    let library = support::repository_root().join("source/library/system/targets/windows_x86_64");
     project.write(
         "windows_filesystem_paths.omg",
         &std::fs::read_to_string(library.join("windows_filesystem_paths.omg")).unwrap(),
@@ -319,7 +319,7 @@ fn portable_filesystem_rules_hold_on_each_engine() {
 #[test]
 fn posix_enumeration_filters_real_names_within_each_returned_batch() {
     let project = Project::new("posix-directory-names");
-    let library = support::repository_root().join("source/library/std");
+    let library = support::repository_root().join("source/library/system");
     for file in ["filesystem_host.omg", "posix_directory_records.omg"] {
         project.write(file, &std::fs::read_to_string(library.join(file)).unwrap());
     }

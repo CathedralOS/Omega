@@ -15,7 +15,7 @@ use omega\language\core\ProcessExit;
 //
 // Bytes: '(' 40, ')' 41, '*' 42, '+' 43, '-' 45, '0'..'9' 48..57.
 
-use omega_language_std\Console;
+use system\Console;
 
 // Where `apply` returns once it has reduced one operator.
 data Resume {

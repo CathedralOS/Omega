@@ -4,7 +4,7 @@
 `omega::language::core::float_operations`. A copy of an `f64` is not this fact.
 The values are 212.0 and 2.0, so the comparison is false.
 
-Owning task: **OPERATOR-BOUNDARY-CALLS**. This folder is the std-free witness.
+Owning task: **OPERATOR-BOUNDARY-CALLS**. This folder is the system-free witness.
 
 Every place copies that fact sentence and the same operation: the program
 compares the two `f64` values 212.0 and 2.0 with `==` and reaches `done()`
@@ -155,7 +155,7 @@ structural moves.
 Native execution on the four authored hosted targets: this host pins
 `macos_x86_64`, and `omega run --target` is compile-publication only, so it
 supplies no runtime claim. The rest of OPERATOR-BOUNDARY-CALLS is untouched
-here — the std-dependent `pending/arithmetic/float_computation_no_route` matrix
+here — the system-dependent `pending/arithmetic/float_computation_no_route` matrix
 still does not execute, and the float/receiver signature, recovered
 specialized-operator, directed fused-multiply-add, receiver-bearing
 requirement, and checked-interpreter multi-satisfier frontiers remain. No place

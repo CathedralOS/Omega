@@ -17,7 +17,7 @@ arrays by value through calls.
 Note: `@mutable [T]` open slices take arbitrary length, so indexed access
 needs a provable bound — `@mutable [i32; 3]` keeps the length in the type.
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/slice_borrow_tally/main.omg

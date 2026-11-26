@@ -5,9 +5,9 @@
 //
 // Run: bun tools/verify.ts
 // Requires the reference compiler at OMEGA_EXE (default: the sibling repo's
-// debug build) and the bundled std at OMEGA_STD for figures that `use` it.
+// debug build) and the bundled system at OMEGA_SYSTEM for figures that `use` it.
 // OMEGA_LIBRARY_ROOT pins the compiler's bundled `omega::` packages; it
-// defaults to the parent of OMEGA_STD.
+// defaults to the parent of OMEGA_SYSTEM.
 //
 // Fixture dirs persist under scratch/verify/ so each figure's `omega.lock`
 // survives between runs. Since 2026-10, binding an entry slot whose schema
@@ -16,7 +16,7 @@
 // `accept`, and `omega packages update --resume` publishes the lock. That ceremony
 // re-runs only when a check reports missing or stale acceptance.
 //
-// Compiles run in parallel (cap 4): a cold fixture that registers a dependency on std takes
+// Compiles run in parallel (cap 4): a cold fixture that registers a dependency on system takes
 // minutes because each fresh package location re-checks the whole dependency
 // closure, so serial is the slow way to pay that cost.
 
@@ -26,8 +26,8 @@ import { join } from "path";
 
 const REPO = join(import.meta.dir, "..", "..", "..");
 const OMEGA = process.env.OMEGA_EXE ?? join(REPO, "target", "debug", process.platform === "win32" ? "omega.exe" : "omega");
-const STD = process.env.OMEGA_STD ?? join(REPO, "source", "library", "std");
-if (!process.env.OMEGA_LIBRARY_ROOT) process.env.OMEGA_LIBRARY_ROOT = join(STD, "..");
+const SYSTEM = process.env.OMEGA_SYSTEM ?? join(REPO, "source", "library", "system");
+if (!process.env.OMEGA_LIBRARY_ROOT) process.env.OMEGA_LIBRARY_ROOT = join(SYSTEM, "..");
 const JOBS = 4;
 const FIXTURES = join(import.meta.dir, "..", "scratch", "verify");
 
@@ -112,24 +112,24 @@ for (const ch of chapters) {
     const f = fig as { filename?: string; companion?: string };
     const dir = join(FIXTURES, `${ch.id}-s${si + 1}`);
     mkdirSync(dir, { recursive: true });
-    // build.omg excerpts display a relative std location like the real
-    // samples; verification substitutes the actual std path.
+    // build.omg excerpts display a relative system location like the real
+    // samples; verification substitutes the actual system path.
     const code = f.filename === "build.omg"
-      ? fig.code.replace(/location:\s*"[^"]*"/, `location: ${JSON.stringify(STD).replace(/\\/g, "/")}`)
+      ? fig.code.replace(/location:\s*"[^"]*"/, `location: ${JSON.stringify(SYSTEM).replace(/\\/g, "/")}`)
       : fig.code;
     writeFileSync(join(dir, f.filename ?? "main.omg"), code + "\n");
     if (f.companion) writeFileSync(join(dir, "main.omg"), f.companion + "\n");
-    const needsStd = /omega_language_std|omega::/.test(fig.code) || f.companion != null;
+    const needsSystem = /\{system\}\/|\bsystem\\|omega::/.test(fig.code) || f.companion != null;
     const buildPath = join(dir, "build.omg");
     let buildCode: string | null = null;
     if (f.filename === "build.omg") {
       buildCode = code;
-    } else if (needsStd) {
+    } else if (needsSystem) {
       const entry = /\bmachine start\b/.test(fig.code) ? "start" : "main";
       buildCode =
         `machine build(builder: @mutable Build) {\n` +
         `    Build::application(builder, "omegalearn_fixture");\n` +
-        `    let package_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: ${JSON.stringify(STD).replace(/\\/g, "/")} }));\n` +
+        `    let package_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: ${JSON.stringify(SYSTEM).replace(/\\/g, "/")} }));\n` +
         ["windows_x86_64", "linux_x86_64", "linux_arm64", "macos_arm64"]
           .map((t) => `    Build::bind(builder, ${t}::ProgramEntry, ${entry});\n`).join("") +
         `}\n`;

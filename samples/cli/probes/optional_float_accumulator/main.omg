@@ -1,6 +1,6 @@
 // optional_float_accumulator: Optional<f64> presence-case dispatch inside an
 // f64 accumulation loop — the first sample to exercise Optional as user data
-// (its only prior uses are internal Option carriers inside std packages) and
+// (its only prior uses are internal Option carriers inside system packages) and
 // to run a float accumulator across a state-machine counter without the
 // standard-library package.
 //

@@ -26,8 +26,8 @@ use view\render_prompt;
 use view\render_room;
 use view\render_title;
 use omega\language\core\ProcessExit;
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 
 data Game {
     dungeon: Dungeon;

@@ -34,7 +34,7 @@ correct missing-input rejection (exit 2); the 23-case validator exercises foreca
 `demography/input.omg` owns the bounded streaming parser; `demography/report.omg` owns
 signed decimal CSV reporting. `main.omg` reads the input and drives the forecast.
 `build.omg` binds the entry to the documented Linux x86-64 program slot and uses
-the existing std Console provider. Output is stdout CSV suitable for redirection.
+the existing system Console provider. Output is stdout CSV suitable for redirection.
 
 Existing samples were compared before authoring: `borrowed_sum_population`
 exercises linear values and borrowed population of a case carrier, rather than

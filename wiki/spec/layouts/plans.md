@@ -93,7 +93,7 @@ to host services, private source structure, or compiler storage.
 `omega\language\core\layout`. It is ordinary data, not a certificate that its
 contents are valid. A returned plan must validate before storage, projection,
 recast, or ABI consumers use it. A package-defined implementation has the same
-rights and obligations as one shipped in core or std.
+rights and obligations as one shipped in core or system.
 
 For example, an intentionally sparse Darwin view may select:
 
@@ -335,7 +335,7 @@ machine consume(descriptor: @CLayout<Descriptor>) {
 
 `CAbiPolicy<T>` and `PackedPolicy<T>` denote ordinary generic named
 implementations. Their package names and bodies are not compiler syntax.
-Core or std may supply C layout; community packages may supply other policies
+Core or system may supply C layout; community packages may supply other policies
 without changing the compiler while using its existing placement vocabulary.
 Nested representation choices are explicit parts of policy composition;
 an outer policy cannot accidentally inherit an unrelated native child layout.

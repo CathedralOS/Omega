@@ -1,5 +1,5 @@
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 use domain\tables;
 use domain\tables\Inference;
 machine decimal(value: u64 in Wrapping) reaches StandardOutput {

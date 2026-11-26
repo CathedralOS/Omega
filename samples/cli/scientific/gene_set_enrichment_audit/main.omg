@@ -2,7 +2,7 @@ use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Runtime data is supplied through five bounded newline-terminated rows.
-use omega_language_std\Console;
+use system\Console;
 use domain\sets;
 use domain\sets\Parsed;
 use domain\sets\size;

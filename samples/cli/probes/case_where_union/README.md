@@ -15,7 +15,7 @@ data — the first sample declaring `case ... where` bounds.
 
 The machine stores Integer(7) and Boolean(true) at their own
 instantiations, destructures each, and accepts on 7 && true.
-Compile-checked only (no std dependency):
+Compile-checked only (no system dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/case_where_union/main.omg

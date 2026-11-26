@@ -16,7 +16,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omega-definition-'));
 const files = {
   'source/library/core/extent.omg': 'public data Extent { base: addr; length: u64; }\npublic domain Extent::Granted;\n',
   'source/library/core/integer.omg': 'public machine max<T>() -> T;\n',
-  'source/library/std/console.omg': 'public boundary trait Console {\n    machine write_line(text: @[u8]);\n}\n',
+  'source/library/system/console.omg': 'public boundary trait Console {\n    machine write_line(text: @[u8]);\n}\n',
   'app/build.omg': 'machine build(builder: @mutable Build) {\n    dependency(Source::Path { location: "../dep" });\n}\n',
   'dep/build.omg': 'machine build(builder: @mutable Build) {}\n',
   'dep/sound/sound.omg': 'public machine play(note: u64);\n',
@@ -29,7 +29,7 @@ const files = {
   'app/main.omg': [
     'use calling.omg as abi;',
     'use omega\\language\\core\\Extent;',
-    'use omega_language_std\\Console;',
+    'use system\\Console;',
     'use {dep}/sound/sound.omg as sound;',
     'use dep\\wave\\Wave;',
     'data Main { extent: Extent; count: u64; }',
@@ -83,7 +83,7 @@ test('the package is searched before other packages', async () => {
 test('library imports and module-qualified library names', async () => {
   assert.deepEqual(await where('extent: Ext$ent'), ['source/library/core/extent.omg:1']);
   assert.deepEqual(await where('integer::ma$x'), ['source/library/core/integer.omg:1']);
-  assert.deepEqual(await where('Console::write_$line'), ['source/library/std/console.omg:2']);
+  assert.deepEqual(await where('Console::write_$line'), ['source/library/system/console.omg:2']);
 });
 
 test('dependency packages from build.omg locations', async () => {

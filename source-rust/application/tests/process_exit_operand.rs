@@ -7,7 +7,7 @@
 //! The spec rules: `wiki/spec/language/process_exit.md` (the canonical
 //! requirement ends the process with its code), and
 //! `wiki/spec/language/effects.md`, "Process-exit reach". Each program stages
-//! a package that depends on the bundled `std`, which provides the exit, and
+//! a package that depends on the bundled `system`, which provides the exit, and
 //! runs it with `omega run --both build.omg`.
 
 mod support;
@@ -15,11 +15,11 @@ mod support;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::process::{Command, Stdio};
 
-/// Stage `main` with a Build that depends on the bundled `std` and binds
+/// Stage `main` with a Build that depends on the bundled `system` and binds
 /// `main` on every hosted target, run it both ways, and return the exit
 /// status and everything printed.
 fn run(name: &str, main: &str) -> (Option<i32>, String) {
-    let library = support::repository_root().join("source/library/std");
+    let library = support::repository_root().join("source/library/system");
     let library = library.to_string_lossy().replace('\\', "/");
     let application = name.replace('-', "_");
     let build = format!(

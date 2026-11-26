@@ -2,8 +2,8 @@ use omega\language\core\StandardInput;
 use domain\model\SensorBlock;
 use domain\model\SensorStream;
 use domain\model\InputBuffer;
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 
 // Finite binary stdin protocol. One lookahead rejects over-capacity input.
 public machine read_input(input: @mutable InputBuffer) -> bool reaches StandardInput

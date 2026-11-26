@@ -19,7 +19,7 @@ use domain\report;
 use domain\report\integer;
 use domain\report\report;
 use domain\report\logrank_report;
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\F64::from_i32;
 use omega\language\core\I32::from_f64;
 

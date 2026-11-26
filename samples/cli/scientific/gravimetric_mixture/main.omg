@@ -5,8 +5,8 @@ use omega\language\core\ProcessExit;
 // Empty stdin is a malformed record; nominal.txt has authored exit 0.
 // Expected exit: 2.
 // Expected output contains: INVALID: record
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use omega\language\core\I32::from_f64;
 use domain\mixture;
 use domain\mixture\Mixture;

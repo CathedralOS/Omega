@@ -9,8 +9,8 @@ use omega\language\core\ProcessExit;
 // the just-added Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: O
-use omega_language_std\Console;
-use omega_language_std\Clock;
+use system\Console;
+use system\Clock;
 
 data Main
 requires

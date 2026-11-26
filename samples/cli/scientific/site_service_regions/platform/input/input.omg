@@ -1,6 +1,6 @@
 use omega\language\core\StandardInput;
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 use omega\language\core\F64::from_i32;
 public data Reader { valid: bool; value: f64; }
 // A whitespace-separated signed integer, bounded to [-100,100]. This parser

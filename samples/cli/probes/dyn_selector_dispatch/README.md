@@ -10,7 +10,7 @@ parameter.
 - `CircleShape` reports 9 and `SquareShape` reads the item's `sides`, so
   `9 * 10 + 4 == 94` proves both selections reach their own rows.
 
-The machine is compile-checked only (no std dependency, no ProcessExit
+The machine is compile-checked only (no system dependency, no ProcessExit
 provider):
 
 ```sh

@@ -1,7 +1,7 @@
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete intended-invalid control: an unproved exact unsigned underflow.
-use omega_language_std\Console;
+use system\Console;
 data Invalid { }
 machine main(application: @mutable Invalid) reaches ProcessExit + StandardOutput {
     let impossible: u64 = 0 - 1;

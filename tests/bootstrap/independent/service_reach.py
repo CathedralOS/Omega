@@ -160,8 +160,8 @@ def provider_cases():
     service = (core / 'process_exit.omg').read_bytes()
     bottom = (core / 'never.omg').read_bytes()
     primitive = (core / 'process_exit_native.omg').read_bytes()
-    provider = (ROOT / 'source/library/std/process_exit.omg').read_bytes()
-    packages = [('app', 0), ('omega_language_core', 1), ('omega_language_std', 2)]
+    provider = (ROOT / 'source/library/system/process_exit.omg').read_bytes()
+    packages = [('app', 0), ('omega_language_core', 1), ('system', 2)]
     paths = ['main.omg', 'process_exit.omg', 'never.omg', 'process_exit_native.omg', 'process_exit.omg']
     marker = b'use omega\\language\\core\\ProcessExit; machine main()->u8 reaches ProcessExit {42}'
 
@@ -315,7 +315,7 @@ def rooted_application_cases():
     encode = runpy.run_path(str(ROOT / 'source/application/construction/construct.py'))['encode']
     core = ROOT / 'source/library/core'
     service = (core / 'process_exit.omg').read_bytes()
-    wrapper = (ROOT / 'source/library/std/process_exit.omg').read_bytes()
+    wrapper = (ROOT / 'source/library/system/process_exit.omg').read_bytes()
     default = (core / 'defaults/build.omg').read_bytes()
     packages = [('app', 0), ('core', 1)]
     product_core = [(1, service), (1, (core / 'never.omg').read_bytes()),

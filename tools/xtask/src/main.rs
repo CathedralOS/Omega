@@ -78,7 +78,7 @@ verification and gates:
   check-rules               Verify commit lane, PR provenance, ratchets, and board hygiene
   check-boundary            Verify native/runtime production dependency and Psi/Omega boundaries
   pipeline-contracts        Inventory or check reviewed pipeline fields and exports
-  check-portable-services   Diff std's POSIX and Windows adapters for each portable call against a baseline
+  check-portable-services   Diff system's POSIX and Windows adapters for each portable call against a baseline
   sample-gate               Run differential native + Psi sample verification
   qualify                   Run exact sample selections with retained producer evidence
   sweep                     Run omega --check over the programs and group where each one stops;

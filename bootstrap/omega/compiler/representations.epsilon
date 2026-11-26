@@ -245,7 +245,7 @@ data OmegaUseSyntax {
 // share a buffer and each keeps its own lexical scope.
 data OmegaSourcePackage {
     name: OmegaRelativeSpan;
-    // Invocation-owned trust: ordinary=0, toolchain core=1, toolchain std=2.
+    // Invocation-owned trust: ordinary=0, toolchain core=1, toolchain system=2.
     role: i32;
 }
 

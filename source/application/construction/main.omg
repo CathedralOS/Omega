@@ -4,7 +4,7 @@ use build_sources.omg;
 use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
 use {omega_compiler}/compiler.omg as driver;
-use {omega_language_std}/console.omg;
+use {system}/console.omg;
 use {psi}/pipeline/source_files_to_tokens/lexer.omg;
 use {psi}/representations/source_files/source.omg as source_files;
 

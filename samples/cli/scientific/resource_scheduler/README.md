@@ -67,14 +67,14 @@ mbx build -p omega
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=target/debug/omega
 $OMEGA update --project samples/cli/independent/resource_scheduler --target linux_x86_64
-# Read the emitted review, accept the existing std entry/console requirements,
+# Read the emitted review, accept the existing system entry/console requirements,
 # and use update --resume if the update requests that review.
 $OMEGA --check --target linux_x86_64 samples/cli/independent/resource_scheduler/main.omg
 $OMEGA run --both --keep samples/cli/independent/resource_scheduler/main.omg < samples/cli/independent/resource_scheduler/data/diamond.input
 ```
 
 Use the actual target directory if the build system selects another location.
-The build binds the ordinary std program entry for Linux x86-64/arm64, macOS
+The build binds the ordinary system program entry for Linux x86-64/arm64, macOS
 x86-64/arm64 and Windows x86-64. This task validates Linux x86-64; other hosts
 need their own executions. The commands above use a POSIX shell; on Windows
 use the equivalent environment assignment and input redirection.

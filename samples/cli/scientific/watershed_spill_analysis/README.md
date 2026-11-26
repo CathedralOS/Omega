@@ -7,7 +7,7 @@ of single decimal elevation digits on stdin and close input. Spaces, tabs, LF
 and CR are allowed. Exactly 25 digits are required; all other bytes, truncated
 input and extra heights produce exit 2 and one error line. No worker library or
 candidate is imported. Private storage, minimax solver, drainage and decimal
-rendering live in this directory. The only dependency is stable bundled std.
+rendering live in this directory. The only dependency is stable bundled system.
 
 The application emits four 5×5 integer grids: `filled` elevations, `outlets`
 (catchment labels), `parents` (drainage cell indices) and `volumes` (storage by

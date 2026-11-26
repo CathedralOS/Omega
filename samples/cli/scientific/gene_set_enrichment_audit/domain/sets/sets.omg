@@ -1,7 +1,7 @@
 // Ten synthetic IDs. Masks are private bounded set storage, not gene biology.
 use omega\language\core\StandardInput;
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 
 public data Parsed [copy] { mask: u64 in Wrapping; duplicates: u64 in Wrapping; valid: bool; }
 

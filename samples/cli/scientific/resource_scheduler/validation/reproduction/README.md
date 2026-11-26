@@ -10,7 +10,7 @@ Main::main has no executable body
 state graph: terminator: guarded jump successors: loan transfer
 ```
 
-The full sources and normal std build binding are retained here. Its intended
+The full sources and normal system build binding are retained here. Its intended
 behavior is stdout `TEST\n`, empty stderr and exit 0. The failure was reproduced
 with a compiler built from that exact base, independently of active workers.
 The successor planner requests a Reference carrier for the bounded byte view,

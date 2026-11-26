@@ -14,7 +14,7 @@ cases, and the first `let { ... as ... }` destructure.
 
 The machine stores a Treasure event, checks the default common field,
 destructures a 30/40/5 point, and accepts on 30 + 40 == 70.
-Compile-checked only (no std dependency):
+Compile-checked only (no system dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/mixed_case_ledger/main.omg

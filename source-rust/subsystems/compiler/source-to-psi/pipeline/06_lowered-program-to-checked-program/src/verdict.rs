@@ -2311,7 +2311,7 @@ fn site_of(
 /// The names and source correspondence of one judged compilation part, used
 /// to say where a refusal is. A refusal leaves the checker as a diagnostic
 /// that a person must be able to find, even inside a dependency such as
-/// `std`: `locate` names its machine and, when the refusal has no span of
+/// `system`: `locate` names its machine and, when the refusal has no span of
 /// its own, places it at its construct or else at the machine's declaration.
 /// Machine identities are local to one part, so a roster serves only the
 /// refusals of the elaboration it was taken from.

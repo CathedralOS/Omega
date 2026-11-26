@@ -12,7 +12,7 @@ producing values from `match` instead of dispatching transitions.
 - Match results bind through `let` and through fields on `@mutable`
   carriers (`Holder::replace` writes `holder.category` from a match).
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/match_expr_ledger/main.omg

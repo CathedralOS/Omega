@@ -15,7 +15,7 @@ it.
   propagates it and `wrapper` covers it by declaration.
 - The entry calls both on the dormant path (right = 0 ≥ 0).
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/boundary_crash_route/main.omg

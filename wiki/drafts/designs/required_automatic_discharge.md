@@ -105,7 +105,7 @@ expresses.
   non-strict one was proved; an index bounded by the wrong length.
 - A beyond-the-floor corpus, including `halves` above, is reported as not
   established under `--floor-only` on both.
-- `source/library/core`, `source/library/std`, `source/psi` and
+- `source/library/core`, `source/library/system`, `source/psi` and
   `source/omega` pass `--check --floor-only`, or each reported obligation
   cites a lemma.
 - A floor obligation is accepted with `builder.proof.index_expansion_terms`

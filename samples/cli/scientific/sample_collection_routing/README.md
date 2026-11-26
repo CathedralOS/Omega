@@ -38,7 +38,7 @@ starts are 3,8,16,17. Capacity one instead selects `0,1,3,2,4,0`, distance
 `main.omg` owns input and the entrypoint; `build.omg` binds exact target entry
 slots. `input/parse.omg`, `routing/{model,visit,search}.omg`, and
 `reporting/certificate.omg` own the whole workflow. The only dependency is the
-stable repository std package and existing Console providers. There are no
+stable repository system package and existing Console providers. There are no
 numerics-library or worker-candidate imports and no shared exports.
 
 Before implementation, existing samples were searched for route, tour, pickup,

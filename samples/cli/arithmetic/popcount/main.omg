@@ -15,7 +15,7 @@ use omega\language\core\ProcessExit;
 // terminates (a signed/arithmetic `>>` on a high-bit value would spin forever).
 // Expected exit: 24.
 
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\narrow_u32_to_i32_trapping;
 
 data Main { }

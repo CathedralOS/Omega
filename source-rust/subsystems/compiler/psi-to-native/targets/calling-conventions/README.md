@@ -20,7 +20,7 @@ backend chooses how to classify an aggregate from its ABI tag, including SysV
 eightbyte and AAPCS64 homogeneous-float rules. It applies that choice again
 when checking the class returned by a source policy.
 
-The source vocabulary is [std/calling.omg](../../../../../source/library/std/calling.omg).
+The source vocabulary is [system/calling.omg](../../../../../source/library/system/calling.omg).
 `Calling<Policy>` selects the named implementation argument declared
 `Policy satisfies CallingPolicy`. Psi checks the implementation slot in order;
 [policy implementations](../../realization/provider-planning/src/calling_policy_plans/policy_implementations.rs)
@@ -30,7 +30,7 @@ row's machine is called by symbol, not through an attached `Data::plan` name.
 The [plan decoder](../../realization/provider-planning/src/calling_policy_plans/build_time_decoding.rs)
 currently requires one of six foreign ABI tags. The [Rust planners](src/plans/call_plan_evaluation.rs)
 also repeat placement rules, including the 32 bytes of shadow space already
-declared by the [Windows x64 policy](../../../../../source/library/std/targets/windows_x86_64/calling.omg).
+declared by the [Windows x64 policy](../../../../../source/library/system/targets/windows_x86_64/calling.omg).
 The [authorship contract](../../../../../wiki/spec/build/calling_plans.md#authorship-and-evaluation)
 requires each foreign policy to own these choices. Retire the tag and the Rust
 classification and placement rules as the source policies cover those signatures.

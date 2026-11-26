@@ -1,7 +1,7 @@
 use omega\language\core\ForeignBinding;
 machine build(builder: @mutable Build) {
     Build::application(builder, "established_foreign_view");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../../../../source/library/std" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../../../../source/library/system" }));
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
     Build::bind_native::<Output::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
     _ = builder.tests.group::<Tests::capture>();

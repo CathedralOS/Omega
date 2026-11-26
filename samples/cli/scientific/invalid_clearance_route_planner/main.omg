@@ -1,7 +1,7 @@
 use omega\language\core\StandardInput;
 use omega\language\core\ProcessExit;
 // Complete intended-invalid control: an unguarded ordinal cannot index six nodes.
-use omega_language_std\Console;
+use system\Console;
 use nodes;
 data Main { }
 machine main(main: @mutable Main) reaches ProcessExit + StandardInput {

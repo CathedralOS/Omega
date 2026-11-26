@@ -60,7 +60,7 @@ Run with an optimized compiler built from a recorded source revision:
 ```sh
 omega packages update --project samples/cli/independent/quantum_wavepacket_evolution --target linux_x86_64 < /dev/null
 # Inspect any generated pending review. Only Console stdin/stdout/exit is
-# required; std source-risk disclosures do not grant filesystem authority.
+# required; system source-risk disclosures do not grant filesystem authority.
 omega --build-dir build/quantum --target linux_x86_64 samples/cli/independent/quantum_wavepacket_evolution/main.omg < /dev/null
 ```
 

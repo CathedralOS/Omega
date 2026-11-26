@@ -94,7 +94,7 @@ stdout and EOF on stdin; it supplies test-owned acceptance, so the ordinary
 CLI review route on Linux is still unverified. On Linux x86-64 the ordinary
 route is gated before review decisions: package candidate checking rejects
 inside `omega-language-std` with `routed service field Filesystem::host has
-no exact Fused selected-provider-plan join`, the shared std-wide gate
+no exact Fused selected-provider-plan join`, the shared system-wide gate
 recorded on the board (attempted at `b53c7ea26032`). Windows x86-64 is verified
 at `b80e3d12bdd` with an optimized dev compiler after local package review:
 EOF and Enter produce all 133 stdout bytes, empty program stderr, and exit 70.

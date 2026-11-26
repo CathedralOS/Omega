@@ -5,7 +5,7 @@ use domain\network\residual;
 use domain\network\opposite;
 use platform\decimal;
 use platform\decimal\number;
-use omega_language_std\Console;
+use system\Console;
 
 public data Solver {
     network: Network;

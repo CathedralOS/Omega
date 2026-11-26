@@ -883,7 +883,7 @@ fn a_symbolic_array_length_uses_its_owned_extent_input() {
 
 #[test]
 fn a_closed_call_checks_an_index_computed_from_its_size() {
-    // std's `send_string<const Count>` requires `text[Count - 1] == 0`. At
+    // system's `send_string<const Count>` requires `text[Count - 1] == 0`. At
     // `take<4>` the index is the closed arithmetic `4 - 1`; the buffer's last
     // byte is 0.
     let verdicts = sized_boundary_program(
@@ -932,7 +932,7 @@ fn a_closed_call_checks_an_index_computed_from_its_size() {
 fn a_program_that_never_applies_a_template_requirement_leaves_its_clauses_to_its_own_form() {
     // The program reads the trait but calls no closed `take`. The template's
     // clauses are read only by its own form, so the program's source capture
-    // must not ask for their operators (std's `ObjectiveC::send_byte_string`).
+    // must not ask for their operators (system's `ObjectiveC::send_byte_string`).
     let verdicts = sized_boundary_program("requires Count > 0 && used <= Count", "0u32");
     assert!(
         verdicts

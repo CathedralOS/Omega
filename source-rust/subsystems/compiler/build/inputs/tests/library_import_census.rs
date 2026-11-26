@@ -1,8 +1,8 @@
 // Repository-wide census over bundled-library imports in `.omg` sources. The
-// standalone `omega\language\std` and `omega\language\allocation` mount paths are
+// standalone `omega\language\system` and `omega\language\allocation` mount paths are
 // retired outside the libraries themselves: package-aware consumers must reach
 // bundled libraries through declared `build.omg` dependency edges and their
-// requester-local aliases (`omega_language_std`, `allocation`). Fail-tier fixtures
+// requester-local aliases (`system`, `allocation`). Fail-tier fixtures
 // (under a feature’s `fail/` directory) and standalone roots without `build.omg` are excluded
 // from missing-edge assertions because their rejection is tested by the
 // compiler itself.
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 const SCAN_ROOTS: &[&str] = &["tests", "samples", "source", "bootstrap"];
 const SKIPPED_DIRS: &[&str] = &["target", ".git", "node_modules"];
-const MOUNTED_LIBRARIES: &[&str] = &["std", "allocation"];
+const MOUNTED_LIBRARIES: &[&str] = &["system", "allocation"];
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -85,19 +85,18 @@ fn imports_of(text: &str) -> Vec<(String, bool)> {
         let Some(rest) = line.strip_prefix("use ") else {
             continue;
         };
-        if let Some(path) = rest.strip_prefix(r"omega\language\") {
-            let head: String = path
-                .chars()
-                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-                .collect();
-            imports.push((head, true));
+        let (path, is_mount) = if let Some(path) = rest.strip_prefix("{omega}/language/") {
+            (path, true)
+        } else if let Some(path) = rest.strip_prefix(r"omega\language\") {
+            (path, true)
         } else {
-            let head: String = rest
-                .chars()
-                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-                .collect();
-            imports.push((head, false));
-        }
+            (rest.strip_prefix('{').unwrap_or(rest), false)
+        };
+        let head: String = path
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        imports.push((head, is_mount));
     }
     imports
 }
@@ -146,9 +145,10 @@ fn is_under(dir: &Path, ancestor: &Path) -> bool {
 fn library_imports_ride_declared_edges_not_the_mount() {
     let repo = repo_root();
     let packages = bundled_packages(&repo);
-    assert!(
-        packages.contains_key("omega_language_std"),
-        "the census must see the std package declaration"
+    assert_eq!(
+        packages.get("system"),
+        Some(&repo.join("source/library/system")),
+        "the census must see the system package declaration"
     );
 
     assert_eq!(
@@ -235,7 +235,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
 
     assert!(
         mount_path_offenders.is_empty(),
-        "standalone std/allocation mount imports retired; offending sources:\n{}",
+        "standalone system/allocation mount imports retired; offending sources:\n{}",
         mount_path_offenders.join("\n")
     );
     assert!(inventoried > 0, "the census inventoried no alias imports");

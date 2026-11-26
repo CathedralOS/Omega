@@ -1,5 +1,5 @@
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 use linkage\model;
 use linkage\model\Linkage;
 

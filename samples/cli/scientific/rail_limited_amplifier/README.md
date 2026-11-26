@@ -5,7 +5,7 @@ See [scientific validation](../README.md) for the current status of this sampleâ
 This complete Omega application reads a bounded circuit configuration from stdin,
 computes the piecewise DC equilibria, and emits sampled output and feedback traces,
 clipping states, final-phase settling and recovery metrics. It owns its parser,
-scientific model and formatting. It imports only existing core/std facilities.
+scientific model and formatting. It imports only existing core/system facilities.
 
 The scientific sample model is deliberately explicit: a finite open-loop gain A,
 feedback fraction beta, discrete relaxation alpha, and output rails L < H give

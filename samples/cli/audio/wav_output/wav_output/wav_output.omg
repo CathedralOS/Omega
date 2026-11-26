@@ -5,9 +5,9 @@
 // routing value or a different portable reach row.
 use {omega}/language/core/filesystem_authority.omg as authority;
 use {omega}/language/core/numeric_conversion.omg as numeric;
-use {omega_language_std}/filesystem_host.omg as paths;
-use {omega_language_std}/posix_filesystem_host.omg as posix;
-use {omega_language_std}/windows_filesystem_host.omg as windows;
+use {system}/filesystem_host.omg as paths;
+use {system}/posix_filesystem_host.omg as posix;
+use {system}/windows_filesystem_host.omg as windows;
 
 public boundary trait WavOutput {
     machine write_wav(path: @[u8] in |paths|::Path, bytes: @[u8]) -> i64

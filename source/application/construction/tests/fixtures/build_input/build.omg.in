@@ -1,0 +1,21 @@
+// input_reader.py runs this Build from a temporary project under the repository build directory.
+use main.omg as program;
+use {system}/console.omg;
+
+machine build(builder: @mutable Build) {
+    Build::application(builder, "construction_input");
+    Build::select_provider::<|console|::Console, |console|::DarwinArm64Console>(builder, macos_arm64);
+    Build::select_provider::<|console|::Console, |console|::LinuxArm64Console>(builder, linux_arm64);
+    Build::select_provider::<|console|::Console, |console|::LinuxX86Console>(builder, linux_x86_64);
+    Build::select_provider::<|console|::Console, |console|::WindowsConsole>(builder, windows_x86_64);
+    Build::bind(builder, macos_arm64\ProgramEntry, |program|::start);
+    Build::bind(builder, linux_arm64\ProgramEntry, |program|::start);
+    Build::bind(builder, linux_x86_64\ProgramEntry, |program|::start);
+    Build::bind(builder, windows_x86_64\ProgramEntry, |program|::start);
+    let standard: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+        location: "../../source/library/system"
+    }));
+    let wire: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+        location: "../../source/foundation/wire"
+    }));
+}

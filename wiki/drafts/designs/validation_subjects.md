@@ -23,8 +23,8 @@ The 2026-11-12 completion selects borrowed registration handles for
 `Build::validate`, reusable registration identity shared with preparation, and
 explicit package roots with a narrow core-owner rule. It also ratifies
 `ordinary-library-packages`: optional distribution does not change ordinary
-`std`/`allocation` ownership or confer compiler custody. The two delivery tracks
-below are independent; removal of all demonstrated `std` coupling must not
+`system`/`allocation` ownership or confer compiler custody. The two delivery tracks
+below are independent; removal of all demonstrated `system` coupling must not
 block the validation API/root repair. No new implementation or execution result
 is claimed here.
 
@@ -80,7 +80,7 @@ package is the "real" one.
   the libraries it distributes, including unused declarations? Add ordinary
   full-package jobs where missing, retaining exact owners and the narrow
   existing-core root selection. The overlap guard protects the core subtree;
-  do not assume it also blocks `std` or `allocation` without separate evidence.
+  do not assume it also blocks `system` or `allocation` without separate evidence.
 2. Make the subject set explicit request state and carry it through
    orchestration, including dependency Build execution and generated source.
 3. Replace post-hoc graph filtering with discovery during checking. Extend the
@@ -125,7 +125,7 @@ package is the "real" one.
   coordinator pointer or a name string. Different contexts are not deduplicated
   merely because a path, alias or source revision agrees.
 - Qualify explicit checks of `source/library/core/main.omg`,
-  `source/library/std/main.omg` and `source/library/allocation/main.omg` as their
+  `source/library/system/main.omg` and `source/library/allocation/main.omg` as their
   existing package roots. Core keeps its toolchain owner; ordinary packages keep
   their resolved owners. Re-rooting must not create another core or label the
   library as the application's package.
@@ -140,15 +140,15 @@ This separate outcome removes demonstrated coupling under
 [ordinary-library-packages](../../spec/build/declarations.md#ordinary-library-packages).
 Current implementation evidence motivating it is specific:
 
-- Library discovery requires both `core/` and `std/build.omg`, even when the
-  requested program needs no `std`. Remove that unconditional dependency without
+- Library discovery requires both `core/` and `system/build.omg`, even when the
+  requested program needs no `system`. Remove that unconditional dependency without
   disabling integrity verification for declared distribution components.
-- The sealed catalog embeds hosted console/process-exit and related `std`
+- The sealed catalog embeds hosted console/process-exit and related `system`
   declarations. Separate only genuine compiler-supplied primitives and necessary
   entry/ABI bridges into explicit exact bindings, keeping ordinary library work
-  and wrappers in their selected package. Do not copy all of `std` into core.
+  and wrappers in their selected package. Do not copy all of `system` into core.
 - Entry-contract discovery can use package-graph suppliers but otherwise captures
-  bundled `std` source with toolchain-contract custody. Replace that hidden path
+  bundled `system` source with toolchain-contract custody. Replace that hidden path
   with normal target-declared dependency and contract selection; do not silently
   mix bundled declarations with another resolved compatible revision.
 
@@ -160,11 +160,11 @@ release integrity instead of removing checks that exposed the coupling.
 
 Acceptance for this independent migration:
 
-1. A package needing no `std` checks without an installed `std` copy, given its
+1. A package needing no `system` checks without an installed `system` copy, given its
    required core and target support. No unchecked entry fallback supplies it.
-2. `std` checks as an ordinary package root with its resolved owner, source
+2. `system` checks as an ordinary package root with its resolved owner, source
    revision and dependencies. Distribution location grants no special role.
-3. Selecting another compatible `std` revision uses that exact dependency and
+3. Selecting another compatible `system` revision uses that exact dependency and
    its declared target support without bundled-source mixing or compiler custody
    inferred from the package name, path or signature.
 4. A package imitating a compiler-recognized declaration, including copied source
@@ -172,7 +172,7 @@ Acceptance for this independent migration:
    owner correspondence. Required genuine compiler bridges remain checked.
 5. Distribution verification still rejects missing/changed components that the
    selected release promises. Optional libraries are accounted for explicitly;
-   making `std` optional is not an excuse to skip the release manifest/digest.
+   making `system` optional is not an excuse to skip the release manifest/digest.
 
 These are acceptance requirements, not commands or tests run for this
 documentation change. Runtime-provider policy is settled separately as

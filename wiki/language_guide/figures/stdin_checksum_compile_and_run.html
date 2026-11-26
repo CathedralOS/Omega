@@ -202,8 +202,8 @@
 <script>
 const SOURCE = `use omega\\language\\core\\ProcessExit;
 use omega\\language\\core\\StandardInput;
-use omega_language_std\\ByteRead;
-use omega_language_std\\Console;
+use system\\ByteRead;
+use system\\Console;
 
 machine main() reaches StandardInput + ProcessExit {
     transition { _ -> block rd(0i32 as +Wrapping, 0i32 as +Wrapping) }

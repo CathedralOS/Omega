@@ -2,7 +2,7 @@
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "checked_boundary_requirement_dispatch_exit");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../../../../../source/library/std" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../../../../../source/library/system" }));
     Build::select_provider::<CheckedMath, CheckedMathProvider>(builder, linux_arm64);
     Build::select_provider::<CheckedMath, CheckedMathProvider>(builder, linux_x86_64);
     Build::select_provider::<CheckedMath, CheckedMathProvider>(builder, macos_arm64);

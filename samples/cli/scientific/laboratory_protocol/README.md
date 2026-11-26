@@ -37,7 +37,7 @@ invariant violation and can never match a frozen oracle.
 
 The entrypoint and input framing live in `main.omg`; `protocol/model.omg` owns
 the full protocol graph; `protocol/report.omg` owns trace rendering. The only
-dependency is the current bundled std Console and ProgramEntry provider. The
+dependency is the current bundled system Console and ProgramEntry provider. The
 application uses no private compiler hooks or another worker's numerics code.
 
 Semantic comparison: `simulation/traffic_light` only cycles phases;
@@ -63,7 +63,7 @@ library selected:
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=./target/release/omega
 $OMEGA update --project samples/cli/independent/laboratory_protocol --target linux_x86_64
-# Inspect the generated review, accept the local std entry binding, then:
+# Inspect the generated review, accept the local system entry binding, then:
 $OMEGA update --resume --project samples/cli/independent/laboratory_protocol
 $OMEGA --check --target linux_x86_64 samples/cli/independent/laboratory_protocol/main.omg
 $OMEGA run --both --keep samples/cli/independent/laboratory_protocol/main.omg < samples/cli/independent/laboratory_protocol/fixtures/nominal.txt
@@ -78,4 +78,4 @@ Validation records and generated artifacts belong in ignored `build/`.
 The candidate's validation record identifies exact binary hash, base, host,
 resource settings, commands and observed results. Run only one build and one
 Omega execution at a time on this executor. Other targets are bound using
-existing std providers, but only actually executed target evidence is claimed.
+existing system providers, but only actually executed target evidence is claimed.

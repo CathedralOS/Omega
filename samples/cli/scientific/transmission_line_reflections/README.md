@@ -51,7 +51,7 @@ are decimal integers in micro-units (truncation toward zero, twelve digit fields
 
 `physics/model.omg` owns the complete algorithm and fixtures; `io/input.omg` owns
 bounded parsing; `io/report.omg` owns formatting; `main.omg` owns execution.
-The checked core float operators and the ordinary std Console provider are the
+The checked core float operators and the ordinary system Console provider are the
 only facilities used. Build metadata binds the exact `main` entry to the five
 hosted targets. Execution validation is scoped to the available Linux x86_64 host.
 

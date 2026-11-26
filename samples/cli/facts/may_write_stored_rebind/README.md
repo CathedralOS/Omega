@@ -4,7 +4,7 @@ The chosen mutable input is stored in a reference and loaded back, the write goe
 
 The reference starts at a scratch local. `choose` returns one of the two mutable inputs, and that result is stored back into the reference. A later load of the reference is the write target. The other input starts at `1` and stays there. Indexing `[4, 7, 8, 9]` with that preserved bound reads `7`. Exit is `0` only when the chosen input is `9` and the index reads `7`. Each reject twin changes only `pick_chosen` from `true` to `false`, so the write overlaps the index bound.
 
-The programs do not depend on `source/library/std`.
+The programs do not depend on `source/library/system`.
 
 This witnesses the stored-rebind row of **R5** in `TASKS.md`: caller-visible may-write summaries under [invocation contracts](../../../../wiki/spec/language/state_contracts.md). The write frame records the referent after the rebind. It does not close finite write cycles or parameter-permutation write sets.
 

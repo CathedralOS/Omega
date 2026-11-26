@@ -301,10 +301,10 @@ function selectDeclarations(declarations, reference, fileStem) {
 // Returns null when the line cannot be where the name comes from.
 //   `use calling.omg as abi;`              -> { file: 'calling.omg' }
 //   `use {omega}/language/core/x.omg;`     -> { library: 'core', file: 'x.omg' }
-//   `use {omega_language_std}/x.omg;`      -> { library: 'std', file: 'x.omg' }
+//   `use {system}/x.omg;`                  -> { dependency: 'system', file: 'x.omg' }
 //   `use {wav_output}/w/w.omg as output;`  -> { dependency: 'wav_output', file: 'w/w.omg' }
 //   `use omega\language\core\Extent;`      -> { library: 'core' }
-//   `use omega_language_std\Console;`      -> { library: 'std' }
+//   `use system\Console;`                  -> { module: 'system', dependency: 'system', inside: '' }
 //   `use actors\state\Mood;`               -> { module: 'actors/state', dependency: 'actors', inside: 'state' }
 // A `.omg` path is relative to the importing file's package, so the caller
 // tries each folder from the file's own up to the package root. `{name}` is a
@@ -322,19 +322,15 @@ function importTarget(use, reference) {
     const braced = /^\{([^}]+)\}\/(.+)$/.exec(path);
     if (!braced) return { file: path };
     const [, dependency, file] = braced;
-    const language = /^language\/([^/]+)\/(.+)$/.exec(file);
-    if (dependency === 'omega' && language) return { library: language[1], file: language[2] };
-    const bundled = /^omega_language_([A-Za-z_0-9]+)$/.exec(dependency);
-    if (bundled) return { library: bundled[1], file };
+    const core = /^language\/core\/(.+)$/.exec(file);
+    if (dependency === 'omega' && core) return { library: 'core', file: core[1] };
     return { dependency, file };
   }
   const segments = path.split(/\\|::/).filter(Boolean);
   if (!reference.alias && !segments.includes(reference.name) && !(reference.qualifier && segments.includes(reference.qualifier))) {
     return null;
   }
-  if (segments[0] === 'omega' && segments[1] === 'language' && segments.length > 2) return { library: segments[2] };
-  const packaged = /^omega_language_([A-Za-z_0-9]+)$/.exec(segments[0]);
-  if (packaged) return { library: packaged[1] };
+  if (segments[0] === 'omega' && segments[1] === 'language' && segments[2] === 'core') return { library: 'core' };
   // An aliased path names a module (`use kit\main as k;`); otherwise its
   // last segment is the imported name and the rest is the module.
   const modulePath = path.split('::')[0].split('\\').filter(Boolean);

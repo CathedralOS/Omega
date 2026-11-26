@@ -7,16 +7,16 @@ use omega\language\core\ProcessExit;
 // chooses stateless code. Per-frame images and the final window are released.
 // Expected exit: 0. No stdin is required.
 // Expected output contains: PASS: 60 frames blitted (exit 0)
-use omega_language_std\Console;
-use omega_language_std\AppKit;
-use omega_language_std\CoreGraphics;
-use omega_language_std\ObjectiveC;
-use omega_language_std\Window;
-use omega_language_std\MacosImageData;
-use omega_language_std\MacosImageObjects;
-use omega_language_std\Clock;
-use omega_language_std\WindowsGuiHost;
-use omega_language_std\WindowsMessage;
+use system\Console;
+use system\AppKit;
+use system\CoreGraphics;
+use system\ObjectiveC;
+use system\Window;
+use system\MacosImageData;
+use system\MacosImageObjects;
+use system\Clock;
+use system\WindowsGuiHost;
+use system\WindowsMessage;
 use providers;
 // Both targets select stateless implementations; the application owns every
 // native handle and the Windows message buffer throughout the render loop.

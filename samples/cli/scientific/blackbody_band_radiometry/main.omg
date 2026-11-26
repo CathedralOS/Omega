@@ -10,7 +10,7 @@ use io\protocol\number;
 use model\planck;
 use model\planck\band;
 use model\planck\net_exitance;
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\is_finite;
 
 // The scanner borrows the parsed fields through a shared descriptor.
