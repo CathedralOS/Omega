@@ -1,3 +1,4 @@
+use conversion.omg as conversions;
 
 // Compiler-owned relationship between provider-backed opaque semantics and a
 // concrete physical representation. A named implementation names both as
@@ -45,11 +46,11 @@ public trait RepresentationModel<Value, Frame> {
 // successful echo cannot establish encoding coverage or frame validity.
 public trait RepresentationEncoding<'value, Value, Resources, Frame, Error,
     Model satisfies RepresentationModel<Value, Frame>> =
-    TryFrom<RepresentationRequest<@'value Value, Resources>, Frame, Error>
+    |conversions|::TryFrom<RepresentationRequest<@'value Value, Resources>, Frame, Error>
 {
-    machine TryFrom::try_from
+    machine try_from
     terminates
-    ensures result in Result::Ok
+    ensures result in |conversions|::Result::Ok
     ensures Model::valid(@result.value)
     ensures Model::represents(@result.value, source.value);
 }
@@ -59,12 +60,12 @@ public trait RepresentationEncoding<'value, Value, Resources, Frame, Error,
 // frames return an error and expose no unestablished destination.
 public trait RepresentationDecoding<'frame, Value, Resources, Frame, Error,
     Model satisfies RepresentationModel<Value, Frame>> =
-    TryFrom<RepresentationDecodeRequest<'frame, Frame, Resources>, RepresentationRequest<Value, Resources>, Error>
+    |conversions|::TryFrom<RepresentationDecodeRequest<'frame, Frame, Resources>, RepresentationRequest<Value, Resources>, Error>
 {
-    machine TryFrom::try_from
+    machine try_from
     terminates
-    ensures Model::valid(source.frame) == (result in Result::Ok)
-    ensures (result in Result::Err) || Model::represents(source.frame, @result.value.value);
+    ensures Model::valid(source.frame) == (result in |conversions|::Result::Ok)
+    ensures (result in |conversions|::Result::Err) || Model::represents(source.frame, @result.value.value);
 }
 
 // This trait groups the checked encoder, decoder and their shared model.
