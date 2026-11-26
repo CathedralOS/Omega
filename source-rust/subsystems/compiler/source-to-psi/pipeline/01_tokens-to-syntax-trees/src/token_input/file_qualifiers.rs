@@ -123,15 +123,15 @@ impl<'source> FileQualifiers<'source> {
         }
     }
 
-    pub(crate) fn only_product_operands(
+    pub(crate) fn occurrences(
         &self,
         trees: &SyntaxTrees,
         roots: &ParsedRootItems,
-    ) -> BTreeSet<&'source str> {
+    ) -> BTreeMap<&'source str, Vec<syntax_trees::item::FileQualifier>> {
         let mut aliases = BTreeMap::new();
         let uses = self.uses.borrow();
         if uses.is_empty() {
-            return BTreeSet::new();
+            return aliases;
         }
         let mut traits = BTreeSet::new();
         let mut named_record = false;
@@ -151,7 +151,7 @@ impl<'source> FileQualifiers<'source> {
                 _ => {}
             }
         }
-        for (alias, role) in uses.values() {
+        for (&offset, (alias, role)) in uses.iter() {
             let product = match role {
                 QualifierUse::Product => true,
                 QualifierUse::Host => false,
@@ -159,11 +159,14 @@ impl<'source> FileQualifiers<'source> {
                     !named_record && !schema.as_deref().is_some_and(|name| traits.contains(name))
                 }
             };
-            *aliases.entry(*alias).or_insert(true) &= product;
+            aliases
+                .entry(*alias)
+                .or_default()
+                .push(syntax_trees::item::FileQualifier {
+                    offset,
+                    product_operand: product,
+                });
         }
         aliases
-            .into_iter()
-            .filter_map(|(name, product)| product.then_some(name))
-            .collect()
     }
 }

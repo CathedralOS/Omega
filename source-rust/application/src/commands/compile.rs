@@ -240,6 +240,7 @@ fn compile_targets(
         timeline,
     };
     let mut failures = Vec::new();
+    let mut file_imports = project_build::FileImportAdvisories::default();
     for (root, plans) in subjects {
         if arguments.check_only {
             writeln!(report, "validation subject: {}", root.display()).unwrap();
@@ -248,8 +249,16 @@ fn compile_targets(
             root_path: root,
             ..arguments.clone()
         };
+        if let Some(Ok(plans)) = &plans {
+            for profile in &active {
+                if let Ok(planned) = plans.select(*profile) {
+                    planned.collect_file_imports(&mut file_imports);
+                }
+            }
+        }
         failures.extend(compile_subject(&arguments, report, plans, &batch)?);
     }
+    crate::commands::report_unused_imports(&file_imports);
     timeline.borrow_mut().record("teardown", || {
         drop(leases);
         drop(scratch);

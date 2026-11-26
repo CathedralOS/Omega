@@ -222,7 +222,16 @@ pub struct SourceImport {
     pub ordinal: usize,
     pub span: source_text::Span,
     pub target: SourceImportTarget,
-    pub only_product_operands: bool,
+    pub qualifiers: Vec<syntax_trees::item::FileQualifier>,
+}
+
+impl SourceImport {
+    pub fn used_in(&self, scope: source_provenance::DependencyScope) -> bool {
+        matches!(&self.target, SourceImportTarget::Namespace(_))
+            || self.qualifiers.iter().any(|usage| {
+                scope == source_provenance::DependencyScope::Product || !usage.product_operand
+            })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, record_storage::Record)]
@@ -304,8 +313,8 @@ impl ParsedSourceBatch {
                                         })
                                     }
                                 };
-                                let only_product_operands = matches!(import, UseItem::File { only_product_operands: true, .. });
-                                Some(SourceImport { only_product_operands, ordinal: unit.import_root_range.start + offset, span, target })
+                                let qualifiers = match import { UseItem::File { qualifiers, .. } => qualifiers.clone(), UseItem::Namespace { .. } => Vec::new() };
+                                Some(SourceImport { qualifiers, ordinal: unit.import_root_range.start + offset, span, target })
                             }
                             _ => None,
                         })
