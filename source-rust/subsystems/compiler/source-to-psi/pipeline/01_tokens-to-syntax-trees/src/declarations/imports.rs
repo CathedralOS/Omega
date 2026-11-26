@@ -1,5 +1,5 @@
 use crate::errors::parse_error::ParseError;
-use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::token_input::cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -10,18 +10,6 @@ pub(crate) fn parse_use_item<'tokens, 'source>(
     trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, UseItem> {
-    // Existing library sources still use namespace imports during migration.
-    if let Ok((_, next)) = input.take_identifier()
-        && (next.at_path_member() || next.at_punctuation(P::Semicolon))
-    {
-        let (path, rest) = parse_path_handle_span(input, |name| {
-            trees.items.append_identifier_path_member(name)
-        })?;
-        return Ok((
-            UseItem::Namespace { path },
-            rest.take_punctuation(P::Semicolon, ";")?,
-        ));
-    }
     let (root, mut rest) = if input.at_punctuation(P::LeftBrace) {
         let (root, rest) = input
             .take_punctuation(P::LeftBrace, "{")?
