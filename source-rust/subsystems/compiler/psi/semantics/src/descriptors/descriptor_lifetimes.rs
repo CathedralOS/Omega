@@ -605,6 +605,24 @@ pub fn descriptor_successor_lifetime(
     target: DescriptorPosition,
     descriptor: &DescriptorLocation,
 ) -> Option<DescriptorLifetime> {
+    borrowed_successor(steps, birth, target, descriptor)?;
+    Some(descriptor_lifetime(
+        steps,
+        birth,
+        descriptor,
+        DescriptorStart::OnEdgeTo(target),
+        |_, _| false,
+    ))
+}
+
+/// The one edge from `birth` to `target` must bind `descriptor` as a borrow;
+/// an owned binding or a second edge gives the new borrow no single start.
+fn borrowed_successor(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    birth: DescriptorPosition,
+    target: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+) -> Option<()> {
     let mut matching = steps
         .get(&birth)?
         .successors
@@ -619,13 +637,7 @@ pub fn descriptor_successor_lifetime(
     {
         return None;
     }
-    Some(descriptor_lifetime(
-        steps,
-        birth,
-        descriptor,
-        DescriptorStart::OnEdgeTo(target),
-        |_, _| false,
-    ))
+    Some(())
 }
 
 pub struct FlowPredecessors<'a> {
@@ -689,20 +701,7 @@ pub fn descriptor_successor_lifetime_indexed(
     target: DescriptorPosition,
     descriptor: &DescriptorLocation,
 ) -> Option<DescriptorLifetime> {
-    let mut matching = steps
-        .get(&birth)?
-        .successors
-        .iter()
-        .filter(|edge| edge.target == target);
-    let selected = matching.next()?;
-    if matching.next().is_some()
-        || !selected.bindings.iter().any(|binding| {
-            binding.parameter == *descriptor
-                && binding.access != terminal_psi::StructuralAccess::Owned
-        })
-    {
-        return None;
-    }
+    borrowed_successor(steps, birth, target, descriptor)?;
     Some(descriptor_lifetime_with_predecessors(
         steps,
         Some(predecessors),

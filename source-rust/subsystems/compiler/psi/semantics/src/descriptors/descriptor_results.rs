@@ -775,17 +775,35 @@ impl DescriptorMachine {
             *self.place_types.get(&location.root)?,
             &location.path,
             |prefix, ty, index| {
-                if !prefix.is_empty() || self.place_types.get(&location.root) != Some(&ty) {
-                    return None;
-                }
-                let (_, element, step) =
-                    self.sequence_construction(types, location.root, completed)?;
-                let (_, destination) = step.derivations.get(usize::try_from(index).ok()?)?;
-                (destination.root == location.root
-                    && destination.path == [DescriptorPathSegment::FixedIndex(index)])
-                .then_some(element)
+                self.sequence_element(
+                    |id| terminal_psi::find_structural_type(types, id),
+                    location,
+                    completed,
+                    (prefix, ty, index),
+                )
             },
         )
+    }
+
+    /// The element type at `index` of a sequence the adapter constructed
+    /// directly into `location.root`. Path resolvers use it to step through
+    /// the ordinal reads of such a view.
+    fn sequence_element<'types>(
+        &self,
+        find_type: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+        location: &DescriptorLocation,
+        completed: Option<(MachineId, DescriptorPosition)>,
+        (prefix, ty, index): (&[DescriptorPathSegment], StructuralTypeId, u64),
+    ) -> Option<StructuralTypeId> {
+        if !prefix.is_empty() || self.place_types.get(&location.root) != Some(&ty) {
+            return None;
+        }
+        let (_, element, step) =
+            self.sequence_construction_with(find_type, location.root, completed)?;
+        let (_, destination) = step.derivations.get(usize::try_from(index).ok()?)?;
+        (destination.root == location.root
+            && destination.path == [DescriptorPathSegment::FixedIndex(index)])
+        .then_some(element)
     }
 
     pub(crate) fn location_capture(
@@ -815,15 +833,7 @@ impl DescriptorMachine {
             *self.place_types.get(&location.root)?,
             &location.path,
             |prefix, ty, index| {
-                if !prefix.is_empty() || self.place_types.get(&location.root) != Some(&ty) {
-                    return None;
-                }
-                let (_, element, step) =
-                    self.sequence_construction_indexed(types, location.root, completed)?;
-                let (_, destination) = step.derivations.get(usize::try_from(index).ok()?)?;
-                (destination.root == location.root
-                    && destination.path == [DescriptorPathSegment::FixedIndex(index)])
-                .then_some(element)
+                self.sequence_element(|id| types.find(id), location, completed, (prefix, ty, index))
             },
         )?
     }
@@ -849,16 +859,12 @@ impl DescriptorMachine {
                     *self.place_types.get(&location.root)?,
                     &location.path,
                     |prefix, ty, index| {
-                        if !prefix.is_empty() || self.place_types.get(&location.root) != Some(&ty) {
-                            return None;
-                        }
-                        let (_, element, step) =
-                            self.sequence_construction_indexed(types, location.root, completed)?;
-                        let (_, destination) =
-                            step.derivations.get(usize::try_from(index).ok()?)?;
-                        (destination.root == location.root
-                            && destination.path == [DescriptorPathSegment::FixedIndex(index)])
-                        .then_some(element)
+                        self.sequence_element(
+                            |id| types.find(id),
+                            location,
+                            completed,
+                            (prefix, ty, index),
+                        )
                     },
                 )?
                 .0,
