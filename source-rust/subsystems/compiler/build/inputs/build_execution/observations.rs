@@ -45,6 +45,14 @@ impl BuildActivation {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BuildFilesystemAuthorizedPath {
+    pub(crate) operand_ordinal: u8,
+    pub(crate) access: BuildFilesystemGrantAccess,
+    pub(crate) root: BuildFilesystemRoot,
+    pub(crate) relative_path: Vec<u8>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildFilesystemRoot {
     Source,
@@ -52,14 +60,6 @@ pub enum BuildFilesystemRoot {
     NamedInput(u32), // Compiler-issued root joined to the observation's named inventory.
     /// Relative to the guest root among this activation's live directory grants.
     MappedDirectories,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildFilesystemAuthorizedPath {
-    pub(crate) operand_ordinal: u8,
-    pub(crate) access: BuildFilesystemGrantAccess,
-    pub(crate) root: BuildFilesystemRoot,
-    pub(crate) relative_path: Vec<u8>,
 }
 
 impl BuildFilesystemAuthorizedPath {
