@@ -45,7 +45,11 @@ impl WorkspaceCatalogs {
         let storage = account
             .map(|account| account.reserve_storage(1, bytes))
             .transpose()
-            .map_err(|error| refuse(format!("workspace member snapshot storage: {error:?}")))?;
+            .map_err(|error| {
+                TerminalEffectRejection::new(format!(
+                    "workspace member snapshot storage: {error:?}"
+                ))
+            })?;
         let mut owned = Vec::new();
         owned
             .try_reserve_exact(path.len())
