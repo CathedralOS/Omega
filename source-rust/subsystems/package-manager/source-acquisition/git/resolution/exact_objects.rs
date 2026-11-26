@@ -1,12 +1,4 @@
-// Recorded commit and root-tree availability checks (`recorded_revision_needs_fetch`)
-// for exact-revision Git resolutions.
-//
-// A healthy cache may lack a historical object without being corrupted. When
-// the recorded commit is present, we immediately authenticate its payload and
-// verify that its root tree edge matches `recorded.tree` (so a wrong expected
-// tree fails closed rather than triggering a fetch). If either the commit or
-// tree is missing, `Offline` returns `GitExactRevisionUnavailable` and
-// `AllowFetch` authorizes a fetch.
+//! Check the selected commit and its tree in the retained repository before deciding whether to fetch.
 
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
@@ -19,38 +11,38 @@ use crate::limits::{GIT_CONFIG_SHA1, GIT_CONFIG_SHA256, LocalSourceLimits};
 use super::exact_revision::GitExactRevisionAcquisition;
 use super::selection::ExactGitRevision;
 
-pub(super) fn recorded_revision_needs_fetch(
+pub(super) fn exact_revision_needs_fetch(
     executor: &GitExecutor,
     repository: &VerifiedGitRepository,
-    recorded: &ExactGitRevision,
+    revision: &ExactGitRevision,
     limits: LocalSourceLimits,
 ) -> Result<bool, SourceResolveError> {
     repository.verify_current(limits)?;
-    let expected_config = match recorded.algorithm {
+    let expected_config = match revision.algorithm {
         GitObjectIdAlgorithm::Sha1 => GIT_CONFIG_SHA1,
         GitObjectIdAlgorithm::Sha256 => GIT_CONFIG_SHA256,
     };
     if repository.read_canonical_config()? != expected_config {
         return Err(SourceResolveError::GitObjectInvalid {
-            oid: recorded.commit.clone(),
+            oid: revision.commit.clone(),
             message: "recorded object format differs from the retained repository".to_owned(),
         });
     }
     let commit_present = present(
         executor,
         repository,
-        &recorded.commit,
+        &revision.commit,
         ExactGitObjectKind::Commit,
     )?;
     let tree = if commit_present {
         Some(authenticate_git_commit(
             executor,
             repository,
-            &recorded.commit,
-            recorded.tree.as_deref(),
+            &revision.commit,
+            revision.tree.as_deref(),
         )?)
     } else {
-        recorded.tree.clone()
+        revision.tree.clone()
     };
     let tree_present = match tree {
         Some(tree) => present(executor, repository, &tree, ExactGitObjectKind::Tree)?,
@@ -60,8 +52,8 @@ pub(super) fn recorded_revision_needs_fetch(
     if commit_present && tree_present {
         return Ok(false);
     }
-    match recorded.acquisition {
-        GitExactRevisionAcquisition::Offline => Err(recorded.unavailable()),
+    match revision.acquisition {
+        GitExactRevisionAcquisition::Offline => Err(revision.unavailable()),
         GitExactRevisionAcquisition::AllowFetch => Ok(true),
     }
 }

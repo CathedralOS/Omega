@@ -77,22 +77,22 @@ impl<'a> GitRevisionSelection<'a> {
     pub(super) fn expected_commit(self) -> Option<&'a str> {
         match self {
             Self::Ordinary(pin) => pin.map(GitAcquisitionPin::commit),
-            Self::Exact(recorded) => Some(&recorded.commit),
+            Self::Exact(revision) => Some(&revision.commit),
         }
     }
 
     pub(super) fn expected_tree(self) -> Option<&'a str> {
         match self {
             Self::Ordinary(pin) => pin.map(GitAcquisitionPin::tree),
-            Self::Exact(recorded) => recorded.tree.as_deref(),
+            Self::Exact(revision) => revision.tree.as_deref(),
         }
     }
 
     pub(super) fn permits_new_acquisition(self) -> bool {
         match self {
             Self::Ordinary(pin) => pin.is_none(),
-            Self::Exact(recorded) => {
-                recorded.acquisition == GitExactRevisionAcquisition::AllowFetch
+            Self::Exact(revision) => {
+                revision.acquisition == GitExactRevisionAcquisition::AllowFetch
             }
         }
     }
@@ -100,16 +100,16 @@ impl<'a> GitRevisionSelection<'a> {
     pub(super) fn known_object_algorithm(self) -> Option<GitObjectIdAlgorithm> {
         match self {
             Self::Ordinary(_) => None,
-            Self::Exact(recorded) => Some(recorded.algorithm),
+            Self::Exact(revision) => Some(revision.algorithm),
         }
     }
 
     pub(super) fn offline_unavailable(self) -> Option<SourceResolveError> {
         match self {
-            Self::Exact(recorded)
-                if recorded.acquisition == GitExactRevisionAcquisition::Offline =>
+            Self::Exact(revision)
+                if revision.acquisition == GitExactRevisionAcquisition::Offline =>
             {
-                Some(recorded.unavailable())
+                Some(revision.unavailable())
             }
             Self::Ordinary(_) | Self::Exact(_) => None,
         }
@@ -118,7 +118,7 @@ impl<'a> GitRevisionSelection<'a> {
     pub(super) fn fetch_revision(self, requested_rev: &'a str) -> &'a str {
         match self {
             Self::Ordinary(_) => requested_rev,
-            Self::Exact(recorded) => recorded.commit.as_str(),
+            Self::Exact(revision) => revision.commit.as_str(),
         }
     }
 }

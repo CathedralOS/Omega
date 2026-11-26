@@ -32,9 +32,12 @@ fn an_authored_commit_supplies_its_authenticated_tree_offline() {
         recover(&fixture),
         Err(SourceResolveError::GitExactRevisionUnavailable { .. })
     ));
-    let fetched = resolve_git_source_in_lane(
+    let fetched = resolve_git_source_at_revision_in_lane(
         fixture.storage.primary_git().unwrap(),
         &fixture.request,
+        &fixture.commit,
+        None,
+        GitExactRevisionAcquisition::AllowFetch,
         fixture.storage.git_sources(),
         LocalSourceLimits::default(),
     )

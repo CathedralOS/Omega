@@ -27,12 +27,12 @@ pub fn resolve_git_source_at_revision_in_lane(
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedGitSource, SourceResolveError> {
-    let recorded = ExactGitRevision::new(request, commit, tree, acquisition)?;
+    let revision = ExactGitRevision::new(request, commit, tree, acquisition)?;
     resolve_whole_git_source_from_retained_lanes(
         primary_git,
         &[lane],
         request,
         limits,
-        GitRevisionSelection::Exact(&recorded),
+        GitRevisionSelection::Exact(&revision),
     )
 }
