@@ -103,14 +103,12 @@ fn the_returned_product_is_the_last_value_in_the_plan() {
 fn only_the_returned_workspace_catalog_selects_members() {
     let workspace = r#"use {omega}/build/workspace.omg;
 machine build(plan: @mutable BuildPlan) {
-    let discarded: [BuildWorkspaceMember; 1] = [BuildWorkspaceMember { path: "not_a_package" }];
-    let first: WorkspaceMembers = |workspace|::members(plan, @discarded[..]);
+    let first: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, "not_a_package");
     plan.product = BuildProduct::Workspace { members: first };
     select_workspace(plan);
 }
 machine select_workspace(plan: @mutable BuildPlan) {
-    let selected: [BuildWorkspaceMember; 1] = [BuildWorkspaceMember { path: "tools" }];
-    let second: WorkspaceMembers = |workspace|::members(plan, @selected[..]);
+    let second: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, "tools");
     plan.product = BuildProduct::Workspace { members: second };
 }"#;
     let tools = build(r#"builder.product = BuildProduct::Package { name: "tools" };"#);
@@ -124,8 +122,11 @@ machine select_workspace(plan: @mutable BuildPlan) {
     );
     assert!(status.success(), "{report}");
 
-    let duplicate = workspace.replace("[BuildWorkspaceMember; 1] = [BuildWorkspaceMember { path: \"tools\" }]",
-        "[BuildWorkspaceMember; 2] = [BuildWorkspaceMember { path: \"tools\" }, BuildWorkspaceMember { path: \"tools\" }]");
+    let duplicate = workspace.replace(
+        "plan.product = BuildProduct::Workspace { members: second };",
+        r#"let repeated: WorkspaceMembers = |workspace|::with_member(plan, second, "tools");
+            plan.product = BuildProduct::Workspace { members: repeated };"#,
+    );
     assert_ne!(duplicate, workspace);
     let (status, report) = invoke(&[("build.omg", &duplicate)], &["--check"]);
     assert!(!status.success(), "{report}");

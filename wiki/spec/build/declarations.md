@@ -97,9 +97,10 @@ or an ordinary helper assigns the product before returning.
 The driver reads the value in the returned plan. A helper may assign the field
 again before return. The final value must describe one complete product.
 An unselected product, an invalid name or path, an empty workspace, or a
-repeated member rejects. The `{omega}/build/workspace.omg` library copies a view of
-`BuildWorkspaceMember` records into an immutable `WorkspaceMembers` value
-held by the invocation. The source array may then go out of scope. Only the
+repeated member rejects. The `with_member(plan, catalog, path)` operation in
+`{omega}/build/workspace.omg` returns a new `WorkspaceMembers` value with
+that pathname appended. The invocation owns the copied pathname bytes.
+`WorkspaceMembers {}` starts an empty catalog. Only the
 catalog stored in the returned Workspace contributes member paths.
 A query that requires a named Product uses the name
 and role in the plan at that call; the returned plan must preserve the identity

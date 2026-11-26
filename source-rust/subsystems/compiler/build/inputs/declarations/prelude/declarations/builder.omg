@@ -58,10 +58,6 @@ public domain BuildSeal::Issued
     access BuildSealAccess;
 // Stored views share an explicit backing lifetime. Opaque mutable boundaries
 // must promise output safety; an unnamed relation cannot imply preservation.
-public data BuildWorkspaceMember<'storage> {
-    path: @'storage [u8];
-}
-
 // A value returned by the workspace library names an immutable collection of
 // paths in this Build invocation. An ordinary empty value denotes no members.
 public data WorkspaceMembers [copy] {}
