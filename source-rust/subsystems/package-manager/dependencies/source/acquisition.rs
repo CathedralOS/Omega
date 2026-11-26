@@ -51,6 +51,8 @@ pub struct BuildSourceAcquisitions<'operation> {
     pub(super) options: GitResolutionOptions<'operation>,
     root_request: PackageRootSourceRequest,
     locked_source: Option<&'operation CanonicalSourceClosureSubject>,
+    pub(crate) phase_grants: Option<crate::transaction::restricted_build::BuildPhaseGrants>,
+    pub(crate) root_policies: Vec<&'operation crate::lock::PackageLockTarget>,
     // Compilation also holds every Build activation, the root's included, to
     // the lock's exact source content. Inspection leaves the root mutable.
     locked_activations: bool,
@@ -88,12 +90,38 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             options,
             root_request,
             locked_source: None,
+            root_policies: Vec::new(),
+            phase_grants: None,
             locked_activations: false,
             local_members: None,
             git_sources: Vec::new(),
             sources: Vec::new(),
             workspaces: Vec::new(),
         }
+    }
+
+    /// A shared Build can use an old portable grant during review only when
+    /// every selected deployment has matching compiler and library custody.
+    pub(crate) fn select_reviewed_root(
+        &mut self,
+        lock: Option<&'operation crate::lock::PackageLock>,
+        targets: &[target::TargetProfile],
+    ) -> Result<(), String> {
+        let Some(lock) = lock else { return Ok(()) };
+        let current = crate::dependencies::compiler_input_identity()?;
+        self.root_policies = targets
+            .iter()
+            .map(|&target| {
+                let section = lock.target(target)?;
+                crate::dependencies::accepted_compilation_identity::require_current_compiler(
+                    section, current,
+                )
+                .ok()?;
+                Some(section)
+            })
+            .collect::<Option<Vec<_>>>()
+            .unwrap_or_default();
+        Ok(())
     }
 
     pub(crate) fn require_locked_graph(

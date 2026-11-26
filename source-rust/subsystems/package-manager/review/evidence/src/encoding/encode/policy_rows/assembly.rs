@@ -312,7 +312,7 @@ pub(super) fn project(
             true,
             true,
             |encoder| {
-                let (name, tag) = baseline::restricted_build::operation(request.operation);
+                let (name, tag) = baseline::restricted_build::operation(&request.operation);
                 encoder.tag(name, tag);
                 encoder.u64(ordinal);
                 Ok(())

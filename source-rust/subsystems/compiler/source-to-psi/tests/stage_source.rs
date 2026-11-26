@@ -85,6 +85,22 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
 }
 
 #[test]
+fn a_static_callback_requirement_reads_the_type_supplied_by_its_generic_machine() {
+    let package = PackageKeyIdentity::from_digest([0x75; 32]).unwrap();
+    let source = "data Item { value: i32; }
+        trait Modify<T> { machine apply(value: @mutable T) terminates; }
+        machine mark(value: @mutable Item) satisfies Modify<Item>::apply { value.value = 42; }
+        machine modify<T, const F: Modify<T>::apply>(value: @mutable T) terminates { F(value); }
+        public machine run() -> i32 {
+            let mutable item: Item = Item { value: 1 };
+            modify::<Item, mark>(@mutable item);
+            item.value
+        }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+}
+
+#[test]
 fn a_requirement_reads_nested_nominal_arguments_in_its_own_type_scope() {
     let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
     let source = r#"

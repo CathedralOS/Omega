@@ -9,6 +9,8 @@ version.workspace = true
 path = "execution.rs"
 
 [dependencies]
+build-program-launch = { path = "authority/program" }
+bounded-process = { path = "../../../../foundation/bounded-process" }
 evaluation-work = { path = "accounting/work" }
 build-settings = { path = "../settings" }
 build-evaluation-result = { path = "result" }

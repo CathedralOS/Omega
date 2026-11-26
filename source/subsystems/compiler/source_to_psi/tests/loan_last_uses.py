@@ -16,7 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("omega", type=Path)
     cli = parser.parse_args().omega.resolve()
-    fixture = PACKAGE / "tests/fixtures/loans/run/last_uses"
+    fixture = PACKAGE.parent / "tests/fixtures/source_to_psi/loans/run/last_uses"
     loans = (PACKAGE / "pipeline/typed_trees_to_checked_trees/loans.omg").read_text()
     declarations = []
     for name in ("record_tree_uses", "use_local", "use_slot"):

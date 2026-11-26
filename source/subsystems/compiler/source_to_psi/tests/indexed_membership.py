@@ -9,7 +9,7 @@ from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
-FIXTURE = PACKAGE / "tests/fixtures/parser/run/indexed_membership/main.omg"
+FIXTURE = PACKAGE.parent / "tests/fixtures/source_to_psi/parser/run/indexed_membership/main.omg"
 
 
 def main():
