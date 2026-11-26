@@ -1,6 +1,8 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "invalid_missing_source");
-    let mutable ghost_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "missing_dir" });
-    dependency\with_alias(@mutable ghost_dependency, "ghost");
+    let mutable ghost_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "missing_dir" });
+    |dependency|::with_alias(@mutable ghost_dependency, "ghost");
     let ghost_registration: DependencyRegistration = Build::dependency(builder, ghost_dependency);
 }

@@ -1,8 +1,10 @@
 // Deployable proof canary: every hosted target selects its exact entry.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "twice_a_fixed_point");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../../../../../../../../source/library/system" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../../../../../../../source/library/system" }));
     Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64\ProgramEntry, entry_start);

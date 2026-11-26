@@ -3,15 +3,17 @@
 // authored sticky failure. The rejection must attribute the failure to
 // the divergent sibling's own occurrence, not the requester.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "invalid_eval_divergence");
-    let mutable a_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../../sibling_a" });
-    dependency\with_alias(@mutable a_dependency, "a");
+    let mutable a_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../sibling_a" });
+    |dependency|::with_alias(@mutable a_dependency, "a");
     let a_registration: DependencyRegistration = Build::dependency(builder, a_dependency);
-    let mutable bad1_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../../sibling_bad1" });
-    dependency\with_alias(@mutable bad1_dependency, "bad1");
+    let mutable bad1_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../sibling_bad1" });
+    |dependency|::with_alias(@mutable bad1_dependency, "bad1");
     let bad1_registration: DependencyRegistration = Build::dependency(builder, bad1_dependency);
-    let mutable c_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../../sibling_c" });
-    dependency\with_alias(@mutable c_dependency, "c");
+    let mutable c_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../sibling_c" });
+    |dependency|::with_alias(@mutable c_dependency, "c");
     let c_registration: DependencyRegistration = Build::dependency(builder, c_dependency);
 }

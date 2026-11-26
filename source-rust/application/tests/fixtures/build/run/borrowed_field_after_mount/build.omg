@@ -1,3 +1,5 @@
+use {omega}/build/dependency.omg;
+
 machine helper_value() -> i32 { 7 }
 
 data Gauge { amount: i32; neighbor: i32; }
@@ -9,8 +11,8 @@ machine initial(builder: @mutable Build) -> Gauge {
 
 machine build(builder: @mutable Build) suspends {
     builder.tests.disabled = true;
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registration: DependencyRegistration = Build::dependency(builder, request);
     let mutable gauge: Gauge = initial(builder);
     let held: @mutable i32 = @mutable gauge.amount;

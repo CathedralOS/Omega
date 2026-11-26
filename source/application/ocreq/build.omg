@@ -1,6 +1,8 @@
 // The invocation supplies one exact target; these are root bindings rather
 // than a source-declared support set.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "omega_compiler_request");
     Build::select_provider::<system\Console, system\LinuxArm64Console>(builder, linux_arm64);
@@ -13,10 +15,10 @@ machine build(builder: @mutable Build) {
     Build::bind(builder, linux_arm64\ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64\ProgramEntry, entry_start);
     Build::bind(builder, alpha_bootstrap\ProgramEntry, entry_start);
-    let request_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let request_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../subsystems/compiler/request"
     }));
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../library/system"
     }));
 }

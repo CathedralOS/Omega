@@ -2,9 +2,11 @@
 // declaration is an application, not a package, so the row asks for a
 // purpose the dependent can never serve and must be rejected.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "invalid_application_as_dependency");
-    let mutable depapp_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "depapp" });
-    dependency\with_alias(@mutable depapp_dependency, "depapp");
+    let mutable depapp_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "depapp" });
+    |dependency|::with_alias(@mutable depapp_dependency, "depapp");
     let depapp_registration: DependencyRegistration = Build::dependency(builder, depapp_dependency);
 }
