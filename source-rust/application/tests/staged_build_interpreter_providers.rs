@@ -557,12 +557,15 @@ machine build(plan: @mutable BuildPlan) {
     let generator = r#"use {system}/filesystem.omg as files;
 use {system}/filesystem_host.omg as paths;
 machine build(plan: @mutable BuildPlan) blocks {
-    _ = block |files|::Filesystem::write_all("next.omg" as + |paths|::Path,
+    _ = block |files|::Filesystem::create_dir("generated" as + |paths|::Path);
+    _ = block |files|::Filesystem::write_all("sibling.omg" as + |paths|::Path,
+        "public machine valid(value: u8) -> bool { true }");
+    _ = block |files|::Filesystem::write_all("generated/next.omg" as + |paths|::Path,
         "machine build(plan: @mutable BuildPlan) { plan.product = BuildProduct::InterpretedBuild { entry: \"final.omg\" }; }");
-    _ = block |files|::Filesystem::write_all("final.omg" as + |paths|::Path, "ENTRY");
-    _ = block |files|::Filesystem::write_all("policy.omg" as + |paths|::Path,
+    _ = block |files|::Filesystem::write_all("generated/final.omg" as + |paths|::Path, "ENTRY");
+    _ = block |files|::Filesystem::write_all("generated/policy.omg" as + |paths|::Path,
         "public machine valid(value: u8) -> bool { value == 82u8 }");
-    _ = block |files|::Filesystem::write_all("settings.dat" as + |paths|::Path, "R");
+    _ = block |files|::Filesystem::write_all("generated/settings.dat" as + |paths|::Path, "R");
     SELECT
     plan.product = BuildProduct::InterpretedBuild { entry: "next.omg" };
 }"#
@@ -593,11 +596,11 @@ machine build(plan: @mutable BuildPlan) blocks {
             ),
         )
     };
-    let select = r#"let generated: BuildPath = BuildOutput::resolve(@plan.output, "");
+    let select = r#"let generated: BuildPath = BuildOutput::resolve(@plan.output, "generated");
     plan.package_root = BuildPackageRoot::Directory { path: generated };"#;
     let (ok, report) = run(&generator, select);
     assert!(ok, "{report}");
-    for name in ["next.omg", "final.omg", "policy.omg", "settings.dat"] {
+    for name in ["generated", "sibling.omg"] {
         assert!(!root.join(name).exists(), "{name} escaped private staging");
     }
 
@@ -608,6 +611,11 @@ machine build(plan: @mutable BuildPlan) blocks {
         select,
     );
     assert!(!ok && report.contains("parent_only.omg"), "{report}");
+    let (ok, report) = run(
+        &generator.replace("use policy.omg;", "use sibling.omg as policy;"),
+        select,
+    );
+    assert!(!ok && report.contains("sibling.omg"), "{report}");
     let (ok, report) = run(
         &generator,
         "plan.package_root = BuildPackageRoot::Directory { path: BuildPath {} };",

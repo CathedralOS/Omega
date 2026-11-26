@@ -51,6 +51,13 @@ struct FilesystemActivation {
     markers: Vec<Marker>,
 }
 
+pub(crate) fn installed_operation(action: Operation) -> bool {
+    matches!(
+        action,
+        Operation::ReadAll | Operation::WriteAll | Operation::CreateDirectory
+    )
+}
+
 struct FilesystemFacets {
     source: TerminalStructuralValue,
     inputs: TerminalStructuralValue,
@@ -61,8 +68,10 @@ pub(crate) struct TerminalBuildFilesystemHost {
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildFilesystemCall]>,
     facets: Option<FilesystemFacets>,
-    read_result: Option<file_result::FileResult>,
-    write_result: Option<file_result::FileResult>,
+    file_results: Vec<(
+        semantic_vocabulary::BoundaryMachineId,
+        file_result::FileResult,
+    )>,
     account: EvaluationInvocationAccount,
     machine_name: String,
     activation: Mutex<Option<FilesystemActivation>>,
@@ -84,31 +93,30 @@ impl TerminalBuildFilesystemHost {
             .build_filesystem()
             .calls_for(artifact)
             .ok_or("Build filesystem calls lost their invocation custody")?;
-        let result_for = |action| {
-            calls
-                .iter()
-                .find(|call| call.action == action && imports.contains(&call.site.boundary))
-                .map(|call| {
-                    let boundary = artifact.module().boundary_machine(call.site.boundary)
-                    .ok_or("missing installed filesystem boundary")?;
-                    let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result
-                    else {
-                        return Err("filesystem operation lost its declared result".into());
-                    };
-                    file_result::FileResult::admit(
-                        artifact.module(),
-                        result.structural_type,
-                        action == Operation::ReadAll,
-                    )
-                })
-                .transpose()
-        };
-        let read_result = result_for(Operation::ReadAll)?;
-        let write_result = result_for(Operation::WriteAll)?;
-        let needs_facets = calls
-            .iter()
-            .any(|call| !matches!(call.action, Operation::ReadAll | Operation::WriteAll));
-        let activation = if needs_facets || read_result.is_some() || write_result.is_some() || program_files {
+        let mut file_results = Vec::new();
+        for &id in imports {
+            let Some(call) = calls.iter().find(|call| call.site.boundary == id) else {
+                continue;
+            };
+            if !installed_operation(call.action) {
+                continue;
+            }
+            let boundary = artifact
+                .module()
+                .boundary_machine(id)
+                .ok_or("missing installed filesystem boundary")?;
+            let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
+                return Err("filesystem operation lost its declared result".into());
+            };
+            let shape = file_result::FileResult::admit(
+                artifact.module(),
+                result.structural_type,
+                call.action == Operation::ReadAll,
+            )?;
+            file_results.push((id, shape));
+        }
+        let needs_facets = calls.iter().any(|call| !installed_operation(call.action));
+        let activation = if needs_facets || !file_results.is_empty() || program_files {
             Some(FilesystemActivation {
                 runtime: scope.begin_filesystem_runtime(account.clone())?,
                 markers: Vec::new(),
@@ -117,8 +125,7 @@ impl TerminalBuildFilesystemHost {
             None
         };
         Ok(Arc::new(Self {
-            read_result,
-            write_result,
+            file_results,
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             facets: if !needs_facets {
@@ -267,13 +274,21 @@ impl FilesystemAdapter {
         else {
             return Err("not a Build filesystem boundary call".into());
         };
-        let action = self
+        let call = self
             .host
             .calls
             .iter()
             .find(|call| crate::host::is_call_at(effect, call.site))
-            .map(|call| call.action)
             .ok_or("filesystem call has no source-issued protocol custody")?;
+        let action = call.action;
+        let file_result = || {
+            self.host
+                .file_results
+                .iter()
+                .find(|(id, _)| *id == call.site.boundary)
+                .map(|(_, shape)| shape)
+                .ok_or("missing admitted filesystem result")
+        };
         if !buffers.is_empty() && !matches!(action, Operation::Read | Operation::ReadAll) {
             return Err("unexpected mutable filesystem operand".into());
         }
@@ -374,10 +389,14 @@ impl FilesystemAdapter {
                 }
                 integer_result(i64::from(runtime.open(root, relative, descriptor()?)?), 32)
             }
-            Operation::WriteAll => {
-                let written = runtime.write_private_file(bytes(0)?, bytes(1)?)?;
-                self.host.write_result.as_ref()
-                    .ok_or("missing admitted UnitResult")?
+            Operation::WriteAll | Operation::CreateDirectory => {
+                let path = bytes(0)?;
+                let written = if action == Operation::WriteAll {
+                    runtime.write_private_file(path, bytes(1)?)?
+                } else {
+                    runtime.create_directory(path)?
+                };
+                file_result()?
                     .finish(written.map(|()| None))
             }
             Operation::ReadAll => {
@@ -388,8 +407,7 @@ impl FilesystemAdapter {
                     return Err("read_all buffer has the wrong argument position".into());
                 }
                 let read = runtime.read_file(bytes(0)?, buffer.bytes_mut(), unsigned(integer(0)?)?)?;
-                self.host.read_result.as_ref()
-                    .ok_or("missing admitted IoResult")?
+                file_result()?
                     .finish(read.map(Some))
             }
             Operation::Read => {

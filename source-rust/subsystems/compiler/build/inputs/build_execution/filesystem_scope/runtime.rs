@@ -62,6 +62,19 @@ pub struct BuildFilesystemRuntime {
     refused: Option<String>,
 }
 
+fn staging_create_error(
+    reason: filesystem_authority::FilesystemSponsorError,
+) -> Result<(i32, std::io::ErrorKind), String> {
+    use filesystem_authority::FilesystemSponsorError;
+    use std::io::ErrorKind;
+    match reason {
+        FilesystemSponsorError::EntryAlreadyExists(_) => Ok((17, ErrorKind::AlreadyExists)),
+        FilesystemSponsorError::ParentEntryMissing(_) => Ok((2, ErrorKind::NotFound)),
+        FilesystemSponsorError::ParentIsNotDirectory(_) => Ok((20, ErrorKind::InvalidInput)),
+        other => Err(other.to_string()),
+    }
+}
+
 impl BuildMachineFilesystemScope {
     pub fn begin_filesystem_runtime(
         &self,
@@ -538,9 +551,6 @@ impl BuildFilesystemRuntime {
         path: &[u8],
         bytes: &[u8],
     ) -> Result<Result<(), std::io::ErrorKind>, String> {
-        use build_output::SourceSnapshotError;
-        use std::io::ErrorKind;
-
         if path.starts_with(b"/") {
             return self
                 .mapped_operation(
@@ -554,6 +564,20 @@ impl BuildFilesystemRuntime {
                 )
                 .map(|result| result.map(|_| ()));
         }
+        if let Err(kind) = self.private_destination(path, FilesystemHostOperation::Create)? {
+            return Ok(Err(kind));
+        }
+        self.write_staged_file(path, bytes)
+    }
+
+    fn private_destination(
+        &mut self,
+        path: &[u8],
+        operation: FilesystemHostOperation,
+    ) -> Result<Result<(), std::io::ErrorKind>, String> {
+        use build_output::SourceSnapshotError;
+        use std::io::ErrorKind;
+
         if !filesystem_root_relative_path_is_canonical(path, false) {
             return Ok(Err(ErrorKind::InvalidInput));
         }
@@ -561,7 +585,7 @@ impl BuildFilesystemRuntime {
             Err(SourceSnapshotError::NotFound) => {}
             Ok(_) | Err(SourceSnapshotError::SymlinkTraversal) => {
                 let attempted = self.begin_attempt(
-                    FilesystemHostOperation::Create,
+                    operation,
                     BUILD_SOURCE_ROOT_IDENTITY,
                     path,
                     FilesystemGrantAccess::Write,
@@ -572,7 +596,63 @@ impl BuildFilesystemRuntime {
             }
             Err(_) => return Ok(Err(ErrorKind::InvalidInput)),
         }
-        self.write_staged_file(path, bytes)
+        Ok(Ok(()))
+    }
+
+    pub fn create_directory(
+        &mut self,
+        path: &[u8],
+    ) -> Result<Result<(), std::io::ErrorKind>, String> {
+        let operation = FilesystemHostOperation::CreateDir;
+        if path.starts_with(b"/") {
+            return self
+                .mapped_operation(
+                    path,
+                    FilesystemGrantAccess::Write,
+                    operation,
+                    |mapping, path| {
+                        mapping.create_dir(path)?;
+                        Ok(0)
+                    },
+                )
+                .map(|result| result.map(|_| ()));
+        }
+        if let Err(kind) = self.private_destination(path, operation)? {
+            return Ok(Err(kind));
+        }
+        let ordinal = self.begin_attempt(
+            operation,
+            BUILD_OUTPUT_ROOT_IDENTITY,
+            path,
+            FilesystemGrantAccess::Write,
+            None,
+        )?;
+        let (sponsor, bound) = self.staging_entry(path)?;
+        let prepared = match sponsor.prepare_create_directory(&bound) {
+            Ok(prepared) => prepared,
+            Err(filesystem_authority::FilesystemSponsorError::EntryAlreadyExists(_))
+                if self
+                    .staging
+                    .is_directory(path)
+                    .map_err(|error| error.to_string())? =>
+            {
+                self.complete_attempt(ordinal, 0, 0);
+                return Ok(Ok(()));
+            }
+            Err(reason) => {
+                let (errno, kind) = staging_create_error(reason)?;
+                self.complete_attempt(ordinal, -1, errno);
+                return Ok(Err(kind));
+            }
+        };
+        if let Err(error) = self.staging.create_dir(path) {
+            prepared.abort();
+            self.complete_attempt(ordinal, -1, error.raw_os_error().unwrap_or(5));
+            return Ok(Err(error.kind()));
+        }
+        message(prepared.commit())?;
+        self.complete_attempt(ordinal, 0, 0);
+        Ok(Ok(()))
     }
 
     pub fn write_staged_file(
@@ -685,6 +765,31 @@ impl BuildFilesystemRuntime {
         Ok(self.complete_attempt(ordinal, length as i64, 0))
     }
 
+    fn staging_entry(
+        &self,
+        path: &[u8],
+    ) -> Result<
+        (
+            &filesystem_authority::FilesystemSponsor,
+            filesystem_authority::FilesystemSponsorPath,
+        ),
+        String,
+    > {
+        let physical = self
+            .effects
+            .scope
+            .build_dir
+            .join(std::str::from_utf8(path).map_err(|_| "Build path is not UTF-8")?);
+        let sponsor = self
+            .effects
+            .scope
+            .sponsor
+            .as_ref()
+            .ok_or("Output sponsor is absent")?;
+        let bound = message(sponsor.bind_path(&physical))?;
+        Ok((sponsor, bound))
+    }
+
     pub fn create(&mut self, path: &[u8], _mode: i32) -> Result<i32, String> {
         self.resolve(BUILD_OUTPUT_ROOT_IDENTITY, path)?;
         let ordinal = self.begin_attempt(
@@ -703,28 +808,11 @@ impl BuildFilesystemRuntime {
             .try_reserve(1)
             .map_err(|_| "cannot retain Build descriptor")?;
         let retained_path = copy_bytes(path)?;
-        let physical = self
-            .effects
-            .scope
-            .build_dir
-            .join(std::str::from_utf8(path).map_err(|_| "Build path is not UTF-8")?);
-        let sponsor = self
-            .effects
-            .scope
-            .sponsor
-            .as_ref()
-            .ok_or("Output sponsor is absent")?;
-        let bound = message(sponsor.bind_path(&physical))?;
-        use filesystem_authority::FilesystemSponsorError;
+        let (sponsor, bound) = self.staging_entry(path)?;
         let prepared = match sponsor.prepare_create_object_open(&bound, 0) {
             Ok(prepared) => prepared,
             Err(reason) => {
-                let errno = match reason {
-                    FilesystemSponsorError::EntryAlreadyExists(_) => 17,
-                    FilesystemSponsorError::ParentEntryMissing(_) => 2,
-                    FilesystemSponsorError::ParentIsNotDirectory(_) => 20,
-                    other => return Err(other.to_string()),
-                };
+                let (errno, _) = staging_create_error(reason)?;
                 return Ok(self.complete_attempt(ordinal, -1, errno) as i32);
             }
         };
@@ -1219,6 +1307,49 @@ mod tests {
                 .iter()
                 .all(|attempt| attempt.provider == FilesystemObservationProvider::Captured)
         );
+    }
+
+    #[test]
+    fn private_directories_preserve_captured_entries_and_record_each_creation() {
+        use std::io::ErrorKind;
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "filesystem-staging-directories",
+            false,
+        )
+        .unwrap();
+        let scope = scope(temp.path(), "session");
+        let mut fs = scope.begin_filesystem_runtime(account()).unwrap();
+        for (path, result) in [
+            (b"asset".as_slice(), Err(ErrorKind::PermissionDenied)),
+            (b"link/escape", Err(ErrorKind::PermissionDenied)),
+            (b"../sibling", Err(ErrorKind::InvalidInput)),
+            (b"unknown/child", Err(ErrorKind::NotFound)),
+            (b"generated", Ok(())),
+            (b"generated", Ok(())),
+            (b"generated/sub", Ok(())),
+        ] {
+            assert_eq!(fs.create_directory(path).unwrap(), result);
+        }
+        assert_eq!(
+            fs.write_private_file(b"generated/sub/input", b"R").unwrap(),
+            Ok(())
+        );
+        assert_eq!(
+            fs.create_directory(b"generated/sub/input").unwrap(),
+            Err(ErrorKind::AlreadyExists)
+        );
+        assert!(scope.build_dir.join("generated/sub/input").is_file());
+        assert!(!scope.build_dir.join("unknown").exists());
+        let created = fs
+            .effects
+            .attempts
+            .iter()
+            .filter(|attempt| {
+                attempt.operation_tag == FilesystemHostOperation::CreateDir.operation_tag()
+                    && attempt.result == FilesystemOperationResult::Scalar(0)
+            })
+            .count();
+        assert_eq!(created, 3);
     }
 
     #[test]
