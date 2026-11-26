@@ -91,9 +91,11 @@ omega build --build-input build.omg --build-input helper.omg --build-input table
 
 Each `--build-input` names a required file or subtree. An
 `--optional-build-input` records whether that path exists. An explicit inventory
-must include all required source files. A dependency receives its sealed package
-snapshot unless its caller supplies another filesystem view.
-[Build source capture](scoped_execution.md#snapshot-and-staging-protocol)
+must include all required source files. Without that list, the compiler retains
+the local package snapshot for resolution and its package capture limits apply.
+A dependency receives its sealed package snapshot unless its caller supplies
+another filesystem view. [Build source capture](scoped_execution.md#snapshot-and-staging-protocol)
+and [local package capture](../packages/sources.md#local-source-capture).
 
 ## Build-first entry selection
 
