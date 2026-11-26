@@ -309,7 +309,7 @@ public boundary trait TableSource {
 public boundary trait Operation {
     machine apply(value: i32, table: @Protocol in Protocol::Initialized) -> i32 reaches none crashes none;
 }
-machine main() reaches TableSource + Operation invokes TableSource invokes Operation crashes Trap {
+machine main() reaches none crashes Trap {
     let left: IssuedTable = TableSource::provide(0u32);
     let right: IssuedTable = TableSource::provide(1u32);
     let first: i32 = Operation::apply(25i32, @left.table);
