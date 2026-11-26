@@ -47,7 +47,7 @@ impl BuildActivation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildFilesystemRoot {
-    Source,
+    Source,            // Immutable package captured for this activation.
     Output,
     MappedDirectories, // A path relative to the guest / among this activation’s live directory grants.
     NamedInput(u32),   // Compiler-issued root joined to the observation's named inventory.
