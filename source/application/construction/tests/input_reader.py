@@ -67,7 +67,7 @@ def main():
         for name in ("input.omg", "input_reader.omg", "build_sources.omg"):
             shutil.copyfile(APPLICATION / name, root / name)
         fixture = APPLICATION / "tests/fixtures/build_input"
-        shutil.copyfile(fixture / "main.omg", root / "main.omg")
+        shutil.copyfile(fixture / "main.omg.in", root / "main.omg")
         shutil.copyfile(fixture / "build.omg.in", root / "build.omg")
         with tempfile.TemporaryDirectory() as case_directory:
             inputs = Path(case_directory) / "inputs"
