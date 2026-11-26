@@ -8,7 +8,6 @@ use super::{
 use provider_admission::IsolatedExecutionGrant;
 use source_compiler::registered_tests::{TestEnginePolicy, TestRoot};
 
-#[path = "plan/bindings.rs"]
 mod bindings;
 
 pub(super) struct PlannedTest {
