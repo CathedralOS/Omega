@@ -1643,6 +1643,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                                                 .len(),
                                         },
                                         target.source_span,
+                                        target.authored_call_selection.into_iter(),
                                         &[],
                                     )?;
                                     let values = expressions.expression_handles(target.arguments);
