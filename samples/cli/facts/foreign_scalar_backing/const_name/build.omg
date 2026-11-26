@@ -1,31 +1,32 @@
+use main.omg as app;
 use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "foreign_scalar_backing_const_name" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, windows_main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, posix_main);
-    Build::bind(builder, linux_arm64::ProgramEntry, posix_main);
-    Build::bind(builder, macos_arm64::ProgramEntry, posix_main);
-    Build::bind_native::<Words::write>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::windows_main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::posix_main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::posix_main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::posix_main);
+    Build::bind_native::<|app|::Words::write>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
         }
     });
-    Build::bind_native::<Words::write>(builder, linux_x86_64, |native|::ForeignBinding::DllImport {
+    Build::bind_native::<|app|::Words::write>(builder, linux_x86_64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "write", version: "GLIBC_2.2.5"
         }
     });
-    Build::bind_native::<Words::write>(builder, linux_arm64, |native|::ForeignBinding::DllImport {
+    Build::bind_native::<|app|::Words::write>(builder, linux_arm64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "write", version: "GLIBC_2.17"
         }
     });
     // Binary stdout preserves the exact authored bytes on Windows.
-    Build::bind_native::<WindowsDescriptorMode::set_mode>(builder, windows_x86_64,
+    Build::bind_native::<|app|::WindowsDescriptorMode::set_mode>(builder, windows_x86_64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
         } });
-    Build::bind_native::<WindowsWords::write>(builder, windows_x86_64,
+    Build::bind_native::<|app|::WindowsWords::write>(builder, windows_x86_64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
             library: "msvcrt.dll", export: "_write"
         } });

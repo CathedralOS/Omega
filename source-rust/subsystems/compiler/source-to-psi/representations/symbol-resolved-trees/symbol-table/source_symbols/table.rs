@@ -3723,13 +3723,17 @@ impl SymbolTable {
                 SymbolKind::TypeAlias,
                 SymbolKind::Machine,
                 SymbolKind::Trait,
+                SymbolKind::MathematicalDefinition,
             ]
         };
         let lookup = self.lookup_top_level_by_name_and_kinds_from_source_matching(
             name,
             kinds,
             reference,
-            |_| true,
+            |symbol| {
+                self.get(symbol).kind != SymbolKind::MathematicalDefinition
+                    || self.fixed_core_declaration_for_symbol(symbol).is_some()
+            },
         );
         match lookup {
             SymbolLookup::NotFound if !builtin => self
@@ -4077,6 +4081,24 @@ impl SymbolTable {
             };
             if !reference_is_source_backed {
                 return Vec::new();
+            }
+            // The kernel supplies the declarations in the installed foundation file.
+            // Its alias has already selected one exact source in this scope.
+            if kinds.contains(&SymbolKind::MathematicalDefinition)
+                && self
+                    .sources
+                    .as_deref()
+                    .and_then(|sources| sources.get(source))
+                    .and_then(crate::source_symbols::core_source_at)
+                    == Some(language_core::core_vocabulary::CoreSource::Foundation)
+            {
+                return FixedCoreDeclaration::ALL
+                    .into_iter()
+                    .find(|fixed| fixed.name().strip_prefix("core::") == Some(declaration))
+                    .and_then(|fixed| self.fixed_core_declaration_symbol(fixed))
+                    .filter(|symbol| matches_candidate(*symbol))
+                    .into_iter()
+                    .collect();
             }
             // A cast or qualification already supplies the carrier. Within the
             // selected file its domain may be named by its declared leaf.

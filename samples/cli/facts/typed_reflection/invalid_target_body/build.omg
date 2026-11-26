@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "typed_reflection_visitation" };
-    Build::select_provider::<Inspect, WindowsInspect>(builder, windows_x86_64);
-    Build::select_provider::<Inspect, LinuxX86Inspect>(builder, linux_x86_64);
-    Build::select_provider::<Inspect, MacInspect>(builder, macos_arm64);
-    Build::select_provider::<Inspect, LinuxArmInspect>(builder, linux_arm64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::select_provider::<|app|::Inspect, |app|::WindowsInspect>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Inspect, |app|::LinuxX86Inspect>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Inspect, |app|::MacInspect>(builder, macos_arm64);
+    Build::select_provider::<|app|::Inspect, |app|::LinuxArmInspect>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }

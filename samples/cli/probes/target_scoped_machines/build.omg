@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "target_scoped_machines" };
-    Build::select_provider::<PlatformProbe, LinuxX86>(builder, linux_x86_64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_linux_x86_64);
-    Build::select_provider::<PlatformProbe, LinuxArm>(builder, linux_arm64);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_linux_arm64);
-    Build::select_provider::<PlatformProbe, MacArm>(builder, macos_arm64);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_macos_arm64);
-    Build::select_provider::<PlatformProbe, WindowsX86>(builder, windows_x86_64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_windows_x86_64);
+    Build::select_provider::<|app|::PlatformProbe, |app|::LinuxX86>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_linux_x86_64);
+    Build::select_provider::<|app|::PlatformProbe, |app|::LinuxArm>(builder, linux_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry_linux_arm64);
+    Build::select_provider::<|app|::PlatformProbe, |app|::MacArm>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_macos_arm64);
+    Build::select_provider::<|app|::PlatformProbe, |app|::WindowsX86>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_windows_x86_64);
 }

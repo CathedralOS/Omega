@@ -1,1 +1,2 @@
-machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "invalid_mask_bounds" }; Build::bind(builder, linux_x86_64::ProgramEntry, main); }
+use main.omg as app;
+machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: "invalid_mask_bounds" }; Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main); }

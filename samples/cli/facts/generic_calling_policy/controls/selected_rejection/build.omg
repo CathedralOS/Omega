@@ -1,22 +1,23 @@
+use main.omg as app;
 use {omega}/build/dependency.omg;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "generic_policy_selected_rejection" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::select_provider::<LocalEntry, LocalMap>(builder, linux_x86_64);
-    Build::select_provider::<ValuePlan, RejectingValuePlan>(builder, linux_x86_64);
-    Build::select_provider::<Acquire, AcquireCode>(builder, linux_x86_64);
-    Build::select_provider::<LocalEntry, LocalMap>(builder, windows_x86_64);
-    Build::select_provider::<ValuePlan, RejectingValuePlan>(builder, windows_x86_64);
-    Build::select_provider::<Acquire, AcquireCode>(builder, windows_x86_64);
-    Build::select_provider::<LocalEntry, LocalMap>(builder, macos_arm64);
-    Build::select_provider::<ValuePlan, RejectingValuePlan>(builder, macos_arm64);
-    Build::select_provider::<Acquire, AcquireCode>(builder, macos_arm64);
-    Build::select_provider::<LocalEntry, LocalMap>(builder, linux_arm64);
-    Build::select_provider::<ValuePlan, RejectingValuePlan>(builder, linux_arm64);
-    Build::select_provider::<Acquire, AcquireCode>(builder, linux_arm64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::LocalEntry, |app|::LocalMap>(builder, linux_x86_64);
+    Build::select_provider::<|app|::ValuePlan, |app|::RejectingValuePlan>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Acquire, |app|::AcquireCode>(builder, linux_x86_64);
+    Build::select_provider::<|app|::LocalEntry, |app|::LocalMap>(builder, windows_x86_64);
+    Build::select_provider::<|app|::ValuePlan, |app|::RejectingValuePlan>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Acquire, |app|::AcquireCode>(builder, windows_x86_64);
+    Build::select_provider::<|app|::LocalEntry, |app|::LocalMap>(builder, macos_arm64);
+    Build::select_provider::<|app|::ValuePlan, |app|::RejectingValuePlan>(builder, macos_arm64);
+    Build::select_provider::<|app|::Acquire, |app|::AcquireCode>(builder, macos_arm64);
+    Build::select_provider::<|app|::LocalEntry, |app|::LocalMap>(builder, linux_arm64);
+    Build::select_provider::<|app|::ValuePlan, |app|::RejectingValuePlan>(builder, linux_arm64);
+    Build::select_provider::<|app|::Acquire, |app|::AcquireCode>(builder, linux_arm64);
 }

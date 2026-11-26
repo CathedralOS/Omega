@@ -1,19 +1,20 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "filesystem_invocation_cycle" };
-    Build::select_provider::<First, FirstSelected>(builder, windows_x86_64);
-    Build::select_provider::<Second, SecondSelected>(builder, windows_x86_64);
-    Build::select_provider::<Third, ThirdSelected>(builder, windows_x86_64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::select_provider::<First, FirstSelected>(builder, linux_x86_64);
-    Build::select_provider::<Second, SecondSelected>(builder, linux_x86_64);
-    Build::select_provider::<Third, ThirdSelected>(builder, linux_x86_64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::select_provider::<First, FirstSelected>(builder, macos_arm64);
-    Build::select_provider::<Second, SecondSelected>(builder, macos_arm64);
-    Build::select_provider::<Third, ThirdSelected>(builder, macos_arm64);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::select_provider::<First, FirstSelected>(builder, linux_arm64);
-    Build::select_provider::<Second, SecondSelected>(builder, linux_arm64);
-    Build::select_provider::<Third, ThirdSelected>(builder, linux_arm64);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::select_provider::<|app|::First, |app|::FirstSelected>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Second, |app|::SecondSelected>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Third, |app|::ThirdSelected>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::First, |app|::FirstSelected>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Second, |app|::SecondSelected>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Third, |app|::ThirdSelected>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::First, |app|::FirstSelected>(builder, macos_arm64);
+    Build::select_provider::<|app|::Second, |app|::SecondSelected>(builder, macos_arm64);
+    Build::select_provider::<|app|::Third, |app|::ThirdSelected>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::First, |app|::FirstSelected>(builder, linux_arm64);
+    Build::select_provider::<|app|::Second, |app|::SecondSelected>(builder, linux_arm64);
+    Build::select_provider::<|app|::Third, |app|::ThirdSelected>(builder, linux_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }

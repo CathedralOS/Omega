@@ -1,3 +1,4 @@
+use main.omg as app;
 use {omega}/build/dependency.omg;
 
-machine build(builder:@mutable BuildPlan) {builder.product = BuildProduct::Application { name: "runtime_float_guard" };let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled{name:"system"}));Build::bind(builder,linux_x86_64::ProgramEntry,entry_start);}
+machine build(builder:@mutable BuildPlan) {builder.product = BuildProduct::Application { name: "runtime_float_guard" };let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled{name:"system"}));Build::bind(builder,linux_x86_64::ProgramEntry,|app|::entry_start);}

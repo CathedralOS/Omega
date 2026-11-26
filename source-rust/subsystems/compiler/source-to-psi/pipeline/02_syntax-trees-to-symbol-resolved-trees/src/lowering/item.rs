@@ -400,8 +400,8 @@ fn lower_item_with_exposure(
             components,
             alias,
             span,
-            only_product_operands: false,
-        }) => {
+            qualifiers,
+        }) if qualifiers.iter().any(|usage| !usage.product_operand) => {
             lowerer.namespace_declarations.record_file_import(
                 syntax_trees,
                 root.as_ref(),

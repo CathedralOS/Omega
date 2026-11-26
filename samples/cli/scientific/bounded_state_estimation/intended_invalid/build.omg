@@ -1,4 +1,5 @@
+use invalid_index.omg as product_invalid_index;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "invalid_covariance_index" };
-    Build::bind(builder, linux_x86_64::ProgramEntry, invalid_index);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |product_invalid_index|::invalid_index);
 }

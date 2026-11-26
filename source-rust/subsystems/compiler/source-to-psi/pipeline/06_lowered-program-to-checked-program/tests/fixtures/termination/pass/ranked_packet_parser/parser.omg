@@ -1,3 +1,4 @@
+use {omega}/language/core/nat.omg;
 // Each header hands its unread slice to a payload at cursor zero.
 // Only taking the suffix after that cursor consumes a byte.
 machine header(unread: @[u8], checksum: u8) -> u8
@@ -12,7 +13,7 @@ terminates by unread -> Slice::Length {
 machine payload(bytes: @[u8], cursor: u64, end: u64, checksum: u8) -> u8
 requires cursor < end && end == bytes.length
 terminates
-terminates by (cursor, end) -> Nat::BoundedDistance {
+terminates by (cursor, end) -> |nat|::Nat::BoundedDistance {
     let byte: u8 = bytes[cursor];
     transition { _ -> header(bytes[cursor + 1..], checksum ^ byte) }
 }

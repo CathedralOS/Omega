@@ -2,7 +2,8 @@
 // applies a machine parameter two times. If that machine leaves a value as
 // it is, so does applying it twice. Nothing instantiates either machine:
 // each is checked once, for any terminating machine from `Peano` to `Peano`.
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
 
 data Peano {
     case Zero;
@@ -19,19 +20,19 @@ requires machine Step(a: Peano) -> Peano terminates;
 machine twice_keeps_a_fixed_point<machine Step>(a: Peano)
 requires machine Step(a: Peano) -> Peano terminates;
 requires
-    core\Identity::<Peano>(Step(a), a)
+    |proof|::Identity::<Peano>(Step(a), a)
 ensures
-    core\Identity::<Peano>(twice::<Step>(a), a)
+    |proof|::Identity::<Peano>(twice::<Step>(a), a)
 {
 }
 
 data Main { }
-machine exit_with_status(main: @mutable Main) reaches ProcessExit {
-    ProcessExit::exit_process(0);
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     block exit_with_status(@mutable entry_storage);
 }

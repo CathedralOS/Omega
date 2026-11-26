@@ -1,4 +1,5 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "invalid_selected_native_code_layout_other_state" };
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }

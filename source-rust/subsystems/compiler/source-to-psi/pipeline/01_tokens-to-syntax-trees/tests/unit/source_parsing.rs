@@ -337,10 +337,11 @@ machine build(builder: @mutable Build) {
         .iter()
         .filter_map(|root| match trees.root_item(*root) {
             Item::Use(UseItem::File {
-                alias,
-                only_product_operands,
-                ..
-            }) => Some((alias.as_str(&trees), *only_product_operands)),
+                alias, qualifiers, ..
+            }) => Some((
+                alias.as_str(&trees),
+                !qualifiers.is_empty() && qualifiers.iter().all(|usage| usage.product_operand),
+            )),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -458,10 +459,9 @@ fn root_operand_file_roles_follow_the_declared_build_record() {
         );
         let parsed = crate::tests::parse_source(&text);
         let import = parsed.root_items().find_map(|item| match item {
-            Item::Use(UseItem::File {
-                only_product_operands,
-                ..
-            }) => Some(*only_product_operands),
+            Item::Use(UseItem::File { qualifiers, .. }) => {
+                Some(!qualifiers.is_empty() && qualifiers.iter().all(|usage| usage.product_operand))
+            }
             _ => None,
         });
         assert_eq!(import, Some(product_only), "{text}");

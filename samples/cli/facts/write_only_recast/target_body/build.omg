@@ -1,12 +1,13 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "write_only_recast" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::accept_boundary::<SelectedOverwrite>(builder);
-    Build::select_provider::<SelectedOverwrite, WindowsOverwrite>(builder, windows_x86_64);
-    Build::select_provider::<SelectedOverwrite, LinuxX86Overwrite>(builder, linux_x86_64);
-    Build::select_provider::<SelectedOverwrite, MacosOverwrite>(builder, macos_arm64);
-    Build::select_provider::<SelectedOverwrite, LinuxArmOverwrite>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::accept_boundary::<|app|::SelectedOverwrite>(builder);
+    Build::select_provider::<|app|::SelectedOverwrite, |app|::WindowsOverwrite>(builder, windows_x86_64);
+    Build::select_provider::<|app|::SelectedOverwrite, |app|::LinuxX86Overwrite>(builder, linux_x86_64);
+    Build::select_provider::<|app|::SelectedOverwrite, |app|::MacosOverwrite>(builder, macos_arm64);
+    Build::select_provider::<|app|::SelectedOverwrite, |app|::LinuxArmOverwrite>(builder, linux_arm64);
 }

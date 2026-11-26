@@ -226,7 +226,7 @@ pub(crate) fn pending_build_imports(
             continue;
         }
         for import in &roots.build_imports {
-            if !import.only_product_operands
+            if import.used_in(DependencyScope::Build)
                 && selected
                     .binary_search(&(roots.source_id.0, import.ordinal))
                     .is_err()
@@ -481,7 +481,7 @@ mod tests {
             DependencyScope::Product,
         );
         let import = SourceImport {
-            only_product_operands: false,
+            qualifiers: Vec::new(),
             ordinal: 0,
             span: Default::default(),
             target: SourceImportTarget::File {
