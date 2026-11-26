@@ -29,7 +29,7 @@ pub(super) fn destination(
     root: TerminalObservationRoot,
     requests: &[IssuedBuildRequest],
     host: &crate::host::requests::TerminalBuildRequestHost,
-) -> Result<Destination, String> {
+) -> Result<Option<Destination>, String> {
     let program = instance.program();
     let receiver = machine.receiver_for(program.module())?;
     let plan = program
@@ -47,7 +47,7 @@ pub(super) fn destination(
         return Err("BuildPlan.product did not produce a BuildProduct".into());
     };
     let mut product = match variant.rsplit("::").next().unwrap_or(&variant) {
-        "Unselected" if payload.is_empty() => return Err("Build returned no project role".into()),
+        "Unselected" if payload.is_empty() => return Ok(None),
         "Package" => Destination::Project(BuildDeclaration::Package(PackageDeclaration {
             name: ProjectName::parse(text(field_value(payload, "name")?)?)?,
         })),
@@ -117,7 +117,7 @@ pub(super) fn destination(
             application.artifact_only = true;
         }
     }
-    Ok(product)
+    Ok(Some(product))
 }
 
 fn field_value(

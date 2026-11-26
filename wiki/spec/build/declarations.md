@@ -96,8 +96,8 @@ or an ordinary helper assigns the product before returning.
 
 The driver reads the value in the returned plan. A helper may assign the field
 again before return. The final value must describe one complete product.
-An unselected product, an invalid name or path, an empty workspace, or a
-repeated member rejects. The `with_member(plan, catalog, path)` operation in
+An authored Build that returns an unselected product, an invalid name or
+path, an empty workspace, or a repeated member rejects. The `with_member(plan, catalog, path)` operation in
 `{omega}/build/workspace.omg` returns a new `WorkspaceMembers` value with
 that pathname appended. The invocation owns the copied pathname bytes.
 `WorkspaceMembers {}` starts an empty catalog. Only the
@@ -119,7 +119,8 @@ An ordinary same-spelled machine remains ordinary source.
 
 With no selected build file, the compiler supplies ordinary default Build
 source and runs it through the same one-entry checking, interpretation, join,
-and freeze route. No file need be written. A standalone loose root defaults to
+and freeze route. The default entry leaves the initial product field unselected
+and retains the invoker's supplied role. No file need be written. A standalone loose root defaults to
 application role; an already resolved package retains its supplied role and
 owner. Checking source does not require an executable entry. Executable output
 still needs ordinary target-slot selections and provider checks. When the

@@ -582,9 +582,10 @@ impl TerminalBuildActivation {
             format!("Product declaration query requires a named package or application: {reason}")
         })?;
         current
-            .project()
+            .as_ref()
+            .and_then(project::Destination::project)
             .cloned()
-            .ok_or_else(|| "successor Build has no named product declaration".into())
+            .ok_or_else(|| "Build query requires a selected named Product".into())
     }
 
     pub fn requests(&self) -> &[IssuedBuildRequest] {
@@ -804,20 +805,20 @@ impl TerminalBuildActivation {
         }
         let (settings, optimization_report) =
             build_settings::extract(&self.instance, &self.host.machine)?;
-        let destination = if self.host.default_source {
-            if !self.requests.is_empty() {
-                return Err("default Build unexpectedly issued project requests".into());
+        let destination = project::destination(
+            &self.instance,
+            &self.host.machine,
+            terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0),
+            &self.requests,
+            &self.host.requests,
+        )?;
+        if self.host.default_source {
+            if destination.is_some() || !self.requests.is_empty() {
+                return Err("default Build changed the product supplied by its invoker".into());
             }
-            None
-        } else {
-            Some(project::destination(
-                &self.instance,
-                &self.host.machine,
-                terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0),
-                &self.requests,
-                &self.host.requests,
-            )?)
-        };
+        } else if destination.is_none() {
+            return Err("Build returned no project role".into());
+        }
         if let Some(issued) = &self.described_product {
             let returned = destination
                 .as_ref()
