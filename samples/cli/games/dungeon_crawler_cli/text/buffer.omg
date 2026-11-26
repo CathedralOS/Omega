@@ -1,7 +1,8 @@
-use omega\language\core\byte_observation;
+use {omega}/language/core/byte_observation/byte_observation.omg;
+
 // Explicit text storage; domains never supply a length word.
-public domain [u8; 128]::Ascii requires byte_observation\ascii_only(@self[..]);
-public domain [u8]::Ascii requires byte_observation\ascii_only(@self[..]);
+public domain [u8; 128]::Ascii requires |byte_observation|::ascii_only(@self[..]);
+public domain [u8]::Ascii requires |byte_observation|::ascii_only(@self[..]);
 data TextBuffer [copy] requires used <= 128 { storage: [u8; 128] in Ascii; used: u64; }
 machine text_buffer_live(buffer: @TextBuffer) -> @[u8] in Ascii {
     let prefix: @[u8] = @(@buffer.storage as -Ascii)[..buffer.used];
@@ -46,7 +47,7 @@ requires left.length <= 24, right.length <= 100
 }
 
 // Explicit owner retains its original 8-byte capacity.
-public domain [u8; 8]::Ascii requires byte_observation\ascii_only(@self[..]);
+public domain [u8; 8]::Ascii requires |byte_observation|::ascii_only(@self[..]);
 data ExitCommand [copy] requires used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
 machine exit_command_live(buffer: @ExitCommand) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 8
@@ -86,8 +87,8 @@ requires bytes.length <= 8
 }
 
 // Explicit owner retains its original 16-byte capacity.
-public domain [u8; 16]::Ascii requires byte_observation\ascii_only(@self[..]);
-public domain [u8; 16]::Utf8 requires byte_observation\valid_utf8(@self[..]);
+public domain [u8; 16]::Ascii requires |byte_observation|::ascii_only(@self[..]);
+public domain [u8; 16]::Utf8 requires |byte_observation|::valid_utf8(@self[..]);
 data RoomLabel [copy] requires used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
 machine room_label_live(buffer: @RoomLabel) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 16
@@ -127,8 +128,8 @@ requires bytes.length <= 16
 }
 
 // Explicit owner retains its original 24-byte capacity.
-public domain [u8; 24]::Ascii requires byte_observation\ascii_only(@self[..]);
-public domain [u8; 24]::Utf8 requires byte_observation\valid_utf8(@self[..]);
+public domain [u8; 24]::Ascii requires |byte_observation|::ascii_only(@self[..]);
+public domain [u8; 24]::Utf8 requires |byte_observation|::valid_utf8(@self[..]);
 data EnemyName [copy] requires used <= 24 { storage: [u8; 24] in Ascii; used: u64; }
 machine enemy_name_live(buffer: @EnemyName) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 24
@@ -168,7 +169,7 @@ requires bytes.length <= 24
 }
 
 // Explicit owner retains its original 64-byte capacity.
-public domain [u8; 64]::Ascii requires byte_observation\ascii_only(@self[..]);
+public domain [u8; 64]::Ascii requires |byte_observation|::ascii_only(@self[..]);
 data RoomDescription [copy] requires used <= 64 { storage: [u8; 64] in Ascii; used: u64; }
 machine room_description_live(buffer: @RoomDescription) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 64

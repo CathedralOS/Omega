@@ -1,221 +1,218 @@
-use text;
-use events\RoomEventKind;
-use player\Player;
-use text\EnemyName;
-use text\TextBuffer;
-use text\enemy_name_live;
-use text\join;
-use text\room_description_live;
-use text\text_buffer_set;
+use events/events.omg;
+use player/player_state.omg;
+use rooms/map.omg;
+use rooms/room_lookup.omg;
+use rooms/rooms.omg;
+use text/buffer.omg;
 
 data RoomFormatter {
-    lookup: RoomLookup;
+    lookup: |room_lookup|::RoomLookup;
 }
 
 // Writers replace the whole output buffer. The active render chain retains
 // the caller's Utf8 qualification through each mutable loan.
 
-machine write_current_cell(level: Level,
-    cell: CellId,
-    out_line: @mutable TextBuffer)
+machine write_current_cell(level: |rooms|::Level,
+    cell: |map|::CellId,
+    out_line: @mutable |buffer|::TextBuffer)
 {
     transition cell {
-        CellId::R00 -> gate_title(out_line),
+        |map|::CellId::R00 -> gate_title(out_line),
         _ -> branch_title(out_line)
     }
 
-    machine gate_title(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "== Gate ==" as +Ascii);
+    machine gate_title(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "== Gate ==" as + |buffer|::Ascii);
     }
 
-    machine branch_title(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "== Branch Room ==" as +Ascii);
+    machine branch_title(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "== Branch Room ==" as + |buffer|::Ascii);
     }
 }
 
 machine write_room_info(
     room_formatter: @mutable RoomFormatter,
-    level: Level,
-    cell: CellId,
-    out_line: @mutable TextBuffer
+    level: |rooms|::Level,
+    cell: |map|::CellId,
+    out_line: @mutable |buffer|::TextBuffer
 )
 {
-    let mutable room: Room;
-    find_room(level, cell, @mutable room);
-    text_buffer_set(out_line, room_description_live(@room.description));
+    let mutable room: |rooms|::Room;
+    |room_lookup|::find_room(level, cell, @mutable room);
+    |buffer|::text_buffer_set(out_line, |buffer|::room_description_live(@room.description));
 }
 
 machine write_room_event(
     room_formatter: @mutable RoomFormatter,
-    level: Level,
-    cell: CellId,
-    out_line: @mutable TextBuffer
+    level: |rooms|::Level,
+    cell: |map|::CellId,
+    out_line: @mutable |buffer|::TextBuffer
 )
 {
-    let mutable room: Room;
-    find_room(level, cell, @mutable room);
+    let mutable room: |rooms|::Room;
+    |room_lookup|::find_room(level, cell, @mutable room);
 
     transition {
-        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line),
-        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> describe_treasure(out_line),
-        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> describe_gold(out_line),
-        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> describe_enemy(room.event.enemy.name, out_line),
+        room.event.kind == |events|::RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line),
+        room.event.kind == |events|::RoomEventKind::Treasure && room.event.consumed == false -> describe_treasure(out_line),
+        room.event.kind == |events|::RoomEventKind::GoldCache && room.event.consumed == false -> describe_gold(out_line),
+        room.event.kind == |events|::RoomEventKind::Enemy && room.event.consumed == false -> describe_enemy(room.event.enemy.name, out_line),
         _ -> quiet_room(out_line)
     }
 
 
-    machine describe_fountain(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "A fountain of life glows here. Type use to drink." as +Ascii);
+    machine describe_fountain(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "A fountain of life glows here. Type use to drink." as + |buffer|::Ascii);
     }
 
-    machine describe_treasure(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it." as +Ascii);
+    machine describe_treasure(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it." as + |buffer|::Ascii);
     }
 
-    machine describe_gold(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it." as +Ascii);
+    machine describe_gold(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it." as + |buffer|::Ascii);
     }
 
-    machine describe_enemy(enemy_name: EnemyName,
-        out_line: @mutable TextBuffer)
+    machine describe_enemy(enemy_name: |buffer|::EnemyName,
+        out_line: @mutable |buffer|::TextBuffer)
     {
-        join(out_line, enemy_name_live(@enemy_name), " blocks the way. Type fight." as +Ascii);
+        |buffer|::join(out_line, |buffer|::enemy_name_live(@enemy_name), " blocks the way. Type fight." as + |buffer|::Ascii);
     }
 
-    machine quiet_room(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "The room is quiet." as +Ascii);
+    machine quiet_room(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "The room is quiet." as + |buffer|::Ascii);
     }
 }
 
-machine write_adjacent_rooms(level: Level,
-    cell: CellId,
-    out_line: @mutable TextBuffer)
+machine write_adjacent_rooms(level: |rooms|::Level,
+    cell: |map|::CellId,
+    out_line: @mutable |buffer|::TextBuffer)
 {
     transition cell {
-        CellId::R00 -> gate_paths(out_line),
-        CellId::R01 -> room_one_paths(out_line),
-        CellId::R02 -> room_two_paths(out_line),
-        CellId::R03 -> room_three_paths(out_line),
-        CellId::R04 -> room_four_paths(out_line),
-        CellId::R05 -> side_east_paths(out_line),
-        CellId::R06 -> side_west_paths(out_line),
-        CellId::R07 -> side_east_paths(out_line),
+        |map|::CellId::R00 -> gate_paths(out_line),
+        |map|::CellId::R01 -> room_one_paths(out_line),
+        |map|::CellId::R02 -> room_two_paths(out_line),
+        |map|::CellId::R03 -> room_three_paths(out_line),
+        |map|::CellId::R04 -> room_four_paths(out_line),
+        |map|::CellId::R05 -> side_east_paths(out_line),
+        |map|::CellId::R06 -> side_west_paths(out_line),
+        |map|::CellId::R07 -> side_east_paths(out_line),
         _ -> no_paths(out_line)
     }
 
 
-    machine gate_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] north" as +Ascii);
+    machine gate_paths(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "[Paths] north" as + |buffer|::Ascii);
     }
 
-    machine room_one_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south | north | east" as +Ascii);
+    machine room_one_paths(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "[Paths] south | north | east" as + |buffer|::Ascii);
     }
 
-    machine room_two_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south | north | west" as +Ascii);
+    machine room_two_paths(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "[Paths] south | north | west" as + |buffer|::Ascii);
     }
 
-    machine room_three_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south | north | east" as +Ascii);
+    machine room_three_paths(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "[Paths] south | north | east" as + |buffer|::Ascii);
     }
 
-    machine room_four_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south" as +Ascii);
+    machine room_four_paths(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "[Paths] south" as + |buffer|::Ascii);
     }
 
-    machine side_east_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] west" as +Ascii);
+    machine side_east_paths(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "[Paths] west" as + |buffer|::Ascii);
     }
 
-    machine side_west_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] east" as +Ascii);
+    machine side_west_paths(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "[Paths] east" as + |buffer|::Ascii);
     }
 
-    machine no_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] none" as +Ascii);
+    machine no_paths(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "[Paths] none" as + |buffer|::Ascii);
     }
 }
 
-machine write_inventory(player: Player,
-    out_line: @mutable TextBuffer)
+machine write_inventory(player: |player_state|::Player,
+    out_line: @mutable |buffer|::TextBuffer)
 {
     transition player.inventory.gold >= 30 {
         true -> inventory_thirty(out_line),
         false -> inventory_twenty_four_check(player, out_line)
     }
 
-    machine inventory_twenty_four_check(player: Player,
-        out_line: @mutable TextBuffer) {
+    machine inventory_twenty_four_check(player: |player_state|::Player,
+        out_line: @mutable |buffer|::TextBuffer) {
         transition player.inventory.gold >= 24 {
             true -> inventory_twenty_four(player, out_line),
             false -> inventory_six_check(player, out_line)
         }
     }
 
-    machine inventory_six_check(player: Player,
-        out_line: @mutable TextBuffer) {
+    machine inventory_six_check(player: |player_state|::Player,
+        out_line: @mutable |buffer|::TextBuffer) {
         transition player.inventory.gold >= 6 {
             true -> inventory_six(player, out_line),
             false -> inventory_zero(player, out_line)
         }
     }
 
-    machine inventory_zero(player: Player,
-        out_line: @mutable TextBuffer) {
+    machine inventory_zero(player: |player_state|::Player,
+        out_line: @mutable |buffer|::TextBuffer) {
         transition player.inventory.item_count > 0 {
             true -> inventory_zero_with_item(out_line),
             false -> inventory_zero_empty(out_line)
         }
     }
 
-    machine inventory_zero_empty(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 0 gold. Pack empty." as +Ascii);
+    machine inventory_zero_empty(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Inv: 0 gold. Pack empty." as + |buffer|::Ascii);
     }
 
-    machine inventory_zero_with_item(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 0 gold. Pack holds a charm." as +Ascii);
+    machine inventory_zero_with_item(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Inv: 0 gold. Pack holds a charm." as + |buffer|::Ascii);
     }
 
-    machine inventory_six(player: Player,
-        out_line: @mutable TextBuffer) {
+    machine inventory_six(player: |player_state|::Player,
+        out_line: @mutable |buffer|::TextBuffer) {
         transition player.inventory.item_count > 0 {
             true -> inventory_six_with_item(out_line),
             false -> inventory_six_only(out_line)
         }
     }
 
-    machine inventory_six_only(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 6 gold. A few scavenged coins." as +Ascii);
+    machine inventory_six_only(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Inv: 6 gold. A few scavenged coins." as + |buffer|::Ascii);
     }
 
-    machine inventory_six_with_item(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 6 gold. A few coins and a charm." as +Ascii);
+    machine inventory_six_with_item(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Inv: 6 gold. A few coins and a charm." as + |buffer|::Ascii);
     }
 
-    machine inventory_twenty_four(player: Player,
-        out_line: @mutable TextBuffer) {
+    machine inventory_twenty_four(player: |player_state|::Player,
+        out_line: @mutable |buffer|::TextBuffer) {
         transition player.inventory.item_count > 0 {
             true -> inventory_twenty_four_with_item(out_line),
             false -> inventory_twenty_four_only(out_line)
         }
     }
 
-    machine inventory_twenty_four_only(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 24 gold. A rich little haul." as +Ascii);
+    machine inventory_twenty_four_only(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Inv: 24 gold. A rich little haul." as + |buffer|::Ascii);
     }
 
-    machine inventory_twenty_four_with_item(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 24 gold. A rich haul and a charm." as +Ascii);
+    machine inventory_twenty_four_with_item(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Inv: 24 gold. A rich haul and a charm." as + |buffer|::Ascii);
     }
 
-    machine inventory_thirty(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 30 gold. Purse heavy, charm secured." as +Ascii);
+    machine inventory_thirty(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Inv: 30 gold. Purse heavy, charm secured." as + |buffer|::Ascii);
     }
 }
 
-machine write_character(player: Player,
-    out_line: @mutable TextBuffer)
+machine write_character(player: |player_state|::Player,
+    out_line: @mutable |buffer|::TextBuffer)
 {
     transition player.health * 2 <= player.max_health {
         true -> wounded_character(out_line),
@@ -223,23 +220,23 @@ machine write_character(player: Player,
     }
 
 
-    machine character_experience(player: Player,
-        out_line: @mutable TextBuffer) {
+    machine character_experience(player: |player_state|::Player,
+        out_line: @mutable |buffer|::TextBuffer) {
         transition player.level >= 3 {
             true -> seasoned_character(out_line),
             false -> ready_character(out_line)
         }
     }
 
-    machine wounded_character(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Character: wounded, stubborn, still standing." as +Ascii);
+    machine wounded_character(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Character: wounded, stubborn, still standing." as + |buffer|::Ascii);
     }
 
-    machine seasoned_character(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Character: seasoned enough to worry the dungeon." as +Ascii);
+    machine seasoned_character(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Character: seasoned enough to worry the dungeon." as + |buffer|::Ascii);
     }
 
-    machine ready_character(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Character: ready for trouble." as +Ascii);
+    machine ready_character(out_line: @mutable |buffer|::TextBuffer) {
+        |buffer|::text_buffer_set(out_line, "Character: ready for trouble." as + |buffer|::Ascii);
     }
 }
