@@ -1,5 +1,5 @@
 use omega\language\core\ProcessExit;
-// A note-vault workflow over the ERGONOMIC `FilesystemService` surface -- the
+// A note-vault workflow over the ERGONOMIC `Filesystem` surface -- the
 // result-enum / `File` layer (Rust system::fs parity), native-correct end to
 // end: create_dir_all (deep vault directory), create_new (exclusive create),
 // append (OpenOptions append semantics), metadata_path (payload-carrying
@@ -31,7 +31,7 @@ use system\SystemTime;
 use system\SystemTimeDifference;
 use system\TimeHost;
 
-use system\FilesystemService;
+use system\Filesystem;
 use system\system_time_duration_since;
 use system\system_time_from_unix_seconds;
 use system\system_time_now;
@@ -43,52 +43,52 @@ machine main(context: @mutable Main) reaches ProcessExit + DirectoryEnumeration 
     let passed: i32 in Wrapping = 0 as +Wrapping;
     // 1. The vault lives in a DEEP directory (create_dir_all's dispatched
     // mkall walkers).
-    let unit_result: UnitResult = block FilesystemService::create_dir_all("omega_vault/notes/current" as +Path);
+    let unit_result: UnitResult = block Filesystem::create_dir_all("omega_vault/notes/current" as +Path);
     transition unit_result { UnitResult::Ok -> block vault_file(context, passed), _ -> done(context, passed) }
 
     machine vault_file(context: @mutable Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 2. Exclusive create: the vault file must not already exist.
-        let open_result: OpenResult = block FilesystemService::create_new("omega_vault/notes/current/vault.txt" as +Path);
+        let open_result: OpenResult = block Filesystem::create_new("omega_vault/notes/current/vault.txt" as +Path);
         transition open_result { OpenResult::Ok { file } -> block header(context, next_passed, file), _ -> done(context, next_passed) }
     }
 
     machine header(context: @mutable Main, passed: i32 in Wrapping, file: File) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 2. Header line.
-        let io_result: IoResult = block FilesystemService::write(file, "vault v1\n");
-        let close_result: UnitResult = block FilesystemService::close(file);
+        let io_result: IoResult = block Filesystem::write(file, "vault v1\n");
+        let close_result: UnitResult = block Filesystem::close(file);
         transition io_result { IoResult::Ok { count } -> block note1(context, next_passed), _ -> done(context, next_passed) }
     }
 
     machine note1(context: @mutable Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 3. First note appends at EOF.
-        let open_result: OpenResult = block FilesystemService::append("omega_vault/notes/current/vault.txt" as +Path);
+        let open_result: OpenResult = block Filesystem::append("omega_vault/notes/current/vault.txt" as +Path);
         transition open_result { OpenResult::Ok { file } -> block note1_write(context, next_passed, file), _ -> done(context, next_passed) }
     }
     machine note1_write(context: @mutable Main, passed: i32 in Wrapping, file: File) {
-        let io_result: IoResult = block FilesystemService::write(file, "note: alpha\n");
-        let close_result: UnitResult = block FilesystemService::close(file);
+        let io_result: IoResult = block Filesystem::write(file, "note: alpha\n");
+        let close_result: UnitResult = block Filesystem::close(file);
         transition io_result { IoResult::Ok { count } -> block note2(context, passed), _ -> done(context, passed) }
     }
 
     machine note2(context: @mutable Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 4. Second note.
-        let open_result: OpenResult = block FilesystemService::append("omega_vault/notes/current/vault.txt" as +Path);
+        let open_result: OpenResult = block Filesystem::append("omega_vault/notes/current/vault.txt" as +Path);
         transition open_result { OpenResult::Ok { file } -> block note2_write(context, next_passed, file), _ -> done(context, next_passed) }
     }
     machine note2_write(context: @mutable Main, passed: i32 in Wrapping, file: File) {
-        let io_result: IoResult = block FilesystemService::write(file, "note: beta\n");
-        let close_result: UnitResult = block FilesystemService::close(file);
+        let io_result: IoResult = block Filesystem::write(file, "note: beta\n");
+        let close_result: UnitResult = block Filesystem::close(file);
         transition io_result { IoResult::Ok { count } -> block audit(context, passed), _ -> done(context, passed) }
     }
 
     machine audit(context: @mutable Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 5. The vault's length is the three lines: 9 + 12 + 11 = 32.
-        let meta_result: MetadataResult = block FilesystemService::metadata_path("omega_vault/notes/current/vault.txt" as +Path);
+        let meta_result: MetadataResult = block Filesystem::metadata_path("omega_vault/notes/current/vault.txt" as +Path);
         transition meta_result { MetadataResult::Ok { meta } -> block audit_len(context, next_passed, meta), _ -> done(context, next_passed) }
     }
     machine audit_len(context: @mutable Main, passed: i32 in Wrapping, meta: Metadata) {
@@ -119,7 +119,7 @@ machine main(context: @mutable Main) reaches ProcessExit + DirectoryEnumeration 
         let mutable back: [u8; 64];
         let next_passed: i32 in Wrapping = passed + 1;
         // 8. Read back and spot-check first ('v') and last ('\n' = 10) bytes.
-        let io_result: IoResult = block FilesystemService::read_all("omega_vault/notes/current/vault.txt" as +Path, @mutable back[..], 64);
+        let io_result: IoResult = block Filesystem::read_all("omega_vault/notes/current/vault.txt" as +Path, @mutable back[..], 64);
         transition io_result {
             IoResult::Ok { count } -> block readback_ck(context, next_passed, count, back[0], back[31]),
             _ -> done(context, next_passed)
@@ -140,13 +140,13 @@ machine main(context: @mutable Main) reaches ProcessExit + DirectoryEnumeration 
             read: false, write: true, append: false, truncate: true,
             create: false, create_new: false
         };
-        let open_result: OpenResult = block FilesystemService::open_with("omega_vault/notes/current/vault.txt" as +Path, opts);
+        let open_result: OpenResult = block Filesystem::open_with("omega_vault/notes/current/vault.txt" as +Path, opts);
         transition open_result { OpenResult::Ok { file } -> block compact_write(context, next_passed, file), _ -> done(context, next_passed) }
     }
     machine compact_write(context: @mutable Main, passed: i32 in Wrapping, file: File) {
-        let io_result: IoResult = block FilesystemService::write(file, "vault v1\n");
-        let close_result: UnitResult = block FilesystemService::close(file);
-        let meta_result: MetadataResult = block FilesystemService::metadata_path("omega_vault/notes/current/vault.txt" as +Path);
+        let io_result: IoResult = block Filesystem::write(file, "vault v1\n");
+        let close_result: UnitResult = block Filesystem::close(file);
+        let meta_result: MetadataResult = block Filesystem::metadata_path("omega_vault/notes/current/vault.txt" as +Path);
         transition meta_result { MetadataResult::Ok { meta } -> block compact_ck(context, passed, meta), _ -> done(context, passed) }
     }
     machine compact_ck(context: @mutable Main, passed: i32 in Wrapping, meta: Metadata) {
@@ -157,7 +157,7 @@ machine main(context: @mutable Main) reaches ProcessExit + DirectoryEnumeration 
         let mutable scratch: [u8; 64];
         let next_passed: i32 in Wrapping = passed + 1;
         // 10. Snapshot the compacted vault.
-        let io_result: IoResult = block FilesystemService::copy("omega_vault/notes/current/vault.txt" as +Path, "omega_vault/notes/current/vault.bak" as +Path, @mutable scratch[..], 64);
+        let io_result: IoResult = block Filesystem::copy("omega_vault/notes/current/vault.txt" as +Path, "omega_vault/notes/current/vault.bak" as +Path, @mutable scratch[..], 64);
         transition io_result { IoResult::Ok { count } -> block backup_ck(context, next_passed, count), _ -> done(context, next_passed) }
     }
     machine backup_ck(context: @mutable Main, passed: i32 in Wrapping, count: u64) {
@@ -167,7 +167,7 @@ machine main(context: @mutable Main) reaches ProcessExit + DirectoryEnumeration 
     machine cleanup(context: @mutable Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 12. Audit the vault directory: exactly the file + its backup.
-        let io_result: IoResult = block FilesystemService::read_dir_count("omega_vault/notes/current" as +Path);
+        let io_result: IoResult = block Filesystem::read_dir_count("omega_vault/notes/current" as +Path);
         transition io_result { IoResult::Ok { count } -> block audit_dir(context, next_passed, count), _ -> done(context, next_passed) }
     }
     machine audit_dir(context: @mutable Main, passed: i32 in Wrapping, count: u64) {
@@ -176,18 +176,18 @@ machine main(context: @mutable Main) reaches ProcessExit + DirectoryEnumeration 
     machine remove_one(context: @mutable Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 13. Remove one file the precise way...
-        let unit_result: UnitResult = block FilesystemService::remove("omega_vault/notes/current/vault.txt" as +Path);
+        let unit_result: UnitResult = block Filesystem::remove("omega_vault/notes/current/vault.txt" as +Path);
         transition unit_result { UnitResult::Ok -> block teardown(context, next_passed), _ -> done(context, next_passed) }
     }
     machine teardown(context: @mutable Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 14. ...and drain the whole tree the sweeping way (the iterative
         // dirfd-stack remove_dir_all), backup and directories included.
-        let unit_result: UnitResult = block FilesystemService::remove_dir_all("omega_vault" as +Path);
+        let unit_result: UnitResult = block Filesystem::remove_dir_all("omega_vault" as +Path);
         transition unit_result { UnitResult::Ok -> block ck_gone(context, next_passed), _ -> done(context, next_passed) }
     }
     machine ck_gone(context: @mutable Main, passed: i32 in Wrapping) {
-        let present: bool = block FilesystemService::exists("omega_vault" as +Path);
+        let present: bool = block Filesystem::exists("omega_vault" as +Path);
         transition present { true -> done(context, passed), _ -> finish(context, passed) }
     }
     machine finish(context: @mutable Main, passed: i32 in Wrapping) {

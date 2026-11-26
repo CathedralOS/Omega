@@ -5,10 +5,8 @@ A release program, its interpreted Build, its product and each dependency Build 
 ## Public Build vocabulary
 
 The [project role](../../spec/build/declarations.md#project-role) gives the
-entry one mutable `BuildPlan` and puts the product on that plan. The target
-public spellings are `BoundaryServiceReference` for the current
-`BoundaryServiceRef` and `Filesystem` for the system package's
-`FilesystemService` requirement. Console and filesystem providers follow the
+entry one mutable `BuildPlan` and puts the product on that plan. A `BoundaryServiceReference` names a service in a dependency reach ceiling.
+The system package declares the portable `Filesystem` requirement. Console and filesystem providers follow the
 same selection rules. Qualify the interpreter target so readers can recognize
 its role at the call site. `BuildTarget::Interpreter` illustrates the intent.
 The target representation and a replacement name for `DependencyDescription`

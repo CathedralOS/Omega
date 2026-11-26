@@ -14,7 +14,7 @@ use {omega}/language/core/filesystem_authority.omg as authority;
 // row and calls only the Windows raw family. Unsupported portable contracts
 // are explicit here, never filled by sentinel rows in that raw family.
 
-FilesystemWindowsProvider satisfies |filesystem|::FilesystemService {
+FilesystemWindowsProvider satisfies |filesystem|::Filesystem {
     machine create(path: @[u8] in |paths|::Path) -> |filesystem|::OpenResult
     blocks
     reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation

@@ -14,7 +14,7 @@ public boundary trait BuildRequestOperations {
     machine register_path_dependency(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
     machine register_git_dependency(builder: @BuildPlan, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8], max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
     machine input_binding(builder: @BuildPlan, alias: @[u8]) -> PackageBinding reaches none crashes none;
-    machine extend_reach(builder: @BuildPlan, prior: PackageReach, service: BoundaryServiceRef) -> PackageReach reaches none crashes none;
+    machine extend_reach(builder: @BuildPlan, prior: PackageReach, service: BoundaryServiceReference) -> PackageReach reaches none crashes none;
     machine add_binding(builder: @BuildPlan, binding: PackageBinding, max_reach: PackageReach) -> DependencyRegistration reaches none crashes none;
     machine validate_dependency(builder: @BuildPlan, registered: DependencyRegistration) reaches none crashes none;
     machine prepare_dependency(builder: @BuildPlan, registered: DependencyRegistration) reaches none crashes none suspends;
@@ -46,5 +46,5 @@ public data DependencyRegistration [copy] {
 // An issued binding names one immutable input of this Build activation.
 public data PackageBinding [copy] {}
 // The host recognizes only service references issued by this Build activation.
-public data BoundaryServiceRef [copy] {}
+public data BoundaryServiceReference [copy] {}
 public data PackageReach [copy] {}

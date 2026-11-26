@@ -56,12 +56,12 @@ crashing.
 ## Services and fixtures
 
 A harness with a `PrivateFilesystem` provider can select it for a registered
-group that uses `FilesystemService`.
+group that uses `Filesystem`.
 
 ```omega
 let memory: TestGroup = builder.tests.group::<Tests::memory>();
 memory.inputs.private_filesystem = true;
-Build::select_provider::<FilesystemService, PrivateFilesystem>(builder, linux_x86_64, memory);
+Build::select_provider::<Filesystem, PrivateFilesystem>(builder, linux_x86_64, memory);
 ```
 
 Setting `private_filesystem` gives each invocation in `Tests::memory` an empty
@@ -69,7 +69,7 @@ private filesystem. Passing `memory` after the target selects `PrivateFilesystem
 for that group. The application and sibling groups keep their own selections.
 
 Inside a test, an ordinary call such as
-`block FilesystemService::create_new("note.txt")` creates the file in that
+`block Filesystem::create_new("note.txt")` creates the file in that
 test's filesystem. A helper can open it again. The next test can create
 `note.txt` anew, even when both tests run in parallel.
 

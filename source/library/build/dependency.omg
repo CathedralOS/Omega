@@ -15,7 +15,7 @@ public machine add(builder: @mutable BuildPlan, binding: PackageBinding) -> Depe
     BuildRequestOperations::add_binding(builder, binding, PackageReach {})
 }
 
-public machine add(builder: @mutable BuildPlan, binding: PackageBinding, max_reach: @[BoundaryServiceRef]) -> DependencyRegistration reaches BuildRequestOperations {
+public machine add(builder: @mutable BuildPlan, binding: PackageBinding, max_reach: @[BoundaryServiceReference]) -> DependencyRegistration reaches BuildRequestOperations {
     BuildRequestOperations::add_binding(builder, binding, ceiling(builder, max_reach))
 }
 
@@ -23,14 +23,14 @@ public machine add(builder: @mutable BuildPlan, description: DependencyDescripti
     Build::dependency(builder, description)
 }
 
-public machine add(builder: @mutable BuildPlan, description: DependencyDescription, max_reach: @[BoundaryServiceRef]) -> DependencyRegistration reaches BuildRequestOperations {
+public machine add(builder: @mutable BuildPlan, description: DependencyDescription, max_reach: @[BoundaryServiceReference]) -> DependencyRegistration reaches BuildRequestOperations {
     Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, ceiling(builder, max_reach))
 }
 
-machine ceiling(builder: @BuildPlan, services: @[BoundaryServiceRef]) -> PackageReach reaches BuildRequestOperations {
+machine ceiling(builder: @BuildPlan, services: @[BoundaryServiceReference]) -> PackageReach reaches BuildRequestOperations {
     collect(builder, services, 0u64, PackageReach {})
 
-    machine collect(builder: @BuildPlan, services: @[BoundaryServiceRef], index: u64, so_far: PackageReach) -> PackageReach
+    machine collect(builder: @BuildPlan, services: @[BoundaryServiceReference], index: u64, so_far: PackageReach) -> PackageReach
     reaches BuildRequestOperations
     {
         transition index < services.length {
@@ -39,7 +39,7 @@ machine ceiling(builder: @BuildPlan, services: @[BoundaryServiceRef]) -> Package
         }
     }
 
-    machine add_one(builder: @BuildPlan, services: @[BoundaryServiceRef], index: u64, so_far: PackageReach) -> PackageReach
+    machine add_one(builder: @BuildPlan, services: @[BoundaryServiceReference], index: u64, so_far: PackageReach) -> PackageReach
     reaches BuildRequestOperations
     requires index < services.length
     {

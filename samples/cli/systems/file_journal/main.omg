@@ -2,7 +2,7 @@ use omega\language\core\ProcessExit;
 // A portable filesystem journal: create a directory, write a 17-byte file,
 // inspect it, read its bytes back, rename it, and remove the file/directory.
 // Each successful step increments the tally; partial completion returns fewer
-// than seven. The application calls FilesystemService directly and holds no raw OS role.
+// than seven. The application calls Filesystem directly and holds no raw OS role.
 // Expected exit: 7.
 use system\File;
 use system\IoResult;
@@ -10,7 +10,7 @@ use system\Metadata;
 use system\MetadataResult;
 use system\OpenResult;
 use system\UnitResult;
-use system\FilesystemService;
+use system\Filesystem;
 
 data Main {
     result: UnitResult;
@@ -23,20 +23,20 @@ data Main {
 
 machine main(main: @mutable Main) reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     // The sample owns these paths. Remove its prior interrupted run first.
-    main.result = block FilesystemService::remove("/tmp/omega_journal_dir/note.txt");
-    main.result = block FilesystemService::remove("/tmp/omega_journal_dir/renamed.txt");
-    main.result = block FilesystemService::remove_dir("/tmp/omega_journal_dir");
-    main.result = block FilesystemService::create_dir("/tmp/omega_journal_dir");
+    main.result = block Filesystem::remove("/tmp/omega_journal_dir/note.txt");
+    main.result = block Filesystem::remove("/tmp/omega_journal_dir/renamed.txt");
+    main.result = block Filesystem::remove_dir("/tmp/omega_journal_dir");
+    main.result = block Filesystem::create_dir("/tmp/omega_journal_dir");
     transition main.result { UnitResult::Ok -> block made_directory(main), _ -> done(main) }
 
     machine made_directory(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.opened = block FilesystemService::create("/tmp/omega_journal_dir/note.txt");
+        main.opened = block Filesystem::create("/tmp/omega_journal_dir/note.txt");
         transition main.opened { OpenResult::Ok { file } -> block write(main, file), _ -> done(main) }
     }
     machine write(main: @mutable Main, file: File) {
-        main.transferred = block FilesystemService::write(file, "omega fs journal\n");
-        main.result = block FilesystemService::close(file);
+        main.transferred = block Filesystem::write(file, "omega fs journal\n");
+        main.result = block Filesystem::close(file);
         transition main.result { UnitResult::Ok -> block written(main), _ -> done(main) }
     }
     machine written(main: @mutable Main) {
@@ -47,7 +47,7 @@ machine main(main: @mutable Main) reaches ProcessExit + FilesystemContentRead + 
     }
     machine inspect(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.metadata = block FilesystemService::metadata_path("/tmp/omega_journal_dir/note.txt");
+        main.metadata = block Filesystem::metadata_path("/tmp/omega_journal_dir/note.txt");
         transition main.metadata { MetadataResult::Ok { meta } -> block inspected(main, meta), _ -> done(main) }
     }
     machine inspected(main: @mutable Main, metadata: Metadata) {
@@ -55,12 +55,12 @@ machine main(main: @mutable Main) reaches ProcessExit + FilesystemContentRead + 
     }
     machine open_for_read(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.opened = block FilesystemService::open("/tmp/omega_journal_dir/note.txt");
+        main.opened = block Filesystem::open("/tmp/omega_journal_dir/note.txt");
         transition main.opened { OpenResult::Ok { file } -> block read(main, file), _ -> done(main) }
     }
     machine read(main: @mutable Main, file: File) {
-        main.transferred = block FilesystemService::read(file, @mutable main.buffer[..], 17);
-        main.result = block FilesystemService::close(file);
+        main.transferred = block Filesystem::read(file, @mutable main.buffer[..], 17);
+        main.result = block Filesystem::close(file);
         transition main.result { UnitResult::Ok -> block read_complete(main), _ -> done(main) }
     }
     machine read_complete(main: @mutable Main) {
@@ -82,17 +82,17 @@ machine main(main: @mutable Main) reaches ProcessExit + FilesystemContentRead + 
     }
     machine rename(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.result = block FilesystemService::rename("/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
+        main.result = block Filesystem::rename("/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
         transition main.result { UnitResult::Ok -> block renamed(main), _ -> done(main) }
     }
     machine renamed(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.result = block FilesystemService::remove("/tmp/omega_journal_dir/renamed.txt");
+        main.result = block Filesystem::remove("/tmp/omega_journal_dir/renamed.txt");
         transition main.result { UnitResult::Ok -> block removed_file(main), _ -> done(main) }
     }
     machine removed_file(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.result = block FilesystemService::remove_dir("/tmp/omega_journal_dir");
+        main.result = block Filesystem::remove_dir("/tmp/omega_journal_dir");
         transition main.result { UnitResult::Ok -> removed_directory(main), _ -> done(main) }
     }
     machine removed_directory(main: @mutable Main) {
