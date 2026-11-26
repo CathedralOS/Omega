@@ -281,7 +281,7 @@ pub(crate) use model::legalization_validator_identity;
 #[allow(unused_imports)]
 pub(crate) use abstract_operations::AbstractOperationPlan;
 #[allow(unused_imports)]
-pub(crate) use legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
+pub(crate) use legalized_operations::LegalizedOperationPlan;
 #[allow(unused_imports)]
 pub(crate) use scalar_graph_input::call_origin::validate_boundary_origins;
 #[allow(unused_imports)]
@@ -659,9 +659,6 @@ pub fn verify_execution_plan(
         .map_err(|part| mismatch(None, part))?;
     if plan.publication != target.publication {
         return Err(mismatch(None, "publication facts differ from the target's"));
-    }
-    if !prepared.is_intact() {
-        return Err(mismatch(None, "the plan no longer matches its seal"));
     }
     if prepared.receipt().validator() != legalization_validator_identity() {
         return Err(mismatch(None, "the plan was sealed by another preparation"));

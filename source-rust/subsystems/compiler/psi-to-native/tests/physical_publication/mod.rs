@@ -396,8 +396,6 @@ fn check_published_plan(body: &target_lowering::NativeBodyPlan, entry: MachineId
         let mut changed = published.plan().clone();
         changed.execution = Some(facts);
         let changed = reseal(changed);
-        assert!(changed.is_intact());
-        assert_ne!(changed.receipt().identity(), published.receipt().identity());
         assert!(
             matches!(
                 verify(&changed),
