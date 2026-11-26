@@ -154,7 +154,7 @@ machine build(builder: @mutable BuildPlan) {
         (
             "",
             "|layout|::LayoutStorage<Packet, |c_layout|::CAbiPolicy<OtherPacket>>",
-            Some("selected layout policy belongs to another semantic type"),
+            Some("does not supply the declared `FixedLayout` application of `LayoutStorage`"),
         ),
     ] {
         let source = format!(
