@@ -1,4 +1,7 @@
 use {omega}/language/core/foundation.omg as proof;
+use float_format.omg;
+use float_meaning.omg;
+use float_operations.omg;
 
 // Standard-library numeric helpers with explicit carrier names.
 //
@@ -298,110 +301,110 @@ ensures result == value
 // NaN value selects lower, while unordered bounds fail its precondition.
 
 public machine min_f32(left: f32, right: f32) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
-    F32::meaning(result),
-    FloatSemantics::minimum(F32::meaning(left), F32::meaning(right)))
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
+    |float_operations|::F32::meaning(result),
+    |float_operations|::FloatSemantics::minimum(|float_operations|::F32::meaning(left), |float_operations|::F32::meaning(right)))
 {
-    F32::minimum(left, right)
+    |float_operations|::F32::minimum(left, right)
 }
 
 public machine max_f32(left: f32, right: f32) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
-    F32::meaning(result),
-    FloatSemantics::maximum(F32::meaning(left), F32::meaning(right)))
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
+    |float_operations|::F32::meaning(result),
+    |float_operations|::FloatSemantics::maximum(|float_operations|::F32::meaning(left), |float_operations|::F32::meaning(right)))
 {
-    F32::maximum(left, right)
+    |float_operations|::F32::maximum(left, right)
 }
 
 public machine clamp_f32(value: f32, lower: f32, upper: f32) -> f32
 requires lower <= upper
-ensures |proof|::Identity::<FloatMeaning>(
-    F32::meaning(result),
-    FloatSemantics::minimum(
-        FloatSemantics::maximum(F32::meaning(value), F32::meaning(lower)),
-        F32::meaning(upper)))
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
+    |float_operations|::F32::meaning(result),
+    |float_operations|::FloatSemantics::minimum(
+        |float_operations|::FloatSemantics::maximum(|float_operations|::F32::meaning(value), |float_operations|::F32::meaning(lower)),
+        |float_operations|::F32::meaning(upper)))
 {
-    F32::minimum(F32::maximum(value, lower), upper)
+    |float_operations|::F32::minimum(|float_operations|::F32::maximum(value, lower), upper)
 }
 
 public machine sqrt_f32(value: f32) -> f32
-ensures |proof|::Identity::<FloatMeaning>(
-    F32::meaning(result),
-    FloatSemantics::square_root(FloatFormat::BINARY32, F32::meaning(value)))
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
+    |float_operations|::F32::meaning(result),
+    |float_operations|::FloatSemantics::square_root(|float_format|::FloatFormat::BINARY32, |float_operations|::F32::meaning(value)))
 {
-    F32::square_root(value)
+    |float_operations|::F32::square_root(value)
 }
 
 public machine abs_f32(value: f32) -> f32
 ensures
-    (value == 0.0 && |proof|::Identity::<FloatMeaning>(
-        F32::meaning(result), F32::meaning(0.0))) ||
-    (value < 0.0 && |proof|::Identity::<FloatMeaning>(
-        F32::meaning(result),
-        FloatSemantics::negate(FloatFormat::BINARY32, F32::meaning(value)))) ||
-    (value != 0.0 && !(value < 0.0) && |proof|::Identity::<FloatMeaning>(
-        F32::meaning(result), F32::meaning(value)))
+    (value == 0.0 && |proof|::Identity::<|float_meaning|::FloatMeaning>(
+        |float_operations|::F32::meaning(result), |float_operations|::F32::meaning(0.0))) ||
+    (value < 0.0 && |proof|::Identity::<|float_meaning|::FloatMeaning>(
+        |float_operations|::F32::meaning(result),
+        |float_operations|::FloatSemantics::negate(|float_format|::FloatFormat::BINARY32, |float_operations|::F32::meaning(value)))) ||
+    (value != 0.0 && !(value < 0.0) && |proof|::Identity::<|float_meaning|::FloatMeaning>(
+        |float_operations|::F32::meaning(result), |float_operations|::F32::meaning(value)))
 {
     transition {
         value == 0.0 -> (0.0),
-        value < 0.0 -> (F32::negate(value)),
+        value < 0.0 -> (|float_operations|::F32::negate(value)),
         _ -> (value)
     }
 }
 
 public machine min_f64(left: f64, right: f64) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
-    F64::meaning(result),
-    FloatSemantics::minimum(F64::meaning(left), F64::meaning(right)))
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
+    |float_operations|::F64::meaning(result),
+    |float_operations|::FloatSemantics::minimum(|float_operations|::F64::meaning(left), |float_operations|::F64::meaning(right)))
 {
-    F64::minimum(left, right)
+    |float_operations|::F64::minimum(left, right)
 }
 
 public machine max_f64(left: f64, right: f64) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
-    F64::meaning(result),
-    FloatSemantics::maximum(F64::meaning(left), F64::meaning(right)))
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
+    |float_operations|::F64::meaning(result),
+    |float_operations|::FloatSemantics::maximum(|float_operations|::F64::meaning(left), |float_operations|::F64::meaning(right)))
 {
-    F64::maximum(left, right)
+    |float_operations|::F64::maximum(left, right)
 }
 
 public machine clamp_f64(value: f64, lower: f64, upper: f64) -> f64
 requires lower <= upper
-ensures |proof|::Identity::<FloatMeaning>(
-    F64::meaning(result),
-    FloatSemantics::minimum(
-        FloatSemantics::maximum(F64::meaning(value), F64::meaning(lower)),
-        F64::meaning(upper)))
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
+    |float_operations|::F64::meaning(result),
+    |float_operations|::FloatSemantics::minimum(
+        |float_operations|::FloatSemantics::maximum(|float_operations|::F64::meaning(value), |float_operations|::F64::meaning(lower)),
+        |float_operations|::F64::meaning(upper)))
 {
-    F64::minimum(F64::maximum(value, lower), upper)
+    |float_operations|::F64::minimum(|float_operations|::F64::maximum(value, lower), upper)
 }
 
 // Quiet binary64 square root: nearest-even in binary64, preserving signed
 // zero and positive infinity; negative inputs and NaNs produce NaN. The
 // selected ordinary boundary operator owns this meaning on every target.
 public machine sqrt_f64(value: f64) -> f64
-ensures |proof|::Identity::<FloatMeaning>(
-    F64::meaning(result),
-    FloatSemantics::square_root(FloatFormat::BINARY64, F64::meaning(value)))
+ensures |proof|::Identity::<|float_meaning|::FloatMeaning>(
+    |float_operations|::F64::meaning(result),
+    |float_operations|::FloatSemantics::square_root(|float_format|::FloatFormat::BINARY64, |float_operations|::F64::meaning(value)))
 {
-    F64::square_root(value)
+    |float_operations|::F64::square_root(value)
 }
 
 // Both zeros become positive zero. Negative nonzero values are negated;
 // positive values and NaNs are returned unchanged, retaining NaN payloads.
 public machine abs_f64(value: f64) -> f64
 ensures
-    (value == 0.0 && |proof|::Identity::<FloatMeaning>(
-        F64::meaning(result), F64::meaning(0.0))) ||
-    (value < 0.0 && |proof|::Identity::<FloatMeaning>(
-        F64::meaning(result),
-        FloatSemantics::negate(FloatFormat::BINARY64, F64::meaning(value)))) ||
-    (value != 0.0 && !(value < 0.0) && |proof|::Identity::<FloatMeaning>(
-        F64::meaning(result), F64::meaning(value)))
+    (value == 0.0 && |proof|::Identity::<|float_meaning|::FloatMeaning>(
+        |float_operations|::F64::meaning(result), |float_operations|::F64::meaning(0.0))) ||
+    (value < 0.0 && |proof|::Identity::<|float_meaning|::FloatMeaning>(
+        |float_operations|::F64::meaning(result),
+        |float_operations|::FloatSemantics::negate(|float_format|::FloatFormat::BINARY64, |float_operations|::F64::meaning(value)))) ||
+    (value != 0.0 && !(value < 0.0) && |proof|::Identity::<|float_meaning|::FloatMeaning>(
+        |float_operations|::F64::meaning(result), |float_operations|::F64::meaning(value)))
 {
     transition {
         value == 0.0 -> (0.0),
-        value < 0.0 -> (F64::negate(value)),
+        value < 0.0 -> (|float_operations|::F64::negate(value)),
         _ -> (value)
     }
 }
