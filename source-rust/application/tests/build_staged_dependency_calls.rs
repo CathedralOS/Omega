@@ -661,7 +661,7 @@ fn a_field_borrow_survives_preparing_a_product_dependency() {
     );
     assert!(
         !ran && report.contains("storage is changed while a conflicting reference remains live")
-            && report.contains("build.omg:20:"),
+            && report.contains("build.omg:21:11"),
         "{report}"
     );
 }
