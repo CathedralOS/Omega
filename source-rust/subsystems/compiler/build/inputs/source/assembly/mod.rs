@@ -338,34 +338,35 @@ impl ImmutableSourceParseCheckpoint {
             );
         }
         load_phase!(PackageImportPhase::ExactTarget(None))?;
-        if deferred_product.is_none() {
-            source_storage.seal_product_owner(catalogue)?;
-        }
-        let loaded = source_storage.reselect_current_sources(catalogue)?;
-        if let Some(inputs) = package_inputs {
-            source_storage
-                .sources
-                .retain_product_dependency_scope(inputs.dependencies());
-        }
-        let parsed = parse_admitted(&mut source_storage, loaded.into_iter().collect(), timings)?;
-        let discovered = match package_inputs {
-            Some(inputs) => {
-                discover_package_imports(
-                    &parsed,
-                    inputs,
-                    PackageImportPhase::ExactTarget(None),
-                    &mut source_storage.resolved_imports,
-                    &source_storage.toolchain_contract_custody,
-                    &mut source_storage.package_roots,
-                    &source_storage.filesystem,
-                )?
-                .0
+        if deferred_product.is_none()
+            && let Some(loaded) = source_storage.seal_product_owner(catalogue)?
+        {
+            if let Some(inputs) = package_inputs {
+                source_storage
+                    .sources
+                    .retain_product_dependency_scope(inputs.dependencies());
             }
-            None => discover_imports(&parsed, &mut source_storage)?,
-        };
-        source_storage.attach_parsed(parsed);
-        imports.enqueue(discovered)?;
-        load_phase!(PackageImportPhase::ExactTarget(None))?;
+            let parsed =
+                parse_admitted(&mut source_storage, loaded.into_iter().collect(), timings)?;
+            let discovered = match package_inputs {
+                Some(inputs) => {
+                    discover_package_imports(
+                        &parsed,
+                        inputs,
+                        PackageImportPhase::ExactTarget(None),
+                        &mut source_storage.resolved_imports,
+                        &source_storage.toolchain_contract_custody,
+                        &mut source_storage.package_roots,
+                        &source_storage.filesystem,
+                    )?
+                    .0
+                }
+                None => discover_imports(&parsed, &mut source_storage)?,
+            };
+            source_storage.attach_parsed(parsed);
+            imports.enqueue(discovered)?;
+            load_phase!(PackageImportPhase::ExactTarget(None))?;
+        }
         if let Some(original) = self.build_source {
             let file = source_storage
                 .sources

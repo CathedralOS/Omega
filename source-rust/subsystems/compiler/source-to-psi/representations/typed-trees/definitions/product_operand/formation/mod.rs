@@ -37,7 +37,7 @@ pub struct PreparedProductRequirement {
 /// values (`ProductApplicationDemand::FormationOnly`, no environment).
 pub fn prepare_product_operand_application(
     program: &mut TypedTrees,
-    source: &crate::source_state::product_operand::ProductSourceLookups<'_>,
+    source: &crate::source_state::product_operand::ProductSourceLookups,
     operand: &ProductDeclarationOperand,
     role: ProductOperandRole,
     author: SymbolHandle,
@@ -109,7 +109,7 @@ fn served(
 
 pub fn prepare_product_requirement_operand(
     program: &mut TypedTrees,
-    source: &crate::source_state::product_operand::ProductSourceLookups<'_>,
+    source: &crate::source_state::product_operand::ProductSourceLookups,
     operand: &ProductDeclarationOperand,
     author: SymbolHandle,
     static_environment: Option<&ProductStaticEnvironment>,
@@ -139,8 +139,8 @@ pub fn prepare_product_requirement_operand(
         });
     }
     source
-        .declarations
-        .resolve(
+        .resolve_declaration(
+            &program.symbols,
             &operand.path,
             operand.source_span,
             ProductOperandRole::Requirement,

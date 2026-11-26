@@ -149,7 +149,7 @@ pub fn package_handoff_declarations(
     })?;
     let (product, declarations) = source.resolve_declarations(&mut Default::default())?;
     // Dependency handoff uses only the package's typed declarations and Build requests.
-    let mut typed = declarations.typed().clone();
+    let mut typed = declarations.into_typed();
     let (_, admitted) = product.policy.admit(&mut typed, Some(package), None)?;
     let providers = capture_providers(&typed, admitted.providers.iter())?;
     let (native, intents) = crate::compile_product::capture_package_native_bindings(

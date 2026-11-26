@@ -62,7 +62,7 @@ fn unserved(reason: impl Into<Cow<'static, str>>) -> Stop {
 }
 
 pub(super) enum OperandSource<'program> {
-    Authored(&'program crate::source_state::product_operand::ProductSourceLookups<'program>),
+    Authored(&'program crate::source_state::product_operand::ProductSourceLookups),
     Retained(SymbolHandle),
 }
 
@@ -80,7 +80,7 @@ const NODES: usize = 4096;
 
 struct Lower<'a> {
     program: &'a mut TypedTrees,
-    source: Option<&'a crate::source_state::product_operand::ProductSourceLookups<'a>>,
+    source: Option<&'a crate::source_state::product_operand::ProductSourceLookups>,
     graph: &'a ProductStaticOperandGraph,
     /// The helper's static arguments, when the graph is the authored request
     /// of a selection made inside a generic helper. `None` while an
@@ -170,9 +170,17 @@ impl Lower<'_> {
                 .source
                 .ok_or(unserved("a retained operand has no authored lookup scope"))?;
             let (declaration, description) = if kind == SymbolKind::Domain {
-                (source.declarations.resolve(path, name.source_span, ProductOperandRole::Domain), "domain")
+                (
+                    source.resolve_declaration(
+                        symbols,
+                        path,
+                        name.source_span,
+                        ProductOperandRole::Domain,
+                    ),
+                    "domain",
+                )
             } else {
-                (source.declarations.resolve_candidates(path, name.source_span, &source.types, &[]), "type")
+                (source.resolve_type(symbols, path, name.source_span), "type")
             };
             return declaration
                 .ok_or_else(|| Stop::Rejected(format!(
@@ -239,7 +247,7 @@ impl Lower<'_> {
         let helper = match self.environment {
             Some(environment) => environment
                 .template
-                .and_then(|template| self.source?.authors.resolve(template).ok()),
+                .and_then(|template| self.source?.resolve_author(symbols, template).ok()),
             None => Some(self.helper),
         };
         let Some(machine) = helper.and_then(|helper| self.program.machine_by_symbol(helper)) else {
@@ -665,11 +673,9 @@ pub(super) fn form(
     }
     let declaration = match retained {
         Some(declaration) => Some(declaration),
-        None => source.ok_or(unserved("an authored operand has no declaration lookup scope"))?.declarations.resolve(
-            &operand.path,
-            operand.source_span,
-            role,
-        ),
+        None => source
+            .ok_or(unserved("an authored operand has no declaration lookup scope"))?
+            .resolve_declaration(&program.symbols, &operand.path, operand.source_span, role),
     }
     .ok_or_else(|| {
         Stop::Rejected(format!(
