@@ -1427,6 +1427,10 @@ Older markers are rejected before their payload is read.
 | 53 | boundary application candidates | counted checked bodies for closed applications |
 | 54 | task activation demands | counted task activation demand rows |
 
+Marker 298 encodes each service method’s declared caller-stack bound as a
+little-endian `u64` after its blocking flag and before its termination flag.
+Zero denotes an absent bound. A positive value counts bytes.
+
 Marker 258 stores each normalized service schema as its module identity-table
 indices for the source declaration and full applied owner, followed by the
 complete service surface. The surface carries its own one-based identity table
@@ -2281,7 +2285,7 @@ structural declaration carries a supplied provider.
 | --- | --- | --- |
 | 1 | Scalar | scalar type |
 | 2 | Structural | structural type id |
-| 3 | Erased | type identity string |
+| 3 | Erased | type identity index (u32) |
 | 4 | IeeeFloat | IEEE float format |
 | 5 | ByteSequence | byte-sequence carrier |
 | 6 | BoundedInteger | integer type + integer value minimum + integer value maximum |
@@ -2289,6 +2293,7 @@ structural declaration carries a supplied provider.
 | 8 | Atomic | scalar type; only Boolean and fixed-width, non-address integers are admitted |
 | 9 | RefinedScalar | scalar type + proposition the value satisfies |
 | 10 | AtomicBoundedInteger | integer type + integer value minimum + integer value maximum |
+| 11 | Erased scalar | type identity index (u32) + scalar type |
 
 <!-- structural-access-tags -->
 
