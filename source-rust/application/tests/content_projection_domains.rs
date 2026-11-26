@@ -115,6 +115,33 @@ fn promising_content_membership_requires_a_qualified_returned_value() {
     );
 }
 
+#[test]
+fn installed_core_joins_two_owned_vacant_extents_only_under_its_contract() {
+    let source = r#"use {omega}/language/core/extent.omg as ranges;
+machine join(
+    left: |ranges|::Extent in |ranges|::Extent::Granted & |ranges|::Extent::Vacant,
+    right: |ranges|::Extent in |ranges|::Extent::Granted & |ranges|::Extent::Vacant
+) -> |ranges|::Extent in |ranges|::Extent::Granted & |ranges|::Extent::Vacant
+requires
+    embed(left.length) + embed(right.length) <= 18446744073709551615,
+    left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)
+{
+    |ranges|::merge_vacant_extents(left, right)
+}
+machine main() {}"#;
+    let inspect = &["psi", "inspect", "--machine", "join"];
+    let (output, report) = program::invoke(source, inspect);
+    assert!(output.status.success(), "{report}");
+
+    let gap = source.replace("embed(left.base) + embed(left.length)", "embed(left.base)");
+    let (output, report) = program::invoke(&gap, inspect);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove requires") && report.contains("merge_vacant_extents"),
+        "{report}"
+    );
+}
+
 fn with_transfer_contract() -> String {
     let transfer = r#"public boundary trait Transfer {
         machine pass(input: Region in Owned) -> Region
