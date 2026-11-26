@@ -145,7 +145,7 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
     let mut empty = plan.clone();
     empty.scalar_functions.clear();
     assert_ne!(legalized_operation_plan_identity(&empty), identity);
-    for mutation in 0..22 {
+    for mutation in 0..23 {
         let mut changed = plan.clone();
         let function = &mut changed.scalar_functions[0];
         match mutation {
@@ -201,7 +201,16 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
             18 => scalar_return_mut(function).work[0].units += 1,
             19 => scalar_return_mut(function).effect.input += 1,
             20 => function.blocks[0].instructions.pop().map(|_| ()).unwrap(),
-            _ => function.provenance.operations.reverse(),
+            21 => function.provenance.operations.reverse(),
+            _ => {
+                let crate::LegalizedScalarArgument::Scalar { source, .. } =
+                    &mut call_mut(function, 0).arguments[0]
+                else {
+                    panic!("scalar argument")
+                };
+                source.scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+            }
         }
         assert_identity_drift(identity, &changed);
     }

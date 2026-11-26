@@ -115,10 +115,7 @@ pub(crate) mod scalar_graph {
                 };
                 let mut lowered = scalar_arguments
                     .iter()
-                    .map(|argument| LegalizedScalarArgument::Scalar {
-                        source: argument.source.source_value(),
-                        placement: argument.placement.clone(),
-                    })
+                    .map(LegalizedScalarArgument::from)
                     .collect::<Vec<_>>();
                 for argument in arguments {
                     lowered.push(LegalizedScalarArgument::Structural {
@@ -3180,12 +3177,7 @@ pub(crate) mod scalar_graph {
                     }
                     let mut actuals = scalars
                         .iter()
-                        .map(
-                            |argument| legalized_operations::LegalizedScalarArgument::Scalar {
-                                source: argument.source.source_value(),
-                                placement: argument.placement.clone(),
-                            },
-                        )
+                        .map(legalized_operations::LegalizedScalarArgument::from)
                         .collect::<Vec<_>>();
                     for (argument, semantic) in structural.iter().zip(structural_arguments) {
                         actuals.push(legalized_operations::LegalizedScalarArgument::Structural {

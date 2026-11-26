@@ -2020,7 +2020,7 @@ pub(crate) mod call_arguments {
                 LegalizedScalarArgument::Scalar {
                     source: value,
                     placement,
-                } => (*value, placement),
+                } => (value.value, placement),
             };
             if let Some(output) = scalar_argument(
                 operation.invocation_site(),
@@ -6000,7 +6000,7 @@ pub(crate) mod process_exit {
                 if let Some(register) = super::call_arguments::scalar_argument(
                     semantic_vocabulary::InvocationSite::ExternalCompletion(*psi_edge),
                     argument_position,
-                    *source,
+                    source.value,
                     placement,
                     builder,
                 )? {

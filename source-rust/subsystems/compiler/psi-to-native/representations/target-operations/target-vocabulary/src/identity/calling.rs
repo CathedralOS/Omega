@@ -219,7 +219,8 @@ pub fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
         match argument {
             LegalizedScalarArgument::Scalar { source, placement } => {
                 bytes.push(0);
-                crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(bytes, source.value.get().to_le_bytes());
+                encode_scalar_type(bytes, source.scalar_type);
                 encode_placement(bytes, placement);
             }
             LegalizedScalarArgument::Structural {

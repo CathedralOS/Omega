@@ -74,8 +74,8 @@ impl LegalizedScalarCall {
             .enumerate()
         {
             if argument.placement() != placement
-                || matches!(argument, crate::LegalizedScalarArgument::Scalar { .. })
-                    && !direct_scalar_placement(placement)
+                || matches!(argument, LegalizedScalarArgument::Scalar { source, .. }
+                    if !direct_scalar_placement(placement) || ValueShape::for_scalar(source.scalar_type) != Some(placement.shape))
             {
                 return Err(Error::ArgumentPlacement { argument: index });
             }
