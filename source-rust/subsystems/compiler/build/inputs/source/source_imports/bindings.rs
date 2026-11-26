@@ -7,6 +7,7 @@ use super::SourceStorage;
 use super::paths::identifier_path_text;
 use crate::PackageCompilationInputs;
 use diagnostics::Diagnostic;
+use source_compiler::SourceImport;
 use source_provenance::DependencyScope;
 use source_text::SourceId;
 use std::path::PathBuf;
@@ -14,6 +15,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub(super) struct ImportOccurrence {
     source: SourceId,
+    span: source_text::Span,
     ordinal: usize,
     authored_path: String,
     binding: ImportBinding,
@@ -33,14 +35,15 @@ enum ImportBinding {
 impl ImportOccurrence {
     pub(super) fn file(
         source: SourceId,
-        ordinal: usize,
+        import: &SourceImport,
         authored_path: String,
         alias: &str,
         package_alias: Option<&str>,
     ) -> Self {
         Self {
             source,
-            ordinal,
+            span: import.span,
+            ordinal: import.ordinal,
             authored_path,
             binding: ImportBinding::File {
                 alias: alias.into(),
@@ -51,10 +54,21 @@ impl ImportOccurrence {
         }
     }
 
-    pub(super) fn new(source: SourceId, ordinal: usize, members: &[String], prefix: usize) -> Self {
+    fn error(&self, message: String) -> Diagnostic {
+        Diagnostic::error(message)
+            .with_source_span(source_text::SourceSpan::new(self.source, self.span))
+    }
+
+    pub(super) fn new(
+        source: SourceId,
+        import: &SourceImport,
+        members: &[String],
+        prefix: usize,
+    ) -> Self {
         Self {
             source,
-            ordinal,
+            span: import.span,
+            ordinal: import.ordinal,
             authored_path: identifier_path_text(members),
             binding: ImportBinding::Namespace {
                 package_prefix_members: prefix,
@@ -145,7 +159,7 @@ impl PendingPackageImport {
             }
         }
         if exact_file && paths.len() != 1 {
-            return Err(vec![Diagnostic::error(if paths.is_empty() {
+            return Err(vec![self.occurrence.error(if paths.is_empty() {
                 format!(
                     "no admitted logical file `{}`",
                     self.occurrence.authored_path
@@ -161,7 +175,7 @@ impl PendingPackageImport {
             if self.request.is_unbound_build_import(self.scope) {
                 return Ok(Vec::new());
             }
-            return Err(vec![Diagnostic::error(format!(
+            return Err(vec![self.occurrence.error(format!(
                 "import `{}` selects no authored or generated logical source namespace",
                 self.occurrence.authored_path,
             ))]);
@@ -355,6 +369,7 @@ mod tests {
         ResolvedSourceImport {
             occurrence: ImportOccurrence {
                 source,
+                span: Default::default(),
                 ordinal: 0,
                 authored_path: "dep::Thing".into(),
                 binding: ImportBinding::Namespace {
@@ -470,7 +485,7 @@ mod tests {
         storage.resolved_imports.push(ResolvedSourceImport {
             occurrence: ImportOccurrence::file(
                 author,
-                0,
+                &import,
                 "{kit}/api.omg".into(),
                 "chosen",
                 Some("kit"),

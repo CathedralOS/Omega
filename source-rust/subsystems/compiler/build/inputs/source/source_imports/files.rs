@@ -53,7 +53,7 @@ impl<'a> FileImport<'a> {
         );
         ImportOccurrence::file(
             self.source.source_id,
-            self.import.ordinal,
+            self.import,
             spelling,
             self.alias,
             self.root,

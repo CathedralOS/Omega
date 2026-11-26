@@ -97,10 +97,12 @@ fn the_product_must_resolve_its_own_files() {
         "product-unknown",
         "",
         "",
-        "use missing.omg as missing;\nmachine main() {}",
+        "\nuse missing.omg as missing;\nmachine main() {}",
     );
     assert!(
-        !compiled && stderr.contains("no admitted logical file `missing.omg`"),
+        !compiled
+            && stderr.contains("no admitted logical file `missing.omg`")
+            && stderr.contains("main.omg:2:5"),
         "{stderr}"
     );
 }
