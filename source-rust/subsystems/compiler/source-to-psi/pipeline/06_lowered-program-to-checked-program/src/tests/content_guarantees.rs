@@ -344,7 +344,7 @@ ensures
         let lowered = crate::lowering::elaborate_for(
             prepared.trees(),
             roster(&[entry], &[], DependencyScope::Product),
-            terminal_codec::TerminalPublication::Invocation,
+            terminal_codec::TerminalPublication::Portable,
         )
         .map_err(|err| err.detail.to_string())?;
         let module = &lowered.module;
@@ -368,7 +368,21 @@ ensures
             module,
             &[machine.id],
         )
-        .map_err(|err| err.detail.to_owned())
+        .map_err(|err| err.detail.to_owned())?;
+        let verdict =
+            crate::verdict::judge(Ok(lowered)).map_err(|failure| failure.detail.to_string())?;
+        let RouteVerdict::Accepted(accepted) = verdict else {
+            return Err(format!("{verdict:?}"));
+        };
+        let artifact = accepted
+            .publish()
+            .map_err(|failure| format!("{failure:?}"))?
+            .artifact;
+        let bytes = artifact.to_bytes();
+        let restored = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+            .map_err(|failure| format!("{failure:?}"))?;
+        assert_eq!(restored.to_bytes(), bytes);
+        Ok(())
     };
     verify(join).unwrap();
     assert!(verify(&join.replace("length: x + y", "length: x")).is_err());
