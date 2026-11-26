@@ -15,7 +15,7 @@ pub(crate) fn parse_statements<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     let mut statements = arena::HandleSpan::empty();
     while (requires_result && input.at_identifier_then_contextual("machine"))
-        || !crate::machine_bodies::starts_machine_member(input)
+        || !crate::declarations::machine_bodies::starts_machine_member(input)
     {
         if input.at_punctuation(PunctuationKind::Arrow) {
             return Err(input.error_here(

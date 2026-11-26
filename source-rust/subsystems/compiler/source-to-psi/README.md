@@ -10,6 +10,8 @@ Start at [source_to_psi.rs](source_to_psi.rs) for the supported requests. A chec
 | 05–06 | [Judge the lowered source](driver/judge_lowered_source.rs) with its exact declarations and supplies. | [Lower](pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs), then [check that lowering](pipeline/06_lowered-program-to-checked-program/src/publication.rs). |
 | 07 | Publish the accepted Product or Build invocation. | [Publication](pipeline/07_checked-program-to-psi/src/source/publication.rs) uses the checked program. |
 
+[Source syntax](source-syntax/) lets source-editing callers lex and parse one string without running later stages. Stage 01 itself parses tokens, including the statements and nested declarations of a machine body.
+
 Three operations can require more source work during one request.
 
 - A [Build](driver/compile_build.rs) can pause at an authored [dependency wait](driver/compile_build/waits/mod.rs). The next interval receives the live values at that source occurrence and the declarations the Build has since acquired.

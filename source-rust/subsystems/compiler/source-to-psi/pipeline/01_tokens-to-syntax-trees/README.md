@@ -3,7 +3,7 @@
 Start at [src/lib.rs](src/lib.rs). `parse_into` reads one token stream into a
 syntax page and returns its declaration roots. It dispatches declarations
 through [declarations/items.rs](src/declarations/items.rs). The
-[streaming caller](streaming.rs) calls this operation as it lexes each
+[streaming caller](../../driver/parse_source_batch.rs) calls this operation as it lexes each
 file, recycling each token buffer after parsing.
 
 The [source-files input](../../representations/source-files/source_files.rs) defines the origin and dependency scope retained on each parsed page. Run the parser unit, diagnostic, stage-contract and sample tests with `mbx test --locked -p source-parser`.
@@ -21,7 +21,7 @@ returns an error and leaves the input tokens intact.
 | [types/references.rs](src/types/references.rs) | Named, applied, reference and aggregate types; `properties.rs` handles type properties |
 | [parameters/callable.rs](src/parameters/callable.rs), [generics.rs](src/parameters/generics.rs) | Callable and generic binders; requirements and relevance rules are shared here |
 | [contracts/clauses.rs](src/contracts/clauses.rs) | Machine clauses; siblings parse facts, signatures, conformance and external bindings |
-| [machine_bodies/states.rs](machine_bodies/states.rs) | Machine entries and states; `defaults.rs` handles trait defaults |
+| [declarations/machine_bodies.rs](src/declarations/machine_bodies.rs) | Statements and nested machine declarations inside a machine body |
 | [transitions/blocks.rs](src/transitions/blocks.rs) | One dispatch per transition block, with subjects and ordered arm patterns, guards and targets |
 | [statements/sequence.rs](src/statements/sequence.rs), [parse.rs](src/statements/parse.rs) | Statement sequence and dispatch, then binding, destructuring and expression statements |
 | [patterns/fields.rs](src/patterns/fields.rs) | Destructure field entry and result; `bindings.rs` rewrites captured binding references; [positional.rs](src/patterns/positional.rs) reads `(first, _, ..)`, recording each component's place and a final `..` as a row of its own |
