@@ -763,7 +763,7 @@ pub struct DescriptorSlotInventory {
 impl DescriptorSlotInventory {
     /// Coordinates whose contents the inventory observes, including the
     /// outstanding loans carried inside a value of unknown concrete type.
-    pub(super) fn into_observations(self) -> impl Iterator<Item = DescriptorLocation> {
+    pub fn into_observations(self) -> impl Iterator<Item = DescriptorLocation> {
         self.slots
             .into_iter()
             .chain(self.unknown_contents.into_iter().map(|contents| contents.location))

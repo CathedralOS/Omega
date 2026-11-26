@@ -1620,7 +1620,9 @@ impl<'a> Storage<'a> {
                 let mut authorized = life.authorized.get(at).cloned().unwrap_or_default();
                 // Ancestor liveness already includes every surviving descendant.
                 if let Some(end) = ended.filter(|end| !holds(life, &end.target)) {
-                    let live = |name: &DescriptorLocation| !end.places.contains(&name.root);
+                    let live = |name: &DescriptorLocation| {
+                        !name.path.is_empty() || !end.places.contains(&name.root)
+                    };
                     surviving.retain(live);
                     authorized.retain(live);
                 }
@@ -2426,8 +2428,9 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
-    /// Convey the verified end of a fully restored plain shared name to the
-    /// loan walk. Require an edge without descriptor effects or bindings.
+    /// An affine edge certifies final use and restoration of a borrowed block
+    /// header. Retire only its local address. Owned field descriptors, copies
+    /// and successor arguments continue through their own coordinates.
     fn borrow_header_ends(
         &self,
         flow: &mut BTreeMap<DescriptorPosition, DescriptorFlowStep>,
@@ -2437,23 +2440,23 @@ impl<'a> Storage<'a> {
         if verified.is_some_and(|ends| ends.is_empty()) {
             return selected;
         }
-        let mut plain_headers: Vec<_> = self
+        let mut address_headers: Vec<_> = self
             .lowered
             .block_structural_parameters()
-            .filter(|parameter| parameter.access == StructuralAccess::SharedBorrow)
+            .filter(|parameter| parameter.access != StructuralAccess::Owned)
             .filter(|parameter| {
                 terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage
                     .owned_inventory(self.types, parameter.place, parameter.structural_type)
                     .is_some_and(|inventory| {
-                        inventory.slots.is_empty() && inventory.unknown_contents.is_empty()
+                        !inventory.into_observations().any(|slot| slot.path.is_empty())
                     })
             })
             .map(|parameter| parameter.place)
             .collect();
-        if plain_headers.is_empty() {
+        if address_headers.is_empty() {
             return selected;
         }
-        plain_headers.sort_unstable();
+        address_headers.sort_unstable();
         let independently_verified;
         let verified = match verified {
             Some(ends) => ends,
@@ -2478,7 +2481,7 @@ impl<'a> Storage<'a> {
             }
             for edge in &mut step.successors {
                 let Some(identity) = edge.edge else { continue };
-                if !edge.effects.is_empty() || !edge.bindings.is_empty() {
+                if !edge.effects.is_empty() {
                     continue;
                 }
                 let start = verified.partition_point(|(at, _)| *at < identity);
@@ -2486,12 +2489,12 @@ impl<'a> Storage<'a> {
                 for (_, place) in verified[start..]
                     .iter()
                     .take_while(|(at, _)| *at == identity)
-                    .filter(|(_, place)| plain_headers.binary_search(place).is_ok())
+                    .filter(|(_, place)| address_headers.binary_search(place).is_ok())
                 {
-                    edge.definitions.push(DescriptorLocation::whole(*place));
                     places.push(*place);
                 }
                 if !places.is_empty() {
+                    edge.borrowed_header_ends = places.clone().into_boxed_slice();
                     selected.push(BorrowedHeaderEnd {
                         edge: identity,
                         target: edge.target,
