@@ -59,7 +59,10 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
                 (RunError::Compilation(diagnostics), ExecutionSelection::Terminal) => {
                     eprintln!(
                         "Psi compile FAILED:{}",
-                        std::fmt::from_fn(|f| diagnostics::write_bounded_diagnostics(f, diagnostics))
+                        std::fmt::from_fn(|f| diagnostics::write_bounded_diagnostics(
+                            f,
+                            diagnostics
+                        ))
                     );
                 }
                 _ => eprintln!("{error}"),
@@ -166,7 +169,9 @@ fn run_cases(
     let cases = match &arguments.inputs {
         Some(inputs) => {
             let entries = std::fs::read_dir(inputs).and_then(|entries| {
-                entries.map(|entry| entry.map(|entry| entry.path())).collect::<std::io::Result<Vec<_>>>()
+                entries
+                    .map(|entry| entry.map(|entry| entry.path()))
+                    .collect::<std::io::Result<Vec<_>>>()
             });
             let mut cases = match entries {
                 Ok(paths) => paths,
@@ -175,7 +180,10 @@ fn run_cases(
                     std::process::exit(200);
                 }
             };
-            cases.retain(|path| path.extension().is_some_and(|extension| extension == "stdin"));
+            cases.retain(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == "stdin")
+            });
             cases.sort();
             if cases.is_empty() {
                 eprintln!("--inputs {} holds no *.stdin files", inputs.display());
@@ -211,7 +219,9 @@ fn run_cases(
     let mut status = 0;
     for case in &outcome.cases {
         match case {
-            CaseOutcome::Native { name, exit } => eprintln!("case {name}: native {}", exit.describe()),
+            CaseOutcome::Native { name, exit } => {
+                eprintln!("case {name}: native {}", exit.describe())
+            }
             CaseOutcome::Psi { name, termination } => {
                 let (kind, detail) = termination.columns();
                 eprintln!("case {name}: Psi {kind} {detail}");

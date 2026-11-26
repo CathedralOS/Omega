@@ -22,7 +22,8 @@ pub struct CaseRunRequest {
     pub keep_artifacts: bool,
 }
 
-pub enum CaseOutcome {    Native {
+pub enum CaseOutcome {
+    Native {
         name: String,
         exit: ProcessExitObservation,
     },
@@ -51,17 +52,24 @@ impl InputCase {
         directory.join(format!("{}.{suffix}", self.name))
     }
 
-    fn write_observation(&self, directory: &Path, suffix: &str, bytes: &[u8]) -> Result<(), RunError> {
+    fn write_observation(
+        &self,
+        directory: &Path,
+        suffix: &str,
+        bytes: &[u8],
+    ) -> Result<(), RunError> {
         use std::io::Write;
         let path = self.output_path(directory, suffix);
         // Distinct stems can refer to the same file on a case-insensitive volume.
         // Preserve the first case's evidence and withhold the batch result if so.
         std::fs::File::create_new(&path)
             .and_then(|mut file| file.write_all(bytes))
-            .map_err(|error| RunError::ReferenceOutput(std::io::Error::new(
-                error.kind(),
-                format!("{}: {error}", path.display()),
-            )))
+            .map_err(|error| {
+                RunError::ReferenceOutput(std::io::Error::new(
+                    error.kind(),
+                    format!("{}: {error}", path.display()),
+                ))
+            })
     }
 }
 
@@ -112,9 +120,7 @@ pub fn run_project_cases(
     }
     std::fs::create_dir(directory).map_err(RunError::ReferenceOutput)?;
     let (cases, table) = match request.selection {
-        ExecutionSelection::Terminal => {
-            psi_cases(&inputs, directory, &report, budget)?
-        }
+        ExecutionSelection::Terminal => psi_cases(&inputs, directory, &report, budget)?,
         ExecutionSelection::Native => {
             let (report, executable) = report.publish(&build_dir).map_err(RunError::Publication)?;
             native_cases(&inputs, directory, &report, &executable)?
@@ -144,7 +150,11 @@ fn psi_cases(
                 format_work_tsv(observation, budget).as_bytes(),
             )?;
             for (position, contents) in &observation.private_entry_ram {
-                input.write_observation(directory, &format!("entry-ram.{position}.bin"), contents)?;
+                input.write_observation(
+                    directory,
+                    &format!("entry-ram.{position}.bin"),
+                    contents,
+                )?;
             }
         }
         let termination = PsiTermination::of(&outcome);
@@ -192,15 +202,24 @@ fn native_cases(
             input.write_observation(directory, "native.entry-ram.frames", &private_frames)?;
         }
         for (position, contents) in &private_entry_ram {
-            input.write_observation(directory, &format!("native.entry-ram.{position}.bin"), contents)?;
+            input.write_observation(
+                directory,
+                &format!("native.entry-ram.{position}.bin"),
+                contents,
+            )?;
         }
         let exit = ProcessExitObservation::observe(&output.status);
         writeln!(
             table,
             "{name}\t{}",
-            exit.code().map_or_else(|| exit.describe(), |code| code.to_string())
-        ).unwrap();
-        cases.push(CaseOutcome::Native { name: name.clone(), exit });
+            exit.code()
+                .map_or_else(|| exit.describe(), |code| code.to_string())
+        )
+        .unwrap();
+        cases.push(CaseOutcome::Native {
+            name: name.clone(),
+            exit,
+        });
     }
     Ok((cases, table))
 }

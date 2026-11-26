@@ -262,7 +262,14 @@ mod tests {
         for route in [
             vec!["--engine", "native"],
             vec!["--engine", "psi"],
-            vec!["--engine", "native", "--input", "case.stdin", "--outputs", "out"],
+            vec![
+                "--engine",
+                "native",
+                "--input",
+                "case.stdin",
+                "--outputs",
+                "out",
+            ],
         ] {
             let mut arguments = route;
             arguments.extend([
@@ -313,8 +320,16 @@ mod tests {
 
     #[test]
     fn inputs_and_outputs_select_a_case_run() {
-        let arguments = parse(&["--engine", "native", "--inputs", "data", "--outputs", "out", "main.omg"])
-            .expect("case run parses");
+        let arguments = parse(&[
+            "--engine",
+            "native",
+            "--inputs",
+            "data",
+            "--outputs",
+            "out",
+            "main.omg",
+        ])
+        .expect("case run parses");
         assert_eq!(arguments.selection, ExecutionSelection::Native);
         assert_eq!(
             arguments.inputs.as_deref(),
@@ -402,8 +417,14 @@ mod tests {
 
     #[test]
     fn psi_work_budget_is_explicit_and_order_independent() {
-        let arguments = parse(&["--psi-work-budget", "100000000", "--engine", "psi", "main.omg"])
-            .expect("positive host reference allowance parses");
+        let arguments = parse(&[
+            "--psi-work-budget",
+            "100000000",
+            "--engine",
+            "psi",
+            "main.omg",
+        ])
+        .expect("positive host reference allowance parses");
         assert_eq!(
             arguments.psi_work_budget.map(std::num::NonZeroU64::get),
             Some(100_000_000)

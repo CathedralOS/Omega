@@ -20,7 +20,8 @@ use std::process::{Command, Output, Stdio};
 const DEFAULT_PSI_WORK_ALLOWANCE: u64 = 10_000_000;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ExecutionSelection {    #[default]
+pub enum ExecutionSelection {
+    #[default]
     Native,
     Terminal,
 }
@@ -40,7 +41,8 @@ pub struct RunOutcome {
     pub execution: ExecutionOutcome,
 }
 
-pub enum ExecutionOutcome {    TargetOnly {
+pub enum ExecutionOutcome {
+    TargetOnly {
         target_name: String,
     },
     Host {
