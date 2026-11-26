@@ -59,7 +59,7 @@ pub(crate) fn product_file_sources<'graph>(
         let request = PendingPackageImport {
             occurrence: ImportOccurrence::file(
                 author,
-                import.ordinal,
+                import,
                 import.target.to_string(),
                 alias,
                 root.as_deref(),

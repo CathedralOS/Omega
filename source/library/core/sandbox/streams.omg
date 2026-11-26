@@ -1,0 +1,12 @@
+use {omega}/language/core/process_authority.omg as authority;
+
+// The Build host designates these endpoints for one interpreted activation.
+public boundary trait SandboxOutput {
+    machine write(bytes: @[u8]) reaches |authority|::StandardOutput crashes none;
+}
+
+public boundary trait SandboxInput {
+    // A byte is 0 through 255, -1 denotes end of input, -2 denotes an I/O error.
+    machine read_byte() -> i32 reaches |authority|::StandardInput blocks crashes none
+    ensures result >= -2 && result <= 255;
+}

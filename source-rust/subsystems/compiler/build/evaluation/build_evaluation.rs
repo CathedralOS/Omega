@@ -216,6 +216,7 @@ pub fn prepare_build_evaluation(
     let checks_whole_subject_first =
         execution.checks_whole_subject_first(package_inputs, anonymous_source.is_some());
     let BuildExecutionInputs {
+        diagnostic_output_bytes,
         interpreter_providers,
         profile: execution_profile,
         directory: build_directory,
@@ -324,6 +325,7 @@ pub fn prepare_build_evaluation(
         )?;
         let admitted = crate::admit_build_program(
             prepared,
+            diagnostic_output_bytes,
             providers,
             selected_machine,
             &filesystem_scope,

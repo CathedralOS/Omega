@@ -505,9 +505,11 @@ can outlive the helper.
 
 ### Build sandbox bindings
 
-The stock Build sandbox is an execution environment. Its host interface lives
-in the toolchain package `omega::build`. That package declares the typed host
-operations that library providers can use in this environment. For example, a
+The stock Build sandbox is an execution environment. The toolchain package
+`omega::build` supplies its Build operations. A library used in both checked
+contexts can import the shared stream contracts from
+`{omega}/language/core/sandbox/streams.omg`. The interpreted activation alone
+supplies the sandbox stream backing. For example, a
 filesystem provider can forward a read to the sandbox file service, and a
 console provider can forward output to the activation's bounded diagnostic
 sink. The host may also bind the exact required service directly. The host interface can be used independently of the optional system library.
