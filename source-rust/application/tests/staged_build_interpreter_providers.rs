@@ -15,7 +15,20 @@ public TwentyThree satisfies |api|::Meter {
     machine read() -> u32 reaches none crashes none { 23u32 }
 }"#;
 
-fn project(target: &str, provider: Option<&str>, before_read: &str) -> TemporaryDirectory {
+const PRODUCT_ENTRIES: &str = r#"public machine return_normally() {}
+public machine trap() crashes Trap { crash Trap; }"#;
+
+enum ProductEntries {
+    Separate,
+    SharedWithBuild,
+}
+
+fn project(
+    target: &str,
+    provider: Option<&str>,
+    before_read: &str,
+    entries: ProductEntries,
+) -> TemporaryDirectory {
     let sandbox = TemporaryDirectory::create("staged-build-providers", false).unwrap();
     let app = sandbox.path().join("app");
     let meter = sandbox.path().join("meter");
@@ -52,10 +65,18 @@ machine build(builder: @mutable Build) {{
         ),
     )
     .unwrap();
+    let (product_import, qualifier, shared_entries) = match entries {
+        ProductEntries::Separate => {
+            fs::write(app.join("product.omg"), PRODUCT_ENTRIES).unwrap();
+            ("use product.omg as entries;", "|entries|::", "")
+        }
+        ProductEntries::SharedWithBuild => ("", "", PRODUCT_ENTRIES),
+    };
     fs::write(
         app.join("configure.omg"),
         format!(
             r#"use {{meter}}/main.omg as api;
+{product_import}
 machine build(builder: @mutable Build) {{
     {before_read}
     let observed: u32 = |api|::Meter::read();
@@ -65,12 +86,11 @@ machine build(builder: @mutable Build) {{
         23u32 -> select_trap(builder),
         _ -> reject(builder)
     }}
-    machine select_return(builder: @mutable Build) {{ Build::bind(builder, {target}::ProgramEntry, return_normally); }}
-    machine select_trap(builder: @mutable Build) {{ Build::bind(builder, {target}::ProgramEntry, trap); }}
+    machine select_return(builder: @mutable Build) {{ Build::bind(builder, {target}::ProgramEntry, {qualifier}return_normally); }}
+    machine select_trap(builder: @mutable Build) {{ Build::bind(builder, {target}::ProgramEntry, {qualifier}trap); }}
     machine reject(builder: @mutable Build) {{ Build::application(builder, "unknown_reading"); }}
 }}
-machine return_normally() {{}}
-machine trap() crashes Trap {{ crash Trap; }}"#
+{shared_entries}"#
         ),
     )
     .unwrap();
@@ -87,6 +107,8 @@ fn run(project: &TemporaryDirectory, engine: &str) -> (Output, String) {
             "build.omg",
             "--build-input",
             "configure.omg",
+            "--optional-build-input",
+            "product.omg",
             "build.omg",
         ])
         .stdin(Stdio::null())
@@ -109,7 +131,12 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
         ("Seventeen", "psi\treturn", false),
         ("TwentyThree", "psi\tcrash\tTrap", true),
     ] {
-        let fixture = project(host.target_name(), Some(provider), "");
+        let fixture = project(
+            host.target_name(),
+            Some(provider),
+            "",
+            ProductEntries::Separate,
+        );
         for engine in ["native", "psi"] {
             let (output, report) = run(&fixture, engine);
             assert!(output.status.success(), "{provider} {engine}: {report}");
@@ -133,7 +160,7 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
 #[test]
 fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
     let poison = r#"Build::build_entry(builder, "../successor-started.omg");"#;
-    let fixture = project("linux_x86_64", None, poison);
+    let fixture = project("linux_x86_64", None, poison, ProductEntries::Separate);
     let (output, report) = run(&fixture, "psi");
     assert!(!output.status.success(), "{report}");
     assert!(
@@ -142,6 +169,22 @@ fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
     );
     assert!(
         !report.contains("requires a canonical package-relative .omg filename"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_shared_product_entry_cannot_use_the_builds_meter_dependency() {
+    let fixture = project(
+        "linux_x86_64",
+        Some("Seventeen"),
+        "",
+        ProductEntries::SharedWithBuild,
+    );
+    let (output, report) = run(&fixture, "psi");
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("dependency `meter` is unavailable in the product scope"),
         "{report}"
     );
 }
