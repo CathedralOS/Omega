@@ -205,13 +205,15 @@ fn reachable_value_body_falloff_is_a_language_violation() {
 #[test]
 fn canonical_process_exit_publishes_never_without_a_receiving_value() {
     let typed = super::build_purpose::frontier_with_core(
-        "use omega\\language\\core\\Never; \
-         use omega\\language\\core\\ProcessExit; \
-         public machine finish(status: i32) -> Never \
-         reaches ProcessExit crashes none terminates { \
-             ProcessExit::exit_process(status); \
+        "use {omega}/language/core/never.omg;
+use {omega}/language/core/process_exit.omg;
+\
+\
+         public machine finish(status: i32) -> |never|::Never \
+         reaches |process_exit|::ProcessExit crashes none terminates { \
+             |process_exit|::ProcessExit::exit_process(status); \
          } \
-         machine main() reaches ProcessExit crashes none terminates { \
+         machine main() reaches |process_exit|::ProcessExit crashes none terminates { \
              let unreachable_value: u32 = finish(0); \
          }",
         "machine build_entry() {}",

@@ -227,15 +227,16 @@ fn unproved_statement_at_ensures(source: &str, verdict: RouteVerdict) -> String 
 }
 
 const ERASED: &str = r#"
-use omega\language\core\CommutativeSemiring;
+use {omega}/language/core/algebra.omg;
+use {omega}/language/core/foundation.omg as proof;
 
-machine entry<const Ring: CommutativeSemiring<bool>>(a: bool, b: bool) {
+machine entry<const Ring: |algebra|::CommutativeSemiring<bool>>(a: bool, b: bool) {
     Ring::add_comm(a, b);
     consume(Ring::add(a, b), Ring::add(b, a));
 }
 
 machine consume(left [erased]: bool, right [erased]: bool)
-requires core\Identity::<bool>(left, right)
+requires |proof|::Identity::<bool>(left, right)
 {}
 "#;
 
@@ -319,8 +320,9 @@ fn an_erased_declaration_application_cannot_supply_its_own_equality() {
 fn a_domain_cast_proves_its_typed_identity_in_the_kernel() {
     let verdict = generic(
         r#"
-use omega\language\core\f;
-domain u64::Reflexive requires core\Identity::<u64>(f(self), f(self));
+use {omega}/language/core/proof_clause_operation.omg;
+use {omega}/language/core/foundation.omg as proof;
+domain u64::Reflexive requires |proof|::Identity::<u64>(|proof_clause_operation|::f(self), |proof_clause_operation|::f(self));
 machine entry<T [copy]>(x: u64, _fallback: T) {
     let held: u64 in Reflexive = x as +Reflexive;
 }
@@ -341,8 +343,9 @@ machine entry<T [copy]>(x: u64, _fallback: T) {
 fn a_definition_body_retains_a_bodyless_application() {
     let verdict = generic(
         r#"
-use omega\language\core\f;
-let same(x: u64): core\Strict<0> = f(x) == f(x);
+use {omega}/language/core/proof_clause_operation.omg;
+use {omega}/language/core/foundation.omg as proof;
+let same(x: u64): |proof|::Strict<0> = |proof_clause_operation|::f(x) == |proof_clause_operation|::f(x);
 machine entry<T [copy]>(x: u64, _fallback: T) ensures same(x) {}
 "#,
     );
@@ -373,8 +376,8 @@ fn an_erased_integer_application_uses_the_typed_kernel_route() {
 fn an_erased_application_keeps_its_selected_semiring() {
     let source = ERASED
         .replace(
-            "const Ring: CommutativeSemiring<bool>",
-            "const Ring: CommutativeSemiring<bool>, const Other: CommutativeSemiring<bool>",
+            "const Ring: |algebra|::CommutativeSemiring<bool>",
+            "const Ring: |algebra|::CommutativeSemiring<bool>, const Other: |algebra|::CommutativeSemiring<bool>",
         )
         .replace(
             "consume(Ring::add(a, b), Ring::add(b, a))",
@@ -391,8 +394,9 @@ fn an_erased_application_keeps_its_selected_semiring() {
 #[test]
 fn a_type_definition_body_forms_identity_through_the_clause_reader() {
     let verdict = generic(r#"
-use omega\language\core\f;
-let same(x: u64): core\Type<0> = core\Identity::<u64>(f(x), f(x));
+use {omega}/language/core/proof_clause_operation.omg;
+use {omega}/language/core/foundation.omg as proof;
+let same(x: u64): |proof|::Type<0> = |proof|::Identity::<u64>(|proof_clause_operation|::f(x), |proof_clause_operation|::f(x));
 machine entry<T [copy]>(x: u64, _fallback: T) ensures same(x) {}
 "#);
     let RouteVerdict::Accepted(closure) = verdict else {
@@ -412,7 +416,7 @@ fn an_erased_type_argument_retains_the_callers_identity() {
         source
             .replace(
                 "machine entry",
-                "let stated(p [erased]: core\\Type<0>): core\\Type<0> = p;\nmachine entry",
+                "let stated(p [erased]: |proof|::Type<0>): |proof|::Type<0> = p;\nmachine entry",
             )
             .replace(
                 &format!("ensures {statement}"),
@@ -453,7 +457,7 @@ fn an_erased_type_argument_retains_the_callers_identity() {
     let uncited = through_formal(UNCITED);
     let statement = unproved_statement_at_ensures(&uncited, generic(&uncited));
     assert!(
-        statement.ends_with("stated(core::Identity::<T>(Ring.add(b, a), Ring.add(a, b)))"),
+        statement.ends_with("stated(|proof|::Identity::<T>(Ring.add(b, a), Ring.add(a, b)))"),
         "{statement}"
     );
 }
@@ -462,9 +466,11 @@ fn an_erased_type_argument_retains_the_callers_identity() {
 fn an_unused_erased_type_argument_does_not_require_an_identity_witness() {
     let verdict = generic(
         r#"
-let ignore(p [erased]: core\Type<0>): core\Strict<0> = 0u64 == 0;
+use {omega}/language/core/foundation.omg as proof;
+
+let ignore(p [erased]: |proof|::Type<0>): |proof|::Strict<0> = 0u64 == 0;
 machine probe<T [copy]>(x: u64, y: u64, _unused: T)
-ensures ignore(core\Identity::<u64>(x, y))
+ensures ignore(|proof|::Identity::<u64>(x, y))
 {}
 "#,
     );

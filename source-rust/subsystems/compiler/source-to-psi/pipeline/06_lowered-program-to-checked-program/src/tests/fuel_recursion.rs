@@ -23,7 +23,10 @@ const ALGEBRA: &str = include_str!(concat!(
 fn proofs(source: &str) -> String {
     let start = source.find("data Peano").expect("the fixture's data");
     let end = source.find("data Main").expect("the fixture's entry state");
-    source[start..end].to_owned()
+    format!(
+        "use {{omega}}/language/core/foundation.omg as proof;\n{}",
+        &source[start..end]
+    )
 }
 
 fn judged(source: &str, core: &[(&str, &str, &str)]) -> Vec<RouteVerdict> {
@@ -33,6 +36,10 @@ fn judged(source: &str, core: &[(&str, &str, &str)]) -> Vec<RouteVerdict> {
         source_provenance::DependencyScope::Product,
         core,
     );
+    judged_frontier(typed)
+}
+
+fn judged_frontier(typed: crate::source_state::TypedTrees) -> Vec<RouteVerdict> {
     let prepared = crate::prepare_fixture(typed);
     let scope = source_provenance::DependencyScope::Product;
     let compilation = crate::lowering::prepare_compilation(
@@ -110,24 +117,44 @@ fn a_false_law_about_such_a_machine_is_refused() {
     );
 }
 
-/// `nat.omg` from its data declaration on, then each named library file's
-/// text after it.
-fn library(files: &[&str]) -> String {
+/// Judge the application-owned proof files separately, including their private
+/// laws. Nat's ranking declarations remain toolchain-only.
+fn judged_library(files: &[(&str, &str)]) -> Vec<RouteVerdict> {
     let nat = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../../source/library/core/nat.omg"
     ));
     let first = nat.find("public data Nat {").expect("the data declaration");
-    // The combined IntPair fixture still selects the trait by declaration.
-    // Nat's conformance names the file that owns the trait.
-    let mut program = String::from(
-        "use {omega}/language/core/algebra.omg;\nuse omega\\language\\core\\CommutativeSemiring;\n",
+    let nat = format!(
+        "use {{omega}}/language/core/algebra.omg;\nuse {{omega}}/language/core/foundation.omg as proof;\n{}",
+        &nat[first..]
     );
-    program.push_str(&nat[first..]);
-    for file in files {
-        program.push_str(file);
-    }
-    program
+    judged_library_files(&nat, files)
+}
+
+pub(super) fn judged_library_files(nat: &str, files: &[(&str, &str)]) -> Vec<RouteVerdict> {
+    let files: Vec<_> = files
+        .iter()
+        .map(|&(name, text)| {
+            (
+                name,
+                text.replacen(
+                    "use algebra.omg;",
+                    "use {omega}/language/core/algebra.omg;",
+                    1,
+                ),
+            )
+        })
+        .collect();
+    let mut product = vec![("nat.omg", nat)];
+    product.extend(files.iter().map(|(name, text)| (*name, text.as_str())));
+    let typed = super::build_purpose::frontier_with_product_files(
+        &product,
+        "machine build_entry() {}",
+        source_provenance::DependencyScope::Product,
+        &[("algebra.omg", "CommutativeSemiring", ALGEBRA)],
+    );
+    judged_frontier(typed)
 }
 
 #[test]
@@ -136,10 +163,7 @@ fn mod_div_and_gcd_of_nat_are_defined_and_mod_keeps_its_bound() {
     // `saturating_sub(a, b)` or on `mod(a, b)`. `mod` states that its result
     // is below the divisor; `gcd` calls `mod`, which has a premise, and owes
     // it at that call.
-    let verdicts = judged(
-        &library(&[]),
-        &[("algebra.omg", "CommutativeSemiring", ALGEBRA)],
-    );
+    let verdicts = judged_library(&[]);
     let judgment = signature(&verdicts);
     let judged = |machine: &str| {
         judgment
@@ -170,21 +194,29 @@ fn every_law_of_rat_is_judged() {
     // `nat.omg`'s naturals, with `nat_metric.omg`'s order and distance. As
     // with those files, the library is judged only through a program, so
     // the four files' declarations are compiled as the program's.
-    let program = library(&[
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/nat_metric.omg"
-        )),
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/int.omg"
-        )),
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/rat.omg"
-        )),
+    let verdicts = judged_library(&[
+        (
+            "nat_metric.omg",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/nat_metric.omg"
+            )),
+        ),
+        (
+            "int.omg",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/int.omg"
+            )),
+        ),
+        (
+            "rat.omg",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/rat.omg"
+            )),
+        ),
     ]);
-    let verdicts = judged(&program, &[("algebra.omg", "CommutativeSemiring", ALGEBRA)]);
     let judgment = signature(&verdicts);
     let mut largest = (0, "");
     for law in &judgment.laws {
@@ -227,25 +259,36 @@ fn every_law_of_cauchy_is_judged() {
     // `core/cauchy.omg` states what it is for a sequence of rationals to be
     // Cauchy, for any sequence and any modulus: its machines are generic
     // over machines. It is judged with the four files it stands on.
-    let program = library(&[
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/nat_metric.omg"
-        )),
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/int.omg"
-        )),
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/rat.omg"
-        )),
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/cauchy.omg"
-        )),
+    let verdicts = judged_library(&[
+        (
+            "nat_metric.omg",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/nat_metric.omg"
+            )),
+        ),
+        (
+            "int.omg",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/int.omg"
+            )),
+        ),
+        (
+            "rat.omg",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/rat.omg"
+            )),
+        ),
+        (
+            "cauchy.omg",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../../source/library/core/cauchy.omg"
+            )),
+        ),
     ]);
-    let verdicts = judged(&program, &[("algebra.omg", "CommutativeSemiring", ALGEBRA)]);
     let judgment = signature(&verdicts);
     for law in &judgment.laws {
         assert!(
@@ -271,7 +314,8 @@ fn every_law_of_cauchy_is_judged() {
 
 /// Natural order over local data, decided as `core/nat.omg` decides it: by
 /// cases on the computed `saturating_sub(left, right)`, answering `bool`.
-const ORDER: &str = "
+const ORDER: &str = "use {omega}/language/core/foundation.omg as proof;
+
 data Peano {
     case Zero;
     case Succ(prev: Peano);
@@ -368,8 +412,9 @@ fn a_mathematical_machine_with_another_scalar_result_is_refused() {
             "u8",
             "1",
             "0",
-            "zero_is_at_most_one(a: Peano)\n\
-             ensures core\\Identity::<u8>(less_or_equal(Peano::Zero, Peano::Zero), 1)",
+            "zero_is_at_most_one(a: Peano)
+\
+             ensures |proof|::Identity::<u8>(less_or_equal(Peano::Zero, Peano::Zero), 1)",
         ),
         &[],
     );

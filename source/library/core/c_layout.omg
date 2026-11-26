@@ -1,5 +1,5 @@
-use {omega}/language/core/layout.omg;
-use {omega}/language/core/option.omg;
+use layout.omg;
+use option.omg;
 
 // C ABI placement for complete nonempty records. Scalars and their arrays use
 // target scalar geometry; nested fields require an explicitly selected child

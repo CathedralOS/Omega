@@ -302,12 +302,7 @@ impl FixedCoreDeclaration {
         Self::Identity,
     ];
 
-    /*
-        The compiler-known name this declaration owns. The `core::` prefix
-        is the mathematical vocabulary's fixed namespace — not the
-        `omega::language::core` library package, and not shadowable by an
-        authored declaration.
-    */
+    /// The internal label used for the kernel slot and diagnostics.
     pub const fn name(self) -> &'static str {
         match self {
             Self::Level => "core::Level",
@@ -334,16 +329,11 @@ impl FixedCoreDeclaration {
         Self::ALL.get(ordinal).copied()
     }
 
-    /*
-        The fixed declaration an authored `core::*` spelling denotes, if any.
-        Names never identify a resolved symbol — this arm exists for the
-        resolution pass that binds spelled references to their fixed slots
-        and for the transitional unresolved-name classifiers downstream.
-    */
-    pub fn from_name(name: &str) -> Option<Self> {
+    /// Select a member after a file import has identified the installed foundation.
+    pub fn from_foundation_member(member: &str) -> Option<Self> {
         Self::ALL
             .into_iter()
-            .find(|declaration| declaration.name() == name)
+            .find(|declaration| declaration.name().strip_prefix("core::") == Some(member))
     }
 }
 

@@ -4,9 +4,9 @@ use crate::source_resolved::expression::{
 };
 use crate::source_resolved::proposition::PropositionBody;
 use crate::source_resolved::types::TypeConstraint;
-use crate::source_symbols::{JoinedPath, SymbolTable};
+use crate::source_symbols::SymbolTable;
 use arena::{Arena, HandleSpan};
-use symbols::{FixedCoreDeclaration, SymbolHandle, SymbolKind};
+use symbols::{SymbolHandle, SymbolKind};
 
 use super::expressions::{NameRole, assign_struct_literal_symbols};
 use super::lookup::child_symbol_by_kinds;
@@ -286,10 +286,6 @@ fn assign_expression_symbols_in_role(
                     name.as_str(),
                 );
                 (symbol, symbol)
-            } else if let Some(symbol) = FixedCoreDeclaration::from_name(&members.joined_path())
-                .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration))
-            {
-                (SymbolHandle::invalid(), symbol)
             } else {
                 resolve_state_scoped_table_path(
                     symbols,
@@ -393,6 +389,7 @@ mod tests {
     use crate::resolution::frontend_fixture::Lexer;
     use crate::resolution::{ResolutionRequest, resolve};
     use crate::source_resolved::mathematical::MathematicalBody;
+    use symbols::FixedCoreDeclaration;
 
     #[test]
     fn mathematical_match_keeps_case_selector_separate_from_constructed_value() {
@@ -446,9 +443,13 @@ mod tests {
     fn a_contract_call_selects_the_fixed_core_identity_like_a_body_call() {
         let text = "use {omega}/language/core/foundation.omg as logic;\n\
                     use foundation.omg as user;\n\
+                    machine user_witness(value: |user|::Identity) {}\n\
                     machine same(value: f64) -> f64\n\
                     ensures |logic|::Identity::<f64>(result, value)\n\
-                    { transition |logic|::Identity::<f64>(value, value) { _ -> (value) } }\n";
+                    { transition |logic|::Identity::<f64>(value, value) { _ -> (value) } }\n\
+                    machine unbound(value: f64) -> f64\n\
+                    ensures core::Identity::<f64>(result, value)\n\
+                    { transition core::Identity::<f64>(value, value) { _ -> (value) } }\n";
         let mut sources = crate::source_inputs::SourceMap::default();
         let source_id = sources
             .add("app/identity.omg".into(), text.into())
@@ -487,7 +488,7 @@ mod tests {
         .unwrap();
         let identity = program
             .symbols
-            .fixed_core_declaration_symbol(symbols::FixedCoreDeclaration::Identity)
+            .fixed_core_declaration_symbol(FixedCoreDeclaration::Identity)
             .expect("the fixed core vocabulary is installed");
         let calls = program
             .tables
@@ -499,7 +500,12 @@ mod tests {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(calls, vec![identity, identity]);
+        assert_eq!(calls.len(), 4);
+        assert_eq!(
+            calls.iter().filter(|&&symbol| symbol == identity).count(),
+            2
+        );
+        assert_eq!(calls.iter().filter(|symbol| !symbol.is_valid()).count(), 2);
 
         let reference = source_text::SourceSpan::new(source_id, source_text::Span::new(0, 3));
         let lookup = |path: &str| program.symbols.lookup_source_type(path, reference).unique();
@@ -516,6 +522,7 @@ mod tests {
             );
             assert_eq!(lookup(&format!("|absent|::{member}")), None);
             assert_eq!(lookup(member), None);
+            assert_eq!(lookup(fixed.name()), None);
         }
         let user_identity = lookup("|user|::Identity").unwrap();
         assert_eq!(program.symbols.get(user_identity).kind, SymbolKind::Data);

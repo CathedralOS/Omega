@@ -14,9 +14,9 @@ const WEAK_SYMMETRY: &str =
     include_str!("../../tests/fixtures/quotient/fail/symmetry_of_equal_values_only/main.omg");
 
 fn proofs(source: &str) -> String {
-    let start = source.find("use omega").expect("the fixture's imports");
+    let start = source.find("use {omega}/").expect("the fixture's imports");
     let end = source.find("data Main").expect("the fixture's entry state");
-    source[start..end].replace("use omega\\language\\core\\ProcessExit;\n", "")
+    source[start..end].replace("use {omega}/language/core/process_exit.omg;\n", "")
 }
 
 const RELATION: &str = include_str!(concat!(
@@ -113,7 +113,7 @@ fn a_symmetry_row_that_asks_for_more_is_refused() {
         source,
         proofs(CLASS).replace(
             "requires same_sign(left, right) ensures same_sign(right, left) { }",
-            "requires same_sign(left, right), core\\Identity::<Representative>(left, right) \
+            "requires same_sign(left, right), |proof|::Identity::<Representative>(left, right) \
              ensures same_sign(right, left) { }"
         )
     );
@@ -235,16 +235,16 @@ fn a_lift_is_refused_when_its_requirement_does_not_give_the_operations() {
         .replace(LIFT, "Quotient::lift::<normal, normal_respects>(value)")
         .replace(
             "machine normal(value: Representative) -> Representative\n\
-             requires core\\Identity::<Representative>(value, value)",
+             requires |proof|::Identity::<Representative>(value, value)",
             "machine normal(value: Representative) -> Representative\n\
-             requires core\\Identity::<Representative>(sign(value), Representative::Zero)",
+             requires |proof|::Identity::<Representative>(sign(value), Representative::Zero)",
         )
         .replace(
-            "    core\\Identity::<Representative>(left, left),\n    \
-             core\\Identity::<Representative>(right, right)\n\
+            "    |proof|::Identity::<Representative>(left, left),\n    \
+             |proof|::Identity::<Representative>(right, right)\n\
              ensures same_sign(normal(left), normal(right))",
-            "    core\\Identity::<Representative>(sign(left), Representative::Zero),\n    \
-             core\\Identity::<Representative>(sign(right), Representative::Zero)\n\
+            "    |proof|::Identity::<Representative>(sign(left), Representative::Zero),\n    \
+             |proof|::Identity::<Representative>(sign(right), Representative::Zero)\n\
              ensures same_sign(normal(left), normal(right))",
         );
     assert!(
@@ -266,8 +266,8 @@ fn a_lift_is_refused_when_its_requirement_does_not_give_the_operations() {
 fn an_operation_lifted_to_a_quotient_is_not_a_term() {
     let source = format!(
         "{}\nmachine uses_the_operation(a: Representative)\n\
-         requires core\\Identity::<Sign>(a as Sign, a as Sign)\n\
-         ensures core\\Identity::<Sign>(normal_class(a as Sign), normal_class(a as Sign))\n{{\n}}\n",
+         requires |proof|::Identity::<Sign>(a as Sign, a as Sign)\n\
+         ensures |proof|::Identity::<Sign>(normal_class(a as Sign), normal_class(a as Sign))\n{{\n}}\n",
         proofs(LIFTED)
     );
     let verdicts = judged(&source);
@@ -311,7 +311,7 @@ machine pick_class(other: Representative, value: Sign) -> Sign {
 
 machine sign_respects(left: Representative, right: Representative)
 requires same_sign(left, right)
-ensures core\Identity::<Representative>(sign(left), sign(right))
+ensures |proof|::Identity::<Representative>(sign(left), sign(right))
 {
 }
 
@@ -399,16 +399,17 @@ fn level_binders_u_and_v_work_in_mathematical_definitions() {
     // Both `u: core\Level` and `v: core\Level` resolve in `core\Type<u>` and
     // `core\Type<v>` without hitting builtin-type-name refusal.
     let source = r#"
-let keep_u<u: core\Level>(P: core\Type<u>): core\Type<u> = P;
-let keep_v<v: core\Level>(P: core\Type<v>): core\Type<v> = P;
+use {omega}/language/core/foundation.omg as proof;
+let keep_u<u: |proof|::Level>(P: |proof|::Type<u>): |proof|::Type<u> = P;
+let keep_v<v: |proof|::Level>(P: |proof|::Type<v>): |proof|::Type<v> = P;
 
 machine check_u(x: i32)
-ensures keep_u::<0>(core\Identity::<i32>(x, x))
+ensures keep_u::<0>(|proof|::Identity::<i32>(x, x))
 {
 }
 
 machine check_v(x: i32)
-ensures keep_v::<0>(core\Identity::<i32>(x, x))
+ensures keep_v::<0>(|proof|::Identity::<i32>(x, x))
 {
 }
 "#;
@@ -422,10 +423,11 @@ ensures keep_v::<0>(core\Identity::<i32>(x, x))
 
     // Negative twin: a non-Level binder `T` in `core\Type<T>` is refused.
     let bad = r#"
-let bad_level<T>(P: core\Type<T>): core\Type<T> = P;
+use {omega}/language/core/foundation.omg as proof;
+let bad_level<T>(P: |proof|::Type<T>): |proof|::Type<T> = P;
 
 machine check_bad(x: i32)
-ensures bad_level::<i32>(core\Identity::<i32>(x, x))
+ensures bad_level::<i32>(|proof|::Identity::<i32>(x, x))
 {
 }
 "#;
@@ -443,12 +445,12 @@ fn quotient_refuses_conformance_proved_for_another_relation() {
     let source = format!(
         "{}\n\
          proposition other_rel(a: Representative, b: Representative) =\n\
-             core\\Identity::<Representative>(a, b);\n\
-         OtherRel satisfies MereEquivalence<Representative, other_rel> {{\n\
+             |proof|::Identity::<Representative>(a, b);\n\
+         OtherRel satisfies |relation|::MereEquivalence<Representative, other_rel> {{\n\
              machine reflexive(value: Representative) ensures other_rel(value, value) {{ }}\n\
              machine symmetric(left: Representative, right: Representative) requires other_rel(left, right) ensures other_rel(right, left) {{ }}\n\
              machine transitive(left: Representative, middle: Representative, right: Representative) requires other_rel(left, middle), other_rel(middle, right) ensures other_rel(left, right) {{ }}\n\
-             machine proofs_agree(a: Representative, b: Representative) ensures IsMere(other_rel(a, b)) {{ }}\n\
+             machine proofs_agree(a: Representative, b: Representative) ensures |relation|::IsMere(other_rel(a, b)) {{ }}\n\
          }}\n",
         proofs(CLASS).replace("as SameSign;", "as OtherRel;")
     );
@@ -472,20 +474,16 @@ fn quotient_refuses_conformance_proved_for_another_relation() {
 fn quotient_refuses_plain_equivalence_without_mere_relation() {
     let source = proofs(CLASS)
         .replace(
-            "use omega\\language\\core\\MereEquivalence;",
-            "use omega\\language\\core\\Equivalence;",
+            "SameSign satisfies |relation|::MereEquivalence<Representative, same_sign>",
+            "SameSign satisfies |relation|::Equivalence<Representative, same_sign>",
         )
         .replace(
-            "SameSign satisfies MereEquivalence<Representative, same_sign>",
-            "SameSign satisfies Equivalence<Representative, same_sign>",
-        )
-        .replace(
-            "    machine proofs_agree(a: Representative, b: Representative) ensures IsMere(same_sign(a, b)) { }\n",
+            "    machine proofs_agree(a: Representative, b: Representative) ensures |relation|::IsMere(same_sign(a, b)) { }\n",
             "",
         )
         .replace(
-            "MereEquivalence<Representative, same_sign>",
-            "Equivalence<Representative, same_sign>",
+            "|relation|::MereEquivalence<Representative, same_sign>",
+            "|relation|::Equivalence<Representative, same_sign>",
         );
     let verdicts = judged(&source);
     let refused: Vec<_> = verdicts
@@ -508,7 +506,7 @@ fn quotient_effectivity_uses_selected_mere_equivalence_laws() {
     let source = format!(
         "{}\n\
          machine equal_classes_are_related(a: Representative, b: Representative)\n\
-         requires core\\Identity::<Sign>(a as Sign, b as Sign)\n\
+         requires |proof|::Identity::<Sign>(a as Sign, b as Sign)\n\
          ensures same_sign(a, b)\n\
          {{\n\
          }}\n",
@@ -531,7 +529,7 @@ fn quotient_effectivity_uses_selected_mere_equivalence_laws() {
 
     // Negative twin: without the class-equality premise, `same_sign(a, b)` is refused.
     let unproved_source = source.replace(
-        "requires core\\Identity::<Sign>(a as Sign, b as Sign)\n",
+        "requires |proof|::Identity::<Sign>(a as Sign, b as Sign)\n",
         "",
     );
     let verdicts = judged(&unproved_source);

@@ -1,3 +1,5 @@
+use assembly.omg;
+
 // Select the kernel's ordinary data and stack descriptor from its retained GDT.
 // DS, ES and SS receive the same checked selector. FS and GS selectors become
 // null while their active 64-bit bases are preserved; KernelGSBase is unchanged.
@@ -14,22 +16,22 @@ public data DataSelectors { ds: u16; es: u16; ss: u16; fs: u16; gs: u16; }
 public boundary trait DataSegmentControl {
     machine reload<const Entries: u64>(gdt: @mutable [u64; Entries], selector: u16) -> bool
     requires Entries >= 1 && Entries <= 8192
-    reaches MachineControl
+    reaches |assembly|::MachineControl
     crashes none;
 
-    machine selectors() -> DataSelectors reaches MachineControl crashes none;
+    machine selectors() -> DataSelectors reaches |assembly|::MachineControl crashes none;
 }
 
 // Build selects the implementation. This implementation requires x86-64.
 public X86DataSegmentControl satisfies DataSegmentControl {
     machine reload<const Entries: u64>(gdt: @mutable [u64; Entries], selector: u16) -> bool
     requires Entries >= 1 && Entries <= 8192
-    reaches MachineControl {
+    reaches |assembly|::MachineControl {
         let mutable observed: [u8; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         reload_data_segments::<Entries>(gdt, selector, @mutable observed) == 1
     }
 
-    machine selectors() -> DataSelectors reaches MachineControl {
+    machine selectors() -> DataSelectors reaches |assembly|::MachineControl {
         DataSelectors {
             ds: read_data_selector(), es: read_extra_selector(),
             ss: read_stack_selector(), fs: read_fs_selector(), gs: read_gs_selector()
@@ -41,9 +43,9 @@ public X86DataSegmentControl satisfies DataSegmentControl {
 // FS/GS bases across the group and consumes the MOV SS shadow before returning.
 boundary machine reload_data_segments<const Entries: u64>(
     gdt: @mutable [u64; Entries], selector: u16, scratch: @mutable [u8; 10]
-) -> u8 reaches MachineControl;
-boundary machine read_data_selector() -> u16 reaches MachineControl;
-boundary machine read_extra_selector() -> u16 reaches MachineControl;
-boundary machine read_stack_selector() -> u16 reaches MachineControl;
-boundary machine read_fs_selector() -> u16 reaches MachineControl;
-boundary machine read_gs_selector() -> u16 reaches MachineControl;
+) -> u8 reaches |assembly|::MachineControl;
+boundary machine read_data_selector() -> u16 reaches |assembly|::MachineControl;
+boundary machine read_extra_selector() -> u16 reaches |assembly|::MachineControl;
+boundary machine read_stack_selector() -> u16 reaches |assembly|::MachineControl;
+boundary machine read_fs_selector() -> u16 reaches |assembly|::MachineControl;
+boundary machine read_gs_selector() -> u16 reaches |assembly|::MachineControl;

@@ -204,7 +204,7 @@ impl<'t> Program<'t> {
             )?;
             Vec::new()
         } else {
-            // Leading `core\Level` binders may be elided at the call site
+            // Leading `|proof|::Level` binders may be elided at the call site
             // (e.g. `IsMere(R(a, b))`). Every remaining binder receives an
             // explicit static argument in written order.
             let leading_levels = binders
@@ -403,7 +403,7 @@ impl<'t> Program<'t> {
             .type_body(id)
     }
 
-    /// Reads the dependent-arrow body `(p: P) -> (q: P) -> core\Identity::<P>(p, q)`
+    /// Reads the dependent-arrow body `(p: P) -> (q: P) -> |proof|::Identity::<P>(p, q)`
     /// of `IsMere`. When `P` is bound to a concrete proposition, produces
     /// `Proposition::IsMere`; during declaration validation when `P` is a
     /// type parameter slot, retains that slot.

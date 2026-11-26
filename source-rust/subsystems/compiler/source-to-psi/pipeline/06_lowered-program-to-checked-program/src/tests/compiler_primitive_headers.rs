@@ -447,11 +447,11 @@ machine main() crashes Trap {
 fn selected_byte_observation_executes_the_existing_operation_and_proves_equivalence() {
     let verdicts = observed_program(
         r#"
-use omega\language\core\byte_observation;
+use {omega}/language/core/byte_observation/byte_observation.omg;
 public machine checked<'input>(bytes: @'input [u8]) -> bool
 reaches none crashes none terminates
-ensures result == byte_observation\ascii_only(bytes)
-{ byte_observation\ascii_only(bytes) }
+ensures result == |byte_observation|::ascii_only(bytes)
+{ |byte_observation|::ascii_only(bytes) }
 machine main() crashes Trap {
     let valid: bool = checked("Room A1");
     let invalid: bool = checked("é");
@@ -480,10 +480,11 @@ machine main() crashes Trap {
 fn a_constant_byte_wrapper_cannot_claim_the_observers_equivalence() {
     for result in ["true", "false"] {
         let source = format!(
-            r#"
+            r#"use {{omega}}/language/core/byte_observation/byte_observation.omg;
+
 public machine checked<'input>(bytes: @'input [u8]) -> bool
 reaches none crashes none terminates
-ensures result == byte_observation\ascii_only(bytes)
+ensures result == |byte_observation|::ascii_only(bytes)
 {{ {result} }}
 machine main() {{ let valid: bool = checked("Room A1"); }}
 "#
@@ -519,7 +520,7 @@ machine main() {{ let valid: bool = checked("Room A1"); }}
                         terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
                     ) && failure
                         .statement
-                        .contains("result == byte_observation::ascii_only(bytes)")
+                        .contains("result == |byte_observation|::ascii_only(bytes)")
                 }),
                 "{unproved:?}"
             );
@@ -531,8 +532,9 @@ machine main() {{ let valid: bool = checked("Room A1"); }}
 fn authenticated_byte_calls_still_require_their_complete_actual_header() {
     for mutation in 0..5 {
         let mut typed = observed_typed(
-            r#"
-machine main() { let valid: bool = byte_observation\ascii_only("Room A1"); }
+            r#"use {omega}/language/core/byte_observation/byte_observation.omg;
+
+machine main() { let valid: bool = |byte_observation|::ascii_only("Room A1"); }
 "#,
         );
         let index = typed
@@ -596,8 +598,9 @@ machine main() { let valid: bool = byte_observation\ascii_only("Room A1"); }
 fn byte_domains_form_an_explicit_shared_whole_observation_of_self() {
     for (argument, accepted) in [("@self[..]", true), ("self", false)] {
         let text = format!(
-            r#"
-domain [u8; 2]::Ascii requires byte_observation\ascii_only({argument});
+            r#"use {{omega}}/language/core/byte_observation/byte_observation.omg;
+
+domain [u8; 2]::Ascii requires |byte_observation|::ascii_only({argument});
 data Holder {{ bytes: [u8; 2] in Ascii; }}
 machine main() {{ let plain: [u8; 2] = [65u8, 66u8]; let holder: Holder = Holder {{ bytes: plain as +Ascii }}; }}
 "#
@@ -617,13 +620,14 @@ machine main() {{ let plain: [u8; 2] = [65u8, 66u8]; let holder: Holder = Holder
 fn a_utf8_array_element_write_must_preserve_the_whole_sequence() {
     // Both starting arrays are UTF-8. The identical write keeps AB valid,
     // but turns C3 A9 into 41 A9, whose continuation byte has no lead.
-    let positive_source = r#"
-domain [u8; 2]::Utf8 requires byte_observation\valid_utf8(@self[..]);
+    let positive_source = r#"use {omega}/language/core/byte_observation/byte_observation.omg;
+
+domain [u8; 2]::Utf8 requires |byte_observation|::valid_utf8(@self[..]);
 machine main() crashes Trap {
     let plain: [u8; 2] = [65u8, 66u8];
     let mutable bytes: [u8; 2] in Utf8 = plain as +Utf8;
     (@mutable bytes as -Utf8)[0] = 65u8;
-    let valid: bool = byte_observation\valid_utf8((@bytes as -Utf8)[..]);
+    let valid: bool = |byte_observation|::valid_utf8((@bytes as -Utf8)[..]);
     transition valid { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
@@ -693,8 +697,9 @@ machine main() crashes Trap {
 
 #[test]
 fn a_qualified_window_proves_its_domain_without_qualifying_the_raw_subslice() {
-    let program = r#"
-domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);
+    let program = r#"use {omega}/language/core/byte_observation/byte_observation.omg;
+
+domain [u8]::Utf8 requires |byte_observation|::valid_utf8(@self[..]);
 machine whole<'bytes>(bytes: @'bytes [u8] in Utf8) -> @'bytes [u8] in Utf8
 requires bytes.length >= 1
 {
@@ -829,8 +834,9 @@ fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
 
 #[test]
 fn an_indexed_store_proves_both_prior_and_replacement_byte_contents() {
-    let positive = r#"
-domain [u8; 2]::Ascii requires byte_observation\ascii_only(@self[..]);
+    let positive = r#"use {omega}/language/core/byte_observation/byte_observation.omg;
+
+domain [u8; 2]::Ascii requires |byte_observation|::ascii_only(@self[..]);
 machine put(bytes: @mutable [u8; 2] in Ascii, index: u64, value: u8)
 requires index < 2, value <= 127u8
 { (bytes as -Ascii)[index] = value; }

@@ -20,7 +20,10 @@ const NAT_METRIC: &str = include_str!(concat!(
 fn proofs(source: &str) -> String {
     let start = source.find("data Peano").expect("the fixture's data");
     let end = source.find("data Main").expect("the fixture's entry state");
-    source[start..end].to_owned()
+    format!(
+        "use {{omega}}/language/core/foundation.omg as proof;\n{}",
+        &source[start..end]
+    )
 }
 
 fn judged(source: &str, core: &[(&str, &str, &str)]) -> Vec<RouteVerdict> {
@@ -114,18 +117,9 @@ fn every_law_of_nat_metric_is_judged() {
     // As with that file, its machines are private and the library is judged
     // only through a program, so the two files' declarations are compiled
     // as the program's.
-    let mut program = super::nat_semiring::library_declarations();
-    program.push_str(NAT_METRIC);
-    let verdicts = judged(
-        &program,
-        &[(
-            "algebra.omg",
-            "CommutativeSemiring",
-            include_str!(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../../../../../../source/library/core/algebra.omg"
-            )),
-        )],
+    let verdicts = super::fuel_recursion::judged_library_files(
+        &super::nat_semiring::library_declarations(),
+        &[("nat_metric.omg", NAT_METRIC)],
     );
     let judgment = signature(&verdicts);
     let mut largest = (0, "");

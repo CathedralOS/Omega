@@ -1,3 +1,5 @@
+use assembly.omg;
+
 // Activate a task-state segment only when its descriptor belongs to the
 // borrowed, currently loaded GDT. The caller's bootstrap scope keeps the table,
 // task-state bytes and referenced stacks live while the CPU can use them.
@@ -11,10 +13,10 @@ public boundary trait TaskRegisterControl {
         gdt: @mutable [u64; Entries], task_state: @[u8; 104], selector: u16
     ) -> bool
     requires Entries >= 2 && Entries <= 8192
-    reaches MachineControl
+    reaches |assembly|::MachineControl
     crashes none;
 
-    machine selector() -> u16 reaches MachineControl crashes none;
+    machine selector() -> u16 reaches |assembly|::MachineControl crashes none;
 }
 
 // Build selects the implementation. This native implementation requires x86-64.
@@ -23,13 +25,13 @@ public X86TaskRegisterControl satisfies TaskRegisterControl {
         gdt: @mutable [u64; Entries], task_state: @[u8; 104], selector: u16
     ) -> bool
     requires Entries >= 2 && Entries <= 8192
-    reaches MachineControl
+    reaches |assembly|::MachineControl
     {
         let mutable observed: [u8; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         activate_task_register::<Entries>(gdt, task_state, selector, @mutable observed) == 1
     }
 
-    machine selector() -> u16 reaches MachineControl {
+    machine selector() -> u16 reaches |assembly|::MachineControl {
         read_task_register()
     }
 }
@@ -41,6 +43,6 @@ boundary machine activate_task_register<const Entries: u64>(
     gdt: @mutable [u64; Entries], task_state: @[u8; 104], selector: u16,
     scratch: @mutable [u8; 10]
 ) -> u8
-reaches MachineControl;
+reaches |assembly|::MachineControl;
 
-boundary machine read_task_register() -> u16 reaches MachineControl;
+boundary machine read_task_register() -> u16 reaches |assembly|::MachineControl;

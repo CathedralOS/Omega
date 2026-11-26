@@ -488,6 +488,22 @@ impl DescriptorSlotKind {
             .is_empty()
             .then_some(inventory.slots)
     }
+    /// A borrow of this place uses its outer address. Descriptor cells held
+    /// within its value keep their independent lifetimes.
+    pub fn borrows_inline_storage(
+        self,
+        types: &[StructuralTypeDeclaration],
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> bool {
+        self.owned_inventory(types, place, structural_type)
+            .is_some_and(|inventory| {
+                !inventory
+                    .into_observations()
+                    .any(|slot| slot.path.is_empty())
+            })
+    }
+
     pub fn owned_slots(
         self,
         types: &[StructuralTypeDeclaration],
