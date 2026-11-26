@@ -957,7 +957,7 @@ mod tests {
                 .zero_value(machine(), ValueType::record(empty), None, source)
                 .unwrap()
                 .kind,
-            ExpressionKind::Record { fields } if fields.is_empty()
+            ExpressionKind::Record { fields, .. } if fields.is_empty()
         ));
         for (shape, expected) in [
             (

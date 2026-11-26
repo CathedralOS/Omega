@@ -20,6 +20,7 @@ pub enum StructuralFieldType {
     Structural(StructuralTypeId),
     Erased {
         type_identity: TerminalIdentityIndex,
+        scalar: Option<ScalarType>,
     },
 }
 

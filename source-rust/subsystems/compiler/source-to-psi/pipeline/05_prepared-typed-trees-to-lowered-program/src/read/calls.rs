@@ -4518,7 +4518,7 @@ impl Touches<'_> {
                 }
                 Ok(false)
             }
-            ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+            ExpressionKind::Record { fields, .. } | ExpressionKind::Case { fields, .. } => {
                 for (_, operand) in fields {
                     if self.expression(operand, changes, captures)? {
                         return Ok(true);

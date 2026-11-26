@@ -74,7 +74,7 @@ fn established_field_identity(
     field: &StructuralFieldDeclaration,
 ) -> Option<TerminalIdentityIndex> {
     match &field.field_type {
-        StructuralFieldType::Erased { type_identity } if !type_identity.is_absent() => {
+        StructuralFieldType::Erased { type_identity, .. } if !type_identity.is_absent() => {
             Some(*type_identity)
         }
         _ => None,

@@ -333,6 +333,16 @@ pub fn row<Id: NumericId, T>(
     })
 }
 
+/// The term a record or case literal supplies for one erased scalar field.
+/// Terminal Psi omits the field from runtime construction, so the checker
+/// reads its value from here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErasedFieldTerm {
+    pub operation: semantic_vocabulary::OperationId,
+    pub field: semantic_vocabulary::StructuralFieldId,
+    pub term: semantic_vocabulary::ScalarTerm,
+}
+
 /// Everything the checker holds for one machine. Value, place, claim and
 /// edge identities are machine-local in the lowered form (ownership.md:
 /// "Claim identities stay machine-local"), so these tables are too.
@@ -352,6 +362,7 @@ pub struct MachineTables {
     pub obligations: IdTable<ObligationId, obligations::ObligationRow>,
     pub edges: IdTable<EdgeId, edges::EdgeRow>,
     pub invocations: IdTable<InvocationId, edges::InvocationRow>,
+    pub erased_field_terms: Vec<ErasedFieldTerm>,
 }
 
 /// The module: one `MachineTables` per machine.

@@ -695,7 +695,7 @@ impl<'b> Walk<'b> {
             | ExpressionKind::ByteElement { base, index, .. } => {
                 Ok(self.expression(machine, base)? && self.expression(machine, index)?)
             }
-            ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+            ExpressionKind::Record { fields, .. } | ExpressionKind::Case { fields, .. } => {
                 for (_, operand) in fields {
                     if !self.expression(machine, operand)? {
                         return Ok(false);

@@ -423,6 +423,9 @@ pub(crate) fn declare<'a, 'b>(
                     relevance: language_core::BindingRelevance::Erased,
                     field_type: StructuralFieldType::Erased {
                         type_identity: identities.intern(&erased.type_identity),
+                        scalar: (!erased.evidence)
+                            .then(|| erased.value_type.scalar())
+                            .flatten(),
                     },
                     storage: None,
                 };
@@ -1170,7 +1173,7 @@ fn expression_homes<'b>(
             expression_homes(base, slots, homes);
             expression_homes(index, slots, homes);
         }
-        ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+        ExpressionKind::Record { fields, .. } | ExpressionKind::Case { fields, .. } => {
             for (_, operand) in fields {
                 expression_homes(operand, slots, homes);
             }
@@ -2909,8 +2912,9 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
-            ExpressionKind::Record { fields } => {
-                let (root, place) = continuing!(self.establish(record, fields, expression.source));
+            ExpressionKind::Record { fields, erased } => {
+                let (root, place) =
+                    continuing!(self.establish(record, fields, erased, expression.source));
                 Ok(Reached::Value(Located {
                     root,
                     place,
@@ -2919,9 +2923,18 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
-            ExpressionKind::Case { case, fields } => {
-                let (root, place) =
-                    continuing!(self.establish_case(record, *case, fields, expression.source));
+            ExpressionKind::Case {
+                case,
+                fields,
+                erased,
+            } => {
+                let (root, place) = continuing!(self.establish_case(
+                    record,
+                    *case,
+                    fields,
+                    erased,
+                    expression.source
+                ));
                 Ok(Reached::Value(Located {
                     root,
                     place,
@@ -3735,6 +3748,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         record: StructuralTypeId,
         fields: &[(usize, Expression)],
+        erased: &[(semantic_vocabulary::StructuralFieldId, Expression)],
         source: SourceOrigin,
     ) -> Evaluation<(PlaceId, ExactPlaceId)> {
         let declared = self.record_type(record)?.fields();
@@ -3777,6 +3791,17 @@ impl<'a> Lowering<'a> {
             return self.establish_laid_out(record, roster, source);
         }
         let operation = self.operation_identity(source);
+        for (field, expression) in erased {
+            let witness = self.witness(expression)?;
+            let term = witness.term(&self.erased_applications);
+            self.tables
+                .erased_field_terms
+                .push(terminal_check_tables::ErasedFieldTerm {
+                    operation,
+                    field: *field,
+                    term,
+                });
+        }
 
         let (root, exact) = self.produce(
             operation,
@@ -3983,6 +4008,7 @@ impl<'a> Lowering<'a> {
         record: StructuralTypeId,
         case: usize,
         fields: &[(usize, Expression)],
+        erased: &[(semantic_vocabulary::StructuralFieldId, Expression)],
         source: SourceOrigin,
     ) -> Evaluation<(PlaceId, ExactPlaceId)> {
         let selected = self.case_of(record, case)?;
@@ -4031,6 +4057,17 @@ impl<'a> Lowering<'a> {
             }
         };
         let operation = self.operation_identity(source);
+        for (field, expression) in erased {
+            let witness = self.witness(expression)?;
+            let term = witness.term(&self.erased_applications);
+            self.tables
+                .erased_field_terms
+                .push(terminal_check_tables::ErasedFieldTerm {
+                    operation,
+                    field: *field,
+                    term,
+                });
+        }
         let (root, exact) = self.produce(operation, ValueType::record(record), kind)?;
         let at = ProgramPoint::AfterOperation(operation);
         self.write(exact, at, Content::Overwritten)?;
@@ -4765,7 +4802,7 @@ impl<'a> Lowering<'a> {
         }
         // A payload-free case constructor evaluates nothing. Retain the
         // ordinary single-membership lowering for this constant operand.
-        if let ExpressionKind::Case { case, fields } = &right.kind
+        if let ExpressionKind::Case { case, fields, .. } = &right.kind
             && fields.is_empty()
             && data.is_copyable()
             && data.cleanup.is_none()

@@ -2423,7 +2423,7 @@ impl<'a> Declarations<'a> {
                         | StructuralFieldType::PredicateByteSequence { .. } => {
                             FieldCarrier::ByteSequence(record, field.id)
                         }
-                        StructuralFieldType::Erased { type_identity } => {
+                        StructuralFieldType::Erased { type_identity, .. } => {
                             FieldCarrier::Erased(*type_identity)
                         }
                     };

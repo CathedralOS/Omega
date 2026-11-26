@@ -1246,7 +1246,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
                 binding.clear();
             }
         }
-        E::Record { fields } | E::Case { fields, .. } => {
+        E::Record { fields, .. } | E::Case { fields, .. } => {
             for (_, field) in fields {
                 collect_expression(field, calls);
             }

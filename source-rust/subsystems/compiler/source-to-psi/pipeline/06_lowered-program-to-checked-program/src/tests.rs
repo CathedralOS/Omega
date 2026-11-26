@@ -1469,6 +1469,7 @@ fn read(base: Expression, field: usize) -> Expression {
 fn point_of(x: Expression, y: Expression) -> Expression {
     of_type(
         ExpressionKind::Record {
+            erased: Vec::new(),
             fields: vec![(0, x), (1, y)],
         },
         point(),
@@ -2859,6 +2860,7 @@ fn a_whole_assignment_replaces_every_leaf_after_constructing_its_operands() {
                 2,
                 of_type(
                     ExpressionKind::Record {
+                        erased: Vec::new(),
                         fields: vec![(0, place(1, point())), (1, place(1, point()))],
                     },
                     line(),
@@ -3478,7 +3480,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
 }
 
 fn case_of(case: usize, fields: Vec<(usize, Expression)>) -> Expression {
-    of_type(ExpressionKind::Case { case, fields }, shape())
+    of_type(ExpressionKind::Case { case, fields, erased: Vec::new() }, shape())
 }
 
 /// The `u32` payload field `field` of case `case` of the sum `base` names.
@@ -3842,6 +3844,7 @@ fn a_membership_test_establishes_its_case_on_its_true_edge_and_a_write_to_the_su
         0,
         of_type(
             ExpressionKind::Record {
+                erased: Vec::new(),
                 fields: vec![(0, case_of(DOT, vec![(0, unsigned(3))]))],
             },
             holder(),
@@ -4218,6 +4221,7 @@ fn domains<'a>(
 fn literal_of(record: u64, fields: Vec<Expression>) -> Expression {
     of_type(
         ExpressionKind::Record {
+            erased: Vec::new(),
             fields: fields.into_iter().enumerate().collect(),
         },
         data(record),
@@ -4511,6 +4515,7 @@ fn a_clause_that_tests_a_case_is_decided_by_the_constructed_case() {
     let byte = |operand: Expression| {
         of_type(
             ExpressionKind::Case {
+                erased: Vec::new(),
                 case: 1,
                 fields: vec![(0, operand)],
             },
@@ -4533,6 +4538,7 @@ fn a_clause_that_tests_a_case_is_decided_by_the_constructed_case() {
         Vec::new(),
         of_type(
             ExpressionKind::Case {
+                erased: Vec::new(),
                 case: 0,
                 fields: Vec::new(),
             },
@@ -4672,6 +4678,7 @@ fn every_data_domain_obligation_has_exactly_one_verdict() {
             declare(1, data(GATED)),
             returns(of_type(
                 ExpressionKind::Case {
+                    erased: Vec::new(),
                     case: 0,
                     fields: Vec::new(),
                 },
@@ -4900,6 +4907,7 @@ fn a_dispatched_payload_this_machine_built_lends_no_clause() {
                     1,
                     of_type(
                         ExpressionKind::Case {
+                            erased: Vec::new(),
                             case: 1,
                             fields: vec![(0, slot(0, u32_type()))],
                         },

@@ -565,7 +565,11 @@ impl<'t> Program<'t> {
                 // reader does not materialize it; unsupported classification
                 // still prevents artifact acceptance.
                 if slots[slot].erased {
-                    return unserved("runtime use of an erased binding");
+                    return Err(crate::reject(
+                        id,
+                        source,
+                        "runtime use of an erased binding",
+                    ));
                 }
                 if slots[slot].borrowed.is_some()
                     && let Some(expected) = expected
@@ -2324,7 +2328,10 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (ExpressionKind::ByteElement { base: a, index: ai, element: ae }, ExpressionKind::ByteElement { base: b, index: bi, element: be }) => ae == be && both(a, b) && both(ai, bi),
             (ExpressionKind::CollectionView { base: a, access: aa, element: ae }, ExpressionKind::CollectionView { base: b, access: ba, element: be }) => aa == ba && ae == be && both(a, b),
             (ExpressionKind::CollectionSubslice { base: a, start: ast, end: ae }, ExpressionKind::CollectionSubslice { base: b, start: bst, end: be }) => both(a,b) && match (ast,bst) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false } && match (ae,be) { (Some(a),Some(b)) => both(a,b), (None,None) => true, _ => false },
-            (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
+            (
+                ExpressionKind::Record { fields: a, .. },
+                ExpressionKind::Record { fields: b, .. },
+            ) => {
                 a.len() == b.len()
                     && a.iter()
                         .zip(b)
@@ -2344,10 +2351,12 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 ExpressionKind::Case {
                     case: a_case,
                     fields: a,
+                    ..
                 },
                 ExpressionKind::Case {
                     case: b_case,
                     fields: b,
+                    ..
                 },
             ) => {
                 a_case == b_case
