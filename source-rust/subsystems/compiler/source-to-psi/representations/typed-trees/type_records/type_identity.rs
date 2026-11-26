@@ -866,6 +866,10 @@ pub(crate) mod callable_identity {
 
         #[test]
         fn nested_callable_keeps_its_identity_when_only_its_body_is_selected() {
+            use super::super::lifetime_parameters::{
+                lifetime_parameter_identity, portable_lifetime_parameter_identity,
+            };
+
             let mut symbols = SymbolTableBuilder::new();
             let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("expect"));
             let child = symbols
@@ -882,6 +886,7 @@ pub(crate) mod callable_identity {
             program.push_machine(Machine {
                 symbol: owner,
                 name: Identifier::generated("expect"),
+                lifetime_parameters: vec![Identifier::generated("input")],
                 states,
                 ..Default::default()
             });
@@ -892,11 +897,22 @@ pub(crate) mod callable_identity {
                 ..Default::default()
             };
             let original = program.machine_callable_identity_text(&nested).unwrap();
+            let region = lifetime_parameter_identity(&program, child, "input").unwrap();
+            assert_eq!(region.declaration, owner);
+            let original_region = portable_lifetime_parameter_identity(&program, region).unwrap();
 
             program.roots.machines = Default::default();
             program.push_machine(nested);
             assert!(program.machine_by_symbol(owner).is_none());
             let selected = program.machine_by_symbol(child).unwrap();
+            assert_eq!(
+                lifetime_parameter_identity(&program, child, "input"),
+                Some(region)
+            );
+            assert_eq!(
+                portable_lifetime_parameter_identity(&program, region),
+                Some(original_region)
+            );
             assert_eq!(
                 program.machine_callable_identity_text(selected),
                 Some(original)
@@ -3768,7 +3784,8 @@ pub(crate) mod lifetime_parameters {
     ) -> Option<String> {
         lifetime_parameter_name(program, region)?;
         let owner = region.declaration;
-        let (kind, declaration) = if let Some(machine) = program.machine_by_symbol(owner) {
+        let (kind, declaration) = if let Some(machine) = program.machine_declaration_for_lexical_scope(owner)
+        {
             ("machine", program.machine_callable_identity_text(machine)?)
         } else if let Some((declaration, requirement)) = program.trait_machine_signature(owner) {
             (
@@ -3917,7 +3934,7 @@ pub(crate) mod lifetime_parameters {
         owner: SymbolHandle,
     ) -> Option<&[crate::source_state::name::Identifier]> {
         program
-            .machine_by_symbol(owner)
+            .machine_declaration_for_lexical_scope(owner)
             .map(|owner| owner.lifetime_parameters.as_slice())
             .or_else(|| {
                 program
