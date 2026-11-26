@@ -56,7 +56,7 @@ use terminal_check_tables::mathematics::{
 use terminal_check_tables::{Checked, Construct, Refusal};
 
 use super::Program;
-use super::families::{EvidenceTerm, EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
+use super::families::{EvidenceUse, FamilyRecord, FamilyTerm, FamilyTheorem};
 use super::quotients::LiftedOperation;
 use crate::body::{
     ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement, Target,
@@ -1628,19 +1628,7 @@ impl<'p> Converter<'p, '_> {
             for child in &case.children {
                 let mut at = Vec::with_capacity(child.at.len());
                 for term in &child.at {
-                    at.push(match *term {
-                        FamilyTerm::Index(index) => index_terms[index as usize],
-                        FamilyTerm::Payload(position) => payload_terms[position as usize].1,
-                        FamilyTerm::Literal(value) => {
-                            self.integer_literal(id, bignum::BigInt::from_i128(value))?
-                        }
-                        FamilyTerm::Name(_) => {
-                            return Err(unserved(
-                                id,
-                                "child of indexed data at something other than an index, a payload value or a literal",
-                            ));
-                        }
-                    });
+                    at.push(self.family_term_kernel(id, term, &index_terms, &payload_terms)?);
                 }
                 let tuple = self.index_tuple(&at);
                 child_indices.push(self.over(integer, total, tuple));
@@ -1742,12 +1730,7 @@ impl<'p> Converter<'p, '_> {
             let mut actuals =
                 Vec::with_capacity(construction.at.len() + construction.payload.len());
             for term in construction.at.iter().chain(&construction.payload) {
-                actuals.push(match *term {
-                    EvidenceTerm::Parameter(parameter) => open[parameter as usize],
-                    EvidenceTerm::Literal(value) => {
-                        self.integer_literal(id, bignum::BigInt::from_i128(value))?
-                    }
-                });
+                actuals.push(self.evidence_term_kernel(id, term, &open)?);
             }
             let case = format!(
                 "{}::{}",
@@ -1790,7 +1773,106 @@ impl<'p> Converter<'p, '_> {
                 });
             }
         }
+        for equality in &used.index_equalities {
+            let left = self.evidence_term_kernel(id, &equality.left, &open)?;
+            let right = self.evidence_term_kernel(id, &equality.right, &open)?;
+            let goal = self.signature.arena.insert(Term::Id {
+                ty: integer,
+                left,
+                right,
+            });
+            let mut statement = self.implication(&premises, goal);
+            for _ in 0..count {
+                statement = self.signature.arena.insert(Term::Pi {
+                    domain: integer,
+                    codomain: statement,
+                });
+            }
+            let law = index(id, self.signature.laws.len())?;
+            index(id, self.signature.declarations.len() + 1)?;
+            let entry = self.push(
+                Declaration::assumption(0, statement),
+                SignatureEntryKind::Statement { law },
+                used.name.clone(),
+            );
+            self.signature.laws.push(Law {
+                machine: used.machine,
+                clause: 0,
+                statement: entry,
+                formals: vec![integer; count as usize],
+                premises: premises.clone(),
+                goal,
+                declared: None,
+                proof: LawProof::Integers,
+                formal_names: used
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.name.clone())
+                    .collect(),
+                machine_name: used.name.clone(),
+                text: "indices of indexed data must be equal".to_owned(),
+                source: equality.source,
+            });
+        }
         Ok(())
+    }
+
+    fn family_term_kernel(
+        &mut self,
+        id: MachineId,
+        term: &FamilyTerm,
+        index_terms: &[TermHandle],
+        payload_terms: &[(semantic_vocabulary::StructuralFieldId, TermHandle)],
+    ) -> Checked<TermHandle> {
+        use super::families::IndexOp;
+        match term {
+            FamilyTerm::Index(index) => Ok(index_terms[*index as usize]),
+            FamilyTerm::Payload(position) => Ok(payload_terms[*position as usize].1),
+            FamilyTerm::Literal(value) => {
+                self.integer_literal(id, bignum::BigInt::from_i128(*value))
+            }
+            FamilyTerm::Binary(op, left, right) => {
+                let left = self.family_term_kernel(id, left, index_terms, payload_terms)?;
+                let right = self.family_term_kernel(id, right, index_terms, payload_terms)?;
+                let vocab = self.integer_vocabulary(id)?;
+                let head = self.constant(match op {
+                    IndexOp::Add => vocab.add,
+                    IndexOp::Sub => vocab.subtract,
+                    IndexOp::Mul => vocab.multiply,
+                });
+                Ok(self.signature.arena.apply_arguments(head, &[left, right]))
+            }
+            FamilyTerm::Name(_) => Err(unserved(
+                id,
+                "child of indexed data at something other than an index, a payload value or a literal",
+            )),
+        }
+    }
+
+    fn evidence_term_kernel(
+        &mut self,
+        id: MachineId,
+        term: &super::families::EvidenceTerm,
+        open: &[TermHandle],
+    ) -> Checked<TermHandle> {
+        use super::families::{EvidenceTerm, IndexOp};
+        match term {
+            EvidenceTerm::Parameter(parameter) => Ok(open[*parameter as usize]),
+            EvidenceTerm::Literal(value) => {
+                self.integer_literal(id, bignum::BigInt::from_i128(*value))
+            }
+            EvidenceTerm::Binary(op, left, right) => {
+                let left = self.evidence_term_kernel(id, left, open)?;
+                let right = self.evidence_term_kernel(id, right, open)?;
+                let vocab = self.integer_vocabulary(id)?;
+                let head = self.constant(match op {
+                    IndexOp::Add => vocab.add,
+                    IndexOp::Sub => vocab.subtract,
+                    IndexOp::Mul => vocab.multiply,
+                });
+                Ok(self.signature.arena.apply_arguments(head, &[left, right]))
+            }
+        }
     }
 
     /// The index with these components: each paired with the rest.
@@ -3240,11 +3322,11 @@ impl<'p> Converter<'p, '_> {
     ) -> Checked<Bound> {
         let plain = |term| Bound { term, field: None };
         match &expression.kind {
-            ExpressionKind::Boolean(value) => Ok(plain(
-                self.signature
-                    .arena
-                    .insert(if *value { Term::TwoOne } else { Term::TwoZero }),
-            )),
+            ExpressionKind::Boolean(value) => Ok(plain(self.signature.arena.insert(if *value {
+                Term::TwoOne
+            } else {
+                Term::TwoZero
+            }))),
             ExpressionKind::Slot(slot) => scope
                 .slots
                 .get(scope.aliases.get(*slot).copied().unwrap_or(*slot))

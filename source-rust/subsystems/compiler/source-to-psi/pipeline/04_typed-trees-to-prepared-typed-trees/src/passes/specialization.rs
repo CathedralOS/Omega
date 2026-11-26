@@ -1203,12 +1203,17 @@ fn apply_requirement(
 ) -> Served<()> {
     let reference = site.requirement_application(program);
     let receiver = match site.call(program) {
-        Some(StaticArgumentCall::Expression(_, call)) => program.expression_table
-            .name_path_node(call.receiver).map(|name| name.symbol),
+        Some(StaticArgumentCall::Expression(_, call)) => program
+            .expression_table
+            .name_path_node(call.receiver)
+            .map(|name| name.symbol),
         Some(StaticArgumentCall::Statement(call)) => Some(call.receiver_symbol),
         None => None,
     };
-    let lexical_owner = program.expression_table.static_machine_application(applied.application).lexical_owner;
+    let lexical_owner = program
+        .expression_table
+        .static_machine_application(applied.application)
+        .lexical_owner;
     let environment = if reference.is_valid() {
         Some(
             program
@@ -1217,7 +1222,8 @@ fn apply_requirement(
                 .environment(),
         )
     } else if let Some(receiver) = receiver
-        && let Some(member) = program.static_record_bound_requirement(lexical_owner, receiver, applied.target)
+        && let Some(member) = program
+            .static_record_bound_requirement(lexical_owner, receiver, applied.target)
             .map_err(|_| unserved("static record call lost its declared requirement application"))?
     {
         Some(member.application.environment())
@@ -1968,6 +1974,7 @@ fn copy_declarations(
     substitute_record_receivers(program, &record_receivers)?;
     substitute_widths(program, type_start, operands)?;
     substitute_values(program, expression_start, operands);
+    settle_const_expressions(program, type_start, operands)?;
     for (mut machine, state, body) in copied {
         select_requirements(program, &body, &selections);
         substitute_arguments(program, &body, machine.symbol, operands)?;
@@ -2215,6 +2222,71 @@ fn substitute_values(program: &mut TypedTrees, expression_start: usize, operands
     }
 }
 
+/// Evaluates closed integer `ConstExpression` type references copied into a
+/// specialized machine (`Index<Count + 1>` after `Count = 3` -> `Index<4>`)
+/// and settles them in place so type identity and downstream readers see the
+/// canonical literal form.
+fn settle_const_expressions(
+    program: &mut TypedTrees,
+    type_start: usize,
+    operands: &[Operand],
+) -> Served<()> {
+    let candidates: Vec<_> = program
+        .type_reference_table
+        .type_reference_rows_from(type_start)
+        .filter_map(|(handle, node)| match node {
+            TypeReferenceNode::ConstExpression(expression) => {
+                evaluate_substituted_const_int(program, *expression, operands)
+                    .map(|value| (handle, value))
+            }
+            _ => None,
+        })
+        .collect();
+    for (handle, value) in candidates {
+        data_applications::settle_const_argument(program, handle, &value.to_string())
+            .map_err(Stop::Rejected)?;
+    }
+    Ok(())
+}
+
+fn evaluate_substituted_const_int(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    operands: &[Operand],
+) -> Option<i128> {
+    use crate::source_state::expression::BinaryOperator;
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(literal) => literal.to_string().parse::<i128>().ok(),
+        ExpressionNode::Name(path)
+            if path.symbol.is_valid()
+                && !path.static_application.is_valid()
+                && path.members.count() == 1 =>
+        {
+            operands
+                .iter()
+                .find(|operand| operand.parameter == path.symbol)
+                .and_then(|operand| match &operand.scalar {
+                    Some(Value::Integer(literal)) => literal.to_string().parse::<i128>().ok(),
+                    _ => None,
+                })
+        }
+        ExpressionNode::Binary(binary) => {
+            let left = evaluate_substituted_const_int(program, binary.left, operands)?;
+            let right = evaluate_substituted_const_int(program, binary.right, operands)?;
+            match binary.operator {
+                BinaryOperator::Add => left.checked_add(right),
+                BinaryOperator::Subtract => left.checked_sub(right),
+                BinaryOperator::Multiply => left.checked_mul(right),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 /// Points each copied call through an implementation parameter at the
 /// operation the implementation selected for that requirement. The call
 /// keeps the binding the author wrote, which still names the parameter's
@@ -2426,7 +2498,7 @@ fn substitute_arguments(
     holder: SymbolHandle,
     operands: &[Operand],
 ) -> Served<()> {
-    let replace = |arguments: &mut [StaticMachineArgument]| {
+    let replace = |program: &mut TypedTrees, arguments: &mut [StaticMachineArgument]| {
         for argument in arguments {
             argument.authored_machine_application = StaticMachineApplicationHandle::invalid();
             if let Some(operand) = operands
@@ -2434,6 +2506,23 @@ fn substitute_arguments(
                 .find(|operand| operand.parameter == argument.symbol)
             {
                 *argument = operand.argument.clone();
+            } else if argument.type_reference.is_valid()
+                && let TypeReferenceNode::ConstExpression(expression) = *program
+                    .type_reference_table
+                    .type_reference(argument.type_reference)
+                && let Some(value) = evaluate_substituted_const_int(program, expression, operands)
+            {
+                let spelling = value.to_string();
+                let fresh = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: SymbolHandle::invalid(),
+                        name: Identifier::generated(spelling.clone()),
+                    });
+                argument.type_reference = fresh;
+                argument.const_literal = None;
+                argument.symbol = SymbolHandle::invalid();
+                argument.path = Box::new([Identifier::generated(spelling)]);
             }
         }
     };
@@ -2462,10 +2551,21 @@ fn substitute_arguments(
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
     for handle in calls {
+        let mut machine_arguments = match program.expression_table.expression(handle) {
+            ExpressionNode::Call(call) if !call.build_selection.is_valid() => {
+                Some(call.machine_arguments.clone())
+            }
+            _ => None,
+        };
+        if let Some(arguments) = machine_arguments.as_mut() {
+            replace(program, arguments);
+        }
         if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
             && !call.build_selection.is_valid()
         {
-            replace(&mut call.machine_arguments);
+            if let Some(arguments) = machine_arguments {
+                call.machine_arguments = arguments;
+            }
             if let Some(target) = selected_callable(call.target_symbol) {
                 call.static_machine_parameter = call.target_symbol;
                 call.target_symbol = target;
@@ -2474,10 +2574,19 @@ fn substitute_arguments(
         }
     }
     for &handle in &body.statements {
+        let mut machine_arguments = match program.statement_table.statement(handle) {
+            StatementNode::Call(call) => Some(call.machine_arguments.clone()),
+            _ => None,
+        };
+        if let Some(arguments) = machine_arguments.as_mut() {
+            replace(program, arguments);
+        }
         let statement = program.statement_table.statement_mut(handle);
         match statement {
             StatementNode::Call(call) => {
-                replace(&mut call.machine_arguments);
+                if let Some(arguments) = machine_arguments {
+                    call.machine_arguments = arguments;
+                }
                 if let Some(target) = selected_callable(call.target_symbol) {
                     call.static_machine_parameter = call.target_symbol;
                     call.target_symbol = target;
@@ -2506,8 +2615,15 @@ fn substitute_arguments(
         if !application.is_valid() {
             continue;
         }
+        let mut arguments = program
+            .expression_table
+            .static_machine_application_arguments_mut(application)
+            .to_vec();
+        replace(program, &mut arguments);
         let table = &mut program.expression_table;
-        replace(table.static_machine_application_arguments_mut(application));
+        table
+            .static_machine_application_arguments_mut(application)
+            .clone_from_slice(&arguments);
         table.set_static_machine_application_bindings(application, &[]);
         table
             .static_machine_application_mut(application)

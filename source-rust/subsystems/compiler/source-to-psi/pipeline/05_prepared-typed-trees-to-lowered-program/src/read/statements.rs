@@ -122,9 +122,7 @@ impl Program<'_> {
                 .signatures
                 .get(id)
                 .and_then(|signature| signature.borrowed(index))
-                .is_some_and(|borrowed| {
-                    borrowed.referent == crate::body::BorrowedReferent::Value
-                })
+                .is_some_and(|borrowed| borrowed.referent == crate::body::BorrowedReferent::Value)
         {
             return Err(refuse(
                 id,
@@ -810,6 +808,9 @@ impl Program<'_> {
         // initializer is the mathematical signature's to read; here the
         // local is a witness nothing reads (`families::evidence_witness`).
         if local.type_reference.is_valid() && self.names_indexed_data(local.type_reference) {
+            if let Some(&owner) = self.symbols.get(id) {
+                self.complete_index_operators(id, owner, local.type_reference)?;
+            }
             let value_type = super::families::evidence_witness();
             let slot = Slot {
                 symbol: local.symbol,

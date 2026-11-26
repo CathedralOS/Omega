@@ -778,3 +778,55 @@ fn evidence_in_a_field_is_refused_where_it_is_not_evidence_of_that_index() {
         "evidence held in a local that takes none",
     );
 }
+
+/// Computed indices (`Length + (1 + 1)` vs `Length + 2`, and `Next` vs
+/// `Length + 1` under `requires Next == Length + 1`) are proved equal in the
+/// kernel by `LawProof::Integers`; an unequal computed index (`Length + 3`) is
+/// refused as an unproved law.
+#[test]
+fn computed_index_equality_is_proved_by_integers_and_mismatch_is_refused() {
+    let base = proofs(BOUND);
+    let program = |formal_index: &str| {
+        format!(
+            "{base}\n\
+             machine consume<Length: u64, Total: u64>(items [erased]: Vector<{formal_index}, Total>) -> u64 {{\n\
+                 0u64\n\
+             }}\n\
+             machine pass<Length: u64, Total: u64>(items [erased]: Vector<Length + (1 + 1), Total>) -> u64 {{\n\
+                 consume::<Length, Total>(items)\n\
+             }}\n"
+        )
+    };
+    let positive = judged(&program("Length + 2"));
+    for verdict in &positive {
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_) | RouteVerdict::Laws(_)),
+            "positive computed index equality must be proved: {verdict:?}"
+        );
+    }
+    let from_premise = judged(&format!(
+        "{base}\n\
+         machine consume<Length: u64, Total: u64>(items [erased]: Vector<Length + 1, Total>) -> u64 {{\n\
+             0u64\n\
+         }}\n\
+         machine pass<Length: u64, Next: u64, Total: u64>(items [erased]: Vector<Next, Total>) -> u64\n\
+         requires embed(Next) == embed(Length) + 1\n\
+         {{\n\
+             consume::<Length, Total>(items)\n\
+         }}\n"
+    ));
+    for verdict in &from_premise {
+        assert!(
+            matches!(verdict, RouteVerdict::Accepted(_) | RouteVerdict::Laws(_)),
+            "computed index equality from premise must be proved: {verdict:?}"
+        );
+    }
+    let negative = judged(&program("Length + 3"));
+    let failed = unproved(&negative);
+    assert!(
+        failed
+            .statement
+            .contains("indices of indexed data must be equal"),
+        "expected unproved index equality law, got: {failed:?}"
+    );
+}
