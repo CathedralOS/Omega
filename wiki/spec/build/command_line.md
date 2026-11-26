@@ -87,7 +87,7 @@ guides and command examples together.
 ## Local Build inputs
 
 By default, a local Build can read its entry and the package-local source files
-admitted to compile it. To read an asset, include it in the invocation inventory.
+admitted to compile it. To capture a package asset alongside the source, include it in the invocation inventory.
 For example, a package with a Build entry, one helper, and a lookup table can use the following invocation.
 
 ```text
@@ -101,6 +101,40 @@ the local package snapshot for resolution and its package capture limits apply.
 A dependency receives its sealed package snapshot unless its caller supplies
 another filesystem view. [Build source capture](scoped_execution.md#snapshot-and-staging-protocol)
 and [local package capture](../packages/sources.md#local-source-capture).
+
+## Initial Build directory mappings
+
+Named decision: `initial-build-directory-mappings`.
+
+On both `omega build` and `omega run`, the repeatable options
+`--build-directories-readonly` and `--build-directories-readwrite` grant extra
+live directories to the initial Build's filesystem provider. Each takes one
+`host-directory::/guest-directory` mapping with the same path, confinement,
+on-demand access and read/write semantics as the [runtime directory mappings](#runtime-directory-mappings).
+The caller supplies the backing before the Build runs, within its admitted
+reach. With no extra mappings, the Build has its read-only captured package
+and private, bounded writable scratch.
+
+```sh
+omega run --engine psi \
+  --build-directories-readonly ./grammar::/grammar \
+  --run-directories-readonly ./documents::/input \
+  build.omg
+```
+
+Here `use helper.omg` in `build.omg` resolves from the captured package before
+entry. The running Build can then open `/grammar/sql.txt` as data. A Build
+mapping leaves source capture, import lookup and package registrations unchanged.
+The final parser can read `/input` through its separate Product grant.
+Dependencies and successors receive extra directories only through explicit
+[delegation](scoped_execution.md#supplying-a-filesystem-to-a-child-build);
+a successor can also use a deliberately selected [package root](declarations.md#successor-package-and-directories).
+
+A writable mapping lets Build code write ordinary files. The driver publishes
+the selected Product to the caller-selected output directory, defaulting to
+`build/` beside the input root. Publishing the binary requires no writable
+directory mapping for the Build. A mapping at a guest path such as `/out`
+does not redirect artifact publication.
 
 ## Runtime directory mappings
 
