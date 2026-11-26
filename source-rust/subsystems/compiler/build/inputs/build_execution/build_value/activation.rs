@@ -23,6 +23,7 @@ use diagnostics::Diagnostic;
 use source_compiler::representations::source_state::TypedTrees;
 use source_compiler::representations::source_state::data::{DataDefinition, DataMember};
 use source_compiler::representations::source_state::domain::DomainIssuance;
+use source_compiler::representations::source_state::name::Identifier;
 use source_compiler::representations::source_state::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -52,9 +53,21 @@ pub(super) fn admit_toolchain_build_activation(
         build,
         "x86_deployment_features",
         "X86DeploymentFeatures",
+        &[],
     )?;
-    require_toolchain_field(typed, build, "optimizations", "Optimizations")?;
-    require_toolchain_field(typed, build, "product", "BuildProduct")?;
+    require_toolchain_field(typed, build, "optimizations", "Optimizations", &[])?;
+    let [storage] = build.lifetime_parameters.as_slice() else {
+        return Err(refused(
+            "toolchain BuildPlan must declare its storage lifetime".into(),
+        ));
+    };
+    require_toolchain_field(
+        typed,
+        build,
+        "product",
+        "BuildProduct",
+        std::slice::from_ref(storage),
+    )?;
     let mut seals = typed
         .data_members(build)
         .iter()
@@ -80,6 +93,7 @@ fn require_toolchain_field(
     build: &DataDefinition,
     name: &str,
     expected_type: &str,
+    lifetimes: &[Identifier],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut fields = typed
         .data_members(build)
@@ -93,10 +107,20 @@ fn require_toolchain_field(
             "toolchain BuildPlan must declare exactly one `{name}` field"
         ))]);
     };
-    let exact = typed
+    let carrier = match typed
         .type_reference_table
         .type_reference(field.type_reference)
-        .as_named_symbol()
+    {
+        TypeReferenceNode::Named { symbol, .. } if lifetimes.is_empty() => Some(*symbol),
+        TypeReferenceNode::Generic {
+            base_symbol,
+            lifetime_arguments,
+            arguments,
+            ..
+        } if arguments.is_empty() && lifetime_arguments == lifetimes => Some(*base_symbol),
+        _ => None,
+    };
+    let exact = carrier
         .is_some_and(|symbol| is_exact_toolchain_build_prelude_data(typed, symbol, expected_type));
     if !exact {
         return Err(vec![Diagnostic::error(format!(
@@ -269,6 +293,18 @@ public data BuildPlan<'storage> {
         );
     }
 
+    #[test]
+    fn the_build_product_must_be_the_toolchain_sum_in_its_own_storage() {
+        let wrong = PRELUDE.replace(
+            "product: BuildProduct<'storage>;",
+            "product: @'storage BuildProduct<'storage>;",
+        );
+        assert_eq!(
+            refusal(&typed("machine build_entry() { }", Some(&wrong))),
+            "toolchain BuildPlan.product must have the exact toolchain BuildProduct type"
+        );
+    }
+
     /// The vocabulary is judged before the value's protection, so a prelude
     /// the host could not decode is reported as that.
     #[test]
@@ -283,7 +319,7 @@ public data BuildPlan<'storage> {
         );
         let foreign = typed(
             "machine build_entry() { }",
-            Some("public data Build { x86_deployment_features: u64; }"),
+            Some("public data BuildPlan { x86_deployment_features: u64; }"),
         );
         assert_eq!(
             refusal(&foreign),
