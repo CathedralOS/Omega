@@ -1,6 +1,6 @@
 use super::scheme_dsl::{
-    Syntax, app, apps, assume, box_elim, box_intro, boxed, define, id, jelim, lam, pair, pi, pis,
-    refl, scheme_at, sigma, sort, squash, squash_intro, strict, ty, v,
+    Syntax, app, apps, assume, box_elim, box_intro, boxed, id, jelim, lam, lams, pair, pi, pis,
+    refl, scheme_at, sigma, sort, squash, squash_intro, strict, theorem, ty, v,
 };
 use super::signature::Declaration;
 use super::term::{Level, Term, TermArena, TermHandle};
@@ -8,38 +8,18 @@ use super::term::{Level, Term, TermArena, TermHandle};
 mod declarations {
     use super::*;
 
-    macro_rules! pi {
-        ($name:expr => $domain:expr => $codomain:expr) => {
-            pi($name, $domain, $codomain)
-        };
-    }
-    macro_rules! lam {
-        ($name:expr => $domain:expr => $body:expr) => {
-            lam($name, $domain, $body)
-        };
-    }
-    macro_rules! id {
-        ($ty:expr => $left:expr => $right:expr) => {
-            id($ty, $left, $right)
-        };
-    }
-
     fn is_set_declaration(arena: &mut TermArena) -> Declaration {
-        let statement = pi("X", ty(0), ty(0));
-        let body = lam(
-            "X",
-            ty(0),
-            pis(
-                [
-                    ("x", v("X")),
-                    ("y", v("X")),
-                    ("p", id(v("X"), v("x"), v("y"))),
-                    ("q", id(v("X"), v("x"), v("y"))),
-                ],
-                id(id(v("X"), v("x"), v("y")), v("p"), v("q")),
-            ),
+        let identity = || id(v("X"), v("x"), v("y"));
+        let body = pis(
+            [
+                ("x", v("X")),
+                ("y", v("X")),
+                ("p", identity()),
+                ("q", identity()),
+            ],
+            id(identity(), v("p"), v("q")),
         );
-        define(arena, 1, &statement, &body)
+        theorem(arena, 1, vec![("X", ty(0))], ty(0), body)
     }
 
     fn quotient_declaration(arena: &mut TermArena) -> Declaration {
@@ -114,84 +94,76 @@ mod declarations {
     }
 
     fn transport_declaration(arena: &mut TermArena) -> Declaration {
-        let statement = pi_description(pis(
-            [("P", motive_type())],
-            related_pis(
-                "_",
-                pi!("_" => app(v("P"), project_of(v("a"))) => app(v("P"), project_of(v("b")))),
-            ),
-        ));
         let motive = lam(
             "y",
             quotient_of(),
-            lam!("_" => id(quotient_of(), project_of(v("a")), v("y")) => app(v("P"), v("y"))),
+            lam(
+                "_",
+                id(quotient_of(), project_of(v("a")), v("y")),
+                app(v("P"), v("y")),
+            ),
         );
-        let body = lam_description(lam(
-            "P",
-            motive_type(),
-            related_lams(lam(
-                "h",
-                app(v("P"), project_of(v("a"))),
-                jelim(
-                    motive,
-                    v("h"),
-                    project_of(v("b")),
-                    sound_of(v("a"), v("b"), v("r")),
-                ),
-            )),
-        ));
-        define(arena, 3, &statement, &body)
+        let mut binders = described(vec![("P", motive_type())]);
+        binders.extend(related_binders("r"));
+        let premise = app(v("P"), project_of(v("a")));
+        let statement = pi("_", premise.clone(), app(v("P"), project_of(v("b"))));
+        let soundness = sound_of(v("a"), v("b"), v("r"));
+        let body = lam(
+            "h",
+            premise,
+            jelim(motive, v("h"), project_of(v("b")), soundness),
+        );
+        theorem(arena, 3, binders, statement, body)
     }
 
     fn pi_cases(rest: Syntax) -> Syntax {
+        let transported = apps(
+            motive_scheme(QUOTIENT_TRANSPORT),
+            [
+                v("A"),
+                v("R"),
+                v("P"),
+                v("a"),
+                v("b"),
+                v("r"),
+                app(v("d"), v("a")),
+            ],
+        );
+        let sets = pi(
+            "z",
+            quotient_of(),
+            is_set(Level::Parameter(2), app(v("P"), v("z"))),
+        );
+        let respects = id(
+            app(v("P"), project_of(v("b"))),
+            transported,
+            app(v("d"), v("b")),
+        );
         pis(
             [
                 ("P", motive_type()),
-                (
-                    "sets",
-                    pi!("z" => quotient_of() => is_set(Level::Parameter(2), app(v("P"), v("z")))),
-                ),
+                ("sets", sets),
                 ("d", pi("a", v("A"), app(v("P"), project_of(v("a"))))),
-                (
-                    "c",
-                    related_pis(
-                        "r",
-                        id(
-                            app(v("P"), project_of(v("b"))),
-                            apps(
-                                motive_scheme(QUOTIENT_TRANSPORT),
-                                [
-                                    v("A"),
-                                    v("R"),
-                                    v("P"),
-                                    v("a"),
-                                    v("b"),
-                                    v("r"),
-                                    app(v("d"), v("a")),
-                                ],
-                            ),
-                            app(v("d"), v("b")),
-                        ),
-                    ),
-                ),
+                ("c", related_pis("r", respects)),
             ],
             rest,
         )
+    }
+
+    fn related_binders(evidence: &'static str) -> [(&'static str, Syntax); 3] {
+        [
+            ("a", v("A")),
+            ("b", v("A")),
+            (evidence, related(v("a"), v("b"))),
+        ]
     }
 
     fn related_pis(evidence: &'static str, rest: Syntax) -> Syntax {
-        pis(
-            [
-                ("a", v("A")),
-                ("b", v("A")),
-                (evidence, related(v("a"), v("b"))),
-            ],
-            rest,
-        )
+        pis(related_binders(evidence), rest)
     }
 
     fn related_lams(rest: Syntax) -> Syntax {
-        lam!("a" => v("A") => lam("b", v("A"), lam("r", related(v("a"), v("b")), rest)))
+        lams(related_binders("r"), rest)
     }
 
     fn elim_declaration(arena: &mut TermArena) -> Declaration {
@@ -200,163 +172,78 @@ mod declarations {
     }
 
     fn beta_declaration(arena: &mut TermArena) -> Declaration {
-        let statement = pi_description(pi_cases(pi(
-            "a",
-            v("A"),
-            id(
-                app(v("P"), project_of(v("a"))),
-                apps(
-                    motive_scheme(QUOTIENT_ELIM),
-                    [
-                        v("A"),
-                        v("R"),
-                        v("P"),
-                        v("sets"),
-                        v("d"),
-                        v("c"),
-                        project_of(v("a")),
-                    ],
-                ),
-                app(v("d"), v("a")),
-            ),
-        )));
+        let section = apps(
+            motive_scheme(QUOTIENT_ELIM),
+            [
+                v("A"),
+                v("R"),
+                v("P"),
+                v("sets"),
+                v("d"),
+                v("c"),
+                project_of(v("a")),
+            ],
+        );
+        let computes = id(
+            app(v("P"), project_of(v("a"))),
+            section,
+            app(v("d"), v("a")),
+        );
+        let statement = pi_description(pi_cases(pi("a", v("A"), computes)));
         assume(arena, 3, &statement)
     }
 
     fn id_trans_declaration(arena: &mut TermArena) -> Declaration {
-        let statement = pi(
-            "B",
-            ty(0),
-            pi(
-                "x",
-                v("B"),
-                pi(
-                    "y",
-                    v("B"),
-                    pi(
-                        "z",
-                        v("B"),
-                        pi(
-                            "_",
-                            id(v("B"), v("x"), v("y")),
-                            pi("_", id(v("B"), v("y"), v("z")), id(v("B"), v("x"), v("z"))),
-                        ),
-                    ),
-                ),
-            ),
-        );
         let motive = lam(
             "z2",
             v("B"),
-            lam!("_" => id(v("B"), v("y"), v("z2")) => id(v("B"), v("x"), v("z2"))),
-        );
-        let body = lam(
-            "B",
-            ty(0),
             lam(
-                "x",
-                v("B"),
-                lam(
-                    "y",
-                    v("B"),
-                    lam(
-                        "z",
-                        v("B"),
-                        lam(
-                            "p",
-                            id(v("B"), v("x"), v("y")),
-                            lam(
-                                "q",
-                                id(v("B"), v("y"), v("z")),
-                                jelim(motive, v("p"), v("z"), v("q")),
-                            ),
-                        ),
-                    ),
-                ),
+                "_",
+                id(v("B"), v("y"), v("z2")),
+                id(v("B"), v("x"), v("z2")),
             ),
         );
-        define(arena, 1, &statement, &body)
+        let binders = vec![
+            ("B", ty(0)),
+            ("x", v("B")),
+            ("y", v("B")),
+            ("z", v("B")),
+            ("p", id(v("B"), v("x"), v("y"))),
+            ("q", id(v("B"), v("y"), v("z"))),
+        ];
+        let body = jelim(motive, v("p"), v("z"), v("q"));
+        theorem(arena, 1, binders, id(v("B"), v("x"), v("z")), body)
     }
 
     fn transport_const_declaration(arena: &mut TermArena) -> Declaration {
         let constant_motive = || lam("y2", v("A"), lam("_", id(v("A"), v("x"), v("y2")), v("B")));
         let inner = jelim(constant_motive(), v("b"), v("y"), v("p"));
-        let statement = pi(
-            "A",
-            ty(0),
-            pi(
-                "B",
-                ty(1),
-                pi(
-                    "x",
-                    v("A"),
-                    pi(
-                        "y",
-                        v("A"),
-                        pi(
-                            "p",
-                            id(v("A"), v("x"), v("y")),
-                            pi("b", v("B"), id(v("B"), inner, v("b"))),
-                        ),
-                    ),
-                ),
-            ),
-        );
         let outer_motive = lam(
             "y2",
             v("A"),
             lam(
                 "p2",
                 id(v("A"), v("x"), v("y2")),
-                id!(v("B") => jelim(constant_motive(), v("b"), v("y2"), v("p2")) => v("b")),
-            ),
-        );
-        let body = lam(
-            "A",
-            ty(0),
-            lam(
-                "B",
-                ty(1),
-                lam(
-                    "x",
-                    v("A"),
-                    lam(
-                        "y",
-                        v("A"),
-                        lam(
-                            "p",
-                            id(v("A"), v("x"), v("y")),
-                            lam(
-                                "b",
-                                v("B"),
-                                jelim(outer_motive, refl(v("B"), v("b")), v("y"), v("p")),
-                            ),
-                        ),
-                    ),
+                id(
+                    v("B"),
+                    jelim(constant_motive(), v("b"), v("y2"), v("p2")),
+                    v("b"),
                 ),
             ),
         );
-        define(arena, 2, &statement, &body)
+        let binders = vec![
+            ("A", ty(0)),
+            ("B", ty(1)),
+            ("x", v("A")),
+            ("y", v("A")),
+            ("p", id(v("A"), v("x"), v("y"))),
+            ("b", v("B")),
+        ];
+        let body = jelim(outer_motive, refl(v("B"), v("b")), v("y"), v("p"));
+        theorem(arena, 2, binders, id(v("B"), inner, v("b")), body)
     }
 
     fn lift_declaration(arena: &mut TermArena) -> Declaration {
-        let statement = pi_description(pi(
-            "B",
-            ty(2),
-            pi(
-                "_",
-                is_set(Level::Parameter(2), v("B")),
-                pi(
-                    "f",
-                    pi("_", v("A"), v("B")),
-                    pi(
-                        "respect",
-                        related_pis("_", id(v("B"), app(v("f"), v("a")), app(v("f"), v("b")))),
-                        pi("_", quotient_of(), v("B")),
-                    ),
-                ),
-            ),
-        ));
         let constant_family = || lam("_", quotient_of(), v("B"));
         let soundness = sound_of(v("a"), v("b"), v("r"));
         let transported_case = apps(
@@ -396,74 +283,64 @@ mod declarations {
                 apps(v("respect"), [v("a"), v("b"), v("r")]),
             ],
         ));
-        let body = lam_description(lam(
-            "B",
-            ty(2),
-            lam(
-                "setB",
-                is_set(Level::Parameter(2), v("B")),
-                lam(
-                    "f",
-                    pi("_", v("A"), v("B")),
-                    lam(
-                        "respect",
-                        related_pis("_", id(v("B"), app(v("f"), v("a")), app(v("f"), v("b")))),
-                        lam(
-                            "z",
-                            quotient_of(),
-                            apps(
-                                motive_scheme(QUOTIENT_ELIM),
-                                [
-                                    v("A"),
-                                    v("R"),
-                                    constant_family(),
-                                    lam("_", quotient_of(), v("setB")),
-                                    v("f"),
-                                    coherence,
-                                    v("z"),
-                                ],
-                            ),
-                        ),
-                    ),
-                ),
+        let binders = described(vec![
+            ("B", ty(2)),
+            ("setB", is_set(Level::Parameter(2), v("B"))),
+            ("f", pi("_", v("A"), v("B"))),
+            (
+                "respect",
+                related_pis("_", id(v("B"), app(v("f"), v("a")), app(v("f"), v("b")))),
             ),
-        ));
-        define(arena, 3, &statement, &body)
+        ]);
+        let section = apps(
+            motive_scheme(QUOTIENT_ELIM),
+            [
+                v("A"),
+                v("R"),
+                constant_family(),
+                lam("_", quotient_of(), v("setB")),
+                v("f"),
+                coherence,
+                v("z"),
+            ],
+        );
+        let statement = pi("_", quotient_of(), v("B"));
+        theorem(
+            arena,
+            3,
+            binders,
+            statement,
+            lam("z", quotient_of(), section),
+        )
+    }
+
+    fn identity_binders() -> Vec<(&'static str, Syntax)> {
+        vec![
+            ("X", ty(0)),
+            ("x", v("X")),
+            ("y", v("X")),
+            ("p", id(v("X"), v("x"), v("y"))),
+        ]
     }
 
     fn id_sym_declaration(arena: &mut TermArena) -> Declaration {
-        let statement = pi(
-            "X",
-            ty(0),
-            pi(
-                "x",
-                v("X"),
-                pi!("y" => v("X") => pi("_", id(v("X"), v("x"), v("y")), id(v("X"), v("y"), v("x")))),
-            ),
-        );
         let motive = lam(
             "y2",
             v("X"),
-            lam!("_" => id(v("X"), v("x"), v("y2")) => id(v("X"), v("y2"), v("x"))),
-        );
-        let body = lam(
-            "X",
-            ty(0),
             lam(
-                "x",
-                v("X"),
-                lam(
-                    "y",
-                    v("X"),
-                    lam(
-                        "p",
-                        id(v("X"), v("x"), v("y")),
-                        jelim(motive, refl(v("X"), v("x")), v("y"), v("p")),
-                    ),
-                ),
+                "_",
+                id(v("X"), v("x"), v("y2")),
+                id(v("X"), v("y2"), v("x")),
             ),
         );
-        define(arena, 1, &statement, &body)
+        let body = jelim(motive, refl(v("X"), v("x")), v("y"), v("p"));
+        theorem(
+            arena,
+            1,
+            identity_binders(),
+            id(v("X"), v("y"), v("x")),
+            body,
+        )
     }
 
     fn cancelled(endpoint: &'static str, proof: &'static str) -> Syntax {
@@ -485,55 +362,21 @@ mod declarations {
     }
 
     fn id_cancel_declaration(arena: &mut TermArena) -> Declaration {
-        let statement = pi(
-            "X",
-            ty(0),
-            pi(
-                "x",
-                v("X"),
-                pi(
-                    "y",
-                    v("X"),
-                    pi(
-                        "p",
-                        id(v("X"), v("x"), v("y")),
-                        id!(id(v("X"), v("y"), v("y")) => cancelled("y", "p") => refl(v("X"), v("y"))),
-                    ),
-                ),
-            ),
-        );
+        let cancels = |endpoint: &'static str, proof: &'static str| {
+            id(
+                id(v("X"), v(endpoint), v(endpoint)),
+                cancelled(endpoint, proof),
+                refl(v("X"), v(endpoint)),
+            )
+        };
         let motive = lam(
             "y2",
             v("X"),
-            lam(
-                "p2",
-                id(v("X"), v("x"), v("y2")),
-                id!(id(v("X"), v("y2"), v("y2")) => cancelled("y2", "p2") => refl(v("X"), v("y2"))),
-            ),
+            lam("p2", id(v("X"), v("x"), v("y2")), cancels("y2", "p2")),
         );
-        let body = lam(
-            "X",
-            ty(0),
-            lam(
-                "x",
-                v("X"),
-                lam(
-                    "y",
-                    v("X"),
-                    lam(
-                        "p",
-                        id(v("X"), v("x"), v("y")),
-                        jelim(
-                            motive,
-                            refl(id(v("X"), v("x"), v("x")), refl(v("X"), v("x"))),
-                            v("y"),
-                            v("p"),
-                        ),
-                    ),
-                ),
-            ),
-        );
-        define(arena, 1, &statement, &body)
+        let base = refl(id(v("X"), v("x"), v("x")), refl(v("X"), v("x")));
+        let body = jelim(motive, base, v("y"), v("p"));
+        theorem(arena, 1, identity_binders(), cancels("y", "p"), body)
     }
 
     fn prop_is_set_declaration(arena: &mut TermArena) -> Declaration {
@@ -579,51 +422,31 @@ mod declarations {
         let path =
             |proof: &'static str| jelim(path_motive.clone(), path_base.clone(), v("y"), v(proof));
         let is_prop = pi("x2", v("X"), pi("y2", v("X"), id(v("X"), v("x2"), v("y2"))));
-        let statement = pi(
-            "X",
-            ty(0),
-            pi("f", is_prop.clone(), is_set(Level::Parameter(0), v("X"))),
-        );
         let identity_xy = id(v("X"), v("x"), v("y"));
-        let body = lam(
-            "X",
-            ty(0),
-            lam(
-                "f",
-                is_prop,
-                lam(
-                    "x",
-                    v("X"),
-                    lam(
-                        "y",
-                        v("X"),
-                        lam(
-                            "p",
-                            identity_xy.clone(),
-                            lam(
-                                "q",
-                                identity_xy.clone(),
-                                apps(
-                                    scheme_at(QUOTIENT_ID_TRANS, level()),
-                                    [
-                                        identity_xy.clone(),
-                                        v("p"),
-                                        normal("y"),
-                                        v("q"),
-                                        path("p"),
-                                        apps(
-                                            scheme_at(QUOTIENT_ID_SYM, level()),
-                                            [identity_xy.clone(), v("q"), normal("y"), path("q")],
-                                        ),
-                                    ],
-                                ),
-                            ),
-                        ),
+        let body = lams(
+            [
+                ("x", v("X")),
+                ("y", v("X")),
+                ("p", identity_xy.clone()),
+                ("q", identity_xy.clone()),
+            ],
+            apps(
+                scheme_at(QUOTIENT_ID_TRANS, level()),
+                [
+                    identity_xy.clone(),
+                    v("p"),
+                    normal("y"),
+                    v("q"),
+                    path("p"),
+                    apps(
+                        scheme_at(QUOTIENT_ID_SYM, level()),
+                        [identity_xy.clone(), v("q"), normal("y"), path("q")],
                     ),
-                ),
+                ],
             ),
         );
-        define(arena, 1, &statement, &body)
+        let binders = vec![("X", ty(0)), ("f", is_prop)];
+        theorem(arena, 1, binders, is_set(Level::Parameter(0), v("X")), body)
     }
 
     fn box_prop_declaration(arena: &mut TermArena) -> Declaration {
@@ -651,21 +474,9 @@ mod declarations {
                 ),
             ),
         );
-        let statement = pi(
-            "S",
-            strict(0),
-            pi!("x" => boxed_s() => pi("y", boxed_s(), id(boxed_s(), v("x"), v("y")))),
-        );
-        let body = lam(
-            "S",
-            strict(0),
-            lam(
-                "x",
-                boxed_s(),
-                lam!("y" => boxed_s() => app(box_elim(outer_motive, case, v("x")), v("y"))),
-            ),
-        );
-        define(arena, 1, &statement, &body)
+        let binders = vec![("S", strict(0)), ("x", boxed_s()), ("y", boxed_s())];
+        let body = app(box_elim(outer_motive, case, v("x")), v("y"));
+        theorem(arena, 1, binders, id(boxed_s(), v("x"), v("y")), body)
     }
 
     fn ind_prop_declaration(arena: &mut TermArena) -> Declaration {
@@ -718,19 +529,12 @@ mod declarations {
             lam("t", app(v("P"), v("z")), v("t")),
             section,
         );
-        let family_type = pi("_", quotient_of(), strict(2));
-        let case_type = pi("a", v("A"), app(v("P"), project_of(v("a"))));
-        let statement = pi_description(pi(
-            "P",
-            family_type.clone(),
-            pi!("d" => case_type.clone() => pi("z", quotient_of(), app(v("P"), v("z")))),
-        ));
-        let body = lam_description(lam(
-            "P",
-            family_type,
-            lam("d", case_type, lam("z", quotient_of(), unboxed)),
-        ));
-        define(arena, 3, &statement, &body)
+        let binders = described(vec![
+            ("P", pi("_", quotient_of(), strict(2))),
+            ("d", pi("a", v("A"), app(v("P"), project_of(v("a"))))),
+            ("z", quotient_of()),
+        ]);
+        theorem(arena, 3, binders, app(v("P"), v("z")), unboxed)
     }
 
     fn coverage_declaration(arena: &mut TermArena) -> Declaration {
@@ -741,7 +545,6 @@ mod declarations {
                 id(quotient_of(), project_of(v("a2")), anchor),
             ))
         };
-        let statement = pi_description(pi("z", quotient_of(), covered(v("z"))));
         let case = lam(
             "a",
             v("A"),
@@ -755,33 +558,33 @@ mod declarations {
             ),
         );
         let motive = lam("z2", quotient_of(), covered(v("z2")));
-        let body = lam_description(lam(
-            "z",
-            quotient_of(),
-            apps(
-                scheme_at(
-                    QUOTIENT_IND_PROP,
-                    vec![Level::Parameter(0), Level::Parameter(1), carrier_level()],
-                ),
-                [v("A"), v("R"), motive, case, v("z")],
+        let body = apps(
+            scheme_at(
+                QUOTIENT_IND_PROP,
+                vec![Level::Parameter(0), Level::Parameter(1), carrier_level()],
             ),
-        ));
-        define(arena, 2, &statement, &body)
+            [v("A"), v("R"), motive, case, v("z")],
+        );
+        let binders = described(vec![("z", quotient_of())]);
+        theorem(arena, 2, binders, covered(v("z")), body)
     }
 
     fn unique_declaration(arena: &mut TermArena) -> Declaration {
-        let identity_family = lam(
-            "z2",
-            quotient_of(),
-            id!(app(v("P"), v("z2")) => app(v("s1"), v("z2")) => app(v("s2"), v("z2"))),
-        );
+        let agree = |at: Syntax| {
+            id(
+                app(v("P"), at.clone()),
+                app(v("s1"), at.clone()),
+                app(v("s2"), at),
+            )
+        };
+        let identity_family = lam("z2", quotient_of(), agree(v("z2")));
         let sets = lam(
             "z3",
             quotient_of(),
             apps(
                 scheme_at(QUOTIENT_PROP_IS_SET, vec![Level::Parameter(2)]),
                 [
-                    id!(app(v("P"), v("z3")) => app(v("s1"), v("z3")) => app(v("s2"), v("z3"))),
+                    agree(v("z3")),
                     apps(
                         v("sets"),
                         [v("z3"), app(v("s1"), v("z3")), app(v("s2"), v("z3"))],
@@ -810,88 +613,35 @@ mod declarations {
                 app(v("h"), v("b")),
             ],
         ));
-        let family_type = motive_type();
-        let sets_type = pi(
-            "z",
-            quotient_of(),
-            is_set(Level::Parameter(2), app(v("P"), v("z"))),
-        );
-        let section_type = pi("z", quotient_of(), app(v("P"), v("z")));
-        let agreement_type = pi(
-            "a",
-            v("A"),
-            id(
-                app(v("P"), project_of(v("a"))),
-                app(v("s1"), project_of(v("a"))),
-                app(v("s2"), project_of(v("a"))),
-            ),
-        );
-        let statement = pi_description(pi(
-            "P",
-            family_type.clone(),
-            pi(
+        let section_type = || pi("z", quotient_of(), app(v("P"), v("z")));
+        let binders = described(vec![
+            ("P", motive_type()),
+            (
                 "sets",
-                sets_type.clone(),
                 pi(
-                    "s1",
-                    section_type.clone(),
-                    pi(
-                        "s2",
-                        section_type.clone(),
-                        pi(
-                            "h",
-                            agreement_type.clone(),
-                            pi(
-                                "z",
-                                quotient_of(),
-                                id(
-                                    app(v("P"), v("z")),
-                                    app(v("s1"), v("z")),
-                                    app(v("s2"), v("z")),
-                                ),
-                            ),
-                        ),
-                    ),
+                    "z",
+                    quotient_of(),
+                    is_set(Level::Parameter(2), app(v("P"), v("z"))),
                 ),
             ),
-        ));
-        let body = lam_description(lam(
-            "P",
-            family_type,
-            lam(
-                "sets",
-                sets_type,
-                lam(
-                    "s1",
-                    section_type.clone(),
-                    lam(
-                        "s2",
-                        section_type,
-                        lam(
-                            "h",
-                            agreement_type,
-                            lam(
-                                "z",
-                                quotient_of(),
-                                apps(
-                                    motive_scheme(QUOTIENT_ELIM),
-                                    [
-                                        v("A"),
-                                        v("R"),
-                                        identity_family,
-                                        sets,
-                                        v("h"),
-                                        coherence,
-                                        v("z"),
-                                    ],
-                                ),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-        ));
-        define(arena, 3, &statement, &body)
+            ("s1", section_type()),
+            ("s2", section_type()),
+            ("h", pi("a", v("A"), agree(project_of(v("a"))))),
+            ("z", quotient_of()),
+        ]);
+        let body = apps(
+            motive_scheme(QUOTIENT_ELIM),
+            [
+                v("A"),
+                v("R"),
+                identity_family,
+                sets,
+                v("h"),
+                coherence,
+                v("z"),
+            ],
+        );
+        theorem(arena, 3, binders, agree(v("z")), body)
     }
 
     pub fn quotient_scheme(arena: &mut TermArena) -> Vec<Declaration> {
@@ -988,20 +738,18 @@ fn sound_of(left: Syntax, right: Syntax, evidence: Syntax) -> Syntax {
     )
 }
 
-fn pi_description(rest: Syntax) -> Syntax {
-    pi(
-        "A",
-        ty(0),
-        pi("R", pi("_", v("A"), pi("_", v("A"), ty(1))), rest),
-    )
+/// The carrier `A` and relation `R` every quotient law binds first,
+/// followed by `rest`.
+fn described(rest: Vec<(&'static str, Syntax)>) -> Vec<(&'static str, Syntax)> {
+    let relation = pi("_", v("A"), pi("_", v("A"), ty(1)));
+    [("A", ty(0)), ("R", relation)]
+        .into_iter()
+        .chain(rest)
+        .collect()
 }
 
-fn lam_description(rest: Syntax) -> Syntax {
-    lam(
-        "A",
-        ty(0),
-        lam("R", pi("_", v("A"), pi("_", v("A"), ty(1))), rest),
-    )
+fn pi_description(rest: Syntax) -> Syntax {
+    pis(described(Vec::new()), rest)
 }
 
 fn motive_type() -> Syntax {
@@ -1030,7 +778,10 @@ pub struct QuotientFamily {
 }
 
 impl QuotientFamily {
-    fn unspined(
+    /// Applies an identity lemma (`QUOTIENT_ID_TRANS`, `QUOTIENT_ID_SYM`,
+    /// `QUOTIENT_ID_CANCEL`, `QUOTIENT_PROP_IS_SET`, `QUOTIENT_BOX_PROP`) at
+    /// one universe `level`; these laws do not take the quotient's carrier.
+    pub fn identity_law(
         &self,
         arena: &mut TermArena,
         declaration: u32,
@@ -1044,31 +795,31 @@ impl QuotientFamily {
         arena.apply_arguments(constant, arguments)
     }
 
-    fn spine(
+    /// Applies quotient law `declaration` to this carrier and relation, then
+    /// to `arguments` in the order its scheme binds them. `motive_levels`
+    /// follow the carrier levels: one motive level for the eliminators and
+    /// transports, none for the quotient's own formers.
+    pub fn law(
         &self,
         arena: &mut TermArena,
         declaration: u32,
-        mut levels: Vec<Level>,
+        motive_levels: Vec<Level>,
         arguments: &[TermHandle],
     ) -> TermHandle {
         let constant = arena.insert(Term::Constant {
             declaration,
-            levels: {
-                let mut instantiation = self.levels.to_vec();
-                instantiation.append(&mut levels);
-                instantiation
-            },
+            levels: self.levels.iter().cloned().chain(motive_levels).collect(),
         });
         let related = arena.apply_arguments(constant, &[self.carrier, self.relation]);
         arena.apply_arguments(related, arguments)
     }
 
     pub fn quotient(&self, arena: &mut TermArena) -> TermHandle {
-        self.spine(arena, QUOTIENT, Vec::new(), &[])
+        self.law(arena, QUOTIENT, Vec::new(), &[])
     }
 
     pub fn project(&self, arena: &mut TermArena, representative: TermHandle) -> TermHandle {
-        self.spine(arena, QUOTIENT_PROJECT, Vec::new(), &[representative])
+        self.law(arena, QUOTIENT_PROJECT, Vec::new(), &[representative])
     }
 
     pub fn sound(
@@ -1078,7 +829,7 @@ impl QuotientFamily {
         right: TermHandle,
         evidence: TermHandle,
     ) -> TermHandle {
-        self.spine(arena, QUOTIENT_SOUND, Vec::new(), &[left, right, evidence])
+        self.law(arena, QUOTIENT_SOUND, Vec::new(), &[left, right, evidence])
     }
 
     /// Effectivity cites the relation's equivalence and proposition proofs
@@ -1097,194 +848,19 @@ impl QuotientFamily {
             symmetric,
             transitive,
         } = *relation_laws;
-        self.spine(
-            arena,
-            QUOTIENT_EFFECTIVE,
-            Vec::new(),
-            &[
-                propositional,
-                reflexive,
-                symmetric,
-                transitive,
-                left,
-                right,
-                proof,
-            ],
-        )
-    }
-
-    pub fn transport(
-        &self,
-        arena: &mut TermArena,
-        motive_level: Level,
-        family: TermHandle,
-        left: TermHandle,
-        right: TermHandle,
-        evidence: TermHandle,
-        premise: TermHandle,
-    ) -> TermHandle {
-        self.spine(
-            arena,
-            QUOTIENT_TRANSPORT,
-            vec![motive_level],
-            &[family, left, right, evidence, premise],
-        )
-    }
-
-    pub fn elim(
-        &self,
-        arena: &mut TermArena,
-        motive_level: Level,
-        family: TermHandle,
-        sets: TermHandle,
-        case: TermHandle,
-        compatibility: TermHandle,
-        element: TermHandle,
-    ) -> TermHandle {
-        self.spine(
-            arena,
-            QUOTIENT_ELIM,
-            vec![motive_level],
-            &[family, sets, case, compatibility, element],
-        )
-    }
-
-    pub fn beta(
-        &self,
-        arena: &mut TermArena,
-        motive_level: Level,
-        family: TermHandle,
-        sets: TermHandle,
-        case: TermHandle,
-        compatibility: TermHandle,
-        representative: TermHandle,
-    ) -> TermHandle {
-        self.spine(
-            arena,
-            QUOTIENT_BETA,
-            vec![motive_level],
-            &[family, sets, case, compatibility, representative],
-        )
-    }
-
-    pub fn id_trans(
-        &self,
-        arena: &mut TermArena,
-        level: Level,
-        ty: TermHandle,
-        left: TermHandle,
-        middle: TermHandle,
-        right: TermHandle,
-        first: TermHandle,
-        second: TermHandle,
-    ) -> TermHandle {
-        self.unspined(
-            arena,
-            QUOTIENT_ID_TRANS,
-            level,
-            &[ty, left, middle, right, first, second],
-        )
-    }
-
-    pub fn lift(
-        &self,
-        arena: &mut TermArena,
-        motive_level: Level,
-        result: TermHandle,
-        set_proof: TermHandle,
-        operation: TermHandle,
-        respect: TermHandle,
-        element: TermHandle,
-    ) -> TermHandle {
-        self.spine(
-            arena,
-            QUOTIENT_LIFT,
-            vec![motive_level],
-            &[result, set_proof, operation, respect, element],
-        )
-    }
-
-    pub fn id_sym(
-        &self,
-        arena: &mut TermArena,
-        level: Level,
-        ty: TermHandle,
-        left: TermHandle,
-        right: TermHandle,
-        proof: TermHandle,
-    ) -> TermHandle {
-        self.unspined(arena, QUOTIENT_ID_SYM, level, &[ty, left, right, proof])
-    }
-
-    pub fn id_cancel(
-        &self,
-        arena: &mut TermArena,
-        level: Level,
-        ty: TermHandle,
-        left: TermHandle,
-        right: TermHandle,
-        proof: TermHandle,
-    ) -> TermHandle {
-        self.unspined(arena, QUOTIENT_ID_CANCEL, level, &[ty, left, right, proof])
-    }
-
-    pub fn prop_is_set(
-        &self,
-        arena: &mut TermArena,
-        level: Level,
-        ty: TermHandle,
-        evidence: TermHandle,
-    ) -> TermHandle {
-        self.unspined(arena, QUOTIENT_PROP_IS_SET, level, &[ty, evidence])
-    }
-
-    pub fn box_prop(
-        &self,
-        arena: &mut TermArena,
-        level: Level,
-        strict: TermHandle,
-        left: TermHandle,
-        right: TermHandle,
-    ) -> TermHandle {
-        self.unspined(arena, QUOTIENT_BOX_PROP, level, &[strict, left, right])
-    }
-
-    pub fn ind_prop(
-        &self,
-        arena: &mut TermArena,
-        strict_level: Level,
-        family: TermHandle,
-        case: TermHandle,
-        element: TermHandle,
-    ) -> TermHandle {
-        self.spine(
-            arena,
-            QUOTIENT_IND_PROP,
-            vec![strict_level],
-            &[family, case, element],
-        )
+        let arguments = [
+            propositional,
+            reflexive,
+            symmetric,
+            transitive,
+            left,
+            right,
+            proof,
+        ];
+        self.law(arena, QUOTIENT_EFFECTIVE, Vec::new(), &arguments)
     }
 
     pub fn coverage(&self, arena: &mut TermArena, element: TermHandle) -> TermHandle {
-        self.spine(arena, QUOTIENT_COVERAGE, Vec::new(), &[element])
-    }
-
-    pub fn unique(
-        &self,
-        arena: &mut TermArena,
-        motive_level: Level,
-        family: TermHandle,
-        sets: TermHandle,
-        first: TermHandle,
-        second: TermHandle,
-        agreement: TermHandle,
-        element: TermHandle,
-    ) -> TermHandle {
-        self.spine(
-            arena,
-            QUOTIENT_UNIQUE,
-            vec![motive_level],
-            &[family, sets, first, second, agreement, element],
-        )
+        self.law(arena, QUOTIENT_COVERAGE, Vec::new(), &[element])
     }
 }
