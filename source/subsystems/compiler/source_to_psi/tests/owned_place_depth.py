@@ -31,7 +31,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("omega", type=Path)
     cli = parser.parse_args().omega.resolve()
-    fixture = PACKAGE / "tests/fixtures/ownership/run/deep_projections"
+    fixture = PACKAGE.parent / "tests/fixtures/source_to_psi/ownership/run/deep_projections"
     places = (PACKAGE / "pipeline/typed_trees_to_checked_trees/owned_places.omg").read_text()
     declarations = []
     for name in DECLARATIONS:

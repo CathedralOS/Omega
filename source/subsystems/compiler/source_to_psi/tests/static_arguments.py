@@ -34,7 +34,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("omega", type=Path, help="path to an optimized omega executable")
     args = parser.parse_args()
-    fixture = PACKAGE / "tests/fixtures/generics/run/static_arguments"
+    fixture = PACKAGE.parent / "tests/fixtures/source_to_psi/generics/run/static_arguments"
     units = []
     stage_files = {}
     for filename, names in DECLARATIONS.items():

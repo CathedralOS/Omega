@@ -329,33 +329,14 @@ pub(crate) enum MembershipSelection {
 pub(crate) enum DomainMembership {
     NotFound,
     Unique(SymbolHandle),
-    /*
-        The ordinary path law found competing exact selections — an authored
-        ambiguity that rejects immediately.
-    */
-    Ambiguous {
+    /// Typing uses the subject's applied carrier to select among these domains.
+    Multiple {
         first: SymbolHandle,
-        second: SymbolHandle,
     },
-    /*
-        The attached-domain exposure pool claims the spelling under more than
-        one distinct owner. The shared membership lookup declines that pool
-        here rather than reporting ambiguity: downstream validation owns the
-        diagnostic, and no other meaning may claim the contested spelling.
-    */
-    Contested,
 }
 
-/*
-    Pool every domain candidate an authored membership name can select: the
-    ordinary qualified/import path lookup unioned with the attached-domain
-    exposure law (`domain_name_reaches`), which admits a carrier-qualified or
-    leaf spelling through a declaring-module or exact-domain import.
-    Module-local owners outrank every other tier. The same symbol found by
-    both routes is one candidate. Two different symbols stay contested even
-    when their display paths match. Expression membership, proof-fact
-    membership, and token homes all read this pool.
-*/
+/// A file alias fixes the declaring file. Its domains can still have different
+/// carriers. A bare name also sees the attached domains exposed to this source.
 pub(crate) fn membership_domain_lookup(
     symbols: &SymbolTable,
     name: &str,
@@ -368,12 +349,12 @@ pub(crate) fn membership_domain_lookup(
         |_| true,
     ) {
         SymbolLookup::Unique(symbol) => vec![symbol],
-        SymbolLookup::Ambiguous { first, second } => {
-            return DomainMembership::Ambiguous { first, second };
-        }
+        SymbolLookup::Ambiguous { first, .. } => return DomainMembership::Multiple { first },
         SymbolLookup::NotFound => Vec::new(),
     };
-    if let Some(children) = symbols.child_handles(symbols.root()) {
+    if !name.starts_with('|')
+        && let Some(children) = symbols.child_handles(symbols.root())
+    {
         for symbol in children {
             if symbols.get(symbol).kind != SymbolKind::Domain
                 || candidates.contains(&symbol)
@@ -385,16 +366,10 @@ pub(crate) fn membership_domain_lookup(
             candidates.push(symbol);
         }
     }
-    let mut distinct = Vec::new();
-    for candidate in candidates {
-        if !distinct.contains(&candidate) {
-            distinct.push(candidate);
-        }
-    }
-    match distinct.as_slice() {
+    match candidates.as_slice() {
         [] => DomainMembership::NotFound,
         [symbol] => DomainMembership::Unique(*symbol),
-        _ => DomainMembership::Contested,
+        [first, ..] => DomainMembership::Multiple { first: *first },
     }
 }
 
@@ -424,12 +399,13 @@ pub(crate) fn membership_selection(
     let ambiguous =
         |first, second| selection_ambiguity(symbols, name, reference, first, second, "membership");
     match (domain, case_owner) {
-        (DomainMembership::Ambiguous { first, second }, _) => Err(ambiguous(first, second)),
         (_, SymbolLookup::Ambiguous { first, second }) => Err(ambiguous(case(first), case(second))),
-        (DomainMembership::Contested, SymbolLookup::NotFound) => {
+        (DomainMembership::Multiple { .. }, SymbolLookup::NotFound) => {
             Ok(Some(MembershipSelection::DomainNeedsCarrier))
         }
-        (DomainMembership::Contested, SymbolLookup::Unique(_)) => Ok(None),
+        (DomainMembership::Multiple { first, .. }, SymbolLookup::Unique(owner)) => {
+            Err(ambiguous(first, case(owner)))
+        }
         (DomainMembership::Unique(domain), SymbolLookup::Unique(owner)) => {
             Err(ambiguous(domain, case(owner)))
         }
