@@ -17,6 +17,7 @@ use symbols::SymbolHandle;
 
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
+    pub(crate) diagnostic_output_bytes: Option<u64>,
     pub(crate) prepared: std::sync::Arc<source_compiler::publication::AcceptedTerminalSource>,
     pub(crate) produced: std::sync::Arc<source_compiler::publication::ProducedTerminalProgram>,
     pub(crate) providers: super::provider_execution::BuildProviderScope,
@@ -42,6 +43,7 @@ impl AdmittedBuildProgram {
 
 pub(crate) fn admit_build_program(
     invocation: source_compiler::CheckedBuildInvocation,
+    diagnostic_output_bytes: Option<u64>,
     providers: super::provider_execution::BuildProviderScope,
     machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
@@ -96,6 +98,7 @@ pub(crate) fn admit_build_program(
             ))]
         })?;
     Ok(AdmittedBuildProgram {
+        diagnostic_output_bytes,
         prepared: std::sync::Arc::new(prepared),
         produced: std::sync::Arc::new(produced),
         providers,

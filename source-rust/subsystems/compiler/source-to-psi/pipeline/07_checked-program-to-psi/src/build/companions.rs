@@ -81,15 +81,17 @@ pub(crate) fn produce(
             };
             let protocol =
                 |name| owner.is_boundary && is_build_protocol(&source.symbols, owner.symbol, name);
-            if ![
+            let stream = if owner.is_boundary {
+                sandbox_stream_operation(source, owner.symbol, requirement.name.as_str())
+            } else {
+                None
+            };
+            if stream.is_none() && ![
                 SELECTION_PROTOCOL,
                 "BuildRequestOperations",
                 "BuildFilesystemOperations",
                 "BuildProductOperations",
-            ]
-            .into_iter()
-            .any(protocol)
-            {
+            ].into_iter().any(protocol) {
                 continue;
             }
             let InvocationSite::Operation(operation) = invocation.site else {
@@ -105,7 +107,9 @@ pub(crate) fn produce(
                 },
                 name: requirement.name.as_str(),
             };
-            if protocol(SELECTION_PROTOCOL) {
+            if let Some(action) = stream {
+                companions.requests.push(TerminalBuildRequestCall { site: call.site, action });
+            } else if protocol(SELECTION_PROTOCOL) {
                 designated += 1;
                 let designated = designated_selection(correspondence, &call)?;
                 let selection = source
@@ -252,6 +256,29 @@ pub(crate) fn produce(
         ));
     }
     Ok(companions)
+}
+
+/// A matching declaration in a user package or a modified toolchain file cannot
+/// acquire a stream service. Call-site and artifact custody are attached above.
+fn sandbox_stream_operation(
+    source: &TypedTrees,
+    owner: SymbolHandle,
+    operation: &str,
+) -> Option<TerminalBuildRequestOperation> {
+    use TerminalBuildRequestOperation as Action;
+    if source.symbols.name(owner) != "SandboxOutput" || operation != "write" {
+        return None;
+    }
+    let file = source
+        .symbols
+        .source_file(source.symbols.symbol_source_span(owner)?)?;
+    (file.origin == source_admission::SourceOrigin::ToolchainLibrary
+        && file.package_identity.is_none()
+        && file.package_root.file_name()?.to_str()? == "core"
+        && file.path.strip_prefix(&file.package_root).ok()?
+            == std::path::Path::new("sandbox/streams.omg")
+        && file.source.as_bytes() == bundled_declarations::BUILD_STREAMS)
+        .then_some(Action::SandboxWrite)
 }
 
 fn designated_selection<'a>(

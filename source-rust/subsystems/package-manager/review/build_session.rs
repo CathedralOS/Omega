@@ -167,6 +167,7 @@ impl PackageBuildSession {
     ) -> Result<package_compilation::BuildExecutionInputs, CompileResolvedPackageReviewsError> {
         let directory = self.create_build_directory(self.root.join("source"))?;
         Ok(package_compilation::BuildExecutionInputs {
+            diagnostic_output_bytes: Some(PACKAGE_BUILD_LOG_CEILING),
             profile: Some(profile),
             directory: Some(directory),
             filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
