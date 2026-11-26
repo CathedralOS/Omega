@@ -573,6 +573,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
     use TerminalBuildRequestOperation as Request;
     Ok(match name {
         "extend_workspace" => Request::ExtendWorkspace,
+        "copy_bytes" => Request::CopyBytes,
         "artifact_only" => Request::ArtifactOnly,
         "register_path_dependency" => Request::PathDependency,
         "register_git_dependency" => Request::GitDependency,

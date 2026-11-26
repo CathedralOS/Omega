@@ -1,9 +1,10 @@
-// The constant selects which caller-backed name survives the Build.
-const NAME_PREFIX: u8 = 119u8;
-machine select_name<'storage>(prefix: u8, package: @'storage [u8], other: @'storage [u8]) -> @'storage [u8] {
-    match prefix { 109u8 -> package, _ -> other }
-}
+use {omega}/build/storage.omg;
+
+const PREFIX: u8 = 119u8;
+
 machine build(plan: @mutable BuildPlan) {
-    let name: @[u8] = select_name(NAME_PREFIX, "my_library", "wy_library");
+    let mutable bytes: [u8; 10] = [0, 121, 95, 108, 105, 98, 114, 97, 114, 121];
+    bytes[0] = PREFIX;
+    let name: @[u8] = |storage|::copy(plan, @bytes[..]);
     plan.product = BuildProduct::Package { name: name };
 }

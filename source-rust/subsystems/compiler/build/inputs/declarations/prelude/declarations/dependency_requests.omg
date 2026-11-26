@@ -9,6 +9,7 @@ public data Source<'storage> {
 // Executed project requests cross one compiler-issued host protocol. Source
 // variants are decomposed by ordinary Omega code, not a host syntax visitor.
 public boundary trait BuildRequestOperations {
+    machine copy_bytes<'storage>(builder: @BuildPlan<'storage>, bytes: @[u8]) -> @'storage [u8] reaches none crashes none;
     machine extend_workspace(builder: @BuildPlan, prefix: WorkspaceMembers, path: @[u8]) -> WorkspaceMembers reaches none crashes none;
     machine artifact_only(builder: @BuildPlan) reaches none crashes none;
     machine register_path_dependency(builder: @BuildPlan, explicit_alias: bool, alias: @[u8], location: @[u8], max_reach: DependencyOptions) -> DependencyRegistration reaches none crashes none;

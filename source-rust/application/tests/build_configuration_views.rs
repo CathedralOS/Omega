@@ -1,22 +1,4 @@
-/*
-
-End-to-end CLI check that a Build may assign a quoted literal to a view field
-of its configuration (`omega --check`).
-
-`builder.identifier = "com.example.settled";` writes a byte view into a field
-declared `@'storage [u8]`. A quoted literal "has ordinary shared byte-view
-type `@[u8]`" (`wiki/spec/language/data_and_literals.md`, "Quoted bytes"), so
-the literal is built at the field's own declared type. Assigning to any other
-binding of reference type writes through the reference instead, and is not
-this case.
-
-We stage a project whose Build assigns one such field and run `omega
---check`. The control assigns none. The twins show the literal arrives as the
-value it is: the toolchain reads the identifier the Build wrote and refuses
-one with a byte an application identifier may not hold, and a value that is
-no view is still refused.
-
-*/
+//! A Build returns byte views through its plan; preparation validates their values.
 
 use std::process::Command;
 
@@ -31,17 +13,19 @@ fn check(name: &str, assignments: &str) -> (bool, String) {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: @mutable Build) {{
-    Build::application(builder, \"configured\");
+            "use {{omega}}/build/storage.omg;
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"configured\" }};
+{assignments}
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
-{assignments}}}
+}}
 "
         ),
     )
     .expect("staged Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["--check", "--target", "linux_x86_64"])
-        .arg("main.omg")
+        .arg("build.omg")
         .current_dir(&root)
         .stdin(std::process::Stdio::null())
         .output()
@@ -63,7 +47,10 @@ fn a_build_that_assigns_no_view_compiles() {
 fn build_refuses_the_retired_freestanding_field() {
     let (compiled, stderr) = check("freestanding", "    builder.freestanding = true;\n");
     assert!(!compiled, "{stderr}");
-    assert!(stderr.contains("data `Build` has no field `freestanding`"), "{stderr}");
+    assert!(
+        stderr.contains("data `BuildPlan` has no field `freestanding`"),
+        "{stderr}"
+    );
 }
 
 /// A view field of the Build itself, and one of a record the Build holds.
@@ -103,4 +90,22 @@ fn an_assigned_identifier_is_the_value_the_toolchain_reads() {
 fn a_value_that_is_no_view_is_not_assigned_to_a_view_field() {
     let (compiled, stderr) = check("boolean", "    builder.identifier = true;\n");
     assert!(!compiled, "{stderr}");
+}
+
+#[test]
+fn the_returned_plan_requires_invocation_backing_for_a_computed_name() {
+    let source = "let mutable bytes: [u8; 3] = [0, 105, 116];
+    bytes[0] = 107u8;
+    builder.product = BuildProduct::Application { name: |storage|::copy(builder, @bytes[..]) };
+    bytes[0] = 0u8;";
+    let (compiled, stderr) = check("copied-name", source);
+    assert!(compiled, "{stderr}");
+
+    let dangling = source.replace("|storage|::copy(builder, @bytes[..])", "@bytes[..]");
+    let (compiled, stderr) = check("dangling-name", &dangling);
+    assert!(!compiled, "{stderr}");
+    assert!(
+        stderr.contains("local storage cannot establish that promise"),
+        "{stderr}"
+    );
 }
