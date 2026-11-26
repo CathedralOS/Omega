@@ -3,8 +3,8 @@
 // tools/benchmark can measure compile-time, peak-memory, code-size, and
 // runtime rows on any hosted target without settling a dependency graph.
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "wrapping_square_sum");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "wrapping_square_sum" };
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

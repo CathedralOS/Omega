@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "bouncing_ball");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "bouncing_ball" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../source/library/system"
     }));
