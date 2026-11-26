@@ -1,7 +1,8 @@
+use main.omg as app;
 use {omega}/build/dependency.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "fixed_byte_guarded_loan_reproduction");
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }

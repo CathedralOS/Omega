@@ -1,16 +1,17 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "scalar_domain_call_guarantee_field" };
-    Build::select_provider::<Query, Actual>(builder, linux_arm64);
-    Build::select_provider::<Query, Actual>(builder, linux_x86_64);
-    Build::select_provider::<Query, Actual>(builder, macos_arm64);
-    Build::select_provider::<Query, Actual>(builder, macos_x86_64);
-    Build::select_provider::<Query, Actual>(builder, windows_x86_64);
-    Build::select_provider::<Query, Actual>(builder, uefi_x86_64);
-    Build::select_provider::<Query, Actual>(builder, cross_platform_cli);
-    Build::select_provider::<Query, Actual>(builder, local_unchecked);
-    Build::select_provider::<Query, Actual>(builder, alpha_bootstrap);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::select_provider::<|app|::Query, |app|::Actual>(builder, linux_arm64);
+    Build::select_provider::<|app|::Query, |app|::Actual>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Query, |app|::Actual>(builder, macos_arm64);
+    Build::select_provider::<|app|::Query, |app|::Actual>(builder, macos_x86_64);
+    Build::select_provider::<|app|::Query, |app|::Actual>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Query, |app|::Actual>(builder, uefi_x86_64);
+    Build::select_provider::<|app|::Query, |app|::Actual>(builder, cross_platform_cli);
+    Build::select_provider::<|app|::Query, |app|::Actual>(builder, local_unchecked);
+    Build::select_provider::<|app|::Query, |app|::Actual>(builder, alpha_bootstrap);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
 }
