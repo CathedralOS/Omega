@@ -263,41 +263,34 @@ fn mutual() -> Vec<(Body, Signature)> {
 }
 
 #[test]
-fn every_member_of_a_component_holds_the_whole_component_in_its_own_graph() {
+fn two_entries_share_a_loop_and_both_prove_the_receivers_requirement() {
     let elaboration = elaborate(mutual()).unwrap();
-    for (raw, own_head) in [(1, 2), (2, 3)] {
-        let lowered = machine(&elaboration.module, raw);
-        let tables = elaboration.tables.machines.get(id(raw)).unwrap();
-        assert_module_and_tables_agree(lowered, tables);
-        // Heads are blocks 2 and 3, for `left` and `right` in member order,
-        // whichever machine is entered; the entry jumps to its own.
-        assert_eq!(jump_of(block(lowered, 1)).0, id(own_head));
-        assert_eq!(block(lowered, 2).parameters.len(), 1);
-        assert_eq!(block(lowered, 3).parameters.len(), 1);
-        // Only `right` has a `requires`, so only its head has a row, owed by
-        // the call in `left` and, when `right` is the machine entered, by
-        // the entry too.
-        let rows: Vec<_> = elaboration
-            .module
-            .proofs.scalar_block_invariants
-            .iter()
-            .filter(|row| row.machine == id(raw))
-            .collect();
-        let [row] = rows.as_slice() else {
-            panic!("one row per machine");
-        };
-        assert_eq!(row.header, id(3));
-        assert_eq!(row.arrivals.len(), if raw == 2 { 2 } else { 1 });
-        assert!(tables.invocations.is_empty());
-    }
-    // The roster is in machine and head order, as the codec requires.
-    assert!(
-        elaboration
-            .module
-            .proofs.scalar_block_invariants
-            .windows(2)
-            .all(|pair| (pair[0].machine, pair[0].header) < (pair[1].machine, pair[1].header))
+    let first = machine(&elaboration.module, 1);
+    let receiver = machine(&elaboration.module, 2);
+    let first_tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let receiver_tables = elaboration.tables.machines.get(id(2)).unwrap();
+    assert_module_and_tables_agree(first, first_tables);
+    assert_module_and_tables_agree(receiver, receiver_tables);
+
+    // Entering left may return immediately or invoke right with the tested n.
+    let [call] = first_tables.invocations.values().as_slice() else {
+        panic!("one call from left to right")
+    };
+    assert_eq!(
+        call.callee,
+        terminal_check_tables::edges::Callee::Declared(id::<MachineId>(2).into())
     );
+    assert_eq!(call.requirements.len(), 1);
+
+    // Entering right starts its own head. Subsequent transfers in either
+    // direction stay inside the receiver's graph and owe the head invariant.
+    assert_eq!(jump_of(block(receiver, 1)).0, id(3));
+    assert!(receiver_tables.invocations.is_empty());
+    let [invariant] = elaboration.module.proofs.scalar_block_invariants.as_slice() else {
+        panic!("one invariant for right's loop head");
+    };
+    assert_eq!((invariant.machine, invariant.header), (id(2), id(3)));
+    assert_eq!(invariant.arrivals.len(), 2);
 }
 
 #[test]
