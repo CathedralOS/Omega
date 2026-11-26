@@ -290,7 +290,9 @@ machine build_entry() {}",
 fn a_transparent_predicate_keeps_ordinary_address_geometry() {
     let source = |input_contract: &str| {
         format!(
-            "public let no_wrap(base: address, length: u64): core\\Strict<0> =
+            "use {{omega}}/language/core/foundation.omg as proof;
+
+public let no_wrap(base: address, length: u64): |proof|::Strict<0> =
     embed(base) + embed(length) <= address::Bound;
 machine consume(base: address, length: u64) requires no_wrap(base, length) {{ }}
 machine build_entry(base: address, length: u64) {input_contract} {{ consume(base, length); }}"
@@ -384,7 +386,9 @@ fn a_transparent_definition_takes_a_value_binder_from_its_static_argument() {
     // A machine's own binder stands for its input in the definition's.
     assert_eq!(
         verdict(
-            "let below<Limit: u64>(value: u64): core\\Strict<0> = value < Limit;
+            "use {omega}/language/core/foundation.omg as proof;
+
+let below<Limit: u64>(value: u64): |proof|::Strict<0> = value < Limit;
 machine check<Bound: u64>(value: u64) -> u64 requires below::<Bound>(value) && Bound <= 10
 ensures result < 10 { value }
 machine build_entry() { let checked: u64 = check::<10>(3); }"
@@ -395,7 +399,9 @@ machine build_entry() { let checked: u64 = check::<10>(3); }"
     // parameter and unfolds at its static type argument.
     assert_eq!(
         verdict(
-            "let holds<T: core\\Type<0>>(value: u64): core\\Strict<0> = value < 10;
+            "use {omega}/language/core/foundation.omg as proof;
+
+let holds<T: |proof|::Type<0>>(value: u64): |proof|::Strict<0> = value < 10;
 machine check(value: u64) -> u64 requires holds::<u64>(value) ensures result < 10 { value }
 machine build_entry() { let checked: u64 = check(3); }"
         ),
@@ -403,14 +409,18 @@ machine build_entry() { let checked: u64 = check(3); }"
     );
     assert_eq!(
         verdict(
-            "let holds<T>(value: u64): core\\Strict<0> = value < 10;
+            "use {omega}/language/core/foundation.omg as proof;
+
+let holds<T>(value: u64): |proof|::Strict<0> = value < 10;
 machine check(value: u64) -> u64 requires holds::<u64>(value) ensures result < 10 { value }
 machine build_entry() { let checked: u64 = check(3); }"
         ),
         "accepted"
     );
     let tight = judge_build(
-        "let holds<T>(value: u64): core\\Strict<0> = value < 10;
+        "use {omega}/language/core/foundation.omg as proof;
+
+let holds<T>(value: u64): |proof|::Strict<0> = value < 10;
 machine check(value: u64) -> u64 requires holds::<u64>(value) ensures result < 9 { value }
 machine build_entry() { let checked: u64 = check(3); }",
     );

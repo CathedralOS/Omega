@@ -15,26 +15,21 @@ the CLI and shared `tests/fixtures/contracts/pass/` directories and count the `w
 
 */
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use std::path::PathBuf;
-use std::process::Command;
 
 const WARNING: &str = "warning: unreachable branch:";
 
 fn fixture(name: &str) -> PathBuf {
-    support::repository_root()
-        .join(name)
+    support::repository_root().join(name)
 }
 
 fn warnings(name: &str) -> Vec<String> {
     let directory = fixture(name);
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
-        .current_dir(&directory)
-        .output()
-        .expect("omega runs");
+    let output = project::omega(&directory, &["--check", "main.omg"]);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         output.status.success(),
@@ -127,7 +122,8 @@ fn specialization_and_consistent_branches_stay_quiet() {
 /// a value `match`. A `_` arm some case reaches stays quiet.
 #[test]
 fn a_wildcard_after_every_declared_case_warns() {
-    let reported = warnings("source-rust/application/tests/fixtures/contracts/pass/dead_wildcard_arm_exit");
+    let reported =
+        warnings("source-rust/application/tests/fixtures/contracts/pass/dead_wildcard_arm_exit");
     assert_eq!(reported.len(), 2, "{reported:?}");
     for (warning, machine) in reported.iter().zip(["`next`", "`weight`"]) {
         assert!(
@@ -143,11 +139,7 @@ fn a_wildcard_after_every_declared_case_warns() {
 fn recursive_branches_warn_once_at_each_declaring_machines_own_arm() {
     let directory =
         fixture("source-rust/application/tests/fixtures/contracts/pass/recursive_branch_locations");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--timings", "--check", "main.omg"])
-        .current_dir(&directory)
-        .output()
-        .expect("omega checks the two recursive machines");
+    let output = project::omega(&directory, &["--timings", "--check", "main.omg"]);
     let stderr = String::from_utf8_lossy(&output.stderr);
     for phase in ["Psi 06:", "selection admission:", "advisories:"] {
         let rows = stderr

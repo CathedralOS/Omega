@@ -1477,7 +1477,7 @@ mod named_value_tests {
             machine main() -> Registry { let registry: Registry = Registry { store: take_value }; registry }
         "#;
         let program =
-            crate::qualified_operator_home_tests::packages(&[(1, "registry.omg", text)], &[], &[])
+            crate::qualified_operator_home_tests::packages(&[(1, "registry.omg", text)], &[])
                 .unwrap();
         let value = program
             .expression_table
@@ -1532,43 +1532,45 @@ machine entry(scale: @Scale) -> u64 {
     one(scale, 7)
 }
 "#;
-        const QUALIFIED: &str = r#"
-trait Shrink<T> {
-    machine shrink(scale: @T, value: u64) -> u64;
-}
-data Scale { unit: u8; }
-TrimOne satisfies Shrink<Scale> {
-    machine shrink(scale: @Scale, value: u64) -> u64 { value }
-}
-data ScaleOperation = machine(scale: @Scale, value: u64) -> u64 reaches none crashes none;
-machine entry(scale: @Scale) -> u64 {
-    let one: ScaleOperation = kit\TrimOne::shrink;
-    one(scale, 7)
-}
-"#;
-        for (text, path, qualified) in [
-            (TEXT, "runtime_callables/named_value.omg", false),
-            (QUALIFIED, "runtime_callables/kit/named_value.omg", true),
-        ] {
+        let (definitions, client) = TEXT.split_once("data ScaleOperation").unwrap();
+        let definitions = definitions
+            .replace("data Scale", "public data Scale")
+            .replace("TrimOne satisfies", "public TrimOne satisfies");
+        let client = format!("use kit/values.omg as kit;\ndata ScaleOperation{client}")
+            .replace("@Scale", "@|kit|::Scale")
+            .replace("TrimOne::shrink", "|kit|::TrimOne::shrink");
+        let local = [("entry.omg", TEXT)];
+        let imported = [
+            ("kit/values.omg", definitions.as_str()),
+            ("entry.omg", client.as_str()),
+        ];
+        for files in [local.as_slice(), imported.as_slice()] {
             let mut sources = crate::source_inputs::SourceMap::default();
-            let source = sources
-                .add_with_metadata(
-                    path.into(),
-                    text.into(),
-                    "runtime_callables".into(),
-                    None,
-                    source_admission::SourceOrigin::User,
-                )
-                .source_id;
-            let tokens = crate::frontend_fixture::Lexer::new(text)
-                .tokenize()
-                .unwrap();
-            let syntax =
-                crate::frontend_fixture::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let mut syntax = syntax_trees::SyntaxTrees::default();
+            for &(path, text) in files {
+                let source = sources
+                    .add_with_metadata(
+                        std::path::Path::new("runtime_callables").join(path),
+                        text.into(),
+                        "runtime_callables".into(),
+                        None,
+                        source_admission::SourceOrigin::User,
+                    )
+                    .source_id;
+                let tokens = crate::frontend_fixture::Lexer::new(text)
+                    .tokenize()
+                    .unwrap();
+                crate::frontend_fixture::parse(&mut syntax, source, &tokens).unwrap();
+            }
+            let bindings = crate::resolution::fixture_local_and_core_imports(
+                &syntax,
+                &sources,
+                std::path::Path::new("core"),
+            );
             let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),
-                top_level_bindings: Vec::new(),
+                top_level_bindings: bindings,
                 retained_base: None,
             })
             .unwrap();
@@ -1617,22 +1619,9 @@ machine entry(scale: @Scale) -> u64 {
                     .bodies
                     .expressions
                     .name_path_member_symbols(path.member_symbols);
-                if qualified {
-                    assert_eq!(
-                        resolved.symbols.get(path.head_symbol).kind,
-                        symbols::SymbolKind::Module
-                    );
-                    assert_eq!(
-                        members,
-                        &[path.head_symbol, implementation.symbol, row.requirement]
-                    );
-                    assert_eq!(
-                        resolved.symbols.namespace_parent(implementation.symbol),
-                        path.head_symbol
-                    );
-                } else {
-                    assert_eq!(members, &[implementation.symbol, row.requirement]);
-                }
+                let (file_alias, declarations) = members.split_at(members.len() - 2);
+                assert_eq!(declarations, &[implementation.symbol, row.requirement]);
+                assert!(file_alias.iter().all(|symbol| !symbol.is_valid()));
                 let public_selections = resolved
                 .tables
                 .bodies

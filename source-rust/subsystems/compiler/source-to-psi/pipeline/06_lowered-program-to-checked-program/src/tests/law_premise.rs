@@ -16,7 +16,7 @@ const UNESTABLISHED: &str =
 
 fn proofs(source: &str) -> String {
     let end = source.find("data Main").expect("the fixture's entry state");
-    source[..end].replace("use omega\\language\\core\\ProcessExit;\n", "")
+    source[..end].replace("use {omega}/language/core/process_exit.omg;\n", "")
 }
 
 fn judged(source: &str) -> Vec<RouteVerdict> {
@@ -132,7 +132,7 @@ fn without_the_premise_the_law_it_states_is_not_proved() {
     // every `a` and `b`.
     let passing = proofs(CANCELS);
     let source = passing.replacen(
-        "requires\n    core\\Identity::<Peano>(plus(c, a), plus(c, b))\n",
+        "requires\n    |proof|::Identity::<Peano>(plus(c, a), plus(c, b))\n",
         "",
         1,
     );

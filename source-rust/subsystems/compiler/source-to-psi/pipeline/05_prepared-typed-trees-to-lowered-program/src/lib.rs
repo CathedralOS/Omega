@@ -1552,7 +1552,6 @@ fn finish_reading_into<'source>(
     let prepared_applications = declare::declare(
         program.typed,
         &program,
-        &outcomes,
         &binder_reach,
         &checking_envelopes,
         &mut elaboration,

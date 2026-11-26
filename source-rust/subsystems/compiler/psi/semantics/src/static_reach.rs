@@ -154,6 +154,70 @@ fn validate_arguments(
     Ok(())
 }
 
+/// The ordinary services reached by a closed application after its selected
+/// callback sites have been accounted for separately. Recursive source states
+/// may now be blocks of the same emitted machine.
+pub fn fixed_specialization_reach(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+) -> Result<Vec<ServiceId>> {
+    if let Some(ceiling) = &machine.declared_service_reach {
+        return Ok(ceiling.clone());
+    }
+    let mut fixed = direct_service_reach(module, machine)?;
+    for call in machine
+        .module_invocations()
+        .filter(|call| call.static_reach_binding.is_none())
+    {
+        let contract = module
+            .invocation_machine_contract(call.inputs.callee, call.inputs.required_contract)
+            .ok_or("fixed reach call has no exact public contract")?;
+        union(&mut fixed, &contract.published_service_ceiling);
+    }
+    Ok(fixed)
+}
+
+fn direct_service_reach(
+    module: &TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+) -> Result<Vec<ServiceId>> {
+    let mut direct = Vec::new();
+    for invocation in machine.boundary_invocations() {
+        let boundary = module
+            .boundary_machine(invocation.boundary)
+            .ok_or("static reach call has no exact boundary contract")?;
+        union(&mut direct, &boundary.published_service_ceiling);
+    }
+    for invocation in machine.callable_invocations() {
+        let contract = module
+            .execution
+            .callables
+            .contract(invocation.inputs.contract)
+            .ok_or("static reach call has no exact runtime callable contract")?;
+        union(&mut direct, &contract.envelope.service_reach);
+    }
+    for operation in UnoptimizedMachineBehavior::capture(machine).operations {
+        if let UnoptimizedBehaviorOperation::InstructionService { service, .. } = operation {
+            let mut reach = Vec::new();
+            let mut pending = vec![service];
+            while let Some(service) = pending.pop() {
+                if reach.binary_search(&service).is_ok() {
+                    continue;
+                }
+                let index = module
+                    .interfaces
+                    .services
+                    .binary_search_by_key(&service, |row| row.id)
+                    .map_err(|_| "static reach instruction names an absent service")?;
+                union(&mut reach, &[service]);
+                pending.extend_from_slice(&module.interfaces.services[index].parents);
+            }
+            union(&mut direct, &reach);
+        }
+    }
+    Ok(direct)
+}
+
 /// This reads canonical calls, including cleanup calls. The caller checks each
 /// supplied callback's refinement question separately before using the result.
 pub fn derive<'bounds>(
@@ -300,38 +364,9 @@ pub fn derive<'bounds>(
                 calls.push(Contribution::Call { callee, arguments });
             }
         }
-        for invocation in machine.boundary_invocations() {
-            let boundary = module
-                .boundary_machine(invocation.boundary)
-                .ok_or("static reach call has no exact boundary contract")?;
-            calls.push(Contribution::Fixed(
-                boundary.published_service_ceiling.clone(),
-            ));
-        }
-        for invocation in machine.callable_invocations() {
-            let contract = module
-                .execution.callables
-                .contract(invocation.inputs.contract)
-                .ok_or("static reach call has no exact runtime callable contract")?;
-            calls.push(Contribution::Fixed(contract.envelope.service_reach.clone()));
-        }
-        for operation in UnoptimizedMachineBehavior::capture(machine).operations {
-            if let UnoptimizedBehaviorOperation::InstructionService { service, .. } = operation {
-                let mut reach = Vec::new();
-                let mut pending = vec![service];
-                while let Some(service) = pending.pop() {
-                    if reach.binary_search(&service).is_ok() {
-                        continue;
-                    }
-                    let index = module
-                        .interfaces.services
-                        .binary_search_by_key(&service, |row| row.id)
-                        .map_err(|_| "static reach instruction names an absent service")?;
-                    union(&mut reach, &[service]);
-                    pending.extend_from_slice(&module.interfaces.services[index].parents);
-                }
-                calls.push(Contribution::Fixed(reach));
-            }
+        let direct = direct_service_reach(module, machine)?;
+        if !direct.is_empty() {
+            calls.push(Contribution::Fixed(direct));
         }
         contributions.push(calls);
     }

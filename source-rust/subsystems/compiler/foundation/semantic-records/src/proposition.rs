@@ -2038,7 +2038,7 @@ mod propositions {
         },
         DeclarationIdentity(crate::ClauseIdentity),
         /// Any two witnesses of the inner proposition are propositionally equal:
-        /// `(p: P) -> (q: P) -> core\Identity::<P>(p, q)`.
+        /// `(p: P) -> (q: P) -> |proof|::Identity::<P>(p, q)`.
         IsMere(Box<Proposition>),
     }
 

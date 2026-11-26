@@ -3,8 +3,8 @@
 //! program uses both and runs in both engines; its twin puts a space between
 //! the two `>` of the shift and is refused at the second one.
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
 use std::path::PathBuf;
@@ -18,13 +18,13 @@ fn fixture(tier: &str) -> PathBuf {
 
 #[test]
 fn touching_greater_tokens_shift_and_close_nested_lists_in_both_engines() {
-    build_fixture::assert_silent_return(&fixture("run"));
+    program::assert_fixture_silent_return(&fixture("run"));
 }
 
 #[test]
 fn a_space_between_the_two_greater_tokens_is_not_a_shift() {
     let expected = std::fs::read_to_string(fixture("fail").join("expected.txt")).unwrap();
-    let (output, report) = build_fixture::check(&fixture("fail"));
+    let (output, report) = program::check_fixture(&fixture("fail"));
     assert!(!output.status.success(), "{report}");
     assert!(report.contains(expected.trim()), "{report}");
 }

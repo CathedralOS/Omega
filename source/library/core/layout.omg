@@ -1,5 +1,7 @@
 use {omega}/language/core/access/access.omg as access;
 use {omega}/language/core/reflect/reflect.omg as reflect;
+use {omega}/language/core/extent.omg;
+use {omega}/language/core/option.omg;
 
 // LAYOUT POLICIES (wiki/spec/layouts/plans.md):
 // Layout is a library, not a language axiom. A policy is an ordinary named
@@ -31,7 +33,7 @@ public data SchemaField requires align >= 1, align <= 16 {
     key: u64;
     size: u64;
     align: u64;
-    identity: Optional<u64>;
+    identity: |option|::Optional<u64>;
     // Transitional compatibility mirror; -1 means unnumbered. New policies
     // consume `identity`.
     number: i64;
@@ -67,7 +69,7 @@ public data FieldKind {
 // have their own numbered scope and tombstones.
 public data SchemaCase requires payload_field_count <= 32, retired_payload_identity_count <= 32 {
     key: u64;
-    identity: Optional<u64>;
+    identity: |option|::Optional<u64>;
     payload_fields: [SchemaField; 32];
     payload_field_count: u64;
     retired_payload_identities: [u64; 32];
@@ -413,7 +415,7 @@ public data ResourceProfile requires region_count <= 32 {
 // distinguishes independently selected backing policies in one artifact. It is
 // a static selector, not evidence of that backing or permission to access it.
 public boundary trait ResourceProfileSupply<Role> {
-    machine profile(storage: @Extent in Granted) -> ResourceProfile reaches none crashes none;
+    machine profile(storage: @|extent|::Extent in |extent|::Extent::Granted) -> ResourceProfile reaches none crashes none;
 }
 
 public data AccessOutcome<View, Returned, Reason> {
@@ -453,18 +455,18 @@ public data AccessExtraction<Storage, Value> {
 // protected establishment routes.
 public boundary trait AccessLifecycle<P, T> {
     machine initialize(
-        storage: Extent in Granted & Vacant,
+        storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant,
         value: T
     ) -> AccessOutcome<
-        Extent in Granted & Resident<P, T>,
-        AccessReturn<Extent in Granted & Vacant, T>,
+        |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<P, T>,
+        AccessReturn<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, T>,
         AccessInitializationFailure
     >
     reaches none
     crashes none;
 
-    machine move_out(storage: Extent in Granted & Resident<P, T>)
-        -> AccessExtraction<Extent in Granted & Vacant, T>
+    machine move_out(storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<P, T>)
+        -> AccessExtraction<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, T>
     reaches none
     crashes none;
 }
@@ -481,27 +483,27 @@ public boundary trait AccessLifecycle<P, T> {
 // independent copy, which carries no selected-call origin.
 public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
     machine initialize(
-        storage: Extent in Granted & Vacant,
+        storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant,
         value: T
     ) -> AccessOutcome<
-        Extent in Granted & Resident<P, T>,
-        AccessReturn<Extent in Granted & Vacant, T>,
+        |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<P, T>,
+        AccessReturn<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, T>,
         AccessInitializationFailure
     >
     {
         let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(
-            @storage as @Extent in Granted
+            @storage as @|extent|::Extent in |extent|::Extent::Granted
         );
         |access|::initialize_from_profile::<P, T, Storage, Role>(storage, value, @profile)
     }
 
-    machine move_out(storage: Extent in Granted & Resident<P, T>)
-        -> AccessExtraction<Extent in Granted & Vacant, T>
+    machine move_out(storage: |extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Resident<P, T>)
+        -> AccessExtraction<|extent|::Extent in |extent|::Extent::Granted & |extent|::Extent::Vacant, T>
     {
         // Resident preserves the value and backing, not permission to read
         // every byte. Reobserve the same grant's admitted supply before decode.
         let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(
-            @storage as @Extent in Granted
+            @storage as @|extent|::Extent in |extent|::Extent::Granted
         );
         |access|::extract_resident::<P, T, Storage, Role>(storage, @profile)
     }

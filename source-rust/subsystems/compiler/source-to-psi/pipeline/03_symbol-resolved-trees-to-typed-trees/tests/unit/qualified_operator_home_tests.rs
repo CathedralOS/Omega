@@ -13,31 +13,19 @@ pub(crate) fn checked(units: &[(&str, &str)]) -> Result<crate::source_state::Typ
             .map(|(path, text)| (31, *path, *text))
             .collect::<Vec<_>>(),
         &[],
-        &[],
     )
 }
 
 pub(crate) fn checked_with_equality(
     units: &[(&str, &str)],
 ) -> Result<crate::source_state::TypedTrees, String> {
-    let mut sources = vec![(
-        0,
-        "equality.omg",
-        include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/equality.omg"
-        )),
-    )];
-    sources.extend(units.iter().map(|(path, text)| (31, *path, *text)));
-    packages(&sources, &[], &[])
+    let units: Vec<_> = units.iter().map(|&(path, text)| (31, path, text)).collect();
+    packages_with_equality(&units, &[])
 }
 
-/* `packages` with the bundled `Equatable` declaration as an ambient toolchain
-package ahead of `units`; import positions index `units`. */
 pub(crate) fn packages_with_equality(
     units: &[(u8, &str, &str)],
     dependencies: &[(u8, &str, u8)],
-    imports: &[(usize, usize, &str, usize)],
 ) -> Result<crate::source_state::TypedTrees, String> {
     let mut sources = vec![(
         0,
@@ -48,19 +36,12 @@ pub(crate) fn packages_with_equality(
         )),
     )];
     sources.extend_from_slice(units);
-    let imports = imports
-        .iter()
-        .map(|(reference, declaration, path, prefix)| {
-            (reference + 1, declaration + 1, *path, *prefix)
-        })
-        .collect::<Vec<_>>();
-    packages(&sources, dependencies, &imports)
+    packages(&sources, dependencies)
 }
 
 pub(crate) fn packages(
     units: &[(u8, &str, &str)],
     dependencies: &[(u8, &str, u8)],
-    imports: &[(usize, usize, &str, usize)],
 ) -> Result<crate::source_state::TypedTrees, String> {
     let mut sources = crate::source_inputs::SourceMap::default();
     let mut source_ids = Vec::with_capacity(units.len());
@@ -93,17 +74,7 @@ pub(crate) fn packages(
             .iter()
             .map(|(from, alias, to)| (identity(*from), *alias, identity(*to))),
     );
-    let mut top_level_bindings = imports
-        .iter()
-        .map(|(reference, declaration, path, prefix)| {
-            crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                source_ids[*reference],
-                source_ids[*declaration],
-                path,
-                *prefix,
-            )
-        })
-        .collect::<Vec<_>>();
+    let mut top_level_bindings = Vec::new();
     // Bind each authored file alias to its selected source, as package admission does.
     for ((owner, _, _), unit) in units.iter().zip(&parsed_units) {
         for item in unit.root_items() {
@@ -121,15 +92,24 @@ pub(crate) fn packages(
                 .identifier_path_members(*components)
                 .iter()
                 .map(|part| part.as_str(unit));
-            let target_owner = if let Some(root) = root {
-                assert_eq!(root.as_str(unit), "omega");
-                assert_eq!(
-                    (components.next(), components.next()),
-                    (Some("language"), Some("core"))
-                );
-                0
-            } else {
-                *owner
+            let root = root.as_ref().map(|name| name.as_str(unit));
+            let dependency = root.filter(|root| *root != "omega").map(|alias| {
+                let (_, _, target) = dependencies
+                    .iter()
+                    .find(|(from, name, _)| from == owner && *name == alias)
+                    .expect("the requester declares the dependency alias");
+                (alias, *target)
+            });
+            let target_owner = match root {
+                Some("omega") => {
+                    assert_eq!(
+                        (components.next(), components.next()),
+                        (Some("language"), Some("core"))
+                    );
+                    0
+                }
+                Some(_) => dependency.unwrap().1,
+                None => *owner,
             };
             let mut path = components.collect::<std::path::PathBuf>();
             path.set_extension("omg");
@@ -144,42 +124,9 @@ pub(crate) fn packages(
                     unit.source_id,
                     source_ids[target],
                     alias.as_str(unit),
-                ),
+                )
+                .from_dependency(dependency.map(|(alias, package)| (alias, identity(package)))),
             );
-        }
-    }
-    // Package 0 contains the admitted Core fixtures. Each file keeps its own
-    // authored imports; caller associations remain explicitly supplied above.
-    if let Some(anchor) = units.iter().position(|(package, _, _)| *package == 0) {
-        use syntax_trees::identifier::JoinedSyntaxPath;
-        for ((package, _, _), unit) in units.iter().zip(&parsed_units) {
-            if *package != 0 {
-                continue;
-            }
-            for item in unit.root_items() {
-                let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::Namespace {
-                    path: import,
-                }) = item
-                else {
-                    continue;
-                };
-                let members = unit.items.identifier_path_members(*import);
-                if members
-                    .iter()
-                    .take(3)
-                    .map(|member| member.as_str(unit))
-                    .eq(["omega", "language", "core"])
-                {
-                    top_level_bindings.push(
-                        crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                            unit.source_id,
-                            source_ids[anchor],
-                            &members.joined_path_in(unit),
-                            3,
-                        ),
-                    );
-                }
-            }
         }
     }
     let syntax = parsed_units
@@ -205,10 +152,11 @@ pub(crate) fn packages(
 }
 
 const DOMAIN: &str = "public domain u32::Distance;";
-const OPERATOR: &str = "public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { ((left as -Distance) +% (right as -Distance)) as +Distance }";
+const LOCAL_OPERATOR: &str = "public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { ((left as -Distance) +% (right as -Distance)) as +Distance }";
+const OPERATOR: &str = "public machine + |units|::Distance::add(left: u32 in |units|::Distance, right: u32 in |units|::Distance) -> u32 in |units|::Distance { ((left as - |units|::Distance) +% (right as - |units|::Distance)) as + |units|::Distance }";
 
 const GENERIC_DOMAIN: &str = "public domain<T> T::Distance;";
-const GENERIC_OPERATOR: &str = "use units; public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance requires T == u32 { ((left as -Distance) +% right) as +Distance }";
+const GENERIC_OPERATOR: &str = "use units/domains.omg as units; public machine + |units|::Distance::add<T [copy]>(left: T in |units|::Distance, right: T) -> T in |units|::Distance requires T == u32 { ((left as - |units|::Distance) +% right) as + |units|::Distance }";
 
 fn bundled_core_sources() -> Vec<(String, String)> {
     let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -248,19 +196,35 @@ fn bundled_core_fixtures_resolve_their_authored_imports() {
         "unimported.omg",
         "machine unimported(value: f32) { classify_f32(value); }",
     ));
-    let imported = units.len();
-    units.push((31, "imported.omg", "use omega\\language\\core\\float_accuracy\\classify_f32; machine imported(value: f32) { classify_f32(value); }"));
-    let program = packages(
-        &units,
-        &[],
-        &[(
-            imported,
-            0,
-            "omega::language::core::float_accuracy::classify_f32",
-            3,
-        )],
-    )
-    .expect("bundled Core imports resolve against the admitted Core package");
+    units.push((31, "imported.omg", "use {omega}/language/core/float_accuracy/float_accuracy.omg; machine imported(value: f32) { |float_accuracy|::classify_f32(value); }"));
+    let program = packages(&units, &[])
+        .expect("bundled Core imports resolve against the admitted Core package");
+    let supply = program
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "ResourceProfileSupply")
+        .expect("layout declares ResourceProfileSupply");
+    let profile = program
+        .trait_machine_signatures(supply)
+        .iter()
+        .find(|signature| signature.name.as_str() == "profile")
+        .expect("ResourceProfileSupply declares profile");
+    let Some([storage]) = program.state_signature_parameters(profile).as_array() else {
+        panic!("profile takes only its storage parameter");
+    };
+    let types = &program.type_reference_table;
+    let crate::source_state::types::TypeReferenceNode::Reference { referee, .. } =
+        types.type_reference(storage.type_reference)
+    else {
+        panic!("profile borrows storage");
+    };
+    assert_eq!(
+        types
+            .unconstrained_named_symbol(*referee)
+            .and_then(|symbol| program.symbols.core_vocabulary(symbol)),
+        Some(language_core::core_vocabulary::CoreVocabulary::Extent),
+    );
+
     use crate::source_state::deferred_refusals::DeferredRequest;
     for (name, expected) in [
         ("unimported", Some(DeferredRequest::UndeclaredCallName)),
@@ -298,31 +262,21 @@ fn core_policy_casts_of_imported_call_results_retain_the_subtraction_signature()
         .iter()
         .map(|(name, text)| (0, name.as_str(), text.as_str()))
         .collect::<Vec<_>>();
-    let client = units.len();
     units.push((
         31,
         "difference.omg",
         r#"
-use omega\language\core\narrow_i64_to_u64_wrapping;
+use {omega}/language/core/numeric_conversion.omg;
 data Time [copy] { seconds: i64; }
 machine difference(time: @Time, earlier: Time) -> u64 in Wrapping {
     let seconds: u64 in Wrapping =
-        (narrow_i64_to_u64_wrapping(time.seconds) as +Wrapping)
-        - (narrow_i64_to_u64_wrapping(earlier.seconds) as +Wrapping);
+        (|numeric_conversion|::narrow_i64_to_u64_wrapping(time.seconds) as +Wrapping)
+        - (|numeric_conversion|::narrow_i64_to_u64_wrapping(earlier.seconds) as +Wrapping);
     seconds
 }
 "#,
     ));
-    let program = packages(
-        &units,
-        &[],
-        &[(
-            client,
-            0,
-            "omega::language::core::narrow_i64_to_u64_wrapping",
-            3,
-        )],
-    )
+    let program = packages(&units, &[])
     .expect("the actual Core converter and its authored imports type successfully");
     let owner = program
         .machines()
@@ -404,7 +358,7 @@ machine fixed_length(items: @[u8; 4], count: u64 in Trapping) -> bool {
 }
 "#,
     ));
-    let program = packages(&units, &[], &[]).expect("the actual Core declarations type");
+    let program = packages(&units, &[]).expect("the actual Core declarations type");
     let owners = crate::source_state::references::collect_program_operand_owners(&program);
     for (name, binary, operation, reversed) in [
         (
@@ -666,7 +620,7 @@ fn a_carrier_generic_domain_retains_each_exact_application() {
         ("units/domains.omg", GENERIC_DOMAIN),
         (
             "client.omg",
-            "use units; machine first(value: u32 in Distance) -> u32 in Distance { value } machine second(value: u64 in Distance) -> u64 in Distance { value } machine repeated(value: u32 in Distance) -> u32 in Distance { value }",
+            "use units/domains.omg as units; machine first(value: u32 in |units|::Distance) -> u32 in |units|::Distance { value } machine second(value: u64 in |units|::Distance) -> u64 in |units|::Distance { value } machine repeated(value: u32 in |units|::Distance) -> u32 in |units|::Distance { value }",
         ),
     ]);
     let applied = |name| {
@@ -741,7 +695,7 @@ fn a_generic_operator_retains_its_inferred_application_as_an_ordinary_call() {
         ("operator.omg", GENERIC_OPERATOR),
         (
             "client.omg",
-            "use units; machine sum(left: u32 in Distance, right: u32) -> u32 in Distance { left + right }",
+            "use units/domains.omg as units; machine sum(left: u32 in |units|::Distance, right: u32) -> u32 in |units|::Distance { left + right }",
         ),
     ]);
     let target = program.machine_token_bindings()[0].symbol;
@@ -783,7 +737,9 @@ fn a_generic_operator_retains_its_inferred_application_as_an_ordinary_call() {
 fn an_anonymous_operand_cannot_select_a_qualified_generic_operator() {
     use crate::source_state::expression::ExpressionNode;
     for literal in ["1", "1u32"] {
-        let client = format!("use units; machine sum(right: u32) -> u32 {{ {literal} + right }}");
+        let client = format!(
+            "use units/domains.omg as units; machine sum(right: u32) -> u32 {{ {literal} + right }}"
+        );
         let program = typed(&[
             ("units/domains.omg", GENERIC_DOMAIN),
             ("operator.omg", GENERIC_OPERATOR),
@@ -803,7 +759,7 @@ fn an_enclosing_cast_reads_a_generic_operators_applied_return() {
         ("operator.omg", GENERIC_OPERATOR),
         (
             "client.omg",
-            "use units; machine sum(left: u32 in Distance, right: u32) -> u32 { (left + right) as -Distance }",
+            "use units/domains.omg as units; machine sum(left: u32 in |units|::Distance, right: u32) -> u32 { (left + right) as - |units|::Distance }",
         ),
     ]);
     assert!(
@@ -818,10 +774,10 @@ fn an_enclosing_cast_reads_a_generic_operators_applied_return() {
 #[test]
 fn generic_operator_shapes_match_complete_qualifications_in_both_orders() {
     use crate::source_state::expression::ExpressionNode;
-    let declarations = "use units;
-        public machine + Distance::both<T [copy]>(left: T in Distance, right: T in Distance) -> T in Distance { left }
-        public machine + Distance::left<T [copy]>(left: T in Distance, right: T) -> T in Distance { left }
-        public machine + Distance::right<T [copy]>(left: T, right: T in Distance) -> T in Distance { right }";
+    let declarations = "use units/domains.omg as units;
+        public machine + |units|::Distance::both<T [copy]>(left: T in |units|::Distance, right: T in |units|::Distance) -> T in |units|::Distance { left }
+        public machine + |units|::Distance::left<T [copy]>(left: T in |units|::Distance, right: T) -> T in |units|::Distance { left }
+        public machine + |units|::Distance::right<T [copy]>(left: T, right: T in |units|::Distance) -> T in |units|::Distance { right }";
     // domains.md, "Operands": with no declaration for its exact type, a
     // qualified operand has no builtin operator either, so typing rejects it.
     let unqualified_only = |value: &str, written: &str| {
@@ -833,26 +789,38 @@ fn generic_operator_shapes_match_complete_qualifications_in_both_orders() {
     };
     for (left, right, selected) in [
         (
-            "u32 in Distance",
-            "u32 in Distance",
-            Ok(Some("Distance::both")),
+            "u32 in |units|::Distance",
+            "u32 in |units|::Distance",
+            Ok(Some("|units|::Distance::both")),
         ),
-        ("u32 in Distance", "u32", Ok(Some("Distance::left"))),
-        ("u32", "u32 in Distance", Ok(Some("Distance::right"))),
         (
-            "u32 in Distance & Other",
+            "u32 in |units|::Distance",
             "u32",
-            unqualified_only("-Distance -Other", "u32 in Distance & Other"),
+            Ok(Some("|units|::Distance::left")),
         ),
         (
-            "u32 in Distance",
+            "u32",
+            "u32 in |units|::Distance",
+            Ok(Some("|units|::Distance::right")),
+        ),
+        (
+            "u32 in |units|::Distance & |units|::Other",
+            "u32",
+            unqualified_only(
+                "-|units|::Distance -|units|::Other",
+                "u32 in |units|::Distance & |units|::Other",
+            ),
+        ),
+        (
+            "u32 in |units|::Distance",
             "u64",
-            unqualified_only("-Distance", "u32 in Distance"),
+            unqualified_only("-|units|::Distance", "u32 in |units|::Distance"),
         ),
         ("u32", "u32", Ok(None)),
     ] {
-        let client =
-            format!("use units; machine sum(left: {left}, right: {right}) {{ left + right; }}");
+        let client = format!(
+            "use units/domains.omg as units; machine sum(left: {left}, right: {right}) {{ left + right; }}"
+        );
         let checked = checked(&[
             (
                 "units/domains.omg",
@@ -902,11 +870,11 @@ fn a_generic_operator_retains_an_inferred_const_argument_with_its_carrier() {
         ("units/domains.omg", GENERIC_DOMAIN),
         (
             "operator.omg",
-            "use units; public machine + Distance::merge<T [copy], const N: u64>(left: T in Distance, right: [T; N]) -> T in Distance { left }",
+            "use units/domains.omg as units; public machine + |units|::Distance::merge<T [copy], const N: u64>(left: T in |units|::Distance, right: [T; N]) -> T in |units|::Distance { left }",
         ),
         (
             "client.omg",
-            "use units; machine sum(left: u32 in Distance, right: [u32; 3]) -> u32 in Distance { left + right }",
+            "use units/domains.omg as units; machine sum(left: u32 in |units|::Distance, right: [u32; 3]) -> u32 in |units|::Distance { left + right }",
         ),
     ]);
     let target = program.machine_token_bindings()[0].symbol;
@@ -974,7 +942,7 @@ fn unresolved_names_keep_their_occurrences_scope_instead_of_a_global_leaf() {
     let program = typed(&[
         (
             "client.omg",
-            "use elsewhere; machine caller() { elsewhere::ghost(); }",
+            "use elsewhere/ghost.omg as elsewhere; machine caller() { |elsewhere|::ghost(); }",
         ),
         ("elsewhere/ghost.omg", "public machine ghost() {}"),
     ]);
@@ -1001,7 +969,6 @@ fn qualified_unknown_names_keep_dependency_and_visibility_scope() {
                 (31, "client.omg", &text),
                 (41, "foreign/ghost.omg", "public machine ghost() {}"),
             ],
-            &[],
             &[],
         )
         .unwrap();
@@ -1042,7 +1009,7 @@ fn a_bare_case_spelling_stays_an_unknown_name_of_its_holder() {
         ],
         vec![(31, "client.omg", same_source.as_str())],
     ] {
-        let program = packages(&units, &[], &[]).unwrap();
+        let program = packages(&units, &[]).unwrap();
         let refusal = |name: &str| {
             let machine = program
                 .machines()
@@ -1067,13 +1034,13 @@ fn selected_operator_is_an_ordinary_call_with_its_exact_source_choice() {
     use crate::declaration_selection::AuthoredDeclarationSelectionKind;
     use crate::declaration_selection::AuthoredDeclarationSelectionTarget;
     use crate::source_state::expression::ExpressionNode;
-    let declaration = format!("use units; {OPERATOR}");
+    let declaration = format!("use units/domains.omg as units; {OPERATOR}");
     let program = typed(&[
         ("units/domains.omg", DOMAIN),
         ("operator.omg", &declaration),
         (
             "client.omg",
-            "use units; machine original(value: u32 in Distance) -> u32 in Distance { value } machine sum(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { original(left) + right }",
+            "use units/domains.omg as units; machine original(value: u32 in |units|::Distance) -> u32 in |units|::Distance { value } machine sum(left: u32 in |units|::Distance, right: u32 in |units|::Distance) -> u32 in |units|::Distance { original(left) + right }",
         ),
     ]);
     let target = program.machine_token_bindings()[0].symbol;
@@ -1111,21 +1078,21 @@ fn selected_operator_is_an_ordinary_call_with_its_exact_source_choice() {
 #[test]
 fn named_constants_select_operators_with_their_declared_type() {
     use crate::source_state::expression::ExpressionNode;
-    let declaration = format!("use units; {OPERATOR}");
+    let declaration = format!("use units/domains.omg as units; {OPERATOR}");
     let program = typed(&[
         ("units/domains.omg", DOMAIN),
         ("operator.omg", &declaration),
         (
             "readings/values.omg",
-            r"use units;
-              machine read() -> u32 in Distance { 4u32 as +Distance }
-              public const SAMPLE: u32 in Distance = read();",
+            r"use units/domains.omg as units;
+              machine read() -> u32 in |units|::Distance { 4u32 as + |units|::Distance }
+              public const SAMPLE: u32 in |units|::Distance = read();",
         ),
         (
             "client.omg",
-            r"use units; use readings\SAMPLE;
-              machine summed(value: u32 in Distance) -> u32 in Distance { SAMPLE + value }
-              machine reversed(value: u32 in Distance) -> u32 in Distance { value + readings\SAMPLE }
+            r"use units/domains.omg as units; use readings/values.omg as readings;
+              machine summed(value: u32 in |units|::Distance) -> u32 in |units|::Distance { |readings|::SAMPLE + value }
+              machine reversed(value: u32 in |units|::Distance) -> u32 in |units|::Distance { value + |readings|::SAMPLE }
               machine shadowed(SAMPLE: u32) -> u32 { SAMPLE + 4u32 }",
         ),
     ]);
@@ -1156,7 +1123,7 @@ fn imported_domain_operator_keeps_its_exact_home_and_lexical_module() {
         ("units/domains.omg", "public domain u32::Distance;"),
         (
             "main.omg",
-            "use units; public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { ((left as -Distance) +% (right as -Distance)) as +Distance }",
+            "use units/domains.omg as units; public machine + |units|::Distance::add(left: u32 in |units|::Distance, right: u32 in |units|::Distance) -> u32 in |units|::Distance { ((left as - |units|::Distance) +% (right as - |units|::Distance)) as + |units|::Distance }",
         ),
     ]);
     let domain = program.domain_definitions().first().unwrap();
@@ -1169,13 +1136,13 @@ fn imported_domain_operator_keeps_its_exact_home_and_lexical_module() {
 #[test]
 fn an_enclosing_domain_cast_reads_the_selected_operators_declared_return() {
     use crate::source_state::expression::ExpressionNode;
-    let declaration = format!("use units; {OPERATOR}");
+    let declaration = format!("use units/domains.omg as units; {OPERATOR}");
     let program = typed(&[
         ("units/domains.omg", DOMAIN),
         ("operator.omg", &declaration),
         (
             "client.omg",
-            "use units; machine sum(left: u32 in Distance, right: u32 in Distance) -> u32 { (left + right) as -Distance }",
+            "use units/domains.omg as units; machine sum(left: u32 in |units|::Distance, right: u32 in |units|::Distance) -> u32 { (left + right) as - |units|::Distance }",
         ),
     ]);
     assert!(
@@ -1193,8 +1160,8 @@ fn an_enclosing_domain_cast_reads_the_selected_operators_declared_return() {
 #[test]
 fn operator_can_be_declared_beside_the_domain_or_in_another_owning_module() {
     for declaration in [
-        format!("{DOMAIN} {OPERATOR}"),
-        format!("use units; {OPERATOR}"),
+        format!("{DOMAIN} {LOCAL_OPERATOR}"),
+        format!("use units/domains.omg as units; {OPERATOR}"),
     ] {
         let units = if declaration.starts_with(DOMAIN) {
             vec![("units/domains.omg", declaration.as_str())]
@@ -1213,9 +1180,9 @@ fn operator_can_be_declared_beside_the_domain_or_in_another_owning_module() {
 }
 
 #[test]
-fn unknown_and_ambiguous_homes_reject_without_any_operator_use() {
+fn unknown_and_mismatched_homes_reject_without_any_operator_use() {
     let unknown = format!(
-        "use units; {}",
+        "use units/domains.omg as units; {}",
         OPERATOR.replace("Distance::add", "Missing::add")
     );
     let error = checked(&[("units/domains.omg", DOMAIN), ("main.omg", &unknown)])
@@ -1224,8 +1191,8 @@ fn unknown_and_ambiguous_homes_reject_without_any_operator_use() {
     assert!(error.contains("Missing"), "{error}");
 
     let ambiguous = format!(
-        "use one; use two; {}",
-        OPERATOR.replace("u32 in Distance", "u32 in one::u32::Distance")
+        "use one/domain.omg as units; use two/domain.omg as two; {}",
+        OPERATOR.replace("in |units|::Distance", "in |two|::Distance")
     );
     assert!(
         checked(&[
@@ -1239,14 +1206,13 @@ fn unknown_and_ambiguous_homes_reject_without_any_operator_use() {
 
 #[test]
 fn foreign_package_cannot_declare_the_imported_domains_operator() {
-    let declaration = format!("use dep\\units; {OPERATOR}");
+    let declaration = format!("use {{dep}}/units/domains.omg as units; {OPERATOR}");
     let error = packages(
         &[
             (31, "units/domains.omg", DOMAIN),
             (32, "main.omg", &declaration),
         ],
         &[(32, "dep", 31)],
-        &[(1, 0, "dep::units", 1)],
     )
     .err()
     .unwrap();
@@ -1255,9 +1221,9 @@ fn foreign_package_cannot_declare_the_imported_domains_operator() {
 
 #[test]
 fn duplicate_shapes_across_owning_modules_reject_without_a_use() {
-    let first = format!("use units; {OPERATOR}");
+    let first = format!("use units/domains.omg as units; {OPERATOR}");
     let second = format!(
-        "use units; {}",
+        "use units/domains.omg as units; {}",
         OPERATOR.replace("Distance::add", "Distance::another")
     );
     let error = checked(&[
@@ -1272,8 +1238,7 @@ fn duplicate_shapes_across_owning_modules_reject_without_a_use() {
 
 #[test]
 fn a_domain_home_must_participate_in_the_operand_tuple() {
-    let declaration =
-        "use units; machine + Distance::add(left: u32, right: u32) -> u32 { left +% right }";
+    let declaration = "use units/domains.omg as units; machine + |units|::Distance::add(left: u32, right: u32) -> u32 { left +% right }";
     let error = checked(&[("units/domains.omg", DOMAIN), ("main.omg", declaration)])
         .err()
         .unwrap();
@@ -1287,7 +1252,7 @@ fn a_domain_home_must_participate_in_the_operand_tuple() {
 fn anonymous_arithmetic_does_not_choose_between_unrelated_domain_families() {
     use crate::source_state::expression::ExpressionNode;
     let declaration = format!(
-        "use units; {OPERATOR} {}",
+        "use units/domains.omg as units; {OPERATOR} {}",
         OPERATOR.replace("Distance", "Span")
     );
     let program = typed(&[
@@ -1309,10 +1274,11 @@ fn anonymous_arithmetic_does_not_choose_between_unrelated_domain_families() {
 #[test]
 fn body_imports_belong_to_the_declaring_file() {
     use crate::source_state::expression::ExpressionNode;
-    let body = "machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { helper((left as -Distance) +% (right as -Distance)) as +Distance }";
-    let own_import = format!("use units; use helpers\\helper; {body}");
-    let borrowed_import = format!("use units; {body}");
-    let domain = "use helpers\\helper; public domain u32::Distance;";
+    let body = "machine + |units|::Distance::add(left: u32 in |units|::Distance, right: u32 in |units|::Distance) -> u32 in |units|::Distance { |helpers|::helper((left as - |units|::Distance) +% (right as - |units|::Distance)) as + |units|::Distance }";
+    let own_import =
+        format!("use units/domains.omg as units; use helpers/helper.omg as helpers; {body}");
+    let borrowed_import = format!("use units/domains.omg as units; {body}");
+    let domain = "use helpers/helper.omg as helpers; public domain u32::Distance;";
     let helpers = "public machine helper(value: u32) -> u32 { value }";
     let own = typed(&[
         ("units/domains.omg", domain),
@@ -1329,7 +1295,7 @@ fn body_imports_belong_to_the_declaring_file() {
             .expression_table
             .iter_expressions()
             .filter_map(|(_, node)| match node {
-                ExpressionNode::Call(call) if call.target.as_str() == "helper" => {
+                ExpressionNode::Call(call) if call.target.as_str().ends_with("helper") => {
                     Some(call.target_symbol)
                 }
                 _ => None,
@@ -1355,7 +1321,7 @@ fn domain_family_discovery_preserves_visibility_without_importing_its_module() {
     use language_core::operator_spelling::OperatorSpelling;
     for (public, expected) in [(true, 1), (false, 0)] {
         let declaration = format!(
-            "use units; {} {}",
+            "use units/domains.omg as units; {} {}",
             if public {
                 OPERATOR.to_owned()
             } else {
@@ -1366,8 +1332,8 @@ fn domain_family_discovery_preserves_visibility_without_importing_its_module() {
         let program = packages(&[
             (31, "units/domains.omg", "public domain u32::Distance; public domain u32::Span;"),
             (31, "operations/operators.omg", &declaration),
-            (32, "client.omg", "use dep\\units; machine sum(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { left }"),
-        ], &[(32, "dep", 31)], &[(2, 0, "dep::units", 1)]).unwrap();
+            (32, "client.omg", "use {dep}/units/domains.omg as units; machine sum(left: u32 in |units|::Distance, right: u32 in |units|::Distance) -> u32 in |units|::Distance { left }"),
+        ], &[(32, "dep", 31)]).unwrap();
         let binding = &program.machine_token_bindings()[0];
         let caller = program
             .machines()
@@ -1422,10 +1388,24 @@ fn the_typed_generic_bound_decides_if_a_local_name_conflicts() {
         "machine pick<current>(sample: u32) -> u32 { let current: u32 = sample; current }",
     )])
     .unwrap();
-    for bound in ["core\\Type<0>", "Sort"] {
+    for bound in ["|proof|::Type<0>", "Sort"] {
         let positive = format!(
-            "data Sort = core\\Type<0>; machine pick<const current: {bound}>(sample: u32) -> u32 {{ let current: u32 = sample; current }}"
+            "use {{omega}}/language/core/foundation.omg as proof; data Sort = |proof|::Type<0>; machine pick<const current: {bound}>(sample: u32) -> u32 {{ let current: u32 = sample; current }}"
         );
-        checked(&[("main.omg", &positive)]).unwrap();
+        packages(
+            &[
+                (
+                    0,
+                    "foundation.omg",
+                    include_str!(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/../../../../../../source/library/core/foundation.omg"
+                    )),
+                ),
+                (31, "main.omg", &positive),
+            ],
+            &[],
+        )
+        .unwrap();
     }
 }

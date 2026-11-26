@@ -5,13 +5,13 @@
 //! chains into one block. The fixture checks the folded loop returns the same
 //! value as Psi.
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
 #[test]
 fn a_chained_expression_loop_returns_the_same_value_on_both_engines() {
-    build_fixture::assert_silent_return(
+    program::assert_fixture_silent_return(
         &support::repository_root().join(
             "source-rust/application/tests/fixtures/transitions/run/straight_line_loop_value",
         ),

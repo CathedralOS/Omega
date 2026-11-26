@@ -990,43 +990,21 @@ impl ProofExpressionContext<'_> {
                 {
                     return;
                 }
-                let name = DiagnosticName::from_str(
-                    &members.joined_path(),
-                    diagnostic_path_source_span(members),
+                let (head, symbol) = super::paths::resolve_state_scoped_table_path(
+                    self.symbols,
+                    SymbolHandle::invalid(),
+                    SymbolHandle::invalid(),
+                    self.expression_table,
+                    &path,
+                    None,
                 );
-                let fixed = symbols::FixedCoreDeclaration::from_name(name.as_str())
-                    .and_then(|declaration| self.symbols.fixed_core_declaration_symbol(declaration))
-                    .unwrap_or_default();
-                let (head, symbol, member_symbols) = if fixed.is_valid() {
-                    let mut selected = fixed;
-                    let mut member_symbols = Vec::with_capacity(members.len());
-                    for _ in members {
-                        if !selected.is_valid() || selected == self.symbols.root() {
-                            return;
-                        }
-                        member_symbols.push(selected);
-                        selected = self.symbols.namespace_parent(selected);
-                    }
-                    member_symbols.reverse();
-                    (member_symbols[0], fixed, member_symbols)
-                } else {
-                    let (head, symbol) = super::paths::resolve_state_scoped_table_path(
-                        self.symbols,
-                        SymbolHandle::invalid(),
-                        SymbolHandle::invalid(),
-                        self.expression_table,
-                        &path,
-                        None,
-                    );
-                    let members = super::paths::resolve_state_scoped_table_path_member_symbols(
-                        self.symbols,
-                        SymbolHandle::invalid(),
-                        SymbolHandle::invalid(),
-                        self.expression_table,
-                        &path,
-                    );
-                    (head, symbol, members)
-                };
+                let member_symbols = super::paths::resolve_state_scoped_table_path_member_symbols(
+                    self.symbols,
+                    SymbolHandle::invalid(),
+                    SymbolHandle::invalid(),
+                    self.expression_table,
+                    &path,
+                );
                 if !symbol.is_valid() {
                     let outcome = super::paths::unresolved_scoped_name(
                         self.symbols,

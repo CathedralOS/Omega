@@ -28,45 +28,25 @@ pub(super) fn parse_arguments(
     while let Some(argument) = arguments.next_argument() {
         match argument.to_str() {
             Some("--help" | "-h") => super::set_flag(&mut help, &argument.to_string_lossy())?,
-            Some("--output") => {
-                if output.is_some() {
-                    return Err("duplicate --output".into());
-                }
-                output = Some(PathBuf::from(super::take_value(arguments, "--output")?));
+            Some(flag @ ("--output" | "--artifact")) => {
+                let slot = if flag == "--output" {
+                    &mut output
+                } else {
+                    &mut artifact_path
+                };
+                super::set_once(slot, flag, || {
+                    super::take_value(arguments, flag).map(PathBuf::from)
+                })?;
             }
-            Some("--artifact") => {
-                if artifact_path.is_some() {
-                    return Err("duplicate --artifact".into());
-                }
-                artifact_path = Some(PathBuf::from(super::take_value(arguments, "--artifact")?));
+            Some(flag @ ("--machine" | "--target")) => {
+                let slot = if flag == "--machine" {
+                    &mut machine
+                } else {
+                    &mut target_name
+                };
+                super::set_once(slot, flag, || super::take_text(arguments, flag))?;
             }
-            Some("--machine") => {
-                if machine.is_some() {
-                    return Err("duplicate --machine".into());
-                }
-                machine = Some(super::take_text(arguments, "--machine")?);
-            }
-            Some("--target") => {
-                if target_name.is_some() {
-                    return Err("duplicate --target".into());
-                }
-                target_name = Some(super::take_text(arguments, "--target")?);
-            }
-            _ => {
-                if argument.as_encoded_bytes().starts_with(b"-") {
-                    return Err(format!(
-                        "unrecognized option `{}`",
-                        argument.to_string_lossy()
-                    ));
-                }
-                if root_path.is_some() {
-                    return Err(format!(
-                        "unexpected extra argument `{}`",
-                        argument.to_string_lossy()
-                    ));
-                }
-                root_path = Some(PathBuf::from(argument));
-            }
+            _ => super::positional(argument, &mut root_path, |path| Ok(PathBuf::from(path)))?,
         }
     }
     if help {

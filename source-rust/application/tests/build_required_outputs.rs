@@ -18,20 +18,12 @@ issued, so the host must still refuse it: lending is no way around the check.
 
 */
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 fn check(name: &str, body: &str) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-required-output-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staging directory");
-    std::fs::write(root.join("main.omg"), "machine main() { }\n").expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "use main.omg as app;
+    let build = format!(
+        "use main.omg as app;
 machine build(builder: @mutable Build) {{
     Build::application(builder, \"promised\");
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
@@ -47,19 +39,11 @@ machine settle(builder: @mutable Build, settled: OutputCompletion) {{
     }}
 }}
 "
-        ),
-    )
-    .expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "main.omg", "--target", "linux_x86_64"])
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
+    );
+    project::check(
+        name,
+        &[("main.omg", "machine main() { }\n"), ("build.omg", &build)],
+        &["--check", "main.omg", "--target", "linux_x86_64"],
     )
 }
 
