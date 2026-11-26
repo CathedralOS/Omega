@@ -10,7 +10,7 @@ from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
-FIXTURE = PACKAGE / "tests/fixtures/integers/run/bounds"
+FIXTURE = PACKAGE.parent / "tests/fixtures/source_to_psi/integers/run/bounds"
 
 
 def main():

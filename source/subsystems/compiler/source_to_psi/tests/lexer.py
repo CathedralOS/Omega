@@ -22,7 +22,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("omega", type=Path, help="path to an optimized omega executable")
     cli = parser.parse_args().omega.resolve()
-    fixture = PACKAGE / "tests/fixtures/lexer/run/hex_escape"
+    fixture = PACKAGE.parent / "tests/fixtures/source_to_psi/lexer/run/hex_escape"
     with tempfile.TemporaryDirectory(prefix="omega-product-lexer-") as directory:
         project = Path(directory)
         for name in SOURCES:

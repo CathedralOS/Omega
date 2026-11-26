@@ -9,7 +9,7 @@ from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
-FIXTURES = PACKAGE / "tests/fixtures/typing/run"
+FIXTURES = PACKAGE.parent / "tests/fixtures/source_to_psi/typing/run"
 STAGE = "pipeline/symbol_resolved_trees_to_typed_trees"
 SHARED = (
     "representations/source_files/source.omg",

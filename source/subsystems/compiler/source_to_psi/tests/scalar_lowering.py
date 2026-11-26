@@ -9,7 +9,7 @@ from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
-FIXTURES = PACKAGE / "tests/fixtures/lowering/run"
+FIXTURES = PACKAGE.parent / "tests/fixtures/source_to_psi/lowering/run"
 
 
 def use_fixture(project, name):
