@@ -20,6 +20,7 @@ pub use build_evaluation::{
 };
 pub use build_evaluation_result::{
     BuildConfig, BuildConstants, BuildSubjectValidation, CompileFailure, ComputedBuildConfig,
+    DependencyValidationSubject,
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use package_compilation::build_execution::{

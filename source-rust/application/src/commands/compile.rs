@@ -663,6 +663,24 @@ fn compile_target(
     if portable.is_none() {
         write!(summary, "; wrote_output={wrote_output}").unwrap();
     }
+    for subject in &planned.evaluated().dependency_validation {
+        let name = subject
+            .inputs
+            .package_name(subject.inputs.root())
+            .unwrap_or("<unnamed>");
+        let target = if subject.purpose.is_product() {
+            profile
+        } else {
+            planned.build_profile()
+        };
+        write!(
+            summary,
+            "\nvalidated package {name} ({}, {})",
+            subject.purpose.name(),
+            target.target_name()
+        )
+        .unwrap();
+    }
     Ok(TargetReport {
         portable,
         kind,

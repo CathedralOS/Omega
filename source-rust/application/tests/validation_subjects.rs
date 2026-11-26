@@ -21,17 +21,18 @@ use std::process::Command;
 const UNPROVED: &str = "may overflow `u64`";
 
 const APP_BUILD: &str = "use {omega}/build/dependency.omg;
+use main.omg as program;
 machine build(builder: @mutable Build) {
     Build::application(builder, \"acceptance_app\");
-    let mutable vendor_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: \"vendor\" });
+    let mutable vendor_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: \"../vendor\" });
     |dependency|::with_alias(@mutable vendor_dependency, \"vendor\");
     let vendor_registration: DependencyRegistration = Build::dependency(builder, vendor_dependency);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |program|::main);
 }
 ";
-const APP_MAIN: &str = "use vendor;
-machine main() {
-    let value: u64 = vendor\\count(3u64);
+const APP_MAIN: &str = "use {vendor}/api.omg as vendor;
+public machine main() {
+    let value: u64 = |vendor|::count(3u64);
 }
 ";
 const VENDOR_BUILD: &str =
@@ -60,26 +61,28 @@ impl Project {
         if root.exists() {
             std::fs::remove_dir_all(&root).expect("previous project is removable");
         }
+        std::fs::create_dir_all(root.join("app")).expect("consumer directory");
         std::fs::create_dir_all(root.join("vendor")).expect("project directory");
         for (path, text) in [
-            ("build.omg", APP_BUILD),
-            ("main.omg", self.app_main.as_str()),
+            ("app/build.omg", APP_BUILD),
+            ("app/main.omg", self.app_main.as_str()),
             ("vendor/build.omg", self.vendor_build.as_str()),
-            ("vendor/main.omg", self.vendor_main.as_str()),
+            ("vendor/api.omg", self.vendor_main.as_str()),
         ] {
             std::fs::write(root.join(path), text).expect("project source");
         }
-        root
+        root.join("app")
     }
 }
 
 struct Outcome {
     success: bool,
+    stdout: String,
     stderr: String,
 }
 
 fn check(directory: &Path) -> Outcome {
-    check_entry(directory, "main.omg")
+    check_entry(directory, "build.omg")
 }
 
 fn check_entry(directory: &Path, entry: &str) -> Outcome {
@@ -94,6 +97,7 @@ fn check_entry(directory: &Path, entry: &str) -> Outcome {
         .expect("omega runs");
     Outcome {
         success: output.status.success(),
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
     }
 }
@@ -143,8 +147,7 @@ fn an_unused_invalid_declaration_of_the_subject_fails() {
 #[test]
 fn an_entryless_subject_checks_its_unimported_module_in_any_filename() {
     let root = Project::valid().write("entryless_subject_module");
-    let supplier = root.join("vendor");
-    std::fs::rename(supplier.join("main.omg"), supplier.join("supply.omg")).unwrap();
+    let supplier = root.join("../vendor");
     std::fs::create_dir(supplier.join("units")).unwrap();
     std::fs::write(
         supplier.join("units/conversion.omg"),
@@ -174,14 +177,14 @@ fn an_unreached_invalid_dependency_body_fails_only_when_the_dependency_is_the_su
     };
     let root = project.write("dependency_unused_invalid");
     assert_accepted(&root);
-    assert_refused_in(&root.join("vendor"), "bump");
+    assert_refused_in(&root.join("../vendor"), "bump");
 }
 
 #[test]
 fn an_unused_subject_helper_that_reaches_the_invalid_dependency_body_fails() {
     let project = Project {
         app_main: format!(
-            "{APP_MAIN}machine unused(value: u64) -> u64 {{ vendor\\bump(value) }}\n"
+            "{APP_MAIN}machine unused(value: u64) -> u64 {{ |vendor|::bump(value) }}\n"
         ),
         vendor_main: format!(
             "{VENDOR_MAIN}public machine bump(count: u64) -> u64 {{ count + 1u64 }}\n"
@@ -201,7 +204,7 @@ fn a_dependency_build_checks_what_it_executes_and_not_its_unrelated_declarations
     };
     let root = unrelated.write("dependency_build_unrelated");
     assert_accepted(&root);
-    assert_refused_in(&root.join("vendor"), "unrelated");
+    assert_refused_in(&root.join("../vendor"), "unrelated");
 
     let reached = Project {
         vendor_build: "machine build(builder: @mutable Build) {
@@ -225,7 +228,7 @@ machine unused() reaches |service|::Pulse { |service|::Pulse::tick(); }
     let mut project = Project::valid();
     project.vendor_build = build.to_owned();
     project.vendor_main.clear();
-    let package = project.write("build_boundary_owner").join("vendor");
+    let package = project.write("build_boundary_owner").join("../vendor");
     std::fs::write(
         package.join("service.omg"),
         "public boundary trait Pulse { machine tick() reaches none crashes none; }",
@@ -249,5 +252,52 @@ machine unused() reaches |service|::Pulse { |service|::Pulse::tick(); }
             .contains("cannot prove ensures contract for exit from invalid"),
         "{}",
         refused.stderr
+    );
+}
+
+#[test]
+fn validate_follows_a_copied_registration_and_checks_its_entire_package_once() {
+    let root = Project::valid().write("selected_registration");
+    let validating = APP_BUILD.replace("    Build::bind(", "    let copy: DependencyRegistration = vendor_registration;\n    Build::validate(builder, @copy);\n    Build::validate(builder, @vendor_registration);\n    Build::bind(");
+    std::fs::write(root.join("build.omg"), &validating).unwrap();
+    let accepted = check(&root);
+    assert!(accepted.success, "{}", accepted.stderr);
+    assert_eq!(
+        accepted
+            .stdout
+            .matches("validated package acceptance_vendor (product, linux_x86_64)")
+            .count(),
+        1,
+        "{}",
+        accepted.stdout
+    );
+
+    std::fs::write(
+        root.join("../vendor/unused.omg"),
+        "public machine invalid() -> u32 { true }",
+    )
+    .unwrap();
+    let rejected = check(&root);
+    assert!(
+        !rejected.success && rejected.stderr.contains("unused.omg"),
+        "{}",
+        rejected.stderr
+    );
+    std::fs::write(root.join("build.omg"), APP_BUILD).unwrap();
+    assert_accepted(&root);
+
+    std::fs::write(
+        root.join("build.omg"),
+        validating.replace("= vendor_registration;", "= DependencyRegistration {};"),
+    )
+    .unwrap();
+    let forged = check(&root);
+    assert!(
+        !forged.success
+            && forged
+                .stderr
+                .contains("Build::validate requires a registration this activation issued"),
+        "{}",
+        forged.stderr
     );
 }

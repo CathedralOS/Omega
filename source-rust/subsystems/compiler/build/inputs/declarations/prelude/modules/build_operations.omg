@@ -6,6 +6,11 @@ public machine build_dependency(builder: @mutable Build, description: Dependency
     Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source, PackageReach {})
 }
 
+// Checking the selected dependency is scheduled after this Build returns.
+public machine validate(builder: @mutable Build, registered: @DependencyRegistration) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::validate_dependency(builder, registered);
+}
+
 // The readiness boundary for one exact registration: the Build parks here
 // until the evaluator has acquired that dependency, run its Build and
 // prepared it, then resumes. Earlier statements never run again.

@@ -2,6 +2,7 @@
 mod services;
 mod stages;
 mod successor_inputs;
+mod validation;
 #[cfg(all(test, unix))]
 mod workspace_tests;
 
@@ -742,10 +743,11 @@ fn open_products_with(
         if let Some(started) = step {
             open_timings.add_completed(OPEN_RESOLVE_SOURCES, started.elapsed().as_micros());
         }
-        if resolved
-            .inputs
-            .required_dependency_source_instances()
-            .is_empty()
+        if !resolved.root.has_dependency_validation()
+            && resolved
+                .inputs
+                .required_dependency_source_instances()
+                .is_empty()
             && decisions
                 .iter()
                 .all(|(_, policy)| matches!(policy, Ok(None)))

@@ -240,6 +240,21 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
             .map_err(refused)
     }
 
+    fn validation_subject(
+        &mut self,
+        issued: &[IssuedBuildRequest],
+        purpose: DependencyPurpose,
+        ordinal: usize,
+    ) -> Result<build_execution::DependencyValidationSubject, CompileFailure> {
+        let index = self.dependency(issued, purpose, ordinal)?;
+        let build = &self.host.settled[index].build;
+        Ok(build_execution::DependencyValidationSubject {
+            purpose,
+            inputs: build.inputs().clone(),
+            configuration: std::sync::Arc::clone(&build.evaluated().configuration),
+        })
+    }
+
     fn prepare_dependency(
         &mut self,
         activation: &TerminalBuildActivation,
@@ -488,6 +503,7 @@ impl HandoffSources<'_> {
         products: &mut DependencyProducts,
         alongside: bool,
     ) -> Result<(project_build::PlannedProduct, DependencyRechecks), CompileFailure> {
+        self.validate_dependencies(settled, target, products)?;
         let alongside = alongside && project_build::rechecks_outlive_caller();
         project_build::with_build_rechecks(|| {
             let opened = self
@@ -545,7 +561,7 @@ impl HandoffSources<'_> {
 
     /// Recursively form each package/purpose/target handoff once from that dependency's
     /// original Build return and the handoffs of its own dependencies.
-    fn dependency_inputs(
+    pub(super) fn dependency_inputs(
         &self,
         settled: &project_build::SettledDependency,
         purpose: DependencyPurpose,

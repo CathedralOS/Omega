@@ -94,6 +94,8 @@ pub struct ReturnedBuild {
     destination: Option<project::Destination>,
     pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
+    pub(crate) validation_requests: Vec<(build_declarations::DependencyPurpose, usize)>,
+    pub(crate) validation_subjects: Vec<crate::DependencyValidationSubject>,
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_requests::OptimizationReportRequest,
@@ -108,6 +110,36 @@ pub struct ReturnedBuild {
 }
 
 impl ReturnedBuild {
+    /// Replace this activation's issued coordinates with their frozen subjects after return.
+    pub fn resolve_validation_requests(
+        &mut self,
+        mut resolve: impl FnMut(
+            &[IssuedBuildRequest],
+            build_declarations::DependencyPurpose,
+            usize,
+        )
+            -> Result<crate::DependencyValidationSubject, crate::CompileFailure>,
+    ) -> Result<(), crate::CompileFailure> {
+        for &(purpose, ordinal) in &self.validation_requests {
+            let subject = resolve(&self.requests, purpose, ordinal)?;
+            if subject.purpose != purpose {
+                return Err(vec![diagnostics::Diagnostic::error(
+                    "validation subject changed its registration purpose",
+                )]
+                .into());
+            }
+            if !self.validation_subjects.contains(&subject) {
+                self.validation_subjects.push(subject);
+            }
+        }
+        self.validation_requests.clear();
+        Ok(())
+    }
+
+    pub fn has_dependency_validation(&self) -> bool {
+        !self.validation_subjects.is_empty()
+    }
+
     pub(crate) fn original_acquisition(&self) -> Option<&package_compilation::CapturedLocalSource> {
         self.original_sources
             .as_ref()
@@ -298,7 +330,10 @@ impl TerminalBuildHost {
             original.clone(),
             providers.diagnostic_output_bytes,
             Some(account),
-            original_sources.as_ref().map(|sources| Arc::clone(&sources.libraries)).unwrap_or_default(),
+            original_sources
+                .as_ref()
+                .map(|sources| Arc::clone(&sources.libraries))
+                .unwrap_or_default(),
         )?;
         let bindings = TerminalBuildBindingHost::new(
             artifact,
@@ -455,7 +490,10 @@ impl TerminalBuildHost {
                     .bind_import(boundary, self.filesystem.adapter(declaration.into()))
                     .map_err(describe)?;
             } else {
-                let operation = artifact.module().identities.text(declaration.identity)
+                let operation = artifact
+                    .module()
+                    .identities
+                    .text(declaration.identity)
                     .ok_or("Build import has no callable identity")?;
                 return Err(format!(
                     "Build import `{operation}` has no admitted host operation or installed provider"
@@ -812,6 +850,8 @@ impl TerminalBuildActivation {
             destination,
             source_join: self.host.default_sources.clone(),
             requests: self.requests,
+            validation_requests: self.host.requests.validation_requests()?,
+            validation_subjects: Vec::new(),
             demanded_sources: self.demanded_sources,
             settings,
             optimization_report,

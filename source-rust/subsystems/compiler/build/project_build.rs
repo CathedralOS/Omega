@@ -58,6 +58,18 @@ pub trait PlanningServices {
         .into())
     }
 
+    /// Resolve the exact registration chosen for a full check after the Build returns.
+    fn validation_subject(
+        &mut self,
+        _issued: &[build_execution::host::requests::IssuedBuildRequest],
+        _purpose: build_declarations::DependencyPurpose,
+        _ordinal: usize,
+    ) -> Result<build_execution::DependencyValidationSubject, CompileFailure> {
+        Err(refusal(
+            "Build validation requires a registered dependency service".into(),
+        ))
+    }
+
     /// Return the named root acquired from this activation when a later stage needs it.
     fn declared_source(
         &mut self,
@@ -211,6 +223,15 @@ impl ReturnedPlanningStage {
         &self.returned
     }
 
+    pub fn has_dependency_validation(&self) -> bool {
+        self.returned.has_dependency_validation()
+            || self
+                .preparations
+                .stages
+                .iter()
+                .any(|(_, build)| !build.dependency_validation.is_empty())
+    }
+
     pub fn observe_source_declaration(&self) -> Result<SourceBuildDeclaration, CompileFailure> {
         self.evaluation.observe_source_declaration(&self.returned)
     }
@@ -313,6 +334,11 @@ fn retain_preparations(
         product
             .preparations
             .push((entry, preparation.configuration));
+        for subject in preparation.dependency_validation {
+            if !product.dependency_validation.contains(&subject) {
+                product.dependency_validation.push(subject);
+            }
+        }
         for request in preparation.restricted_build_requests {
             if !product.restricted_build_requests.contains(&request) {
                 product.restricted_build_requests.push(request);
@@ -344,12 +370,15 @@ pub fn interpret(
             .map_err(refusal)
             .map_err(|failure| failure.with_source_completion_accounting(spent))
     })();
-    let returned = result.map_err(|failure| {
+    let mut returned = result.map_err(|failure| {
         let failure = match context {
             Some(context) => failure.in_build_context(context),
             None => failure,
         };
         failure.with_source_completion_accounting(evaluation.source_completion_accounting().clone())
+    })?;
+    returned.resolve_validation_requests(|issued, purpose, ordinal| {
+        services.validation_subject(issued, purpose, ordinal)
     })?;
     evaluation.record_return(&returned)?;
     Ok(ReturnedPlanningStage {

@@ -7,6 +7,15 @@ mod failure;
 pub use configuration::{BuildConfig, ComputedBuildConfig, ExecutedBuildEntry};
 pub use failure::CompileFailure;
 
+/// The frozen package occurrence an executed registration asks the driver to check.
+/// A preparation can select a library which its successor never forwards.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DependencyValidationSubject {
+    pub purpose: build_declarations::DependencyPurpose,
+    pub inputs: package_compilation::PackageCompilationInputs,
+    pub configuration: std::sync::Arc<ComputedBuildConfig>,
+}
+
 #[derive(Clone)]
 pub struct EvaluatedBuild {
     /// Completed, independently admitted preparations in execution order.
@@ -21,6 +30,7 @@ pub struct EvaluatedBuild {
     pub constants: BuildConstants,
     pub interpreter_providers: package_compilation::InterpretedProviderSelections,
     pub subject_validation: BuildSubjectValidation,
+    pub dependency_validation: Vec<DependencyValidationSubject>,
     /// Costs of this Build context, not materialization evidence for Product.
     pub source_completion_accounting: source_completion_accounting::SourceCompletionAccounting,
 }
