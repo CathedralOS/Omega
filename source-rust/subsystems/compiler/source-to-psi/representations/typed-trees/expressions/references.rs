@@ -2134,8 +2134,14 @@ impl TypedReferences for TypeOccurrences {
         if self.operand_owners_only {
             return;
         }
-        if program.static_record_schema(reference, self.owner).is_some() {
-            let occurrence = TypeOccurrence { lexical_owner: self.owner, reference };
+        if program
+            .static_record_schema(reference, self.owner)
+            .is_some()
+        {
+            let occurrence = TypeOccurrence {
+                lexical_owner: self.owner,
+                reference,
+            };
             if !self.requirement_applications.contains(&occurrence) {
                 self.requirement_applications.push(occurrence);
             }
@@ -3199,10 +3205,20 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_mathematical_type(program, retained, parameter.ty);
         }
         visit_mathematical_type(program, retained, definition.result);
-        if let crate::source_state::mathematical::MathematicalBody::Definition(expression) =
-            definition.body
-        {
-            visit_expression(program, retained, expression);
+        match definition.body {
+            crate::source_state::mathematical::MathematicalBody::Definition(expression) => {
+                visit_expression(program, retained, expression);
+            }
+            crate::source_state::mathematical::MathematicalBody::DependentArrow {
+                binders,
+                body,
+            } => {
+                for binder in program.mathematical_parameters(binders) {
+                    visit_mathematical_type(program, retained, binder.ty);
+                }
+                visit_expression(program, retained, body);
+            }
+            crate::source_state::mathematical::MathematicalBody::Assumption => {}
         }
     }
 
@@ -3291,9 +3307,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         // Source selection visits the arguments on the actual type, cast or
         // membership in its lexical scope. Reachability also needs the
         // instantiated theory, including types introduced by preparation.
-        if !retained.inferred_type_references()
-            || !retained.declaration(application.declaration)
-        {
+        if !retained.inferred_type_references() || !retained.declaration(application.declaration) {
             continue;
         }
         for argument in &application.arguments {

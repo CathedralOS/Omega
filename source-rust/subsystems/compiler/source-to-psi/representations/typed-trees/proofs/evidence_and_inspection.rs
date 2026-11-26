@@ -368,6 +368,10 @@ pub mod evidence {
             #[default]
             Assumption,
             Definition(ExpressionHandle),
+            DependentArrow {
+                binders: HandleSpan<MathematicalParameter>,
+                body: ExpressionHandle,
+            },
         }
     }
     pub mod proof_only {
@@ -2954,7 +2958,13 @@ pub mod inspection {
             #[serde(tag = "kind", rename_all = "snake_case")]
             pub enum MathematicalBodySnapshot {
                 Assumption,
-                Definition { term: ExpressionSnapshot },
+                Definition {
+                    term: ExpressionSnapshot,
+                },
+                DependentArrow {
+                    binders: Vec<MathematicalParameterSnapshot>,
+                    term: ExpressionSnapshot,
+                },
             }
 
             fn mathematical_type_snapshot(
@@ -3056,6 +3066,21 @@ pub mod inspection {
                         MathematicalBody::Definition(term) => {
                             MathematicalBodySnapshot::Definition {
                                 term: expression_snapshot(program, *term),
+                            }
+                        }
+                        MathematicalBody::DependentArrow { binders, body } => {
+                            MathematicalBodySnapshot::DependentArrow {
+                                binders: program
+                                    .mathematical_parameters(*binders)
+                                    .iter()
+                                    .map(|parameter| MathematicalParameterSnapshot {
+                                        has_symbol: parameter.symbol.is_valid(),
+                                        name: parameter.name.to_string(),
+                                        relevance: snapshot_binding_relevance(parameter.relevance),
+                                        ty: mathematical_type_snapshot(program, parameter.ty),
+                                    })
+                                    .collect(),
+                                term: expression_snapshot(program, *body),
                             }
                         }
                     },

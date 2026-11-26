@@ -780,6 +780,16 @@ mod mathematical {
                 parameter.symbol =
                     next_child_of_kind(&mut children, symbols, SymbolKind::Parameter);
             }
+            if let crate::source_resolved::mathematical::MathematicalBody::DependentArrow {
+                binders: arrow_binders,
+                ..
+            } = definition.body
+            {
+                for binder in parameters.span_mut_or_empty(arrow_binders) {
+                    binder.symbol =
+                        next_child_of_kind(&mut children, symbols, SymbolKind::Parameter);
+                }
+            }
         });
     }
 }

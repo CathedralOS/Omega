@@ -34,10 +34,23 @@ public trait Antisymmetric<C, R: C -> C -> core\Type> {
     ensures core\Identity::<C>(left, right);
 }
 
+public let IsMere<v: core\Level>(P: core\Type<v>): core\Type<v> =
+    (p: P) -> (q: P) -> core\Identity::<P>(p, q);
+
+public trait MereRelation<C, R: C -> C -> core\Type> {
+    machine proofs_agree(a: C, b: C)
+    ensures IsMere(R(a, b));
+}
+
 public trait Equivalence<C, R: C -> C -> core\Type>:
     Reflexive<C, R>
     + Symmetric<C, R>
     + Transitive<C, R> {
+}
+
+public trait MereEquivalence<C, R: C -> C -> core\Type>:
+    Equivalence<C, R>
+    + MereRelation<C, R> {
 }
 
 public trait Preorder<C, R: C -> C -> core\Type>:

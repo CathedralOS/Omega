@@ -665,7 +665,9 @@ impl Program<'_> {
                     // That referent is storage, so the clause's consumer
                     // observes it at entry or completion through the same
                     // exact input place as a projected record field.
-                    ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::Dereference => {
+                    ExpressionNode::Unary(unary)
+                        if unary.operator == UnaryOperator::Dereference =>
+                    {
                         let ExpressionNode::Name(path) = table.expression(unary.operand) else {
                             return Err(unavailable(
                                 "dereference of other than a borrowed formal in a clause",
@@ -904,11 +906,7 @@ impl Program<'_> {
                             self.wholly_anonymous(binary.right),
                         );
                         if suffix.is_some() && anonymous == (true, true) {
-                            return Err(reject(
-                                id,
-                                source_left,
-                                crate::policy::WHOLLY_ANONYMOUS,
-                            ));
+                            return Err(reject(id, source_left, crate::policy::WHOLLY_ANONYMOUS));
                         }
                         let ((left, left_type), (right, right_type)) = if anonymous.0 {
                             let right = self
@@ -1255,9 +1253,7 @@ impl Program<'_> {
                         let source = SourceOrigin::of(table.source_span(read));
                         let measured = self.layout_query(id, call, query, source)?;
                         let (
-                            crate::body::ExpressionKind::ScalarApplication {
-                                application,
-                            },
+                            crate::body::ExpressionKind::ScalarApplication { application },
                             Some(ValueType::Scalar(scalar_type, qualification)),
                         ) = (measured.kind, measured.result)
                         else {
@@ -1308,6 +1304,15 @@ impl Program<'_> {
                 .map(ClauseTerm::from_type);
         }
         if matches!(usage, ClauseUse::ProofRelevantType) {
+            if let ExpressionNode::Call(call) = table.expression(expression)
+                && typed
+                    .proposition_definition_by_symbol(call.target_symbol)
+                    .is_some()
+            {
+                return self
+                    .named_proposition_call(id, scope, call)
+                    .map(ClauseTerm::Proposition);
+            }
             if let ExpressionNode::Name(name) = table.expression(expression)
                 && !name.reserved_result_of.is_valid()
                 && !name.static_application.is_valid()
@@ -1797,9 +1802,10 @@ impl Program<'_> {
                 // A field of data that has storage is the input's value at
                 // that field path; the checker projects it from the record.
                 (ExpressionNode::Member(_), Some(expected)) if !self.mathematical => {
-                    let (root, path, ty) = self
-                        .projected(id, scope, expression)?
-                        .ok_or_else(|| unavailable("Identity operand has no term at its written carrier"))?;
+                    let (root, path, ty) =
+                        self.projected(id, scope, expression)?.ok_or_else(|| {
+                            unavailable("Identity operand has no term at its written carrier")
+                        })?;
                     if ty != expected {
                         return Err(unavailable(
                             "Identity operand differs from the written carrier",
@@ -1914,10 +1920,9 @@ impl Program<'_> {
                 .map_err(|_| unavailable("clause term table overflow"))?;
             values.push(ClauseValue { carrier, operand });
             if reading_scalar {
-                let term =
-                    crate::body::scalar_clause_value(inferred).ok_or_else(|| {
-                        unavailable("clause application needs a scalar result and operands")
-                    })?;
+                let term = crate::body::scalar_clause_value(inferred).ok_or_else(|| {
+                    unavailable("clause application needs a scalar result and operands")
+                })?;
                 return Ok(ClauseTerm::Scalar(term, expected));
             }
             return Ok(ClauseTerm::Operand(position));

@@ -943,11 +943,17 @@ mod assignment {
                     );
                 }
                 /*
-                    The width of `u<N>` is a const argument, so its name reads a
-                    value, never a type. Each other argument takes its role from
-                    the selected declaration's binder, which the value pass knows.
+                    The width of `u<N>` is a const argument, and the level of
+                    `core::Type<u>` / `core::Strict<u>` is a level binder, so its
+                    name reads a value binder, never a type. Each other argument
+                    takes its role from the selected declaration's binder, which
+                    the value pass knows.
                 */
-                if symbols.integer_family(generic.base_symbol).is_some() {
+                if symbols.integer_family(generic.base_symbol).is_some()
+                    || symbols
+                        .universe_sort_for_symbol(generic.base_symbol)
+                        .is_some()
+                {
                     for handle in generic.arguments.handles() {
                         if let TypeReference::Named { symbol, name, .. } =
                             child_type_references.get_mut(handle)

@@ -121,10 +121,14 @@ mod value_equalities {
                 }
                 Proposition::DeclarationIdentity(clause) => {
                     for value in &mut clause.values {
-                        if let semantic_vocabulary::ClauseOperand::Scalar(term) = &mut value.operand {
+                        if let semantic_vocabulary::ClauseOperand::Scalar(term) = &mut value.operand
+                        {
                             *term = self.scalar(term, budget, depth + 1, &mut Vec::new())?;
                         }
                     }
+                }
+                Proposition::IsMere(inner) => {
+                    **inner = self.proposition(inner, budget, depth + 1)?;
                 }
                 Proposition::IeeeFloatComparison { .. }
                 | Proposition::StructuralCaseMembership { .. }
@@ -224,7 +228,9 @@ mod value_equalities {
                     **right = self.scalar(right, budget, depth + 1, active)?;
                 }
                 ScalarTerm::DeclarationApplication { .. } => {
-                    return Err("a declaration application requires its mathematical signature".into());
+                    return Err(
+                        "a declaration application requires its mathematical signature".into(),
+                    );
                 }
                 ScalarTerm::Application { .. }
                 | ScalarTerm::Value { .. }
