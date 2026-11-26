@@ -106,7 +106,7 @@ pub(crate) fn require_catalog_signature(
             require_exact_atomic_fence_row(syntax_trees, machine, entry)?;
         }
         CatalogFamily::FloatSemantics => {
-            require_exact_semantic_row(syntax_trees, machine, entry, namespace, leaf)?;
+            require_exact_semantic_row(lowerer, syntax_trees, machine, entry, namespace, leaf)?;
         }
         CatalogFamily::RankingView(declaration) => {
             require_exact_ranking_view_row(syntax_trees, machine, entry, declaration)?;
@@ -246,6 +246,7 @@ fn require_exact_ranking_view_row(
     here rather than lowering as an ordinary (unsupplied) declaration.
 */
 fn require_exact_semantic_row(
+    lowerer: &Lowerer,
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
     entry: &syntax::item::State,
@@ -271,15 +272,35 @@ fn require_exact_semantic_row(
         .type_references
         .type_reference(handle)
     {
-        TypeReferenceNode::Named(identifier) => FloatSemanticValueKind::from_spelling(
-            identifier.as_str(syntax_trees),
-        )
-        .ok_or_else(|| {
-            drift(format!(
-                "{position} type `{}` is not a catalog value kind",
-                identifier.as_str(syntax_trees)
-            ))
-        }),
+        TypeReferenceNode::Named(identifier) => {
+            let spelling = identifier.as_str(syntax_trees);
+            let kind = lowerer.constant_selection.as_ref().and_then(|selection| {
+                use language_core::core_vocabulary::CoreVocabulary;
+                use symbols::BuiltinTypeAtom;
+
+                let symbols = selection.header_symbols();
+                let selected = symbols
+                    .lookup_source_type(spelling, identifier.source_span())
+                    .unique()?;
+                match symbols.core_vocabulary(selected) {
+                    Some(CoreVocabulary::FloatFormat) => Some(FloatSemanticValueKind::Format),
+                    Some(CoreVocabulary::FloatMeaning) => Some(FloatSemanticValueKind::Meaning),
+                    Some(CoreVocabulary::FloatClass) => Some(FloatSemanticValueKind::Class),
+                    _ => match symbols.builtin_type_atom(selected)? {
+                        BuiltinTypeAtom::Bool => Some(FloatSemanticValueKind::Bool),
+                        BuiltinTypeAtom::Integer(carrier) => {
+                            Some(FloatSemanticValueKind::Integer(carrier))
+                        }
+                        _ => None,
+                    },
+                }
+            });
+            kind.ok_or_else(|| {
+                drift(format!(
+                    "{position} type `{spelling}` is not a catalog value kind"
+                ))
+            })
+        }
         _ => Err(drift(format!(
             "{position} type is not a named catalog value kind"
         ))),
@@ -443,6 +464,7 @@ fn require_exact_atomic_fence_row(
 
 #[cfg(test)]
 mod compiler_machine_tests {
+    use super::{Lowerer, SyntaxTrees};
     use crate::resolution::{ResolutionRequest, resolve};
     use crate::source_inputs::SourceMap;
     use source_admission::{SourceOrigin, SourceResolutionStratum};
@@ -490,8 +512,85 @@ mod compiler_machine_tests {
         origin: SourceOrigin,
     ) -> (syntax_trees::SyntaxTrees, Arc<SourceMap>) {
         let mut sources = SourceMap::default();
-        let syntax = parse_into(&mut sources, text, path, origin);
+        let mut syntax = parse_into(&mut sources, text, path, origin);
+        if path == "float_operations.omg" {
+            use language_core::bundled_files::BundledFile;
+            for (name, file) in [
+                ("float_meaning.omg", BundledFile::CoreFloatMeaning),
+                ("float_format.omg", BundledFile::CoreFloatFormat),
+            ] {
+                let source = std::str::from_utf8(bundled_declarations::bytes(file)).unwrap();
+                let mut dependency =
+                    parse_into(&mut sources, source, name, SourceOrigin::Toolchain);
+                let tables = &dependency.tables;
+                dependency.roots.items.retain(|item| {
+                    matches!(tables.items.item(*item), syntax_trees::item::Item::Data(_))
+                });
+                syntax.extend_from(&dependency);
+            }
+        }
         (syntax, Arc::new(sources))
+    }
+
+    fn catalog_lowerer(syntax: &SyntaxTrees, sources: Arc<SourceMap>) -> Lowerer {
+        let bindings = crate::resolution::fixture_local_and_core_imports(
+            syntax,
+            &sources,
+            std::path::Path::new("toolchain"),
+        );
+        let selection =
+            crate::resolution::declarations::declaration_selection::ConstantSelection::new(
+                syntax,
+                Some(sources.clone()),
+                bindings.clone(),
+            )
+            .unwrap();
+        let mut lowerer = Lowerer::new(Some(sources), bindings);
+        lowerer.constant_selection = Some(selection);
+        lowerer
+    }
+
+    #[test]
+    fn a_float_semantic_row_refuses_a_user_file_with_the_catalog_type_name() {
+        let mut sources = SourceMap::default();
+        let operations = std::str::from_utf8(bundled_declarations::bytes(
+            language_core::bundled_files::BundledFile::CoreFloatOperations,
+        ))
+        .unwrap();
+        let mut syntax = parse_into(
+            &mut sources,
+            operations,
+            "float_operations.omg",
+            SourceOrigin::Toolchain,
+        );
+        syntax.extend_from(&parse_into(
+            &mut sources,
+            "public data FloatMeaning {}",
+            "float_meaning.omg",
+            SourceOrigin::User,
+        ));
+        let machine = syntax
+            .root_items()
+            .find_map(|item| match item {
+                syntax_trees::item::Item::Machine(machine)
+                    if machine.name.as_str(&syntax) == "FloatSemantics::to_i8" =>
+                {
+                    Some(machine)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let mut lowerer = catalog_lowerer(&syntax, Arc::new(sources));
+        let error = crate::resolution::lowering::machine::lower_machine_into(
+            &mut lowerer,
+            &syntax,
+            machine,
+        )
+        .unwrap_err();
+        assert!(
+            error.message.contains("is not a catalog value kind"),
+            "{error:?}"
+        );
     }
 
     fn resolved(
@@ -499,25 +598,21 @@ mod compiler_machine_tests {
         path: &str,
         origin: SourceOrigin,
     ) -> Result<crate::source_resolved::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
-        let mut sources = SourceMap::default();
-        let mut syntax = parse_into(&mut sources, text, path, origin);
+        let (mut syntax, sources) = parsed(text, path, origin);
+        let mut sources = Arc::unwrap_or_clone(sources);
         syntax.extend_from(&parse_into(
             &mut sources,
             ORDERING,
             "fence_ordering.omg",
             SourceOrigin::Toolchain,
         ));
+        let bindings = crate::resolution::fixture_local_and_core_imports(
+            &syntax,
+            &sources,
+            std::path::Path::new("toolchain"),
+        );
         let mut request = ResolutionRequest::new(syntax);
-        if path == "Atomic/atomic.omg" {
-            request.top_level_bindings = crate::resolution::fixture_file_bindings(
-                &sources,
-                &[(
-                    "toolchain/Atomic/atomic.omg",
-                    "toolchain/fence_ordering.omg",
-                    "fence_ordering",
-                )],
-            );
-        }
+        request.top_level_bindings = bindings;
         request.sources = Some(Arc::new(sources));
         resolve(request)
     }
@@ -586,15 +681,13 @@ mod compiler_machine_tests {
                 "main.omg",
                 SourceOrigin::User,
             ));
-            let mut request = ResolutionRequest::new(syntax);
-            request.top_level_bindings = crate::resolution::fixture_file_bindings(
+            let bindings = crate::resolution::fixture_local_and_core_imports(
+                &syntax,
                 &sources,
-                &[(
-                    "toolchain/main.omg",
-                    "toolchain/static_interrupt.omg",
-                    "interrupts",
-                )],
+                std::path::Path::new("toolchain"),
             );
+            let mut request = ResolutionRequest::new(syntax);
+            request.top_level_bindings = bindings;
             request.sources = Some(Arc::new(sources));
             let resolved = resolve(request).expect("resolve the installer and its caller");
             let call = resolved
@@ -820,8 +913,7 @@ mod compiler_machine_tests {
                     _ => None,
                 })
                 .expect("the bundled declaration must exist");
-            let mut lowerer =
-                crate::resolution::lowering::lowerer::Lowerer::new(Some(sources), vec![]);
+            let mut lowerer = catalog_lowerer(&syntax, sources);
             crate::resolution::lowering::machine::lower_machine_into(
                 &mut lowerer,
                 &syntax,
