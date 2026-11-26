@@ -162,7 +162,7 @@ pub(crate) fn build_product_file_imports(
                 continue;
             };
             // A Build import has no corresponding Product alias.
-            if !import.only_product_operands && super::is_build_file(root.as_deref(), path) {
+            if !import.used_in(DependencyScope::Product) || (import.used_in(DependencyScope::Build) && super::is_build_file(root.as_deref(), path)) {
                 continue;
             }
             let (owner, filename) = match root.as_deref() {

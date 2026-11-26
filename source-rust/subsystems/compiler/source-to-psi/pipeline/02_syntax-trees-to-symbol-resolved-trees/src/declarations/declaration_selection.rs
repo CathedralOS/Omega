@@ -238,8 +238,8 @@ impl<'base> ConstantSelection<'base> {
                     components,
                     alias,
                     span,
-                    only_product_operands: false,
-                }) => {
+                    qualifiers,
+                }) if qualifiers.iter().any(|usage| !usage.product_operand) => {
                     namespaces.record_file_import(syntax, root.as_ref(), *components, alias, *span)
                 }
                 _ => {}
