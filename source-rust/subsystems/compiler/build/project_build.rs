@@ -7,7 +7,7 @@ pub use native_entry::NativeEntryLimits;
 pub mod observations;
 #[path = "planning/product.rs"]
 mod product;
-#[path = "planning/registered_tests.rs"]
+#[path = "planning/registered_tests/mod.rs"]
 mod registered_tests;
 pub use product::ProductStage;
 pub use registered_tests::{RegisteredTestPlan, TestExecution};

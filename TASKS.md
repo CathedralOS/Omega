@@ -332,7 +332,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **BUILD-TEST-COMPARISON.** Supply each registered test's configured arguments, stdin, service inputs and initial files independently to native and Psi. Check each engine's streams and declared files, values and fields against expectations, and compare those observations with `omega build --compare-tests`. Exercise matching exits with different output, identical wrong stdout, and absent versus empty files through the [registered test runner](wiki/spec/build/testing.md#comparing-native-and-psi-tests).
 
-- **TEST-GROUP-FILESYSTEM-TARGETS.** Provide [delegated filesystem backing for test groups](wiki/spec/build/testing.md#test-runner-filesystem-slot) through their ordinary provider selection and [test planning](source-rust/subsystems/compiler/build/planning/registered_tests.rs).
+- **TEST-GROUP-FILESYSTEM-TARGETS.** Provide [delegated filesystem backing for test groups](wiki/spec/build/testing.md#test-runner-filesystem-slot) through their ordinary provider selection and [test planning](source-rust/subsystems/compiler/build/planning/registered_tests/mod.rs).
   - Exercise canonicalization, metadata, directories and file I/O on the hosted targets. Include the Linux libc `realpath` case and report unavailable engines explicitly.
   - On native and Psi, run two tests that each exclusively create the same path, write and read different bytes, and leave a pre-existing host file there untouched. A child must observe writes through its delegated view. Reject a child's request for an ungranted raw host backing before test effects. Keep the service-free group runnable and check that application roots retain their original provider.
 

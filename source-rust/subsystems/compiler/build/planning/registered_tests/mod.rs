@@ -1,9 +1,6 @@
 //! Execute each Build-registered test as a separately published Product.
-#[path = "registered_tests/native.rs"]
 mod native;
-#[path = "registered_tests/plan.rs"]
 mod plan;
-#[path = "registered_tests/result.rs"]
 mod result;
 use self::result::{EngineError, NativeTermination, Observed, PsiTermination, Run, assess};
 use super::ProductStage;
