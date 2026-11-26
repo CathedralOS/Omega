@@ -1072,7 +1072,7 @@ fn absent_normal_body_observations_preserve_continuations_and_forget_results() {
         assert!(!public_summary.result.is_unobserved());
         assert!(matches!(
             public_summary.effects,
-            EffectObservations::Unobserved(_)
+            EffectObservations::Incomplete { .. }
         ));
         let DescriptorInvocationTarget::Public {
             effects_machine,
@@ -1090,7 +1090,7 @@ fn absent_normal_body_observations_preserve_continuations_and_forget_results() {
             usize::from(mutable_slot)
         );
         assert!(!joined.result.is_unobserved());
-        assert!(matches!(joined.effects, EffectObservations::Unobserved(_)));
+        assert!(matches!(joined.effects, EffectObservations::Incomplete { .. }));
         if mutable_slot {
             assert!(
                 matches!(&joined.result.slots().unwrap()[0].origins[0], DescriptorStoredOrigin::IncomingSlot { position: 0, path } if path.is_empty())
