@@ -1,6 +1,6 @@
 use main.omg as program;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "scalar_operation_capacity");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "scalar_operation_capacity" };
     Build::bind(builder, linux_x86_64::ProgramEntry, |program|::start);
     Build::bind(builder, linux_arm64::ProgramEntry, |program|::start);
     Build::bind(builder, macos_arm64::ProgramEntry, |program|::start);

@@ -59,8 +59,8 @@ use targets/windows_x86_64/windows_filesystem_reparse_native.omg as windows_file
 use targets/windows_x86_64/windows_filesystem_transfer_native.omg as windows_filesystem_transfer;
 use targets/windows_x86_64/windows_gui_impl.omg;
 
-machine build(builder: @mutable Build) {
-    Build::package(builder, "system");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "system" };
     configure_clock(builder);
     configure_filesystem_providers(builder);
     configure_macos_image(builder);
@@ -140,7 +140,7 @@ machine build(builder: @mutable Build) {
 // say which one backs each requirement on which target. The portable
 // `Filesystem` sits on the POSIX or Windows raw service, and each
 // POSIX target supplies its own kernel adapters and record layouts.
-machine configure_filesystem_providers(builder: @mutable Build) {
+machine configure_filesystem_providers(builder: @mutable BuildPlan) {
     Build::select_provider::<|filesystem|::Filesystem, |posix_filesystem_adapter|::FilesystemPosixProvider>(builder, linux_x86_64);
     Build::select_provider::<|filesystem|::Filesystem, |posix_filesystem_adapter|::FilesystemPosixProvider>(builder, linux_arm64);
     Build::select_provider::<|filesystem|::Filesystem, |posix_filesystem_adapter|::FilesystemPosixProvider>(builder, macos_arm64);
@@ -161,7 +161,7 @@ machine configure_filesystem_providers(builder: @mutable Build) {
 // Package-local raw supply follows the checked provider closure. Applications
 // use Clock without repeating imports or naming the dependency's private seams.
 // Forward the activation's original Build value through this ordinary helper.
-machine configure_clock(builder: @mutable Build) {
+machine configure_clock(builder: @mutable BuildPlan) {
     Build::select_provider::<|clock|::Clock, |windows_x86_64_clock|::WindowsX8664Clock>(builder, windows_x86_64);
     Build::select_provider::<|clock|::Clock, |windows_x86_64_clock|::WindowsX8664Clock>(builder, windows_arm64);
     Build::bind_native::<|windows_x86_64_wait|::WindowsClockWait::sleep>(builder, windows_x86_64,
@@ -190,7 +190,7 @@ machine configure_clock(builder: @mutable Build) {
 
 // TimeHost owns one target-keyed provider map and its package-local raw supply.
 // Ordinary helpers keep the activation's original mutable Build value.
-machine configure_time_host(builder: @mutable Build) {
+machine configure_time_host(builder: @mutable BuildPlan) {
     Build::bind_native::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_counter>(builder, windows_x86_64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
             library: "kernel32.dll", export: "QueryPerformanceCounter"
@@ -258,7 +258,7 @@ machine configure_time_host(builder: @mutable Build) {
 // The raw Windows filesystem requirements are backed here; their traits carry
 // every contract, so no forwarding declaration restates one. Several requirements
 // share a DLL function and differ only in the contract they promise.
-machine configure_windows_filesystem(builder: @mutable Build) {
+machine configure_windows_filesystem(builder: @mutable BuildPlan) {
     // ReadFile/WriteFile split a borrowed view by each target's C ABI.
     Build::select_provider::<|windows_filesystem_transfer|::WindowsFilesystemTransfer, |windows_filesystem_transfer|::WindowsX64FilesystemTransfer>(builder, windows_x86_64);
     Build::select_provider::<|windows_filesystem_transfer|::WindowsFilesystemTransfer, |windows_filesystem_transfer|::WindowsArm64FilesystemTransfer>(builder, windows_arm64);
@@ -604,7 +604,7 @@ machine configure_windows_filesystem(builder: @mutable Build) {
 // here; the boundary traits carry every contract, so no forwarding declaration
 // restates one. Darwin's filesystem provider reads `errno` through the same
 // `PosixErrno::slot` row.
-machine configure_posix_canonical(builder: @mutable Build) {
+machine configure_posix_canonical(builder: @mutable BuildPlan) {
     Build::bind_native::<|posix_filesystem_adapter|::PosixCanonicalLibc::resolve>(builder, linux_x86_64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.3"
@@ -635,7 +635,7 @@ machine configure_posix_canonical(builder: @mutable Build) {
 // target binds its own system call numbers. Byte-view requirements carry the
 // per-target calling convention in their boundary trait, so the same member
 // names bind different traits on x86_64 and arm64.
-machine configure_posix_filesystem(builder: @mutable Build) {
+machine configure_posix_filesystem(builder: @mutable BuildPlan) {
     Build::bind_native::<|linux_x86_64_posix_filesystem_impl|::PosixFilesystemLinux::openat>(builder, linux_x86_64,
         |native|::ForeignBinding::Syscall { number: 257 });
     Build::bind_native::<|linux_x86_64_posix_filesystem_impl|::PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
@@ -751,7 +751,7 @@ machine configure_posix_filesystem(builder: @mutable Build) {
 
 // The Darwin POSIX filesystem requirements resolve against libSystem; every
 // member shares one install name and keeps its authored Mach-O symbol.
-machine configure_posix_filesystem_darwin(builder: @mutable Build) {
+machine configure_posix_filesystem_darwin(builder: @mutable BuildPlan) {
     Build::bind_native::<|macos_arm64_posix_filesystem_impl|::PosixFilesystemDarwin::c_open>(builder, macos_arm64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_open"
@@ -895,7 +895,7 @@ machine configure_posix_filesystem_darwin(builder: @mutable Build) {
 }
 
 // Console providers and raw host bindings are selected for each hosted target.
-machine configure_console(builder: @mutable Build) {
+machine configure_console(builder: @mutable BuildPlan) {
     Build::bind_native::<|windows_x86_64_console_impl|::WindowsConsoleIo::write>(builder, windows_x86_64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
             library: "msvcrt.dll", export: "_write"
@@ -969,7 +969,7 @@ machine configure_console(builder: @mutable Build) {
 
 // Win32 GUI leaves: window and message pumps on user32, device-context and
 // client-rectangle reads on user32, and bitmap presentation on gdi32.
-machine configure_windows_gui(builder: @mutable Build) {
+machine configure_windows_gui(builder: @mutable BuildPlan) {
     Build::bind_native::<|windows_gui_impl|::WindowsGuiIo::create_window>(builder, windows_x86_64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
             library: "user32.dll", export: "CreateWindowExA"
@@ -1076,7 +1076,7 @@ machine configure_windows_gui(builder: @mutable Build) {
         } });
 }
 
-machine configure_macos_gui(builder: @mutable Build) {
+machine configure_macos_gui(builder: @mutable BuildPlan) {
     Build::bind_native::<|macos_gui|::AppKit::load>(builder, macos_arm64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/AppKit.framework/AppKit",
@@ -1116,7 +1116,7 @@ machine configure_macos_gui(builder: @mutable Build) {
 
 // Native object storage belongs to the image module; the original Build value
 // records its exact requirements and locators for the macOS deployment target.
-machine configure_macos_image(builder: @mutable Build) {
+machine configure_macos_image(builder: @mutable BuildPlan) {
     Build::bind_native::<|macos_image|::MacosImageData::copy>(builder, macos_arm64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
@@ -1151,7 +1151,7 @@ machine configure_macos_image(builder: @mutable Build) {
 
 // Select the checked no-return wrapper. Its authenticated core primitive owns
 // full-process completion; selecting it grants no exit authority.
-machine configure_process_exit(builder: @mutable Build) {
+machine configure_process_exit(builder: @mutable BuildPlan) {
     Build::select_provider::<|process|::ProcessExit, |process_exit|::NativeProcessExit>(builder, windows_x86_64);
     Build::select_provider::<|process|::ProcessExit, |process_exit|::NativeProcessExit>(builder, windows_arm64);
     Build::select_provider::<|process|::ProcessExit, |process_exit|::NativeProcessExit>(builder, linux_x86_64);
