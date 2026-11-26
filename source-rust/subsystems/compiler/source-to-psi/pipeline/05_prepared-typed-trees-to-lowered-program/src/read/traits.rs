@@ -112,7 +112,8 @@ impl<'program> Program<'program> {
         {
             return true;
         }
-        let binders = parameters.iter()
+        let binders = parameters
+            .iter()
             .filter(|parameter| {
                 matches!(
                     parameter.kind,
@@ -414,7 +415,10 @@ impl<'program> Program<'program> {
                     .map(|formal| formal.type_reference)
                     .chain([signature.return_type])
                     .any(|reference| {
-                        self.schema_needs_parameter_storage(reference, &scope.source.rigid_parameters)
+                        self.schema_needs_parameter_storage(
+                            reference,
+                            &scope.source.rigid_parameters,
+                        )
                     })
             {
                 Some(declaration.symbol)
@@ -605,20 +609,35 @@ impl<'program> Program<'program> {
                 // service, the declaring boundary owns each inherited contract.
                 if selected_calling.is_none() && !declaration.machines.is_empty() {
                     self.boundary_trait_declaration(context, declaration)?;
-                    let schema = self.static_contracts.schemas.iter()
+                    let schema = self
+                        .static_contracts
+                        .schemas
+                        .iter()
                         .find(|schema| schema.declaration == declaration.symbol)
-                        .ok_or_else(|| unavailable("inherited service lost its admitted declaration"))?;
+                        .ok_or_else(|| {
+                            unavailable("inherited service lost its admitted declaration")
+                        })?;
                     for requirement in typed.trait_machine_signatures(declaration) {
                         let header = typed
                             .applied_callable_signature(parent, requirement.symbol)
                             .or_else(|| {
-                                parent.keeps_declared_signatures(typed).then_some(requirement)
+                                parent
+                                    .keeps_declared_signatures(typed)
+                                    .then_some(requirement)
                             })
                             .ok_or_else(|| {
-                                unavailable("inherited boundary call has no complete applied header")
+                                unavailable(
+                                    "inherited boundary call has no complete applied header",
+                                )
                             })?;
-                        if !schema.requirements.iter().any(|row| row.declaration == header.symbol) {
-                            return Err(unavailable("inherited call is absent from the declaring service's contract"));
+                        if !schema
+                            .requirements
+                            .iter()
+                            .any(|row| row.declaration == header.symbol)
+                        {
+                            return Err(unavailable(
+                                "inherited call is absent from the declaring service's contract",
+                            ));
                         }
                     }
                 }
@@ -855,7 +874,18 @@ impl<'program> Program<'program> {
             );
             return Ok(true);
         }
-        self.read_trait_schema(context, schema)?;
+        let has_proposition_parameter =
+            typed.trait_type_parameters(schema).iter().any(|parameter| {
+                matches!(
+                    parameter.kind,
+                    crate::source_state::data::TypeParameterKind::Proposition { .. }
+                )
+            });
+        if !schema.is_boundary && has_proposition_parameter {
+            schema_shape(typed, context, schema)?;
+        } else {
+            self.read_trait_schema(context, schema)?;
+        }
         let application = match selected {
             Some((record, _)) => record.trait_scope.scope(typed),
             None => AppliedTraitScope::from_conformance(typed, declaration),
@@ -1140,21 +1170,30 @@ impl<'program> Program<'program> {
         let outer = std::mem::take(&mut self.scope);
         // A non-generic conformance supplies its receiver arguments together,
         // independently of which parameters its chosen method uses.
-        let mut substitutions = Vec::new();
-        let values = typed
-            .trait_type_parameters(application.declaration)
-            .iter()
-            .filter(|binder| binder.kind == crate::source_state::data::TypeParameterKind::Type)
-            .map(|binder| {
-                let actual = application.parameter_argument(typed, binder.symbol);
-                substitutions.push((binder.symbol, actual));
-                self.value_type(context, actual)
-                    .map(|value| (binder.symbol, value))
-            })
-            .collect::<Checked<Vec<_>>>();
+        let read = (|| -> Checked<_> {
+            let mut substitutions = Vec::new();
+            let mut values = Vec::new();
+            for binder in typed.trait_type_parameters(application.declaration) {
+                match binder.kind {
+                    crate::source_state::data::TypeParameterKind::Type => {
+                        let actual = application.parameter_argument(typed, binder.symbol);
+                        substitutions.push((binder.symbol, actual));
+                        let value = self.value_type(context, actual)?;
+                        values.push((binder.symbol, value));
+                    }
+                    crate::source_state::data::TypeParameterKind::Proposition { .. } => {
+                        let actual = application.parameter_argument(typed, binder.symbol);
+                        substitutions.push((binder.symbol, actual));
+                    }
+                    _ => {}
+                }
+            }
+            Ok((values, substitutions))
+        })();
         self.scope = outer;
+        let (values, substitutions) = read?;
         Ok(RequirementTypeScope {
-            values: values?,
+            values,
             source: self.extended_source_scope(substitutions),
         })
     }
