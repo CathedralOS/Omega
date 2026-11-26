@@ -33,17 +33,38 @@ pub(super) enum FileSelection {
 }
 
 impl<'a> FileImport<'a> {
-    pub fn from(source: &'a ParsedSourceSummary, import: &'a SourceImport) -> Option<Self> {
+    pub fn from(
+        source: &'a ParsedSourceSummary,
+        import: &'a SourceImport,
+    ) -> Result<Option<Self>, Vec<Diagnostic>> {
         let SourceImportTarget::File { root, path, alias } = &import.target else {
-            return None;
+            // The installed core and target contracts have their own issued source.
+            // A package or installed Build helper must select an exact file before entry.
+            if source.scope == DependencyScope::Build
+                && !matches!(
+                    source.origin,
+                    Some(
+                        source_admission::SourceOrigin::Toolchain
+                            | source_admission::SourceOrigin::ToolchainContract
+                    )
+                )
+            {
+                let error = Diagnostic::error(format!(
+                    "Build import `{}` requires an exact .omg filename",
+                    import.target
+                ))
+                .with_source_span(source_text::SourceSpan::new(source.source_id, import.span));
+                return Err(vec![error]);
+            }
+            return Ok(None);
         };
-        Some(Self {
+        Ok(Some(Self {
             root: root.as_deref(),
             path,
             alias,
             import,
             source,
-        })
+        }))
     }
 
     fn occurrence(&self) -> ImportOccurrence {
