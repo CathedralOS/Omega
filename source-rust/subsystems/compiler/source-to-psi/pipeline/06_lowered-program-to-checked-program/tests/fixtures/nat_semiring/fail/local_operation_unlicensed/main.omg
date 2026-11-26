@@ -14,7 +14,10 @@ terminates by a
 }
 
 machine relies_on_nothing(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat)
-ensures core\Identity::<|nat|::Nat>(plus_local(|nat|::mul(a, b), plus_local(c, a)), plus_local(a, plus_local(c, |nat|::mul(b, a))))
+ensures core\Identity::<|nat|::Nat>(
+    plus_local(|nat|::mul(a, b), plus_local(c, a)),
+    plus_local(a, plus_local(c, |nat|::mul(b, a)))
+)
 {
 }
 

@@ -167,7 +167,7 @@ fn an_operation_outside_the_conformance_gets_no_license_from_it() {
     );
     let site = law.site.expect("the law's ensures clause");
     assert!(
-        source[site.span.start..].starts_with("core\\Identity::<|nat|::Nat>(plus_local("),
+        source[site.span.start..].starts_with("core\\Identity::<|nat|::Nat>("),
         "{site:?}"
     );
 }

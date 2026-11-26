@@ -6,7 +6,10 @@
 use {omega}/language/core/nat.omg;
 
 machine relies_on_the_semiring(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat)
-ensures core\Identity::<|nat|::Nat>(|nat|::add(|nat|::mul(a, b), |nat|::add(c, a)), |nat|::add(a, |nat|::add(c, |nat|::mul(b, a))))
+ensures core\Identity::<|nat|::Nat>(
+    |nat|::add(|nat|::mul(a, b), |nat|::add(c, a)),
+    |nat|::add(a, |nat|::add(c, |nat|::mul(b, a)))
+)
 {
 }
 
