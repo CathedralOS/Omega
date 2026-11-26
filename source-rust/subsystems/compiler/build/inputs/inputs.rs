@@ -11,7 +11,6 @@ pub use source::anonymous_owner::AnonymousSourceCapture;
 pub use source_acquisition::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
 use wire::codec_bytes;
-mod reuse;
 mod source;
 pub(crate) use ::wire::digest_encoder;
 pub use build_execution::*;
@@ -32,7 +31,6 @@ pub use package::{
     PackageSourceBinding,
 };
 pub use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
-pub use reuse::compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 pub use source::source_consumption::{
     BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,
     PackageSourceConsumptionCommitment, derive_package_compilation_subject,
