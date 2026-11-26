@@ -174,9 +174,11 @@ test('use lines and where they point', () => {
     'use kit\\main as k;',
     'use {system}/filesystem_host.omg as paths;',
     'use {wav_output}/wav_output/wav_output.omg as output;',
+    'use {omega}/build/dependencies/providers/git.omg as remote;',
   ].join('\n'));
   const uses = scan.parseUses(masked);
   const target = (index, name, extra = {}) => scan.importTarget(uses[index], { name, alias: '', qualifier: '', member: false, ...extra });
+  assert.deepEqual(target(8, 'pin', { alias: 'remote' }), { library: 'build', file: 'dependencies/providers/git.omg' });
   assert.deepEqual(target(0, 'plan'), { file: 'calling.omg' });
   assert.equal(target(0, 'plan', { alias: 'other' }), null);
   assert.equal(target(0, 'plan', { alias: 'calling' }), null);

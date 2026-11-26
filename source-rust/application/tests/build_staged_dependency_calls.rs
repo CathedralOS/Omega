@@ -22,12 +22,13 @@ fn check_with_dependency_build(
     let build = format!(
         "use support/support.omg as amounts;
 
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build)
 suspends
 {{
     builder.tests.disabled = true;
-    let mutable kit_request: DependencyDescription = dependency\\from_source(Source::Path {{ location: \"dep\" }});
-    dependency\\with_alias(@mutable kit_request, \"kit\");
+    let mutable kit_request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: \"dep\" }});
+    |dependency|::with_alias(@mutable kit_request, \"kit\");
     let kit_registered: DependencyRegistration = register(builder, kit_request);
 {before}
     suspend Build::prepare_dependency(builder, kit_registered);
@@ -339,10 +340,11 @@ fn build_helpers_are_checked_at_the_call_site_in_both_file_layouts() {
     ] {
         let build = format!(
             r#"{import}
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {{
     announce(builder);
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "dep" }});
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     let expected: i32 = 7;
     suspend Build::prepare_dependency(builder, registered);
@@ -471,11 +473,12 @@ requires a == b && a < larger && flag == second && enabled { }";
             .target_name();
         let build = format!(
             r#"use counts.omg as counts;
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {{
     Build::application(builder, "staged");
     builder.tests.disabled = true;
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "dep" }});
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
 {before}
     suspend Build::prepare_dependency(builder, registered);
@@ -599,10 +602,11 @@ fn a_build_keeps_the_byte_its_helper_read_before_preparation() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let build = r#"use counts.omg as counts;
 machine middle(bytes: @[u8]) -> u8 requires bytes.length == 3 { bytes[1] }
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "staged_byte_read");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     let byte: u8 = middle("kit");
     suspend Build::prepare_dependency(builder, registered);
@@ -657,7 +661,7 @@ fn a_field_borrow_survives_preparing_a_product_dependency() {
     );
     assert!(
         !ran && report.contains("storage is changed while a conflicting reference remains live")
-            && report.contains("build.omg:19:"),
+            && report.contains("build.omg:20:"),
         "{report}"
     );
 }
@@ -710,10 +714,11 @@ fn a_suspending_helper_returns_its_local_value_after_preparation() {
 fn a_transition_can_use_the_result_of_a_suspending_build_helper() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let build = r#"use counts.omg as counts;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "ready_subject");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     SUBJECT {
         true -> finish(builder),
@@ -808,10 +813,11 @@ public machine score() -> i32 {
     )
     .unwrap();
     let build = r#"use support/helpers.omg as support;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "prepared_type");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "vendor" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registered);
     let score: i32 = |support|::score();
@@ -886,6 +892,7 @@ fn each_transition_arm_can_prepare_its_own_dependency() {
     }
     let build = r#"use alpha.omg as alpha;
 use beta.omg as beta;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "alternatives");
     builder.tests.disabled = FLAG;
@@ -894,13 +901,13 @@ machine build(builder: @mutable Build) suspends {
         _ -> suspend right(builder)
     }
     machine left(builder: @mutable Build) suspends {
-        let item: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "left_vendor" }));
+        let item: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "left_vendor" }));
         suspend Build::prepare_dependency(builder, item);
         let actual: i32 = |alpha|::value();
         transition actual == 7 { true -> done(builder), _ -> wrong(builder) }
     }
     machine right(builder: @mutable Build) suspends {
-        let item: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "right_vendor" }));
+        let item: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "right_vendor" }));
         suspend Build::prepare_dependency(builder, item);
         let actual: i32 = |beta|::value();
         transition actual == 13 { true -> done(builder), _ -> wrong(builder) }
@@ -947,10 +954,11 @@ machine build(builder: @mutable Build) suspends {
 fn resumption_preserves_arithmetic_and_float_contracts() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let build = r#"use counts.omg as counts;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "staged_proofs");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     let start: i32 = pick(builder.tests.disabled);
     let after: i32 = increment(start);
@@ -1003,10 +1011,11 @@ fn only_the_selected_transition_arm_waits_for_its_dependency() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let build = r#"use counts.omg as counts;
 const CHOSEN: bool = FLAG;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "conditional");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     builder.tests.disabled = CHOSEN;
     transition builder.tests.disabled {
@@ -1191,7 +1200,7 @@ fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() 
     );
     assert!(
         !ran && report.contains("Build filesystem value was not issued by this activation")
-            && report.contains("build.omg:17:")
+            && report.contains("build.omg:19:")
             && !report.contains("ExecutionSite")
             && !report.contains("EffectRejected"),
         "{report}"
@@ -1236,7 +1245,7 @@ fn a_local_call_after_a_wait_does_not_end_a_live_shared_borrow() {
     );
     assert!(
         !ran && report.contains("storage is changed while a conflicting reference remains live")
-            && report.contains("build.omg:14:14")
+            && report.contains("build.omg:15:14")
             && !report.contains("while resuming the Build after dependency preparation"),
         "{report}"
     );
@@ -1250,10 +1259,11 @@ fn a_user_record_named_dependency_registration_keeps_its_own_fields() {
         r#"use counts.omg as counts;
 use support/support.omg as issued;
 data DependencyRegistration [copy] {{ mark: u32; }}
+use {{omega}}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {{
     Build::application(builder, "staged");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path {{ location: "dep" }});
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "dep" }});
+    |dependency|::with_alias(@mutable request, "kit");
     let shadow: DependencyRegistration = DependencyRegistration {{ mark: 7u32 }};
     let real: |issued|::IssuedRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, real);
@@ -1333,7 +1343,7 @@ fn a_preparation_refuses_shadowing_before_the_first_build_effects() {
     );
     assert!(!compiled, "{stderr}");
     assert!(
-        stderr.contains("an earlier local with this name is still visible") && stderr.contains("build.omg:13:9"),
+        stderr.contains("an earlier local with this name is still visible") && stderr.contains("build.omg:14:9"),
         "{stderr}"
     );
 }
@@ -1372,8 +1382,8 @@ fn a_build_can_call_its_local_helper_before_and_after_a_product_wait() {
 fn a_product_dependency_is_not_selectable_from_the_build() {
     let (compiled, stderr) = check(
         "product-dependency",
-        "    let mutable lib_request: DependencyDescription = dependency\\from_source(Source::Path { location: \"dep\" });
-    dependency\\with_alias(@mutable lib_request, \"lib\");
+        "    let mutable lib_request: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
+    |dependency|::with_alias(@mutable lib_request, \"lib\");
     let lib_registered: DependencyRegistration = Build::dependency(builder, lib_request);",
         &after("lib\\v"),
         7,
@@ -1395,7 +1405,7 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
     );
     let location = stderr.lines().map(str::trim).find_map(|line| {
         line.strip_prefix("at ")
-            .and_then(|position| position.strip_suffix(":14:22"))
+            .and_then(|position| position.strip_suffix(":15:22"))
     });
     let expected_path = std::path::PathBuf::from(format!(
         "omega-build-staged-dependency-calls-{}-product-dependency",
@@ -1480,9 +1490,10 @@ machine wrong() crashes Trap { crash Trap; }
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let build = r#"machine build(builder: @mutable Build) suspends {
+    let build = r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) suspends {
     Build::application(builder, "prepared_product");
-    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "vendor" }));
+    let registered: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "vendor" }));
     suspend Build::prepare_dependency(builder, registered);
     Build::bind(builder, HOST_TARGET::ProgramEntry, main);
 }
@@ -1561,10 +1572,11 @@ fn a_wait_cannot_add_a_library_to_the_checked_build() {
         return;
     };
     let build = r#"use {kit}/main.omg as chosen;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "fixed_imports");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registered);
     let value: i32 = |chosen|::v();
@@ -1627,9 +1639,10 @@ fn a_build_binds_its_products_file_without_being_able_to_call_it() {
     )
     .unwrap();
     let build = r#"use {kit}/entry.omg as selected;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "product_file");
-    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "vendor" }));
+    let registered: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "vendor" }));
     suspend Build::prepare_dependency(builder, registered);
     Build::bind(builder, HOST::ProgramEntry, |selected|::start);
 }"#.replace("HOST", host.target_name());
@@ -1678,10 +1691,11 @@ fn a_dependency_publishes_source_bytes_under_the_name_the_product_imports() {
         .unwrap()
         .target_name();
     let build = r#"use {kit}/generated/start.omg as entry;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "generated_entry");
-    let mutable source: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable source, "kit");
+    let mutable source: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable source, "kit");
     let registered: DependencyRegistration = Build::dependency(builder, source);
     suspend Build::prepare_dependency(builder, registered);
     Build::bind(builder, HOST::ProgramEntry, |entry|::start);

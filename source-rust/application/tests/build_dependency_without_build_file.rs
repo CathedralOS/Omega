@@ -33,10 +33,11 @@ fn check(name: &str, dependency_build: Option<&str>) -> (bool, String) {
     .expect("staged program");
     std::fs::write(
         root.join("build.omg"),
-        "machine build(builder: @mutable Build) {
+        "use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
     Build::application(builder, \"consumer\");
-    let mutable description: DependencyDescription = dependency\\from_source(Source::Path { location: \"dep\" });
-    dependency\\with_alias(@mutable description, \"dep\");
+    let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
+    |dependency|::with_alias(@mutable description, \"dep\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ",

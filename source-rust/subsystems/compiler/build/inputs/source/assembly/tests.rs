@@ -254,6 +254,7 @@ machine build(builder: @mutable Build) {
 #[test]
 fn build_imports_are_fixed_before_a_conditional_dependency_wait() {
     let conditional = r#"use {scores}/value.omg as scores;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "fixed_wait");
     let path: BuildPath = BuildOutput::resolve(@builder.output, "ran.txt");
@@ -266,7 +267,7 @@ machine build(builder: @mutable Build) suspends {
         _ -> done(builder)
     }
     machine later(builder: @mutable Build) suspends {
-        let request: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "lib" }));
+        let request: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "lib" }));
         suspend Build::prepare_dependency(builder, request);
         let value: i32 = |scores|::value();
     }

@@ -69,21 +69,6 @@ pub(crate) struct ResolvedSourceImport {
     pub path: PathBuf,
 }
 
-impl ResolvedSourceImport {
-    pub(crate) fn file(
-        source: SourceId,
-        ordinal: usize,
-        name: String,
-        alias: &str,
-        declaration: &source_admission::SourceFile,
-    ) -> Self {
-        Self {
-            occurrence: ImportOccurrence::file(source, ordinal, name, alias, None),
-            path: declaration.path.clone(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub(crate) struct PendingPackageImport {
     pub(super) occurrence: ImportOccurrence,

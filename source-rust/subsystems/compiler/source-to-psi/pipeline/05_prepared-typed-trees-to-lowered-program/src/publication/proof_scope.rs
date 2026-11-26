@@ -6,7 +6,7 @@ use crate::source_state::TypedTrees;
 use proof_applications::{ProofApplicationCall, ProofApplicationMachine, ProofCallMachine};
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::compiler_evaluation::{
-    CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,
+    CompilerEvaluationDeclaration, CompilerEvaluationEffects,
 };
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
@@ -651,7 +651,7 @@ fn boundary_header(
     let evaluation = (|| {
         Ok(CompilerEvaluationDeclaration {
             name: typed.symbols.name(symbol).to_owned(),
-            custody: declaration_custody(typed, symbol),
+            custody: typed.symbols.declaration_custody(symbol),
             effects: CompilerEvaluationEffects {
                 services: published_services(module, &boundary.published_service_ceiling)?,
                 may_suspend: callable.source.published_may_suspend,
@@ -705,25 +705,6 @@ fn published_services(
                 .ok_or_else(|| "proof scope lost an exact published service".into())
         })
         .collect()
-}
-
-fn declaration_custody(typed: &TypedTrees, symbol: symbols::SymbolHandle) -> DeclarationCustody {
-    if !typed.symbols.symbols().nodes().is_valid(symbol) {
-        return DeclarationCustody::Missing;
-    }
-    match (
-        typed.symbols.symbol_package_identity(symbol),
-        typed.symbols.symbol_source_origin(symbol),
-    ) {
-        (Some(package), _) => DeclarationCustody::Package(package),
-        (_, Some(source_admission::SourceOrigin::Toolchain)) => DeclarationCustody::Toolchain,
-        (_, Some(source_admission::SourceOrigin::ToolchainContract)) => {
-            DeclarationCustody::ToolchainContract
-        }
-        (_, Some(source_admission::SourceOrigin::User)) => DeclarationCustody::UnownedUser,
-        _ if typed.symbols.builtin_type_atom(symbol).is_some() => DeclarationCustody::Toolchain,
-        _ => DeclarationCustody::Missing,
-    }
 }
 
 fn selection_requests(
@@ -868,8 +849,8 @@ impl Extend<symbols::SymbolHandle> for SelectionReferences<'_> {
                 return;
             }
             match declaration_authority_request(
-                declaration_custody(self.typed, self.supplier),
-                declaration_custody(self.typed, symbol),
+                self.typed.symbols.declaration_custody(self.supplier),
+                self.typed.symbols.declaration_custody(symbol),
             ) {
                 Ok(Some(request)) => self.requests.push(request),
                 Ok(None) => {}

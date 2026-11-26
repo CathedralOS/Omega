@@ -26,7 +26,8 @@ pub(super) struct FileImport<'a> {
     source: &'a ParsedSourceSummary,
 }
 
-pub(super) enum FileSelection {    Selected(ResolvedSourceImport),
+pub(super) enum FileSelection {
+    Selected(ResolvedSourceImport),
     Package(PendingPackageImport),
     Unbound,
 }
@@ -87,7 +88,12 @@ impl<'a> FileImport<'a> {
         }))
     }
 
-    fn core(&self, filesystem: &SourceFileSystem) -> Result<FileSelection, Vec<Diagnostic>> {
+    fn toolchain(&self, filesystem: &SourceFileSystem) -> Result<FileSelection, Vec<Diagnostic>> {
+        if self.source.scope == DependencyScope::Build
+            && let Some(relative) = self.path.strip_prefix("build/")
+        {
+            return self.select_captured(&super::bundled_build_root()?, relative, filesystem);
+        }
         let relative = core_relative_path(self.path).map_err(|reason| self.error(reason.into()))?;
         self.select_captured(&super::bundled_core_root()?, relative, filesystem)
     }
@@ -136,13 +142,12 @@ impl<'a> FileImport<'a> {
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
         if self.source.scope == DependencyScope::Build
-            && (self.import.only_product_operands
-                || build_declarations::build_file(self.root, self.path).is_some())
+            && self.import.only_product_operands
         {
             return Ok(FileSelection::Unbound);
         }
         match self.root {
-            Some("omega") => self.core(filesystem),
+            Some("omega") => self.toolchain(filesystem),
             Some(_) if let Some(inputs) = mounted => self.package(inputs, inputs.root(), true),
             Some(_) => self.unavailable(match self.source.scope {
                 DependencyScope::Build => DependencyPurpose::Build,
@@ -161,13 +166,12 @@ impl<'a> FileImport<'a> {
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
         if self.source.scope == DependencyScope::Build
-            && (self.import.only_product_operands
-                || build_declarations::build_file(self.root, self.path).is_some())
+            && self.import.only_product_operands
         {
             return Ok(FileSelection::Unbound);
         }
         if self.root == Some("omega") {
-            return self.core(filesystem);
+            return self.toolchain(filesystem);
         }
         let Some(requester) = requester else {
             let core = super::bundled_core_root()?;
@@ -221,9 +225,36 @@ impl<'a> FileImport<'a> {
     }
 }
 
+pub(super) fn is_build_file(root: Option<&str>, path: &str) -> bool {
+    root == Some("omega") && path.starts_with("build/")
+}
+
+impl super::SourceStorage {
+    /// Capture the selected installation before resolving its first authored Build import.
+    /// Closed custody keeps the loaded declarations local to their directory and file bindings.
+    pub(super) fn capture_imported_build_library(
+        &mut self,
+        parsed: &source_compiler::ParsedSourceBatch,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if parsed.sources.span_or_empty(parsed.batch).iter().any(|unit| {
+            unit.scope == DependencyScope::Build && unit.imports.iter().any(|import| {
+                !import.only_product_operands && matches!(&import.target,
+                    SourceImportTarget::File { root, path, .. } if is_build_file(root.as_deref(), path))
+            })
+        }) {
+            self.admit_installed_root(&super::bundled_build_root()?, super::frontier::InstalledSourceKind::BuildLibrary)?;
+        }
+        Ok(())
+    }
+}
+
 pub(super) fn core_relative_path(path: &str) -> Result<&str, &'static str> {
-    path.strip_prefix("language/core/")
-        .ok_or("the toolchain root {omega} supplies only language/core/ files")
+    if path.starts_with("build/") {
+        Err("installed Build files are available only in Build scope")
+    } else {
+        path.strip_prefix("language/core/")
+            .ok_or("expected an installed language/core/ file under {omega}")
+    }
 }
 
 /// Resolve links inside the package's captured tree so every spelling of a file

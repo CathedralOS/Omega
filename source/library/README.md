@@ -7,6 +7,12 @@ A folder or catalog label neither admits a package nor claims it works on every
 target. The specification defines the required behavior; owning tasks record
 unfinished implementation.
 
+Build programs can import the installed files under `build/` by their exact
+logical paths. For example, `use {omega}/build/dependency.omg;` makes
+`|dependency|::from_source` available in that file. Relative imports inside
+the Build library start at its own `build/` root. Each helper runs under the
+calling Build's authority. [Staged Build inputs](../../wiki/spec/packages/staged_inputs.md)
+
 Find and run consumers with existing tooling:
 
 ```text

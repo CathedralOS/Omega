@@ -99,7 +99,7 @@ fn a_backing_that_is_private_or_absent_is_refused() {
 #[test]
 fn the_installed_provider_survives_a_product_dependency_wait() {
     let read = "    let observed: addr = |image|::ProgramImage::retained_suffix_start();";
-    let wait = r#"    let request: DependencyDescription = dependency\from_source(Source::Path { location: "product" });
+    let wait = r#"    let request: DependencyDescription = |dependency|::from_source(Source::Path { location: "product" });
     let registration: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registration);"#;
     for read_first in [false, true] {
@@ -117,7 +117,7 @@ fn the_installed_provider_survives_a_product_dependency_wait() {
             let build = build
                 .replace(read, &format!("{prior}{wait}\n{read}"))
                 .replace("observed == 64", guard);
-            format!("{build}\nmachine expected_offset() -> addr {{ 64 }}\n")
+            format!("use {{omega}}/build/dependency.omg;\n{build}\nmachine expected_offset() -> addr {{ 64 }}\n")
         };
         check(&source("TestImage")).unwrap();
         assert_refused(&source("OtherImage"), "project role");

@@ -272,10 +272,7 @@ impl ImmutableSourceParseCheckpoint {
             &parsed,
             inputs,
             PackageImportPhase::TargetIndependent,
-            &mut storage.resolved_imports,
-            &storage.toolchain_contract_custody,
-            &mut storage.package_roots,
-            &storage.filesystem,
+            storage,
         )?;
         storage.attach_parsed(parsed);
         let mut imports = ImportQueue::default();
@@ -465,10 +462,7 @@ impl ImmutableSourceParseCheckpoint {
                 &parsed,
                 inputs,
                 PackageImportPhase::TargetIndependent,
-                &mut storage.resolved_imports,
-                &storage.toolchain_contract_custody,
-                &mut storage.package_roots,
-                &storage.filesystem,
+                storage,
             )?,
             None => (
                 discover_imports(&parsed, storage)?,

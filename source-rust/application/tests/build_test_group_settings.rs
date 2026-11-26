@@ -2,12 +2,13 @@
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::process::{Command, Stdio};
 
-const BUILD: &str = r#"machine build(builder: @mutable Build) suspends {
+const BUILD: &str = r#"use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) suspends {
     Build::application(builder, "group_settings");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     let muted: TestGroup = builder.tests.group::<Checks::muted>();
     muted.disabled = false;
-    let dependency: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "kit" }));
+    let dependency: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "kit" }));
     suspend Build::prepare_dependency(builder, dependency);
     let live: TestGroup = builder.tests.group::<Checks::live>();
     live.disabled = true;

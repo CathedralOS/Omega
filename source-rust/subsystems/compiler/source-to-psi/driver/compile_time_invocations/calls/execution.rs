@@ -199,24 +199,7 @@ impl PreparedBuildMachineEntry {
         if headers.next().is_some() || !header.supplies_checked_body {
             return Err("source invocation has no unique accepted caller body".into());
         }
-        let requester = match (
-            self.source.symbols.symbol_package_identity(self.requester),
-            self.source.symbols.symbol_source_origin(self.requester),
-        ) {
-            (Some(package), _) => {
-                semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(package)
-            }
-            (_, Some(source_admission::SourceOrigin::Toolchain)) => {
-                semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain
-            }
-            (_, Some(source_admission::SourceOrigin::ToolchainContract)) => {
-                semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract
-            }
-            (_, Some(source_admission::SourceOrigin::User)) => {
-                semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser
-            }
-            _ => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
-        };
+        let requester = self.source.symbols.declaration_custody(self.requester);
         let source_selection = source_selection::InvocationSelection::new(self, view);
         let admitted = evaluation_admission::admit_compiler_evaluation_with_source_consent(
             view,

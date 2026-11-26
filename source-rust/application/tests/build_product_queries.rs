@@ -164,10 +164,11 @@ fn a_build_calls_its_supplied_kit_and_queries_the_products_kit() {
     }
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
     let build = r#"use {kit}/main.omg as kit;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "dual_alias");
-    let mutable deployed: DependencyDescription = dependency\from_source(Source::Path { location: "runtime" });
-    dependency\with_alias(@mutable deployed, "kit");
+    let mutable deployed: DependencyDescription = |dependency|::from_source(Source::Path { location: "runtime" });
+    |dependency|::with_alias(@mutable deployed, "kit");
     let p: DependencyRegistration = Build::dependency(builder, deployed);
     suspend Build::prepare_dependency(builder, p);
     let seven: i32 = |kit|::choose();
@@ -238,10 +239,11 @@ machine launch() crashes Trap { crash Trap; }",
     )
     .unwrap();
     let build = r#"use {kit}/generated.omg as selector;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "generated_query");
-    let mutable product_request: DependencyDescription = dependency\from_source(Source::Path { location: "vendor" });
-    dependency\with_alias(@mutable product_request, "kit");
+    let mutable product_request: DependencyDescription = |dependency|::from_source(Source::Path { location: "vendor" });
+    |dependency|::with_alias(@mutable product_request, "kit");
     let for_product: DependencyRegistration = Build::dependency(builder, product_request);
     suspend Build::prepare_dependency(builder, for_product);
     Build::bind(builder, HOST::ProgramEntry, |selector|::select(builder, "HOST::ProgramEntry"));

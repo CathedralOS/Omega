@@ -21,9 +21,9 @@ pub struct AnonymousSourceCapture {
     pub(crate) root: std::path::PathBuf, // Canonical live root of the anonymous capture.
     pub(crate) capture: Arc<CapturedSourceTree>, // Complete captured source tree.
     pub(crate) filesystem: source_capture::SourceFileSystem, // Captured virtual filesystem used during assembly.
-    pub(crate) semantic_dependencies: Vec<[u8; 32]>, // Applicable `core` and toolchain-contract digests.
+    pub(crate) semantic_dependencies: Vec<[u8; 32]>, // Applicable core and imported toolchain source digests.
     pub(crate) sources: Arc<source_compiler::representations::source_inputs::SourceMap>, // Retained source map prior to owner binding.
-    pub(crate) toolchain_contract_custody: crate::source::source_imports::ToolchainContractCustody, // Admitted toolchain contract roots.
+    pub(crate) installed_roots: crate::source::source_imports::InstalledSourceRoots, // Closed installed source roots of this capture.
 }
 
 impl AnonymousSourceCapture {
@@ -239,7 +239,7 @@ mod tests {
             filesystem,
             semantic_dependencies: Vec::new(),
             sources: Arc::clone(&sources),
-            toolchain_contract_custody: Default::default(),
+            installed_roots: Default::default(),
         };
         let span = source_text::SourceSpan::new(id, source_text::Span::new(0, text.len()));
         assert!(capture.allows_selection(

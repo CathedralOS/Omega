@@ -59,9 +59,7 @@ fn register_contract_root(
     if package_owned {
         return storage.capture_installed_tree(root);
     }
-    let root = storage.capture_toolchain_contract(root)?;
-    storage.register_toolchain_contract_dir(root.clone());
-    Ok(root)
+    storage.admit_installed_root(root, super::frontier::InstalledSourceKind::EntryContract)
 }
 
 #[cfg(test)]
@@ -94,7 +92,7 @@ mod tests {
             semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
         );
         assert_eq!(register_contract_root(&mut storage, &root).unwrap(), root);
-        assert!(!storage.is_toolchain_contract_source(&entry));
+        assert!(!storage.is_installed_source(&entry));
         std::fs::write(&helper, "public data Changed {}").unwrap();
         assert!(register_contract_root(&mut storage, &root).is_err());
         assert_eq!(

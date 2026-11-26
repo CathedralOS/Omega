@@ -108,18 +108,5 @@ pub fn declaration_custody(
     if !symbol.is_valid() || !typed.symbols.symbols().nodes().is_valid(symbol) {
         return Err("declaration custody has a missing or stale symbol");
     }
-    Ok(
-        match (
-            typed.symbols.symbol_package_identity(symbol),
-            typed.symbols.symbol_source_origin(symbol),
-        ) {
-            (Some(package), _) => DeclarationCustody::Package(package),
-            (_, Some(source_admission::SourceOrigin::Toolchain)) => DeclarationCustody::Toolchain,
-            (_, Some(source_admission::SourceOrigin::ToolchainContract)) => {
-                DeclarationCustody::ToolchainContract
-            }
-            (_, Some(source_admission::SourceOrigin::User)) => DeclarationCustody::UnownedUser,
-            _ => DeclarationCustody::Missing,
-        },
-    )
+    Ok(typed.symbols.declaration_custody(symbol))
 }

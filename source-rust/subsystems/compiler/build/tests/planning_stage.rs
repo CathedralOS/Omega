@@ -338,6 +338,7 @@ fn an_unbound_conditional_import_refuses_before_the_build_can_write() {
     let entry = root.join("build.omg");
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
     std::fs::write(&entry, r#"use {scores}/value.omg as scores;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "fixed_wait");
     let path: BuildPath = BuildOutput::resolve(@builder.output, "ran.txt");
@@ -350,7 +351,7 @@ machine build(builder: @mutable Build) suspends {
         _ -> done(builder)
     }
     machine later(builder: @mutable Build) suspends {
-        let request: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "lib" }));
+        let request: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "lib" }));
         suspend Build::prepare_dependency(builder, request);
         let value: i32 = |scores|::value();
     }

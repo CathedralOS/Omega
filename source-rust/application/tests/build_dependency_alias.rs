@@ -3,9 +3,9 @@
 End-to-end CLI check of a Build that names its dependency with an alias
 (`omega --check`).
 
-`dependency::from_source(Source::Path { location: "dep" })` builds a
+`|dependency|::from_source(Source::Path { location: "dep" })` builds a
 `Source`, a sum whose `Path` case holds a byte view, and
-`dependency::with_alias` then stores another byte view into the description.
+`|dependency|::with_alias` then stores another byte view into the description.
 The Build therefore holds byte views of more than one region. The checker
 derives what each helper writes and reads the type at the end of every
 written path; for a byte-view field it found that type by its shape, which
@@ -35,10 +35,11 @@ fn a_build_that_aliases_a_path_dependency_compiles() {
     .expect("staged program");
     std::fs::write(
         root.join("build.omg"),
-        "machine build(builder: @mutable Build) {
+        "use {omega}/build/dependency.omg;
+machine build(builder: @mutable Build) {
     Build::application(builder, \"consumer\");
-    let mutable description: DependencyDescription = dependency\\from_source(Source::Path { location: \"dep\" });
-    dependency\\with_alias(@mutable description, \"kit\");
+    let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
+    |dependency|::with_alias(@mutable description, \"kit\");
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ",

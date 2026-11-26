@@ -58,7 +58,7 @@ fn binding_advice(purpose: DependencyPurpose, alias: &str) -> String {
             format!("The invoker must supply `{alias}` as a Build library before the Build starts.")
         }
         DependencyPurpose::Product => format!(
-            "Register the Product dependency with `Build::dependency(builder, description)` in the requesting package's build.omg. If the package name differs from `{alias}`, set the alias with `dependency\\with_alias(@mutable description, \"{alias}\")` before registration."
+            "Register the Product dependency with `Build::dependency(builder, description)` in the requesting package's build.omg. If the package name differs from `{alias}`, import `use {{omega}}/build/dependency.omg;` and set the alias with `|dependency|::with_alias(@mutable description, \"{alias}\")` before registration."
         ),
     }
 }

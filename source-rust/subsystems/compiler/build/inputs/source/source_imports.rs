@@ -31,9 +31,7 @@ pub(crate) use bindings::{
 };
 pub(crate) use build_prelude::prepare_build_prelude;
 pub(crate) use entry_contract_seed::seed_entry_contracts;
-pub(crate) use frontier::{
-    SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
-};
+pub(crate) use frontier::{InstalledSourceRoots, SourceStorage, validate_package_source_frontier};
 pub(crate) use generated::{
     DependencyGeneratedSource, admit_dependency_build_handoffs,
     dependency_generated_source_logical_path,
@@ -46,6 +44,7 @@ pub(crate) use package_selection::{
     ReconciledPackageImport, ReconciledPackageImportRequest, reconciled_package_import,
     source_import_scope,
 };
+use paths::bundled_build_root;
 pub use paths::bundled_core_root;
 pub(crate) use paths::bundled_omega_root;
 
@@ -63,8 +62,9 @@ pub(crate) fn discover_imports(
     parsed: &ParsedSourceBatch,
     storage: &mut SourceStorage,
 ) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
+    storage.capture_imported_build_library(parsed)?;
     let default_root = storage.default_package_root.as_path();
-    let contracts = &storage.toolchain_contract_custody;
+    let contracts = &storage.installed_roots;
     let filesystem = &storage.filesystem;
     let discovery = &mut storage.package_roots;
     let retained = &mut storage.resolved_imports;
@@ -145,19 +145,13 @@ pub(crate) fn discover_imports_with_packages(
     parsed: &ParsedSourceBatch,
     packages: &PackageCompilationInputs,
     generated_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
-    retained: &mut Vec<ResolvedSourceImport>,
-    contract_custody: &ToolchainContractCustody,
-    discovery: &mut impl LogicalSourceDiscovery,
-    filesystem: &source_capture::SourceFileSystem,
+    storage: &mut SourceStorage,
 ) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
     let (imports, _) = discover_package_imports(
         parsed,
         packages,
         PackageImportPhase::ExactTarget(generated_owner),
-        retained,
-        contract_custody,
-        discovery,
-        filesystem,
+        storage,
     )?;
     Ok(imports)
 }
@@ -172,11 +166,13 @@ pub(crate) fn discover_package_imports(
     parsed: &ParsedSourceBatch,
     packages: &PackageCompilationInputs,
     phase: PackageImportPhase,
-    retained: &mut Vec<ResolvedSourceImport>,
-    contract_custody: &ToolchainContractCustody,
-    discovery: &mut impl LogicalSourceDiscovery,
-    filesystem: &source_capture::SourceFileSystem,
+    storage: &mut SourceStorage,
 ) -> Result<(Vec<(PathBuf, DependencyScope)>, Vec<PendingPackageImport>), Vec<Diagnostic>> {
+    storage.capture_imported_build_library(parsed)?;
+    let retained = &mut storage.resolved_imports;
+    let contract_custody = &storage.installed_roots;
+    let discovery = &mut storage.package_roots;
+    let filesystem = &storage.filesystem;
     let generated_owner = match phase {
         PackageImportPhase::TargetIndependent => None,
         PackageImportPhase::ExactTarget(owner) => owner,
