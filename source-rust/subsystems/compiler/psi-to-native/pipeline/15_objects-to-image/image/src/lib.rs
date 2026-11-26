@@ -55,6 +55,16 @@ macro_rules! image_digest {
                 &self.0
             }
         }
+
+        impl crate::region_extent::ImageDigest for $name {
+            fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
     };
 }
 
@@ -191,6 +201,7 @@ mod patch_bytes {
     }
 }
 
+mod region_extent;
 mod relocation_envelope;
 mod relocations;
 mod slot_thunk;
