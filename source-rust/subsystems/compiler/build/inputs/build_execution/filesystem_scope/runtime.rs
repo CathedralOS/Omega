@@ -39,11 +39,10 @@ struct OpenFile {
     _handle: EvaluationStorageLease,
 }
 
-enum FileStorage {
-    Captured {
+enum FileStorage {    Captured {
         cursor: u64,
     },
-    LiveSource {
+    Opened {
         file: std::fs::File,
     },
     Output {
@@ -54,6 +53,7 @@ enum FileStorage {
 }
 
 pub struct BuildFilesystemRuntime {
+    staging: super::bound_directory::BoundDirectory,
     account: EvaluationInvocationAccount,
     descriptors: Vec<Option<OpenFile>>,
     effects: BuildFilesystemEffects,
@@ -70,14 +70,11 @@ impl BuildMachineFilesystemScope {
         if self.captured_source_input.is_none() && self.live_source.is_none() {
             return Err("Terminal Build requires admitted Source backing".into());
         }
-        if !self
-            .sponsor
-            .as_ref()
-            .is_some_and(|sponsor| sponsor.owns_private_staging_root(&self.build_dir))
-        {
+        if !self.has_private_staging() {
             return Err("Build Output is not owned by its private staging sponsor".into());
         }
         Ok(BuildFilesystemRuntime {
+            staging: super::bound_directory::BoundDirectory::bind(&self.build_dir).map_err(|e| e.to_string())?,
             account,
             descriptors: Vec::new(),
             effects: BuildFilesystemEffects {
@@ -245,6 +242,19 @@ impl BuildFilesystemRuntime {
         result
     }
 
+    fn refuse_write(&mut self, ordinal: usize) -> i64 {
+        let attempt = &mut self.effects.attempts[ordinal];
+        attempt.authorized_paths.clear();
+        attempt
+            .grant_refusals
+            .push(filesystem_authority::FilesystemGrantRefusal::new(
+                0,
+                FilesystemGrantAccess::Write,
+                filesystem_authority::FilesystemGrantRefusalReason::OutsideGrantedRoots,
+            ));
+        self.complete_attempt(ordinal, -1, 13)
+    }
+
     fn complete_logical_handle(&mut self, ordinal: usize, descriptor: i32) -> Result<i32, String> {
         let handle = logical_handle(descriptor)?;
         self.effects.attempts[ordinal].logical_handle_output =
@@ -265,9 +275,6 @@ impl BuildFilesystemRuntime {
         flags: i32,
     ) -> Result<i32, String> {
         self.resolve(root, path)?;
-        if root == BUILD_OUTPUT_ROOT_IDENTITY {
-            return Err("BuildSource cannot open the Output root".into());
-        }
         let ordinal = self.begin_attempt(
             FilesystemHostOperation::Open,
             root,
@@ -277,24 +284,22 @@ impl BuildFilesystemRuntime {
         )?;
         if flags != 0 {
             let wants_write = open_flags::wants_write(flags) || flags & 3 != 0;
-            if wants_write {
-                let attempt = &mut self.effects.attempts[ordinal];
-                attempt.authorized_paths.clear();
-                attempt
-                    .grant_refusals
-                    .push(filesystem_authority::FilesystemGrantRefusal::new(
-                        0,
-                        FilesystemGrantAccess::Write,
-                        filesystem_authority::FilesystemGrantRefusalReason::OutsideGrantedRoots,
-                    ));
-            }
-            return Ok(
-                self.complete_attempt(ordinal, -1, if wants_write { 13 } else { 45 }) as i32,
-            );
+            return Ok(if wants_write {
+                self.refuse_write(ordinal)
+            } else {
+                self.complete_attempt(ordinal, -1, 45)
+            } as i32);
         }
-        let live_source = (root == BUILD_SOURCE_ROOT_IDENTITY)
-            .then(|| self.effects.scope.live_source.clone())
-            .flatten();
+        let live_source = if root == BUILD_OUTPUT_ROOT_IDENTITY {
+            if !self.sealed.iter().any(|(name, _)| name == path) {
+                return Ok(self.complete_attempt(ordinal, -1, 13) as i32);
+            }
+            Some(self.staging.clone())
+        } else if root == BUILD_SOURCE_ROOT_IDENTITY {
+            self.effects.scope.live_source.clone()
+        } else {
+            None
+        };
         if live_source.is_none() {
             use build_output::SourceSnapshotError;
             if let Err(reason) = self.snapshot(root)?.open_file(path) {
@@ -324,7 +329,7 @@ impl BuildFilesystemRuntime {
         let retained_path = copy_bytes(path)?;
         let storage = match live_source {
             Some(source) => match source.open_read(path) {
-                Ok(file) => FileStorage::LiveSource { file },
+                Ok(file) => FileStorage::Opened { file },
                 Err(error) => {
                     return Ok(
                         self.complete_attempt(ordinal, -1, error.raw_os_error().unwrap_or(5))
@@ -353,13 +358,27 @@ impl BuildFilesystemRuntime {
     ) -> Result<Result<u64, std::io::ErrorKind>, String> {
         const ROOT: FilesystemGrantRootIdentity = BUILD_SOURCE_ROOT_IDENTITY;
         use std::io::ErrorKind;
-        self.snapshot(ROOT)?;
         if count > buffer.len() as u64
             || !filesystem_authority::source_snapshot_path_is_canonical(path, false)
         {
             return Ok(Err(ErrorKind::InvalidInput));
         }
-        let descriptor = self.open(ROOT, path, 0)?;
+        // The package remains read-only even if an explicitly granted Output
+        // operation used the same spelling in the independent staging tree.
+        let absent = matches!(
+            self.snapshot(ROOT)?.lookup(path),
+            Err(build_output::SourceSnapshotError::NotFound)
+        );
+        let has_writer =
+            |file: &OpenFile| file.root == BUILD_OUTPUT_ROOT_IDENTITY && file.path == path;
+        let root = if absent && self.sealed.iter().any(|(name, _)| name == path) {
+            BUILD_OUTPUT_ROOT_IDENTITY
+        } else if absent && self.descriptors.iter().flatten().any(has_writer) {
+            return Ok(Err(ErrorKind::PermissionDenied));
+        } else {
+            ROOT
+        };
+        let descriptor = self.open(root, path, 0)?;
         if descriptor < 0 {
             let attempt = self
                 .effects
@@ -375,14 +394,87 @@ impl BuildFilesystemRuntime {
             };
             return Ok(Err(kind));
         }
-        let read = self.read(ROOT, descriptor, buffer, count);
-        let closed = self.close(ROOT, descriptor)?;
+        let read = self.read(root, descriptor, buffer, count);
+        let closed = self.close(root, descriptor)?;
         if closed != 0 {
             return Err("could not close an admitted snapshot file".into());
         }
         Ok(Ok(
             u64::try_from(read?).map_err(|_| "could not read an admitted snapshot file")?
         ))
+    }
+
+    /// The installed writer sees fresh private files beside the read-only package.
+    /// Output grants from launched programs use the same sealed-file operation.
+    pub fn write_private_file(
+        &mut self,
+        path: &[u8],
+        bytes: &[u8],
+    ) -> Result<Result<(), std::io::ErrorKind>, String> {
+        use build_output::SourceSnapshotError;
+        use std::io::ErrorKind;
+
+        if !filesystem_root_relative_path_is_canonical(path, false) {
+            return Ok(Err(ErrorKind::InvalidInput));
+        }
+        match self.snapshot(BUILD_SOURCE_ROOT_IDENTITY)?.lookup(path) {
+            Err(SourceSnapshotError::NotFound) => {}
+            Ok(_) | Err(SourceSnapshotError::SymlinkTraversal) => {
+                let attempted = self.begin_attempt(
+                    FilesystemHostOperation::Create,
+                    BUILD_SOURCE_ROOT_IDENTITY,
+                    path,
+                    FilesystemGrantAccess::Write,
+                    None,
+                )?;
+                self.refuse_write(attempted);
+                return Ok(Err(ErrorKind::PermissionDenied));
+            }
+            Err(_) => return Ok(Err(ErrorKind::InvalidInput)),
+        }
+        self.write_staged_file(path, bytes)
+    }
+
+    pub fn write_staged_file(
+        &mut self,
+        path: &[u8],
+        mut bytes: &[u8],
+    ) -> Result<Result<(), std::io::ErrorKind>, String> {
+        use std::io::ErrorKind;
+        if !filesystem_root_relative_path_is_canonical(path, false) {
+            return Ok(Err(ErrorKind::InvalidInput));
+        }
+        let descriptor = self.create(path, 0o600)?;
+        if descriptor < 0 {
+            let attempt = self
+                .effects
+                .attempts
+                .last()
+                .ok_or("missing staging create observation")?;
+            let kind = match attempt.post_error {
+                2 => ErrorKind::NotFound,
+                17 => ErrorKind::AlreadyExists,
+                20 | 22 => ErrorKind::InvalidInput,
+                13 | 40 => ErrorKind::PermissionDenied,
+                errno => {
+                    return Err(format!(
+                        "private staging could not create its file ({errno})"
+                    ));
+                }
+            };
+            return Ok(Err(kind));
+        }
+        while !bytes.is_empty() {
+            let written = usize::try_from(self.write(descriptor, bytes)?)
+                .ok()
+                .filter(|n| *n > 0 && *n <= bytes.len())
+                .ok_or("private staging failed to write the complete file")?;
+            bytes = &bytes[written..];
+        }
+        if self.close(BUILD_OUTPUT_ROOT_IDENTITY, descriptor)? != 0 {
+            return Err("private staging failed to seal its file".into());
+        }
+        Ok(Ok(()))
     }
 
     pub fn read(
@@ -398,7 +490,7 @@ impl BuildFilesystemRuntime {
             .ok_or("closed Build descriptor")?;
         let cursor = match &file.storage {
             FileStorage::Captured { cursor } => Some(*cursor),
-            FileStorage::LiveSource { .. } => None,
+            FileStorage::Opened { .. } => None,
             FileStorage::Output { .. } => {
                 return Err("BuildSource read requires an input descriptor".into());
             }
@@ -433,7 +525,7 @@ impl BuildFilesystemRuntime {
             length
         } else {
             let Some(OpenFile {
-                storage: FileStorage::LiveSource { file },
+                storage: FileStorage::Opened { file },
                 ..
             }) = self.descriptors[slot].as_mut()
             else {
@@ -483,12 +575,20 @@ impl BuildFilesystemRuntime {
             .as_ref()
             .ok_or("Output sponsor is absent")?;
         let bound = message(sponsor.bind_path(&physical))?;
-        let prepared = message(sponsor.prepare_create_object_open(&bound, 0))?;
-        let file = match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&physical)
-        {
+        use filesystem_authority::FilesystemSponsorError;
+        let prepared = match sponsor.prepare_create_object_open(&bound, 0) {
+            Ok(prepared) => prepared,
+            Err(reason) => {
+                let errno = match reason {
+                    FilesystemSponsorError::EntryAlreadyExists(_) => 17,
+                    FilesystemSponsorError::ParentEntryMissing(_) => 2,
+                    FilesystemSponsorError::ParentIsNotDirectory(_) => 20,
+                    other => return Err(other.to_string()),
+                };
+                return Ok(self.complete_attempt(ordinal, -1, errno) as i32);
+            }
+        };
+        let file = match self.staging.create_new(path) {
             Ok(file) => file,
             Err(error) => {
                 prepared.abort();
@@ -979,6 +1079,42 @@ mod tests {
                 .iter()
                 .all(|attempt| attempt.provider == FilesystemObservationProvider::Captured)
         );
+    }
+
+    #[test]
+    fn private_file_writes_preserve_captured_inputs_and_can_read_back_sealed_bytes() {
+        use std::io::ErrorKind;
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "filesystem-staging-writes",
+            false,
+        )
+        .unwrap();
+        let scope = scope(temp.path(), "session");
+        let mut fs = scope.begin_filesystem_runtime(account()).unwrap();
+        for (path, result) in [
+            (b"asset".as_slice(), ErrorKind::PermissionDenied),
+            (b"link", ErrorKind::PermissionDenied),
+            (b"link/escape", ErrorKind::PermissionDenied),
+            (b"../sibling", ErrorKind::InvalidInput),
+            (b"no-directory/entry", ErrorKind::NotFound),
+        ] {
+            assert_eq!(fs.write_private_file(path, b"wrong").unwrap(), Err(result));
+        }
+        assert_eq!(
+            fs.write_private_file(b"generated.omg", b"code").unwrap(),
+            Ok(())
+        );
+        assert_eq!(
+            fs.write_private_file(b"generated.omg", b"replace").unwrap(),
+            Err(ErrorKind::AlreadyExists)
+        );
+        let mut buf = [0; 5];
+        assert_eq!(fs.read_file(b"generated.omg", &mut buf, 5).unwrap(), Ok(4));
+        assert_eq!(&buf[..4], b"code");
+        assert_eq!(fs.write_staged_file(b"asset", b"shadow").unwrap(), Ok(()));
+        assert_eq!(fs.read_file(b"asset", &mut buf, 5).unwrap(), Ok(5));
+        assert_eq!(&buf, b"hello");
+        assert!(fs.finish().is_ok());
     }
 
     #[test]

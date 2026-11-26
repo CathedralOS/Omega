@@ -161,8 +161,8 @@ impl BuildProviderScope {
             .chain(queries.iter().map(|call| call.site.boundary))
             .chain(filesystem.iter().filter_map(|call| {
                 let boundary = call.site.boundary;
-                let optional = call.action
-                    == source_compiler::publication::TerminalBuildFilesystemOperation::ReadAll;
+                use source_compiler::publication::TerminalBuildFilesystemOperation as Fs;
+                let optional = matches!(call.action, Fs::ReadAll | Fs::WriteAll);
                 let selected = implementations
                     .iter()
                     .any(|provider| provider.boundary == boundary)
@@ -213,16 +213,27 @@ impl BuildProviderScope {
                 "Build requires `{name}` before entry; the caller supplied no bounded StandardOutput diagnostic sink"
             )));
         }
-        if !filesystem_scope.has_captured_files()
-            && filesystem.iter().any(|call| {
-                call.action
-                    == source_compiler::publication::TerminalBuildFilesystemOperation::ReadAll
-                    && demand.imports.contains(&call.site.boundary)
-            })
+        use source_compiler::publication::TerminalBuildFilesystemOperation as Fs;
+        for call in filesystem
+            .iter()
+            .filter(|call| demand.imports.contains(&call.site.boundary))
         {
-            return Err(failure(
-                "Build requires Filesystem::read_all before entry, but the caller supplied no captured filesystem",
-            ));
+            match call.action {
+                Fs::ReadAll if !filesystem_scope.has_captured_files() => {
+                    return Err(failure(
+                        "Build requires Filesystem::read_all before entry, but the caller supplied no captured filesystem",
+                    ));
+                }
+                Fs::WriteAll
+                    if !filesystem_scope.has_private_staging()
+                        || !filesystem_scope.has_captured_files() =>
+                {
+                    return Err(failure(
+                        "Build requires Filesystem::write_all before entry, but the caller must supply captured package input and private staging",
+                    ));
+                }
+                _ => {}
+            }
         }
         let missing = demand
             .missing_providers

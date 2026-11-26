@@ -66,7 +66,9 @@ impl ProgramOutputSink for TerminalBuildFilesystemHost {
         self.with_program_files(|runtime| {
             for (path, file) in paths.iter().zip(files) {
                 if let Some(bytes) = file {
-                    write_output(runtime, path, &bytes)?;
+                    runtime.write_staged_file(path, &bytes)?.map_err(|error| format!(
+                        "program cannot create logical output `{}`: {error:?}", String::from_utf8_lossy(path)
+                    ))?;
                 }
             }
             Ok(())
@@ -106,25 +108,4 @@ fn read_input(
         return Err("program input close failed".into());
     }
     captured
-}
-
-fn write_output(
-    runtime: &mut package_compilation::build_execution::BuildFilesystemRuntime,
-    path: &[u8],
-    bytes: &[u8],
-) -> Result<(), String> {
-    use package_compilation::build_execution::BUILD_OUTPUT_ROOT_IDENTITY as ROOT;
-    let fd = runtime.create(path, 0o600)?;
-    if fd < 0 {
-        return Err(format!(
-            "program cannot create logical output `{}`",
-            String::from_utf8_lossy(path)
-        ));
-    }
-    let written = runtime.write(fd, bytes);
-    let closed = runtime.close(ROOT, fd)?;
-    if usize::try_from(written?).ok() != Some(bytes.len()) || closed < 0 {
-        return Err("program output could not be staged in full".into());
-    }
-    Ok(())
 }
