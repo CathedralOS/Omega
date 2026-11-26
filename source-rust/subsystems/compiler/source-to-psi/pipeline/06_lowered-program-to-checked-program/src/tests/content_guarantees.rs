@@ -388,3 +388,35 @@ ensures
         .is_err()
     );
 }
+
+#[test]
+fn a_qualified_local_receives_the_content_of_the_value_stored_in_it() {
+    let (declarations, _) = include_str!(
+        "../../../../../../../../samples/cli/facts/independent_content_partition/local/main.omg"
+    )
+    .split_once("data Parts")
+    .unwrap();
+    let check = |incoming: &str| {
+        let source = format!(
+            "{declarations}
+machine identity(input: Region in {incoming}) -> Region in {incoming} {{ input }}
+machine hold(input: Region in {incoming}) -> Region in First & Second {{
+    let held: Region in First & Second = identity(input);
+    held
+}}"
+        );
+        let typed = with_content(&source);
+        let entry = symbol(&typed, "hold");
+        let prepared = crate::prepare_fixture(typed);
+        let lowered = crate::lowering::elaborate_for(
+            prepared.trees(),
+            roster(&[entry], &[], DependencyScope::Product),
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        crate::verdict::judge(lowered)
+    };
+    let accepted = check("First & Second").unwrap();
+    assert!(matches!(accepted, RouteVerdict::Accepted(_)), "{accepted:?}");
+    let missing = check("First");
+    assert!(!matches!(missing, Ok(RouteVerdict::Accepted(_))), "{missing:?}");
+}

@@ -757,7 +757,23 @@ impl<'a> DefaultRequirements<'a> {
                     displayed_path,
                     root,
                     path,
-                } => self.append_lost(&mut result, displayed_root, displayed_path, root, &path)?,
+                } => {
+                    // Moving a whole value into vacant storage brings its checked
+                    // qualifications with it. A distinct lender or enclosing value
+                    // may still have obligations hidden by the displayed destination.
+                    let delivers_to_backing = matches!(
+                        &operation.kind,
+                        OperationKind::StoreStructuralField {
+                            disposition: terminal_psi::StructuralStoreDisposition::Vacant,
+                            field: None,
+                            value,
+                            ..
+                        } if value.access == terminal_psi::StructuralAccess::Owned
+                    ) && root == displayed_root && path == displayed_path;
+                    if !delivers_to_backing {
+                        self.append_lost(&mut result, displayed_root, displayed_path, root, &path)?;
+                    }
+                }
             }
             Ok(())
         })?;
