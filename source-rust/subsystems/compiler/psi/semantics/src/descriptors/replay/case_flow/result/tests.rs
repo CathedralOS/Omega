@@ -35,6 +35,7 @@ fn machine(id: u64, root: u64, successors: &[Vec<u32>]) -> DescriptorMachine {
                         successors: targets
                             .iter()
                             .map(|target| DescriptorFlowEdge {
+                                borrowed_header_ends: Box::default(),
                                 effects: Vec::new(),
                                 edge: None,
                                 definitions: Vec::new(),

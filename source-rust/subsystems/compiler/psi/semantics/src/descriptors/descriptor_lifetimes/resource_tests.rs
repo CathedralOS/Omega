@@ -11,6 +11,7 @@ fn root(number: u64) -> DescriptorLocation {
 
 fn edge(target: u32) -> DescriptorFlowEdge {
     DescriptorFlowEdge {
+        borrowed_header_ends: Box::default(),
         edge: None,
         effects: Vec::new(),
         definitions: Vec::new(),
@@ -18,6 +19,41 @@ fn edge(target: u32) -> DescriptorFlowEdge {
         parameters: Vec::new(),
         bindings: Vec::new(),
     }
+}
+
+#[test]
+fn ending_a_borrowed_header_keeps_its_contents_and_captured_successor_argument() {
+    let address = root(1);
+    let mut payload = address.clone();
+    payload.path.push(DescriptorPathSegment::UnknownContents);
+    let received = root(2);
+    let mut received_payload = received.clone();
+    received_payload
+        .path
+        .push(DescriptorPathSegment::UnknownContents);
+    let mut selected = edge(1);
+    selected.borrowed_header_ends = Box::new([address.root]);
+    selected.parameters.push(received.clone());
+    selected.bindings.push(
+        DescriptorFlowBinding::new(
+            DescriptorFlowSource::Location(address.clone()),
+            received.clone(),
+            terminal_psi::StructuralAccess::MutableBorrow,
+            terminal_psi::StructuralAccess::MutableBorrow,
+        )
+        .unwrap(),
+    );
+
+    let before = BTreeSet::from([address.clone(), payload.clone()]);
+    let after = BTreeSet::from([received.clone(), payload.clone(), received_payload.clone()]);
+    for may in [false, true] {
+        assert_eq!(selected.transport_locations(&before, false, may), after);
+    }
+    assert_eq!(selected.forward(&address), vec![received]);
+    assert_eq!(
+        selected.forward(&payload),
+        vec![payload.clone(), received_payload]
+    );
 }
 
 #[test]

@@ -1909,6 +1909,7 @@ fn adapt_flow(
                 step.authority_derivations = step.derivations.clone();
             }
             step.successors.push(DescriptorFlowEdge {
+                borrowed_header_ends: Box::default(),
                 edge: None,
                 effects: Vec::new(),
                 definitions: Vec::new(),
@@ -2071,6 +2072,7 @@ fn adapt_flow(
                     bindings.push(binding);
                 }
                 step.successors.push(DescriptorFlowEdge {
+                    borrowed_header_ends: Box::default(),
                     edge: None,
                     effects: Vec::new(),
                     definitions,

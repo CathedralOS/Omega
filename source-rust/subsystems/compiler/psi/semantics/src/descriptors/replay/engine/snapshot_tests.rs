@@ -81,6 +81,7 @@ fn completed_position_maps_share_ownership_preserve_snapshots_and_failure_fences
         let mut step = DescriptorFlowStep::default();
         if let Some(&target) = positions.get(index + 1) {
             step.successors.push(DescriptorFlowEdge {
+                borrowed_header_ends: Box::default(),
                 effects: Vec::new(),
                 edge: None,
                 definitions: Vec::new(),
@@ -688,6 +689,7 @@ fn replay_joins_diamond_inputs_once_and_keeps_loop_effects() {
         successors: targets
             .iter()
             .map(|&index| DescriptorFlowEdge {
+                borrowed_header_ends: Box::default(),
                 target: (block, index),
                 edge: None,
                 effects: Vec::new(),
@@ -746,6 +748,7 @@ fn an_unresolved_write_only_invalidates_returns_it_can_reach() {
         successors: targets
             .iter()
             .map(|&target| DescriptorFlowEdge {
+                borrowed_header_ends: Box::default(),
                 target,
                 edge: None,
                 effects: Vec::new(),
@@ -959,6 +962,7 @@ fn absent_normal_body_observations_preserve_continuations_and_forget_results() {
             BTreeSet::new(),
         );
         let edge = |target| DescriptorFlowEdge {
+            borrowed_header_ends: Box::default(),
             effects: Vec::new(),
             edge: None,
             definitions: Vec::new(),
@@ -1265,6 +1269,7 @@ fn late_return_summary_cannot_freeze_an_earlier_storage_query() {
     let block = BlockId::new(1).unwrap();
     let point = |index| (block, index);
     let edge = |target| DescriptorFlowEdge {
+        borrowed_header_ends: Box::default(),
         effects: Vec::new(),
         edge: None,
         definitions: Vec::new(),
@@ -1478,6 +1483,7 @@ fn a_transferred_reference_keeps_its_write_crossing_until_caller_substitution() 
                 definitions: vec![location(2)],
                 derivations: vec![(location(1), location(2))],
                 successors: vec![DescriptorFlowEdge {
+                    borrowed_header_ends: Box::default(),
                     definitions: Vec::new(),
                     edge: None,
                     effects: Vec::new(),
@@ -1578,6 +1584,7 @@ fn cleanup_actions_replay_in_order_at_their_real_edge_and_normal_exit() {
                 successors: [(1, left), (2, right)]
                     .into_iter()
                     .map(|(raw, target)| DescriptorFlowEdge {
+                        borrowed_header_ends: Box::default(),
                         effects: Vec::new(),
                         edge: Some(edge(raw)),
                         target,
@@ -1777,6 +1784,7 @@ fn a_backedge_cannot_make_a_replaced_descriptor_preserve_its_input() {
     let exit = (BlockId::new(2).unwrap(), 0);
     let replace = (BlockId::new(3).unwrap(), 0);
     let edge = |target| DescriptorFlowEdge {
+        borrowed_header_ends: Box::default(),
         effects: Vec::new(),
         edge: None,
         definitions: Vec::new(),
@@ -2442,6 +2450,7 @@ fn an_opaque_arrival_keeps_its_input_loan_observations() {
     let target = (semantic_vocabulary::BlockId::new(2).unwrap(), 0);
     machine.flow.insert(machine.entry, DescriptorFlowStep {
         successors: vec![DescriptorFlowEdge {
+            borrowed_header_ends: Box::default(),
             edge: None,
             effects: Vec::new(),
             definitions: Vec::new(),
@@ -2585,6 +2594,7 @@ fn check_indexed_arrival_capture(contents_available: bool) {
             entry,
             DescriptorFlowStep {
                 successors: vec![DescriptorFlowEdge {
+                    borrowed_header_ends: Box::default(),
                     edge: None,
                     effects: Vec::new(),
                     definitions: Vec::new(),
@@ -2608,6 +2618,7 @@ fn check_indexed_arrival_capture(contents_available: bool) {
             target,
             DescriptorFlowStep {
                 successors: vec![DescriptorFlowEdge {
+                    borrowed_header_ends: Box::default(),
                     edge: None,
                     effects: Vec::new(),
                     definitions: Vec::new(),
@@ -2874,6 +2885,7 @@ fn mixed_storage_arrival() -> (Vec<StructuralTypeDeclaration>, DescriptorMachine
         .at(entry),
     ));
     let edge = |target, parameter: DescriptorLocation, binding| DescriptorFlowEdge {
+        borrowed_header_ends: Box::default(),
         edge: None,
         effects: Vec::new(),
         definitions: Vec::new(),

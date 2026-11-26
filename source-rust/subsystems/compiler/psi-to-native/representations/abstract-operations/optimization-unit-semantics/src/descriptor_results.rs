@@ -2885,6 +2885,7 @@ fn adapt(
             if node.successors.is_empty() {
                 if index + 1 < block.nodes.len() {
                     step.successors.push(DescriptorFlowEdge {
+                        borrowed_header_ends: Box::default(),
                         edge: None,
                         effects: Vec::new(),
                         definitions: Vec::new(),
@@ -3020,6 +3021,7 @@ fn adapt(
                         definitions.push(location(action.place(), action.path(), None)?);
                     }
                     step.successors.push(DescriptorFlowEdge {
+                        borrowed_header_ends: Box::default(),
                         edge: Some(edge.psi_edge),
                         effects: Vec::new(),
                         definitions,
