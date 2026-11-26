@@ -162,7 +162,7 @@ pub struct ReturnedPlanningStage {
 /// and observations stay with the eventual Product, separate from its own settings.
 #[derive(Default)]
 struct BuildPreparations {
-    supplied_package: bool,
+    package_capture: Option<package_compilation::BuildSnapshotCapture>,
     first_stage_in_package: usize,
     demanded_programs: Vec<package_compilation::DelegatedProgram>,
     stages: Vec<(build_declarations::BuildEntryPath, EvaluatedBuild)>,
@@ -223,9 +223,10 @@ impl ReturnedPlanningStage {
             .complete_successor(self.returned, &libraries)?;
         let mut source = self.source;
         let issuer = capture.clone();
-        preparations.supplied_package |= directory.is_some();
         let capture = match directory {
             Some(directory) => {
+                preparations.package_capture =
+                    Some(package_compilation::BuildSnapshotCapture::PackageInventory);
                 let staging = evaluated
                     .configuration
                     .observation_summary
