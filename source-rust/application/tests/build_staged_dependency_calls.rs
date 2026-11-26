@@ -1,6 +1,9 @@
 //! Exercise Build dependency waits through the CLI, including the values, loans
 //! and host-issued registrations a Build can use after it wakes.
 
+#[path = "support/project.rs"]
+mod project;
+
 use std::process::Command;
 
 /// Check code on both sides of a Product dependency wait. The local Build helper
@@ -86,53 +89,36 @@ fn check_project_with_support(
     support: Option<&str>,
     arguments: &[&str],
 ) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-staged-dependency-calls-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("dep")).expect("staging directory");
-    std::fs::write(root.join("main.omg"), "machine main() { }\n").expect("staged program");
-    std::fs::write(root.join("build.omg"), build).expect("staged Build");
-    std::fs::write(
-        root.join("counts.omg"),
-        format!(
-            "public data Number {{ value: i32; }}\npublic machine value() -> i32 {{ {value} }}"
-        ),
-    )
-    .expect("local Build helper");
-    std::fs::write(
-        root.join("dep/build.omg"),
-        format!(
-            "machine build(builder: @mutable BuildPlan) {{
+    let counts = format!(
+        "public data Number {{ value: i32; }}\npublic machine value() -> i32 {{ {value} }}"
+    );
+    let dependency_build = format!(
+        "machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Package {{ name: \"kit_package\" }};
 {dependency_body}
 }}
 "
-        ),
-    )
-    .expect("staged dependency Build");
-    std::fs::write(
-        root.join("dep/main.omg"),
-        format!(
-            "public data Number {{ value: i32; }}
+    );
+    let dependency_main = format!(
+        "public data Number {{ value: i32; }}
 public machine v() -> i32 {{ {value} }}
 machine hidden() -> i32 {{ 7 }}
 "
-        ),
-    )
-    .expect("staged dependency source");
+    );
+    let scratch = project::stage(
+        name,
+        &[
+            ("main.omg", "machine main() { }\n"),
+            ("build.omg", build),
+            ("counts.omg", &counts),
+            ("dep/build.omg", &dependency_build),
+            ("dep/main.omg", &dependency_main),
+        ],
+    );
     if let Some(support) = support {
-        std::fs::create_dir(root.join("support")).expect("Build helper directory");
-        std::fs::write(root.join("support/support.omg"), support).expect("Build helper source");
+        project::write(scratch.path(), &[("support/support.omg", support)]);
     }
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
+    let output = project::omega(scratch.path(), arguments);
     (
         output.status.success(),
         format!(
@@ -167,15 +153,12 @@ machine build(builder: @mutable BuildPlan) {{
 }}"#,
         target.target_name(),
     );
-    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+    let scratch = project::stage(
         "anonymous-constant",
-        false,
-    )
-    .unwrap();
-    std::fs::write(project.path().join("build.omg"), build).unwrap();
-    std::fs::write(project.path().join("main.omg"), "machine main() {}").unwrap();
+        &[("build.omg", &build), ("main.omg", "machine main() {}")],
+    );
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .current_dir(project.path())
+        .current_dir(scratch.path())
         .args(["--check", "main.omg"])
         .output()
         .unwrap();
@@ -339,7 +322,14 @@ fn build_helpers_are_checked_at_the_call_site_in_both_file_layouts() {
     let helpers = r"machine seven() -> i32 { read_count() }
     machine read_count() -> i32 { |counts|::value() }";
     for (layout, import, call, nested, support, file) in [
-        ("nested", "use counts.omg as counts;", "seven()", helpers, None, "build.omg:"),
+        (
+            "nested",
+            "use counts.omg as counts;",
+            "seven()",
+            helpers,
+            None,
+            "build.omg:",
+        ),
         (
             "imported",
             "use support/support.omg as support;",
@@ -369,91 +359,88 @@ machine build(builder: @mutable BuildPlan) suspends {{
 "#
         );
         for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let run = |case: &str, build: &str, support: Option<&str>| {
-            check_project_with_support(
-                &format!("helpers-{layout}-{case}"),
-                build,
-                7,
-                "",
-                support,
-                &["run", "--engine", engine, "build.omg"],
-            )
-        };
-        let (ran, output) = run("after", &build, support.as_deref());
-        assert!(
-            ran && output.lines().any(|line| line == expected),
-            "{layout}: {output}"
-        );
-
-        let early = build.replace(
-            "set_role(builder);",
-            &format!("let early: i32 = {call}; set_role(builder);"),
-        );
-        let (ran, output) = run("before", &early, support.as_deref());
-        assert!(
-            ran && output.lines().any(|line| line == expected),
-            "{layout}: {output}"
-        );
-
-        // The helper file supplies both the type and the constructor from the start.
-        for (form, expression) in [
-            (
-                "annotation",
-                r"let item: |counts|::Number = |counts|::Number { value: 7 }; item.value",
-            ),
-            (
-                "constructor",
-                r"(|counts|::Number { value: 7 }).value",
-            ),
-        ] {
-            let type_helper = |text: &str| text.replace(r"|counts|::value()", expression);
-            let type_support = support.as_deref().map(type_helper);
-            let (ran, output) = run(
-                &format!("{form}-after"),
-                &type_helper(&build),
-                type_support.as_deref(),
-            );
+            let run = |case: &str, build: &str, support: Option<&str>| {
+                check_project_with_support(
+                    &format!("helpers-{layout}-{case}"),
+                    build,
+                    7,
+                    "",
+                    support,
+                    &["run", "--engine", engine, "build.omg"],
+                )
+            };
+            let (ran, output) = run("after", &build, support.as_deref());
             assert!(
                 ran && output.lines().any(|line| line == expected),
-                "{layout} {form}: {output}"
-            );
-            let (ran, output) = run(
-                &format!("{form}-before"),
-                &type_helper(&early),
-                type_support.as_deref(),
-            );
-            assert!(
-                ran && output.lines().any(|line| line == expected),
-                "{layout} {form}: {output}"
-            );
-        }
-
-        for (case, unused, diagnostic) in [
-            (
-                "unused-name",
-                r"machine unused() { let bad: i32 = missing\v(); }",
-                "no visible declaration in its source scope",
-            ),
-            (
-                "unused-overflow",
-                "machine unused(n: u64) -> u64 { n + 1u64 }",
-                "may overflow `u64`",
-            ),
-        ] {
-            let declarations = format!("{helpers}\n    {unused}");
-            let invalid_build = build.replace(helpers, &declarations);
-            let invalid_support = support
-                .as_ref()
-                .map(|body| body.replace(helpers, &declarations));
-            let (ran, output) = run(case, &invalid_build, invalid_support.as_deref());
-            assert!(
-                !ran && output.contains(diagnostic)
-                    && output.contains("unused`")
-                    && output.contains(file)
-                    && !output.contains("while resuming"),
                 "{layout}: {output}"
             );
-        }
+
+            let early = build.replace(
+                "set_role(builder);",
+                &format!("let early: i32 = {call}; set_role(builder);"),
+            );
+            let (ran, output) = run("before", &early, support.as_deref());
+            assert!(
+                ran && output.lines().any(|line| line == expected),
+                "{layout}: {output}"
+            );
+
+            // The helper file supplies both the type and the constructor from the start.
+            for (form, expression) in [
+                (
+                    "annotation",
+                    r"let item: |counts|::Number = |counts|::Number { value: 7 }; item.value",
+                ),
+                ("constructor", r"(|counts|::Number { value: 7 }).value"),
+            ] {
+                let type_helper = |text: &str| text.replace(r"|counts|::value()", expression);
+                let type_support = support.as_deref().map(type_helper);
+                let (ran, output) = run(
+                    &format!("{form}-after"),
+                    &type_helper(&build),
+                    type_support.as_deref(),
+                );
+                assert!(
+                    ran && output.lines().any(|line| line == expected),
+                    "{layout} {form}: {output}"
+                );
+                let (ran, output) = run(
+                    &format!("{form}-before"),
+                    &type_helper(&early),
+                    type_support.as_deref(),
+                );
+                assert!(
+                    ran && output.lines().any(|line| line == expected),
+                    "{layout} {form}: {output}"
+                );
+            }
+
+            for (case, unused, diagnostic) in [
+                (
+                    "unused-name",
+                    r"machine unused() { let bad: i32 = missing\v(); }",
+                    "no visible declaration in its source scope",
+                ),
+                (
+                    "unused-overflow",
+                    "machine unused(n: u64) -> u64 { n + 1u64 }",
+                    "may overflow `u64`",
+                ),
+            ] {
+                let declarations = format!("{helpers}\n    {unused}");
+                let invalid_build = build.replace(helpers, &declarations);
+                let invalid_support = support
+                    .as_ref()
+                    .map(|body| body.replace(helpers, &declarations));
+                let (ran, output) = run(case, &invalid_build, invalid_support.as_deref());
+                assert!(
+                    !ran && output.contains(diagnostic)
+                        && output.contains("unused`")
+                        && output.contains(file)
+                        && !output.contains("while resuming"),
+                    "{layout}: {output}"
+                );
+            }
         }
     }
 }
@@ -507,19 +494,22 @@ machine choose_amount(flag: bool) -> i32 ensures result >= 7 && result <= 9 {{
 "#
         );
         for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let (ran, output) = check_project(name, &build, 7, "", &["run", "--engine", engine, "build.omg"]);
-        assert_eq!(ran, accepted, "{output}");
-        if accepted {
-            assert!(
-                output.lines().any(|line| line == expected),
-                "{output}"
+            let (ran, output) = check_project(
+                name,
+                &build,
+                7,
+                "",
+                &["run", "--engine", engine, "build.omg"],
             );
-        } else {
-            assert!(
-                output.contains("cannot prove requires contract for call require_related"),
-                "{output}"
-            );
-        }
+            assert_eq!(ran, accepted, "{output}");
+            if accepted {
+                assert!(output.lines().any(|line| line == expected), "{output}");
+            } else {
+                assert!(
+                    output.contains("cannot prove requires contract for call require_related"),
+                    "{output}"
+                );
+            }
         }
     }
 }
@@ -768,7 +758,10 @@ machine ready(builder: @mutable BuildPlan, item: DependencyRegistration) -> bool
     );
     // The second subject can only be evaluated after the first one returns.
     let pair = build
-        .replace("SUBJECT", &format!(r"transition ({call}, |counts|::value())"))
+        .replace(
+            "SUBJECT",
+            &format!(r"transition ({call}, |counts|::value())"),
+        )
         .replace("true ->", "(_, 7) ->")
         .replace("_ ->", "(_, _) ->");
     for (name, source) in [
@@ -777,11 +770,17 @@ machine ready(builder: @mutable BuildPlan, item: DependencyRegistration) -> bool
         ("subsequent-subject", &pair),
     ] {
         for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let (ran, report) = check_project(name, source, 7, "", &["run", "--engine", engine, "build.omg"]);
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+            let (ran, report) = check_project(
+                name,
+                source,
+                7,
+                "",
+                &["run", "--engine", engine, "build.omg"],
+            );
+            assert!(
+                ran && report.lines().any(|line| line == expected),
+                "{report}"
+            );
         }
     }
     let (ran, report) = check_project("false-subject", &direct, 8, "", &["--check", "main.omg"]);
@@ -805,11 +804,17 @@ fn a_helper_prepares_a_package_with_the_callers_borrow_still_live() {
         };
         source.push_str(&format!("\nmachine ready(builder: @mutable BuildPlan, registration: DependencyRegistration) suspends {{\n    {wait}\n    {body}\n}}\n"));
         for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let (ran, report) = check_project(name, &source, 7, "", &["run", "--engine", engine, "build.omg"]);
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+            let (ran, report) = check_project(
+                name,
+                &source,
+                7,
+                "",
+                &["run", "--engine", engine, "build.omg"],
+            );
+            assert!(
+                ran && report.lines().any(|line| line == expected),
+                "{report}"
+            );
         }
     }
 }
@@ -817,33 +822,29 @@ fn a_helper_prepares_a_package_with_the_callers_borrow_still_live() {
 #[test]
 fn a_build_helper_can_use_its_imported_type_on_both_sides_of_a_wait() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
-    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+    let scratch = project::stage(
         "prepared-helper-type",
-        false,
-    )
-    .unwrap();
-    let root = project.path();
-    std::fs::create_dir(root.join("vendor")).unwrap();
-    std::fs::create_dir(root.join("support")).unwrap();
-    std::fs::write(
-        root.join("vendor/build.omg"),
-        r#"machine build(builder: @mutable BuildPlan) {
+        &[
+            (
+                "vendor/build.omg",
+                r#"machine build(builder: @mutable BuildPlan) {
         builder.product = BuildProduct::Package { name: "scores" };
     }"#,
-    )
-    .unwrap();
-    std::fs::write(root.join("types.omg"), "public data Score = i32;").unwrap();
-    std::fs::write(root.join("vendor/main.omg"), "public data Exported = i32;").unwrap();
-    std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
-    std::fs::write(
-        root.join("support/helpers.omg"),
-        r#"use types.omg as types;
+            ),
+            ("types.omg", "public data Score = i32;"),
+            ("vendor/main.omg", "public data Exported = i32;"),
+            ("main.omg", "machine main() {}"),
+            (
+                "support/helpers.omg",
+                r#"use types.omg as types;
 public machine score() -> i32 {
     let seven: |types|::Score = 7;
     seven
 }"#,
-    )
-    .unwrap();
+            ),
+        ],
+    );
+    let root = scratch.path();
     let build = r#"use support/helpers.omg as support;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
@@ -860,12 +861,7 @@ machine build(builder: @mutable BuildPlan) suspends {
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
         let run = |program: &str| {
             std::fs::write(root.join("build.omg"), program).unwrap();
-            Command::new(env!("CARGO_BIN_EXE_omega"))
-                .args(["run", "--engine", engine, "build.omg"])
-                .current_dir(root)
-                .stdin(std::process::Stdio::null())
-                .output()
-                .unwrap()
+            project::omega(root, &["run", "--engine", engine, "build.omg"])
         };
         let result = run(&build);
         let report = format!(
@@ -897,31 +893,24 @@ machine build(builder: @mutable BuildPlan) suspends {
 #[test]
 fn each_transition_arm_can_prepare_its_own_dependency() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
-    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+    let scratch = project::stage(
         "alternative-preparations",
-        false,
-    )
-    .unwrap();
-    let root = project.path().join("app");
-    std::fs::create_dir(&root).unwrap();
-    std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
+        &[("app/main.omg", "machine main() {}")],
+    );
+    let root = scratch.path().join("app");
     for (directory, name, value) in [("left_vendor", "alpha", 7), ("right_vendor", "beta", 13)] {
-        std::fs::write(root.join(format!("{name}.omg")),
-            format!("public machine value() -> i32 {{ {value} }}")).unwrap();
-        let package = project.path().join(directory);
-        std::fs::create_dir(&package).unwrap();
-        std::fs::write(
-            package.join("build.omg"),
-            format!(
-                "machine build(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Package {{ name: \"{name}\" }}; }}"
-            ),
-        )
-        .unwrap();
-        std::fs::write(
-            package.join("main.omg"),
-            format!("public machine value() -> i32 {{ {value} }}"),
-        )
-        .unwrap();
+        let source = format!("public machine value() -> i32 {{ {value} }}");
+        let package = format!(
+            "machine build(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Package {{ name: \"{name}\" }}; }}"
+        );
+        project::write(
+            scratch.path(),
+            &[
+                (&format!("app/{name}.omg"), &source),
+                (&format!("{directory}/build.omg"), &package),
+                (&format!("{directory}/main.omg"), &source),
+            ],
+        );
     }
     let build = r#"use alpha.omg as alpha;
 use beta.omg as beta;
@@ -955,31 +944,25 @@ machine build(builder: @mutable BuildPlan) suspends {
         }
         std::fs::write(root.join("build.omg"), selected).unwrap();
         for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--engine", engine, "build.omg"])
-            .current_dir(&root)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .unwrap();
-        let report = format!(
-            "{}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        if unused_error {
-            assert!(
-                !output.status.success()
-                    && report.contains("may overflow")
-                    && report.contains("unused"),
-                "{report}"
+            let output = project::omega(&root, &["run", "--engine", engine, "build.omg"]);
+            let report = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
             );
-        } else {
-            assert!(
-                output.status.success()
-                    && report.lines().any(|line| line == expected),
-                "{report}"
-            );
-        }
+            if unused_error {
+                assert!(
+                    !output.status.success()
+                        && report.contains("may overflow")
+                        && report.contains("unused"),
+                    "{report}"
+                );
+            } else {
+                assert!(
+                    output.status.success() && report.lines().any(|line| line == expected),
+                    "{report}"
+                );
+            }
         }
     }
 }
@@ -1075,17 +1058,17 @@ machine build(builder: @mutable BuildPlan) suspends {
 }"#.replace("HOST", target.target_name());
     for (flag, value) in [("true", 7), ("false", 8)] {
         for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let (ran, report) = check_project(
-            &format!("conditional-wait-{flag}"),
-            &build.replace("FLAG", flag),
-            value,
-            "",
-            &["run", "--engine", engine, "build.omg"],
-        );
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+            let (ran, report) = check_project(
+                &format!("conditional-wait-{flag}"),
+                &build.replace("FLAG", flag),
+                value,
+                "",
+                &["run", "--engine", engine, "build.omg"],
+            );
+            assert!(
+                ran && report.lines().any(|line| line == expected),
+                "{report}"
+            );
         }
     }
     let wrong_local = build.replace("FLAG", "false").replace(
@@ -1388,7 +1371,8 @@ fn a_preparation_refuses_shadowing_before_the_first_build_effects() {
     );
     assert!(!compiled, "{stderr}");
     assert!(
-        stderr.contains("an earlier local with this name is still visible") && stderr.contains("build.omg:14:9"),
+        stderr.contains("an earlier local with this name is still visible")
+            && stderr.contains("build.omg:14:9"),
         "{stderr}"
     );
 }
@@ -1408,7 +1392,10 @@ fn a_local_resolution_error_after_a_wait_is_reported_before_the_dependency_runs(
     assert!(!compiled, "{report}");
     assert!(report.contains("duplicate local data `seven`"), "{report}");
     assert!(!report.contains("while resuming"), "{report}");
-    assert!(!report.contains("while preparing the dependency"), "{report}");
+    assert!(
+        !report.contains("while preparing the dependency"),
+        "{report}"
+    );
 }
 
 #[test]
@@ -1443,9 +1430,7 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
         "{stderr}"
     );
     assert!(
-        stderr.contains(
-            "while reading the signature of `build`"
-        ),
+        stderr.contains("while reading the signature of `build`"),
         "{stderr}"
     );
     let location = stderr.lines().map(str::trim).find_map(|line| {
@@ -1500,26 +1485,17 @@ fn a_dependency_build_error_reports_the_childs_source() {
 
 #[test]
 fn preparation_makes_a_product_dependency_ready_only_for_its_product() {
-    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+    let scratch = project::stage(
         "prepared-product-scope",
-        false,
-    )
-    .unwrap();
-    let root = project.path();
-    std::fs::create_dir(root.join("vendor")).unwrap();
-    std::fs::write(
-        root.join("vendor/build.omg"),
-        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "kit" }; }"#,
-    )
-    .unwrap();
-    std::fs::write(
-        root.join("vendor/main.omg"),
-        "public machine value() -> i32 { 7 }",
-    )
-    .unwrap();
-    std::fs::write(
-        root.join("main.omg"),
-        r#"use {kit}/main.omg as kit;
+        &[
+            (
+                "vendor/build.omg",
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "kit" }; }"#,
+            ),
+            ("vendor/main.omg", "public machine value() -> i32 { 7 }"),
+            (
+                "main.omg",
+                r#"use {kit}/main.omg as kit;
 machine main() crashes Trap {
     transition |kit|::value() == 7 {
         true -> pass(),
@@ -1529,8 +1505,10 @@ machine main() crashes Trap {
 machine pass() {}
 machine wrong() crashes Trap { crash Trap; }
 "#,
-    )
-    .unwrap();
+            ),
+        ],
+    );
+    let root = scratch.path();
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
@@ -1545,12 +1523,7 @@ machine build(builder: @mutable BuildPlan) suspends {
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
         let invoke = |contents: &str| {
             std::fs::write(root.join("build.omg"), contents).unwrap();
-            Command::new(env!("CARGO_BIN_EXE_omega"))
-                .args(["run", "--engine", engine, "build.omg"])
-                .current_dir(root)
-                .stdin(std::process::Stdio::null())
-                .output()
-                .unwrap()
+            project::omega(root, &["run", "--engine", engine, "build.omg"])
         };
         let output = invoke(&build);
         let report = format!(
@@ -1579,13 +1552,18 @@ machine build(builder: @mutable BuildPlan) suspends {
             "{report}"
         );
         let unknown = leaked
-            .replace("use {kit}/main.omg as kit;", "use {kitchen}/main.omg as kitchen;")
+            .replace(
+                "use {kit}/main.omg as kit;",
+                "use {kitchen}/main.omg as kitchen;",
+            )
             .replace("|kit|::value()", "|kitchen|::value()");
         let output = invoke(&unknown);
         let report = String::from_utf8_lossy(&output.stderr);
         assert!(
             !output.status.success()
-                && report.contains("Build import `{kitchen}/main.omg as kitchen` has no supplied source")
+                && report.contains(
+                    "Build import `{kitchen}/main.omg as kitchen` has no supplied source"
+                )
                 && report.contains("build.omg:1:5"),
             "{report}"
         );
@@ -1604,7 +1582,8 @@ fn an_unused_unbound_import_is_refused_at_the_authored_name() {
     );
     assert!(
         !compiled
-            && report.contains("Build import `{absent}/helper.omg as missing` has no supplied source")
+            && report
+                .contains("Build import `{absent}/helper.omg as missing` has no supplied source")
             && report.contains("build.omg:1:5"),
         "{report}"
     );
@@ -1663,25 +1642,21 @@ fn a_build_binds_its_products_file_without_being_able_to_call_it() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+    let scratch = project::stage(
         "product-file-operand",
-        false,
-    )
-    .unwrap();
-    let root = project.path();
-    let kit = root.join("vendor");
-    std::fs::create_dir(&kit).unwrap();
-    std::fs::write(
-        kit.join("build.omg"),
-        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "kit" }; }"#,
-    )
-    .unwrap();
-    std::fs::write(kit.join("entry.omg"), "public machine start() {}").unwrap();
-    std::fs::write(
-        root.join("main.omg"),
-        "machine unreachable() crashes Trap { crash Trap; }",
-    )
-    .unwrap();
+        &[
+            (
+                "vendor/build.omg",
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "kit" }; }"#,
+            ),
+            ("vendor/entry.omg", "public machine start() {}"),
+            (
+                "main.omg",
+                "machine unreachable() crashes Trap { crash Trap; }",
+            ),
+        ],
+    );
+    let root = scratch.path();
     let build = r#"use {kit}/entry.omg as selected;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable BuildPlan) suspends {
@@ -1692,12 +1667,7 @@ machine build(builder: @mutable BuildPlan) suspends {
 }"#.replace("HOST", host.target_name());
     let invoke = |source: &str, args: &[&str]| {
         std::fs::write(root.join("build.omg"), source).unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(args)
-            .current_dir(root)
-            .stdin(std::process::Stdio::null())
-            .output()
-            .unwrap();
+        let output = project::omega(root, args);
         let report = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),

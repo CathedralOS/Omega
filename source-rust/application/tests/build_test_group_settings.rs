@@ -27,7 +27,7 @@ machine main() {}
 
 fn build(product: &str, configuration: &str) -> (bool, String) {
     let package = project::stage(
-        "omega-group-settings",
+        "group-settings",
         &[
             (
                 "kit/build.omg",

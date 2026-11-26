@@ -72,7 +72,7 @@ fn an_authored_git_pin_rebuilds_offline_without_the_tracking_ref_or_a_lock() {
     git(&remote, &["add", "."]);
     git(&remote, &["commit", "--quiet", "-m", "publish answer"]);
     let pin = git(&remote, &["rev-parse", "HEAD"]);
-    let build = format!(
+    let build_file = format!(
         r#"use {{omega}}/build/dependencies/providers/git.omg as upstream;
 machine build(build: @mutable BuildPlan) {{
     build.product = BuildProduct::Application {{ name: "pinned" }};
@@ -86,7 +86,7 @@ machine build(build: @mutable BuildPlan) {{
     project::write(
         &app,
         &[
-            ("build.omg", &build),
+            ("build.omg", &build_file),
             (
                 "main.omg",
                 r#"use {pinned_answers}/answer.omg as answer;
@@ -112,10 +112,7 @@ machine main() crashes Trap {
         );
         assert!(output.status.success(), "{report}");
         let executable = destination.join("omega-program");
-        let status = Command::new(executable)
-            .current_dir(&app)
-            .status()
-            .unwrap();
+        let status = Command::new(executable).current_dir(&app).status().unwrap();
         assert!(status.success(), "{status}");
     }
 }
