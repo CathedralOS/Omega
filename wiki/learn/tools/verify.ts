@@ -112,14 +112,10 @@ for (const ch of chapters) {
     const f = fig as { filename?: string; companion?: string };
     const dir = join(FIXTURES, `${ch.id}-s${si + 1}`);
     mkdirSync(dir, { recursive: true });
-    // build.omg excerpts display a relative system location like the real
-    // samples; verification substitutes the actual system path.
-    const code = f.filename === "build.omg"
-      ? fig.code.replace(/location:\s*"[^"]*"/, `location: ${JSON.stringify(SYSTEM).replace(/\\/g, "/")}`)
-      : fig.code;
+    const code = fig.code;
     writeFileSync(join(dir, f.filename ?? "main.omg"), code + "\n");
     if (f.companion) writeFileSync(join(dir, "main.omg"), f.companion + "\n");
-    const needsSystem = /\{system\}\/|\bsystem\\|omega::/.test(fig.code) || f.companion != null;
+    const needsSystem = /\buse\s+\{system\}\//.test(fig.code);
     const buildPath = join(dir, "build.omg");
     let buildCode: string | null = null;
     if (f.filename === "build.omg") {
@@ -127,11 +123,12 @@ for (const ch of chapters) {
     } else if (needsSystem) {
       const entry = /\bmachine start\b/.test(fig.code) ? "start" : "main";
       buildCode =
+        `use {omega}/build/dependency.omg;\nuse main.omg;\n\n` +
         `machine build(builder: @mutable Build) {\n` +
         `    Build::application(builder, "omegalearn_fixture");\n` +
-        `    let package_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: ${JSON.stringify(SYSTEM).replace(/\\/g, "/")} }));\n` +
+        `    let package_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));\n` +
         ["windows_x86_64", "linux_x86_64", "linux_arm64", "macos_arm64"]
-          .map((t) => `    Build::bind(builder, ${t}::ProgramEntry, ${entry});\n`).join("") +
+          .map((t) => `    Build::bind(builder, ${t}::ProgramEntry, |main|::${entry});\n`).join("") +
         `}\n`;
       writeFileSync(buildPath, buildCode);
     } else if (existsSync(buildPath)) {

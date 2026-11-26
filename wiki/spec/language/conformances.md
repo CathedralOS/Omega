@@ -45,7 +45,7 @@ public data Counter { value: i32; }
 
 public SaturatingIncrement satisfies Incrementable<Counter> {
     machine increment(counter: @mutable Counter) {
-        transition counter.value < integer\max::<i32>() {
+        transition counter.value < |integer|::max::<i32>() {
             true -> raise(counter),
             false -> hold(),
         }
@@ -203,8 +203,8 @@ these values under their declaration spelling.
 
 ```omega
 const WireCodec: Codec<Message> = Codec {
-    encode: (lib_a\encode satisfies Codec<Message>::encode),
-    decode: (lib_b\decode satisfies Codec<Message>::decode),
+    encode: (|lib_a|::encode satisfies Codec<Message>::encode),
+    decode: (|lib_b|::decode satisfies Codec<Message>::decode),
 };
 ```
 
@@ -578,7 +578,7 @@ parameter, a field or any other value that was handed in rejects, as does a
 declared conformer, which is already bound and is used as it is. There is no
 rebinding. Code that must present a handed selection under another requirement
 writes an ordinary adapter machine that calls it and binds the adapter, which
-makes the new identity visible. `reflect\callable` takes the same operands.
+makes the new identity visible. `|reflect|::callable` takes the same operands.
 
 **One declared requirement per body.** A machine declares at most one
 requirement, and an inline member has one. A machine that should serve several

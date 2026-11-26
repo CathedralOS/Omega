@@ -134,7 +134,7 @@ and [calling plans](../spec/build/calling_plans.md#authorship-and-evaluation).
 Some foreign APIs, including firmware, give you a table of function addresses.
 Call an ordinary boundary requirement; its package's Build connects that
 requirement to an exact field of the table argument with `FunctionFieldBinding`.
-`reflect\parameter` names the table formal and `reflect\field` names the field.
+`|reflect|::parameter` names the table formal and `|reflect|::field` names the field.
 The table need not be the first argument.
 
 The binding says where to find the function. The requirement's calling plan

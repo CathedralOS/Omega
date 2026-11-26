@@ -93,14 +93,16 @@ async function* searchScopes(uri, current, reference, needsWorkspace) {
   const packageRoot = await findPackageRoot(folder, workspaceFolder);
   const libraryRoot = await findLibraryRoot(folder);
 
-  const imported = [];
-  for (const use of current.uses) {
-    const target = scan.importTarget(use, reference);
-    if (target) imported.push(...(await importedFiles(target, folder, packageRoot, libraryRoot)));
+  if (reference.alias) {
+    const imported = [];
+    for (const use of current.uses) {
+      const target = scan.importTarget(use, reference);
+      if (target) imported.push(...(await importedFiles(target, packageRoot || folder, libraryRoot)));
+    }
+    yield fresh(imported);
+    return;
   }
-  if (reference.alias) yield fresh(imported);
   yield fresh([uri]);
-  if (!reference.alias) yield fresh(imported);
   yield fresh(packageRoot ? await omegaFiles(packageRoot, true, true) : await omegaFiles(folder, false));
   if (libraryRoot) yield fresh(await omegaFiles(libraryRoot, true));
   if (!needsWorkspace()) return;
@@ -110,41 +112,16 @@ async function* searchScopes(uri, current, reference, needsWorkspace) {
   yield fresh(everything);
 }
 
-async function importedFiles(target, folder, packageRoot, libraryRoot) {
+async function importedFiles(target, packageRoot, libraryRoot) {
   if (target.library) {
-    if (!libraryRoot) return [];
-    const root = vscode.Uri.joinPath(libraryRoot, target.library);
-    return target.file ? existing([vscode.Uri.joinPath(root, target.file)]) : omegaFiles(root, true);
+    return libraryRoot ? existing([vscode.Uri.joinPath(libraryRoot, target.library, target.file)]) : [];
   }
-  // Paths inside this package resolve from the importing file's folder up to
-  // the package root; the first folder that has the file wins.
-  if (!target.dependency || target.module) {
-    for (const base of foldersUpTo(folder, packageRoot)) {
-      const files = target.module ? await moduleFiles(base, target.module) : await existing([vscode.Uri.joinPath(base, target.file)]);
-      if (files.length > 0) return files;
-    }
-  }
-  if (!target.dependency) return [];
+  if (!target.dependency) return existing([vscode.Uri.joinPath(packageRoot, target.file)]);
   for (const root of await dependencyRoots(packageRoot, target.dependency)) {
-    let files;
-    if (target.file) files = await existing([vscode.Uri.joinPath(root, target.file)]);
-    else if (target.inside) files = await moduleFiles(root, target.inside);
-    else files = await omegaFiles(root, true);
-    if (files.length > 0) return files;
+    const files = await existing([vscode.Uri.joinPath(root, target.file)]);
+    if (files.length) return files;
   }
   return [];
-}
-
-// A module `a/b` is `a/b.omg`, `a/b/mod.omg` or `a/b/b.omg` (the library's
-// `allocation/vec/vec.omg`); failing those, the `.omg` files in folder `a/b`.
-async function moduleFiles(base, module) {
-  const name = module.slice(module.lastIndexOf('/') + 1);
-  const files = await existing([
-    vscode.Uri.joinPath(base, `${module}.omg`),
-    vscode.Uri.joinPath(base, module, 'mod.omg'),
-    vscode.Uri.joinPath(base, module, `${name}.omg`),
-  ]);
-  return files.length > 0 ? files : omegaFiles(vscode.Uri.joinPath(base, module), false);
 }
 
 // Finds the folders a dependency named `name` may live in: the `location`
@@ -171,21 +148,6 @@ async function existing(uris) {
   const found = [];
   for (const uri of uris) if (await exists(uri)) found.push(uri);
   return found;
-}
-
-// Lists the folder and its parents up to and including `last` (or just the
-// folder when there is no package root).
-function foldersUpTo(folder, last) {
-  const folders = [folder];
-  if (!last) return folders;
-  let cursor = folder;
-  while (cursor.toString() !== last.toString()) {
-    const up = parent(cursor);
-    if (up.toString() === cursor.toString()) break;
-    folders.push(up);
-    cursor = up;
-  }
-  return folders;
 }
 
 // The package root is the nearest folder holding `build.omg`, without leaving
