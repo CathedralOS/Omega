@@ -121,7 +121,7 @@ impl Operand {
         let mut scalar = None;
         let (identity, value) = match kind {
             TypeParameterKind::Type => {
-                let reference = named_type(program, argument, supplying_owner)?;
+                let mut reference = named_type(program, argument, supplying_owner)?;
                 type_argument_meets_bounds(program, binder, reference)?;
                 let identity = if matches!(
                     program.type_reference_table.type_reference(reference),
@@ -131,7 +131,20 @@ impl Operand {
                 {
                     Identity::Declaration(argument.symbol)
                 } else {
-                    Identity::Type(program.normalized_type_identity(reference))
+                    let request = crate::type_identity::TypeIdentityRequest::ordinary(reference);
+                    if let Some(identity) = program.region_free_scoped_type_identity(request, &[]) {
+                        Identity::Type(identity)
+                    } else {
+                        let identity = program
+                            .scoped_type_identity_in_region_scope(request, &[], supplying_owner)
+                            .ok_or_else(|| unserved("static type operand lost its supplying region"))?;
+                        // The copied signature reads its actual outside the caller.
+                        // Retain the supplying scope on that type occurrence, too.
+                        reference = program
+                            .static_operand_type_reference_in_scope(argument, supplying_owner)
+                            .map_err(unserved)?;
+                        Identity::Type(identity)
+                    }
                 };
                 (identity, StaticMachineBindingValue::Type(reference))
             }

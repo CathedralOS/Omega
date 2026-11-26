@@ -3942,6 +3942,34 @@ machine no_regions() {}
 }
 
 #[test]
+fn a_specialized_machine_can_borrow_its_callers_lifetime_applied_type() {
+    let verdicts = declared_verdicts(
+        r#"
+data Cell [copy] { value: u64; }
+data Link<'storage> [copy] { cell: @'storage Cell; }
+trait Select<Value> {
+    machine number(input: @Value) -> u64 reaches none crashes none;
+}
+Selected<Value> satisfies Select<Value> {
+    machine number(input: @Value) -> u64 reaches none crashes none { 31u64 }
+}
+machine observe<'first, 'second>(first: @'first Cell, second: @'second Cell) -> u64 {
+    let left: Link<'first> = Link { cell: first };
+    let right: Link<'second> = Link { cell: second };
+    let result: u64 = Selected::<Link<'first>>::number(@left);
+    Selected::<Link<'second>>::number(@right)
+}
+machine entry() -> u64 {
+    let left: Cell = Cell { value: 23u64 };
+    let right: Cell = Cell { value: 71u64 };
+    observe(@left, @right)
+}
+"#,
+    );
+    assert!(matches!(verdicts.as_slice(), [RouteVerdict::Accepted(_)]));
+}
+
+#[test]
 fn generic_named_map_source_rejects_a_foreign_unused_argument() {
     let text = generic_named_map_source()
         .replacen(
