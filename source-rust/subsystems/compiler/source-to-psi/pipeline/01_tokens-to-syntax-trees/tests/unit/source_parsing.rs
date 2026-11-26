@@ -332,16 +332,29 @@ machine build(builder: @mutable Build) {
     let mut trees = SyntaxTrees::new(SourceId(1));
     let tokens = Lexer::new(text).tokenize().unwrap();
     let roots = parse(&mut trees, SourceId(1), &tokens).unwrap();
-    let imports = roots.items.iter().filter_map(|root| match trees.root_item(*root) {
-        Item::Use(UseItem::File { alias, qualifiers, .. }) => {
-            Some((alias.as_str(&trees), !qualifiers.is_empty() && qualifiers.iter().all(|usage| usage.product_operand)))
-        }
-        _ => None,
-    }).collect::<Vec<_>>();
-    assert_eq!(imports, [
-        ("app", true), ("helper", false), ("slot", true),
-        ("provider", true), ("local", false),
-    ]);
+    let imports = roots
+        .items
+        .iter()
+        .filter_map(|root| match trees.root_item(*root) {
+            Item::Use(UseItem::File {
+                alias, qualifiers, ..
+            }) => Some((
+                alias.as_str(&trees),
+                !qualifiers.is_empty() && qualifiers.iter().all(|usage| usage.product_operand),
+            )),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        imports,
+        [
+            ("app", true),
+            ("helper", false),
+            ("slot", true),
+            ("provider", true),
+            ("local", false),
+        ]
+    );
 }
 
 #[test]
@@ -446,10 +459,9 @@ fn root_operand_file_roles_follow_the_declared_build_record() {
         );
         let parsed = crate::tests::parse_source(&text);
         let import = parsed.root_items().find_map(|item| match item {
-            Item::Use(UseItem::File {
-                qualifiers,
-                ..
-            }) => Some(!qualifiers.is_empty() && qualifiers.iter().all(|usage| usage.product_operand)),
+            Item::Use(UseItem::File { qualifiers, .. }) => {
+                Some(!qualifiers.is_empty() && qualifiers.iter().all(|usage| usage.product_operand))
+            }
             _ => None,
         });
         assert_eq!(import, Some(product_only), "{text}");
