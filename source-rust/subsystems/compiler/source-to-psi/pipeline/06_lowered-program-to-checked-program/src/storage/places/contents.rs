@@ -552,10 +552,12 @@ impl EntryOwner<'_, '_> {
             .ok_or(crate::Unbound::Unproved(
                 "no operation names the field, so its entry content has no value identity",
             ))?;
-        let held_type =
-            terminal_check_tables::row(&self.tables.values, held, storage.machine, concerns)
-                .map_err(crate::Unbound::Refused)?
-                .scalar_type;
+        let held_type = self
+            .tables
+            .values
+            .checked(held, storage.machine, concerns)
+            .map_err(crate::Unbound::Refused)?
+            .scalar_type;
         if held_type != scalar_type {
             return Err(crate::Unbound::Unsupported(
                 "a formal's field holds a value of another type than its clause term",

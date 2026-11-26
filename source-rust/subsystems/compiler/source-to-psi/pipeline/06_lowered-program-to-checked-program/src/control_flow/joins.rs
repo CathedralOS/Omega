@@ -610,7 +610,7 @@ fn argument_bounds(
         context,
         &known.assumptions,
         &known.axioms,
-        &*tables.values,
+        &tables.values,
         activity,
     );
     for (parameter, argument) in join.parameters.iter().zip(arguments) {

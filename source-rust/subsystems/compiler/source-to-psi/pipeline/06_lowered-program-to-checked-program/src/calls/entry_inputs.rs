@@ -772,7 +772,7 @@ fn derived(
         }
     }
     let mut prover =
-        crate::prove::Prover::new(context, &assumptions, &axioms, &*tables.values, activity);
+        crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, activity);
     let mut found = Derived {
         bounds: Vec::new(),
         unreached: Vec::new(),
@@ -837,7 +837,7 @@ pub(crate) fn known_at<'tables>(
         context,
         assumptions,
         axioms,
-        &*tables.values,
+        &tables.values,
     ))
 }
 

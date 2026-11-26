@@ -18,13 +18,14 @@ Identities are reused from `semantic-vocabulary` wherever the lowered form
 already names the same thing (values, blocks, edges, operations, machines,
 obligations, root places), so the checker and the emitted product refer to
 "the same stable values, places, operations, and edges"
-(`wiki/spec/terminal-psi/product.md`). Every table is an `IdTable`, a flat
-`Vec` indexed by identity. Elaboration mints each identity by `IdTable::push`,
+(`wiki/spec/terminal-psi/product.md`). The tables assign consecutive identities as elaboration appends rows,
 so the identities are dense by construction and a lookup is one index, never
 a scan or a map. The crate's own identities exist only where the lowered form
 has no identity for the concept.
 */
 
+mod machine_values;
+pub use machine_values::MachineValues;
 mod shared_rows;
 pub use shared_rows::{CheckingRows, LoopCheckingRows};
 
@@ -325,7 +326,11 @@ pub fn row<Id: NumericId, T>(
     machine: MachineId,
     concerns: Construct,
 ) -> Checked<&T> {
-    table.get(identity).ok_or_else(|| Refusal {
+    checked_row(table.get(identity), machine, concerns)
+}
+
+fn checked_row<T>(value: Option<&T>, machine: MachineId, concerns: Construct) -> Checked<&T> {
+    value.ok_or_else(|| Refusal {
         reason: RefusalReason::ForeignIdentity,
         site: crate::RefusalSite::Machine(machine, concerns),
         source_span: None,
@@ -348,7 +353,7 @@ pub struct ErasedFieldTerm {
 /// "Claim identities stay machine-local"), so these tables are too.
 #[derive(Debug, Clone, Default)]
 pub struct MachineTables {
-    pub values: CheckingRows<ValueId, values::ValueRow>,
+    pub values: MachineValues,
     pub knowledge: IdTable<KnowledgeId, values::KnowledgeRow>,
     /// The propositions knowledge rows state, minted by `push`. Machine-local
     /// like every other identity here: Terminal Psi keeps contract

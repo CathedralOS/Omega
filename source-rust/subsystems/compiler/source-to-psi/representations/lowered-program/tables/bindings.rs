@@ -86,7 +86,7 @@ pub use terminal_psi::ResolvedStructuralPathSegment as Segment;
 pub fn entry_snapshot_segment(
     segment: Segment,
     owner: semantic_vocabulary::StructuralPlaceKind,
-    values: &IdTable<ValueId, crate::values::ValueRow>,
+    values: &crate::MachineValues,
 ) -> bool {
     use crate::values::ValueOrigin;
     use semantic_vocabulary::StructuralPlaceKind;
