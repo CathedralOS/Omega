@@ -539,3 +539,62 @@ fn an_indexed_borrow_demands_its_view_through_the_headers_last_use() {
             .contains(&position(2))
     );
 }
+
+#[test]
+fn a_loop_can_hand_its_last_view_to_the_next_reborrow() {
+    let source = root(1);
+    let result = root(2);
+    let mut back = edge(0);
+    back.parameters.push(source.clone());
+    back.bindings.push(
+        DescriptorFlowBinding::new(
+            result.clone(),
+            source.clone(),
+            terminal_psi::StructuralAccess::MutableBorrow,
+            terminal_psi::StructuralAccess::MutableBorrow,
+        )
+        .unwrap(),
+    );
+    let mut steps = BTreeMap::from([
+        (
+            position(0),
+            DescriptorFlowStep {
+                definitions: vec![result.clone()],
+                inputs: vec![(Some(source.clone()), None)],
+                derivations: vec![(source.clone(), result.clone())],
+                reborrows_view: true,
+                successors: vec![edge(1)],
+                ..Default::default()
+            },
+        ),
+        (
+            position(1),
+            DescriptorFlowStep {
+                inputs: vec![(Some(result.clone()), None)],
+                successors: vec![back],
+                ..Default::default()
+            },
+        ),
+    ]);
+    let lifetime = |steps: &_| descriptor_location_lifetime(steps, position(0), &result);
+    let handed = lifetime(&steps);
+    assert!(handed.live.contains(&position(0)));
+    assert!(handed.reborrows_previous);
+    assert!(handed.authorized[&position(1)].contains(&result));
+
+    // The predecessor's source stays independently usable after the next
+    // view is formed. A single static loan cannot stand for both.
+    steps
+        .get_mut(&position(1))
+        .unwrap()
+        .inputs
+        .push((Some(source.clone()), None));
+    assert!(!lifetime(&steps).reborrows_previous);
+    steps.get_mut(&position(1)).unwrap().inputs.pop();
+
+    steps.get_mut(&position(1)).unwrap().may_escape = true;
+    assert!(!lifetime(&steps).reborrows_previous);
+    steps.get_mut(&position(1)).unwrap().may_escape = false;
+    steps.get_mut(&position(0)).unwrap().reborrows_view = false;
+    assert!(!lifetime(&steps).reborrows_previous);
+}

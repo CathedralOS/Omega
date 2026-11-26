@@ -1041,7 +1041,7 @@ fn publish_parents(
                         at,
                         &DescriptorLocation::whole(result.place),
                     );
-                    if lifetime.live.contains(&at) {
+                    if lifetime.live.contains(&at) && !lifetime.reborrows_previous {
                         let mut refused = refuse(
                             machine.id,
                             Construct::Operation(operation.id),

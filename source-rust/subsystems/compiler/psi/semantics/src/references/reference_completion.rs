@@ -1100,6 +1100,7 @@ fn retain_result_dependencies(
             position,
             argument.path.clone(),
             crate::descriptor_lifetimes::DescriptorLifetime {
+                reborrows_previous: false,
                 live: lifetime.live.clone(),
                 demanded: lifetime.demanded.clone(),
                 surviving: lifetime.surviving.clone(),

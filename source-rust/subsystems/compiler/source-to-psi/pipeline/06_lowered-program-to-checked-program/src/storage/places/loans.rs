@@ -1273,7 +1273,7 @@ impl<'a> Storage<'a> {
         } else {
             descriptor_location_lifetime(flow, at, &DescriptorLocation::whole(result.place))
         };
-        if lifetime.live.contains(&at) {
+        if lifetime.live.contains(&at) && !lifetime.reborrows_previous {
             return Err(self.unsupported(
                 concerns,
                 "persistent loan crosses its own formation without a fresh occurrence",

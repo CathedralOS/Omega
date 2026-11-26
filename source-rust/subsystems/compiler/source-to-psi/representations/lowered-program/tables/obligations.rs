@@ -172,6 +172,11 @@ pub type CrashSite = ExecutionSite;
 /// Where a loan's authority comes from. loans.md: "A direct reborrow names
 /// its immediate parent resource, exact formation event, and projection. A
 /// multihop chain cannot skip intermediate parents."
+///
+/// If this formation reborrows the final carrier of its own previous
+/// dynamic occurrence, that occurrence is the immediate parent on re-entry.
+/// The lender here names the source on initial arrivals. The checker
+/// reconstructs the recurrence from the operation and its carrier flow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Lender {
     /// Lent directly from owned storage at the captured place's root.

@@ -45,6 +45,8 @@ pub struct DescriptorFlowStep {
     /// can prove equalities but cannot stand in for the copied value.
     pub scalar_value_stores: Vec<(DescriptorLocation, semantic_vocabulary::ValueId)>,
     pub authority_derivations: Vec<(DescriptorLocation, DescriptorLocation)>,
+    /// A view formation taking a new loan of an existing view's payload.
+    pub reborrows_view: bool,
     pub inputs: Vec<DescriptorFlowInput>,
     pub may_escape: bool,
     pub successors: Vec<DescriptorFlowEdge>,
@@ -336,6 +338,7 @@ enum DescriptorStart {
 type LocationsByPosition = BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>;
 
 struct DescriptorDemand {
+    escaped: bool,
     live: BTreeSet<DescriptorPosition>,
     names: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
 }
@@ -487,6 +490,7 @@ fn location_live_positions(
         live.insert(position);
         observations.extend(predecessors.get(&occurrence).into_iter().flatten().cloned());
     }
+    let has_escape = !escaped.is_empty();
     let mut escaped_positions = BTreeSet::new();
     while let Some(position) = escaped.pop() {
         if !escaped_positions.insert(position) {
@@ -505,10 +509,17 @@ fn location_live_positions(
     ) {
         names.entry(position).or_default().insert(name);
     }
-    DescriptorDemand { live, names }
+    DescriptorDemand {
+        live,
+        names,
+        escaped: has_escape,
+    }
 }
 
 pub struct DescriptorLifetime {
+    /// At this formation the previous dynamic occurrence, when present,
+    /// supplies the new one. The external lender still owns the lineage.
+    pub reborrows_previous: bool,
     pub live: BTreeSet<DescriptorPosition>,
     /// Future demand of each actual carrier spelling. A dead copy can
     /// be released without rewalking the graph from every possible cut.
@@ -787,10 +798,15 @@ fn descriptor_lifetime_with_predecessors(
         start,
         true,
         cutoff,
-        needs_contents,
+        &needs_contents,
     );
+    let reborrows_previous = start == DescriptorStart::AfterDefinition
+        && demand.live.contains(&birth)
+        && !demand.escaped
+        && ends_at_view_reborrow(steps, birth, descriptor, &demand, cutoff, &needs_contents);
     let mut surviving = BTreeMap::new();
     let authorized = if start == DescriptorStart::AfterDefinition
+        && !reborrows_previous
         && !is_fresh_definition(steps, birth, descriptor, &demand.live)
     {
         BTreeMap::new()
@@ -809,11 +825,53 @@ fn descriptor_lifetime_with_predecessors(
         )
     };
     DescriptorLifetime {
+        reborrows_previous,
         live: demand.live,
         demanded: demand.names,
         authorized,
         surviving,
     }
+}
+
+/// A previous occurrence can hand its permission to the next only when
+/// the view being narrowed is its last demanded carrier at the formation.
+/// Check its continuation separately, without seeding the new result.
+fn ends_at_view_reborrow(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    birth: DescriptorPosition,
+    result: &DescriptorLocation,
+    demand: &DescriptorDemand,
+    cutoff: Option<&DeadTailCutoff>,
+    needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
+) -> bool {
+    let Some(formation) = steps.get(&birth) else {
+        return false;
+    };
+    let [(source, child)] = formation.derivations.as_slice() else {
+        return false;
+    };
+    if !formation.reborrows_view
+        || child != result
+        || source.overlaps(result)
+        || !formation.definitions.contains(result)
+        || !demand
+            .names
+            .get(&birth)
+            .is_some_and(|names| names.len() == 1 && names.contains(source))
+    {
+        return false;
+    }
+    location_live_positions(
+        steps,
+        birth,
+        source,
+        DescriptorStart::AfterDefinition,
+        true,
+        cutoff,
+        needs_contents,
+    )
+    .live
+    .is_empty()
 }
 
 fn is_fresh_definition(
