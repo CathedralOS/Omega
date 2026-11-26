@@ -10,7 +10,7 @@ mod prelude;
 mod tests;
 
 pub use build_declaration::{
-    ApplicationDeclaration, BUILD_FILE_NAME, BUILD_TYPE_NAME, BuildDeclaration,
+    ApplicationDeclaration, BUILD_FILE_NAME, BUILD_MODULE_NAME, BUILD_TYPE_NAME, BuildDeclaration,
     BuildDeclarationKind, PackageDeclaration, ProjectName, WorkspaceDeclaration,
     WorkspaceMemberPath,
 };

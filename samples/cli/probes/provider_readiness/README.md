@@ -32,7 +32,8 @@ The intended-invalid projects retain exact refusal oracles:
 Run these projects through the ordinary CLI and existing sample gate:
 
 ```text
-omega run --both samples/cli/compilation/provider_readiness/main.omg
+omega run --engine native samples/cli/compilation/provider_readiness/main.omg
+omega run --engine psi samples/cli/compilation/provider_readiness/main.omg
 ```
 
 The gate prepares normal local package acceptance for positive programs and

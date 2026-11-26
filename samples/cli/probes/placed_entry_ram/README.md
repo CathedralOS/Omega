@@ -17,7 +17,8 @@ This probe was written to lend newly constructed private `Registers` RAM directl
 Command used with the previous hosted entry contract:
 
 ```sh
-omega run --both --keep --entry-ram 0=2900000003000000 main.omg
+omega run --engine native --keep --entry-ram 0=2900000003000000 main.omg
+omega run --engine psi --keep --entry-ram 0=2900000003000000 main.omg
 ```
 
 `0` is the authored source parameter position of the free entry wrapper. The bytes encode the complete original scalar record in little-endian order, including initialized zero padding. The runtime validates every scalar's actual codec and complete type, exact retained placement, extent, alignment, access and no-code cleanup before constructing storage. The flag explicitly sponsors a new private guest allocation; it supplies no address, external object or host authority.

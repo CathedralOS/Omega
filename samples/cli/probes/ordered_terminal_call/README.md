@@ -6,7 +6,8 @@ both exit 0 and observe the first call's value.
 
 ```sh
 omega packages update --project samples/cli/control_flow/ordered_terminal_call --target macos_arm64
-omega run --both samples/cli/control_flow/ordered_terminal_call/main.omg
+omega run --engine native samples/cli/control_flow/ordered_terminal_call/main.omg
+omega run --engine psi samples/cli/control_flow/ordered_terminal_call/main.omg
 ```
 
 The selected call retains its own execution endpoint and return cleanup

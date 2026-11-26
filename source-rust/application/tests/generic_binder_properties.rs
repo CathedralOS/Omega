@@ -1,7 +1,7 @@
 /*
 
 End-to-end CLI check that a generic machine's `[copy]` or `[linear]` binder
-refuses a type argument without that property (`omega run --both`).
+refuses a type argument without that property in both application engines.
 
 `machine keep<T [copy]>(item: T) -> T` promises its callers that `T` is
 copyable, and ownership.md says every use of `T` receives the property its
@@ -20,7 +20,6 @@ an unrelated refusal.
 
 */
 
-use std::process::Command;
 
 const COPY_BINDER: &str = "data Coin [copy] { value: u8; }
 machine keep<T [copy]>(item: T) -> T { item }
@@ -48,41 +47,27 @@ const BUILD: &str = "machine build(builder: @mutable Build) {
 }
 ";
 
-/// Runs `source` as a one-file program in both the Psi interpreter and
-/// natively, returning whether both exited 0 and the combined diagnostics.
-fn run_both(name: &str, source: &str) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-generic-binder-properties-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staging directory");
-    std::fs::write(root.join("main.omg"), source).expect("staged program");
-    std::fs::write(root.join("build.omg"), BUILD).expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "main.omg"])
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    (
-        output.status.success(),
-        format!(
-            "{}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        ),
-    )
+#[path = "support/observations.rs"]
+mod observations;
+
+fn project(source: &str) -> platform_custody::temporary_directory::TemporaryDirectory {
+    let root =
+        platform_custody::temporary_directory::TemporaryDirectory::create("generic-binder", false)
+            .unwrap();
+    std::fs::write(root.path().join("main.omg"), source).unwrap();
+    std::fs::write(root.path().join("build.omg"), BUILD).unwrap();
+    root
 }
 
 #[test]
 fn a_copy_binder_accepts_a_copy_type_and_refuses_an_affine_one() {
-    let (ran, output) = run_both("copy", COPY_BINDER);
-    assert!(ran, "a `[copy]` type meets a `[copy]` binder:\n{output}");
+    observations::assert_silent_return(|| project(COPY_BINDER), &["main.omg"]);
     let affine = COPY_BINDER.replace("data Coin [copy]", "data Coin");
-    let (ran, output) = run_both("copy-affine", &affine);
-    assert!(!ran, "an affine type must not meet a `[copy]` binder");
+    let (result, output) = observations::run(&project(&affine), &["--check"], &["main.omg"]);
+    assert!(
+        !result.status.success(),
+        "an affine type must not meet a `[copy]` binder"
+    );
     assert!(
         output.contains(
             "type argument `Coin` for `T` has neither `[copy]` nor `[linear]` but the binder \
@@ -94,8 +79,15 @@ fn a_copy_binder_accepts_a_copy_type_and_refuses_an_affine_one() {
 
 #[test]
 fn a_linear_binder_refuses_an_affine_type() {
-    let (ran, output) = run_both("linear-affine", AFFINE_TO_LINEAR_BINDER);
-    assert!(!ran, "an affine type must not meet a `[linear]` binder");
+    let (result, output) = observations::run(
+        &project(AFFINE_TO_LINEAR_BINDER),
+        &["--check"],
+        &["main.omg"],
+    );
+    assert!(
+        !result.status.success(),
+        "an affine type must not meet a `[linear]` binder"
+    );
     assert!(
         output.contains(
             "type argument `Coin` for `T` has neither `[copy]` nor `[linear]` but the binder \

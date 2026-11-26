@@ -4,7 +4,8 @@ Roll 60 deterministic xorshift32 dice, tally the six faces, and render their
 frequencies as a labeled bar chart. From the repository root:
 
 ```text
-mbx run -p omega -- run --both samples/cli/games/dice_histogram/main.omg
+mbx run -p omega -- run --engine native samples/cli/games/dice_histogram/main.omg
+mbx run -p omega -- run --engine psi samples/cli/games/dice_histogram/main.omg
 ```
 
 Use Cargo if `mbx` is unavailable. Complete the ordinary

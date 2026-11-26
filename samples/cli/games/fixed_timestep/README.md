@@ -26,7 +26,8 @@ To capture the native and Psi streams for comparison with `expected_stdout.txt`,
 run the replay with the empty `input.txt` fixture.
 
 ```sh
-omega run --both --input input.txt --outputs build/replay-output build.omg
+omega run --engine native --input input.txt --outputs build/replay-output-native build.omg
+omega run --engine psi --input input.txt --outputs build/replay-output-psi build.omg
 ```
 
 The loop follows Glenn Fiedler's [Fix Your Timestep!](https://gafferongames.com/post/fix_your_timestep/).

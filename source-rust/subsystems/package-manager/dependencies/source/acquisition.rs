@@ -27,7 +27,24 @@ use source_acquisition::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTreeId, ImmutableSourceResolution,
     LocalSourceLimits, ResolvedGitSource, SourceContentDigest, SourceLineage,
 };
-use std::path::Path;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+/// Source custody shared by independent check subjects in one local workspace invocation.
+/// Only an authored dependency request can install a member in a subject's own graph.
+pub(crate) struct LocalWorkspaceMembers {
+    pub(crate) catalog: CapturedLocalSource,
+    pub(crate) members: BTreeMap<PathBuf, AcquiredBuildSource>,
+}
+
+impl LocalWorkspaceMembers {
+    fn requested(&self, root: &Path) -> Option<AcquiredBuildSource> {
+        let relative = root.strip_prefix(self.catalog.canonical_live_root()).ok()?;
+        let selected = self.catalog.tree().canonicalize(relative).ok()?;
+        self.members.get(&selected).cloned()
+    }
+}
 
 pub struct BuildSourceAcquisitions<'operation> {
     pub(super) storage: &'operation SourceResolver,
@@ -37,6 +54,7 @@ pub struct BuildSourceAcquisitions<'operation> {
     // Compilation also holds every Build activation, the root's included, to
     // the lock's exact source content. Inspection leaves the root mutable.
     locked_activations: bool,
+    pub(crate) local_members: Option<Arc<LocalWorkspaceMembers>>,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
     sources: Vec<AcquiredBuildSource>,
     pub(super) workspaces: Vec<super::workspace_acquisition::ExecutedWorkspace>,
@@ -71,6 +89,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             root_request,
             locked_source: None,
             locked_activations: false,
+            local_members: None,
             git_sources: Vec::new(),
             sources: Vec::new(),
             workspaces: Vec::new(),
@@ -268,6 +287,15 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
                         lineage.canonical_absolute_path(),
                         location,
                     )?;
+                    if let Some(source) = self
+                        .local_members
+                        .as_ref()
+                        .and_then(|members| members.requested(&root))
+                    {
+                        return self
+                            .retain_source(source)
+                            .map(AcquiredSourceSelection::Source);
+                    }
                     let selected_lineage = SourceLineage::ExternalLocal(
                         ExternalLocalLineage::canonicalize(&root, lineage.source_context().clone())
                             .map_err(|error| error.to_string())?,
@@ -542,6 +570,14 @@ impl AcquiredBuildSource {
             root, limits, selected,
         )
         .map_err(BuildSourceAcquisitionError::Source)?;
+        Self::from_local_capture(capture, limits, context)
+    }
+
+    pub(crate) fn from_local_capture(
+        capture: CapturedLocalSource,
+        limits: LocalSourceLimits,
+        context: ExternalSourceContext,
+    ) -> Result<Self, BuildSourceAcquisitionError> {
         let canonical_path = capture.canonical_live_root().to_str().ok_or_else(|| {
             BuildSourceAcquisitionError::Identity(
                 source_acquisition::IdentityError::UnsupportedNonUtf8Path(

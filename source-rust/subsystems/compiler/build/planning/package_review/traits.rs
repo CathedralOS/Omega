@@ -399,6 +399,7 @@ impl PolicySource<'_> {
             },
             suspends: metadata.suspends,
             blocks: metadata.blocks,
+            admitted_same_stack_bytes: metadata.admitted_same_stack_bytes,
             termination: if metadata.terminates {
                 PackagePolicyTermination::Terminates {
                     premises: Vec::new(),

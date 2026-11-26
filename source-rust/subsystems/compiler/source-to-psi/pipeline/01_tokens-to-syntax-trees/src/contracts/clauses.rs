@@ -171,23 +171,9 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         }
 
         if input.at_same_stack_demand() {
-            if admitted_same_stack_bytes != 0 {
-                return Err(input.error_here("duplicate `stack N bytes` clause"));
-            }
             same_stack_clause_span = Some(input.current_source_span());
-            input = input.take_contextual("stack")?;
-            let number = input;
-            let (bytes, after_number) = input.take_integer()?;
-            if bytes <= 0 {
-                return Err(number.error_here(
-                    "`stack` demand must be a positive byte count; zero does not admit a foreign leaf",
-                ));
-            }
-            if !after_number.at_contextual("bytes") {
-                return Err(after_number.error_here("expected `bytes` after the same-stack demand"));
-            }
-            input = after_number.take_contextual("bytes")?;
-            admitted_same_stack_bytes = u64::try_from(bytes).expect("positive i64 fits in u64");
+            (admitted_same_stack_bytes, input) =
+                crate::contracts::effects::same_stack_demand(input, admitted_same_stack_bytes)?;
             continue;
         }
 

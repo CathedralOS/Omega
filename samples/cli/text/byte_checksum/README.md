@@ -17,7 +17,8 @@ exit, stdout and stderr. The default `input.txt` is empty and exits zero.
 After ordinary package review, run the default case from the repository root:
 
 ```sh
-omega run --both --input samples/cli/text/byte_checksum/input.txt samples/cli/text/byte_checksum/main.omg
+omega run --engine native samples/cli/text/byte_checksum/main.omg < samples/cli/text/byte_checksum/input.txt
+omega run --engine psi samples/cli/text/byte_checksum/main.omg < samples/cli/text/byte_checksum/input.txt
 ```
 
 The Build file retains all four hosted entry bindings. The source-migration

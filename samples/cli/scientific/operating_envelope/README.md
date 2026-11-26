@@ -11,7 +11,8 @@ Run from the repository root:
 
 ```sh
 omega --check samples/cli/independent/operating_envelope/main.omg
-omega run --both --keep samples/cli/independent/operating_envelope/main.omg < samples/cli/independent/operating_envelope/data/rectangle.txt
+omega run --engine native --keep samples/cli/scientific/operating_envelope/main.omg < samples/cli/scientific/operating_envelope/data/rectangle.txt
+omega run --engine psi --keep samples/cli/scientific/operating_envelope/main.omg < samples/cli/scientific/operating_envelope/data/rectangle.txt
 ```
 
 First prepare the ordinary system dependency with `omega packages update --project

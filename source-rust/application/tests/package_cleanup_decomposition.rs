@@ -14,10 +14,10 @@
 //! with a selected cleanup "cannot be partially moved, and only an
 //! authorized complete consuming pattern takes it apart".
 
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Stdio};
 
 #[test]
 fn a_machine_of_the_records_package_takes_it_apart_in_native_code_and_psi() {
@@ -26,21 +26,5 @@ fn a_machine_of_the_records_package_takes_it_apart_in_native_code_and_psi() {
              package_decomposes_selected_cleanup_record/main.omg",
     ))
     .unwrap();
-    let scratch = TemporaryDirectory::create("package-cleanup-decomposition", false).unwrap();
-    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "main.omg"])
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("the compiler runs on the fixture");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(output.status.code(), Some(0), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    program::assert_silent_return(&source);
 }

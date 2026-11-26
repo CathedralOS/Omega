@@ -148,6 +148,9 @@ pub(crate) fn parse_trait_definition<'tokens, 'source>(
             parse_signature_clauses(syntax_trees, rest, signature.type_parameters)?;
         validate_machine_parameter_contracts(syntax_trees, signature.type_parameters, rest)?;
         let is_default = rest.at_punctuation(PunctuationKind::LeftBrace);
+        if clauses.admitted_same_stack_bytes != 0 && (!is_boundary || is_default) {
+            return Err(rest.error_here("`stack N bytes` requires a bodyless foreign boundary requirement"));
+        }
         if !signature.native_callback_parameters.is_empty() && (!is_boundary || is_default) {
             return Err(rest.error_here(
                 "`native callback ... from ...` is permitted only on a bodyless boundary-trait requirement",
@@ -183,6 +186,7 @@ pub(crate) fn parse_trait_definition<'tokens, 'source>(
         signature.blocks_keyword_source_spans = clauses.blocks_keyword_source_spans;
         signature.suspends = clauses.suspends;
         signature.blocks = clauses.blocks;
+        signature.admitted_same_stack_bytes = clauses.admitted_same_stack_bytes;
         signature.contracts = clauses.contracts;
         signature.terminates_guarantee = clauses.terminates_guarantee;
         signature.declares_no_crash_route = clauses.declares_no_crash_route;

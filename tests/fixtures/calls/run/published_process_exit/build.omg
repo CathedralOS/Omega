@@ -1,8 +1,11 @@
 use {omega}/build/dependency.omg;
+use {omega}/language/core/process_exit.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "published_process_exit");
-    let standard: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../source/library/system" }));
+    let standard: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../../../../source/library/system" });
+    let allowed: [BoundaryServiceRef; 1] = [Build::service::<|process_exit|::ProcessExit>(builder)];
+    _ = |dependency|::add(builder, standard, @allowed[..]);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);

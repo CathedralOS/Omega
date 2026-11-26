@@ -99,14 +99,12 @@ pub(super) fn discover_build_layout(
 ) -> Option<Option<BuildLayout>> {
     let source_syntax::ParsedText { tokens, syntax } = parsed;
     let source = tokens.source_text();
-    let Some(build) = syntax.root_items().find_map(|item| match item {
+    let build = syntax.root_items().find_map(|item| match item {
         Item::Machine(machine) if machine.name.as_str(syntax) == BUILD_MACHINE_NAME => {
             Some(machine)
         }
         _ => None,
-    }) else {
-        return None;
-    };
+    })?;
     let semantic = semantic_indices(tokens);
     let name_span = build.name.source_span().span;
     let Some(name_position) = semantic.iter().position(|index| {

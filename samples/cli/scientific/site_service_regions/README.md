@@ -54,7 +54,8 @@ omega packages update --project samples/cli/independent/site_service_regions --t
 omega packages update --resume --project samples/cli/independent/site_service_regions
 omega --check --target linux_x86_64 samples/cli/independent/site_service_regions/main.omg
 omega --target linux_x86_64 samples/cli/independent/site_service_regions/main.omg
-omega run --both samples/cli/independent/site_service_regions/main.omg < samples/cli/independent/site_service_regions/data/split.txt
+omega run --engine native samples/cli/scientific/site_service_regions/main.omg < samples/cli/scientific/site_service_regions/data/split.txt
+omega run --engine psi samples/cli/scientific/site_service_regions/main.omg < samples/cli/scientific/site_service_regions/data/split.txt
 omega --check samples/cli/independent/site_service_regions/invalid/negative_quota.omg
 ```
 

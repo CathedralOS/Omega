@@ -110,6 +110,9 @@ pub fn descriptor_residence_live_positions(
                     destinations.push(output.clone());
                 }
                 for binding in &edge.bindings {
+                    if binding.indexed_borrow_source().is_some_and(|source| source.overlaps(location)) {
+                        destinations.push(ResidenceName::Storage(binding.parameter.clone()));
+                    }
                     let Some((source, destination)) = binding.locations() else {
                         continue;
                     };

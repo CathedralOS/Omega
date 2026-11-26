@@ -74,6 +74,7 @@ pub(crate) fn lower_trait_definition(
                 blocks_keyword_source_spans: &clause_signature.blocks_keyword_source_spans,
                 suspends: clause_signature.suspends,
                 blocks: clause_signature.blocks,
+                admitted_same_stack_bytes: clause_signature.admitted_same_stack_bytes,
                 contracts: clause_signature.contracts,
                 terminates_guarantee: clause_signature.terminates_guarantee,
                 declares_no_crash_route: clause_signature.declares_no_crash_route,

@@ -711,7 +711,7 @@ fn byte_view_descriptor(id: u64, access: Option<StructuralAccess>) -> Structural
 
 #[test]
 fn boundary_service_reach_accepts_checked_mutable_view_presentation() {
-    let mut module = module();
+    let mut module = service_summary_module();
     let actual = byte_view_descriptor(10, Some(StructuralAccess::MutableBorrow));
     let formal = byte_view_descriptor(20, None);
     let place = PlaceId::new(1).unwrap();
@@ -727,6 +727,9 @@ fn boundary_service_reach_accepts_checked_mutable_view_presentation() {
     };
     let mut read = boundary(1, false);
     read.completion = semantic_vocabulary::BoundaryCompletion::NormalReturn;
+    let parent = ServiceId::new(1).unwrap();
+    let service = ServiceId::new(2).unwrap();
+    read.published_service_ceiling = vec![parent, service];
     read.parameter_order.push(BoundaryParameterKind::Structural);
     read.structural_parameters
         .push(StructuralParameterDeclaration {
@@ -757,9 +760,15 @@ fn boundary_service_reach_accepts_checked_mutable_view_presentation() {
     caller.blocks[0].operations.push(call);
     module.types.structural_types = vec![actual, formal];
     module.interfaces.boundary_machines.push(read);
-    module.machines.push(caller);
+    module.machines[0] = caller;
 
-    crate::body_services::body_service_reaches(&module, &[]).unwrap();
+    let reach = crate::body_services::body_service_reaches(&module, &[]).unwrap();
+    assert_eq!(reach.get(machine_id(1)).unwrap(), &[parent, service]);
+    let mut bounded = module.clone();
+    bounded.types.structural_types[0].shape = StructuralTypeShape::ByteSequence(
+        terminal_psi::ByteSequenceCarrier::BoundedView { access: Some(StructuralAccess::MutableBorrow), capacity: 16 }
+    );
+    assert!(crate::body_services::body_service_reaches(&bounded, &[]).is_err());
     // A shared descriptor cannot supply this boundary's mutable argument.
     module.types.structural_types[0] =
         byte_view_descriptor(10, Some(StructuralAccess::SharedBorrow));

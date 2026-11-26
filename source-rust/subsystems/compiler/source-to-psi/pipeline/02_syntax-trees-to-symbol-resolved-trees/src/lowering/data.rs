@@ -275,6 +275,7 @@ fn lower_parameter_contract(
             blocks_keyword_source_spans: &contract.blocks_keyword_source_spans,
             suspends: contract.suspends,
             blocks: contract.blocks,
+            admitted_same_stack_bytes: contract.admitted_same_stack_bytes,
             contracts: contract.contracts,
             terminates_guarantee: contract.terminates_guarantee,
             declares_no_crash_route: contract.declares_no_crash_route,

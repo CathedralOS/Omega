@@ -1,6 +1,3 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
 // Population count (Hamming weight) -- the number of set bits in a word, via the
 // classic shift-and-mask loop. It composes three things this language now has:
 // a bounded state-transition loop, the bitwise AND (`& 1` tests the low bit), and
@@ -15,47 +12,32 @@ use omega\language\core\ProcessExit;
 // terminates (a signed/arithmetic `>>` on a high-bit value would spin forever).
 // Expected exit: 24.
 
-use system\Console;
-use omega\language\core\narrow_u32_to_i32_trapping;
+use {system}/console.omg as console;
+use {omega}/language/core/process_authority.omg as streams;
+use {omega}/language/core/process_exit.omg as process;
 
-data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
-
-    transition {
-        _ -> block step(3735928559 as +Wrapping, 0 as +Wrapping) // 0xDEADBEEF
-    }
-
-    // Loop head: stop once every bit has been shifted out.
-    machine step(word: u32 in Wrapping, count: u32 in Wrapping) {
-        transition word == 0 {
-            true -> block done(count),
-            _ -> block count_bit(word, count)
-        }
-    }
-
-    // Loop body: accumulate the low bit, then shift it away.
-    machine count_bit(word: u32 in Wrapping, count: u32 in Wrapping) {
-        let bit: u32 in Wrapping = word & 1;
-        let next_count: u32 in Wrapping = count + bit;
-        let next_word: u32 in Wrapping = word >> 1;
-        transition {
-            _ -> block step(next_word, next_count)
-        }
-    }
-
-    machine done(count: u32 in Wrapping) {
-        let result: i32 = narrow_u32_to_i32_trapping(count as u32);
-        Console::write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
-        Console::write_line("[press Enter to close]");
-        let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(result);
-    }
+public machine main()
+reaches |process|::ProcessExit + |streams|::StandardInput + |streams|::StandardOutput
+blocks
+{
+    |console|::Console::write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
+    let result: i32 = population_count(3735928559);
+    |console|::Console::write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
+    let mutable pause: [u8; 256];
+    _ = block |console|::Console::read_line(@mutable pause[..]);
+    |process|::ProcessExit::exit_process(result);
 }
 
-// The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable entry_storage: Main;
-    block main(@mutable entry_storage);
+machine population_count(word: u32) -> i32 {
+    step(word as +Wrapping, 0i32)
+
+    machine step(remaining: u32 in Wrapping, count: i32) -> i32 {
+        let bit: u32 in Wrapping = remaining & 1;
+        transition {
+            remaining == 0 -> count,
+            bit == 0 -> step(remaining >> 1, count),
+            _ -> step(remaining >> 1, count +% 1i32)
+        }
+    }
 }

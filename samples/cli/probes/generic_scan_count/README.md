@@ -9,7 +9,8 @@ a wrong count or first match crashes.
 Run after ordinary package preparation:
 
 ```sh
-omega run --both samples/cli/collections/generic_scan_count/main.omg
+omega run --engine native samples/cli/collections/generic_scan_count/main.omg
+omega run --engine psi samples/cli/collections/generic_scan_count/main.omg
 ```
 
 The repaired compiler runs this program with exit 0 natively and in Terminal

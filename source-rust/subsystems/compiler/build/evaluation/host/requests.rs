@@ -77,6 +77,7 @@ struct Registration {
     /// coordinate the coordinator acquires an issued request by.
     request_ordinal: usize,
     prepared: bool,
+    validate: bool,
     _storage: Option<EvaluationStorageLease>,
 }
 
@@ -209,6 +210,19 @@ impl TerminalBuildRequestHost {
             .map_err(|_| "Build request output lock was poisoned")
     }
 
+    pub(crate) fn validation_requests(&self) -> Result<Vec<(DependencyPurpose, usize)>, String> {
+        let registrations = self
+            .registrations
+            .lock()
+            .map_err(|_| REGISTRATIONS_POISONED)?;
+        Ok(registrations
+            .issued
+            .iter()
+            .filter(|r| r.validate)
+            .map(|r| (r.purpose, r.request_ordinal))
+            .collect())
+    }
+
     pub(crate) fn take_output(&self) -> Result<BuildRequestOutput, String> {
         let mut output = self.output()?;
         Ok(std::mem::take(&mut *output))
@@ -262,12 +276,12 @@ impl TerminalImportAdapter for TerminalBuildRequestAdapter {
 }
 
 impl TerminalBuildRequestAdapter {
-    /// Authenticates a `Build::prepare_dependency` call and names the issued
-    /// registration its marker stands for.
-    fn preparation(
+    /// Authenticate the receiver and the registration named by a Build operation.
+    fn registration(
         &self,
         effect: &TerminalEffect,
         registrations: &Registrations,
+        action: Operation,
     ) -> Result<usize, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
@@ -282,7 +296,7 @@ impl TerminalBuildRequestAdapter {
         };
         let [receiver, marker] = structural_arguments.as_slice() else {
             return Err(refuse(
-                "Build dependency preparation has an invalid argument roster",
+                "Build registration operation has an invalid argument roster",
             ));
         };
         if !arguments.is_empty()
@@ -290,7 +304,7 @@ impl TerminalBuildRequestAdapter {
             || *result != terminal_psi::BoundaryMachineResult::Unit
         {
             return Err(refuse(
-                "Build dependency preparation differs from its protocol",
+                "Build registration operation differs from its protocol",
             ));
         }
         if receiver != &self.host.original {
@@ -301,9 +315,12 @@ impl TerminalBuildRequestAdapter {
         let position = registrations
             .position(marker)
             .ok_or_else(|| {
-                refuse(
-                    "Build::prepare_dependency requires a registration this activation issued; an authored `DependencyRegistration {}` names none",
-                )
+                let operation = if action == Operation::ValidateDependency {
+                    "Build::validate"
+                } else {
+                    "Build::prepare_dependency"
+                };
+                TerminalEffectRejection::new(format!("{operation} requires a registration this activation issued; an authored `DependencyRegistration {{}}` names none"))
             })?;
         Ok(position)
     }
@@ -330,7 +347,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             .registrations
             .lock()
             .map_err(|_| refuse(REGISTRATIONS_POISONED))?;
-        let position = self.preparation(effect, &registrations)?;
+        let position = self.registration(effect, &registrations, call.action)?;
         if registrations.issued[position].prepared {
             return Ok(true);
         }
@@ -417,13 +434,20 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .map_err(TerminalEffectRejection::new)?;
             return Ok(TerminalEffectResult::Unit);
         }
-        if call.action == Operation::PrepareDependency {
-            let registrations = self
+        if matches!(
+            call.action,
+            Operation::PrepareDependency | Operation::ValidateDependency
+        ) {
+            let mut registrations = self
                 .host
                 .registrations
                 .lock()
                 .map_err(|_| refuse(REGISTRATIONS_POISONED))?;
-            let position = self.preparation(effect, &registrations)?;
+            let position = self.registration(effect, &registrations, call.action)?;
+            if call.action == Operation::ValidateDependency {
+                registrations.issued[position].validate = true;
+                return Ok(TerminalEffectResult::Unit);
+            }
             if !registrations.issued[position].prepared {
                 return Err(refuse(
                     "Build dependency preparation requires its completed preparation",
@@ -502,6 +526,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
+            | Operation::ValidateDependency
             | Operation::PublishSource => {
                 return Err(refuse("Build request did not complete its host request"));
             }
@@ -576,7 +601,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         let forwarded = if call.action == Operation::AddBinding {
             if byte_sequence_arguments[1].is_some() {
-                return Err(refuse("Build dependency registration requires a PackageBinding"));
+                return Err(refuse(
+                    "Build dependency registration requires a PackageBinding",
+                ));
             }
             let binding = self.host.inputs.require(&structural_arguments[1])?;
             if !max_reach.is_subset_of(binding.library().max_reach()) {
@@ -672,6 +699,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::SandboxWrite
             | Operation::LogLine
             | Operation::PrepareDependency
+            | Operation::ValidateDependency
             | Operation::PublishSource => {
                 return Err(refuse("Build request did not complete its host request"));
             }
@@ -682,7 +710,10 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 ));
             }
             Operation::AddBinding => {
-                let Some(BuildRequest::Dependency {alias, source, ..}) = forwarded.as_ref().map(|binding|binding.library().request()) else {
+                let Some(BuildRequest::Dependency { alias, source, .. }) = forwarded
+                    .as_ref()
+                    .map(|binding| binding.library().request())
+                else {
                     return Err(refuse("Build input binding lost its frozen dependency"));
                 };
                 BuildRequest::Dependency {
@@ -778,6 +809,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             purpose,
             request_ordinal,
             prepared: false,
+            validate: false,
             _storage: storage,
         });
         Ok(TerminalEffectResult::Structural(marker))

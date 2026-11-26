@@ -1242,6 +1242,7 @@ pub(crate) mod signatures {
                 blocks_keyword_source_spans: signature.blocks_keyword_source_spans.clone(),
                 suspends: signature.suspends,
                 blocks: signature.blocks,
+                admitted_same_stack_bytes: signature.admitted_same_stack_bytes,
                 contracts: Default::default(),
                 termination_guarantee: if signature.terminates_guarantee {
                     source_declarations::TerminationGuarantee::Terminates {

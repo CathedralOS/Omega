@@ -7,7 +7,19 @@ boundary trait Streams {
 }
 
 trait Checks {
+    machine empty_input() reaches StandardInput crashes Trap;
     machine echo() reaches StandardInput + StandardOutput crashes Trap;
+}
+
+machine default_input_is_empty() satisfies Checks::empty_input {
+    let mutable byte: u8 = 17;
+    let read: i64 = Streams::read(0, @mutable byte, 1);
+    transition read == 0 && byte == 17u8 {
+        true -> passed(),
+        _ -> failed()
+    }
+    machine passed() {}
+    machine failed() crashes Trap { crash Trap; }
 }
 
 machine first_echo() satisfies Checks::echo { echo(); }

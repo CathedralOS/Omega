@@ -390,6 +390,7 @@ pub(crate) mod build_requests {
         ExtendReach,
         ExtendWorkspace,
         PrepareDependency,
+        ValidateDependency,
         LogLine,
         PublishSource,
         ConfigureTestFixture,

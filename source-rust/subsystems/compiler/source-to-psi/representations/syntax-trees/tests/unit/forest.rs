@@ -982,6 +982,7 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
         blocks_keyword_source_spans: vec![blocks_keyword_source_span],
         suspends: true,
         blocks: true,
+        admitted_same_stack_bytes: 0,
         contracts: HandleSpan::empty(),
         default_body: Some(Default::default()),
         terminates_guarantee: false,

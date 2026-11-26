@@ -4,9 +4,10 @@
 //! Native production must admit that same schema rather than demand a binding
 //! only a lock can supply.
 
+#[path = "support/declared_exit.rs"]
+mod declared_exit;
 mod support;
 
-use std::process::{Command, Stdio};
 
 #[test]
 fn an_unlocked_system_entry_runs_on_both_engines() {
@@ -16,24 +17,5 @@ fn an_unlocked_system_entry_runs_on_both_engines() {
         !project.join("omega.lock").exists(),
         "the fixture must stay unlocked"
     );
-    let expected = std::fs::read_to_string(project.join("expected_native_exit.txt")).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "build.omg"])
-        .current_dir(&project)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-    );
-    assert!(output.status.success(), "{report}");
-    let code = expected.trim();
-    for receipt in [
-        format!("native exit {code}"),
-        format!("interp exit: {code}"),
-    ] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
+    declared_exit::assert_declared_exit(&project, "build.omg");
 }

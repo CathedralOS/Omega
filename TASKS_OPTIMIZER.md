@@ -25,8 +25,7 @@ the compiler's own rewrites, or custody-mutation matrices; follow
 Rust tests. An acceptance below that names a corpus fixture, a `tests/omega/`
 path or a corpus command means a program of the former corpus
 ([tests/README.md](_recycling/tests/README.md#the-former-corpus)), kept under
-`tests/fixtures/` or restored there from history; it is met when that program
-passes `omega run --both`.
+`tests/fixtures/` or restored there from history; it is met when the program produces its expected result independently on native and Psi.
 
 ## Execution priority
 

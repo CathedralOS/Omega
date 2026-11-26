@@ -75,6 +75,7 @@ pub mod calls {
             pub blocks_keyword_source_spans: Vec<source_text::SourceSpan>,
             pub suspends: bool,
             pub blocks: bool,
+            pub admitted_same_stack_bytes: u64,
             pub contracts: HandleSpan<SignatureContract>,
             pub terminates_guarantee: bool,
             /// The signature wrote `crashes none`, which publishes no contract

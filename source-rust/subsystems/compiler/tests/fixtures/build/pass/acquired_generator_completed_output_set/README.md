@@ -19,7 +19,7 @@ joins both purposes. Explicit cross-package execution is pinned separately by
 `explicit_provider_readiness_exit` and its private-backing refusal control.
 This fixture does not establish a shared custom generator interface.
 
-`omega run --both build.omg` selects the project’s declared entry. The expected
+Run `omega run --engine native build.omg` and `omega run --engine psi build.omg` to exercise the project’s declared entry. The expected
 result is native/Psi agreement at exit 0. The
 publication oracle requires exactly `companion.txt` and `generated.omg` under
 the committed set's `files/` directory. The Linux host workflow is exercised by

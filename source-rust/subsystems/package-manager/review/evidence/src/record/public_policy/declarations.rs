@@ -43,6 +43,7 @@ pub struct PackagePolicyTraitRequirement {
     pub synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
     pub suspends: bool,
     pub blocks: bool,
+    pub admitted_same_stack_bytes: u64,
     pub termination: PackagePolicyTermination,
     pub returned_borrow_origins: Vec<crate::record::PackageReviewReturnedBorrowOrigin>,
     pub parameter_qualification_preconditions: Vec<PackageReviewParameterQualification>,

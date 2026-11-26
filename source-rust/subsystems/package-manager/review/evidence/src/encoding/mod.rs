@@ -25,12 +25,13 @@ pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage
 // expanded class vocabulary even though existing class tags are unchanged.
 // Ordinary public requirements preserve open reach/crash separately from
 // authored empty ceilings; predecessor payloads are not reinterpreted.
-pub(crate) const BASELINE_WITHOUT_STRUCTURAL_PARAMETERS: u16 = 37;
-pub(crate) const BASELINE_WITH_STRUCTURAL_PARAMETERS: u16 = 38;
-pub(crate) const BASELINE_WITH_PROVIDER_APPLICATION_GRANTS: u16 = 39;
-pub(crate) const BASELINE_WITH_TYPE_ALIASES: u16 = 40;
-pub(crate) const BASELINE_WITH_CARRIED_TYPES: u16 = 41;
-pub(crate) const BASELINE_WITH_APPLIED_SERVICES: u16 = 42;
+// Service method records in each of these layouts carry the foreign caller-stack bound.
+pub(crate) const BASELINE_WITHOUT_STRUCTURAL_PARAMETERS: u16 = 43;
+pub(crate) const BASELINE_WITH_STRUCTURAL_PARAMETERS: u16 = 44;
+pub(crate) const BASELINE_WITH_PROVIDER_APPLICATION_GRANTS: u16 = 45;
+pub(crate) const BASELINE_WITH_TYPE_ALIASES: u16 = 46;
+pub(crate) const BASELINE_WITH_CARRIED_TYPES: u16 = 47;
+pub(crate) const BASELINE_WITH_APPLIED_SERVICES: u16 = 48;
 pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = BASELINE_WITH_APPLIED_SERVICES;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
@@ -43,13 +44,13 @@ pub(crate) const CALLING_POLICY_MAGIC: &[u8] = b"OMEGA-CALLING-POLICY\0";
 pub(crate) const PACKAGE_REPRESENTATION_POLICY_VERSION: u16 = 15;
 pub(crate) const REPRESENTATION_POLICY_MAGIC: &[u8] = b"OMEGA-REPRESENTATION-POLICY\0";
 
-pub(crate) const PROVIDER_POLICY_WITHOUT_APPLICATION_GRANTS: u16 = 27;
-pub(crate) const PROVIDER_POLICY_WITH_APPLICATION_GRANTS: u16 = 28;
-pub(crate) const PACKAGE_SELECTED_PROVIDER_POLICY_VERSION: u16 = 29;
+pub(crate) const PROVIDER_POLICY_WITHOUT_APPLICATION_GRANTS: u16 = 30;
+pub(crate) const PROVIDER_POLICY_WITH_APPLICATION_GRANTS: u16 = 31;
+pub(crate) const PACKAGE_SELECTED_PROVIDER_POLICY_VERSION: u16 = 32;
 pub(crate) const SELECTED_PROVIDER_POLICY_MAGIC: &[u8] = b"OMEGA-SELECTED-PROVIDER-POLICY\0";
 
-pub(crate) const TERMINAL_POLICY_WITH_NOMINAL_SERVICES: u16 = 15;
-pub(crate) const PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION: u16 = 16;
+pub(crate) const TERMINAL_POLICY_WITH_NOMINAL_SERVICES: u16 = 17;
+pub(crate) const PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION: u16 = 18;
 pub(crate) const TERMINAL_PERMISSION_POLICY_MAGIC: &[u8] = b"OMEGA-TERMINAL-PERMISSION-POLICY\0";
 
 pub(crate) const CALLABLE_POLICY_WITH_NOMINAL_SERVICES: u16 = 19;

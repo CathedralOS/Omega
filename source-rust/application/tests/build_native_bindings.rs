@@ -252,7 +252,8 @@ fn windows_arm64_console_emits_with_its_authored_imports() {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args([
             "run",
-            "--both",
+            "--engine",
+            "native",
             "--target",
             "windows_arm64",
             "--build-input",
@@ -277,39 +278,45 @@ fn windows_arm64_console_emits_with_its_authored_imports() {
 fn windows_console_emits_with_its_authored_imports() {
     let directory = support::repository_root()
         .join("tests/fixtures/providers/run/default_console_provider_reached");
-    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-    command.args(["run", "--both"]);
-    if !cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-        command.args(["--target", "windows_x86_64"]);
-    }
-    let output = command
-        .args([
-            "--build-input",
-            "build.omg",
-            "--build-input",
-            "main.omg",
-            "build.omg",
-        ])
-        .current_dir(directory)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(output.status.success(), "{stderr}");
-    if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-        assert_eq!(output.stdout, b"K\n");
-        assert!(
-            stderr.lines().any(|line| line == "native exit 0"),
-            "{stderr}"
-        );
-        assert!(
-            stderr.lines().any(|line| line == "interp exit: 0"),
-            "{stderr}"
-        );
+    let hosted = cfg!(all(target_os = "windows", target_arch = "x86_64"));
+    let engines = if hosted {
+        &["native", "psi"][..]
     } else {
-        assert!(
-            stderr.contains("compiled for target `windows_x86_64`"),
-            "{stderr}"
-        );
+        &["native"][..]
+    };
+    for engine in engines {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+        command.args(["run", "--engine", engine]);
+        if !hosted {
+            command.args(["--target", "windows_x86_64"]);
+        }
+        let output = command
+            .args([
+                "--build-input",
+                "build.omg",
+                "--build-input",
+                "main.omg",
+                "build.omg",
+            ])
+            .current_dir(&directory)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("omega runs");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "{stderr}");
+        if hosted {
+            assert_eq!(output.stdout, b"K\n");
+            let expected = if *engine == "native" {
+                "native exit 0"
+            } else {
+                "Psi exit 0"
+            };
+            assert!(stderr.lines().any(|line| line == expected), "{stderr}");
+        } else {
+            assert!(
+                stderr.contains("compiled for target `windows_x86_64`"),
+                "{stderr}"
+            );
+        }
     }
 }

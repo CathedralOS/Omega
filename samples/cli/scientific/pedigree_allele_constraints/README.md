@@ -60,7 +60,8 @@ omega packages update --project samples/cli/independent/pedigree_allele_constrai
 # Read the produced review, decide its individual requests, then resume if authorized.
 omega packages update --resume --project samples/cli/independent/pedigree_allele_constraints
 omega samples/cli/independent/pedigree_allele_constraints/main.omg
-omega run --both samples/cli/independent/pedigree_allele_constraints/main.omg < samples/cli/independent/pedigree_allele_constraints/fixtures/shared_ancestry.stdin
+omega run --engine native samples/cli/scientific/pedigree_allele_constraints/main.omg < samples/cli/scientific/pedigree_allele_constraints/fixtures/shared_ancestry.stdin
+omega run --engine psi samples/cli/scientific/pedigree_allele_constraints/main.omg < samples/cli/scientific/pedigree_allele_constraints/fixtures/shared_ancestry.stdin
 omega --check --target linux_x86_64 samples/cli/independent/pedigree_allele_constraints/controls/bounds/main.omg
 ```
 

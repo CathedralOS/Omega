@@ -62,7 +62,8 @@ omega packages update --project samples/cli/independent/bounded_sensor_compressi
 omega packages update --resume --project samples/cli/independent/bounded_sensor_compression
 omega --check --target linux_x86_64 samples/cli/independent/bounded_sensor_compression/main.omg
 omega --target linux_x86_64 samples/cli/independent/bounded_sensor_compression/main.omg
-omega run --both samples/cli/independent/bounded_sensor_compression/main.omg < samples/cli/independent/bounded_sensor_compression/data/smooth.bin
+omega run --engine native samples/cli/scientific/bounded_sensor_compression/main.omg < samples/cli/scientific/bounded_sensor_compression/data/smooth.bin
+omega run --engine psi samples/cli/scientific/bounded_sensor_compression/main.omg < samples/cli/scientific/bounded_sensor_compression/data/smooth.bin
 omega --check samples/cli/independent/bounded_sensor_compression/controls/invalid_bound/main.omg
 ```
 

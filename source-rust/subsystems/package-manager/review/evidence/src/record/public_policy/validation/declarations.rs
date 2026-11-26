@@ -43,6 +43,11 @@ pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPu
         {
             return Err("public trait repeats an exact requirement");
         }
+        if requirement.admitted_same_stack_bytes != 0
+            && (!value.is_boundary || requirement.has_default_realization)
+        {
+            return Err("only a bodyless boundary requirement can declare foreign stack demand");
+        }
         let mut scope = signatures::child(
             &scope,
             &requirement.type_parameters,

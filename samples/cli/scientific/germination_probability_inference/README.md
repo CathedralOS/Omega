@@ -62,7 +62,8 @@ built from the qualified checkout:
 ```sh
 omega packages update --project samples/cli/independent/germination_probability_inference --target linux_x86_64
 # Review exact pending authority decisions before resuming, when required.
-omega run --both --keep samples/cli/independent/germination_probability_inference/main.omg < samples/cli/independent/germination_probability_inference/input.txt
+omega run --engine native --keep samples/cli/scientific/germination_probability_inference/main.omg < samples/cli/scientific/germination_probability_inference/input.txt
+omega run --engine psi --keep samples/cli/scientific/germination_probability_inference/main.omg < samples/cli/scientific/germination_probability_inference/input.txt
 ```
 
 The validator compiles and runs the actual native product with each finite

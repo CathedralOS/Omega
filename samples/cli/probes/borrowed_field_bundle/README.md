@@ -10,5 +10,6 @@ changes its marker to 42.
 After ordinary package review, run:
 
 ```sh
-omega run --both samples/cli/collections/borrowed_field_bundle/main.omg
+omega run --engine native samples/cli/collections/borrowed_field_bundle/main.omg
+omega run --engine psi samples/cli/collections/borrowed_field_bundle/main.omg
 ```

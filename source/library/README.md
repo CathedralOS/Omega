@@ -84,7 +84,11 @@ and old/replacement backing. Automatic reclamation must satisfy the ordinary
 infallible, terminating, nonblocking and nonsuspending cleanup contract;
 otherwise release is explicit.
 
-The concrete [vector implementation](allocation/vec/vec.omg) operates on `u32`.
+Import `{allocation}/bump/bump.omg` to call `|bump|::open(backing)`.
+Import `{allocation}/vec/vec.omg` to call `|vec|::open(backing, capacity)`
+for the concrete `u32` vector. Both require an extent carrying the core
+`Granted` and `Vacant` domains. The vector takes four bytes per cell and
+returns its backing through `|vec|::close(vector)`.
 Reconcile the core placeholder and library implementation rather than creating
 two meanings of `Vec`. `EXTENT-LIBRARY-TRANSFORMS` in [TASKS.md](../../TASKS.md)
 owns this and the selected `Allocator` service; provisional `Arena` source is

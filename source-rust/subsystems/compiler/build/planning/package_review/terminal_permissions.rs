@@ -199,6 +199,7 @@ fn project_service<'a>(
             || signature.return_type.is_valid() != method.has_result
             || signature.suspends != method.may_suspend
             || signature.blocks != method.may_block
+            || signature.admitted_same_stack_bytes != method.admitted_same_stack_bytes
         {
             return Err(unavailable(
                 "the same checked signature for every permission-service method",

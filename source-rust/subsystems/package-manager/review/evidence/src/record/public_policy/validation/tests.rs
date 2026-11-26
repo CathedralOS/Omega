@@ -104,6 +104,7 @@ fn objective_c(count_binder: u32) -> PackagePolicyTraitShape {
             synchronous_invocations: Vec::new(),
             suspends: false,
             blocks: false,
+            admitted_same_stack_bytes: 0,
             termination: PackagePolicyTermination::NoGuarantee,
             returned_borrow_origins: Vec::new(),
             parameter_qualification_preconditions: Vec::new(),
@@ -138,6 +139,21 @@ fn a_trait_has_no_implicit_subject_binder_before_its_statics() {
         api(objective_c(1)).validate_canonical_structure(package()),
         Err("contract generic binder escapes its static telescope")
     );
+}
+
+#[test]
+fn foreign_stack_requires_a_bodyless_boundary_requirement() {
+    let mut shape = objective_c(0);
+    shape.requirements[0].admitted_same_stack_bytes = 128;
+    assert_eq!(api(shape.clone()).validate_canonical_structure(package()), Ok(()));
+    for (boundary, has_default) in [(false, false), (true, true)] {
+        shape.is_boundary = boundary;
+        shape.requirements[0].has_default_realization = has_default;
+        assert_eq!(
+            api(shape.clone()).validate_canonical_structure(package()),
+            Err("only a bodyless boundary requirement can declare foreign stack demand")
+        );
+    }
 }
 
 mod structural_parameters;

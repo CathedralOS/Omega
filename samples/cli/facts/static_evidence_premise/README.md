@@ -26,7 +26,8 @@ Each positive place binds `ProgramEntry` for all four hosted targets and declare
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/static_evidence_premise/local
-omega run --both samples/cli/facts/static_evidence_premise/<place>/main.omg
+omega run --engine native samples/cli/facts/static_evidence_premise/<place>/main.omg
+omega run --engine psi samples/cli/facts/static_evidence_premise/<place>/main.omg
 ```
 
 ## Reject twins

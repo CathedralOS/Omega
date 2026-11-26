@@ -87,7 +87,8 @@ omega packages update --project "$sample" --target linux_x86_64
 omega packages update --resume --project "$sample"
 omega --check --target linux_x86_64 "$sample/main.omg"
 omega --target linux_x86_64 "$sample/main.omg"
-omega run --both "$sample/main.omg" < "$sample/data/unique.stdin"
+omega run --engine native "$sample/main.omg" < "$sample/data/unique.stdin"
+omega run --engine psi "$sample/main.omg" < "$sample/data/unique.stdin"
 # Reuse the corpus runner built from this exact compiler source.
 omega --check --target linux_x86_64 "$sample/intended_invalid/rejected.omg"
 ```

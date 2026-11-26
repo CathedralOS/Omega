@@ -74,7 +74,8 @@ omega packages update --project "$project" --target linux_x86_64
 # Read the generated review; accept only the intended scoped decisions.
 omega packages update --resume --project "$project"
 omega --check "$project/main.omg"
-omega run --both --keep "$project/main.omg" < "$project/data/circular.stdin"
+omega run --engine native --keep "$project/main.omg" < "$project/data/circular.stdin"
+omega run --engine psi --keep "$project/main.omg" < "$project/data/circular.stdin"
 # This observer has its own executable identity: prepare its normal review first.
 /path/to/terminal-observer --review "$project"
 # Read the review; preserve existing scoped authority decisions; then resume.

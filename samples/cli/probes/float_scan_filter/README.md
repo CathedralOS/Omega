@@ -11,7 +11,8 @@ Expected native and Terminal exit: `0`, with no program output.
 
 ```sh
 omega packages update --project samples/cli/collections/float_scan_filter --target macos_arm64 --offline --dangerously-accept-all
-omega run --both samples/cli/collections/float_scan_filter/main.omg
+omega run --engine native samples/cli/collections/float_scan_filter/main.omg
+omega run --engine psi samples/cli/collections/float_scan_filter/main.omg
 ```
 
 The byte views retain the borrowed snapshot's actual extent. Proving eight

@@ -18,7 +18,8 @@ success exits 70 and a failed check exits 71–80.
 To check all five conversions in both engines, run this from the repository root.
 
 ```sh
-omega run --both samples/cli/basics/unit_converter/build.omg
+omega run --engine native samples/cli/basics/unit_converter/build.omg
+omega run --engine psi samples/cli/basics/unit_converter/build.omg
 ```
 
 Press Enter at the final prompt. On Linux x86-64, the program prints
