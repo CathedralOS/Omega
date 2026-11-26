@@ -2,10 +2,11 @@
 // mode builds no product for the selection to apply to, so the Build must be
 // refused instead of completing its output and dropping the selection.
 
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "invalid_artifact_provider_selection" };
     Build::artifact_only(builder);
-    Build::select_provider::<Distance, FixedDistance>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Distance, |app|::FixedDistance>(builder, linux_x86_64);
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "blob.bin");
     let path: BuildPath = BuildOutput::resolve(@builder.output, "blob.bin");
     let writer: i32 = BuildOutput::create(@mutable builder.output, path, 0);

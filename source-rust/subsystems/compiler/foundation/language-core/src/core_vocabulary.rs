@@ -776,6 +776,7 @@ pub enum CoreSource {
     Layout,
     Run,
     CodeLayout,
+    Foundation,
 }
 
 const CORE_SOURCES: &[(CoreSource, &str, BundledFile)] = &[
@@ -805,6 +806,11 @@ const CORE_SOURCES: &[(CoreSource, &str, BundledFile)] = &[
         CoreSource::FloatMeaning,
         "float_meaning.omg",
         BundledFile::CoreFloatMeaning,
+    ),
+    (
+        CoreSource::Foundation,
+        "foundation.omg",
+        BundledFile::CoreFoundation,
     ),
     (CoreSource::Layout, "layout.omg", BundledFile::CoreLayout),
     (CoreSource::Run, "run.omg", BundledFile::CoreRun),

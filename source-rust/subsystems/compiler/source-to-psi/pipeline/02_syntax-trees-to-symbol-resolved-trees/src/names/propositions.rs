@@ -442,20 +442,42 @@ mod tests {
         assert_eq!(value.case_symbol, Some(selector.symbol));
     }
 
-    // A contract call and a body call read the same qualified name the
-    // same way: `core::Identity<T>(..)` written in an `ensures` selects
-    // the fixed core declaration, as it does in a body.
     #[test]
     fn a_contract_call_selects_the_fixed_core_identity_like_a_body_call() {
-        let text = "machine same(value: f64) -> f64\n\
-                ensures core\\Identity::<f64>(result, value)\n\
-                { transition core\\Identity::<f64>(value, value) { _ -> (value) } }\n";
+        let text = "use {omega}/language/core/foundation.omg as logic;\n\
+                    use foundation.omg as user;\n\
+                    machine same(value: f64) -> f64\n\
+                    ensures |logic|::Identity::<f64>(result, value)\n\
+                    { transition |logic|::Identity::<f64>(value, value) { _ -> (value) } }\n";
         let mut sources = crate::source_inputs::SourceMap::default();
-        let source_id = sources.add("identity.omg".into(), text.into()).source_id;
+        let source_id = sources
+            .add("app/identity.omg".into(), text.into())
+            .source_id;
+        sources.add_with_metadata(
+            "core/foundation.omg".into(),
+            std::str::from_utf8(bundled_declarations::bytes(
+                language_core::bundled_files::BundledFile::CoreFoundation,
+            ))
+            .unwrap()
+            .into(),
+            "core".into(),
+            None,
+            source_admission::SourceOrigin::Toolchain,
+        );
+        let user_text = "public data Identity {}";
+        let user_id = sources
+            .add("app/foundation.omg".into(), user_text.into())
+            .source_id;
         let tokens = Lexer::new(text).tokenize().unwrap();
-        let syntax =
+        let mut syntax =
             crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
                 .unwrap();
+        crate::resolution::frontend_fixture::parse(
+            &mut syntax,
+            user_id,
+            &Lexer::new(user_text).tokenize().unwrap(),
+        )
+        .unwrap();
         let program = resolve(ResolutionRequest {
             syntax,
             sources: Some(std::sync::Arc::new(sources)),
@@ -478,5 +500,30 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(calls, vec![identity, identity]);
+
+        let reference = source_text::SourceSpan::new(source_id, source_text::Span::new(0, 3));
+        let lookup = |path: &str| program.symbols.lookup_source_type(path, reference).unique();
+        for (member, fixed) in [
+            ("Level", FixedCoreDeclaration::Level),
+            ("Type", FixedCoreDeclaration::Type),
+            ("Strict", FixedCoreDeclaration::Strict),
+            ("Squash", FixedCoreDeclaration::Squash),
+            ("Identity", FixedCoreDeclaration::Identity),
+        ] {
+            assert_eq!(
+                lookup(&format!("|logic|::{member}")),
+                program.symbols.fixed_core_declaration_symbol(fixed)
+            );
+            assert_eq!(lookup(&format!("|absent|::{member}")), None);
+            assert_eq!(lookup(member), None);
+        }
+        let user_identity = lookup("|user|::Identity").unwrap();
+        assert_eq!(program.symbols.get(user_identity).kind, SymbolKind::Data);
+        assert_eq!(
+            program
+                .symbols
+                .fixed_core_declaration_for_symbol(user_identity),
+            None
+        );
     }
 }

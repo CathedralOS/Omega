@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "match_computed_root_through_target_body_invalid" };
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::select_provider::<ComputedRootWrite, LinuxX86ComputedRoot>(builder, linux_x86_64);
-    Build::select_provider::<ComputedRootWrite, LinuxArmComputedRoot>(builder, linux_arm64);
-    Build::select_provider::<ComputedRootWrite, MacComputedRoot>(builder, macos_arm64);
-    Build::select_provider::<ComputedRootWrite, WindowsComputedRoot>(builder, windows_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::ComputedRootWrite, |app|::LinuxX86ComputedRoot>(builder, linux_x86_64);
+    Build::select_provider::<|app|::ComputedRootWrite, |app|::LinuxArmComputedRoot>(builder, linux_arm64);
+    Build::select_provider::<|app|::ComputedRootWrite, |app|::MacComputedRoot>(builder, macos_arm64);
+    Build::select_provider::<|app|::ComputedRootWrite, |app|::WindowsComputedRoot>(builder, windows_x86_64);
 }

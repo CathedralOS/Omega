@@ -3,9 +3,7 @@
 // `|right|::Sink::emit` share a name but bind to
 // different machines — 11 vs 37 with no aliasing.
 //
-//   * `use left; use right;` — sibling `.omg` files
-//     each declare `module left;`/`module right;` and
-//     their own `boundary trait Sink`.
+//   * `left/left.omg` and `right/right.omg` each declare their own `Sink`.
 //   * `|left|::Provider::emit()` vs
 //     `|right|::Provider::emit()` — module-qualified
 //     calls hit distinct satisfier slots.

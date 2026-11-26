@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "target_scoped_family" };
-    Build::select_provider::<Picker, SharedPick>(builder, linux_x86_64);
-    Build::select_provider::<Picker, SharedPick>(builder, linux_arm64);
-    Build::select_provider::<Picker, SharedPick>(builder, macos_arm64);
-    Build::select_provider::<Picker, SharedPick>(builder, windows_x86_64);
-    Build::select_provider::<Delta, SharedDelta>(builder, windows_x86_64);
-    Build::select_provider::<Delta, SharedDelta>(builder, linux_x86_64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::select_provider::<|app|::Picker, |app|::SharedPick>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Picker, |app|::SharedPick>(builder, linux_arm64);
+    Build::select_provider::<|app|::Picker, |app|::SharedPick>(builder, macos_arm64);
+    Build::select_provider::<|app|::Picker, |app|::SharedPick>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Delta, |app|::SharedDelta>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Delta, |app|::SharedDelta>(builder, linux_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
 }

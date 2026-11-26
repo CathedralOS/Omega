@@ -1,3 +1,4 @@
+use main.omg as app;
 use {omega}/build/dependency.omg;
 
 machine build(builder: @mutable BuildPlan) {
@@ -5,6 +6,6 @@ machine build(builder: @mutable BuildPlan) {
     builder.identifier = "com.omega.dungeon-crawler";
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
     let engine_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "engine" }));
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
     builder.subsystem = Subsystem::Gui;
 }

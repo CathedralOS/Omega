@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "in_place_view_argument_target_body" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::select_provider::<Reader, X86Reader>(builder, windows_x86_64);
-    Build::select_provider::<Reader, X86Reader>(builder, linux_x86_64);
-    Build::select_provider::<Reader, ArmReader>(builder, linux_arm64);
-    Build::select_provider::<Reader, ArmReader>(builder, macos_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::Reader, |app|::X86Reader>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Reader, |app|::X86Reader>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Reader, |app|::ArmReader>(builder, linux_arm64);
+    Build::select_provider::<|app|::Reader, |app|::ArmReader>(builder, macos_arm64);
 }

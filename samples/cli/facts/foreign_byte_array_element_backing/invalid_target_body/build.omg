@@ -1,29 +1,30 @@
+use main.omg as app;
 use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "foreign_byte_array_element_backing_target_body" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, start);
-    Build::bind(builder, linux_arm64::ProgramEntry, start);
-    Build::bind(builder, macos_arm64::ProgramEntry, start);
-    Build::accept_boundary::<Measuring>(builder);
-    Build::select_provider::<Measuring, CountingMeasuring>(builder, windows_x86_64);
-    Build::select_provider::<Measuring, CountingMeasuring>(builder, linux_x86_64);
-    Build::select_provider::<Measuring, CountingMeasuring>(builder, linux_arm64);
-    Build::select_provider::<Measuring, CountingMeasuring>(builder, macos_arm64);
-    Build::bind_native::<Text::length>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::start);
+    Build::accept_boundary::<|app|::Measuring>(builder);
+    Build::select_provider::<|app|::Measuring, |app|::CountingMeasuring>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Measuring, |app|::CountingMeasuring>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Measuring, |app|::CountingMeasuring>(builder, linux_arm64);
+    Build::select_provider::<|app|::Measuring, |app|::CountingMeasuring>(builder, macos_arm64);
+    Build::bind_native::<|app|::Text::length>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::PeByName { library: "msvcrt.dll", export: "strlen" }
     });
-    Build::bind_native::<Text::length>(builder, linux_x86_64, |native|::ForeignBinding::DllImport {
+    Build::bind_native::<|app|::Text::length>(builder, linux_x86_64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "strlen", version: "GLIBC_2.2.5"
         }
     });
-    Build::bind_native::<Text::length>(builder, linux_arm64, |native|::ForeignBinding::DllImport {
+    Build::bind_native::<|app|::Text::length>(builder, linux_arm64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "strlen", version: "GLIBC_2.17"
         }
     });
-    Build::bind_native::<Text::length>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
+    Build::bind_native::<|app|::Text::length>(builder, macos_arm64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_strlen"
         }

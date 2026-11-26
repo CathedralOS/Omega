@@ -1,4 +1,5 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "unguarded_stage_index" };
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }

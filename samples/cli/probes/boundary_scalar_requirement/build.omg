@@ -1,11 +1,12 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "boundary_scalar_requirement" };
-    Build::select_provider::<TimedWait, TimedWaitPoll>(builder, linux_arm64);
-    Build::select_provider::<TimedWait, TimedWaitPoll>(builder, linux_x86_64);
-    Build::select_provider::<TimedWait, TimedWaitPoll>(builder, macos_arm64);
-    Build::select_provider::<TimedWait, TimedWaitPoll>(builder, windows_x86_64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::select_provider::<|app|::TimedWait, |app|::TimedWaitPoll>(builder, linux_arm64);
+    Build::select_provider::<|app|::TimedWait, |app|::TimedWaitPoll>(builder, linux_x86_64);
+    Build::select_provider::<|app|::TimedWait, |app|::TimedWaitPoll>(builder, macos_arm64);
+    Build::select_provider::<|app|::TimedWait, |app|::TimedWaitPoll>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
 }

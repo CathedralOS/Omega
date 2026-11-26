@@ -1,5 +1,6 @@
 // window_app is a REAL windowed application: the GUI subsystem keeps Windows from
 // attaching a console box (PE Subsystem 2).
+use main.omg as app;
 use {omega}/build/dependency.omg;
 use {omega}/language/core/external_binding.omg as native;
 
@@ -9,14 +10,14 @@ machine build(builder: @mutable BuildPlan) {
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled {
         name: "system"
     }));
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-    Build::select_provider::<Gui, WindowGuiProvider>(builder, macos_arm64);
-    Build::select_provider::<Gui, WindowGuiProvider>(builder, windows_x86_64);
-    Build::select_provider::<Input, WindowInputProvider>(builder, macos_arm64);
-    Build::select_provider::<Input, WindowInputProvider>(builder, windows_x86_64);
-    Build::select_provider::<Clock, WindowClockProvider>(builder, macos_arm64);
-    Build::bind_native::<Clock::sleep>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
+    Build::select_provider::<|app|::Gui, |app|::WindowGuiProvider>(builder, macos_arm64);
+    Build::select_provider::<|app|::Gui, |app|::WindowGuiProvider>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Input, |app|::WindowInputProvider>(builder, macos_arm64);
+    Build::select_provider::<|app|::Input, |app|::WindowInputProvider>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Clock, |app|::WindowClockProvider>(builder, macos_arm64);
+    Build::bind_native::<|app|::Clock::sleep>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::PeByName { library: "kernel32.dll", export: "Sleep" }
     });
     builder.subsystem = Subsystem::Gui;
