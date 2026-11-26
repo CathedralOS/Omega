@@ -1,9 +1,10 @@
 //! Decide each test's requirement to return, then compare the two executions when requested.
 use super::TestExecution;
-use crate::observations::{
-    ProcessExitObservation, ProgramStream, ProgramStreams, first_byte_difference,
-};
+mod streams;
+
+use crate::observations::ProcessExitObservation;
 use source_compiler::registered_tests::{TestExpectations, TestFileExpectation};
+use streams::{ProgramStream, ProgramStreams, first_byte_difference};
 use terminal_psi::CrashCause;
 
 #[derive(Clone, Debug)]

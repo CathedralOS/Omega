@@ -3,7 +3,7 @@
 #[path = "planning/native_entry.rs"]
 mod native_entry;
 pub use native_entry::NativeEntryLimits;
-#[path = "planning/observations/mod.rs"]
+#[path = "planning/observations.rs"]
 pub mod observations;
 #[path = "planning/product.rs"]
 mod product;
