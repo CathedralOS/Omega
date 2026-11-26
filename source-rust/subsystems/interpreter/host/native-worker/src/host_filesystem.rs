@@ -11,10 +11,11 @@ its immediate thread-local `errno` back into Linux's negative-status convention.
 No Rust I/O error, retry loop, private worker descriptor, or modeled standard
 stream (`0..=2`) supplies a kernel result.
 
-A namespace may be rooted at a directory: `AT_FDCWD` then names that directory
-rather than this process's working directory, so concurrent instances in one
-process never resolve each other's relative paths. Absolute paths still name
-the host's namespace, exactly as they do for the native program.
+With host namespace delegation, an optional working directory supplies
+`AT_FDCWD` and absolute paths resolve from the host root. With directory
+mappings, `mapped` first resolves each path under its most specific guest
+mount and enforces that mount's access mode. Both modes use the same guest
+descriptor table.
 
 Guest descriptors 0, 1 and 2 begin as the instance's modeled standard streams,
 which the runtime serves without the host. Closing one retires that stream, as

@@ -1,10 +1,11 @@
 //! The Build and its interpreted Product receive independent guest directories.
-mod support;
-
-#[cfg(all(
+#![cfg(all(
     target_os = "linux",
     any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
+
+mod support;
+
 #[test]
 fn a_psi_product_reads_its_own_mount_and_writes_only_to_its_output() {
     use platform_custody::temporary_directory::TemporaryDirectory;
