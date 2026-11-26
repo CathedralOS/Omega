@@ -2187,25 +2187,32 @@ pub(crate) mod values {
 
             #[test]
             fn host_return_checks_every_nested_case_before_entry() {
-                let sum = |value, fields| declaration(value, StructuralTypeShape::Sum {
-                    cases: vec![terminal_psi::StructuralCaseDeclaration {
-                        declaration_identity: Default::default(),
-                        id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
-                        identity: TerminalIdentityIndex(0),
-                        fields,
-                    }],
-                });
+                let sum = |value, fields| {
+                    declaration(
+                        value,
+                        StructuralTypeShape::Sum {
+                            cases: vec![terminal_psi::StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
+                                id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                                identity: TerminalIdentityIndex(0),
+                                fields,
+                            }],
+                        },
+                    )
+                };
                 let payload = |ty| vec![field(1, StructuralFieldType::Structural(identity(ty)))];
                 let nested = sum(2, Vec::new());
                 let result = sum(1, payload(2));
-                assert!(AggregatePlan::supports_host_result(&result, |ty|
-                    (ty == nested.id).then_some(&nested)));
+                assert!(AggregatePlan::supports_host_result(&result, |ty| (ty
+                    == nested.id)
+                    .then_some(&nested)));
                 for unsupported in [
                     sum(2, payload(2)),
                     declaration(2, StructuralTypeShape::Opaque),
                 ] {
-                    assert!(!AggregatePlan::supports_host_result(&result, |ty|
-                        (ty == unsupported.id).then_some(&unsupported)));
+                    assert!(!AggregatePlan::supports_host_result(&result, |ty| (ty
+                        == unsupported.id)
+                        .then_some(&unsupported)));
                 }
             }
 

@@ -150,8 +150,11 @@ impl BuildProviderScope {
             .chain(queries.iter().map(|call| call.site.boundary))
             .chain(filesystem.iter().filter_map(|call| {
                 let boundary = call.site.boundary;
-                let optional = call.action == source_compiler::publication::TerminalBuildFilesystemOperation::ReadAll;
-                let selected = implementations.iter().any(|provider| provider.boundary == boundary)
+                let optional = call.action
+                    == source_compiler::publication::TerminalBuildFilesystemOperation::ReadAll;
+                let selected = implementations
+                    .iter()
+                    .any(|provider| provider.boundary == boundary)
                     || awaited.binary_search(&boundary).is_ok();
                 (!optional || !selected).then_some(boundary)
             }))
