@@ -419,7 +419,9 @@ pub fn bind_numeric_import_slot(
     use interpreter_numeric_imports::NumericImportError;
     interpreter_numeric_imports::bind_numeric_import_slot(instance, slot, realization).map_err(
         |error| match error {
-            NumericImportError::InvalidProvision(reason) => TerminalRuntimeError::InvalidProvision(reason),
+            NumericImportError::InvalidProvision(reason) => {
+                TerminalRuntimeError::InvalidProvision(reason)
+            }
             NumericImportError::Binding(reason) => TerminalRuntimeError::Binding(reason),
         },
     )
@@ -512,8 +514,10 @@ pub(super) fn bind<'host>(
                 }
                 let application =
                     provisions.and_then(|provisions| provisions.host_calling_application(*slot));
-                let layouts =
-                    provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts);
+                let layouts = provisions.map_or(
+                    &[][..],
+                    TerminalRuntimeHostProvisions::borrowed_storage_layouts,
+                );
                 bind_admitted!(filesystem::linux::LinuxFilesystemImport::admit(
                     &context.filesystem,
                     program,
@@ -521,12 +525,10 @@ pub(super) fn bind<'host>(
                     binding,
                     layouts,
                 ));
-                let filesystem = context.filesystem.admit(
-                    program,
-                    declaration,
-                    binding,
-                    layouts,
-                )?;
+                let filesystem =
+                    context
+                        .filesystem
+                        .admit(program, declaration, binding, layouts)?;
                 if filesystem.as_ref().is_some_and(|call| call.descriptor_io()) {
                     let adapter = native_provider::NativeImport::admit(
                         program,
@@ -601,7 +603,10 @@ pub(super) fn bind<'host>(
                     application,
                     std::sync::Arc::clone(addresses),
                 ));
-                bind_admitted!(descriptor_mode::DescriptorModeImport::admit(declaration, binding));
+                bind_admitted!(descriptor_mode::DescriptorModeImport::admit(
+                    declaration,
+                    binding
+                ));
                 bind_admitted!(native_provider::NativeImport::admit(
                     program,
                     declaration,
