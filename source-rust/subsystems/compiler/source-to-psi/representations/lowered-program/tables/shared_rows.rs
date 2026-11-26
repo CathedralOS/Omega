@@ -109,6 +109,28 @@ mod tests {
     }
 
     #[test]
+    fn finding_an_existing_projection_keeps_shared_geometry() {
+        use crate::MachineId;
+        use crate::bindings::{Segment, intern_projection};
+        use semantic_vocabulary::StructuralFieldId;
+
+        let mut first = tables(0);
+        let owner = MachineId::new(1).unwrap();
+        let root = first.places.keys().next().unwrap();
+        let project = |tables: &mut MachineTables, field| {
+            let segment = Segment::Field(StructuralFieldId::new(field).unwrap());
+            intern_projection(owner, &mut tables.places, root, segment).unwrap()
+        };
+        let known = project(&mut first, 1);
+        let mut next = first.clone();
+        assert_eq!(project(&mut next, 1), known);
+        assert!(Arc::ptr_eq(&first.places.0, &next.places.0));
+        let fresh = project(&mut next, 2);
+        assert!(next.places.get(fresh).is_some());
+        assert!(first.places.get(fresh).is_none());
+    }
+
+    #[test]
     fn loop_entries_share_equal_rows_and_keep_later_writes_local() {
         let mut store = LoopCheckingRows::default();
         let mut first = tables(0);
