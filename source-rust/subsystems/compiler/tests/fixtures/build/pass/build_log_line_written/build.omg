@@ -2,11 +2,13 @@
 // `BuildLog::write_line(@mutable builder.log, text)` carries the activation's log
 // facet as an explicit operand; the line is retained in the build observation
 // summary and the compiler emits it with the compile's other output.
+use main.omg as app;
+
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "build_log_line_written" };
     BuildLog::write_line(@mutable builder.log, "omega build log witness");
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }

@@ -1,5 +1,7 @@
+use main.omg as app;
+
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "installed_fixture" };
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    _ = builder.tests.group::<Checks::modify, registers_fixture>();
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    _ = builder.tests.group::<|app|::Checks::modify, registers_fixture>();
 }
