@@ -1029,6 +1029,18 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             return self.realized_call_dependency(binding, target_span);
         }
         if !target_symbol.is_valid() {
+            if let Some(selections) = self.overloads {
+                // The same occurrence survives typing. Its selected declaration can be a
+                // machine or its entry state; call() follows the owning authored body.
+                for selection in occurrences.filter_map(|id| selections.get(id)) {
+                    if selection.kind() == crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                        && let Some(chosen) = selection.target().as_resolved()
+                    {
+                        self.call(chosen.selected_symbol(), target_span)?;
+                    }
+                }
+                return Ok(());
+            }
             let symbols = &self.program.symbols;
             let candidates = if symbols.get(receiver_symbol).kind == SymbolKind::Module {
                 symbols
@@ -1051,18 +1063,6 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             };
             if !candidates.is_empty() {
                 if self.deferred_machines.is_some() {
-                    if let Some(ledger) = self.overloads {
-                        // Signatures are already visible. Only a chosen overload needs its body.
-                        for selection in occurrences.filter_map(|id| ledger.get(id)) {
-                            if selection.kind() == crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
-                                && let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target()
-                                && candidates.contains(&target.selected_symbol())
-                            {
-                                self.call(target.selected_symbol(), target_span)?;
-                            }
-                        }
-                        return Ok(());
-                    }
                     if self.follow_dependencies {
                         self.available_machines.extend(candidates);
                     }
