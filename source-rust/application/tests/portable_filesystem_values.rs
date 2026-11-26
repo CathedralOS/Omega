@@ -205,6 +205,10 @@ fn windows_directory_names_retain_unsigned_counts_and_the_first_error() {
         &std::fs::read_to_string(system_library.join("filesystem_host.omg")).unwrap(),
     );
     project.write(
+        "private_handle.omg",
+        "domain i64::WindowsPrivateNonalertFileOrAbsent requires self != -1;",
+    );
+    project.write(
         "control.omg",
         "public machine windows_filesystem_native_close_handle(handle: u64) -> i32 { -6 }\n\
          public machine windows_filesystem_native_last_error() -> u32 { 6 }",

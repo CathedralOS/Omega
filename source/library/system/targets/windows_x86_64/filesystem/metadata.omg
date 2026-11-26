@@ -1,113 +1,101 @@
-use targets/windows_x86_64/filesystem/errors.omg as errors;
-use filesystem_host.omg as paths;
 use filesystem.omg as filesystem;
-use ExistsResult;
-use File;
-use FileKind;
-use Metadata;
-use MetadataResult;
-use Permissions;
-use PosixMetadataResult;
-use TimestampResult;
-use UnitResult;
-use WindowsFileMetadata;
-use WindowsFilesystemHost;
-use WindowsMetadataResult;
-use system;
+use filesystem_host.omg as paths;
+use targets/windows_x86_64/filesystem/errors.omg as errors;
+use windows_filesystem_host.omg as win_fs;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // Decode native Windows facts, never invented POSIX identities. FILETIME uses
 // 100-ns ticks from 1601; portable timestamps use signed Unix seconds. A real
 // zero timestamp is distinct from unavailable POSIX metadata. Only the known
 // symlink/junction tags become Symlink; an unknown reparse tag stays Other.
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\widen_u32_to_u64;
 
 machine windows_filesystem_seconds(ticks: u64) -> i64 {
     let since_windows_epoch: u64 = ticks / 10000000;
     (since_windows_epoch as i64) - 11644473600
 }
 
-machine windows_filesystem_kind(attributes: u32, reparse_tag: u32) -> FileKind {
+machine windows_filesystem_kind(attributes: u32, reparse_tag: u32) -> |filesystem|::FileKind {
     transition (attributes & 1024) != 0 {
         true -> reparse(reparse_tag),
         false -> ordinary(attributes)
     }
-    machine reparse(tag: u32) -> FileKind {
+    machine reparse(tag: u32) -> |filesystem|::FileKind {
         transition tag == 2684354572 || tag == 2684354563 {
-            true -> FileKind::Symlink,
-            false -> FileKind::Other
+            true -> |filesystem|::FileKind::Symlink,
+            false -> |filesystem|::FileKind::Other
         }
     }
-    machine ordinary(attributes: u32) -> FileKind {
-        transition (attributes & 16) != 0 { true -> FileKind::Directory, false -> FileKind::File }
+    machine ordinary(attributes: u32) -> |filesystem|::FileKind {
+        transition (attributes & 16) != 0 { true -> |filesystem|::FileKind::Directory, false -> |filesystem|::FileKind::File }
     }
 }
 
-machine windows_filesystem_metadata_result(outcome: WindowsMetadataResult) -> MetadataResult {
+machine windows_filesystem_metadata_result(outcome: |win_fs|::WindowsMetadataResult) -> |filesystem|::MetadataResult {
     transition outcome {
-        WindowsMetadataResult::Error { code } -> (MetadataResult::Error { kind: |errors|::windows_filesystem_error(code) }),
-        WindowsMetadataResult::Value { metadata } -> value(metadata)
+        |win_fs|::WindowsMetadataResult::Error { code } -> (|filesystem|::MetadataResult::Error { kind: |errors|::windows_filesystem_error(code) }),
+        |win_fs|::WindowsMetadataResult::Value { metadata } -> value(metadata)
     }
-    machine value(metadata: WindowsFileMetadata) -> MetadataResult {
+    machine value(metadata: |win_fs|::WindowsFileMetadata) -> |filesystem|::MetadataResult {
         transition metadata.length >= 0 {
             true -> valid(metadata),
-            false -> (MetadataResult::Error { kind: |filesystem|::ErrorKind::Other })
+            false -> (|filesystem|::MetadataResult::Error { kind: |filesystem|::ErrorKind::Other })
         }
     }
-    machine valid(metadata: WindowsFileMetadata) -> MetadataResult {
-        MetadataResult::Ok { meta: Metadata {
+    machine valid(metadata: |win_fs|::WindowsFileMetadata) -> |filesystem|::MetadataResult {
+        |filesystem|::MetadataResult::Ok { meta: |filesystem|::Metadata {
             length: metadata.length,
             kind: windows_filesystem_kind(metadata.attributes, metadata.reparse_tag),
-            permissions: Permissions::Readonly { value: (metadata.attributes & 1) != 0 },
-            nlink: widen_u32_to_u64(metadata.links),
-            posix: PosixMetadataResult::Error { kind: |filesystem|::ErrorKind::Unsupported },
+            permissions: |filesystem|::Permissions::Readonly { value: (metadata.attributes & 1) != 0 },
+            nlink: |numeric|::widen_u32_to_u64(metadata.links),
+            posix: |filesystem|::PosixMetadataResult::Error { kind: |filesystem|::ErrorKind::Unsupported },
             modified_secs: windows_filesystem_seconds(metadata.write_ticks),
             accessed_secs: windows_filesystem_seconds(metadata.access_ticks),
-            creation_time: TimestampResult::Ok { seconds: windows_filesystem_seconds(metadata.creation_ticks) },
+            creation_time: |filesystem|::TimestampResult::Ok { seconds: windows_filesystem_seconds(metadata.creation_ticks) },
             changed_secs: windows_filesystem_seconds(metadata.change_ticks)
         } }
     }
 }
 
-machine windows_filesystem_metadata(file: File) -> MetadataResult
-reaches FilesystemMetadataQuery
+machine windows_filesystem_metadata(file: |filesystem|::File) -> |filesystem|::MetadataResult
+reaches |authority|::FilesystemMetadataQuery
 {
     transition file.handle != 0 {
         true -> block query(file),
-        false -> (MetadataResult::Error { kind: |filesystem|::ErrorKind::BadDescriptor })
+        false -> (|filesystem|::MetadataResult::Error { kind: |filesystem|::ErrorKind::BadDescriptor })
     }
-    machine query(file: File) -> MetadataResult {
-        let outcome: WindowsMetadataResult = block WindowsFilesystemHost::metadata(file.handle);
+    machine query(file: |filesystem|::File) -> |filesystem|::MetadataResult {
+        let outcome: |win_fs|::WindowsMetadataResult = block |win_fs|::WindowsFilesystemHost::metadata(file.handle);
         windows_filesystem_metadata_result(outcome)
     }
 }
 
-machine windows_filesystem_metadata_path(path: @[u8] in |paths|::Path, no_follow: bool) -> MetadataResult
-reaches FilesystemMetadataQuery
+machine windows_filesystem_metadata_path(path: @[u8] in |paths|::Path, no_follow: bool) -> |filesystem|::MetadataResult
+reaches |authority|::FilesystemMetadataQuery
 {
-    let outcome: WindowsMetadataResult = block WindowsFilesystemHost::read_metadata(path, no_follow);
+    let outcome: |win_fs|::WindowsMetadataResult = block |win_fs|::WindowsFilesystemHost::read_metadata(path, no_follow);
     windows_filesystem_metadata_result(outcome)
 }
 
 machine windows_filesystem_exists(path: @[u8] in |paths|::Path) -> bool
-reaches FilesystemMetadataQuery
+reaches |authority|::FilesystemMetadataQuery
 {
-    let outcome: MetadataResult = block windows_filesystem_metadata_path(path, false);
-    transition outcome { MetadataResult::Ok { meta } -> true, _ -> false }
+    let outcome: |filesystem|::MetadataResult = block windows_filesystem_metadata_path(path, false);
+    transition outcome { |filesystem|::MetadataResult::Ok { meta } -> true, _ -> false }
 }
 
-machine windows_filesystem_try_exists(path: @[u8] in |paths|::Path) -> ExistsResult
-reaches FilesystemMetadataQuery
+machine windows_filesystem_try_exists(path: @[u8] in |paths|::Path) -> |filesystem|::ExistsResult
+reaches |authority|::FilesystemMetadataQuery
 {
-    let outcome: MetadataResult = block windows_filesystem_metadata_path(path, false);
+    let outcome: |filesystem|::MetadataResult = block windows_filesystem_metadata_path(path, false);
     transition outcome {
-        MetadataResult::Ok { meta } -> ExistsResult::Yes,
-        MetadataResult::Error { kind } -> failed(kind)
+        |filesystem|::MetadataResult::Ok { meta } -> |filesystem|::ExistsResult::Yes,
+        |filesystem|::MetadataResult::Error { kind } -> failed(kind)
     }
-    machine failed(kind: |filesystem|::ErrorKind) -> ExistsResult {
+    machine failed(kind: |filesystem|::ErrorKind) -> |filesystem|::ExistsResult {
         transition kind {
-            |filesystem|::ErrorKind::NotFound -> ExistsResult::No,
-            _ -> (ExistsResult::Error { kind: kind })
+            |filesystem|::ErrorKind::NotFound -> |filesystem|::ExistsResult::No,
+            _ -> (|filesystem|::ExistsResult::Error { kind: kind })
         }
     }
 }
@@ -142,65 +130,65 @@ machine windows_filesystem_encode_timestamp(seconds: i64) -> WindowsTimestampEnc
     }
 }
 
-machine windows_filesystem_set_times(file: File, accessed: i64, modified: i64) -> UnitResult
-reaches FilesystemMetadataMutation
+machine windows_filesystem_set_times(file: |filesystem|::File, accessed: i64, modified: i64) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataMutation
 {
     transition file.handle != 0 {
         true -> block access_time(file, accessed, modified),
-        false -> (UnitResult::Error { kind: |filesystem|::ErrorKind::BadDescriptor })
+        false -> (|filesystem|::UnitResult::Error { kind: |filesystem|::ErrorKind::BadDescriptor })
     }
-    machine access_time(file: File, accessed: i64, modified: i64) -> UnitResult {
+    machine access_time(file: |filesystem|::File, accessed: i64, modified: i64) -> |filesystem|::UnitResult {
         let encoded: WindowsTimestampEncoding = windows_filesystem_encode_timestamp(accessed);
         transition encoded {
-            WindowsTimestampEncoding::Error { kind } -> (UnitResult::Error { kind: kind }),
+            WindowsTimestampEncoding::Error { kind } -> (|filesystem|::UnitResult::Error { kind: kind }),
             WindowsTimestampEncoding::Ticks { value } -> block write_time(file, value, modified)
         }
     }
-    machine write_time(file: File, accessed: u64, modified: i64) -> UnitResult {
+    machine write_time(file: |filesystem|::File, accessed: u64, modified: i64) -> |filesystem|::UnitResult {
         let encoded: WindowsTimestampEncoding = windows_filesystem_encode_timestamp(modified);
         transition encoded {
-            WindowsTimestampEncoding::Error { kind } -> (UnitResult::Error { kind: kind }),
+            WindowsTimestampEncoding::Error { kind } -> (|filesystem|::UnitResult::Error { kind: kind }),
             WindowsTimestampEncoding::Ticks { value } -> block update(file, accessed, value)
         }
     }
-    machine update(file: File, accessed: u64, modified: u64) -> UnitResult {
-        let status: i32 = block WindowsFilesystemHost::set_file_time(file.handle, accessed, modified);
+    machine update(file: |filesystem|::File, accessed: u64, modified: u64) -> |filesystem|::UnitResult {
+        let status: i32 = block |win_fs|::WindowsFilesystemHost::set_file_time(file.handle, accessed, modified);
         |errors|::windows_filesystem_unit(status)
     }
 }
 
 // A numeric POSIX mode does not encode a Windows ACL. Only the portable
 // read-only request is translated; Default restores the ordinary writable bit.
-machine windows_filesystem_set_permissions(path: @[u8] in |paths|::Path, permissions: Permissions) -> UnitResult
-reaches FilesystemMetadataQuery + FilesystemMetadataMutation
+machine windows_filesystem_set_permissions(path: @[u8] in |paths|::Path, permissions: |filesystem|::Permissions) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation
 {
     transition permissions {
-        Permissions::Default -> block update(path, false),
-        Permissions::Readonly { value } -> block update(path, value),
-        Permissions::Posix { mode } -> (UnitResult::Error { kind: |filesystem|::ErrorKind::Unsupported })
+        |filesystem|::Permissions::Default -> block update(path, false),
+        |filesystem|::Permissions::Readonly { value } -> block update(path, value),
+        |filesystem|::Permissions::Posix { mode } -> (|filesystem|::UnitResult::Error { kind: |filesystem|::ErrorKind::Unsupported })
     }
-    machine update(path: @[u8] in |paths|::Path, readonly: bool) -> UnitResult {
-        let status: i32 = block WindowsFilesystemHost::set_path_readonly(path, readonly);
+    machine update(path: @[u8] in |paths|::Path, readonly: bool) -> |filesystem|::UnitResult {
+        let status: i32 = block |win_fs|::WindowsFilesystemHost::set_path_readonly(path, readonly);
         |errors|::windows_filesystem_unit(status)
     }
 }
 
-machine windows_filesystem_set_file_permissions(file: File, permissions: Permissions) -> UnitResult
-reaches FilesystemMetadataQuery + FilesystemMetadataMutation
+machine windows_filesystem_set_file_permissions(file: |filesystem|::File, permissions: |filesystem|::Permissions) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation
 {
     transition file.handle != 0 {
         true -> block select(file, permissions),
-        false -> (UnitResult::Error { kind: |filesystem|::ErrorKind::BadDescriptor })
+        false -> (|filesystem|::UnitResult::Error { kind: |filesystem|::ErrorKind::BadDescriptor })
     }
-    machine select(file: File, permissions: Permissions) -> UnitResult {
+    machine select(file: |filesystem|::File, permissions: |filesystem|::Permissions) -> |filesystem|::UnitResult {
         transition permissions {
-            Permissions::Default -> block update(file, false),
-            Permissions::Readonly { value } -> block update(file, value),
-            Permissions::Posix { mode } -> (UnitResult::Error { kind: |filesystem|::ErrorKind::Unsupported })
+            |filesystem|::Permissions::Default -> block update(file, false),
+            |filesystem|::Permissions::Readonly { value } -> block update(file, value),
+            |filesystem|::Permissions::Posix { mode } -> (|filesystem|::UnitResult::Error { kind: |filesystem|::ErrorKind::Unsupported })
         }
     }
-    machine update(file: File, readonly: bool) -> UnitResult {
-        let status: i32 = block WindowsFilesystemHost::set_handle_readonly(file.handle, readonly);
+    machine update(file: |filesystem|::File, readonly: bool) -> |filesystem|::UnitResult {
+        let status: i32 = block |win_fs|::WindowsFilesystemHost::set_handle_readonly(file.handle, readonly);
         |errors|::windows_filesystem_unit(status)
     }
 }
