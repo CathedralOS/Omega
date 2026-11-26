@@ -63,7 +63,7 @@ pub mod constraints {
                 !call.callbacks.iter().any(|callback| {
                     usize::try_from(callback.application.native_ordinal)
                         .ok()
-                        .map(|ordinal| ordinal + call.binding.dispatch_operand_count())
+                        .map(|ordinal| call.binding.operand_for_native_ordinal(ordinal))
                         == Some(*position)
                         && matches!(callback.destination, NativePlace::Parameter(_))
                 })
@@ -80,6 +80,15 @@ pub mod constraints {
                 })
             })
             .collect()
+    }
+
+    /// The encoded memory effect indexes register operands after ABI ordering.
+    pub fn table_pointer_register_operand(call: &LegalizedNormalizedForeignCall) -> Option<u16> {
+        let table = call.binding.table_operand_index()?;
+        let position = foreign_argument_registers(call)
+            .iter()
+            .position(|(operand, _)| *operand == table)?;
+        u16::try_from(position).ok()
     }
 
     pub fn instantiate_foreign_call_constraint(

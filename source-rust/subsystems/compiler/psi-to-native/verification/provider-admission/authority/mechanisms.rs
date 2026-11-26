@@ -146,6 +146,7 @@ pub enum TerminalMechanismIdentity {
         provider: provider_plans::ProviderPlanDigest,
         calling: provider_plans::BoundaryCallingPlanCommitment,
         byte_offset: u32,
+        table_operand: u32,
         dispatch_only: bool,
     },
 }
@@ -181,6 +182,7 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
             provider,
             calling,
             byte_offset,
+            table_operand,
             dispatch_only,
         } => {
             let target = target.identity().as_str().as_bytes();
@@ -190,6 +192,7 @@ pub fn terminal_mechanism_identity_bytes(identity: TerminalMechanismIdentity) ->
             bytes.extend_from_slice(provider.as_bytes());
             bytes.extend_from_slice(&calling.as_bytes());
             bytes.extend_from_slice(&byte_offset.to_be_bytes());
+            bytes.extend_from_slice(&table_operand.to_be_bytes());
             bytes.push(u8::from(dispatch_only));
             bytes
         }

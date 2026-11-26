@@ -986,7 +986,10 @@ fn decode_call_binding(
         let target_name = decode_string(cursor)?;
         let target = TargetProfile::from_canonical_target_name(&target_name)
             .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
-        (None, Some((target, cursor.u32()?, decode_bool(cursor)?)))
+        (
+            None,
+            Some((target, cursor.u32()?, cursor.u32()?, decode_bool(cursor)?)),
+        )
     } else if target_name == "@component" {
         let target_name = decode_string(cursor)?;
         let target = TargetProfile::from_canonical_target_name(&target_name)
@@ -1079,10 +1082,11 @@ fn decode_call_binding(
                 locator,
                 same_stack_contribution: contribution,
             },
-            (None, Some((target, byte_offset, dispatch_only))) => {
+            (None, Some((target, byte_offset, table_operand, dispatch_only))) => {
                 target_vocabulary::NormalizedForeignCallMechanism::Table {
                     target,
                     byte_offset,
+                    table_operand,
                     dispatch_only,
                     same_stack_contribution: contribution,
                 }
