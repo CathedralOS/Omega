@@ -24,6 +24,29 @@ both uses require both edges. Neither edge grants ambient host services or makes
 host and target type instances interchangeable. See
 [dependency scopes](../build/scoped_execution.md#two-checked-contexts).
 
+## Selecting a bundled package
+
+The standard Omega distribution ships the core and Build libraries and the
+ordinary source packages `system` and `allocation`. A project can build
+offline against an ordinary package shipped with the selected toolchain.
+Its Build selects the package by its declared name.
+
+```omega
+let system: DependencyDescription =
+    |dependency|::from_source(Source::Bundled { name: "system" });
+_ = |dependency|::add(build, system, @allowed[..]);
+```
+
+The Build driver looks up that exact name in the selected distribution's
+verified library bundle. If the bundle does not supply the requested
+package, report its name and fail the request. Lookup never fetches from
+the network or searches the project's directories.
+
+Registration gives the immediate product its ordinary package binding and
+reach ceiling. The initial Build still starts with core and Build. A project
+that later selects a pinned Git source can keep the same import alias and
+ceiling. The new source goes through ordinary dependency review.
+
 ## Semantic bindings in a staged Build
 
 Each compiler role takes its identity from the selection that owns it. The

@@ -49,9 +49,9 @@ public data TestInvocationInputs {
 // Build entry its `BuildPlan`.
 public data BuildSeal {
 }
-BuildSealAccess satisfies AccessPolicy {
-    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access\new_plan(@schema, Issuance::Only { routes: [] })
+BuildSealAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Only { routes: [] })
     }
 }
 public domain BuildSeal::Issued
@@ -68,9 +68,20 @@ public data BuildProduct<'storage> {
     case InterpretedBuild(entry: @'storage [u8]);
 }
 
+// An issued BuildPath selects one directory in this activation's held view.
+public data BuildPackageRoot {
+    case Current;
+    case Directory(path: BuildPath);
+}
+
+// Empty selects no runtime mounts. Appending a held directory produces a new list.
+public data BuildDirectories [copy] {}
+
 // Stored views in this plan share one explicit backing lifetime.
 public data BuildPlan<'storage> {
     product: BuildProduct<'storage>;
+    package_root: BuildPackageRoot;
+    directories: BuildDirectories;
     seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
     subsystem: Subsystem;

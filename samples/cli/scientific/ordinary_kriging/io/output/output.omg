@@ -1,15 +1,14 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\I64::from_f64;
-use omega\language\core\narrow_i64_to_i32_saturating;
-use model\kriging;
-use model\kriging\Problem;
+use model/kriging/kriging.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 // Decimal scientific tokens retain sixteen significant digits without a fixed
 // point output range or silent saturation of large finite scientific values.
-public machine number(value: f64) reaches StandardOutput invokes Console {
-    Console::write(" ");
+public machine number(value: f64) reaches |process_authority|::StandardOutput invokes |console|::Console {
+    |console|::Console::write(" ");
     transition value < 0.0 { true -> negative(value), false -> normalize(value, 0) }
-    machine negative(value: f64) { Console::write("-"); transition { _ -> normalize(0.0 - value, 0) } }
+    machine negative(value: f64) { |console|::Console::write("-"); transition { _ -> normalize(0.0 - value, 0) } }
     machine normalize(value: f64, exponent: i64 in Wrapping) {
         transition {
             value >= 10.0 -> normalize(value / 10.0, exponent + 1),
@@ -18,43 +17,43 @@ public machine number(value: f64) reaches StandardOutput invokes Console {
         }
     }
     machine mantissa(value: f64, exponent: i64 in Wrapping) {
-        let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000000.0);
+        let scaled: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000000000000.0);
         integer(scaled as -Saturating +Wrapping);
-        Console::write("e"); integer(exponent - 15);
+        |console|::Console::write("e"); integer(exponent - 15);
     }
 }
-machine integer(value: i64 in Wrapping) reaches StandardOutput invokes Console {
+machine integer(value: i64 in Wrapping) reaches |process_authority|::StandardOutput invokes |console|::Console {
     transition value < 0 { true -> negative(value), false -> digit(value, 1000000000000000000, false) }
-    machine negative(value: i64 in Wrapping) { Console::write("-"); transition { _ -> digit(0 - value, 1000000000000000000, false) } }
+    machine negative(value: i64 in Wrapping) { |console|::Console::write("-"); transition { _ -> digit(0 - value, 1000000000000000000, false) } }
     machine digit(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
         let character: i64 in Wrapping = value / place;
         transition character != 0 || started || place == 1 { true -> write(value, place, character), false -> advance(value, place, false) }
     }
     machine write(value: i64 in Wrapping, place: i64 in Wrapping, character: i64 in Wrapping) requires place > 0 {
-        Console::write_byte(narrow_i64_to_i32_saturating((character + 48) as i64)); transition { _ -> advance(value, place, true) }
+        |console|::Console::write_byte(|numeric_conversion|::narrow_i64_to_i32_saturating((character + 48) as i64)); transition { _ -> advance(value, place, true) }
     }
     machine advance(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
         transition place >= 10 { true -> digit(value % place, place / 10, started), false -> done() }
     }
     machine done() { }
 }
-public machine emit(problem: @Problem) reaches StandardOutput invokes Console {
-    Console::write_line("status ordinary-kriging; decimal scientific tokens");
+public machine emit(problem: @|kriging|::Problem) reaches |process_authority|::StandardOutput invokes |console|::Console {
+    |console|::Console::write_line("status ordinary-kriging; decimal scientific tokens");
     transition { _ -> queries(problem, 0) }
-    machine queries(problem: @Problem, query: u64) {
+    machine queries(problem: @|kriging|::Problem, query: u64) {
         transition query < problem.queries && query < 8 { true -> row(problem, query), false -> done() }
     }
-    machine row(problem: @Problem, query: u64) requires query < 8 {
-        Console::write("query"); number(problem.predictions[query]); number(problem.variances[query]);
-        number(problem.system_residuals[query]); number(problem.mean_residuals[query]); Console::write_line("");
-        Console::write("weights"); transition { _ -> weights(problem, query, 0) }
+    machine row(problem: @|kriging|::Problem, query: u64) requires query < 8 {
+        |console|::Console::write("query"); number(problem.predictions[query]); number(problem.variances[query]);
+        number(problem.system_residuals[query]); number(problem.mean_residuals[query]); |console|::Console::write_line("");
+        |console|::Console::write("weights"); transition { _ -> weights(problem, query, 0) }
     }
-    machine weights(problem: @Problem, query: u64, index: u64) requires query < 8 {
+    machine weights(problem: @|kriging|::Problem, query: u64, index: u64) requires query < 8 {
         transition index < problem.count && index < 8 { true -> weight(problem, query, index), false -> next(problem, query) }
     }
-    machine weight(problem: @Problem, query: u64, index: u64) requires query < 8, index < 8 {
+    machine weight(problem: @|kriging|::Problem, query: u64, index: u64) requires query < 8, index < 8 {
         number(problem.weights[query * 8 + index]); transition { _ -> weights(problem, query, index + 1) }
     }
-    machine next(problem: @Problem, query: u64) { Console::write_line(""); transition { _ -> queries(problem, query + 1) } }
+    machine next(problem: @|kriging|::Problem, query: u64) { |console|::Console::write_line(""); transition { _ -> queries(problem, query + 1) } }
     machine done() { }
 }

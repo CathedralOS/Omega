@@ -174,7 +174,7 @@ fn abi_storage_request_requires_exact_canonical_roster() {
     assert_eq!(demand.applications(), expected);
     let targets = psi_target_layouts::terminal_target_context(artifact.view(), "macos_arm64");
     let providers =
-        psi_provider_selections::admit_provider_installation(artifact.view(), &[], &[]).unwrap();
+        psi_provider_selections::admit_provider_installation(artifact.view(), &[]).unwrap();
     let observations = ScalarApplicationObservations::new(
         artifact.view(),
         &targets,
@@ -209,7 +209,7 @@ fn abi_storage_receipt_binds_full_key_and_grants_no_entry_or_product_authority()
     assert_eq!(demands[0].applications(), demands[1].applications());
     let targets = psi_target_layouts::terminal_target_context(artifact.view(), "macos_arm64");
     let providers =
-        psi_provider_selections::admit_provider_installation(artifact.view(), &[], &[]).unwrap();
+        psi_provider_selections::admit_provider_installation(artifact.view(), &[]).unwrap();
     let observations = || {
         ScalarApplicationObservations::new(
             artifact.view(),
@@ -345,7 +345,7 @@ fn abi_storage_request_refuses_other_artifact_and_target() {
     );
     let targets = psi_target_layouts::terminal_target_context(artifact.view(), "linux_arm64");
     let providers =
-        psi_provider_selections::admit_provider_installation(artifact.view(), &[], &[]).unwrap();
+        psi_provider_selections::admit_provider_installation(artifact.view(), &[]).unwrap();
     let error = ScalarApplicationObservations::new(
         artifact.view(),
         &targets,
@@ -365,7 +365,7 @@ fn abi_storage_completion_refuses_actual_false_helper_debt() {
     let demand = CallingAbiStorageDemand::new(artifact.view(), "macos_arm64", &keys[0]).unwrap();
     let targets = psi_target_layouts::terminal_target_context(artifact.view(), "macos_arm64");
     let providers =
-        psi_provider_selections::admit_provider_installation(artifact.view(), &[], &[]).unwrap();
+        psi_provider_selections::admit_provider_installation(artifact.view(), &[]).unwrap();
     let observations = ScalarApplicationObservations::new(
         artifact.view(),
         &targets,

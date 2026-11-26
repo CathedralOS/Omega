@@ -31,7 +31,7 @@ replace that file in the captured inventory, rehash the exact tree, and publish
 a candidate snapshot without mutating the live project checkout.
 */
 
-mod member;
+mod frozen_package;
 pub(crate) mod observation;
 pub mod operations;
 mod recovery;

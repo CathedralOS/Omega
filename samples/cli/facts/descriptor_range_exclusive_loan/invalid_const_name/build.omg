@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "descriptor_range_exclusive_loan_through_const_name_invalid");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "descriptor_range_exclusive_loan_through_const_name_invalid" };
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

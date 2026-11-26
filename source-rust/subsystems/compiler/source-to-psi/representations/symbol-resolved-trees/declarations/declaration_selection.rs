@@ -80,10 +80,17 @@ mod product {
         CompositionMode, NativeBindingProducer, ProductTarget,
     };
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub enum BuildServiceOperation {
+        Describe,
+        EnableUnsafe(language_core::core_vocabulary::UnsafeAtom),
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub enum BuildSelectionRequest<Requirement> {
         ProviderReadiness(ProviderReadinessRequest<Requirement>),
         Service {
+            operation: BuildServiceOperation,
             source_span: source_text::SourceSpan,
             requirement: Requirement,
         },
@@ -127,7 +134,6 @@ mod product {
                         | BuildOperation::ServiceExclusion
                         | BuildOperation::BoundaryAcceptance
                         | BuildOperation::ServiceAudit
-                        | BuildOperation::AssumedBindingContract
                         | BuildOperation::WireCompatibilityRequest
                         | BuildOperation::TestGroupRegistration
                 ),
@@ -176,9 +182,11 @@ mod product {
                     })
                 }
                 Self::Service {
+                    operation,
                     source_span,
                     requirement,
                 } => BuildSelectionRequest::Service {
+                    operation,
                     source_span,
                     requirement: map(requirement)?,
                 },
@@ -326,6 +334,7 @@ mod product {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum ExecutedBuildSelection {
+        EnableUnsafe(language_core::core_vocabulary::UnsafeAtom),
         Entry(ProductEntryBinding),
         Declaration(ExecutedProductSelection),
         Exclusion(ExecutedEnumExclusion),
@@ -921,12 +930,13 @@ pub mod product_operands {
 }
 
 pub use product::{
-    BuildSelectionRequest, DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
-    EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection, ExecutedEnumExclusion,
-    ExecutedNativeBinding, ExecutedProductSelection, ProductDeclarationOperand,
-    ProductDeclarationRequest, ProductEntryBinding, ProviderReadinessRequest, RootBindingOperand,
-    RootBindingRequest, RootBindingSelection, TestExpectations, TestFileExpectation,
-    TestGroupConfiguration, TestInvocationInputs, TestEnginePolicy, TestEngineSelection, TestTargetEngines,
+    BuildSelectionRequest, BuildServiceOperation, DescribedProductEntry, DescribedProductProvider,
+    DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
+    ExecutedEnumExclusion, ExecutedNativeBinding, ExecutedProductSelection,
+    ProductDeclarationOperand, ProductDeclarationRequest, ProductEntryBinding,
+    ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    TestEnginePolicy, TestEngineSelection, TestExpectations, TestFileExpectation,
+    TestGroupConfiguration, TestInvocationInputs, TestTargetEngines,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]
@@ -1054,15 +1064,13 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
             }
             BuildOperation::FieldDescription => Self::BuildFieldDescription,
             BuildOperation::ServiceDescription => Self::BuildServiceDescription,
+            BuildOperation::EnableUnsafe => Self::BuildEnableUnsafe,
             BuildOperation::NativeBinding => Self::BuildNativeBinding,
             BuildOperation::ProviderReadiness => {
                 Self::BuildProviderReadiness
             }
             BuildOperation::ProviderSelection => {
                 Self::BuildProviderSelection
-            }
-            BuildOperation::AssumedBindingContract => {
-                Self::BuildAssumedBindingContract
             }
             BuildOperation::RepresentationSelection => {
                 Self::BuildRepresentationSelection
@@ -1081,9 +1089,6 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
             BuildOperation::WireCompatibilityRequest => {
                 Self::BuildWireCompatibilityRequest
             }
-            BuildOperation::IncludedSourceHandoff => {
-                Self::BuildIncludedSourceHandoff
-            }
             BuildOperation::LogWriteLine => Self::BuildLogWriteLine,
             BuildOperation::TestGroupRegistration => {
                 Self::BuildTestGroupRegistration
@@ -1093,10 +1098,10 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-pub enum AuthoredDeclarationSelectionIntrinsic {
-    BuildNativeBinding,
+pub enum AuthoredDeclarationSelectionIntrinsic {    BuildNativeBinding,
     BuildProviderReadiness,
     BuildServiceDescription,
+    BuildEnableUnsafe,
     BuiltinOperator,
     CollectionLength,
     CollectionCapacity,
@@ -1108,7 +1113,6 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
         role: ProductOperandRole,
     },
     BuildProviderSelection,
-    BuildAssumedBindingContract,
     BuildRepresentationSelection,
     BuildServiceExclusion,
     BuildServiceAudit,
@@ -1118,7 +1122,6 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildBoundaryAcceptance,
     BuildWireCompatibilityRequest,
     WireCompatibilityFact(semantic_vocabulary::source_selections::WireCompatibilityFact),
-    BuildIncludedSourceHandoff,
     BuildLogWriteLine,
     WireEncode,
     WireDecode,
@@ -1238,7 +1241,6 @@ mod tests {
             "wire_compatibility#Edge#Lineage#Local#Peer#Readable",
             "accept_boundary::Console",
             "select_provider#Console",
-            "assume_binding_contract#WritableMemory::claim",
             "enable#Fast",
             "exclude_crash",
             "dependency",

@@ -6,11 +6,11 @@ use crate::encoding::encode::{
 };
 use crate::record::PackagePolicyServiceMethod;
 use language_core::DomainPredicatePresence;
-use service_surface::{
-    ServiceResultProjection, ServiceSynchronousInvocation,
-};
-use service_surface::{ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 use semantic_vocabulary::BoundaryCompletion;
+use service_surface::{
+    ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
+};
+use service_surface::{ServiceResultProjection, ServiceSynchronousInvocation};
 
 pub(in crate::encoding::encode) fn method(
     encoder: &mut Encoder,
@@ -23,8 +23,8 @@ pub(in crate::encoding::encode) fn method(
         encode_nominal,
     )?;
     encoder.field_by("requirement", &method.requirement, encode_nominal)?;
-    encoder.field_by("signature", &method.signature, super::signature::signature)?;
-    encoder.field_by("authority", &method.authority, super::authority::authority)?;
+    encoder.field_by("signature", &method.signature, super::signature)?;
+    encoder.field_by("authority", &method.authority, super::authority)?;
     encoder.usize_field("parameter_count", method.parameter_count)?;
     encoder.field("parameter_type_identities", |encoder| {
         encoder.sequence(&method.parameter_type_identities, |encoder, value| {
@@ -129,7 +129,10 @@ pub(in crate::encoding::encode) fn method(
     })?;
     encoder.boolean_field("may_suspend", method.may_suspend)?;
     encoder.boolean_field("may_block", method.may_block)?;
-    encoder.u64_field("admitted_same_stack_bytes", method.admitted_same_stack_bytes)?;
+    encoder.u64_field(
+        "admitted_same_stack_bytes",
+        method.admitted_same_stack_bytes,
+    )?;
     encoder.boolean_field("terminates_guarantee", method.terminates_guarantee)?;
     encoder.field("termination_premises", |encoder| {
         encoder.sequence(&method.termination_premises, |encoder, premise| {

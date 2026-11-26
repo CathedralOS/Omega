@@ -1,7 +1,7 @@
-use omega\language\core\byte_observation;
+use {omega}/language/core/byte_observation/byte_observation.omg;
 // Expected exit: 0
 
-domain [u8]::Ascii requires byte_observation\ascii_only(@self[..]);
+domain [u8]::Ascii requires |byte_observation|::ascii_only(@self[..]);
 
 machine read_prefix<'a>(bytes: @'a [u8] in Ascii, other: @'a [u8] in Ascii, use_first: bool) -> u8
 requires 1 <= bytes.length, 1 <= other.length

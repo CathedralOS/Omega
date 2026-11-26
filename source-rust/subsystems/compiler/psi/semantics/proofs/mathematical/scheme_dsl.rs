@@ -38,6 +38,18 @@ pub(crate) fn define(
     )
 }
 
+/// Binds the same `binders` around a statement and its proof.
+pub(crate) fn theorem(
+    arena: &mut TermArena,
+    level_arity: u32,
+    binders: Vec<(&'static str, Syntax)>,
+    statement: Syntax,
+    body: Syntax,
+) -> Declaration {
+    let statement = pis(binders.clone(), statement);
+    define(arena, level_arity, &statement, &lams(binders, body))
+}
+
 pub(crate) fn assume(arena: &mut TermArena, level_arity: u32, statement: &Syntax) -> Declaration {
     Declaration::assumption(level_arity, build(arena, &mut Vec::new(), statement))
 }
@@ -194,6 +206,18 @@ pub fn pis(binders: impl IntoIterator<Item = (&'static str, Syntax)>, body: Synt
         .into_iter()
         .rev()
         .fold(body, |inner, (name, domain)| pi(name, domain, inner))
+}
+
+pub(crate) fn lams(
+    binders: impl IntoIterator<Item = (&'static str, Syntax)>,
+    body: Syntax,
+) -> Syntax {
+    binders
+        .into_iter()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .fold(body, |inner, (name, domain)| lam(name, domain, inner))
 }
 
 pub fn lam(name: &'static str, domain: Syntax, body: Syntax) -> Syntax {

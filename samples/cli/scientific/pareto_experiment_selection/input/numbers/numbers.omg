@@ -1,22 +1,21 @@
 // Whitespace-separated unsigned decimal tokens, at most three digits.
 // Admission checks happen on actual bytes; no wrapping or truncation is accepted.
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Parsed [copy] { value: u64; valid: bool; }
 public machine read_number() -> Parsed
-reaches StandardInput
-invokes Console
+reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     transition { _ -> block skip() }
     machine skip() -> Parsed {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> invalid(),
-            ByteRead::Eof -> invalid(),
-            ByteRead::Byte { value } -> block start(value)
+            |console|::ByteRead::Error -> invalid(),
+            |console|::ByteRead::Eof -> invalid(),
+            |console|::ByteRead::Byte { value } -> block start(value)
         }
     }
     machine start(byte: i32) -> Parsed {
@@ -38,11 +37,11 @@ crashes Trap
     machine scan(value: u64, digits: u64) -> Parsed
     requires value <= 999
     requires digits >= 1 && digits <= 3 {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> invalid(),
-            ByteRead::Eof -> complete(value),
-            ByteRead::Byte { value as byte } -> block classify(value, digits, byte)
+            |console|::ByteRead::Error -> invalid(),
+            |console|::ByteRead::Eof -> complete(value),
+            |console|::ByteRead::Byte { value as byte } -> block classify(value, digits, byte)
         }
     }
     machine classify(value: u64, digits: u64, byte: i32) -> Parsed
@@ -70,18 +69,18 @@ crashes Trap
 }
 
 public machine only_whitespace() -> bool
-reaches StandardInput
-invokes Console
+reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     transition { _ -> block scan() }
     machine scan() -> bool {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> false,
-            ByteRead::Eof -> true,
-            ByteRead::Byte { value } -> block check(value)
+            |console|::ByteRead::Error -> false,
+            |console|::ByteRead::Eof -> true,
+            |console|::ByteRead::Byte { value } -> block check(value)
         }
     }
     machine check(byte: i32) -> bool {

@@ -10,8 +10,7 @@ fn field_omission_is_one_final_standalone_marker_and_survives_copy() {
         ("Item::Ready { left: 7u32, .., }", true, 1),
     ] {
         let text = format!("const VALUE: Item = {literal};");
-        let tokens = Lexer::new(&text).tokenize().unwrap();
-        let syntax = crate::parse_syntax_trees(&tokens).unwrap();
+        let syntax = crate::tests::parse_source(&text);
         let (handle, literal) = syntax
             .expressions
             .iter_expressions()
@@ -45,8 +44,7 @@ fn field_omission_is_one_final_standalone_marker_and_survives_copy() {
         "Item { left: 7u32, .. other }",
     ] {
         let text = format!("const VALUE: Item = {literal};");
-        let tokens = Lexer::new(&text).tokenize().unwrap();
-        assert!(crate::parse_syntax_trees(&tokens).is_err(), "{literal}");
+        crate::tests::parse_error(&text);
     }
 }
 
@@ -72,8 +70,7 @@ fn call_roots_retain_distinct_target_occurrences_through_syntax_copy() {
 }
 
 fn check_call_extents(text: &str, expected: &[(&str, &str, &str)]) {
-    let tokens = Lexer::new(text).tokenize().expect("tokens");
-    let syntax = crate::parse_syntax_trees(&tokens).expect("syntax");
+    let syntax = crate::tests::parse_source(text);
     let mut copied = SyntaxTrees::new(source_text::SourceId::default());
     copied.extend_from(&syntax);
     for program in [&syntax, &copied] {
@@ -155,8 +152,7 @@ fn static_and_value_call_targets_remain_distinct_after_syntax_copy() {
             let second: u64 = receiver.read();
         }
     "#;
-    let tokens = Lexer::new(text).tokenize().expect("tokenize calls");
-    let syntax = crate::parse_syntax_trees(&tokens).expect("parse calls");
+    let syntax = crate::tests::parse_source(text);
     let mut copied = SyntaxTrees::new(source_text::SourceId::default());
     copied.extend_from(&syntax);
     for program in [&syntax, &copied] {
@@ -196,8 +192,7 @@ fn structural_static_argument_probe_preserves_indexed_comparisons() {
         let source = format!(
             "machine compare(left: u64, right: u64, values: [u64; 1]) -> bool {{ {comparison} }}"
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokens");
-        let syntax = crate::parse_syntax_trees(&tokens).expect("ordinary comparison syntax");
+        let syntax = crate::tests::parse_source(&source);
         assert!(
             syntax.type_references.generic_nodes().is_empty(),
             "abandoned static argument probes publish no generic types"
@@ -209,8 +204,7 @@ fn structural_static_argument_probe_preserves_indexed_comparisons() {
 #[test]
 fn applied_requirement_call_keeps_its_trait_application_as_static_receiver() {
     let text = "const READ: i32 = Parent::<u64>::read(); const NOTED: i32 = Sink::<u8, bool>::note::<Handler>(value); const COMPARED: bool = left < right;";
-    let tokens = Lexer::new(text).tokenize().expect("tokens");
-    let syntax = crate::parse_syntax_trees(&tokens).expect("syntax");
+    let syntax = crate::tests::parse_source(text);
     let values = syntax
         .root_items()
         .filter_map(|item| match item {
@@ -297,8 +291,7 @@ fn boolean_type_operands_preserve_constructor_and_value_contexts() {
 #[test]
 fn boolean_type_operands_do_not_turn_qualified_type_arguments_into_indices() {
     let text = "machine initialize<P, T>() -> AccessOutcome<Extent in Granted & Resident<P, T>, AccessReturn<Extent in Granted & Vacant, T>, Failure> {}";
-    let tokens = Lexer::new(text).tokenize().expect("tokens");
-    let syntax = crate::parse_syntax_trees(&tokens).expect("qualified type arguments");
+    let syntax = crate::tests::parse_source(text);
     let machine = syntax
         .root_items()
         .find_map(|item| match item {
@@ -345,8 +338,7 @@ fn explicit_arguments_belong_to_their_expression_path_component() {
         const NESTED: T = apply::<compute::<T>(), measure::<U>>(value);
         const ZERO: T = zero_value::<Outer<T>>();
     "#;
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let parsed = crate::parse_syntax_trees(&tokens).expect("explicit expression applications");
+    let parsed = crate::tests::parse_source(source);
     let roots = parsed
         .root_items()
         .filter_map(|item| match item {
@@ -447,8 +439,5 @@ fn legacy_generic_calls_and_chained_comparisons_reject_at_parse_time() {
         crate::parse_syntax_trees(&tokens)
             .unwrap_or_else(|error| panic!("{expression}: {error:?}"));
     }
-    let tokens = Lexer::new("data Holder { field: Box::<u32>; }")
-        .tokenize()
-        .unwrap();
-    crate::parse_syntax_trees(&tokens).expect_err("type applications still use bare angles");
+    crate::tests::parse_error("data Holder { field: Box::<u32>; }");
 }

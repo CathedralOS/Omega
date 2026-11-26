@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Stack calculator: evaluate (3 + 4) * 5 with an explicit operand stack -- the core
 // of a bytecode VM / RPN evaluator. Demonstrates a bounded mutable stack pointer
 // driving runtime-indexed reads and writes:
@@ -19,7 +19,6 @@ use omega\language\core\ProcessExit;
 //   (3 + 4) * 5 = 35. The program exits with the value it computed.
 // Expected exit: 35.
 
-use system\Console;
 
 data Main
 requires self.sp >= 0 && self.sp <= 8
@@ -34,8 +33,8 @@ requires self.sp >= 0 && self.sp <= 8
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("stack_calculator: evaluates (3 + 4) * 5 with an explicit operand stack");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("stack_calculator: evaluates (3 + 4) * 5 with an explicit operand stack");
     main.sp = 0;
 
     transition main.sp >= 0 && main.sp < 8 {
@@ -101,21 +100,21 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine done(main: @mutable Main) {
-        Console::write_line("result: (3 + 4) * 5 = 35 at the bottom of the stack (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.stack[0] as i32);
+        |console|::Console::write_line("result: (3 + 4) * 5 = 35 at the bottom of the stack (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.stack[0] as i32);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: a stack-pointer bounds guard tripped (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: a stack-pointer bounds guard tripped (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

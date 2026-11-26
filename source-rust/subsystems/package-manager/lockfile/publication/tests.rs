@@ -114,19 +114,24 @@ fn a_crash_after_removing_the_proposal_still_finishes_the_committed_install() {
 }
 
 #[test]
-fn an_older_journal_finishes_its_pair_and_preserves_unidentified_review_state() {
+fn a_journal_without_a_review_identity_cannot_publish() {
     let directory = TemporaryDirectory::create("legacy-package-publication", false).unwrap();
     let project = directory.path();
     fs::write(project.join("build.omg"), BEFORE).unwrap();
     let mut recovered = PackageFileTransaction::open(project, Default::default()).unwrap();
     let state = project.join("build/package-manager");
     fs::write(state.join(PROPOSAL_FILE), b"separate pending review").unwrap();
-    fs::write(state.join(JOURNAL_FILE), b"omega-package-transaction 1\nbefore-build 9\nold Build\nafter-build 14\nreviewed Build\nbefore-lock absent\nafter-lock 13\nreviewed lock\n").unwrap();
-    assert_eq!(recovered.recover().unwrap(), None);
-    assert_eq!(
-        recovered.read_pair().unwrap(),
-        (AFTER.to_vec(), Some(LOCK.to_vec()))
+    let journal = b"omega-package-transaction 1\nbefore-build 9\nold Build\nafter-build 14\nreviewed Build\nbefore-lock absent\nafter-lock 13\nreviewed lock\n";
+    fs::write(state.join(JOURNAL_FILE), journal).unwrap();
+    let error = recovered.recover().unwrap_err();
+    assert!(
+        matches!(error, PackagePublicationError::Pending(ref reason)
+            if matches!(**reason, PackagePublicationError::InvalidJournal("invalid header"))),
+        "{error}"
     );
+    assert_eq!(fs::read(project.join("build.omg")).unwrap(), BEFORE);
+    assert!(!project.join("omega.lock").exists());
+    assert_eq!(fs::read(state.join(JOURNAL_FILE)).unwrap(), journal);
     assert_eq!(
         fs::read(state.join(PROPOSAL_FILE)).unwrap(),
         b"separate pending review"

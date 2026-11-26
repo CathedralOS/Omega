@@ -12,7 +12,7 @@ pub enum AllocationPublicationValidationError {
     PublicationMismatch,
 }
 
-stage_error_display!(
+failed_display!(
     AllocationPublicationValidationError,
     "allocation publication validation failed"
 );

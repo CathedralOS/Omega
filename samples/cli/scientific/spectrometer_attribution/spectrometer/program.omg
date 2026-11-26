@@ -1,72 +1,69 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use spectrometer/input/input.omg;
+use spectrometer/matching/matching.omg;
+use spectrometer/model/model.omg;
+use spectrometer/output/output.omg;
+use spectrometer/regions/regions.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 2 (empty stdin).
 // Expected output contains: invalid spectrum input
 // Valid spectrum/catalog fixtures exit 0 and emit regions and catalog matches.
-use system\Console;
-use spectrometer\model\Spectrometer;
-use spectrometer\model\IntegerRead;
-use spectrometer\input\read_integer;
-use spectrometer\input\load_spectrum;
-use spectrometer\regions\find_regions;
-use spectrometer\matching\match_regions;
-use spectrometer\output\print_report;
 
 // The ordinary hosted entry consumes one complete bounded spectrum/catalog
 // inventory. There are no built-in answers or scenario-dependent branches.
-public machine main(application: @mutable Spectrometer) reaches ProcessExit + StandardInput + StandardOutput
-invokes Console
+public machine main(application: @mutable |model|::Spectrometer) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     transition { _ -> block input(application, 0) }
-    machine input(application: @mutable Spectrometer, index: i32 in Wrapping) {
+    machine input(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) {
         transition index >= 0 && index < 27 {
             true -> block token(application, index),
             false -> block trailing(application)
         }
     }
-    machine token(application: @mutable Spectrometer, index: i32 in Wrapping) {
-        transition block read_integer(application) {
-            IntegerRead::Value { value } -> block store(application, index, value),
+    machine token(application: @mutable |model|::Spectrometer, index: i32 in Wrapping) {
+        transition block |input|::read_integer(application) {
+            |model|::IntegerRead::Value { value } -> block store(application, index, value),
             _ -> invalid(application)
         }
     }
-    machine store(application: @mutable Spectrometer, index: i32 in Wrapping,
+    machine store(application: @mutable |model|::Spectrometer, index: i32 in Wrapping,
                 value: i32 in Wrapping) {
         application.raw[index] = value;
         transition { _ -> block input(application, index + 1) }
     }
-    machine trailing(application: @mutable Spectrometer) {
-        transition block read_integer(application) {
-            IntegerRead::End -> validate(application),
+    machine trailing(application: @mutable |model|::Spectrometer) {
+        transition block |input|::read_integer(application) {
+            |model|::IntegerRead::End -> validate(application),
             _ -> invalid(application)
         }
     }
-    machine validate(application: @mutable Spectrometer) {
-        transition load_spectrum(application) {
+    machine validate(application: @mutable |model|::Spectrometer) {
+        transition |input|::load_spectrum(application) {
             true -> analyze(application),
             false -> invalid(application)
         }
     }
-    machine analyze(application: @mutable Spectrometer) {
-        transition find_regions(@application.spectrum, @mutable application.regions) {
+    machine analyze(application: @mutable |model|::Spectrometer) {
+        transition |regions|::find_regions(@application.spectrum, @mutable application.regions) {
             true -> report(application),
             false -> capacity(application)
         }
     }
-    machine report(application: @mutable Spectrometer) {
-        match_regions(@application.spectrum, @mutable application.regions);
-        print_report(application);
-        ProcessExit::exit_process(0);
+    machine report(application: @mutable |model|::Spectrometer) {
+        |matching|::match_regions(@application.spectrum, @mutable application.regions);
+        |output|::print_report(application);
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine invalid(application: @mutable Spectrometer) {
-        Console::write_line("invalid spectrum input");
-        ProcessExit::exit_process(2);
+    machine invalid(application: @mutable |model|::Spectrometer) {
+        |console|::Console::write_line("invalid spectrum input");
+        |process_exit|::ProcessExit::exit_process(2);
     }
-    machine capacity(application: @mutable Spectrometer) {
-        Console::write_line("region capacity exceeded");
-        ProcessExit::exit_process(3);
+    machine capacity(application: @mutable |model|::Spectrometer) {
+        |console|::Console::write_line("region capacity exceeded");
+        |process_exit|::ProcessExit::exit_process(3);
     }
 }

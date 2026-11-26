@@ -1,23 +1,22 @@
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-use omega\language\core\F64::from_i32;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Reader { valid: bool; value: f64; }
 // A whitespace-separated signed integer, bounded to [-100,100]. This parser
 // consumes one separator, accepts EOF after digits, and rejects partial tokens.
-public machine read_integer(reader: @mutable Reader) reaches StandardInput
-invokes Console
+public machine read_integer(reader: @mutable Reader) reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     reader.value = 0.0;
     transition { _ -> block skip(reader) }
     machine skip(reader: @mutable Reader) {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> bad(reader),
-            ByteRead::Eof -> bad(reader),
-            ByteRead::Byte { value } -> block start(reader, value)
+            |console|::ByteRead::Error -> bad(reader),
+            |console|::ByteRead::Eof -> bad(reader),
+            |console|::ByteRead::Byte { value } -> block start(reader, value)
         }
     }
     machine start(reader: @mutable Reader, value: i32) {
@@ -33,11 +32,11 @@ crashes Trap
         }
     }
     machine next(reader: @mutable Reader, sign: f64, seen: bool) {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> bad(reader),
-            ByteRead::Eof -> finish(reader, sign, seen),
-            ByteRead::Byte { value } -> block digit(reader, value, sign, seen)
+            |console|::ByteRead::Error -> bad(reader),
+            |console|::ByteRead::Eof -> finish(reader, sign, seen),
+            |console|::ByteRead::Byte { value } -> block digit(reader, value, sign, seen)
         }
     }
     machine digit(reader: @mutable Reader, value: i32, sign: f64, seen: bool) {
@@ -47,7 +46,7 @@ crashes Trap
         }
     }
     machine accumulate(reader: @mutable Reader, value: i32, sign: f64) {
-        reader.value = reader.value * 10.0 + F64::from_i32(value) - 48.0;
+        reader.value = reader.value * 10.0 + |float_operations|::F64::from_i32(value) - 48.0;
         transition reader.value <= 100.0 {
             true -> block next(reader, sign, true),
             false -> bad(reader)
@@ -66,18 +65,18 @@ crashes Trap
     machine bad(reader: @mutable Reader) { reader.valid = false; }
     machine done() { }
 }
-public machine end_input(reader: @mutable Reader) reaches StandardInput
-invokes Console
+public machine end_input(reader: @mutable Reader) reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     transition { _ -> block read(reader) }
     machine read(reader: @mutable Reader) {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> bad(reader),
-            ByteRead::Eof -> done(),
-            ByteRead::Byte { value } -> block check(reader, value)
+            |console|::ByteRead::Error -> bad(reader),
+            |console|::ByteRead::Eof -> done(),
+            |console|::ByteRead::Byte { value } -> block check(reader, value)
         }
     }
     machine check(reader: @mutable Reader, value: i32) {

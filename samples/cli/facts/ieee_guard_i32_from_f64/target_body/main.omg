@@ -1,6 +1,6 @@
 // Checked IEEE guard value == value && value >= 0.0 && value < 1000000000.0 proves I32::from_f64(value) is finite and in range.
 // Expected exit: 0
-use omega\language\core\I32::from_f64;
+use {omega}/language/core/float_operations.omg;
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches none crashes Trap;
 }
@@ -31,7 +31,7 @@ X86Convert satisfies SelectedConvert {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires value == value && value >= 0.0 && value < 1000000000.0
     {
         SelectedBodyCheck::require_tag(17u64);
-     I32::from_f64(value) 
+     |float_operations|::I32::from_f64(value)
     }
 }
 
@@ -40,7 +40,7 @@ ArmConvert satisfies SelectedConvert {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires value == value && value >= 0.0 && value < 1000000000.0
     {
         SelectedBodyCheck::require_tag(29u64);
-     I32::from_f64(value) 
+     |float_operations|::I32::from_f64(value)
     }
 }
 

@@ -1,26 +1,23 @@
-use codec\field;
-use codec\field\Frame;
-use codec\field\encode;
-use codec\field\discrepancy;
+use codec/field/field.omg;
 // Enumerating 25 private codewords is deliberate: this declared tiny code
 // needs no numerical package or heuristic. Admission is exactly 2e+s <= 2.
 // Distance three makes an admitted candidate unique; count remains a tripwire.
 public data Recovery { matches: i32 in Wrapping; intercept: i32 in Wrapping; slope: i32 in Wrapping; }
-public machine recover(frame: @Frame) -> Recovery {
+public machine recover(frame: @|field|::Frame) -> Recovery {
     transition { _ -> search(frame, 0, 0, 0, 0) }
-    machine search(frame: @Frame, candidate: i32 in Wrapping, matches: i32 in Wrapping,
+    machine search(frame: @|field|::Frame, candidate: i32 in Wrapping, matches: i32 in Wrapping,
         intercept: i32 in Wrapping, slope: i32 in Wrapping) -> Recovery {
         transition candidate < 25 {
             true -> examine(frame, candidate, matches, intercept, slope),
             false -> (Recovery { matches: matches, intercept: intercept, slope: slope })
         }
     }
-    machine examine(frame: @Frame, candidate: i32 in Wrapping, matches: i32 in Wrapping,
+    machine examine(frame: @|field|::Frame, candidate: i32 in Wrapping, matches: i32 in Wrapping,
         intercept: i32 in Wrapping, slope: i32 in Wrapping) -> Recovery {
-        let encoded: Frame = encode(candidate / 5, candidate % 5);
-        let weight: i32 in Wrapping = discrepancy(frame.first, encoded.first)
-            + discrepancy(frame.second, encoded.second) + discrepancy(frame.third, encoded.third)
-            + discrepancy(frame.fourth, encoded.fourth);
+        let encoded: |field|::Frame = |field|::encode(candidate / 5, candidate % 5);
+        let weight: i32 in Wrapping = |field|::discrepancy(frame.first, encoded.first)
+            + |field|::discrepancy(frame.second, encoded.second) + |field|::discrepancy(frame.third, encoded.third)
+            + |field|::discrepancy(frame.fourth, encoded.fourth);
         transition weight <= 2 {
             true -> search(frame, candidate + 1, matches + 1, candidate / 5, candidate % 5),
             false -> search(frame, candidate + 1, matches, intercept, slope)

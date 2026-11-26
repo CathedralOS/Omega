@@ -25,6 +25,42 @@ pub(crate) struct BuildPhaseGrants {
     accepted: Requests,
 }
 
+/// Use the same immutable occurrence for pre-action acceptance and later review.
+pub(crate) fn dependency_subject(
+    acquired: &crate::resolution::source::AcquiredBuildSource,
+    purpose: build_declarations::DependencyPurpose,
+) -> Result<package_compilation::RestrictedBuildSubject, PackageCommandError> {
+    let origin = acquired.acquisition_origin();
+    let mut digest = Sha256::new();
+    frame(&mut digest, b"omega-dependency-build-occurrence-v1");
+    origin.lineage.hash_canonical(&mut digest);
+    frame(&mut digest, &origin.resolution.identity_digest());
+    frame(&mut digest, &[purpose.canonical_tag()]);
+    let lineage =
+        crate::review::render_build_lineage(origin.lineage, super::state::LIMITS.maximum_bytes)
+            .map_err(|why| failure(why.to_string()))?;
+    let member = match origin.navigation {
+        crate::resolution::source::PackageSourceNavigation::Root => {
+            frame(&mut digest, b"root");
+            String::new()
+        }
+        crate::resolution::source::PackageSourceNavigation::Member(path) => {
+            frame(&mut digest, b"member");
+            frame(&mut digest, path.as_str().as_bytes());
+            format!(" member {:?}", path.as_str())
+        }
+    };
+    Ok(package_compilation::RestrictedBuildSubject::Dependency {
+        digest: digest.finalize().into(),
+        description: format!(
+            "{} dependency {}{}",
+            purpose.name(),
+            lineage.trim_end(),
+            member
+        ),
+    })
+}
+
 impl BuildPhaseGrants {
     pub(super) fn new(
         root: &std::path::Path,
@@ -84,6 +120,12 @@ impl BuildPhaseGrants {
             .map_err(|error| error.to_string())?;
         let mut hash = Sha256::new();
         frame(&mut hash, &self.context);
+        if let Some(package_compilation::RestrictedBuildSubject::Dependency { digest, .. }) =
+            &site.subject
+        {
+            frame(&mut hash, b"dependency");
+            frame(&mut hash, digest);
+        }
         frame(&mut hash, site.entry.as_bytes());
         frame(&mut hash, &site.program);
         frame(&mut hash, meaning.as_bytes());
@@ -118,7 +160,13 @@ fn describe(
         crate::review::render_build_request(request, super::state::LIMITS.maximum_bytes)
             .map_err(|why| why.to_string())?;
     Ok(format!(
-        "root Build entry {:?}\nchecked program {}\n{operation}",
+        "{} Build entry {:?}\nchecked program {}\n{operation}",
+        match &site.subject {
+            Some(package_compilation::RestrictedBuildSubject::Dependency {
+                description, ..
+            }) => description.as_str(),
+            _ => "root",
+        },
         site.entry,
         crate::Hex(&site.program)
     ))

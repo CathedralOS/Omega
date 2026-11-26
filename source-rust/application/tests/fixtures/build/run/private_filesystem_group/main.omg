@@ -1,18 +1,15 @@
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\FilesystemNamespaceMutation;
+use {omega}/language/core/filesystem_authority.omg;
 
 boundary trait FileCalls {
     machine open(directory: i32, path: @[u8; 9], flags: i32, mode: i32) -> i32
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes none;
-    machine write(file: i32, byte: @u8, count: u64) -> i64 reaches FilesystemContentWrite crashes none;
-    machine read(file: i32, byte: @mutable u8, count: u64) -> i64 reaches FilesystemContentRead crashes none;
+    reaches |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemNamespaceMutation crashes none;
+    machine write(file: i32, byte: @u8, count: u64) -> i64 reaches |filesystem_authority|::FilesystemContentWrite crashes none;
+    machine read(file: i32, byte: @mutable u8, count: u64) -> i64 reaches |filesystem_authority|::FilesystemContentRead crashes none;
     machine close(file: i32) -> i32 reaches none crashes none;
 }
 
 trait Checks {
-    machine file() reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes Trap;
+    machine file() reaches |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemNamespaceMutation crashes Trap;
 }
 
 machine first_file() satisfies Checks::file {
@@ -23,7 +20,7 @@ machine second_file() satisfies Checks::file {
 }
 
 machine round_trip(value: u8)
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation crashes Trap {
+reaches |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemNamespaceMutation crashes Trap {
     let path: [u8; 9] = [110, 111, 116, 101, 46, 116, 120, 116, 0];
     // The host has /proc; a fresh private namespace contains only its root.
     let proc_path: [u8; 9] = [47, 112, 114, 111, 99, 0, 0, 0, 0];

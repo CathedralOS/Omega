@@ -114,7 +114,7 @@ Each round must establish what the next round requires:
 ```omega
 machine clear(buffer: @mutable [u8], remaining: u64)
 requires remaining <= buffer.length
-terminates by remaining -> Nat\Descending
+terminates by remaining -> |nat|::Nat::Descending
 {
     transition remaining == 0 {
         true -> {},
@@ -124,7 +124,7 @@ terminates by remaining -> Nat\Descending
     machine step(buffer: @mutable [u8], remaining: u64)
     requires remaining > 0
     requires remaining <= buffer.length
-    terminates by remaining -> Nat\Descending
+    terminates by remaining -> |nat|::Nat::Descending
     {
         buffer[remaining - 1] = 0;
         transition { _ -> clear(buffer, remaining - 1) }

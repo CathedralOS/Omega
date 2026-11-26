@@ -12,7 +12,7 @@ use std::sync::Arc;
 fn selects_only_requested_files_and_ancestors_in_canonical_order() {
     let tree = baseline_tree();
     let selected = tree
-        .select_files(&[b"report.txt", b"docs/inner/a.txt"])
+        .select_files(&[(b"report.txt", b"report.txt"), (b"docs/inner/a.txt", b"docs/inner/a.txt")])
         .unwrap();
     let expected = from_entries(&[
         OutputTreeEntry::directory(b"docs"),
@@ -24,11 +24,11 @@ fn selects_only_requested_files_and_ancestors_in_canonical_order() {
     assert_eq!(selected, expected);
     assert_eq!(
         selected,
-        tree.select_files(&[b"docs/inner/a.txt", b"report.txt"])
+        tree.select_files(&[(b"docs/inner/a.txt", b"docs/inner/a.txt"), (b"report.txt", b"report.txt")])
             .unwrap()
     );
     assert_eq!(
-        tree.select_files(&[b"report.txt"]).unwrap().entry_count(),
+        tree.select_files(&[(b"report.txt", b"report.txt")]).unwrap().entry_count(),
         1
     );
     assert_eq!(tree.select_files(&[]).unwrap(), empty());
@@ -69,8 +69,40 @@ fn rejects_missing_noncanonical_directory_and_duplicate_requests() {
         b"",
         b"docs\\inner\\a.txt",
     ] {
-        assert!(tree.select_files(&[requested]).is_err());
+        assert!(tree.select_files(&[(requested, requested)]).is_err());
     }
-    assert!(tree.select_files(&[b"report.txt", b"report.txt"]).is_err());
-    assert!(tree.select_files(&[b"docs/inner/a.txt", b"docs"]).is_err());
+    assert!(
+        tree.select_files(&[
+            (b"report.txt", b"report.txt"),
+            (b"report.txt", b"report.txt")
+        ])
+        .is_err()
+    );
+    assert!(
+        tree.select_files(&[
+            (b"docs/inner/a.txt", b"docs/inner/a.txt"),
+            (b"docs", b"docs")
+        ])
+        .is_err()
+    );
+}
+
+#[test]
+fn public_names_can_share_sealed_bytes_and_have_their_own_directory_tree() {
+    let tree = baseline_tree();
+    let selection = tree
+        .select_files(&[(b"release/one", b"report.txt"), (b"second", b"report.txt")])
+        .unwrap();
+    let expected = from_entries(&[
+        OutputTreeEntry::directory(b"release"),
+        OutputTreeEntry::regular_file(b"release/one", b"report-body", false),
+        OutputTreeEntry::regular_file(b"second", b"report-body", false),
+    ])
+    .unwrap();
+    assert_eq!(selection, expected);
+    assert!(tree.select_files(&[(b"../export", b"report.txt")]).is_err());
+    assert!(
+        tree.select_files(&[(b"leaf", b"report.txt"), (b"leaf/child", b"report.txt")])
+            .is_err()
+    );
 }

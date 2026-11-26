@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "owned_extraction");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "owned_extraction" };
     Build::accept_boundary::<ExtractionProvider>(builder);
     Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, linux_arm64);
     Build::select_provider::<ExtractionProvider<u64, u32>, Extract>(builder, linux_x86_64);

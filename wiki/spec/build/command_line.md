@@ -18,7 +18,7 @@ owner.
 ```text
 omega [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
 omega --check [--floor-only] [--verify] [--validator <ExactName>]... [--every-validator] [<root.omg>]
-omega build [--allow Network] [--allow ProgramLaunch] [--program <identity> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <milliseconds>]]... [--compare-tests] <root.omg>
+omega build [--allow Network] [--allow ProgramLaunch] [--program <logical-path> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <milliseconds>]]... [--compare-tests] <root.omg>
 omega run [--engine native|psi] [--target <name>] <root.omg>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
@@ -65,8 +65,12 @@ restricts acquisition, resume and historical-source diagnostics to local
 sources and cached recorded Git pins; it skips no check and does not authorize
 a cached branch for a newly requested selection. Package audit retains project
 targets, details, offline and Build-input options. Inspection retains both source-machine and artifact forms.
-`omega --check` with no root inside a workspace checks every declared member
-as a [validation subject](validation_subjects.md). `--verify` withholds trust
+With no explicit root, `omega --check` looks for a conventional `build.omg`
+in the current directory and its ancestors. One candidate selects that entry.
+If none exists, the command reports a missing enclosing entry. Multiple candidates
+require an explicit path, before any candidate runs. Name the workspace
+catalog to check every declared member as a [validation subject](validation_subjects.md),
+or name the member's entry to check that member alone. `--verify` withholds trust
 acceptance and re-verifies; it does not widen the subject set.
 
 The locator audit examines a package source, not editable program text.
@@ -82,8 +86,11 @@ guides and command examples together.
 
 ## Local Build inputs
 
+The project selects additional packages in Build source. See
+[packages available to the initial Build](../packages/staged_inputs.md#packages-available-to-the-initial-build).
+
 By default, a local Build can read its entry and the package-local source files
-admitted to compile it. To read an asset, include it in the invocation inventory.
+admitted to compile it. To capture a package asset alongside the source, include it in the invocation inventory.
 For example, a package with a Build entry, one helper, and a lookup table can use the following invocation.
 
 ```text
@@ -98,9 +105,84 @@ A dependency receives its sealed package snapshot unless its caller supplies
 another filesystem view. [Build source capture](scoped_execution.md#snapshot-and-staging-protocol)
 and [local package capture](../packages/sources.md#local-source-capture).
 
+## Initial Build directory mappings
+
+Named decision: `initial-build-directory-mappings`.
+
+On both `omega build` and `omega run`, the repeatable options
+`--build-directories-readonly` and `--build-directories-readwrite` grant extra
+live directories to the initial Build's filesystem provider. Each takes one
+`host-directory::/guest-directory` mapping with the same path, confinement,
+on-demand access and read/write semantics as the [runtime directory mappings](#runtime-directory-mappings).
+The caller supplies the backing before the Build runs, within its admitted
+reach. With no extra mappings, the Build has its read-only captured package
+and private, bounded writable scratch.
+
+```sh
+omega run --engine psi \
+  --build-directories-readonly ./grammar::/grammar \
+  --run-directories-readonly ./documents::/input \
+  build.omg
+```
+
+Here `use helper.omg` in `build.omg` resolves from the captured package before
+entry. The running Build can then open `/grammar/sql.txt` as data. A Build
+mapping leaves source capture, import lookup and package registrations unchanged.
+The final parser can read `/input` through its separate Product grant.
+Dependencies and successors receive extra directories only through explicit
+[delegation](scoped_execution.md#supplying-a-filesystem-to-a-child-build);
+a successor can also use a deliberately selected [package root](declarations.md#successor-package-and-directories).
+
+A writable mapping lets Build code write ordinary files. The driver publishes
+the selected Product to the caller-selected output directory, defaulting to
+`build/` beside the input root. Publishing the binary requires no writable
+directory mapping for the Build. A mapping at a guest path such as `/out`
+does not redirect artifact publication.
+
+## Runtime directory mappings
+
+Named decision: `psi-run-directory-mappings`.
+
+A caller can give an interpreted Product access to live host directories.
+Each repeatable option takes one `host-directory::/guest-directory` mapping.
+The host path can be absolute or relative to the caller's working directory.
+The guest sees the right-hand path.
+
+```sh
+omega run --engine psi \
+  --run-directories-readonly ./documents::/input \
+  --run-directories-readwrite ./results::/out \
+  parser.omg
+```
+
+In this example the parser opens `/input/query.txt` by a path written in its
+source. The first mapping lets it read that file and list `/input`. The second also allows creation,
+modification, renaming and deletion within `/out`, subject to host permissions
+and the program's admitted operations. A run may mix mappings with different
+access modes. Program launch requires its own authority.
+
+The driver builds the Product up to Psi and retains these grants for its
+execution. A preparing Build, its dependencies and its successors gain no access
+from a run mapping. Before entering the Product the driver supplies the view to
+the admitted filesystem provider. Reads and writes stay within the granted
+roots, including during link traversal and concurrent path changes. A missing
+file in a mapped directory cannot trigger a lookup on a broader host filesystem.
+
+Mapped files are opened on demand. A fresh open can observe a host-side change
+even in a read-only mapping, and a permitted write updates the mapped
+directory. Startup requires no preload into RAM. Compilation uses the captured
+source bytes even if a later runtime read sees different contents.
+[Local Build inputs](#local-build-inputs)
+
+These options describe interpreted Product execution. Keep the existing
+[engine selection](embedding.md#standalone-execution-selection), including its
+native default. A mode that cannot enforce a requested mapping must report
+that before running the Product. See the separate
+[memory filesystem proposal](../../drafts/designs/run_memory_filesystem.md).
+
 ## Build-first entry selection
 
-`omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in `omega\core`.
+`omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in the core package.
 A build requests the product artifact. A run requests execution under the
 [engine and target rules](embedding.md#standalone-execution-selection).
 Building a package checks its source, runs its registered tests and publishes

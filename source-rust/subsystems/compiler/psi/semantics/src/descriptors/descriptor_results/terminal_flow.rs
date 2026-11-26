@@ -1024,8 +1024,12 @@ fn adapt_flow(
                                     *element,
                                 )
                             })
-                            .is_some_and(|backing| {
-                                backing.storage == crate::CollectionStorage::Inline
+                            .is_some_and(|backing| match backing.storage {
+                                crate::CollectionStorage::Inline => true,
+                                crate::CollectionStorage::Borrowed => {
+                                    step.reborrows_view = true;
+                                    false
+                                }
                             })
                         }
                         _ => true,

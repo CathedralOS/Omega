@@ -1,30 +1,23 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use design/certificate/certificate.omg;
+use design/model/model.omg;
+use design/output/output.omg;
+use design/search/search.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 64.
 // Expected output contains: INVALID:
 // The sample harness supplies EOF; positive design cases use data/*.stdin.
 // One finite request: treatments,subjects,carryover-cap,forbidden-edge + LF.
 // Every result is an actual allocation or exhaustive bounded infeasibility.
-use system\Console;
-use system\LineReadResult;
-use omega\language\core\widen_u8_to_i32;
-use design\model;
-use design\model\Request;
-use design\model\Allocation;
-use design\search;
-use design\search\solve;
-use design\certificate;
-use design\certificate\certify;
-use design\output;
-use design\output\emit;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable input: [u8; 16];
-    let observed: LineReadResult = block Console::read_line(@mutable input[..]);
+    let observed: |console|::LineReadResult = block |console|::Console::read_line(@mutable input[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> length(@input, count),
+        |console|::LineReadResult::LineComplete { count } -> length(@input, count),
         _ -> invalid()
     }
     machine length(input: @[u8; 16], count: u64) {
@@ -42,11 +35,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine parse(input: @[u8; 16]) {
-        let mutable request: Request;
-        request.treatments = (widen_u8_to_i32(input[0]) as i32 +Wrapping) - 48;
-        request.subjects = (widen_u8_to_i32(input[2]) as i32 +Wrapping) - 48;
-        request.cap = (widen_u8_to_i32(input[4]) as i32 +Wrapping) - 48;
-        request.forbidden = (widen_u8_to_i32(input[6]) as i32 +Wrapping) - 48;
+        let mutable request: |model|::Request;
+        request.treatments = (|numeric_conversion|::widen_u8_to_i32(input[0]) as i32 +Wrapping) - 48;
+        request.subjects = (|numeric_conversion|::widen_u8_to_i32(input[2]) as i32 +Wrapping) - 48;
+        request.cap = (|numeric_conversion|::widen_u8_to_i32(input[4]) as i32 +Wrapping) - 48;
+        request.forbidden = (|numeric_conversion|::widen_u8_to_i32(input[6]) as i32 +Wrapping) - 48;
         transition (request.treatments == 2 || request.treatments == 3)
             && request.subjects >= 1 && request.subjects <= 6 && request.cap <= 6
             && request.forbidden <= 6
@@ -55,41 +48,41 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
             false -> invalid()
         }
     }
-    machine search(request: @Request) {
-        let mutable allocation: Allocation;
-        let found: bool = solve(request, @mutable allocation);
+    machine search(request: @|model|::Request) {
+        let mutable allocation: |model|::Allocation;
+        let found: bool = |search|::solve(request, @mutable allocation);
         transition found {
             true -> verify(request, @mutable allocation),
             false -> infeasible()
         }
     }
-    machine verify(request: @Request, allocation: @mutable Allocation) {
-        let verified: bool = certify(request, allocation);
+    machine verify(request: @|model|::Request, allocation: @mutable |model|::Allocation) {
+        let verified: bool = |certificate|::certify(request, allocation);
         transition verified {
             true -> report(request, allocation),
             false -> defect()
         }
     }
-    machine report(request: @Request, allocation: @Allocation) {
-        emit(request, allocation);
-        ProcessExit::exit_process(0);
+    machine report(request: @|model|::Request, allocation: @|model|::Allocation) {
+        |output|::emit(request, allocation);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine infeasible() {
-        Console::write_line("INFEASIBLE: all subject-sequence multisets exhausted");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("INFEASIBLE: all subject-sequence multisets exhausted");
+        |process_exit|::ProcessExit::exit_process(2);
     }
     machine invalid() {
-        Console::write_line("INVALID: expected T,N,C,F followed by LF; T=2..3 N=1..6 C=0..6 F=0..6");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("INVALID: expected T,N,C,F followed by LF; T=2..3 N=1..6 C=0..6 F=0..6");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine defect() {
-        Console::write_line("DEFECT: selected allocation failed recount");
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("DEFECT: selected allocation failed recount");
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

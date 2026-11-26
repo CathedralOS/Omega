@@ -2,30 +2,24 @@
 // Named casts establish the constraint and expose plain arithmetic without
 // losing its numerical fact; byte checks observe the authored field offsets.
 // Expected exit: 0
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\FixedLayout;
-use omega\language\core\LayoutPlan;
-use omega\language\core\LayoutStorage;
-use omega\language\core\LayoutTarget;
-use omega\language\core\Schema;
+use {omega}/language/core/layout.omg;
 public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
 public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
-PairLayout satisfies FixedLayout<Pair> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none terminates {
-        let mutable entries: [FieldEntry; 64];
-        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 8 } };
-        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 0 } };
-        LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
+PairLayout satisfies |layout|::FixedLayout<Pair> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan reaches none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 8 } };
+        entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
     }
 }
-machine make() -> LayoutStorage<Pair, PairLayout> {
-    let mutable value: LayoutStorage<Pair, PairLayout>;
+machine make() -> |layout|::LayoutStorage<Pair, PairLayout> {
+    let mutable value: |layout|::LayoutStorage<Pair, PairLayout>;
     value.lo = 42u64 as +Delivered;
     value.hi = 9u64;
     value
 }
-machine consume(value: LayoutStorage<Pair, PairLayout>) crashes Trap {
+machine consume(value: |layout|::LayoutStorage<Pair, PairLayout>) crashes Trap {
     let difference: u64 = (value.lo as -Delivered) - 42u64;
     let bytes: @[u8; 16] = @value as @[u8; 16];
     transition difference == 0u64 && value.hi == 9u64 && bytes[8] == 42u8 && bytes[0] == 9u8 {

@@ -2,8 +2,8 @@
 // standard-library package, so no ProcessExit authority; compile-checked
 // only (same posture as cli/basics/standalone).
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "coordinate_domain");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "coordinate_domain" };
     Build::bind(builder, windows_x86_64::ProgramEntry, coordinate_domain);
     Build::bind(builder, linux_x86_64::ProgramEntry, coordinate_domain);
     Build::bind(builder, linux_arm64::ProgramEntry, coordinate_domain);

@@ -1,21 +1,14 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\ByteRead;
-use system\Console;
-use domain\model\Stage;
-use domain\model\evaluate;
-use domain\model\pressure_at;
-use domain\model\near;
-use domain\report\number;
-use domain\report\integer;
-use data\fixtures\count;
-use data\fixtures\load;
+use data/fixtures/fixtures.omg;
+use domain/model/model.omg;
+use domain/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 // Select exactly one declared scenario with an ASCII digit then LF (or EOF).
 // The application consumes at most three bytes and never silently truncates.
 data Application {
-    stage: Stage;
+    stage: |model|::Stage;
     selection: i32;
     previous_volume: f64;
     previous_pressure: f64;
@@ -27,13 +20,13 @@ data Application {
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput
 crashes Trap
 {
     let mutable application: Application;
-    let input: ByteRead = block Console::read_byte();
+    let input: |console|::ByteRead = block |console|::Console::read_byte();
     transition input {
-        ByteRead::Byte { value } -> block select(@mutable application, value),
+        |console|::ByteRead::Byte { value } -> block select(@mutable application, value),
         _ -> invalid()
     }
     machine select(application: @mutable Application, value: i32) {
@@ -45,25 +38,25 @@ crashes Trap
     machine delimiter(application: @mutable Application, value: i32) {
         let wrapped: i32 in Wrapping = value as +Wrapping;
         application.selection = (wrapped - 48) as i32;
-        let tail: ByteRead = block Console::read_byte();
+        let tail: |console|::ByteRead = block |console|::Console::read_byte();
         transition tail {
-            ByteRead::Eof -> start(application),
-            ByteRead::Byte { value: 10 } -> block finish_input(application),
+            |console|::ByteRead::Eof -> start(application),
+            |console|::ByteRead::Byte { value: 10 } -> block finish_input(application),
             _ -> invalid()
         }
     }
     machine finish_input(application: @mutable Application) {
-        let tail: ByteRead = block Console::read_byte();
-        transition tail { ByteRead::Eof -> start(application), _ -> invalid() }
+        let tail: |console|::ByteRead = block |console|::Console::read_byte();
+        transition tail { |console|::ByteRead::Eof -> start(application), _ -> invalid() }
     }
     machine start(application: @mutable Application) {
-        Console::write_line("piston_cycle_work: kPa,L,J; work by piston");
-        Console::write_line("stage,point,volume,pressure");
+        |console|::Console::write_line("piston_cycle_work: kPa,L,J; work by piston");
+        |console|::Console::write_line("stage,point,volume,pressure");
         transition { _ -> stage(application, 0) }
     }
     machine stage(application: @mutable Application, index: u32) requires index <= 3 {
-        load(application.selection, index, @mutable application.stage);
-        let valid: bool = evaluate(@mutable application.stage);
+        |fixtures|::load(application.selection, index, @mutable application.stage);
+        let valid: bool = |model|::evaluate(@mutable application.stage);
         transition valid { true -> boundary(application, index), _ -> invalid_stage() }
     }
     machine boundary(application: @mutable Application, index: u32) requires index <= 3 {
@@ -78,8 +71,8 @@ crashes Trap
         transition { _ -> history(application, index) }
     }
     machine continuity(application: @mutable Application, index: u32) requires index <= 3 {
-        transition near(application.previous_volume, application.stage.volume)
-            && near(application.previous_pressure, application.stage.pressure) {
+        transition |model|::near(application.previous_volume, application.stage.volume)
+            && |model|::near(application.previous_pressure, application.stage.pressure) {
             true -> history(application, index),
             _ -> discontinuity()
         }
@@ -97,13 +90,13 @@ crashes Trap
         transition { _ -> endpoint(application, index) }
     }
     machine model_middle(application: @mutable Application, index: u32, volume: f64) requires index <= 3 {
-        row(index as i32, 1, volume, pressure_at(@application.stage, volume));
+        row(index as i32, 1, volume, |model|::pressure_at(@application.stage, volume));
         transition { _ -> endpoint(application, index) }
     }
     machine endpoint(application: @mutable Application, index: u32) requires index <= 3 {
         row(index as i32, 2, application.stage.end_volume, application.stage.end_pressure);
-        Console::write("work,"); integer(index as i32); Console::write(",");
-        number(application.stage.work); Console::write_line("");
+        |console|::Console::write("work,"); |report|::integer(index as i32); |console|::Console::write(",");
+        |report|::number(application.stage.work); |console|::Console::write_line("");
         application.total = application.total + application.stage.work;
         application.previous_volume = application.stage.end_volume;
         application.previous_pressure = application.stage.end_pressure;
@@ -121,17 +114,17 @@ crashes Trap
         transition { _ -> next(application, index) }
     }
     machine next(application: @mutable Application, index: u32) requires index <= 3 {
-        let count: u32 = count(application.selection);
+        let count: u32 = |fixtures|::count(application.selection);
         transition index + 1 < count && index < 3 {
             true -> stage(application, index + 1),
             _ -> balance(application)
         }
     }
     machine balance(application: @mutable Application) {
-        Console::write("balance,"); number(application.expansion); Console::write(",");
-        number(application.compression); Console::write(","); number(application.total);
-        Console::write_line("");
-        transition near(application.total, application.expansion + application.compression) {
+        |console|::Console::write("balance,"); |report|::number(application.expansion); |console|::Console::write(",");
+        |report|::number(application.compression); |console|::Console::write(","); |report|::number(application.total);
+        |console|::Console::write_line("");
+        transition |model|::near(application.total, application.expansion + application.compression) {
             true -> closure(application),
             _ -> bad_balance()
         }
@@ -143,29 +136,29 @@ crashes Trap
         }
     }
     machine closed(application: @mutable Application) {
-        transition near(application.previous_volume, application.first_volume)
-            && near(application.previous_pressure, application.first_pressure) {
+        transition |model|::near(application.previous_volume, application.first_volume)
+            && |model|::near(application.previous_pressure, application.first_pressure) {
             true -> complete(),
             _ -> bad_balance()
         }
     }
-    machine complete() { Console::write_line("closed_cycle"); ProcessExit::exit_process(0); }
-    machine open() { Console::write_line("open_stage"); ProcessExit::exit_process(0); }
-    machine invalid() { Console::write_line("invalid_input"); ProcessExit::exit_process(64); }
-    machine invalid_stage() { Console::write_line("invalid_stage"); ProcessExit::exit_process(65); }
-    machine discontinuity() { Console::write_line("discontinuous_boundary"); ProcessExit::exit_process(66); }
-    machine bad_balance() { Console::write_line("invalid_cycle_balance"); ProcessExit::exit_process(67); }
+    machine complete() { |console|::Console::write_line("closed_cycle"); |process_exit|::ProcessExit::exit_process(0); }
+    machine open() { |console|::Console::write_line("open_stage"); |process_exit|::ProcessExit::exit_process(0); }
+    machine invalid() { |console|::Console::write_line("invalid_input"); |process_exit|::ProcessExit::exit_process(64); }
+    machine invalid_stage() { |console|::Console::write_line("invalid_stage"); |process_exit|::ProcessExit::exit_process(65); }
+    machine discontinuity() { |console|::Console::write_line("discontinuous_boundary"); |process_exit|::ProcessExit::exit_process(66); }
+    machine bad_balance() { |console|::Console::write_line("invalid_cycle_balance"); |process_exit|::ProcessExit::exit_process(67); }
 }
 
-machine row(stage: i32, point: i32, volume: f64, pressure: f64) reaches StandardOutput
+machine row(stage: i32, point: i32, volume: f64, pressure: f64) reaches |process_authority|::StandardOutput
 crashes Trap
 {
-    integer(stage); Console::write(","); integer(point); Console::write(",");
-    number(volume); Console::write(","); number(pressure); Console::write_line("");
+    |report|::integer(stage); |console|::Console::write(","); |report|::integer(point); |console|::Console::write(",");
+    |report|::number(volume); |console|::Console::write(","); |report|::number(pressure); |console|::Console::write_line("");
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput
 crashes Trap
 {
     let mutable entry_storage: Main;

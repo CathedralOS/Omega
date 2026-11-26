@@ -97,7 +97,6 @@ pub(super) fn compile(
             artifact,
             profile,
             host.as_ref(),
-            &Default::default(),
             &private_entry_ram,
             requested,
         )

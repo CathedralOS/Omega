@@ -1,0 +1,5 @@
+use {kit}/build.omg as entered;
+
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "invalid_depbuild_in_build" };
+}

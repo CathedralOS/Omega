@@ -1,5 +1,0 @@
-// A dependency can publish only inside its own generated-source namespace.
-machine build(builder: @mutable Build) {
-    Build::package(builder, "custody_break");
-    Build::include_source(builder, "../start.omg", "public machine generated_value() -> i32 { 7 }");
-}

@@ -29,7 +29,7 @@ The match place still executes both choices at both low values. One arm writes a
 | other machine | [source](other_machine/main.omg) | [source](invalid_other_machine/main.omg) | another machine receives and inspects the computed subslice view |
 | target body | [source](target_body/main.omg) | [source](invalid_target_body/main.omg) | one ordinary implementation selected by four Build rows constructs and reads the view |
 
-The bundled slice API also still depended on retired top-level boundary operators and an empty data namespace. Its public `slice_index` and `slice_range` helpers now have ordinary checked bodies delegating to the existing private slice-view module. Array syntax keeps the catalog’s builtin geometry; imports select no provider or alternative operator. Named callers migrate to the free helpers. Index copyability, range bounds, returned length and original backing lifetime remain explicit. The unused `SliceAccess` boundary requirements remain separate library work.
+The bundled `slice_index` and `slice_range` helpers use the same checked bracket operations as this example. The index requires a copyable element. The range retains its backing lifetime and promises the difference between its endpoints as its length.
 
 ## Controls and pins
 

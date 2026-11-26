@@ -1,5 +1,5 @@
 // `public` on the build machine is legal — visibility does not change
 // the activation contract.
-public machine build(builder: @mutable Build) {
-    Build::application(builder, "build_dup_source_edge");
+public machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_dup_source_edge" };
 }

@@ -1,94 +1,80 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use omega\language\core\abs_f64;
+use data/expectations/expectations.omg;
+use data/fixtures/fixtures.omg;
+use physics/events/events.omg;
+use physics/model/model.omg;
+use reporting/ledger/ledger.omg;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 // Expected exit: 2 (closed stdin).
 // Expected output contains: invalid input: one digit 0..9 and LF required
-use system\ByteRead;
-use system\Console;
-use physics\model;
-use physics\model\totals;
-use physics\model\validate;
-use physics\events;
-use physics\events\contact;
-use physics\events\select_event;
-use physics\events\advance;
-use physics\events\resolve;
-use reporting\ledger;
-use reporting\ledger\contact_row;
-use reporting\ledger\totals_row;
-use reporting\ledger\disk_rows;
-use data\fixtures;
-use data\fixtures\fixture;
-use data\expectations;
-use data\expectations\expected_result;
-use data\expectations\expected_contact;
-data Main {lab:Lab; choice:i32;}
-machine main(main:@mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
- let input:ByteRead=block Console::read_byte();
- transition input {ByteRead::Byte{value} -> choice(main,value), _ -> invalid(main)}
+data Main {lab:|model|::Lab; choice:i32;}
+machine main(main:@mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+ let input:|console|::ByteRead=block |console|::Console::read_byte();
+ transition input {|console|::ByteRead::Byte{value} -> choice(main,value), _ -> invalid(main)}
  machine choice(main:@mutable Main,value:i32) {
   transition value >= 48 && value <= 57 {true -> newline(main,value), _ -> invalid(main)}
  }
  machine newline(main:@mutable Main,value:i32) requires value >= 48 && value <= 57 {
   main.choice=value-48;
-  let ending:ByteRead=block Console::read_byte();
-  transition ending {ByteRead::Byte{value} -> ending(main,value), _ -> invalid(main)}
+  let ending:|console|::ByteRead=block |console|::Console::read_byte();
+  transition ending {|console|::ByteRead::Byte{value} -> ending(main,value), _ -> invalid(main)}
  }
  machine ending(main:@mutable Main,value:i32) {
   transition value == 10 {true -> initialize(main), _ -> invalid(main)}
  }
  machine initialize(main:@mutable Main) {
-  fixture(@mutable main.lab,main.choice);validate(@mutable main.lab);
+  |fixtures|::fixture(@mutable main.lab,main.choice);|model|::validate(@mutable main.lab);
   transition main.lab.valid {true -> start(main), _ -> invalid_model(main)}
  }
  machine start(main:@mutable Main) {
-  totals(@mutable main.lab);main.lab.initial_x=main.lab.momentum_x;
+  |model|::totals(@mutable main.lab);main.lab.initial_x=main.lab.momentum_x;
   main.lab.initial_y=main.lab.momentum_y;main.lab.initial_energy=main.lab.energy;
-  Console::write_line("disk_collision_lab Newton frictionless model");
-  totals_row(@main.lab);
+  |console|::Console::write_line("disk_collision_lab Newton frictionless model");
+  |ledger|::totals_row(@main.lab);
   transition { _ -> next(main) }
  }
  machine next(main:@mutable Main) {
-  select_event(@mutable main.lab);
+  |events|::select_event(@mutable main.lab);
   transition main.lab.selected {true -> budget(main), _ -> finish_time(main)}
  }
  machine budget(main:@mutable Main) {
   transition main.lab.events < main.lab.budget {true -> event(main), _ -> exhausted(main)}
  }
  machine event(main:@mutable Main) {
-  let delay:f64=main.lab.delay;advance(@mutable main.lab,delay);resolve(@mutable main.lab);totals(@mutable main.lab);
-  contact_row(@main.lab);totals_row(@main.lab);
-  transition expected_contact(@main.lab,main.choice) && abs_f64(main.lab.momentum_x-main.lab.initial_x) <= 0.000000001
-   && abs_f64(main.lab.momentum_y-main.lab.initial_y) <= 0.000000001
-   && abs_f64(main.lab.energy+main.lab.loss-main.lab.initial_energy) <= 0.000000001
-   && abs_f64(main.lab.contact_error) <= 0.000000001 {
+  let delay:f64=main.lab.delay;|events|::advance(@mutable main.lab,delay);|events|::resolve(@mutable main.lab);|model|::totals(@mutable main.lab);
+  |ledger|::contact_row(@main.lab);|ledger|::totals_row(@main.lab);
+  transition |expectations|::expected_contact(@main.lab,main.choice) && |math|::abs_f64(main.lab.momentum_x-main.lab.initial_x) <= 0.000000001
+   && |math|::abs_f64(main.lab.momentum_y-main.lab.initial_y) <= 0.000000001
+   && |math|::abs_f64(main.lab.energy+main.lab.loss-main.lab.initial_energy) <= 0.000000001
+   && |math|::abs_f64(main.lab.contact_error) <= 0.000000001 {
    true -> next(main), _ -> failed(main)
   }
  }
  machine finish_time(main:@mutable Main) {
-  let remaining:f64=main.lab.horizon-main.lab.time;advance(@mutable main.lab,remaining);totals(@mutable main.lab);
-  transition expected_result(@main.lab,main.choice) {true -> complete(main), _ -> failed(main)}
+  let remaining:f64=main.lab.horizon-main.lab.time;|events|::advance(@mutable main.lab,remaining);|model|::totals(@mutable main.lab);
+  transition |expectations|::expected_result(@main.lab,main.choice) {true -> complete(main), _ -> failed(main)}
  }
  machine complete(main:@mutable Main) {
-  totals_row(@main.lab);disk_rows(@main.lab);
-  Console::write_line("status complete");ProcessExit::exit_process(0);
+  |ledger|::totals_row(@main.lab);|ledger|::disk_rows(@main.lab);
+  |console|::Console::write_line("status complete");|process_exit|::ProcessExit::exit_process(0);
  }
  machine exhausted(main:@mutable Main) {
-  transition expected_result(@main.lab,main.choice) {true -> report_exhausted(main), _ -> failed(main)}
+  transition |expectations|::expected_result(@main.lab,main.choice) {true -> report_exhausted(main), _ -> failed(main)}
  }
  machine report_exhausted(main:@mutable Main) {
-  disk_rows(@main.lab);Console::write_line("status event_budget_exhausted");
-  ProcessExit::exit_process(3);
+  |ledger|::disk_rows(@main.lab);|console|::Console::write_line("status event_budget_exhausted");
+  |process_exit|::ProcessExit::exit_process(3);
  }
- machine invalid(main:@mutable Main) {Console::write_line("invalid input: one digit 0..9 and LF required");ProcessExit::exit_process(2);}
- machine invalid_model(main:@mutable Main) {Console::write_line("invalid model: bounded finite disks, no overlap, restitution 0..1 required");ProcessExit::exit_process(2);}
- machine failed(main:@mutable Main) {Console::write_line("FAIL conservation or contact tolerance");ProcessExit::exit_process(4);}
+ machine invalid(main:@mutable Main) {|console|::Console::write_line("invalid input: one digit 0..9 and LF required");|process_exit|::ProcessExit::exit_process(2);}
+ machine invalid_model(main:@mutable Main) {|console|::Console::write_line("invalid model: bounded finite disks, no overlap, restitution 0..1 required");|process_exit|::ProcessExit::exit_process(2);}
+ machine failed(main:@mutable Main) {|console|::Console::write_line("FAIL conservation or contact tolerance");|process_exit|::ProcessExit::exit_process(4);}
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

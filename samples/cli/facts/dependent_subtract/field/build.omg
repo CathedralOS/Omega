@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "dependent_subtract_field");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "dependent_subtract_field" };
     Build::bind(builder, linux_x86_64::ProgramEntry, entry);
     Build::bind(builder, linux_arm64::ProgramEntry, entry);
     Build::bind(builder, macos_arm64::ProgramEntry, entry);

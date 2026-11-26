@@ -1,8 +1,7 @@
 // Exact rational two-point calibration, then endpoint-inclusive quantization.
 // Bounded inputs keep every i64 Wrapping intermediate below 10^12: the policy
 // makes arithmetic defined, while the application envelope prevents wrapping.
-use domain\settings;
-use domain\settings\Settings;
+use domain/settings/settings.omg;
 public data Conversion {
     code: i64 in Wrapping;
     reconstruction_numerator: i64 in Wrapping;
@@ -13,15 +12,15 @@ public data Conversion {
     bound_numerator: i64 in Wrapping;
     bound_denominator: i64 in Wrapping;
 }
-public machine quantize(configuration: @Settings, raw: i64 in Wrapping, result: @mutable Conversion) {
+public machine quantize(configuration: @|settings|::Settings, raw: i64 in Wrapping, result: @mutable Conversion) {
     transition { _ -> levels(configuration, raw, result, 0, 1) }
-    machine levels(configuration: @Settings, raw: i64 in Wrapping, result: @mutable Conversion, bit: i64 in Wrapping, extent: i64 in Wrapping) {
+    machine levels(configuration: @|settings|::Settings, raw: i64 in Wrapping, result: @mutable Conversion, bit: i64 in Wrapping, extent: i64 in Wrapping) {
         transition bit < configuration.width {
             true -> levels(configuration, raw, result, bit + 1, extent * 2),
             _ -> calibrate(configuration, raw, result, extent - 1, extent / 2)
         }
     }
-    machine calibrate(configuration: @Settings, raw: i64 in Wrapping, result: @mutable Conversion, levels: i64 in Wrapping, half: i64 in Wrapping) {
+    machine calibrate(configuration: @|settings|::Settings, raw: i64 in Wrapping, result: @mutable Conversion, levels: i64 in Wrapping, half: i64 in Wrapping) {
         let denominator: i64 in Wrapping = configuration.raw_high - configuration.raw_low;
         let calibrated: i64 in Wrapping = configuration.physical_low * denominator +
             (raw - configuration.raw_low) * (configuration.physical_high - configuration.physical_low);
@@ -33,19 +32,19 @@ public machine quantize(configuration: @Settings, raw: i64 in Wrapping, result: 
             _ -> high(configuration, result, levels, half, calibrated, denominator, coordinate, span)
         }
     }
-    machine high(configuration: @Settings, result: @mutable Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping) {
+    machine high(configuration: @|settings|::Settings, result: @mutable Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping) {
         transition coordinate > span {
             true -> reconstruct(configuration, result, levels, half, calibrated, denominator, levels, 1),
             _ -> divide(configuration, result, levels, half, calibrated, denominator, coordinate, span)
         }
     }
-    machine divide(configuration: @Settings, result: @mutable Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping) {
+    machine divide(configuration: @|settings|::Settings, result: @mutable Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping) {
         transition span > 0 {
             true -> round(configuration, result, levels, half, calibrated, denominator, coordinate, span),
             _ -> invalid()
         }
     }
-    machine round(configuration: @Settings, result: @mutable Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping)
+    machine round(configuration: @|settings|::Settings, result: @mutable Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, coordinate: i64 in Wrapping, span: i64 in Wrapping)
     requires span > 0
     {
         let scaled: i64 in Wrapping = coordinate * levels;
@@ -56,7 +55,7 @@ public machine quantize(configuration: @Settings, raw: i64 in Wrapping, result: 
             _ -> reconstruct(configuration, result, levels, half, calibrated, denominator, lower, 0)
         }
     }
-    machine reconstruct(configuration: @Settings, result: @mutable Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, rank: i64 in Wrapping, clipped: i64 in Wrapping) {
+    machine reconstruct(configuration: @|settings|::Settings, result: @mutable Conversion, levels: i64 in Wrapping, half: i64 in Wrapping, calibrated: i64 in Wrapping, denominator: i64 in Wrapping, rank: i64 in Wrapping, clipped: i64 in Wrapping) {
         result.code = rank - configuration.signedness * half;
         result.reconstruction_numerator = configuration.reference_low * levels + rank * (configuration.reference_high - configuration.reference_low);
         result.reconstruction_denominator = levels;
@@ -69,14 +68,14 @@ public machine quantize(configuration: @Settings, raw: i64 in Wrapping, result: 
             _ -> magnitude(configuration, result, levels, denominator)
         }
     }
-    machine magnitude(configuration: @Settings, result: @mutable Conversion, levels: i64 in Wrapping, denominator: i64 in Wrapping) {
+    machine magnitude(configuration: @|settings|::Settings, result: @mutable Conversion, levels: i64 in Wrapping, denominator: i64 in Wrapping) {
         let error: i64 in Wrapping = result.error_numerator;
         transition error < 0 {
             true -> bound(configuration, result, levels, denominator, 0 - error),
             _ -> bound(configuration, result, levels, denominator, error)
         }
     }
-    machine bound(configuration: @Settings, result: @mutable Conversion, levels: i64 in Wrapping, denominator: i64 in Wrapping, overrange: i64 in Wrapping) {
+    machine bound(configuration: @|settings|::Settings, result: @mutable Conversion, levels: i64 in Wrapping, denominator: i64 in Wrapping, overrange: i64 in Wrapping) {
         result.bound_numerator = (configuration.reference_high - configuration.reference_low) * denominator + 2 * overrange;
         result.bound_denominator = 2 * levels * denominator;
     }

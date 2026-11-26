@@ -10,7 +10,7 @@
 //     invariant window.
 //   * `main.ranged = 2.0` then `= 0.5` — a where-clause
 //     field takes the same transient excursion.
-//   * `use omega\language\core\float_operations`
+//   * `use {omega}/language/core/float_operations.omg`
 //     brings the float operation surface including the
 //     domain.
 //

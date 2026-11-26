@@ -10,7 +10,7 @@ use {omega}/language/core/byte_observation/byte_observation.omg as bytes;
 // policy chooses after inspecting that graph.
 //
 // COUNT CARRIERS: byte sizes, alignments, counts, indices, register ordinals,
-// immediates, and nonnegative stack offsets use u64, never addr.
+// immediates, and nonnegative stack offsets use u64, never address.
 
 public domain [u8]::Utf8
 requires
@@ -273,7 +273,14 @@ public data StatePlan {
     preemption: Preemption;
 }
 
+// Select an identity from this invocation's BoundarySignature.native_parameters.
+public data TableArguments [copy] {
+    case PassAll;
+    case DispatchOnly(parameter: u64);
+}
+
 public data BoundaryEntryPlan {
+    table_arguments: TableArguments;
     call: CallPlan;
     state: StatePlan;
 }

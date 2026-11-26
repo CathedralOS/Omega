@@ -1,49 +1,38 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/input/input.omg;
+use domain/math/math.omg;
+use domain/report/report.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0 for input.txt; numerical oracle: validation/oracles.json.
-use domain\input;
-use domain\input\Reader;
-use domain\input\Number;
-use domain\input\number;
-use domain\input\ended;
-use domain\report;
-use domain\report\field;
-use domain\math;
-use domain\math\logarithm;
-use domain\math\exponential;
-use domain\math\residual_sum;
-use omega\language\core\F64::from_i32;
-use omega\language\core\F64::is_finite;
-use omega\language\core\I32::from_f64;
-use system\Console;
 
 data Application {
-    reader: Reader;
+    reader: |input|::Reader;
     logarithms: [f64; 8]; cycles: [f64; 8]; residual_values: [f64; 8]; unknowns: [f64; 8]; margins: [f64; 8];
     standards: i32 in Wrapping; unknown_count: i32 in Wrapping; index: i32 in Wrapping;
     mean_x: f64; mean_y: f64; variance_x: f64; variance_y: f64; covariance: f64;
     slope: f64; intercept: f64; residual_square: f64; minimum_x: f64; maximum_x: f64; minimum_y: f64; maximum_y: f64;
 }
-machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
-    let standards: Number = block number(@mutable application.reader);
-    let unknowns: Number = block number(@mutable application.reader);
+machine main(application: @mutable Application) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
+    let standards: |input|::Number = block |input|::number(@mutable application.reader);
+    let unknowns: |input|::Number = block |input|::number(@mutable application.reader);
     transition standards.valid && unknowns.valid && standards.value >= 3.0 && standards.value <= 8.0 && unknowns.value >= 0.0 && unknowns.value <= 8.0 {
         true -> block counts(application, standards.value, unknowns.value), _ -> invalid(application)
     }
     machine invalid(application: @mutable Application) {
-        Console::write_line("ERROR malformed or out-of-range input"); ProcessExit::exit_process(10);
+        |console|::Console::write_line("ERROR malformed or out-of-range input"); |process_exit|::ProcessExit::exit_process(10);
     }
     machine degenerate(application: @mutable Application) {
-        Console::write_line("ERROR rank-deficient or nonnegative calibration slope"); ProcessExit::exit_process(11);
+        |console|::Console::write_line("ERROR rank-deficient or nonnegative calibration slope"); |process_exit|::ProcessExit::exit_process(11);
     }
     machine numerical(application: @mutable Application) {
-        Console::write_line("ERROR nonrepresentable calibration or inversion"); ProcessExit::exit_process(12);
+        |console|::Console::write_line("ERROR nonrepresentable calibration or inversion"); |process_exit|::ProcessExit::exit_process(12);
     }
     machine counts(application: @mutable Application, standards: f64, unknowns: f64) {
-        let count: i32 in Saturating = I32::from_f64(standards);
-        let unknown_count: i32 in Saturating = I32::from_f64(unknowns);
-        transition F64::from_i32(count as i32) == standards && F64::from_i32(unknown_count as i32) == unknowns {
+        let count: i32 in Saturating = |float_operations|::I32::from_f64(standards);
+        let unknown_count: i32 in Saturating = |float_operations|::I32::from_f64(unknowns);
+        transition |float_operations|::F64::from_i32(count as i32) == standards && |float_operations|::F64::from_i32(unknown_count as i32) == unknowns {
             true -> block configure(application, count as i32 +Wrapping, unknown_count as i32 +Wrapping), _ -> invalid(application)
         }
     }
@@ -58,12 +47,12 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.index >= 0 && application.index < application.standards && application.index < 8 { true -> block standard(application), _ -> block unknown_start(application) }
     }
     machine standard(application: @mutable Application) {
-        let copies: Number = block number(@mutable application.reader);
-        let cq: Number = block number(@mutable application.reader);
+        let copies: |input|::Number = block |input|::number(@mutable application.reader);
+        let cq: |input|::Number = block |input|::number(@mutable application.reader);
         transition copies.valid && cq.valid && copies.value >= 1.0 && copies.value <= 1000000.0 && cq.value >= 0.0 && cq.value <= 50.0 { true -> block store_standard(application, copies.value, cq.value), _ -> invalid(application) }
     }
     machine store_standard(application: @mutable Application, copies: f64, cq: f64) {
-        let logarithm: f64 = logarithm(copies);
+        let logarithm: f64 = |math|::logarithm(copies);
         application.logarithms[application.index] = logarithm; application.cycles[application.index] = cq;
         application.mean_x = application.mean_x + logarithm; application.mean_y = application.mean_y + cq;
         application.minimum_x = match logarithm < application.minimum_x { true -> logarithm, _ -> application.minimum_x };
@@ -77,7 +66,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.index >= 0 && application.index < application.unknown_count && application.index < 8 { true -> block unknown(application), _ -> block finish_input(application) }
     }
     machine unknown(application: @mutable Application) {
-        let cq: Number = block number(@mutable application.reader); let margin: Number = block number(@mutable application.reader);
+        let cq: |input|::Number = block |input|::number(@mutable application.reader); let margin: |input|::Number = block |input|::number(@mutable application.reader);
         transition cq.valid && margin.valid && cq.value >= 0.0 && cq.value <= 50.0 && margin.value >= 0.0 { true -> block store_unknown(application, cq.value, margin.value), _ -> invalid(application) }
     }
     machine store_unknown(application: @mutable Application, cq: f64, margin: f64) {
@@ -85,11 +74,11 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         application.index = application.index + 1; transition { _ -> block read_unknown(application) }
     }
     machine finish_input(application: @mutable Application) {
-        let complete: bool = block ended(@mutable application.reader);
+        let complete: bool = block |input|::ended(@mutable application.reader);
         transition complete { true -> center(application), _ -> invalid(application) }
     }
     machine center(application: @mutable Application) {
-        let count: f64 = F64::from_i32(application.standards as i32);
+        let count: f64 = |float_operations|::F64::from_i32(application.standards as i32);
         application.mean_x = application.mean_x / count; application.mean_y = application.mean_y / count;
         application.variance_x = 0.0; application.variance_y = 0.0; application.covariance = 0.0;
         application.index = 0; transition { _ -> moments(application) }
@@ -110,10 +99,10 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
     machine coefficients(application: @mutable Application) {
         application.slope = application.covariance / application.variance_x;
         application.intercept = application.mean_y - application.slope * application.mean_x;
-        transition F64::is_finite(application.slope) && F64::is_finite(application.intercept) && application.slope < 0.0 { true -> residual_start(application), _ -> numerical(application) }
+        transition |float_operations|::F64::is_finite(application.slope) && |float_operations|::F64::is_finite(application.intercept) && application.slope < 0.0 { true -> residual_start(application), _ -> numerical(application) }
     }
     machine residual_start(application: @mutable Application) {
-        field(@mutable application.reader, "slope=", application.slope); field(@mutable application.reader, "intercept=", application.intercept);
+        |report|::field(@mutable application.reader, "slope=", application.slope); |report|::field(@mutable application.reader, "intercept=", application.intercept);
         transition application.standards >= 3 && application.standards <= 8 { true -> residual_windows(application), _ -> invalid(application) }
     }
     machine residual_windows(application: @mutable Application)
@@ -122,7 +111,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         let logarithms: @[f64] = @application.logarithms[0..application.standards];
         let cycles: @[f64] = @application.cycles[0..application.standards];
         let residuals: @mutable [f64] = @mutable application.residual_values[0..application.standards];
-        application.residual_square = residual_sum(logarithms, cycles, residuals, application.slope, application.intercept);
+        application.residual_square = |math|::residual_sum(logarithms, cycles, residuals, application.slope, application.intercept);
         application.index = 0; transition { _ -> residuals(application) }
     }
     machine residuals(application: @mutable Application) {
@@ -130,17 +119,17 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
     }
     machine residual(application: @mutable Application) {
         let residual: f64 = application.residual_values[application.index];
-        field(@mutable application.reader, "residual=", residual);
+        |report|::field(@mutable application.reader, "residual=", residual);
         application.index = application.index + 1; transition { _ -> residuals(application) }
     }
     machine summary(application: @mutable Application) {
         let argument: f64 = (0.0 - 2.3025850929940456840) / application.slope;
-        transition F64::is_finite(argument) && argument <= 700.0 { true -> efficiency(application, argument), _ -> numerical(application) }
+        transition |float_operations|::F64::is_finite(argument) && argument <= 700.0 { true -> efficiency(application, argument), _ -> numerical(application) }
     }
     machine efficiency(application: @mutable Application, argument: f64) {
-        let efficiency: f64 = exponential(argument) - 1.0;
-        field(@mutable application.reader, "r2=", 1.0 - application.residual_square / application.variance_y);
-        field(@mutable application.reader, "efficiency=", efficiency);
+        let efficiency: f64 = |math|::exponential(argument) - 1.0;
+        |report|::field(@mutable application.reader, "r2=", 1.0 - application.residual_square / application.variance_y);
+        |report|::field(@mutable application.reader, "efficiency=", efficiency);
         application.index = 0; transition { _ -> quantify(application) }
     }
     machine quantify(application: @mutable Application) {
@@ -152,23 +141,23 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         let lower: f64 = (cq + margin - application.intercept) / application.slope;
         let upper: f64 = (cq - margin - application.intercept) / application.slope;
         let low_argument: f64 = lower * 2.3025850929940456840; let high_argument: f64 = upper * 2.3025850929940456840;
-        transition F64::is_finite(low_argument) && F64::is_finite(high_argument) && low_argument >= -700.0 && high_argument <= 700.0 {
+        transition |float_operations|::F64::is_finite(low_argument) && |float_operations|::F64::is_finite(high_argument) && low_argument >= -700.0 && high_argument <= 700.0 {
             true -> concentrations(application, central, lower, upper), _ -> numerical(application)
         }
     }
     machine concentrations(application: @mutable Application, central: f64, lower: f64, upper: f64) {
-        field(@mutable application.reader, "copies=", exponential(central * 2.3025850929940456840));
-        field(@mutable application.reader, "lower=", exponential(lower * 2.3025850929940456840));
-        field(@mutable application.reader, "upper=", exponential(upper * 2.3025850929940456840));
-        field(@mutable application.reader, "extrapolated=", match central < application.minimum_x - 0.000000000001 || central > application.maximum_x + 0.000000000001 { true -> 1.0, _ -> 0.0 });
-        field(@mutable application.reader, "interval_extrapolated=", match lower < application.minimum_x - 0.000000000001 || upper > application.maximum_x + 0.000000000001 { true -> 1.0, _ -> 0.0 });
+        |report|::field(@mutable application.reader, "copies=", |math|::exponential(central * 2.3025850929940456840));
+        |report|::field(@mutable application.reader, "lower=", |math|::exponential(lower * 2.3025850929940456840));
+        |report|::field(@mutable application.reader, "upper=", |math|::exponential(upper * 2.3025850929940456840));
+        |report|::field(@mutable application.reader, "extrapolated=", match central < application.minimum_x - 0.000000000001 || central > application.maximum_x + 0.000000000001 { true -> 1.0, _ -> 0.0 });
+        |report|::field(@mutable application.reader, "interval_extrapolated=", match lower < application.minimum_x - 0.000000000001 || upper > application.maximum_x + 0.000000000001 { true -> 1.0, _ -> 0.0 });
         application.index = application.index + 1; transition { _ -> quantify(application) }
     }
-    machine done(application: @mutable Application) { ProcessExit::exit_process(0); }
+    machine done(application: @mutable Application) { |process_exit|::ProcessExit::exit_process(0); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Application;
     block main(@mutable entry_storage);
 }

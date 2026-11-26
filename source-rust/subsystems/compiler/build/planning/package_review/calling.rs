@@ -23,7 +23,6 @@ pub(super) fn project(
     let signature = &application.signature;
     let result_type = method.calling_result_type();
     if application.target != target.native_target()
-        || application.dispatch_only_formal.is_some()
         || application
             .recomputed_commitment()
             .map_err(|reason| unavailable(&reason))?
@@ -140,6 +139,7 @@ pub(super) fn project(
         },
         semantic_parameters,
         semantic_result: result_type.cloned(),
+        dispatch_only_formal: application.dispatch_only_formal,
         native_parameters,
         callbacks: PackagePolicyCallbacks::default(),
         opaque_uses: Vec::new(),

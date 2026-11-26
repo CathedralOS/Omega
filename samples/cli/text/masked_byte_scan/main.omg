@@ -1,90 +1,90 @@
 // Expected exit: 0.
 // Parse hex byte pairs with per-nibble wildcards, then scan overlapping starts.
-use omega\language\core\Optional;
+use {omega}/language/core/option.omg;
 
 data Nibble [copy] requires value < 16, mask < 16 { value: u8; mask: u8; }
 data PatternByte [copy] { value: u8; mask: u8; }
 
-machine nibble(character: u8) -> Optional<Nibble> {
+machine nibble(character: u8) -> |option|::Optional<Nibble> {
     transition character == 63 {
-        true -> Optional::Some { value: Nibble { value: 0, mask: 0 } },
+        true -> |option|::Optional::Some { value: Nibble { value: 0, mask: 0 } },
         false -> decimal(character)
     }
-    machine decimal(character: u8) -> Optional<Nibble> {
+    machine decimal(character: u8) -> |option|::Optional<Nibble> {
         transition character >= 48 && character <= 57 {
             true -> digit(character),
             false -> upper(character)
         }
     }
-    machine digit(character: u8) -> Optional<Nibble>
+    machine digit(character: u8) -> |option|::Optional<Nibble>
     requires character >= 48 && character <= 57 {
-        Optional::Some { value: Nibble { value: character - 48, mask: 15 } }
+        |option|::Optional::Some { value: Nibble { value: character - 48, mask: 15 } }
     }
-    machine upper(character: u8) -> Optional<Nibble> {
+    machine upper(character: u8) -> |option|::Optional<Nibble> {
         transition character >= 65 && character <= 70 {
             true -> upper_digit(character),
             false -> lower(character)
         }
     }
-    machine upper_digit(character: u8) -> Optional<Nibble>
+    machine upper_digit(character: u8) -> |option|::Optional<Nibble>
     requires character >= 65 && character <= 70 {
-        Optional::Some { value: Nibble { value: character - 55, mask: 15 } }
+        |option|::Optional::Some { value: Nibble { value: character - 55, mask: 15 } }
     }
-    machine lower(character: u8) -> Optional<Nibble> {
+    machine lower(character: u8) -> |option|::Optional<Nibble> {
         transition character >= 97 && character <= 102 {
             true -> lower_digit(character),
-            false -> Optional::None
+            false -> |option|::Optional::None
         }
     }
-    machine lower_digit(character: u8) -> Optional<Nibble>
+    machine lower_digit(character: u8) -> |option|::Optional<Nibble>
     requires character >= 97 && character <= 102 {
-        Optional::Some { value: Nibble { value: character - 87, mask: 15 } }
+        |option|::Optional::Some { value: Nibble { value: character - 87, mask: 15 } }
     }
 }
 
-machine pair(upper: u8, lower: u8) -> Optional<PatternByte> {
-    let high: Optional<Nibble> = nibble(upper);
+machine pair(upper: u8, lower: u8) -> |option|::Optional<PatternByte> {
+    let high: |option|::Optional<Nibble> = nibble(upper);
     transition high {
-        Optional::Some { value } -> second(value, lower),
-        Optional::None -> Optional::None
+        |option|::Optional::Some { value } -> second(value, lower),
+        |option|::Optional::None -> |option|::Optional::None
     }
-    machine second(high: Nibble, lower: u8) -> Optional<PatternByte> {
-        let low: Optional<Nibble> = nibble(lower);
+    machine second(high: Nibble, lower: u8) -> |option|::Optional<PatternByte> {
+        let low: |option|::Optional<Nibble> = nibble(lower);
         transition low {
-            Optional::Some { value } -> Optional::Some { value: PatternByte {
+            |option|::Optional::Some { value } -> |option|::Optional::Some { value: PatternByte {
                 value: high.value * 16 + value.value,
                 mask: high.mask * 16 + value.mask
             } },
-            Optional::None -> Optional::None
+            |option|::Optional::None -> |option|::Optional::None
         }
     }
 }
 
-machine parse(input: @[u8], output: @mutable [PatternByte]) -> Optional<u64> {
+machine parse(input: @[u8], output: @mutable [PatternByte]) -> |option|::Optional<u64> {
     transition { _ -> next(input, output, 0) }
-    machine next(input: @[u8], output: @mutable [PatternByte], count: u64) -> Optional<u64>
+    machine next(input: @[u8], output: @mutable [PatternByte], count: u64) -> |option|::Optional<u64>
     requires count <= output.length {
         transition input.length == 0 {
-            true -> Optional::Some { value: count },
+            true -> |option|::Optional::Some { value: count },
             false -> available(input, output, count)
         }
     }
-    machine available(input: @[u8], output: @mutable [PatternByte], count: u64) -> Optional<u64> {
+    machine available(input: @[u8], output: @mutable [PatternByte], count: u64) -> |option|::Optional<u64> {
         transition input.length >= 2 && count < output.length {
             true -> decode(input, output, count),
-            false -> Optional::None
+            false -> |option|::Optional::None
         }
     }
-    machine decode(input: @[u8], output: @mutable [PatternByte], count: u64) -> Optional<u64>
+    machine decode(input: @[u8], output: @mutable [PatternByte], count: u64) -> |option|::Optional<u64>
     requires input.length >= 2 && count < output.length {
-        let decoded: Optional<PatternByte> = pair(input[0], input[1]);
+        let decoded: |option|::Optional<PatternByte> = pair(input[0], input[1]);
         transition decoded {
-            Optional::Some { value } -> save(input, output, count, value),
-            Optional::None -> Optional::None
+            |option|::Optional::Some { value } -> save(input, output, count, value),
+            |option|::Optional::None -> |option|::Optional::None
         }
     }
     machine save(input: @[u8], output: @mutable [PatternByte], count: u64, value: PatternByte)
-        -> Optional<u64>
+        -> |option|::Optional<u64>
     requires input.length >= 2 && count < output.length {
         output[count] = value;
         transition { _ -> next(input[2..], output, count + 1) }
@@ -136,16 +136,16 @@ requires pattern.length > 0 {
     }
 }
 
-machine count_is(parsed: Optional<u64>, expected: u64) -> bool {
+machine count_is(parsed: |option|::Optional<u64>, expected: u64) -> bool {
     transition parsed {
-        Optional::Some { value } -> (value == expected),
-        Optional::None -> false
+        |option|::Optional::Some { value } -> (value == expected),
+        |option|::Optional::None -> false
     }
 }
-machine rejected(parsed: Optional<u64>) -> bool {
+machine rejected(parsed: |option|::Optional<u64>) -> bool {
     transition parsed {
-        Optional::Some { value } -> false,
-        Optional::None -> true
+        |option|::Optional::Some { value } -> false,
+        |option|::Optional::None -> true
     }
 }
 

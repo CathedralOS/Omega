@@ -552,12 +552,12 @@ mod tests {
         let entry = root.join("build.omg");
         std::fs::write(
             &entry,
-            r#"use omega\language\core\FloatFormat;
-use omega\language\core\Units;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "dep_pkg");
-    let _f: FloatFormat = FloatFormat::BINARY32;
-    let _u: Unit = Units::METER;
+            r#"use {omega}/language/core/float_format.omg as formats;
+use {omega}/language/core/units.omg;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "dep_pkg" };
+    let _f: |formats|::FloatFormat = |formats|::FloatFormat::BINARY32;
+    let _u: |units|::Unit = |units|::Units::METER;
     let _t: BuildTarget = linux_x86_64;
 }
 "#,
@@ -587,17 +587,17 @@ machine build(builder: @mutable Build) {
         let main = root.join("main.omg");
         let helper = root.join("helper.omg");
         let entry = root.join("build.omg");
-        std::fs::write(&main, "machine main() {}").unwrap();
+        std::fs::write(&main, "public machine main() {}").unwrap();
         std::fs::write(
             &helper,
-            "public machine configure(builder: @mutable Build) {\n    Build::application(builder, \"scoped_app\");\n}\n",
+            "public machine configure(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Application { name: \"scoped_app\" };\n}\n",
         )
         .unwrap();
         std::fs::write(
             &entry,
             r#"use helper.omg as helper;
 use main.omg as app;
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     |helper|::configure(builder);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }
@@ -644,7 +644,7 @@ machine build(builder: @mutable Build) {
         // even when BuildRecheck receives only Build-scope sources.
         std::fs::write(
             &helper,
-            "public machine configure(builder: @mutable Build) {\n    Build::application(builder, \"scoped_app\");\n}\nmachine unused_invalid() {\n    let bad: u8 = true;\n}\n",
+            "public machine configure(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Application { name: \"scoped_app\" };\n}\nmachine unused_invalid() {\n    let bad: u8 = true;\n}\n",
         )
         .unwrap();
         let mut invalid_product = open_unchecked_project(&entry, true);
@@ -657,7 +657,12 @@ machine build(builder: @mutable Build) {
             .result
             .expect_err("Build-scope-only BuildRecheck must reject invalid Build subject");
         let messages = diagnostics::join_messages(&failure.into_diagnostics());
-        assert!(!messages.is_empty());
+        assert!(
+            messages.contains("unused_invalid")
+                && messages.contains("`bool`")
+                && messages.contains("`u8`"),
+            "{messages}"
+        );
     }
 
     #[test]
@@ -668,7 +673,7 @@ machine build(builder: @mutable Build) {
         )
         .unwrap();
         let root = temp.path();
-        std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
+        std::fs::write(root.join("main.omg"), "public machine main() {}").unwrap();
         let entry = root.join("build.omg");
         std::fs::write(
             &entry,
@@ -676,19 +681,19 @@ machine build(builder: @mutable Build) {
 const BUILD_LIMIT: u64 = limit();
 const OTHER_VALUE: u64 = 9u64;
 machine limit() -> u64 { 4u64 }
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     let total: u64 = BUILD_LIMIT + OTHER_VALUE;
     let matches: bool = total == 13u64;
     transition matches {
         true -> named(builder),
         false -> wrong(builder),
     }
-    machine named(builder: @mutable Build) {
-        Build::application(builder, "const_app");
+    machine named(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Application { name: "const_app" };
         Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     }
-    machine wrong(builder: @mutable Build) {
-        Build::application(builder, "other_app");
+    machine wrong(builder: @mutable BuildPlan) {
+        builder.product = BuildProduct::Application { name: "other_app" };
     }
 }
 "#,

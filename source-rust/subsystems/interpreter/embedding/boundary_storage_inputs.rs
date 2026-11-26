@@ -2401,6 +2401,7 @@ pub(crate) struct StructuralLoanBinding {
 }
 
 struct OwnedPayloadSnapshot {
+    _byte_lease: Option<evaluation_accounting::EvaluationStorageLease>,
     identity: Arc<()>,
     argument_index: usize,
     structural_type: semantic_vocabulary::StructuralTypeId,
@@ -2499,6 +2500,57 @@ fn capture_byte_view_elements(
     ))
 }
 
+/// Preserve immutable view contents while the host owns an aggregate argument.
+fn capture_owned_byte_views(
+    execution: &TerminalExecution,
+    leaves: &[contents::StorageLeaf],
+    values: &mut Vec<TerminalBoundaryStorageValue>,
+) -> Result<Option<evaluation_accounting::EvaluationStorageLease>, TerminalInterpretError> {
+    use contents::StorageLeafKind;
+    let mut lease = None;
+    for leaf in leaves {
+        let readable = match &leaf.kind {
+            StorageLeafKind::ByteField { declaration, .. } => declaration
+                .byte_sequence_carrier()
+                .is_some_and(|carrier| carrier.is_shared_readable_view()),
+            StorageLeafKind::Opaque { declaration, .. } => execution
+                .structural_declaration(*declaration)?
+                .shape
+                .is_shared_readable_byte_view(),
+            _ => false,
+        };
+        if !readable {
+            continue;
+        }
+        let view = leaf.read_byte_view(execution, &leaf.path, None)?;
+        if let Some(account) = &execution.account {
+            let size = u64::try_from(view.len()).map_err(|_| malformed())?;
+            match &mut lease {
+                Some(lease) => evaluation_accounting::EvaluationStorageLease::grow(lease, 0, size),
+                None => account
+                    .reserve_storage(0, size)
+                    .map(|reserved| lease = Some(reserved)),
+            }
+            .map_err(TerminalInterpretError::Storage)?;
+        }
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(view.len()).map_err(|error| {
+            TerminalInterpretError::StorageAllocationFailed {
+                requested_bytes: view.len(),
+                reason: error.to_string(),
+            }
+        })?;
+        bytes.resize(view.len(), 0);
+        view.copy_to(&mut bytes)?;
+        values.push(TerminalBoundaryStorageValue {
+            path: leaf.path.clone(),
+            contents: crate::TerminalStorageContents::Bytes(bytes.into()),
+        });
+    }
+    values.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(lease)
+}
+
 impl BoundaryStorageInputs {
     pub(crate) fn is_empty(&self) -> bool {
         self.buffers.is_empty()
@@ -2548,7 +2600,7 @@ impl BoundaryStorageInputs {
                 return Err(malformed());
             }
             let leaves = contents::describe(execution, referent, parameter.access, None)?.leaves;
-            let (values, _) = contents::capture(
+            let (mut values, _) = contents::capture(
                 execution,
                 argument.place,
                 referent,
@@ -2559,6 +2611,7 @@ impl BoundaryStorageInputs {
                 &[],
                 None,
             )?;
+            let byte_lease = capture_owned_byte_views(execution, &leaves, &mut values)?;
             let identity = Arc::new(());
             self.buffers.push(TerminalBoundaryStorageBuffer::Structural(
                 TerminalBoundaryStructuralBuffer {
@@ -2572,6 +2625,7 @@ impl BoundaryStorageInputs {
                 },
             ));
             self.owned.push(OwnedPayloadSnapshot {
+                _byte_lease: byte_lease,
                 identity,
                 argument_index,
                 structural_type: referent.structural_type,

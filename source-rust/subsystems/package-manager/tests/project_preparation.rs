@@ -31,21 +31,26 @@ fn workspace_members_resolve_sibling_dependencies_from_the_catalog_capture() {
     write_package(
         &consumer,
         r#"use {omega}/build/dependency.omg;
-machine build(b: @mutable Build) {
-    Build::package(b, "consumer");
+machine build(b: @mutable BuildPlan) {
+    b.product = BuildProduct::Package { name: "consumer" };
     _ = Build::dependency(b, |dependency|::from_source(Source::Path { location: "../provider" }));
 }"#,
         "public machine consume() {}",
     );
     write_package(
         &provider,
-        r#"machine build(b: @mutable Build) { Build::package(b, "original"); }"#,
+        r#"machine build(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: "original" }; }"#,
         "public machine serve() {}",
     );
     let entry = catalog.join("build.omg");
     fs::write(
         &entry,
-        r#"machine build(b: @mutable Build) { Build::member(b, "consumer"); Build::member(b, "provider"); }"#,
+        r#"use {omega}/build/workspace.omg;
+machine build(b: @mutable BuildPlan) {
+    let consumer: WorkspaceMembers = |workspace|::with_member(b, WorkspaceMembers {}, "consumer");
+    let members: WorkspaceMembers = |workspace|::with_member(b, consumer, "provider");
+    b.product = BuildProduct::Workspace { members: members };
+}"#,
     )
     .unwrap();
     let targets = [TargetProfile::LinuxX64];
@@ -92,8 +97,8 @@ fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_ta
         &client,
         r#"use {omega}/build/dependency.omg;
 use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "client");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "client" };
     let product_dep: DependencyDescription = |dependency|::from_source(Source::Path { location: "library" });
     _ = Build::dependency(builder, product_dep);
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
@@ -107,12 +112,12 @@ machine build(builder: @mutable Build) {
     write_package(
         &library,
         r#"use selected.omg as selection;
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     transition |selection|::original() {
         true -> shared(builder), false -> alternate(builder),
     }
-    machine shared(builder: @mutable Build) { Build::package(builder, "shared"); }
-    machine alternate(builder: @mutable Build) { Build::package(builder, "alternate"); }
+    machine shared(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "shared" }; }
+    machine alternate(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "alternate" }; }
 }"#,
         "public machine helper() {}",
     );
@@ -123,6 +128,7 @@ machine build(builder: @mutable Build) {
         TargetProfile::LinuxArm64
     };
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("host_lib").unwrap(),
         source: BuildDependencySource::Path("library".into()),
     }];
@@ -182,8 +188,8 @@ fn the_invoker_cannot_supply_two_backing_packages_under_one_alias() {
         &client,
         r#"use {omega}/language/core/program_image.omg as image;
 use {backing}/main.omg as backing;
-machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "client");
+machine build(builder: @mutable BuildPlan) suspends {
+    builder.product = BuildProduct::Application { name: "client" };
     suspend Build::await_provider::<|image|::ProgramImage, |backing|::TestImage>(builder);
 }"#,
         "machine main() {}",
@@ -191,13 +197,14 @@ machine build(builder: @mutable Build) suspends {
     let libraries = ["one", "two"].map(|directory| {
         write_package(
             &client.join(directory),
-            &format!("machine build(builder: @mutable Build) {{ Build::package(builder, \"{directory}\"); }}"),
+            &format!("machine build(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Package {{ name: \"{directory}\" }}; }}"),
             r#"use {omega}/language/core/program_image.omg as image;
 public TestImage satisfies |image|::ProgramImage {
-    machine retained_suffix_start() -> addr { 64 }
+    machine retained_suffix_start() -> address { 64 }
 }"#,
         );
         BuildLibraryRequest {
+            max_reach: Default::default(),
             alias: ProjectName::parse("backing").unwrap(),
             source: BuildDependencySource::Path(directory.into()),
         }
@@ -274,8 +281,8 @@ fn a_dependency_recheck_can_finish_after_the_consuming_product_opens() {
         &client,
         r#"use {omega}/build/dependency.omg;
 use main.omg as app;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "client");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "client" };
     _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "library" }));
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
@@ -288,12 +295,12 @@ machine build(builder: @mutable Build) {
     write_package(
         &library,
         r#"use selected.omg as selection;
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     transition |selection|::original() {
         true -> shared(builder), false -> alternate(builder),
     }
-    machine shared(builder: @mutable Build) { Build::package(builder, "shared"); }
-    machine alternate(builder: @mutable Build) { Build::package(builder, "alternate"); }
+    machine shared(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "shared" }; }
+    machine alternate(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "alternate" }; }
 }"#,
         "public machine helper() {}",
     );
@@ -370,8 +377,8 @@ fn root_recheck_finishes_after_its_own_product_opens(dependency: bool) {
         &client,
         &format!(
             r#"{import}use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "client");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "client" }};
     {registration}
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
@@ -383,7 +390,7 @@ machine build(builder: @mutable Build) {{
     );
     write_package(
         &client.join("library"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "shared"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "shared" }; }"#,
         "public machine helper() {}",
     );
     let target = TargetProfile::host_if_supported().unwrap();
@@ -428,12 +435,13 @@ fn supplied_build_library_reach_depends_on_its_invoked_exports() {
     let client = temp.path().join("client");
     write_package(
         &client.join("helper"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "helper"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "helper" }; }"#,
         r#"public boundary trait AuditEffect {}
 public machine charged() reaches AuditEffect {}
 public machine free() {}"#,
     );
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("checking").unwrap(),
         source: BuildDependencySource::Path("helper".into()),
     }];
@@ -442,9 +450,9 @@ public machine free() {}"#,
             &client,
             &format!(
                 r#"use {{checking}}/main.omg as helper;
-machine build(builder: @mutable Build) {{
+machine build(builder: @mutable BuildPlan) {{
     |helper|::{export}();
-    Build::package(builder, "client");
+    builder.product = BuildProduct::Package {{ name: "client" }};
 }}"#
             ),
             "public machine main() {}",
@@ -486,21 +494,22 @@ fn dependency_input_forwards_the_frozen_alias_to_the_product() {
     write_package(
         &client,
         r#"use {omega}/build/dependency.omg as dep;
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     let input: PackageBinding = |dep|::input(builder, "layout");
     let empty: [BoundaryServiceReference; 0] = [];
     let registration: DependencyRegistration = |dep|::add(builder, input, @empty[..]);
-    Build::package(builder, "client");
+    builder.product = BuildProduct::Package { name: "client" };
 }"#,
         r#"use {layout}/main.omg as layout;
 public machine answer() -> i32 { |layout|::answer() }"#,
     );
     write_package(
         &client.join("supplier"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "board_layout"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "board_layout" }; }"#,
         "public machine answer() -> i32 { 42 }",
     );
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("layout").unwrap(),
         source: BuildDependencySource::Path("supplier".into()),
     }];
@@ -554,7 +563,7 @@ fn package_bindings_and_service_references_require_values_issued_by_the_build() 
             &root,
             &format!(
                 r#"use {{omega}}/build/dependency.omg as dep;
-machine build(builder: @mutable Build) {{ Build::package(builder, "project"); {operation} }}"#
+machine build(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Package {{ name: "project" }}; {operation} }}"#
             ),
             "public machine main() {}",
         );
@@ -586,7 +595,7 @@ fn authored_service_ceiling_uses_exact_applications_and_normalized_parents() {
     let root = temp.path().join("client");
     write_package(
         &root.join("library"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "library"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "library" }; }"#,
         r#"public boundary trait Telemetry {}
 public boundary trait Sensor<const Channel: u32>: Telemetry {}
 public machine free() {}"#,
@@ -595,8 +604,8 @@ public machine free() {}"#,
         &root,
         r#"use {omega}/build/dependency.omg as dep;
 use {policy}/main.omg as policy;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "client");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "client" };
     let app: BoundaryServiceReference = Build::service::<|policy|::Sensor<17u32>>(builder);
     let description: DependencyDescription = |dep|::from_source(Source::Path { location: "library" });
     let services: [BoundaryServiceReference; 2] = [app, app];
@@ -609,6 +618,7 @@ machine build(builder: @mutable Build) {
         ProjectInput::WithBuildLibraries {
             file: &root.join("build.omg"),
             libraries: &[BuildLibraryRequest {
+                max_reach: Default::default(),
                 alias: ProjectName::parse("policy").unwrap(),
                 source: BuildDependencySource::Path("library".into()),
             }],
@@ -637,7 +647,7 @@ fn forwarding_cannot_widen_an_incoming_empty_ceiling() {
     let root = temp.path().join("client");
     write_package(
         &root.join("library"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "library"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "library" }; }"#,
         "public boundary trait MotorControl {}
 public machine free() {}",
     );
@@ -645,8 +655,8 @@ public machine free() {}",
         &root,
         r#"use {omega}/build/dependency.omg as dep;
 use {helper}/main.omg as helper;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "client");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "client" };
     let app: BoundaryServiceReference = Build::service::<|helper|::MotorControl>(builder);
     let binding: PackageBinding = |dep|::input(builder,"helper");
     let services: [BoundaryServiceReference; 1] = [app];
@@ -655,6 +665,7 @@ machine build(builder: @mutable Build) {
         "public machine free() {}",
     );
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("helper").unwrap(),
         source: BuildDependencySource::Path("library".into()),
     }];
@@ -689,12 +700,13 @@ fn product_checks_the_invoked_export_and_exact_service_application_on_its_edge()
     let contract = target.program_entry_slot().source_contract();
     write_package(
         &root.join("library"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder,"library"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "library" }; }"#,
         r#"public boundary trait Sensor<const Channel: u32> {}
 public machine charged() reaches Sensor<17u32> {}
 public machine free() {}"#,
     );
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("policy").unwrap(),
         source: BuildDependencySource::Path("library".into()),
     }];
@@ -717,8 +729,8 @@ public machine free() {}"#,
                 r#"use {{omega}}/build/dependency.omg as dep;
 use {{policy}}/main.omg as policy;
 use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "client");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "client" }};
     let dependency: DependencyDescription = |dep|::from_source(Source::Path {{ location: "library" }});
     {registration}
     Build::bind(builder, {}\{}, |app|::entry);
@@ -770,7 +782,7 @@ fn repeated_imports_charge_the_selected_alias_at_direct_and_transitive_calls() {
     let contract = target.program_entry_slot().source_contract();
     write_package(
         &root.join("library"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "library"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "library" }; }"#,
         r#"public boundary trait Meter {}
 public machine charge() reaches Meter {}
 public machine relay() reaches Meter { charge(); }"#,
@@ -779,8 +791,8 @@ public machine relay() reaches Meter { charge(); }"#,
         r#"use {{omega}}/build/dependency.omg as dep;
 use {{policy}}/main.omg as policy;
 use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, "client");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: "client" }};
     let mutable limited: DependencyDescription = |dep|::from_source(Source::Path {{ location: "library" }});
     |dep|::with_alias(@mutable limited, "narrow");
     _ = |dep|::add(builder, limited);
@@ -793,6 +805,7 @@ machine build(builder: @mutable Build) {{
         contract.owner, contract.slot_name
     );
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("policy").unwrap(),
         source: BuildDependencySource::Path("library".into()),
     }];

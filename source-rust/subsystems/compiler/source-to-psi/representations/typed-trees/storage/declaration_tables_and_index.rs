@@ -3182,7 +3182,7 @@ pub(crate) mod machine_parameter_signatures {
             let templates = &self.templates;
             program.machines().iter().find_map(|machine| {
                 program
-                    .machine_parameter_signature_in_with_scope_parents(machine, symbol, |owner| {
+                    .machine_parameter_contract_in_with_scope_parents(machine, symbol, |owner| {
                         *parents.entry(owner).or_insert_with(|| {
                             let normalized = program.lifetime_declaration_owner_with_templates(
                                 owner,
@@ -3192,7 +3192,7 @@ pub(crate) mod machine_parameter_signatures {
                             program.declaration_scope_parent_for_lifetime_owner(normalized)
                         })
                     })
-                    .map(|signature| (machine, signature))
+                    .map(|contract| (machine, contract.signature()))
             })
         }
     }
@@ -3337,6 +3337,11 @@ pub(crate) mod machine_parameter_signatures {
             assert_eq!(queries.get(selected).unwrap().0.symbol, second);
             assert!(queries.get(selected).unwrap().1.blocks);
             assert_eq!(queries.scope_parents.len(), 1);
+            // The second machine carries its own applied header for Shared.
+            let scoped = program
+                .machine_parameter_contract_in(program.machine_by_symbol(second).unwrap(), shared)
+                .unwrap();
+            assert!(scoped.signature().blocks);
             drop(queries);
             let mut projection = program.clone();
             projection.roots.machines = arena::HandleSpan::empty();
@@ -4310,17 +4315,26 @@ pub(crate) mod trait_and_machine_tables {
             machine: &machine::Machine,
             symbol: SymbolHandle,
         ) -> Option<&signature::StateSignature> {
-            self.machine_parameter_signature_in_with_scope_parents(machine, symbol, |owner| {
+            self.machine_parameter_contract_in(machine, symbol)
+                .map(data::MachineParameterContractView::signature)
+        }
+
+        pub fn machine_parameter_contract_in(
+            &self,
+            machine: &machine::Machine,
+            symbol: SymbolHandle,
+        ) -> Option<data::MachineParameterContractView<'_>> {
+            self.machine_parameter_contract_in_with_scope_parents(machine, symbol, |owner| {
                 self.declaration_scope_parent(owner)
             })
         }
 
-        pub(crate) fn machine_parameter_signature_in_with_scope_parents<'program>(
+        pub(crate) fn machine_parameter_contract_in_with_scope_parents<'program>(
             &'program self,
             machine: &machine::Machine,
             symbol: SymbolHandle,
             mut scope_parent: impl FnMut(SymbolHandle) -> SymbolHandle,
-        ) -> Option<&'program signature::StateSignature> {
+        ) -> Option<data::MachineParameterContractView<'program>> {
             let mut parameters = self.machine_type_parameters(machine);
             let mut nearer_names = std::collections::BTreeSet::new();
             let mut enclosing = machine.symbol;
@@ -4334,9 +4348,9 @@ pub(crate) mod trait_and_machine_tables {
                         return None;
                     }
                     return match &parameter.kind {
-                        data::TypeParameterKind::Machine { contract } => self
-                            .machine_parameter_contract_view(contract)
-                            .map(data::MachineParameterContractView::signature),
+                        data::TypeParameterKind::Machine { contract } => {
+                            self.machine_parameter_contract_view(contract)
+                        }
                         _ => None,
                     };
                 }

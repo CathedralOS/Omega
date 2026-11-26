@@ -1,20 +1,19 @@
-use domain\complex;
-use domain\complex\Complex;
+use domain/complex/complex.omg;
 public data Problem {
     cells: i32; spacing: f64; timestep: f64; steps: i32;
-    potential: [f64; 32]; amplitude: [Complex; 32]; next: [Complex; 32];
-    matrix: [Complex; 1024]; right: [Complex; 32];
+    potential: [f64; 32]; amplitude: [|complex|::Complex; 32]; next: [|complex|::Complex; 32];
+    matrix: [|complex|::Complex; 1024]; right: [|complex|::Complex; 32];
 }
 // Storage guards are explicit and independent of the input dimensions.
-public machine element(problem: @Problem, row: i32, column: i32) -> Complex {
+public machine element(problem: @Problem, row: i32, column: i32) -> |complex|::Complex {
     let position: i32 in Wrapping = (row as +Wrapping) * 32 + (column as +Wrapping);
-    transition position >= 0 && position < 1024 { true -> read(problem, position as i32), false -> (Complex { real: 0.0, imaginary: 0.0 }) }
-    machine read(problem: @Problem, position: i32) -> Complex requires position >= 0 && position < 1024 { problem.matrix[position] }
+    transition position >= 0 && position < 1024 { true -> read(problem, position as i32), false -> (|complex|::Complex { real: 0.0, imaginary: 0.0 }) }
+    machine read(problem: @Problem, position: i32) -> |complex|::Complex requires position >= 0 && position < 1024 { problem.matrix[position] }
 }
-public machine store(problem: @mutable Problem, row: i32, column: i32, value: Complex) {
+public machine store(problem: @mutable Problem, row: i32, column: i32, value: |complex|::Complex) {
     let position: i32 in Wrapping = (row as +Wrapping) * 32 + (column as +Wrapping);
     transition position >= 0 && position < 1024 { true -> write(problem, position as i32, value), false -> done() }
-    machine write(problem: @mutable Problem, position: i32, value: Complex) requires position >= 0 && position < 1024 { problem.matrix[position] = value; }
+    machine write(problem: @mutable Problem, position: i32, value: |complex|::Complex) requires position >= 0 && position < 1024 { problem.matrix[position] = value; }
     machine done() {}
 }
 public machine hamiltonian(problem: @Problem, row: i32, column: i32) -> f64

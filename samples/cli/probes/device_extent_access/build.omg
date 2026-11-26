@@ -5,8 +5,8 @@
 // Terminal unit plans admit them, and native realization of the ten loan
 // crossings is still the toolchain's next edge.
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "device_extent_access");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "device_extent_access" };
     Build::accept_boundary::<DeviceLoanProvider>(builder);
     Build::select_representation::<DeviceLoan, DeviceLoanRepresentation>(builder);
     Build::select_representation::<DeviceOrderingEvent, DeviceOrderingEventRepresentation>(builder);

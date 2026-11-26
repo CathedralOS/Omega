@@ -33,6 +33,111 @@ translation grants and revocation receipts.
     reason = "extent failures deliberately return the conserved authority needed for retry"
 )]
 
+macro_rules! get_fields {
+    (copy &self; $($name:ident $(($field:ident))?: $ret:ty),* $(,)?) => {
+        $(get_fields!(@one_copy_ref $name $(($field))?: $ret);)*
+    };
+    (ref &self; $($name:ident $(($field:ident))?: $ret:ty),* $(,)?) => {
+        $(get_fields!(@one_ref $name $(($field))?: $ret);)*
+    };
+    (copy self; $($name:ident $(($field:ident))?: $ret:ty),* $(,)?) => {
+        $(get_fields!(@one_copy_val $name $(($field))?: $ret);)*
+    };
+    (@one_copy_ref $name:ident: $ret:ty) => {
+        pub const fn $name(&self) -> $ret { self.$name }
+    };
+    (@one_copy_ref $name:ident ($field:ident): $ret:ty) => {
+        pub const fn $name(&self) -> $ret { self.$field }
+    };
+    (@one_ref $name:ident: $ret:ty) => {
+        pub const fn $name(&self) -> &$ret { &self.$name }
+    };
+    (@one_ref $name:ident ($field:ident): $ret:ty) => {
+        pub const fn $name(&self) -> &$ret { &self.$field }
+    };
+    (@one_copy_val $name:ident: $ret:ty) => {
+        pub const fn $name(self) -> $ret { self.$name }
+    };
+    (@one_copy_val $name:ident ($field:ident): $ret:ty) => {
+        pub const fn $name(self) -> $ret { self.$field }
+    };
+}
+
+macro_rules! delegate_methods {
+    (const $vis:vis $($path:ident).+ { $($methods:tt)* }) => {
+        delegate_methods!(@munch const $vis ($($path).+) $($methods)*);
+    };
+    ($vis:vis $($path:ident).+ { $($methods:tt)* }) => {
+        delegate_methods!(@munch plain $vis ($($path).+) $($methods)*);
+    };
+    (@munch $kind:ident $vis:vis ($($path:ident).+)) => {};
+    (@munch $kind:ident $vis:vis ($($path:ident).+) $name:ident => $target:ident: $ret:ty $(, $($rest:tt)*)?) => {
+        delegate_methods!(@emit $kind $vis ($($path).+) $name $target $ret);
+        delegate_methods!(@munch $kind $vis ($($path).+) $($($rest)*)?);
+    };
+    (@munch $kind:ident $vis:vis ($($path:ident).+) $name:ident: $ret:ty $(, $($rest:tt)*)?) => {
+        delegate_methods!(@emit $kind $vis ($($path).+) $name $name $ret);
+        delegate_methods!(@munch $kind $vis ($($path).+) $($($rest)*)?);
+    };
+    (@emit const $vis:vis ($($path:ident).+) $name:ident $target:ident $ret:ty) => {
+        $vis const fn $name(&self) -> $ret { self.$($path).+.$target() }
+    };
+    (@emit plain $vis:vis ($($path:ident).+) $name:ident $target:ident $ret:ty) => {
+        $vis fn $name(&self) -> $ret { self.$($path).+.$target() }
+    };
+}
+
+macro_rules! conserved_error {
+    (
+        $(#[$meta:meta])*
+        pub struct $name:ident $(<$lt:lifetime>)? { $field:ident : $ty:ty $(,)? } => $into_fn:ident
+    ) => {
+        $(#[$meta])*
+        pub struct $name $(<$lt>)? {
+            $field: $ty,
+            diagnostic: crate::extent::diagnostic::ExtentDiagnostic,
+        }
+        impl $(<$lt>)? $name $(<$lt>)? {
+            pub const fn diagnostic(&self) -> &crate::extent::diagnostic::ExtentDiagnostic {
+                &self.diagnostic
+            }
+            pub fn $into_fn(self) -> $ty {
+                self.$field
+            }
+        }
+    };
+    (
+        $(#[$meta:meta])*
+        pub struct $name:ident $(<$lt:lifetime>)? {
+            $f1:ident : $t1:ty,
+            $f2:ident : $t2:ty $(,)?
+        } => $into_fn:ident
+    ) => {
+        $(#[$meta])*
+        pub struct $name $(<$lt>)? {
+            $f1: $t1,
+            $f2: $t2,
+            diagnostic: crate::extent::diagnostic::ExtentDiagnostic,
+        }
+        impl $(<$lt>)? $name $(<$lt>)? {
+            pub const fn diagnostic(&self) -> &crate::extent::diagnostic::ExtentDiagnostic {
+                &self.diagnostic
+            }
+            pub fn $into_fn(self) -> ($t1, $t2) {
+                (self.$f1, self.$f2)
+            }
+        }
+    };
+}
+
+macro_rules! first_mismatch {
+    ($($cond:expr => $msg:expr),* $(,)?) => {{
+        let mut mismatch = None;
+        $(if mismatch.is_none() && ($cond) { mismatch = Some($msg); })*
+        mismatch
+    }};
+}
+
 mod loans_and_claims;
 use loans_and_claims::{activation_claims, external_loans, ordering_events};
 mod extent;
@@ -44,14 +149,22 @@ mod loans {
         ExtentProgramLocalOrigin, ExtentProviderIssuance, ExtentRootOrigin,
     };
     use extent_contracts::{
-        AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
+        AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, LoanPolarity,
+        MappingEraId,
     };
-
-    use extent_contracts::LoanPolarity;
 
     enum LoanBacking<'a> {
         Shared(&'a Extent),
         Exclusive(&'a mut Extent),
+    }
+
+    impl LoanBacking<'_> {
+        const fn extent(&self) -> &Extent {
+            match self {
+                Self::Shared(extent) => extent,
+                Self::Exclusive(extent) => extent,
+            }
+        }
     }
 
     pub struct ExtentLoan<'a> {
@@ -87,13 +200,7 @@ mod loans {
             })
         }
 
-        pub const fn base(&self) -> u64 {
-            self.base
-        }
-
-        pub const fn length(&self) -> u64 {
-            self.length
-        }
+        get_fields!(copy &self; base: u64, length: u64);
 
         pub const fn polarity(&self) -> LoanPolarity {
             match self.backing {
@@ -103,38 +210,23 @@ mod loans {
         }
 
         pub const fn address_space(&self) -> AddressSpaceId {
-            match &self.backing {
-                LoanBacking::Shared(extent) => extent.address_space,
-                LoanBacking::Exclusive(extent) => extent.address_space,
-            }
+            self.backing.extent().address_space
         }
 
         pub const fn rights(&self) -> &ExtentRights {
-            match &self.backing {
-                LoanBacking::Shared(extent) => &extent.rights,
-                LoanBacking::Exclusive(extent) => &extent.rights,
-            }
+            &self.backing.extent().rights
         }
 
         pub const fn provenance(&self) -> ExtentProvenanceId {
-            match &self.backing {
-                LoanBacking::Shared(extent) => extent.provenance,
-                LoanBacking::Exclusive(extent) => extent.provenance,
-            }
+            self.backing.extent().provenance
         }
 
         pub const fn era(&self) -> MappingEraId {
-            match &self.backing {
-                LoanBacking::Shared(extent) => extent.era,
-                LoanBacking::Exclusive(extent) => extent.era,
-            }
+            self.backing.extent().era
         }
 
         pub const fn origin(&self) -> ExtentRootOrigin {
-            match &self.backing {
-                LoanBacking::Shared(extent) => extent.origin,
-                LoanBacking::Exclusive(extent) => extent.origin,
-            }
+            self.backing.extent().origin
         }
 
         pub const fn provider_issuance(&self) -> Option<ExtentProviderIssuance> {
@@ -146,10 +238,7 @@ mod loans {
         }
 
         pub const fn lineage_root(&self) -> ExtentLineageId {
-            match &self.backing {
-                LoanBacking::Shared(extent) => extent.lineage.root,
-                LoanBacking::Exclusive(extent) => extent.lineage.root,
-            }
+            self.backing.extent().lineage.root
         }
     }
 
@@ -225,49 +314,19 @@ mod roots {
         }
 
         impl ProviderExistingContentGrant {
-            pub const fn origin(&self) -> ExtentRootOrigin {
-                self.origin
-            }
-
-            pub const fn lineage_root(&self) -> ExtentLineageId {
-                self.lineage_root
-            }
-
-            pub const fn base(&self) -> u64 {
-                self.base
-            }
-
-            pub const fn length(&self) -> u64 {
-                self.length
-            }
-
-            pub const fn address_space(&self) -> AddressSpaceId {
-                self.address_space
-            }
-
-            pub const fn provenance(&self) -> ExtentProvenanceId {
-                self.provenance
-            }
-
-            pub const fn era(&self) -> MappingEraId {
-                self.era
-            }
-
-            pub const fn interpretation(&self) -> ExtentContentInterpretation {
-                self.interpretation
-            }
-
-            pub const fn resident_claim(&self) -> ResidentClaimId {
-                self.resident_claim
-            }
-
-            pub const fn validity_receipt(&self) -> ExtentContentValidityReceiptId {
-                self.validity_receipt
-            }
-
-            pub const fn custody_receipt(&self) -> ExtentContentCustodyReceiptId {
-                self.custody_receipt
-            }
+            get_fields!(copy &self;
+                origin: ExtentRootOrigin,
+                lineage_root: ExtentLineageId,
+                base: u64,
+                length: u64,
+                address_space: AddressSpaceId,
+                provenance: ExtentProvenanceId,
+                era: MappingEraId,
+                interpretation: ExtentContentInterpretation,
+                resident_claim: ResidentClaimId,
+                validity_receipt: ExtentContentValidityReceiptId,
+                custody_receipt: ExtentContentCustodyReceiptId,
+            );
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -282,16 +341,29 @@ mod roots {
                 Ok(Self { base, length })
             }
 
-            pub const fn base(self) -> u64 {
-                self.base
-            }
-
-            pub const fn length(self) -> u64 {
-                self.length
-            }
+            get_fields!(copy self; base: u64, length: u64);
         }
 
         impl ExtentRootGrant {
+            const fn new(
+                origin: ExtentRootOrigin,
+                lineage: ExtentLineageId,
+                address_space: AddressSpaceId,
+                rights: ExtentRights,
+                provenance: ExtentProvenanceId,
+                era: MappingEraId,
+            ) -> Self {
+                Self {
+                    origin,
+                    lineage,
+                    address_space,
+                    rights,
+                    provenance,
+                    era,
+                    sharing: ExtentSharingMode::Exclusive,
+                }
+            }
+
             pub const fn from_admitted_provider(
                 provider_issuance: ExtentProviderIssuance,
                 lineage: ExtentLineageId,
@@ -300,15 +372,14 @@ mod roots {
                 provenance: ExtentProvenanceId,
                 era: MappingEraId,
             ) -> Self {
-                Self {
-                    origin: ExtentRootOrigin::ProviderIssued(provider_issuance),
+                Self::new(
+                    ExtentRootOrigin::ProviderIssued(provider_issuance),
                     lineage,
                     address_space,
                     rights,
                     provenance,
                     era,
-                    sharing: ExtentSharingMode::Exclusive,
-                }
+                )
             }
 
             pub const fn admitting_peer_shared_backing(mut self) -> Self {
@@ -325,36 +396,26 @@ mod roots {
                 provenance: ExtentProvenanceId,
                 era: MappingEraId,
             ) -> Self {
-                Self {
-                    origin: ExtentRootOrigin::ProgramLocal(origin),
+                Self::new(
+                    ExtentRootOrigin::ProgramLocal(origin),
                     lineage,
                     address_space,
                     rights,
                     provenance,
                     era,
-                    sharing: ExtentSharingMode::Exclusive,
-                }
+                )
             }
 
-            pub const fn origin(&self) -> ExtentRootOrigin {
-                self.origin
-            }
-
-            pub const fn lineage_root(&self) -> ExtentLineageId {
-                self.lineage
-            }
+            get_fields!(copy &self; origin: ExtentRootOrigin, lineage_root(lineage): ExtentLineageId);
 
             pub fn mint(self, base: u64, length: u64) -> Result<Extent, MintError> {
-                let geometry = match ValidatedExtentGeometry::check(base, length) {
-                    Ok(geometry) => geometry,
-                    Err(diagnostic) => {
-                        return Err(MintError {
-                            grant: self,
-                            diagnostic,
-                        });
-                    }
-                };
-                Ok(self.mint_validated(geometry))
+                match ValidatedExtentGeometry::check(base, length) {
+                    Ok(geometry) => Ok(self.mint_validated(geometry)),
+                    Err(diagnostic) => Err(MintError {
+                        grant: self,
+                        diagnostic,
+                    }),
+                }
             }
 
             pub fn mint_provider_existing_content(
@@ -428,37 +489,15 @@ mod roots {
             }
         }
 
-        #[derive(Debug, PartialEq, Eq)]
-        pub struct MintError {
-            grant: ExtentRootGrant,
-            diagnostic: ExtentDiagnostic,
-        }
+        conserved_error!(
+            #[derive(Debug, PartialEq, Eq)]
+            pub struct MintError { grant: ExtentRootGrant } => into_grant
+        );
 
-        #[derive(Debug, PartialEq, Eq)]
-        pub struct ExistingContentMintError {
-            grant: ExtentRootGrant,
-            diagnostic: ExtentDiagnostic,
-        }
-
-        impl ExistingContentMintError {
-            pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-                &self.diagnostic
-            }
-
-            pub fn into_grant(self) -> ExtentRootGrant {
-                self.grant
-            }
-        }
-
-        impl MintError {
-            pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-                &self.diagnostic
-            }
-
-            pub fn into_grant(self) -> ExtentRootGrant {
-                self.grant
-            }
-        }
+        conserved_error!(
+            #[derive(Debug, PartialEq, Eq)]
+            pub struct ExistingContentMintError { grant: ExtentRootGrant } => into_grant
+        );
     }
 
     pub(crate) mod root_origins {
@@ -509,25 +548,13 @@ mod roots {
                 }
             }
 
-            pub const fn provider_plan(self) -> ExtentProviderPlanId {
-                self.provider_plan
-            }
-
-            pub const fn invocation(self) -> ExtentProviderInvocationId {
-                self.invocation
-            }
-
-            pub const fn establishment_route(self) -> ExtentEstablishmentRouteId {
-                self.establishment_route
-            }
-
-            pub const fn capacity(self) -> ExtentCapacityId {
-                self.capacity
-            }
-
-            pub const fn qualification(self) -> ExtentQualificationId {
-                self.qualification
-            }
+            get_fields!(copy self;
+                provider_plan: ExtentProviderPlanId,
+                invocation: ExtentProviderInvocationId,
+                establishment_route: ExtentEstablishmentRouteId,
+                capacity: ExtentCapacityId,
+                qualification: ExtentQualificationId,
+            );
         }
 
         impl ExtentProviderIssuance {
@@ -593,41 +620,17 @@ mod roots {
                 }
             }
 
-            pub const fn issuance(self) -> ExtentIssuanceId {
-                self.issuance
-            }
-
-            pub const fn backing(self) -> ExtentBackingId {
-                self.backing
-            }
-
-            pub const fn provider(self) -> ExtentProviderId {
-                self.provider
-            }
-
-            pub const fn live_issuance_premise(self) -> ExtentLiveIssuancePremiseId {
-                self.live_issuance_premise
-            }
-
-            pub const fn custody_root(self) -> ExtentCustodyRootId {
-                self.custody_root
-            }
-
-            pub const fn alias_class(self) -> ExtentAliasClassId {
-                self.alias_class
-            }
-
-            pub const fn correspondence(self) -> ExtentProviderCorrespondenceId {
-                self.correspondence
-            }
-
-            pub const fn trust_provenance(self) -> ExtentTrustProvenanceId {
-                self.trust_provenance
-            }
-
-            pub const fn invocation(self) -> ExtentProviderInvocation {
-                self.invocation
-            }
+            get_fields!(copy self;
+                issuance: ExtentIssuanceId,
+                backing: ExtentBackingId,
+                provider: ExtentProviderId,
+                live_issuance_premise: ExtentLiveIssuancePremiseId,
+                custody_root: ExtentCustodyRootId,
+                alias_class: ExtentAliasClassId,
+                correspondence: ExtentProviderCorrespondenceId,
+                trust_provenance: ExtentTrustProvenanceId,
+                invocation: ExtentProviderInvocation,
+            );
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -680,37 +683,16 @@ mod roots {
                 })
             }
 
-            pub const fn installed_code(self) -> u64 {
-                self.installed_code
-            }
-
-            pub const fn external_root(self) -> u64 {
-                self.external_root
-            }
-
-            pub const fn root_slot(self) -> u64 {
-                self.root_slot
-            }
-
-            pub const fn schema_report_fingerprint(self) -> u64 {
-                self.schema_report_fingerprint
-            }
-
-            pub const fn lifecycle_ledger(self) -> u64 {
-                self.lifecycle_ledger
-            }
-
-            pub const fn lifecycle_epoch(self) -> u64 {
-                self.lifecycle_epoch
-            }
-
-            pub const fn entry_invocation(self) -> u64 {
-                self.entry_invocation
-            }
-
-            pub const fn subject_place(self) -> u64 {
-                self.subject_place
-            }
+            get_fields!(copy self;
+                installed_code: u64,
+                external_root: u64,
+                root_slot: u64,
+                schema_report_fingerprint: u64,
+                lifecycle_ledger: u64,
+                lifecycle_epoch: u64,
+                entry_invocation: u64,
+                subject_place: u64,
+            );
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

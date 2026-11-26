@@ -117,6 +117,7 @@ dependencies = [
  "language-core",
  "layout",
  "layout-plans",
+ "native-binding-admission",
  "native-execution-scope",
  "native-intrinsics",
  "native-scalar-inputs",
@@ -297,6 +298,7 @@ dependencies = [
  "diagnostics",
  "evaluation-contracts",
  "evaluation-receipts",
+ "language-core",
  "normalized-build-settings",
  "optimization-requests",
  "package-compilation",
@@ -332,6 +334,7 @@ dependencies = [
  "evaluation-receipts",
  "evaluation-work",
  "filesystem-authority",
+ "language-core",
  "normalized-build-settings",
  "optimization-requests",
  "package-compilation",
@@ -738,6 +741,7 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "language-core",
+ "native-binding-admission",
  "native-execution-reach",
  "native-intrinsics",
  "provider-plans",
@@ -857,6 +861,7 @@ dependencies = [
 name = "evaluation-receipts"
 version = "0.1.0"
 dependencies = [
+ "evaluation-accounting",
  "evaluation-contracts",
  "psi-program-identity",
  "record-storage",
@@ -1023,6 +1028,8 @@ dependencies = [
  "machine-code",
  "object-file",
  "target",
+ "target-aarch64",
+ "target-x86_64",
  "wire",
 ]
 
@@ -1296,6 +1303,7 @@ name = "language-core"
 version = "0.1.0"
 dependencies = [
  "record-storage",
+ "source-provenance",
 ]
 
 [[package]]
@@ -1729,7 +1737,9 @@ dependencies = [
  "libc",
  "native-compiler",
  "native-provider-sponsor",
+ "platform-custody",
  "runtime-abi",
+ "rustix-linux-procfs",
  "sha2",
  "target",
  "windows-sys 0.61.2",
@@ -2035,6 +2045,7 @@ dependencies = [
  "build-consent",
  "build-declarations",
  "build-output",
+ "build-program-launch",
  "build-time-values",
  "cap-fs-ext",
  "cap-primitives",
@@ -2445,7 +2456,6 @@ dependencies = [
  "boundary-applications",
  "calling-conventions",
  "diagnostics",
- "direct-boundary-bindings",
  "function-identity",
  "graphs",
  "language-core",

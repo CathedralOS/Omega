@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "boundary_zero_origin_call_result");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "boundary_zero_origin_call_result" };
     Build::select_provider::<Io, Actual>(builder, linux_arm64);
     Build::select_provider::<Io, Actual>(builder, linux_x86_64);
     Build::select_provider::<Io, Actual>(builder, macos_arm64);

@@ -2,7 +2,9 @@
 
 This owner defines language-level leaf contracts and their laws. It has no
 source-program graph, target compiler, interpreter, Build execution or host I/O
-dependency. Its only crate dependency is record encoding. Retained evaluated constants live with
+dependency. Its only runtime crate dependency is record encoding. At compiler build time it uses
+source provenance to calculate the seven bundled core file revisions that saved Psi
+can authenticate without access to the source tree. Retained evaluated constants live with
 [exact literal records](../numeric-literals/).
 
 | Export group | Responsibility |

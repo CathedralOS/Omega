@@ -15,8 +15,8 @@ Controls:
   directory entirely) is pinned in `build_dep_graph`.
 - `invalid_member_in_dep` registers a workspace as a dependency.
   The workspace declaration supplies no Product source owner.
-- `invalid_use_fallback` has no `ghost` dependency edge. The checked
-  package rejects `use ghost::main` at the authored import.
+- `invalid_use_fallback` has no `ghost` dependency edge. The entry selects a declaration from
+  `{ghost}/main.omg`, so checking requires that missing dependency.
 - `invalid_output_fail`: `BuildOutput::fail` surfaces the authored
   message verbatim as the diagnostic — "required output `out.bin` of
   `build` failed: deliberate failure probe".

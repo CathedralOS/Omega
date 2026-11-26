@@ -1,35 +1,26 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/fit/fit.omg;
+use domain/input/input.omg;
+use domain/model/model.omg;
+use domain/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Read supplied dose/replicate/control observations, fit and profile a 4PL.
 // Expected exit: 2.
 // Expected output contains: error=input:
-use system\Console;
-use domain\model;
-use domain\model\Observations;
-use domain\model\Fit;
-use domain\input;
-use domain\input\InputReader;
-use domain\input\read_input;
-use domain\fit;
-use domain\fit\bounds;
-use domain\fit\parameter;
-use domain\fit\fit_curve;
-use domain\report;
-use domain\report\report;
 
-data Main { reader: InputReader; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+data Main { reader: |input|::InputReader; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     main.reader.remaining = 4096; main.reader.exhausted = false;
-    let mutable observations: Observations;
-    let valid: bool = block read_input(@mutable main.reader, @mutable observations);
+    let mutable observations: |model|::Observations;
+    let valid: bool = block |input|::read_input(@mutable main.reader, @mutable observations);
     transition valid {
         true -> fit(main, @mutable observations),
         _ -> invalid(main)
     }
-    machine fit(main: @mutable Main, observations: @mutable Observations) {
-        let mutable result: Fit;
-        fit_curve(observations, @mutable result);
+    machine fit(main: @mutable Main, observations: @mutable |model|::Observations) {
+        let mutable result: |model|::Fit;
+        |fit|::fit_curve(observations, @mutable result);
         transition result.status {
             0 -> output(main, observations, @result),
             3 -> flat(main),
@@ -38,38 +29,38 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
             _ -> convergence(main)
         }
     }
-    machine output(main: @mutable Main, observations: @Observations, result: @Fit) {
-        report(observations, result);
-        ProcessExit::exit_process(0);
+    machine output(main: @mutable Main, observations: @|model|::Observations, result: @|model|::Fit) {
+        |report|::report(observations, result);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(main: @mutable Main) {
-        Console::write_line("error=input: invalid or duplicate observation; require 8..32 rows, at least five sample doses, valid direction/noise/roles and <=4096 bytes");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("error=input: invalid or duplicate observation; require 8..32 rows, at least five sample doses, valid direction/noise/roles and <=4096 bytes");
+        |process_exit|::ProcessExit::exit_process(2);
     }
     machine flat(main: @mutable Main) {
-        Console::write_line("converged=true"); Console::write_line("identifiable=false");
-        Console::write_line("error=flat: fitted amplitude must exceed five supplied noise standard deviations");
-        ProcessExit::exit_process(3);
+        |console|::Console::write_line("converged=true"); |console|::Console::write_line("identifiable=false");
+        |console|::Console::write_line("error=flat: fitted amplitude must exceed five supplied noise standard deviations");
+        |process_exit|::ProcessExit::exit_process(3);
     }
     machine unidentified(main: @mutable Main) {
-        Console::write_line("identifiable=false");
-        Console::write_line("error=unidentified: profile failed to close strictly within parameter bounds or nuisance minimization did not converge");
-        ProcessExit::exit_process(4);
+        |console|::Console::write_line("identifiable=false");
+        |console|::Console::write_line("error=unidentified: profile failed to close strictly within parameter bounds or nuisance minimization did not converge");
+        |process_exit|::ProcessExit::exit_process(4);
     }
     machine direction(main: @mutable Main) {
-        Console::write_line("converged=true"); Console::write_line("identifiable=false");
-        Console::write_line("error=direction: fitted response contradicts requested activation or inhibition");
-        ProcessExit::exit_process(5);
+        |console|::Console::write_line("converged=true"); |console|::Console::write_line("identifiable=false");
+        |console|::Console::write_line("error=direction: fitted response contradicts requested activation or inhibition");
+        |process_exit|::ProcessExit::exit_process(5);
     }
     machine convergence(main: @mutable Main) {
-        Console::write_line("converged=false"); Console::write_line("identifiable=false");
-        Console::write_line("error=convergence: bounded numerical search exhausted its iteration limit");
-        ProcessExit::exit_process(6);
+        |console|::Console::write_line("converged=false"); |console|::Console::write_line("identifiable=false");
+        |console|::Console::write_line("error=convergence: bounded numerical search exhausted its iteration limit");
+        |process_exit|::ProcessExit::exit_process(6);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

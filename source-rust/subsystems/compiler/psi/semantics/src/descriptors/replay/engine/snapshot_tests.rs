@@ -1072,7 +1072,7 @@ fn absent_normal_body_observations_preserve_continuations_and_forget_results() {
         assert!(!public_summary.result.is_unobserved());
         assert!(matches!(
             public_summary.effects,
-            EffectObservations::Unobserved(_)
+            EffectObservations::Incomplete { .. }
         ));
         let DescriptorInvocationTarget::Public {
             effects_machine,
@@ -1090,7 +1090,7 @@ fn absent_normal_body_observations_preserve_continuations_and_forget_results() {
             usize::from(mutable_slot)
         );
         assert!(!joined.result.is_unobserved());
-        assert!(matches!(joined.effects, EffectObservations::Unobserved(_)));
+        assert!(matches!(joined.effects, EffectObservations::Incomplete { .. }));
         if mutable_slot {
             assert!(
                 matches!(&joined.result.slots().unwrap()[0].origins[0], DescriptorStoredOrigin::IncomingSlot { position: 0, path } if path.is_empty())
@@ -2403,6 +2403,74 @@ fn an_indexed_reference_arrival_keeps_address_and_contents_separate() {
             Some(StorageResolution::Projected(held)) if held == address
         ));
     }
+}
+
+#[test]
+fn an_opaque_arrival_keeps_its_input_loan_observations() {
+    use crate::descriptors::descriptor_lifetimes::{
+        DescriptorFlowBinding, DescriptorFlowEdge, DescriptorFlowSource, DescriptorFlowStep,
+    };
+    let parameter = location(1);
+    let arrival = location(2);
+    let ty = StructuralTypeId::new(1).unwrap();
+    let types = [StructuralTypeDeclaration {
+        shape: StructuralTypeShape::TypeParameter,
+        ..scalar_type(1)
+    }];
+    let access = StructuralAccess::MutableBorrow;
+    let mut machine = bare_machine(
+        MachineId::new(1).unwrap(),
+        vec![
+            DescriptorPlace {
+                producer: None,
+                place: parameter.root,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    structural_type: ty,
+                    access,
+                },
+            },
+            DescriptorPlace {
+                producer: None,
+                place: arrival.root,
+                definition: DescriptorDefinition::Arrival { access },
+            },
+        ],
+        BTreeMap::from([(parameter.root, ty), (arrival.root, ty)]),
+        BTreeSet::new(),
+    );
+    let target = (semantic_vocabulary::BlockId::new(2).unwrap(), 0);
+    machine.flow.insert(machine.entry, DescriptorFlowStep {
+        successors: vec![DescriptorFlowEdge {
+            edge: None,
+            effects: Vec::new(),
+            definitions: Vec::new(),
+            target,
+            parameters: vec![arrival.clone()],
+            bindings: vec![DescriptorFlowBinding::new(
+                parameter.clone(), arrival.clone(), access, access
+            ).unwrap()],
+        }],
+        ..Default::default()
+    });
+    machine.flow.insert(target, DescriptorFlowStep::default());
+    let mut graph = [machine];
+    let mut replay = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::BorrowedStorage);
+    let states = replay.states(graph[0].id, 0).expect("the generic header accepts this borrow");
+    let packet = |mut place: DescriptorLocation| {
+        place.path.push(DescriptorPathSegment::UnknownContents);
+        place
+    };
+    assert_eq!(
+        replay.read(&graph[0], &states[&target], &packet(arrival)),
+        Some(BTreeSet::from([Origin::Incoming(packet(parameter.clone()))])),
+    );
+
+    let entry = graph[0].entry;
+    graph[0].flow.get_mut(&entry).unwrap().successors[0].bindings[0].source =
+        DescriptorFlowSource::Unavailable(parameter.root);
+    let mut replay = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::BorrowedStorage);
+    assert!(replay.states(graph[0].id, 0).is_none());
 }
 
 #[test]

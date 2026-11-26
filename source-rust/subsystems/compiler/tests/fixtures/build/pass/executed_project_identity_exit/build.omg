@@ -1,19 +1,20 @@
+use main.omg as app;
 use {omega}/build/dependency.omg;
-use naming;
+use naming/naming.omg;
 
 machine build(builder: @mutable Build) {
-    transition naming\enabled() {
+    transition |naming|::enabled() {
         true -> declare_project(builder),
         false -> unselected(builder)
     }
 }
 
 machine declare_project(builder: @mutable Build) {
-    Build::application(builder, naming\project_name());
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::application(builder, |naming|::project_name());
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }
 
 machine unselected(builder: @mutable Build) {

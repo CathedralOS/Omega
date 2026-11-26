@@ -179,21 +179,8 @@ impl FiniteScalarValue {
 }
 
 fn canonical_application_identity(value: &CanonicalConstValue) -> String {
-    fn escape(component: &str) -> String {
-        let mut escaped = String::with_capacity(component.len());
-        for character in component.chars() {
-            if matches!(character, '\\' | '(' | ')' | ',') {
-                escaped.push('\\');
-            }
-            escaped.push(character);
-        }
-        escaped
-    }
-    format!(
-        "named(canonical-const(type({}),encoding({})))",
-        escape(&value.type_name),
-        escape(&value.encoding),
-    )
+    use crate::type_identity::{encoding::compound, vocabulary::TypeForm};
+    compound(TypeForm::Named, [value.canonical_const_compound()])
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, record_storage::Record)]
@@ -292,23 +279,27 @@ impl CanonicalConstValue {
     /// Keep scalar keys unchanged; aggregates use the existing raw index
     /// production rather than the named application-identity wrapper.
     pub fn index_identity(&self) -> Option<String> {
-        use crate::type_identity::{
-            encoding::{atom, compound},
-            vocabulary::{IndexForm, Label},
-        };
         if !self.is_canonical_static_value() {
             return None;
         }
         if let Some(identity) = self.scalar_index_identity() {
             return Some(identity);
         }
-        Some(compound(
+        Some(self.canonical_const_compound())
+    }
+
+    fn canonical_const_compound(&self) -> String {
+        use crate::type_identity::{
+            encoding::{atom, compound},
+            vocabulary::{IndexForm, Label},
+        };
+        compound(
             IndexForm::CanonicalConst,
             [
                 atom(Label::Type, &self.type_name),
                 atom(Label::Encoding, &self.encoding),
             ],
-        ))
+        )
     }
 
     pub fn scalar_index_identity(&self) -> Option<String> {

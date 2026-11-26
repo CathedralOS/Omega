@@ -1,9 +1,10 @@
+use main.omg as app;
 use {omega}/build/dependency.omg;
-use omega\language\core\ForeignBinding;
+use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable Build) {
     Build::application(builder, "established_foreign_view");
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../../../source/library/system" }));
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind_native::<Output::write>(builder, linux_x86_64, ForeignBinding::Syscall { number: 1 });
-    _ = builder.tests.group::<Tests::capture>();
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind_native::<Output::write>(builder, linux_x86_64, |native|::ForeignBinding::Syscall { number: 1 });
+    _ = builder.tests.group::<|app|::Tests::capture>();
 }

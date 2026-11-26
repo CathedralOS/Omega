@@ -517,7 +517,6 @@ pub mod internal {
         InstalledProvider {
             boundary: BoundaryMachineId,
             provider: Box<ProviderCandidateConformance>,
-            assumption: Option<target_vocabulary::InstalledAssumedBindingEvidence>,
             completion_claim_sources:
                 Vec<operation_evidence::completion_claims::CompletionClaimSource>,
             completion_receipts: Vec<CompletionReceipt>,

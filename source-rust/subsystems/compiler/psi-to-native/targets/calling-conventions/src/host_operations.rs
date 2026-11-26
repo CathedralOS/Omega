@@ -362,8 +362,16 @@ impl ExternalBindingRow {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FunctionFieldLocation {
+    pub selector: target::ForeignLocatorIdentityDigest,
+    pub formal: u32,
+    pub byte_offset: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExternalBindingKind {
+    FunctionField(FunctionFieldLocation),
     Syscall { number: i64 },
     Import { locator: NormalizedForeignLocator },
     CompilerIntrinsic { machine: String },

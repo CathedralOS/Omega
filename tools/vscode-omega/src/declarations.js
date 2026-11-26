@@ -303,43 +303,18 @@ function selectDeclarations(declarations, reference, fileStem) {
 //   `use {omega}/language/core/x.omg;`     -> { library: 'core', file: 'x.omg' }
 //   `use {system}/x.omg;`                  -> { dependency: 'system', file: 'x.omg' }
 //   `use {wav_output}/w/w.omg as output;`  -> { dependency: 'wav_output', file: 'w/w.omg' }
-//   `use omega\language\core\Extent;`      -> { library: 'core' }
-//   `use system\Console;`                  -> { module: 'system', dependency: 'system', inside: '' }
-//   `use actors\state\Mood;`               -> { module: 'actors/state', dependency: 'actors', inside: 'state' }
-// A `.omg` path is relative to the importing file's package, so the caller
-// tries each folder from the file's own up to the package root. `{name}` is a
-// dependency package that `build.omg` locates. A module path is either inside
-// this package or, when its first segment names a dependency, inside that
-// one. A path of module names imports one name, so it applies only when that
-// name (or the clicked name's qualifier) is one of its segments.
 function importTarget(use, reference) {
-  const path = use.path;
-  // A file imported without `as` is reached through its file name:
-  // `use a/syntax_trees.omg;` lets the file write `|syntax_trees|::Kind`.
-  const alias = use.alias || (/\.omg$/.test(path) ? path.slice(path.lastIndexOf('/') + 1, -4) : '');
-  if (reference.alias && alias !== reference.alias) return null;
-  if (/\.omg$/.test(path)) {
-    const braced = /^\{([^}]+)\}\/(.+)$/.exec(path);
-    if (!braced) return { file: path };
-    const [, dependency, file] = braced;
-    if (dependency === 'omega') {
-      const core = /^language\/core\/(.+)$/.exec(file);
-      if (core) return { library: 'core', file: core[1] };
-      if (file.startsWith('build/')) return { library: 'build', file: file.slice('build/'.length) };
-    }
-    return { dependency, file };
+  const match = /^(?:\{([A-Za-z_][A-Za-z_0-9-]*)\}\/)?((?:[A-Za-z_0-9-]+\/)*[A-Za-z_0-9-]+\.omg)$/.exec(use.path);
+  if (!match) return null;
+  const [, dependency, file] = match;
+  const alias = use.alias || file.slice(file.lastIndexOf('/') + 1, -4);
+  if (alias !== reference.alias) return null;
+  if (!dependency) return { file };
+  if (dependency === 'omega') {
+    if (file.startsWith('language/core/')) return { library: 'core', file: file.slice('language/core/'.length) };
+    if (file.startsWith('build/')) return { library: 'build', file: file.slice('build/'.length) };
   }
-  const segments = path.split(/\\|::/).filter(Boolean);
-  if (!reference.alias && !segments.includes(reference.name) && !(reference.qualifier && segments.includes(reference.qualifier))) {
-    return null;
-  }
-  if (segments[0] === 'omega' && segments[1] === 'language' && segments[2] === 'core') return { library: 'core' };
-  // An aliased path names a module (`use kit\main as k;`); otherwise its
-  // last segment is the imported name and the rest is the module.
-  const modulePath = path.split('::')[0].split('\\').filter(Boolean);
-  const module = reference.alias ? modulePath : modulePath.slice(0, -1);
-  if (module.length === 0) return null;
-  return { module: module.join('/'), dependency: module[0], inside: module.slice(1).join('/') };
+  return { dependency, file };
 }
 
 module.exports = {

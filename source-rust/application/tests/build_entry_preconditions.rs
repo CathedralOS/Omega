@@ -7,7 +7,7 @@ A machine's `requires` is owed by its caller. A Build entry has no caller in
 source: the build evaluator starts it. The evaluator hands the entry a Build
 it promises nothing about, so the only clauses it can owe are ones true of
 the evaluator itself. The one programs write is the address width they were
-written for, `requires addr::Bound == 18446744073709551616`.
+written for, `requires address::Bound == 18446744073709551616`.
 
 We stage a project whose entry states one clause and run `omega --check`. A
 clause that is true of the evaluator lets the Build run. A clause that is
@@ -54,14 +54,14 @@ fn check(name: &str, clause: &str) -> (bool, String) {
 
 #[test]
 fn a_build_entry_may_require_the_evaluators_address_width() {
-    let (compiled, stderr) = check("width", "addr::Bound == 18446744073709551616");
+    let (compiled, stderr) = check("width", "address::Bound == 18446744073709551616");
     assert!(compiled, "{stderr}");
 }
 
 #[test]
 fn a_build_entry_requirement_false_of_the_evaluator_stops_the_build() {
     for (name, clause) in [
-        ("narrow", "addr::Bound == 4294967296"),
+        ("narrow", "address::Bound == 4294967296"),
         ("false", "1u64 == 2u64"),
     ] {
         let (compiled, stderr) = check(name, clause);

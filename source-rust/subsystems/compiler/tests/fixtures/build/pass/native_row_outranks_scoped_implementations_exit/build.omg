@@ -1,13 +1,13 @@
-use omega\language\core\DllImport;
-use omega\language\core\ForeignBinding;
+use main.omg as app;
+use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable Build) {
  Build::application(builder, "native_row_outranks_scoped_implementations");
- Build::select_provider::<Distance, MacosDistance>(builder, macos_arm64);
- Build::select_provider::<Distance, LinuxArmDistance>(builder, linux_arm64);
- Build::bind_native::<Distance::absolute>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "msvcrt.dll", export: "abs" } });
- Build::bind_native::<Distance::absolute>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "abs", version: "GLIBC_2.2.5" } });
- Build::bind(builder, windows_x86_64::ProgramEntry, native_entry);
- Build::bind(builder, linux_x86_64::ProgramEntry, native_entry);
- Build::bind(builder, linux_arm64::ProgramEntry, linux_arm_entry);
- Build::bind(builder, macos_arm64::ProgramEntry, macos_entry);
+ Build::select_provider::<|app|::Distance, |app|::MacosDistance>(builder, macos_arm64);
+ Build::select_provider::<|app|::Distance, |app|::LinuxArmDistance>(builder, linux_arm64);
+ Build::bind_native::<Distance::absolute>(builder, windows_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: "msvcrt.dll", export: "abs" } });
+ Build::bind_native::<Distance::absolute>(builder, linux_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libc.so.6", symbol: "abs", version: "GLIBC_2.2.5" } });
+ Build::bind(builder, windows_x86_64::ProgramEntry, |app|::native_entry);
+ Build::bind(builder, linux_x86_64::ProgramEntry, |app|::native_entry);
+ Build::bind(builder, linux_arm64::ProgramEntry, |app|::linux_arm_entry);
+ Build::bind(builder, macos_arm64::ProgramEntry, |app|::macos_entry);
 }

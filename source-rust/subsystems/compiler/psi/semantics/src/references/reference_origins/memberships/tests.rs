@@ -90,7 +90,7 @@ fn unresolved_views_keep_loans_without_becoming_reference_authority() {
 }
 
 #[test]
-fn returning_an_indexed_generic_value_requires_read_access_to_its_array() {
+fn returning_an_indexed_generic_value_requires_read_access_to_its_backing() {
     use crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents;
     use crate::descriptor_results::{
         DescriptorContentsStep, DescriptorResultContents, DescriptorResultSlot,
@@ -133,14 +133,42 @@ fn returning_an_indexed_generic_value_requires_read_access_to_its_array() {
         unresolved_slots: Vec::new(),
         case_facts: Default::default(),
     };
-    let check = |input: &terminal_psi::StructuralParameterDeclaration| {
-        crate::reference_result_contents(&types, std::slice::from_ref(input), &result, &contents)
+    let check = |types: &[StructuralTypeDeclaration],
+                 input: &terminal_psi::StructuralParameterDeclaration| {
+        crate::reference_result_contents(types, std::slice::from_ref(input), &result, &contents)
     };
-    assert_eq!(check(&input), Ok(Vec::new()));
+    assert_eq!(check(&types, &input), Ok(Vec::new()));
     input.access = StructuralAccess::WriteOnlyBorrow;
-    assert_eq!(
-        check(&input),
-        Err("unknown contents were transferred without owned access")
+    let denied = Err("unknown contents were transferred without owned access");
+    assert_eq!(check(&types, &input), denied);
+
+    input.access = StructuralAccess::Owned;
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        types[1].shape = StructuralTypeShape::ElementView {
+            element,
+            access: Some(access),
+        };
+        assert_eq!(
+            check(&types, &input),
+            if access == StructuralAccess::WriteOnlyBorrow {
+                denied.clone()
+            } else {
+                Ok(Vec::new())
+            }
+        );
+    }
+    types[1].shape = StructuralTypeShape::ElementView {
+        element,
+        access: Some(StructuralAccess::SharedBorrow),
+    };
+    types[0].multiplicity = StructuralMultiplicity::Affine;
+    assert!(
+        check(&types, &input).is_err(),
+        "a shared element view cannot return an affine value by copy"
     );
 }
 

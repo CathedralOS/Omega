@@ -5,3 +5,14 @@ use {c}/generated.omg as c;
 machine entry() -> i64 {
     (|a|::a_value() as i64) + (|b|::b_value() as i64) + |c|::c_value() as i64
 }
+
+public machine main() crashes Trap {
+    transition entry() == 60i64 {
+        true -> done(),
+        false -> failed()
+    }
+}
+
+machine failed() { crash Trap; }
+
+machine done() {}

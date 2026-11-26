@@ -1,9 +1,8 @@
-// A library Token retains its declaring owner when it reaches library\read.
+// A library Token retains its declaring owner when it reaches |shared_library|::read.
 // Expected exit: 0
-use shared\library\Token;
-use shared\library\read;
-const TOKEN: Token = Token { value: 7 };
-machine transported() -> u8 { read(TOKEN) }
+use {shared}/library/library.omg as shared_library;
+const TOKEN: |shared_library|::Token = |shared_library|::Token { value: 7 };
+machine transported() -> u8 { |shared_library|::read(TOKEN) }
 machine main() crashes Trap {
     transition transported() == 7 { true -> done(), _ -> bad() }
     machine done() {}

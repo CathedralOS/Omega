@@ -165,30 +165,29 @@ fn mutual(right_requires: Vec<Proposition>) -> Vec<Machine> {
 
 #[test]
 fn what_a_caller_knows_about_an_argument_is_not_known_about_the_parameter() {
-    // `left` passes `n <= 9` to `right`, where `m + 4294967290` needs
-    // `m <= 5`. `right` states no `requires`, so its head has no invariant
-    // and the addition is unproved in both machines' graphs, though every
-    // arrival from `left` would make it safe.
-    for machine in [1, 2] {
-        let (elaboration, result) = run(mutual(Vec::new()));
-        let [(_, verdict)] = verdicts(&elaboration, &result, machine, safety)[..] else {
-            panic!("one partial operation");
-        };
-        assert_unproved(verdict);
-    }
-    // With `requires m <= 5` the addition is safe from the head's
-    // invariant, and the arrival from `left` cannot prove it from `n <= 9`.
+    // The receiver must prove its own addition for every admitted m.
+    let (elaboration, result) = run(mutual(Vec::new()));
+    assert!(verdicts(&elaboration, &result, 1, safety).is_empty());
+    let [(_, verdict)] = verdicts(&elaboration, &result, 2, safety)[..] else {
+        panic!("one addition in the loop");
+    };
+    assert_unproved(verdict);
+
+    // Its own requirement now proves the addition. Left's ordinary call and
+    // the corresponding transfer inside the loop must both establish m <= 5.
     let (elaboration, result) = run(mutual(vec![at_most(1, 5)]));
-    for machine in [1, 2] {
-        let [(_, Ok(_))] = verdicts(&elaboration, &result, machine, safety)[..] else {
-            panic!("the addition is discharged under the invariant");
-        };
-    }
-    let from_left: Vec<_> = verdicts(&elaboration, &result, 1, arrival);
-    assert!(
-        from_left.iter().any(|(_, verdict)| verdict.is_err()),
-        "the arrival at `right` from `left` is unproved"
-    );
+    assert!(matches!(
+        verdicts(&elaboration, &result, 2, safety)[..],
+        [(_, Ok(_))]
+    ));
+    assert!(matches!(
+        verdicts(&elaboration, &result, 1, requirement)[..],
+        [(_, Err(_))]
+    ));
+    // From right's own admissible entry, m > 100 cannot select left.
+    let arrivals = verdicts(&elaboration, &result, 2, arrival);
+    assert!(!arrivals.is_empty());
+    assert!(arrivals.iter().all(|(_, proof)| proof.is_ok()));
 }
 
 #[test]

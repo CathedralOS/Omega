@@ -8,14 +8,12 @@
 //! `(a + b) > a -> done()`, and must stay that one comparison rather than be
 //! read as a tuple pattern followed by stray tokens.
 
-use crate::frontend_fixture::Lexer;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode};
 use syntax_trees::item::Item;
 use syntax_trees::statement::{StatementNode, TransitionGuardNode};
 
 fn guards(source: &str) -> Vec<String> {
-    let tokens = Lexer::new(source).tokenize().expect("the source lexes");
-    let syntax = crate::parse_syntax_trees(&tokens).expect("the transition parses");
+    let syntax = crate::tests::parse_source(source);
     let Item::Machine(machine) = syntax.root_items().next().expect("one machine") else {
         panic!("a machine root");
     };
@@ -59,8 +57,7 @@ fn a_subjectless_guard_may_start_with_a_parenthesis() {
 #[test]
 fn a_parenthesized_list_in_a_subjectless_arm_is_still_a_refused_tuple() {
     let source = "machine main() {\n    transition { (a, b) -> done(), }\n    machine done() {}\n}";
-    let tokens = Lexer::new(source).tokenize().expect("the source lexes");
-    let error = crate::parse_syntax_trees(&tokens).expect_err("the tuple is refused");
+    let error = crate::tests::parse_error(source);
     assert!(
         error
             .message

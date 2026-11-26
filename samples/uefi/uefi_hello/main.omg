@@ -23,13 +23,13 @@
 //   * `utf16"..."` is the CHAR16 text UEFI expects.
 
 public boundary trait TextOutput {
-    machine output_string(this: addr, text: @[u16; 19]) reaches none crashes none;
+    machine output_string(this: address, text: @[u16; 19]) reaches none crashes none;
 }
 data EfiTextOutputProtocol {
-    reset: addr;
-    output_string: addr;
+    reset: address;
+    output_string: address;
 }
-uefi_x86_64 machine EfiTextOutputProtocol::text_output_leaf(this: addr, text: @[u16; 19]) satisfies TextOutput::output_string via ForeignBinding::VtableField(output_string);
+uefi_x86_64 machine EfiTextOutputProtocol::text_output_leaf(this: address, text: @[u16; 19]) satisfies TextOutput::output_string via ForeignBinding::VtableField(output_string);
 
 // The fields of the EFI System Table we care about; con_out lands at +64 under
 // the C layout (sequential placement with natural alignment).
@@ -39,13 +39,13 @@ public data EfiSystemTable {
     hdr_header_size: u32;
     hdr_crc: u32;
     hdr_reserved: u32;
-    firmware_vendor: addr;
+    firmware_vendor: address;
     firmware_revision: u32;
     fw_pad: u32;
-    console_in_handle: addr;
-    con_in: addr;
-    console_out_handle: addr;
-    con_out: addr;
+    console_in_handle: address;
+    con_in: address;
+    console_out_handle: address;
+    con_out: address;
 }
 
 public data Main {
@@ -53,13 +53,13 @@ public data Main {
     msg: [u16; 19];
 }
 
-boundary machine Main::run(main: @mutable Main, handle: addr, table: @EfiSystemTable) -> i32
+boundary machine Main::run(main: @mutable Main, handle: address, table: @EfiSystemTable) -> i32
 invokes TextOutput
 {
     main.msg = utf16"Hello from Omega\r\n\0";
     // Project con_out through a frame local (the reference-param deref), then
     // dispatch OutputString(con_out, @msg) through the firmware's vtable.
-    let con_out: addr = table.con_out;
+    let con_out: address = table.con_out;
     TextOutput::output_string(con_out, @main.msg);
     transition { _ -> (0) }
 }

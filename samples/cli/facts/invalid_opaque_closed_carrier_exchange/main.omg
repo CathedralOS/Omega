@@ -1,13 +1,13 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/representation.omg;
 // Expected exit: 0
 // Closed nested Inert carrier transport preserves libc host numbers 66051 and 513 and replacement 1027 while retaining the disjoint sibling.
 
-use omega\language\core\OpaqueRepresentation;
 public boundary data InternetAddress;
 public data AddressWord dropped by drop_address_word { address: u32; }
 machine drop_address_word(word: @mutable AddressWord) {}
 public data AddressCarrier<T> { payload: T; }
-public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
+public AddressRepresentation satisfies |representation|::OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
 
 public boundary trait AddressParts {
     machine make(network: u32, host: u32) -> InternetAddress reaches none crashes none;
@@ -47,17 +47,17 @@ machine observe_replacement() -> bool reaches AddressParts {
     old_host == 66051 && sibling_host == 513 && replacement_host == 1027
 }
 
-machine run_main(main: @mutable Main) reaches ProcessExit + AddressParts {
+machine run_main(main: @mutable Main) reaches |process_exit|::ProcessExit + AddressParts {
     transition observe() && observe_replacement() {
         true -> passed(main),
         _ -> failed(main)
     }
-    machine passed(main: @mutable Main) { ProcessExit::exit_process(0); }
-    machine failed(main: @mutable Main) { ProcessExit::exit_process(71); }
+    machine passed(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
+    machine failed(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(71); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + AddressParts {
+machine entry_start() reaches |process_exit|::ProcessExit + AddressParts {
     let mutable entry_storage: Main;
     run_main(@mutable entry_storage);
 }

@@ -15,7 +15,7 @@ use std::ffi::OsStr;
 
 use crate::error::{SourceResolveError, git_tree_invalid};
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::identity::GitObjectIdAlgorithm;
 
 use super::identity::{

@@ -1,4 +1,4 @@
-use input\sequence;
+use input/sequence/sequence.omg;
 
 // Private fixed-capacity score/trace arena. Row zero and column zero are ZII.
 // Scores and directions are a nested 17 by 17 matrix. Cell reads travel through
@@ -42,12 +42,12 @@ requires row >= 0 && row < 17, column >= 0 && column < 17
     grid[row][column]
 }
 
-public machine align(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+public machine align(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
     transition first.length > 0 && first.length <= 16 && second.length > 0 && second.length <= 16 {
         true -> initialize(first, second, result),
         false -> (false)
     }
-    machine initialize(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine initialize(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         result.score = 0;
         result.columns = 0;
         result.first_end = 0;
@@ -56,13 +56,13 @@ public machine align(first: @input\sequence\Sequence, second: @input\sequence\Se
         result.column = 1;
         transition { _ -> clear(first, second, result, 0) }
     }
-    machine clear(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, position: i32 in Wrapping) -> bool {
+    machine clear(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, position: i32 in Wrapping) -> bool {
         transition position >= 0 && position < 289 {
             true -> split(first, second, result, position),
             false -> cell(first, second, result)
         }
     }
-    machine split(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, position: i32 in Wrapping) -> bool {
+    machine split(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, position: i32 in Wrapping) -> bool {
         let row: i32 in Wrapping = position / 17;
         let column: i32 in Wrapping = position % 17;
         transition row >= 0 && row < 17 && column >= 0 && column < 17 {
@@ -70,31 +70,31 @@ public machine align(first: @input\sequence\Sequence, second: @input\sequence\Se
             false -> (false)
         }
     }
-    machine zero(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, position: i32 in Wrapping, row: i32 in Wrapping, column: i32 in Wrapping) -> bool
+    machine zero(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, position: i32 in Wrapping, row: i32 in Wrapping, column: i32 in Wrapping) -> bool
     requires row >= 0 && row < 17, column >= 0 && column < 17
     {
         result.scores[row][column] = 0;
         result.directions[row][column] = 0;
         transition { _ -> clear(first, second, result, position + 1) }
     }
-    machine cell(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine cell(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         transition result.row <= first.length {
             true -> column(first, second, result),
             false -> begin_trace(first, second, result)
         }
     }
-    machine column(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine column(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         transition result.column <= second.length {
             true -> positions(first, second, result),
             false -> next_row(first, second, result)
         }
     }
-    machine next_row(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine next_row(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         result.row = result.row + 1;
         result.column = 1;
         transition { _ -> cell(first, second, result) }
     }
-    machine positions(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine positions(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         let first_position: i32 in Wrapping = result.row - 1;
         let second_position: i32 in Wrapping = result.column - 1;
         transition result.row >= 1 && result.row <= 16 && result.column >= 1 && result.column <= 16 {
@@ -102,13 +102,13 @@ public machine align(first: @input\sequence\Sequence, second: @input\sequence\Se
             false -> (false)
         }
     }
-    machine bases(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, first_position: i32 in Wrapping, second_position: i32 in Wrapping) -> bool {
+    machine bases(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, first_position: i32 in Wrapping, second_position: i32 in Wrapping) -> bool {
         transition first_position >= 0 && first_position < 16 && second_position >= 0 && second_position < 16 {
             true -> read_bases(first, second, result, first_position, second_position),
             false -> (false)
         }
     }
-    machine read_bases(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, first_position: i32 in Wrapping, second_position: i32 in Wrapping) -> bool
+    machine read_bases(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, first_position: i32 in Wrapping, second_position: i32 in Wrapping) -> bool
     requires first_position >= 0 && first_position < 16, second_position >= 0 && second_position < 16
     {
         result.first_base = first.bases[first_position];
@@ -119,18 +119,18 @@ public machine align(first: @input\sequence\Sequence, second: @input\sequence\Se
             false -> compare(first, second, result)
         }
     }
-    machine ambiguous(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine ambiguous(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         result.substitution = 0 - 1;
         transition { _ -> bounds(first, second, result) }
     }
-    machine compare(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine compare(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         transition result.first_base == result.second_base { true -> match_base(first, second, result), false -> bounds(first, second, result) }
     }
-    machine match_base(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine match_base(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         result.substitution = 3;
         transition { _ -> bounds(first, second, result) }
     }
-    machine bounds(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine bounds(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         let diagonal_row: i32 in Wrapping = result.row - 1;
         let diagonal_column: i32 in Wrapping = result.column - 1;
         let up_column: i32 in Wrapping = result.column;
@@ -141,7 +141,7 @@ public machine align(first: @input\sequence\Sequence, second: @input\sequence\Se
             false -> (false)
         }
     }
-    machine score_cell(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, diagonal_row: i32 in Wrapping, diagonal_column: i32 in Wrapping, up_column: i32 in Wrapping, left_row: i32 in Wrapping, left_column: i32 in Wrapping) -> bool
+    machine score_cell(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, diagonal_row: i32 in Wrapping, diagonal_column: i32 in Wrapping, up_column: i32 in Wrapping, left_row: i32 in Wrapping, left_column: i32 in Wrapping) -> bool
     requires diagonal_row >= 0 && diagonal_row < 17, diagonal_column >= 0 && diagonal_column < 17, result.row >= 1 && result.row <= 16, up_column >= 0 && up_column < 17, left_row >= 0 && left_row < 17, left_column >= 0 && left_column < 17, result.column >= 1 && result.column <= 16
     {
         result.candidate = 0;
@@ -152,65 +152,65 @@ public machine align(first: @input\sequence\Sequence, second: @input\sequence\Se
         let left: i32 in Wrapping = (read_score(@result.scores, left_row, left_column) as i32 +Wrapping) - 2;
         transition { _ -> choose_diagonal(first, second, result, diagonal, up, left) }
     }
-    machine choose_diagonal(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, diagonal: i32 in Wrapping, up: i32 in Wrapping, left: i32 in Wrapping) -> bool {
+    machine choose_diagonal(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, diagonal: i32 in Wrapping, up: i32 in Wrapping, left: i32 in Wrapping) -> bool {
         transition diagonal > result.candidate { true -> set_diagonal(first, second, result, diagonal, up, left), false -> choose_up(first, second, result, up, left) }
     }
-    machine set_diagonal(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, diagonal: i32 in Wrapping, up: i32 in Wrapping, left: i32 in Wrapping) -> bool {
+    machine set_diagonal(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, diagonal: i32 in Wrapping, up: i32 in Wrapping, left: i32 in Wrapping) -> bool {
         result.candidate = diagonal;
         result.direction = 1;
         transition { _ -> choose_up(first, second, result, up, left) }
     }
-    machine choose_up(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, up: i32 in Wrapping, left: i32 in Wrapping) -> bool {
+    machine choose_up(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, up: i32 in Wrapping, left: i32 in Wrapping) -> bool {
         transition up > result.candidate { true -> set_up(first, second, result, up, left), false -> choose_left(first, second, result, left) }
     }
-    machine set_up(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, up: i32 in Wrapping, left: i32 in Wrapping) -> bool {
+    machine set_up(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, up: i32 in Wrapping, left: i32 in Wrapping) -> bool {
         result.candidate = up;
         result.direction = 2;
         transition { _ -> choose_left(first, second, result, left) }
     }
-    machine choose_left(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, left: i32 in Wrapping) -> bool {
+    machine choose_left(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, left: i32 in Wrapping) -> bool {
         transition left > result.candidate { true -> set_left(first, second, result, left), false -> store_guard(first, second, result) }
     }
-    machine set_left(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, left: i32 in Wrapping) -> bool {
+    machine set_left(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, left: i32 in Wrapping) -> bool {
         result.candidate = left;
         result.direction = 3;
         transition { _ -> store_guard(first, second, result) }
     }
-    machine store_guard(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine store_guard(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         transition result.row >= 1 && result.row <= 16 && result.column >= 1 && result.column <= 16 { true -> store(first, second, result), false -> (false) }
     }
-    machine store(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool
+    machine store(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool
     requires result.row >= 1 && result.row <= 16, result.column >= 1 && result.column <= 16
     {
         result.scores[result.row][result.column] = result.candidate as i32;
         result.directions[result.row][result.column] = result.direction;
         transition result.candidate > result.score { true -> maximum(first, second, result), false -> advance(first, second, result) }
     }
-    machine maximum(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine maximum(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         result.score = result.candidate;
         result.first_end = result.row;
         result.second_end = result.column;
         transition { _ -> advance(first, second, result) }
     }
-    machine advance(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine advance(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         result.column = result.column + 1;
         transition { _ -> cell(first, second, result) }
     }
-    machine begin_trace(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine begin_trace(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         result.row = result.first_end;
         result.column = result.second_end;
         transition { _ -> trace(first, second, result) }
     }
-    machine trace(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine trace(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         transition result.row >= 0 && result.row < 17 && result.column >= 0 && result.column < 17 { true -> trace_read(first, second, result), false -> (false) }
     }
-    machine trace_read(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool
+    machine trace_read(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool
     requires result.row >= 0 && result.row < 17, result.column >= 0 && result.column < 17
     {
         result.direction = read_direction(@result.directions, result.row, result.column);
         transition result.direction == 0 { true -> finish(result), false -> trace_bounds(first, second, result) }
     }
-    machine trace_bounds(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine trace_bounds(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         let first_position: i32 in Wrapping = result.row - 1;
         let second_position: i32 in Wrapping = result.column - 1;
         transition result.columns >= 0 && result.columns < 32 && result.row >= 1 && result.row <= 16 && result.column >= 1 && result.column <= 16 {
@@ -218,38 +218,38 @@ public machine align(first: @input\sequence\Sequence, second: @input\sequence\Se
             false -> (false)
         }
     }
-    machine trace_bases(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, first_position: i32 in Wrapping, second_position: i32 in Wrapping) -> bool {
+    machine trace_bases(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, first_position: i32 in Wrapping, second_position: i32 in Wrapping) -> bool {
         transition first_position >= 0 && first_position < 16 && second_position >= 0 && second_position < 16 {
             true -> trace_pair(first, second, result, first_position, second_position),
             false -> (false)
         }
     }
-    machine trace_pair(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment, first_position: i32 in Wrapping, second_position: i32 in Wrapping) -> bool
+    machine trace_pair(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment, first_position: i32 in Wrapping, second_position: i32 in Wrapping) -> bool
     requires first_position >= 0 && first_position < 16, second_position >= 0 && second_position < 16
     {
         result.first_base = first.bases[first_position];
         result.second_base = second.bases[second_position];
         transition result.direction { 1 -> diagonal_trace(first, second, result), 2 -> up_trace(first, second, result), 3 -> left_trace(first, second, result), _ -> (false) }
     }
-    machine diagonal_trace(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine diagonal_trace(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         result.row = result.row - 1;
         result.column = result.column - 1;
         transition { _ -> trace_store_guard(first, second, result) }
     }
-    machine up_trace(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine up_trace(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         result.row = result.row - 1;
         result.second_base = 45;
         transition { _ -> trace_store_guard(first, second, result) }
     }
-    machine left_trace(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine left_trace(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         result.column = result.column - 1;
         result.first_base = 45;
         transition { _ -> trace_store_guard(first, second, result) }
     }
-    machine trace_store_guard(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool {
+    machine trace_store_guard(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool {
         transition result.columns >= 0 && result.columns < 32 { true -> trace_store(first, second, result), false -> (false) }
     }
-    machine trace_store(first: @input\sequence\Sequence, second: @input\sequence\Sequence, result: @mutable Alignment) -> bool
+    machine trace_store(first: @|sequence|::Sequence, second: @|sequence|::Sequence, result: @mutable Alignment) -> bool
     requires result.columns >= 0 && result.columns < 32
     {
         result.first_trace[result.columns] = result.first_base;

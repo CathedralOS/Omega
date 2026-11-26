@@ -66,12 +66,12 @@ pub use runtime_provisions::{
 pub use physical::{NativePhysicalOriginals, PrivatePhysicalOriginal};
 
 pub(crate) use physical::{
-    BoundaryInternalCallCustody, BoundaryTraitSettlementParts, BoundaryTraitSettlementRole,
-    CompilerBuiltinResult, CompilerBuiltinScalarArgument, NativeByteSpan,
-    NativeCompilerBuiltinCatalogIdentity, NativeOptimizationProjection, NativePhysicalChild,
-    NativePhysicalChildParts, NativePhysicalEvidence, NativePhysicalOccurrence,
-    NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
-    OptimizedBoundaryOccurrence, PhysicalChildParent, PhysicalRelocationDisposition,
+    BoundaryInternalCallCustody, BoundaryTraitSettlementRole, CompilerBuiltinResult,
+    CompilerBuiltinScalarArgument, NativeByteSpan, NativeCompilerBuiltinCatalogIdentity,
+    NativeOptimizationProjection, NativePhysicalChild, NativePhysicalChildParts,
+    NativePhysicalEvidence, NativePhysicalOccurrence, NormalizedForeignCallbackRelocation,
+    NormalizedForeignCallbackRelocations, OptimizedBoundaryOccurrence, PhysicalChildParent,
+    PhysicalRelocationDisposition,
 };
 pub use publication::{
     DynamicElfPublicationReceipt, ExecutableContainerDigest, ExecutableInstallationEvidenceDigest,

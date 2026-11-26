@@ -1,33 +1,20 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/input/input.omg;
+use domain/model/model.omg;
+use domain/report/report.omg;
+use domain/solver/solver.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Synthetic survival analysis; empty stdin is refused.
 // Expected exit: 2.
 // Expected output contains: ERROR invalid input
-use domain\input;
-use domain\input\Reader;
-use domain\input\Number;
-use domain\input\number;
-use domain\input\ended;
-use domain\model;
-use domain\model\Records;
-use domain\model\Table;
-use domain\model\Logrank;
-use domain\solver;
-use domain\solver\analyze;
-use domain\report;
-use domain\report\integer;
-use domain\report\report;
-use domain\report\logrank_report;
-use system\Console;
-use omega\language\core\F64::from_i32;
-use omega\language\core\I32::from_f64;
 
-data Main { reader: Reader; records: Records; table: Table; logrank: Logrank; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
-    let count: Number = block number(@mutable main.reader);
-    let integer: i32 in Saturating = I32::from_f64(count.value);
-    transition count.valid && count.value >= 1.0 && count.value <= 32.0 && F64::from_i32(integer as i32) == count.value {
+data Main { reader: |input|::Reader; records: |model|::Records; table: |model|::Table; logrank: |model|::Logrank; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
+    let count: |input|::Number = block |input|::number(@mutable main.reader);
+    let integer: i32 in Saturating = |float_operations|::I32::from_f64(count.value);
+    transition count.valid && count.value >= 1.0 && count.value <= 32.0 && |float_operations|::F64::from_i32(integer as i32) == count.value {
         true -> block configure(main, integer as -Saturating +Wrapping),
         false -> invalid(main)
     }
@@ -44,9 +31,9 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine record(main: @mutable Main, index: i32 in Wrapping)
     requires index >= 0 && index < 32
     {
-        let time: Number = block number(@mutable main.reader);
-        let event: Number = block number(@mutable main.reader);
-        let group: Number = block number(@mutable main.reader);
+        let time: |input|::Number = block |input|::number(@mutable main.reader);
+        let event: |input|::Number = block |input|::number(@mutable main.reader);
+        let group: |input|::Number = block |input|::number(@mutable main.reader);
         transition time.valid && event.valid && group.valid && time.value >= 0.0 && (event.value == 0.0 || event.value == 1.0) && (group.value == 0.0 || group.value == 1.0) {
             true -> block store(main, index, time.value, event.value, group.value),
             false -> invalid(main)
@@ -56,30 +43,30 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     requires index >= 0 && index < 32
     {
         main.records.time[index] = time;
-        let event_integer: i32 in Saturating = I32::from_f64(event);
-        let group_integer: i32 in Saturating = I32::from_f64(group);
+        let event_integer: i32 in Saturating = |float_operations|::I32::from_f64(event);
+        let group_integer: i32 in Saturating = |float_operations|::I32::from_f64(group);
         main.records.event[index] = event_integer as i32;
         main.records.group[index] = group_integer as i32;
         transition { _ -> block read(main, index + 1) }
     }
     machine end(main: @mutable Main) {
-        let complete: bool = block ended(@mutable main.reader);
+        let complete: bool = block |input|::ended(@mutable main.reader);
         transition complete { true -> calculate(main, -1), false -> invalid(main) }
     }
     machine calculate(main: @mutable Main, group: i32 in Wrapping) {
-        analyze(@main.records, group, @mutable main.table, @mutable main.logrank);
-        report(@mutable main.reader, group, @main.table);
+        |solver|::analyze(@main.records, group, @mutable main.table, @mutable main.logrank);
+        |report|::report(@mutable main.reader, group, @main.table);
         transition group < 1 { true -> calculate(main, group + 1), false -> done(main) }
     }
     machine done(main: @mutable Main) {
-        logrank_report(@mutable main.reader, @main.logrank);
-        ProcessExit::exit_process(0);
+        |report|::logrank_report(@mutable main.reader, @main.logrank);
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine invalid(main: @mutable Main) { Console::write_line("ERROR invalid input"); ProcessExit::exit_process(2); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("ERROR invalid input"); |process_exit|::ProcessExit::exit_process(2); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

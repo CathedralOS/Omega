@@ -11,7 +11,6 @@
 */
 
 use abstract_operations::AbstractOperationPlan;
-use operation_evidence::provider_calls::InstalledAssumedBindingEvidence;
 use psi_target_layouts::TerminalTargetContext;
 use psi_scalar_applications::AdmittedScalarApplications;
 
@@ -69,7 +68,6 @@ pub struct VerifiedPsiOptimizationInput {
     selected_program_entry_call: Option<SelectedProgramEntryCall>,
     plan: AbstractOperationPlan,
     context: VerifiedPsiOptimizationContext,
-    admitted_assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
     admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
     admitted_installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
     target_context: Option<TerminalTargetContext>,
@@ -180,7 +178,6 @@ impl VerifiedPsiOptimizationInput {
                 provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi),
             plan,
             context: VerifiedPsiOptimizationContext { artifact },
-            admitted_assumed_bindings: Vec::new(),
             target_context,
             external_requirement_applications: Vec::new(),
             selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::default(
@@ -280,13 +277,6 @@ impl VerifiedPsiOptimizationInput {
         )
     }
 
-    pub fn retain_admitted_assumed_bindings(
-        &mut self,
-        calls: Vec<InstalledAssumedBindingEvidence>,
-    ) {
-        self.admitted_assumed_bindings = calls;
-    }
-
     pub fn retain_admitted_native_callbacks(
         &mut self,
         callbacks: provider_admission::AdmittedNativeCallbackCohort,
@@ -331,10 +321,6 @@ impl VerifiedPsiOptimizationInput {
     pub fn selected_program_entry_call(&self) -> Option<&SelectedProgramEntryCall> {
         self.selected_program_entry_call.as_ref()
     }
-    pub fn admitted_assumed_bindings(&self) -> &[InstalledAssumedBindingEvidence] {
-        &self.admitted_assumed_bindings
-    }
-
     pub fn into_optimized_body(
         self,
         program: optimization_unit::OptimizedAbstractProgram,
@@ -354,7 +340,6 @@ impl VerifiedPsiOptimizationInput {
             selected_provider_closure: self.selected_provider_closure,
             program_entry: self.selected_program_entry_call,
             artifact: self.context.artifact,
-            assumed_bindings: self.admitted_assumed_bindings,
             target_context: self.target_context,
             native_callbacks: self.admitted_native_callbacks,
             installed_interrupts: self.admitted_installed_interrupts,
@@ -417,7 +402,6 @@ pub struct AdmittedLoweringFacts {
     selected_provider_closure: Option<[u8; 32]>,
     artifact: psi_authorization::AuthorizedTerminalArtifact,
     program_entry: Option<SelectedProgramEntryCall>,
-    assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
     target_context: Option<TerminalTargetContext>,
     native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
     installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
@@ -538,10 +522,6 @@ impl AdmittedLoweringFacts {
 
     pub const fn program_entry(&self) -> Option<&SelectedProgramEntryCall> {
         self.program_entry.as_ref()
-    }
-
-    pub fn assumed_bindings(&self) -> &[InstalledAssumedBindingEvidence] {
-        &self.assumed_bindings
     }
 
     pub const fn target_context(&self) -> Option<&TerminalTargetContext> {

@@ -35,7 +35,7 @@ mod project;
 mod provider_installation;
 mod source_join;
 mod source_result;
-pub use source_join::BuildDependencySelection;
+pub use source_join::{BuildDependencySelection, DependencyBacking};
 pub use source_result::BuildSourceResult;
 
 use evaluation_accounting::EvaluationInvocationAccount;
@@ -56,7 +56,7 @@ use terminal_interpreter::{
 };
 
 use crate::host::bindings::TerminalBuildBindingHost;
-use crate::host::requests::{IssuedBuildRequest, TerminalBuildRequestHost};
+use crate::host::requests::{BuildValidationRequest, IssuedBuildRequest, TerminalBuildRequestHost};
 
 pub(crate) fn measurement() -> evaluation_contracts::EvaluationMeasurementIdentity {
     evaluation_contracts::EvaluationMeasurementIdentity::TerminalPsi {
@@ -85,20 +85,24 @@ pub(crate) struct OriginalBuildSources {
 }
 
 pub struct ReturnedBuild {
-    pub(crate) history: evaluation_receipts::BuildExecutionHistory,
+    pub(crate) preparations: evaluation_receipts::DependencyPreparations,
     pub(crate) helper_accounting:
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
     account: EvaluationInvocationAccount,
     original_sources: Option<Arc<OriginalBuildSources>>,
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
     destination: Option<project::Destination>,
+    pub successor_directories: package_compilation::build_execution::BuildDirectoryMappings,
+    successor_directory: Option<package_compilation::build_execution::SuccessorDirectory>,
     pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
-    pub(crate) validation_requests: Vec<(build_declarations::DependencyPurpose, usize)>,
+    pub(crate) validation_requests: Vec<BuildValidationRequest>,
     pub(crate) validation_subjects: Vec<crate::DependencyValidationSubject>,
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_requests::OptimizationReportRequest,
+    pub(crate) enabled_unsafe_atoms:
+        std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     pub(crate) root_bindings: Vec<ProductEntryBinding>,
     pub(crate) product_selections: Vec<ExecutedProductSelection>,
     pub(crate) native_formations: Vec<NativeBindingFormation>,
@@ -115,15 +119,14 @@ impl ReturnedBuild {
         &mut self,
         mut resolve: impl FnMut(
             &[IssuedBuildRequest],
-            build_declarations::DependencyPurpose,
-            usize,
+            &BuildValidationRequest,
         )
             -> Result<crate::DependencyValidationSubject, crate::CompileFailure>,
     ) -> Result<(), crate::CompileFailure> {
         let prepares_build = self.successor_entry().is_some();
-        for &(purpose, ordinal) in &self.validation_requests {
-            let mut subject = resolve(&self.requests, purpose, ordinal)?;
-            if subject.purpose != purpose {
+        for request in &self.validation_requests {
+            let mut subject = resolve(&self.requests, request)?;
+            if subject.purpose != request.purpose() {
                 return Err(vec![diagnostics::Diagnostic::error(
                     "validation subject changed its registration purpose",
                 )]
@@ -174,6 +177,10 @@ impl ReturnedBuild {
             project::Destination::Successor(path) => Some(path),
             project::Destination::Project(_) => None,
         }
+    }
+
+    pub fn successor_directory(&self) -> Option<&package_compilation::build_execution::SuccessorDirectory> {
+        self.successor_directory.as_ref()
     }
 
     /// The default next source view is the immutable package this Build received.
@@ -304,7 +311,7 @@ impl TerminalBuildHost {
         // `requires` clauses before it runs anything. It hands the entry a
         // Build it promises nothing about, so the only clauses it can owe
         // are ones true of the evaluator itself, such as its address width
-        // (`requires addr::Bound == 18446744073709551616`).
+        // (`requires address::Bound == 18446744073709551616`).
         match entry.unconditional_precondition()? {
             Some(true) => {}
             Some(false) => {
@@ -334,6 +341,7 @@ impl TerminalBuildHost {
             &produced,
             &original,
             &output.value,
+            &providers.imports,
             account,
             filesystem_scope,
             &machine.name,
@@ -409,7 +417,7 @@ impl TerminalBuildHost {
             .map_err(|error| refuse(describe(error)))?;
         artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
         Ok(TerminalBuildActivation {
-            history: Default::default(),
+            preparations: Default::default(),
             instance,
             host: Arc::clone(self),
             ready_providers,
@@ -522,7 +530,7 @@ enum ActivationState {
 }
 
 pub struct TerminalBuildActivation {
-    history: evaluation_receipts::BuildExecutionHistory,
+    preparations: evaluation_receipts::DependencyPreparations,
     instance: TerminalInstance<'static, 'static>,
     host: Arc<TerminalBuildHost>,
     ready_providers: Vec<(
@@ -708,7 +716,7 @@ impl TerminalBuildActivation {
             );
         }
         self.host.requests.dependency_prepared()?;
-        self.history.prepared(
+        self.preparations.prepared(
             match selected.purpose {
                 build_declarations::DependencyPurpose::Product => {
                     source_provenance::DependencyScope::Product
@@ -859,6 +867,26 @@ impl TerminalBuildActivation {
             &self.requests,
             &self.host.requests,
         )?;
+        let successor_directory = project::successor_directory(
+            &self.instance,
+            &self.host.machine,
+            &self.host.filesystem,
+        )?;
+        let successor_directories = project::successor_directories(
+            &self.instance,
+            &self.host.machine,
+            &self.host.filesystem,
+        )?;
+        if !successor_directories.is_empty()
+            && !matches!(destination, Some(project::Destination::Successor(_)))
+        {
+            return Err("runtime directory handoff requires an interpreted Build product".into());
+        }
+        if successor_directory.is_some()
+            && !matches!(destination, Some(project::Destination::Successor(_)))
+        {
+            return Err("package_root requires an interpreted Build product".into());
+        }
         if self.host.default_source {
             if destination.is_some() || !self.requests.is_empty() {
                 return Err("default Build changed the product supplied by its invoker".into());
@@ -879,10 +907,14 @@ impl TerminalBuildActivation {
         drop(self.instance);
         let mut root_bindings = Vec::new();
         let mut product_selections = Vec::new();
+        let mut enabled_unsafe_atoms = std::collections::BTreeSet::new();
         let mut exclusions = Vec::new();
         let mut native_bindings = Vec::new();
         for selection in self.host.bindings.take_executed()? {
             match selection {
+                ExecutedBuildSelection::EnableUnsafe(atom) => {
+                    enabled_unsafe_atoms.insert(atom);
+                }
                 ExecutedBuildSelection::Entry(binding) => root_bindings.push(binding),
                 ExecutedBuildSelection::Exclusion(selection) => exclusions.push(selection),
                 ExecutedBuildSelection::Native(selection) => native_bindings.push(selection),
@@ -893,12 +925,14 @@ impl TerminalBuildActivation {
         }
         let declared_product_selections = self.host.bindings.declared();
         Ok(ReturnedBuild {
-            history: self.history,
+            preparations: self.preparations,
             helper_accounting: self.helper_accounting,
             account: self.host.account.clone(),
             original_sources: self.host.original_sources.clone(),
             identity: self.host.produced.view().custody_identity(),
             destination,
+            successor_directory,
+            successor_directories,
             source_join: self.host.default_sources.clone(),
             requests: self.requests,
             validation_requests: self.host.requests.validation_requests()?,
@@ -911,6 +945,7 @@ impl TerminalBuildActivation {
             native_bindings,
             native_formations: self.host.bindings.native_formations(),
             exclusions,
+            enabled_unsafe_atoms,
             declared_product_selections,
             output: self.host.requests.take_output()?,
             filesystem: self.host.filesystem.take_effects()?,

@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "target_scoped_machines");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "target_scoped_machines" };
     Build::select_provider::<PlatformProbe, LinuxX86>(builder, linux_x86_64);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_linux_x86_64);
     Build::select_provider::<PlatformProbe, LinuxArm>(builder, linux_arm64);

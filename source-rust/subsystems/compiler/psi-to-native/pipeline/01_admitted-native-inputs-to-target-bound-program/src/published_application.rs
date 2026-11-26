@@ -255,10 +255,37 @@ fn project_root<Publisher>(
             .clone(),
         "checked package terminal-authority permissions are invalid",
     )?;
+    // A plain requirement is supplied by its executed Build locator. Present
+    // that checked receipt directly to native admission exactly once.
+    let module = artifact.semantic_module();
+    let mut native_bindings = Vec::new();
+    let mut direct_boundary_leaves = Vec::new();
+    for leaf in realization.direct_boundary_leaves() {
+        let Some(boundary) = leaf.receiving_declaration(module).map_err(refuse)? else {
+            continue;
+        };
+        if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
+            && matches!(
+                &leaf.execution,
+                direct_boundary_bindings::DirectBoundaryExecution::Foreign(_)
+            )
+        {
+            native_bindings.push(
+                leaf.validate_plain_execution(
+                    module,
+                    realization.evaluated_native_bindings(),
+                    realization.evaluated_binding_identities(),
+                )
+                .map_err(refuse)?,
+            );
+        } else {
+            direct_boundary_leaves.push(leaf);
+        }
+    }
     let native = TerminalNativeProposalRequest {
         evaluated_binding_identities: realization.evaluated_binding_identities(),
-        native_bindings: &[],
-        direct_boundary_leaves: realization.direct_boundary_leaves().iter().collect(),
+        native_bindings: &native_bindings,
+        direct_boundary_leaves,
         target_profile: profile,
         target_provider: provider_proposal,
         boundaries: BoundaryApplicationSettlement {

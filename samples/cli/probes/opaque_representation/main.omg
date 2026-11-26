@@ -11,20 +11,20 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use token;
+use token.omg;
 
 data Main {
-    held: Token;
+    held: |token|::Token;
     hits: i32 in Wrapping;
 }
 
-machine Main::relay(input: Token) -> Token {
+machine Main::relay(input: |token|::Token) -> |token|::Token {
     input
 }
 
 machine Main::main(main: @mutable Main) {
     main.hits = 0;
-    let token_value: Token;
+    let token_value: |token|::Token;
     main.held = Main::relay(token_value);
     main.hits = 1;
 }

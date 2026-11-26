@@ -111,12 +111,7 @@ pub(crate) fn exact_place(
     let mut place = *tables.roots.get(argument.place).ok_or_else(fail)?;
     for segment in subject_path(module, machine, argument)? {
         let row = tables.places.get(place).ok_or_else(fail)?;
-        place = row
-            .children
-            .binary_search_by_key(&segment, |(segment, _)| *segment)
-            .ok()
-            .map(|index| row.children[index].1)
-            .ok_or_else(fail)?;
+        place = row.child(&tables.places, segment).ok_or_else(fail)?;
     }
     Ok(place)
 }
@@ -606,7 +601,7 @@ fn materialize_writes(elaboration: &mut Elaboration) -> Checked<()> {
             }
             terminal_check_tables::bindings::record_write(
                 id,
-                &mut tables.places,
+                &tables.places,
                 &mut tables.writes,
                 terminal_check_tables::bindings::WriteRow {
                     place,

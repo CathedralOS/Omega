@@ -1,8 +1,8 @@
-use one\main;
-use two\main;
+use {one}/main.omg as one;
+use {two}/main.omg as two;
 
 machine entry() -> i32 {
-    let a: i32 = value();
-    let b: i32 = other();
+    let a: i32 = |one|::value();
+    let b: i32 = |two|::other();
     a + b
 }

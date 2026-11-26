@@ -1,4 +1,4 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_typed_fields");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_typed_fields" };
     builder.tests.disabled = true;
 }

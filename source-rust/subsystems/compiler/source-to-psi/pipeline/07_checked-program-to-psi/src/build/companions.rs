@@ -15,9 +15,10 @@ use crate::source_symbols::is_build_protocol;
 use crate::{
     AcceptedTerminalSource, BuildCallSite, ProviderSelectionOption, TerminalBuildBindingCall,
     TerminalBuildBindingOperand, TerminalBuildBindingOperation, TerminalBuildFilesystemCall,
-    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildQueryCall,
-    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
-    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildNativeLocatorKind,
+    TerminalBuildQueryCall, TerminalBuildQueryOperation, TerminalBuildRequestCall,
+    TerminalBuildRequestOperation, TerminalBuildValueCase, TerminalBuildValueField,
+    TerminalBuildValueShape,
 };
 use diagnostics::Diagnostic;
 use language_core::build_protocol::SELECTION_PROTOCOL;
@@ -81,13 +82,18 @@ pub(crate) fn produce(
             };
             let protocol =
                 |name| owner.is_boundary && is_build_protocol(&source.symbols, owner.symbol, name);
-            let stream = if owner.is_boundary {
-                sandbox_stream_operation(source, owner.symbol, requirement.name.as_str())
+            let (stream, file_operation) = if owner.is_boundary {
+                let operation = requirement.name.as_str();
+                (
+                    sandbox_stream_operation(source, owner.symbol, operation),
+                    installed_filesystem_operation(source, owner.symbol, operation),
+                )
             } else {
-                None
+                (None, None)
             };
             let launcher = is_installed_launcher(source, owner.symbol, requirement.name.as_str());
             if stream.is_none()
+                && file_operation.is_none()
                 && !launcher
                 && ![
                     SELECTION_PROTOCOL,
@@ -118,7 +124,14 @@ pub(crate) fn produce(
                     site: call.site,
                     action,
                 });
-            } else if launcher {
+            } else if let Some(action) = file_operation {
+                companions.filesystem.push(TerminalBuildFilesystemCall {
+                    site: call.site,
+                    action,
+                });
+            } else if launcher
+                || (protocol("BuildRequestOperations") && call.name == "forward_program")
+            {
                 let application = elaboration
                     .boundaries
                     .get(boundary)
@@ -144,7 +157,11 @@ pub(crate) fn produce(
                 let program = authored_span(source, authored)?;
                 companions.requests.push(TerminalBuildRequestCall {
                     site: call.site,
-                    action: TerminalBuildRequestOperation::LaunchProgram { program },
+                    action: if launcher {
+                        TerminalBuildRequestOperation::LaunchProgram { program }
+                    } else {
+                        TerminalBuildRequestOperation::ForwardProgram { program }
+                    },
                 });
             } else if protocol(SELECTION_PROTOCOL) {
                 designated += 1;
@@ -316,6 +333,46 @@ fn sandbox_stream_operation(
             == std::path::Path::new("sandbox/streams.omg")
         && file.source.as_bytes() == bundled_declarations::BUILD_STREAMS)
         .then_some(Action::SandboxWrite)
+}
+
+/// The invocation may supply the installed system's public filesystem operations.
+/// Establish its root from an already admitted core file in this compilation.
+fn installed_filesystem_operation(
+    source: &TypedTrees,
+    owner: SymbolHandle,
+    operation: &str,
+) -> Option<TerminalBuildFilesystemOperation> {
+    if source.symbols.name(owner) != "Filesystem" {
+        return None;
+    }
+    let action = match operation {
+        "read_all" => TerminalBuildFilesystemOperation::ReadAll,
+        "write_all" => TerminalBuildFilesystemOperation::WriteAll,
+        "create_dir" => TerminalBuildFilesystemOperation::CreateDirectory,
+        _ => return None,
+    };
+    let file = source
+        .symbols
+        .symbol_source_span(owner)
+        .and_then(|span| source.symbols.source_file(span))?;
+    (file.origin == source_admission::SourceOrigin::User
+        && file.package_identity.is_some()
+        && file.path.strip_prefix(&file.package_root).ok()
+            == Some(std::path::Path::new("filesystem.omg"))
+        && file.source.as_bytes() == bundled_declarations::SYSTEM_FILESYSTEM
+        && source.symbols.source_files().any(|core| {
+            core.origin == source_admission::SourceOrigin::Toolchain
+                && core.package_identity.is_none()
+                && core
+                    .package_root
+                    .file_name()
+                    .is_some_and(|name| name == "core")
+                && core
+                    .package_root
+                    .parent()
+                    .is_some_and(|root| root.join("system") == file.package_root)
+        }))
+    .then_some(action)
 }
 
 /// Only the checked machine in the installed Build library may ask the host
@@ -494,6 +551,7 @@ fn protocol_action(
         }
         Protocol::AwaitProvider => Action::AwaitProvider,
         Protocol::DescribeService => Action::DescribeService,
+        Protocol::EnableUnsafe => Action::EnableUnsafe,
         Protocol::Prepare => Action::Prepare,
         Protocol::PrepareTests => Action::PrepareTests,
         Protocol::Bind | Protocol::BindDescription => Action::Bind,
@@ -516,10 +574,13 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
     use TerminalBuildRequestOperation as Request;
     Ok(match name {
         "extend_workspace" => Request::ExtendWorkspace,
+        "copy_bytes" => Request::CopyBytes,
         "artifact_only" => Request::ArtifactOnly,
         "register_path_dependency" => Request::PathDependency,
+        "register_bundled_dependency" => Request::BundledDependency,
         "register_git_dependency" => Request::GitDependency,
         "prepare_dependency" => Request::PrepareDependency,
+        "validate_binding" => Request::ValidateBinding,
         "validate_dependency" => Request::ValidateDependency,
         "input_binding" => Request::InputBinding,
         "add_binding" => Request::AddBinding,
@@ -527,7 +588,6 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "write_log" => Request::LogLine,
         "configure_test_fixture" => Request::ConfigureTestFixture,
         "configure_test_engine" => Request::ConfigureTestEngine,
-        "publish_source" => Request::PublishSource,
         other => return Err(unknown("BuildRequestOperations", other)),
     })
 }
@@ -535,6 +595,8 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
 fn filesystem_operation(name: &str) -> Result<TerminalBuildFilesystemOperation, Diagnostic> {
     use TerminalBuildFilesystemOperation as Operation;
     Ok(match name {
+        "forward_directory" => Operation::ForwardDirectory,
+        "map_directory" => Operation::MapDirectory,
         "resolve_source" => Operation::ResolveSource,
         "resolve_output" => Operation::ResolveOutput,
         "named_input" => Operation::NamedInput,
@@ -753,20 +815,27 @@ fn native_locator(
         module,
         "native binding requires one owned structural locator",
     )?;
-    let application = record.application.as_ref().ok_or_else(|| {
-        refused(
-            "native locator needs its concrete source type application to establish byte widths",
-        )
-    })?;
-    let widths = crate::source_state::native_locators::application_widths(
-        source.source().as_ref(),
-        application.reference,
+    let typed = source.source().as_ref();
+    let kind = if crate::source_state::native_locators::is_function_field_binding(
+        typed,
+        record.declaration,
     )
-    .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?;
+    .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?
+    {
+        TerminalBuildNativeLocatorKind::FunctionFieldBinding
+    } else {
+        let application = record.application.as_ref().ok_or_else(|| {
+            refused("native locator needs its concrete source type application to establish byte widths")
+        })?;
+        let widths =
+            crate::source_state::native_locators::application_widths(typed, application.reference)
+                .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?;
+        TerminalBuildNativeLocatorKind::ForeignBinding { widths }
+    };
     let shape = collect_shape(module, record.record, shapes)?;
     Ok(TerminalBuildNativeLocator {
         structural_type: record.record,
-        widths,
+        kind,
         shape,
     })
 }

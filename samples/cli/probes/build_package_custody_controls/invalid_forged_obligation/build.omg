@@ -1,0 +1,28 @@
+// A RequiredOutput obligation is a linear value only the evaluator's
+// private table may issue. Constructing `RequiredOutput {}` in source
+// forges custody of a name the activation never reserved; completing
+// against the forged obligation must be rejected.
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_forged_obligation" };
+    Build::artifact_only(builder);
+    let forged: RequiredOutput = RequiredOutput {};
+    let path: BuildPath = BuildOutput::resolve(@builder.output, "artifact.txt");
+    let writer: i32 = BuildOutput::create(@mutable builder.output, path, 0);
+    _ = BuildOutput::write(@mutable builder.output, writer, "forged\n");
+    _ = BuildOutput::close(@mutable builder.output, writer);
+    let settled: OutputCompletion = BuildOutput::complete(@mutable builder.output, forged, path);
+    settle(builder, settled);
+}
+
+machine settle(builder: @mutable BuildPlan, settled: OutputCompletion) {
+    transition settled {
+        OutputCompletion::Sealed { receipt } -> sealed(builder),
+        OutputCompletion::Retry { obligation, file } -> unsealed(builder, obligation)
+    }
+    machine sealed(builder: @mutable BuildPlan) {
+    }
+    machine unsealed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
+        BuildOutput::fail(@mutable builder.output, obligation, "staged output never sealed");
+    }
+}

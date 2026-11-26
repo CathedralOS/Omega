@@ -1,38 +1,30 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use fixtures/catalog/catalog.omg;
+use landcover/resampling/resampling.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Complete bounded CLI: choose a fixture with one ASCII digit and LF.
-use system\Console;
-use system\LineReadResult;
-use landcover\geometry;
-use landcover\resampling;
-use landcover\resampling\Areas;
-use landcover\resampling\resample;
-use landcover\resampling\dominant;
-use fixtures\catalog;
-use fixtures\catalog\Configuration;
-use fixtures\catalog\configure;
 
 data Main {
     input: [u8; 4];
-    config: Configuration; cell: Areas; totals: Areas; clipped: Areas;
+    config: |catalog|::Configuration; cell: |resampling|::Areas; totals: |resampling|::Areas; clipped: |resampling|::Areas;
     column: i32 in Wrapping; row: i32 in Wrapping; area: i32 in Wrapping;
     outside: i32 in Wrapping; outside_total: i32 in Wrapping;
 }
 // Bounded decimal reporting uses byte output, preserving exact integer values.
-machine number(main: @mutable Main, value: i32 in Wrapping) reaches StandardOutput {
-    Console::write_byte((value / 100 % 10 + 48) as i32);
-    Console::write_byte((value / 10 % 10 + 48) as i32);
-    Console::write_byte((value % 10 + 48) as i32);
+machine number(main: @mutable Main, value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
+    |console|::Console::write_byte((value / 100 % 10 + 48) as i32);
+    |console|::Console::write_byte((value / 10 % 10 + 48) as i32);
+    |console|::Console::write_byte((value % 10 + 48) as i32);
 }
-machine fraction(main: @mutable Main, numerator: i32 in Wrapping, denominator: i32 in Wrapping) reaches StandardOutput {
-    number(main, numerator); Console::write("/"); number(main, denominator); Console::write(" ");
+machine fraction(main: @mutable Main, numerator: i32 in Wrapping, denominator: i32 in Wrapping) reaches |process_authority|::StandardOutput {
+    number(main, numerator); |console|::Console::write("/"); number(main, denominator); |console|::Console::write(" ");
 }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("LANDCOVER exact planar area; enter fixture 1..6 (7..9 invalid)");
-    let read: LineReadResult = block Console::read_line(@mutable main.input[..]);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("LANDCOVER exact planar area; enter fixture 1..6 (7..9 invalid)");
+    let read: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.input[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> length(main, count),
+        |console|::LineReadResult::LineComplete { count } -> length(main, count),
         _ -> invalid(main)
     }
     machine length(main: @mutable Main, count: u64) {
@@ -44,7 +36,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine setup(main: @mutable Main) {
-        configure(@mutable main.config, main.input[0]);
+        |catalog|::configure(@mutable main.config, main.input[0]);
         transition main.config.grid.width > 0 && main.config.grid.width <= 4 &&
             main.config.grid.height > 0 && main.config.grid.height <= 4 &&
             main.config.grid.columns > 0 && main.config.grid.columns <= 4 &&
@@ -60,13 +52,13 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         main.column = 0; main.row = 0; main.outside_total = 0;
         main.totals.forest = 0; main.totals.water = 0; main.totals.urban = 0; main.totals.nodata = 0;
         main.area = main.config.grid.width * main.config.grid.height;
-        Console::write_line("CELL row col forest water urban nodata outside dominant (fractions of full cell)");
+        |console|::Console::write_line("CELL row col forest water urban nodata outside dominant (fractions of full cell)");
         transition { _ -> cell(main) }
     }
     machine cell(main: @mutable Main) {
         let x: i32 in Wrapping = main.config.grid.x + main.column * main.config.grid.width;
         let y: i32 in Wrapping = main.config.grid.y + main.row * main.config.grid.height;
-        resample(@mutable main.cell, x, y, main.config.grid.width, main.config.grid.height,
+        |resampling|::resample(@mutable main.cell, x, y, main.config.grid.width, main.config.grid.height,
             main.config.a, main.config.b, main.config.c, main.config.d);
         main.outside = main.area - main.cell.forest - main.cell.water - main.cell.urban - main.cell.nodata;
         transition main.outside >= 0 { true -> report(main), false -> failed(main) }
@@ -81,11 +73,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         let nodata: i32 in Wrapping = main.cell.nodata;
         let outside: i32 in Wrapping = main.outside;
         let area: i32 in Wrapping = main.area;
-        let winner: i32 in Wrapping = dominant(@main.cell);
-        Console::write("CELL "); number(main, row); Console::write(" "); number(main, column); Console::write(" ");
+        let winner: i32 in Wrapping = |resampling|::dominant(@main.cell);
+        |console|::Console::write("CELL "); number(main, row); |console|::Console::write(" "); number(main, column); |console|::Console::write(" ");
         fraction(main, forest, area); fraction(main, water, area);
         fraction(main, urban, area); fraction(main, nodata, area); fraction(main, outside, area);
-        number(main, winner); Console::write_line("");
+        number(main, winner); |console|::Console::write_line("");
         main.totals.forest = main.totals.forest + main.cell.forest;
         main.totals.water = main.totals.water + main.cell.water;
         main.totals.urban = main.totals.urban + main.cell.urban;
@@ -103,7 +95,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         // against the complete destination footprint, rather than summing cells.
         let width: i32 in Wrapping = main.config.grid.width * main.config.grid.columns;
         let height: i32 in Wrapping = main.config.grid.height * main.config.grid.rows;
-        resample(@mutable main.clipped, main.config.grid.x, main.config.grid.y, width, height,
+        |resampling|::resample(@mutable main.clipped, main.config.grid.x, main.config.grid.y, width, height,
             main.config.a, main.config.b, main.config.c, main.config.d);
         let total_area: i32 in Wrapping = width * height;
         transition main.totals.forest == main.clipped.forest && main.totals.water == main.clipped.water &&
@@ -118,19 +110,19 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         let urban: i32 in Wrapping = main.totals.urban;
         let nodata: i32 in Wrapping = main.totals.nodata;
         let outside: i32 in Wrapping = main.outside_total;
-        Console::write("TOTAL forest water urban nodata outside area ");
-        number(main, forest); Console::write(" "); number(main, water); Console::write(" ");
-        number(main, urban); Console::write(" "); number(main, nodata); Console::write(" ");
-        number(main, outside); Console::write(" "); number(main, total_area); Console::write_line("");
-        Console::write_line("AUDIT PASS: class conservation and full-area closure; tolerance=0");
-        ProcessExit::exit_process(0);
+        |console|::Console::write("TOTAL forest water urban nodata outside area ");
+        number(main, forest); |console|::Console::write(" "); number(main, water); |console|::Console::write(" ");
+        number(main, urban); |console|::Console::write(" "); number(main, nodata); |console|::Console::write(" ");
+        number(main, outside); |console|::Console::write(" "); number(main, total_area); |console|::Console::write_line("");
+        |console|::Console::write_line("AUDIT PASS: class conservation and full-area closure; tolerance=0");
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine invalid(main: @mutable Main) { Console::write_line("INVALID: bounded fixture input or model admission"); ProcessExit::exit_process(64); }
-    machine failed(main: @mutable Main) { Console::write_line("AUDIT FAIL"); ProcessExit::exit_process(1); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("INVALID: bounded fixture input or model admission"); |process_exit|::ProcessExit::exit_process(64); }
+    machine failed(main: @mutable Main) { |console|::Console::write_line("AUDIT FAIL"); |process_exit|::ProcessExit::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

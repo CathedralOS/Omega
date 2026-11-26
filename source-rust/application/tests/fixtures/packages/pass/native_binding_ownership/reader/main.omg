@@ -1,10 +1,10 @@
-use reading;
+use {reading}/main.omg as reading;
 
 boundary trait ReadParent {
     machine read() -> i32 reaches none crashes none;
 }
 
 machine main() {
-    let process: i32 = reading\process_id();
+    let process: i32 = |reading|::process_id();
     let parent: i32 = ReadParent::read();
 }

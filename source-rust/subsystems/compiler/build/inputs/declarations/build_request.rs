@@ -47,6 +47,7 @@ impl BuildEntryPath {
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub enum BuildDependencySource {
     Path(String),
+    Bundled(ProjectName),
     Git {
         repository: String,
         revision: String,

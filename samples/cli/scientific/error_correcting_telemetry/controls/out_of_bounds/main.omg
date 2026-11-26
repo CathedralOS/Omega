@@ -1,14 +1,14 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 data Main { symbols: [i32; 4]; }
 // Complete program deliberately attempts a fifth symbol in a four-symbol frame.
 // The documented bounds rule must reject this access, before any execution.
-machine main(main: @mutable Main) reaches ProcessExit {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     main.symbols[4] = 2;
-    ProcessExit::exit_process(0);
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

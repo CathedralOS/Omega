@@ -61,8 +61,8 @@ policy's evaluated plan is the sole source of foreign ABI rules for that call.
 The compiler checks the plan against the signature and target and uses it to
 emit calls and entries.
 
-The `system\calling` vocabulary describes normalized signatures, placement, machine
-state, acceptance, and rejection. Its quantities use `u64`, not `addr`; narrowing
+The `{system}/calling.omg` vocabulary describes normalized signatures, placement, machine
+state, acceptance, and rejection. Its quantities use `u64`, not `address`; narrowing
 to a compiler field requires a checked range conversion. Policies choose from
 closed primitives; they cannot emit instructions, supply relocation bytes,
 inspect private carriers, or bypass validation. Extending the primitive
@@ -117,6 +117,12 @@ origins and selected field correspondence in the plan application. The binding
 does not supply a second policy or change that mapping. Missing, duplicate,
 wrong-requirement or incompatible mappings reject; a native binding with no
 table lookup cannot leave a dispatch-only formal unaccounted for.
+
+The policy returns `BoundaryEntryPlan.table_arguments`. `TableArguments::PassAll`
+places every argument. `TableArguments::DispatchOnly { parameter: id }`
+takes the selected formal’s `NativeParameterIdentity.identity` from this
+invocation’s signature. A private callback or an identity from a different
+requirement cannot supply the lookup formal.
 
 All other parameters keep their existing order and callback mappings. There is
 no dispatch-prefix rule or general argument-reordering facility. Evaluation,

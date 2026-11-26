@@ -1,4 +1,4 @@
-use omega\language\core\sqrt_f64;
+use {omega}/language/core/math.omg;
 
 // Two independent gross measurements and either one reused tare or two
 // independent tares. A reused tare contributes positive covariance; discarding
@@ -65,7 +65,7 @@ public machine correct(result: @mutable Mixture, gross_a: f64, gross_b: f64,
         let numerator: f64 = (result.mass_b * result.mass_b + result.mass_a * result.mass_a)
             * result.mass_variance - 2.0 * result.mass_a * result.mass_b * result.covariance;
         result.fraction_variance = numerator / (total_squared * total_squared);
-        result.uncertainty = sqrt_f64(result.fraction_variance);
+        result.uncertainty = |math|::sqrt_f64(result.fraction_variance);
         result.expanded = 2.0 * result.uncertainty;
         result.lower = result.fraction_a - result.expanded;
         result.upper = result.fraction_a + result.expanded;

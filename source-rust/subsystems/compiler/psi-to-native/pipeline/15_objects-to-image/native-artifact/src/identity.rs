@@ -14,8 +14,12 @@ use super::{
     NativeSelectedProviderPlan,
 };
 use crate::digest_encoder::DomainDigestEncoder;
-use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
-use terminal_authority_receipts::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
+use crate::physical::derivation::hashing::{
+    hash_call_site_owner, hash_normalized_foreign_mechanism, hash_provider_execution_record,
+};
+use terminal_authority_receipts::{
+    TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
+};
 
 const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v18\0";
 
@@ -86,7 +90,7 @@ pub(super) fn derive_native_artifact_identity(
         digest.byte(row.condition_tag());
         digest.raw(row.psi().program_fingerprint.as_bytes());
         digest.raw(&row.psi().vocabulary_marker.get().to_le_bytes());
-        hash_bytes(&mut digest, row.profile().identity().as_str().as_bytes());
+        digest.bytes(row.profile().identity().as_str().as_bytes());
         digest.raw(&row.entry().get().to_le_bytes());
         digest.raw(&row.installation().get().to_le_bytes());
         match row {
@@ -111,13 +115,13 @@ pub(super) fn derive_native_artifact_identity(
             }
         }
         digest.raw(row.environment_description_sha256());
-        hash_bytes(&mut digest, row.source_provenance().as_bytes());
-        hash_bytes(&mut digest, row.caller_provenance().as_bytes());
+        digest.bytes(row.source_provenance().as_bytes());
+        digest.bytes(row.caller_provenance().as_bytes());
     }
     digest.raw(&fields.target.wire_identity_bytes());
-    hash_bytes(&mut digest, fields.object_text_bytes);
-    hash_bytes(&mut digest, fields.image_bytes);
-    hash_bytes(&mut digest, fields.final_text_bytes);
+    digest.bytes(fields.object_text_bytes);
+    digest.bytes(fields.image_bytes);
+    digest.bytes(fields.final_text_bytes);
     match fields.image_subsystem {
         None => digest.raw(&[0]),
         Some(subsystem) => {
@@ -125,11 +129,11 @@ pub(super) fn derive_native_artifact_identity(
             digest.raw(&subsystem.to_le_bytes());
         }
     }
-    hash_bytes(&mut digest, fields.output_file_name.as_bytes());
-    hash_bytes(&mut digest, fields.output_format.as_bytes());
+    digest.bytes(fields.output_file_name.as_bytes());
+    digest.bytes(fields.output_format.as_bytes());
     digest.raw(&[1]);
     for count in fields.output_counts {
-        digest.raw(&canonical_usize(count));
+        digest.len(count);
     }
     digest.raw(
         &fields
@@ -148,17 +152,15 @@ pub(super) fn derive_native_artifact_identity(
     digest.raw(&fields.selected_provider_closure_digest);
     digest.raw(&fields.native_supply_digest);
     digest.raw(&fields.foreign_call_custody_digest);
-    digest.raw(&canonical_usize(fields.selected_provider_plans.len()));
+    digest.len(fields.selected_provider_plans.len());
     for plan in fields.selected_provider_plans {
         digest.raw(&plan.report_identity.to_le_bytes());
         digest.raw(plan.plan_digest.as_bytes());
-        digest.raw(&canonical_usize(plan.requirement_identities.len()));
+        digest.len(plan.requirement_identities.len());
         for requirement in &plan.requirement_identities {
-            hash_bytes(&mut digest, requirement.as_bytes());
+            digest.bytes(requirement.as_bytes());
         }
-        digest.raw(&canonical_usize(
-            plan.external_requirement_applications.len(),
-        ));
+        digest.len(plan.external_requirement_applications.len());
         let identities = &plan.identities;
         for row in &plan.external_requirement_applications {
             digest.raw(&row.provider_plan_report_identity.to_le_bytes());
@@ -167,9 +169,9 @@ pub(super) fn derive_native_artifact_identity(
             hash_identity_text(&mut digest, identities, row.requirement_identity);
         }
     }
-    digest.raw(&canonical_usize(fields.provider_executions.len()));
+    digest.len(fields.provider_executions.len());
     for execution in fields.provider_executions {
-        hash_bytes(&mut digest, execution.requirement_identity.as_bytes());
+        digest.bytes(execution.requirement_identity.as_bytes());
         for report_coordinate in [
             execution.provider_plan_report_identity,
             execution.provider_execution_report_identity,
@@ -212,11 +214,11 @@ pub(super) fn derive_native_artifact_identity(
 
 pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeignCall]) -> [u8; 32] {
     let mut digest = DomainDigestEncoder::new(b"omega.native-artifact.foreign-call-custody.v4\0");
-    digest.raw(&canonical_usize(calls.len()));
+    digest.len(calls.len());
     for call in calls {
         digest.raw(&call.machine.get().to_le_bytes());
         hash_call_site_owner(&mut digest, &call.owner);
-        digest.raw(&canonical_usize(call.text_offset));
+        digest.len(call.text_offset);
         digest.raw(&call.caller_live_bytes.to_le_bytes());
         match call.provider_execution {
             machine_code::ExternalExecutionRecord::CompilerImport(import) => {
@@ -225,15 +227,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
             }
             machine_code::ExternalExecutionRecord::Provider(provider) => {
                 digest.byte(0);
-                for coordinate in [
-                    provider.provider_plan_report_identity,
-                    provider.provider_execution_report_identity,
-                    provider.provider_execution_report_fingerprint,
-                    provider.normalized_root_report_identity,
-                    provider.boundary_contract_report_fingerprint,
-                ] {
-                    digest.raw(&coordinate.to_le_bytes());
-                }
+                hash_provider_execution_record(&mut digest, &provider);
             }
             machine_code::ExternalExecutionRecord::NativeBinding(native) => {
                 digest.byte(1);
@@ -245,88 +239,10 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
         for control in [call.x86_floating_control, call.aarch64_floating_control] {
             hash_floating_control(&mut digest, control);
         }
-        if let Some(kernel) = call.binding.system_call() {
-            digest.raw(&[2]);
-            hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
-            digest.raw(&kernel.number.to_le_bytes());
-            match kernel.execution {
-                target_vocabulary::NormalizedForeignExecution::ProviderPlan {
-                    report,
-                    commitment,
-                } => {
-                    digest.byte(0);
-                    digest.raw(&report.to_le_bytes());
-                    digest.raw(&commitment);
-                }
-                target_vocabulary::NormalizedForeignExecution::NativeBinding(receipt) => {
-                    digest.byte(1);
-                    digest.raw(&receipt);
-                }
-            }
-            hash_bytes(&mut digest, kernel.requirement_identity.as_bytes());
+        let Some(contribution) =
+            hash_normalized_foreign_mechanism(&mut digest, &call.binding.mechanism)
+        else {
             continue;
-        }
-        let contribution = match &call.binding.mechanism {
-            target_vocabulary::NormalizedForeignCallMechanism::CompilerImport {
-                import,
-                requirement_identity,
-                selected_plan,
-            } => {
-                digest.byte(6);
-                digest.byte(import.tag());
-                digest.raw(selected_plan);
-                hash_bytes(&mut digest, requirement_identity.as_bytes());
-                continue;
-            }
-            target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
-                locator,
-                receipt,
-                requirement_identity,
-            } => {
-                digest.byte(5);
-                digest.raw(&locator.identity_digest().as_bytes());
-                digest.raw(receipt);
-                hash_bytes(&mut digest, requirement_identity.as_bytes());
-                continue;
-            }
-            target_vocabulary::NormalizedForeignCallMechanism::Import {
-                locator,
-                same_stack_contribution,
-            } => {
-                digest.raw(&[1]);
-                digest.raw(&locator.identity_digest().as_bytes());
-                same_stack_contribution
-            }
-            target_vocabulary::NormalizedForeignCallMechanism::Component {
-                locator,
-                provider,
-                candidate,
-                application_commitment,
-                same_stack_contribution,
-            } => {
-                digest.raw(&[4]);
-                digest.raw(locator.identity_digest());
-                digest.raw(&provider.vocabulary_marker.get().to_le_bytes());
-                digest.raw(provider.program_fingerprint.as_bytes());
-                digest.raw(&candidate.get().to_le_bytes());
-                digest.raw(application_commitment);
-                same_stack_contribution
-            }
-            target_vocabulary::NormalizedForeignCallMechanism::Table {
-                target,
-                byte_offset,
-                table_operand,
-                dispatch_only,
-                same_stack_contribution,
-            } => {
-                digest.raw(&[3]);
-                hash_bytes(&mut digest, target.target_name().as_bytes());
-                digest.raw(&byte_offset.to_le_bytes());
-                digest.raw(&table_operand.to_le_bytes());
-                digest.raw(&[u8::from(*dispatch_only)]);
-                same_stack_contribution
-            }
-            target_vocabulary::NormalizedForeignCallMechanism::SystemCall(_) => continue,
         };
         digest.raw(
             &contribution
@@ -350,10 +266,7 @@ fn hash_identity_text(
     identities: &terminal_psi::TerminalIdentityTable,
     identity: terminal_psi::TerminalIdentityIndex,
 ) {
-    hash_bytes(
-        digest,
-        identities.text(identity).unwrap_or_default().as_bytes(),
-    );
+    digest.bytes(identities.text(identity).unwrap_or_default().as_bytes());
 }
 
 fn hash_floating_control(
@@ -372,7 +285,7 @@ fn hash_floating_control(
                 control.restore_offset,
                 control.restore_byte_count,
             ] {
-                digest.raw(&canonical_usize(value));
+                digest.len(value);
             }
         }
     }
@@ -418,14 +331,8 @@ fn hash_physical_entry_requirements(
     digest.raw(&row.semantic_entry().get().to_le_bytes());
     digest.raw(&row.adapter().get().to_le_bytes());
     let contract = row.contract();
-    hash_bytes(
-        digest,
-        contract.target_slot().owner.identity().as_str().as_bytes(),
-    );
-    hash_bytes(
-        digest,
-        contract.target_package().manifest_identity().as_bytes(),
-    );
+    digest.bytes(contract.target_slot().owner.identity().as_str().as_bytes());
+    digest.bytes(contract.target_package().manifest_identity().as_bytes());
     digest.raw(contract.target_package_source_digest().as_bytes());
     hash_identity_text(
         digest,
@@ -447,7 +354,7 @@ fn hash_physical_entry_requirements(
         &mut plan_bytes,
         &contract.boundary_entry_plan().state,
     );
-    hash_bytes(digest, &plan_bytes);
+    digest.bytes(&plan_bytes);
     hash_optional_digest(
         digest,
         contract

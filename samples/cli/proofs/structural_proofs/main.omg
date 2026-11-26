@@ -1,22 +1,19 @@
 // Structural proofs over the roster's recursive data (math roster N3/N4).
 // Where math_proofs is an integer theorem ladder, this ladder proves facts
 // about PROOF-ONLY recursive data -- Peano `Nat` and generic `Seq<T>` from
-// omega\language\core -- through the structural entailment judge. Every
+// {omega}/language/core -- through the structural entailment judge. Every
 // theorem here is TRUE (the file compiles under `omega --check`). Proof
 // machines emit no runtime code.
 //
 //   omega --check samples/cli/proofs/structural_proofs/main.omg
 //
-use omega\language\core\Nat;
-use omega\language\core\add;
-use omega\language\core\Seq;
-use omega\language\core\length;
-use omega\language\core\length_append;
+use {omega}/language/core/nat.omg;
+use {omega}/language/core/seq.omg;
 
 // --- The equality kernel over proof data --------------------------------
 
 // Reflexivity. Lean analog: `rfl`.
-machine nat_reflexive(a: Nat)
+machine nat_reflexive(a: |nat|::Nat)
 ensures
     a == a
 {
@@ -24,9 +21,9 @@ ensures
 
 // Constructor INJECTIVITY: same-case equations decompose pairwise.
 // Lean analog: `Nat.succ.injEq` / `Nat.succ_injective`.
-machine succ_injective(a: Nat, b: Nat)
+machine succ_injective(a: |nat|::Nat, b: |nat|::Nat)
 requires
-    (Nat::Succ { prev: a }) == (Nat::Succ { prev: b })
+    (|nat|::Nat::Succ { prev: a }) == (|nat|::Nat::Succ { prev: b })
 ensures
     a == b
 {
@@ -35,11 +32,11 @@ ensures
 // Case DISJOINTNESS: distinct constructors of one type never equal.
 // Lean analog: `Nat.zero_ne_succ`. (Stated as a refuted requires: the
 // contradictory hypothesis discharges any conclusion -- ex falso.)
-machine zero_ne_succ(a: Nat)
+machine zero_ne_succ(a: |nat|::Nat)
 requires
-    Nat::Zero == (Nat::Succ { prev: a })
+    |nat|::Nat::Zero == (|nat|::Nat::Succ { prev: a })
 ensures
-    a == (Nat::Succ { prev: a })
+    a == (|nat|::Nat::Succ { prev: a })
 {
 }
 
@@ -49,8 +46,8 @@ ensures
 // Lean analog: `by decide` / `rfl` on `1 + 1 = 2`.
 machine one_plus_one_is_two()
 ensures
-    (add(Nat::Succ { prev: Nat::Zero }, Nat::Succ { prev: Nat::Zero }))
-        == (Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } })
+    (|nat|::add(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, |nat|::Nat::Succ { prev: |nat|::Nat::Zero }))
+        == (|nat|::Nat::Succ { prev: |nat|::Nat::Succ { prev: |nat|::Nat::Zero } })
 {
 }
 
@@ -58,7 +55,7 @@ ensures
 // Lean analog: `List.length_nil`.
 machine length_nil_is_zero()
 ensures
-    (length(Seq::Empty)) == Nat::Zero
+    (|seq|::length(|seq|::Seq::Empty)) == |nat|::Nat::Zero
 {
 }
 
@@ -74,14 +71,14 @@ ensures
 // the citation imports the proven equation into this machine's fact context.
 // Its inductive body never finitely unfolds for symbolic arguments, so
 // citation is the only route. Lean analog: `have h := List.length_append s t`.
-machine cite_append_length(s: Seq<u64>, t: Seq<u64>) -> Nat
+machine cite_append_length(s: |seq|::Seq<u64>, t: |seq|::Seq<u64>) -> |nat|::Nat
 requires
-    length(s) == Nat::Zero
+    |seq|::length(s) == |nat|::Nat::Zero
 ensures
-    result == Nat::Zero
+    result == |nat|::Nat::Zero
 {
-    length_append(s, t);
-    transition { _ -> Nat::Zero }
+    |seq|::length_append(s, t);
+    transition { _ -> |nat|::Nat::Zero }
 }
 
 // Proof machines emit no runtime code; the entrypoint is inert.

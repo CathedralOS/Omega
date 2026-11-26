@@ -19,6 +19,7 @@ native-execution-scope = { path = "execution-scope" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 build-value-projection = { path = "../../../build/evaluation/values/projection" }
 provider-acceptance = { path = "../../../build/providers/acceptance" }
+native-binding-admission = { path = "../../verification/native-bindings" }
 direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 selected-provider-plans = { path = "../../../build/providers/selections" }

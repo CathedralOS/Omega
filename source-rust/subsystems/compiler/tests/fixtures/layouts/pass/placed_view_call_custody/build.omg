@@ -1,3 +1,3 @@
-machine build(builder: @mutable Build) {
-    Build::package(builder, "placed_view_call_custody");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "placed_view_call_custody" };
 }

@@ -78,6 +78,9 @@ macro_rules! receipt_accessor_rows {
     (ref $name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
         $( $(#[$meta])* pub const fn $field(&self) -> $ty { self.$field } )*
     };
+    (borrow $name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
+        $( $(#[$meta])* pub const fn $field(&self) -> $ty { &self.$field } )*
+    };
     ($name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
         $( $(#[$meta])* pub const fn $field(self) -> $ty { self.$field } )*
     };

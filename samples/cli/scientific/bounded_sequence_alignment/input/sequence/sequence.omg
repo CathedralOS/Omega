@@ -1,6 +1,5 @@
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 public data Sequence {
     bases: [u8; 16];
@@ -12,19 +11,19 @@ public data Sequence {
 // FASTA headers, punctuation or alphabet beyond A/C/G/T/N is silently accepted.
 // Status: 0 valid, 1 empty, 2 alphabet, 3 capacity, 4 unavailable line.
 public machine read_sequence(sequence: @mutable Sequence) -> i32
-reaches StandardInput
-invokes Console
+reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
     sequence.length = 0;
     transition { _ -> block next(sequence) }
     machine next(sequence: @mutable Sequence) -> i32 {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> (2),
-            ByteRead::Eof -> end(sequence),
-            ByteRead::Byte { value } -> block byte(sequence, value)
+            |console|::ByteRead::Error -> (2),
+            |console|::ByteRead::Eof -> end(sequence),
+            |console|::ByteRead::Byte { value } -> block byte(sequence, value)
         }
     }
     machine byte(sequence: @mutable Sequence, value: i32) -> i32 {

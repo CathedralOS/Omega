@@ -1,13 +1,13 @@
 // Package aliases select the same exact payload-free case as braces:
 // `Value::Empty` and `Value::Empty {}` denote one constructor.
-use leaf\settings;
+use {leaf}/settings/settings.omg;
 
-machine bare() -> leaf\settings\Value { leaf\settings\Value::Empty }
-machine braces() -> leaf\settings\Value { leaf\settings\Value::Empty {} }
+machine bare() -> |settings|::Value { |settings|::Value::Empty }
+machine braces() -> |settings|::Value { |settings|::Value::Empty {} }
 
 data Main {}
 
 machine Main::main(main: @mutable Main) {
-    let a: leaf\settings\Value = bare();
-    let b: leaf\settings\Value = braces();
+    let a: |settings|::Value = bare();
+    let b: |settings|::Value = braces();
 }

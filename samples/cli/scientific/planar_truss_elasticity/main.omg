@@ -1,47 +1,38 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/model/model.omg;
+use domain/solver/solver.omg;
+use io/decode/decode.omg;
+use io/input/input.omg;
+use io/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0
 // Expected output contains: planar_truss_elasticity
-use system\Console;
-use io\input;
-use io\input\Input;
-use io\input\read_input;
-use io\decode;
-use io\decode\decode;
-use io\report;
-use io\report\Output;
-use io\report\report;
-use domain\model;
-use domain\model\Truss;
-use domain\model\Solution;
-use domain\solver;
-use domain\solver\solve;
-data Main { input: Input; output: Output; truss: Truss; result: Solution; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    block read_input(@mutable main.input);
+data Main { input: |input|::Input; output: |report|::Output; truss: |model|::Truss; result: |model|::Solution; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    block |input|::read_input(@mutable main.input);
     transition main.input.valid { true -> decode_input(main), false -> invalid(main) }
     machine decode_input(main: @mutable Main) {
-        decode(@main.input, @mutable main.truss);
+        |decode|::decode(@main.input, @mutable main.truss);
         transition main.truss.valid && main.truss.nodes <= 8 && main.truss.bars <= 16 { true -> compute(main), false -> invalid(main) }
     }
     machine compute(main: @mutable Main) requires main.truss.nodes <= 8 requires main.truss.bars <= 16 {
-        solve(@main.truss, @mutable main.result);
+        |solver|::solve(@main.truss, @mutable main.result);
         transition main.result.valid { true -> output(main), false -> failure(main) }
     }
     machine output(main: @mutable Main) {
-        report(@mutable main.output, @main.truss, @main.result);
-        ProcessExit::exit_process(0);
+        |report|::report(@mutable main.output, @main.truss, @main.result);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine failure(main: @mutable Main) {
         transition main.result.status == 65 { true -> mechanism(main), false -> invalid(main) }
     }
-    machine mechanism(main: @mutable Main) { Console::write_line("MECHANISM: singular or numerically unresolved stiffness"); ProcessExit::exit_process(65); }
-    machine invalid(main: @mutable Main) { Console::write_line("INVALID: bounded integers, dimensions, indices, flags, positive EA or nonzero length required"); ProcessExit::exit_process(64); }
+    machine mechanism(main: @mutable Main) { |console|::Console::write_line("MECHANISM: singular or numerically unresolved stiffness"); |process_exit|::ProcessExit::exit_process(65); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("INVALID: bounded integers, dimensions, indices, flags, positive EA or nonzero length required"); |process_exit|::ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

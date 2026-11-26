@@ -4,6 +4,8 @@ use crate::execution::ExecutionSelection;
 
 pub(crate) struct RunArguments {
     pub(crate) selection: ExecutionSelection,
+    pub(crate) build_directories: platform_custody::directory_mappings::DirectoryMappings,
+    pub(crate) run_directories: platform_custody::directory_mappings::DirectoryMappings,
     pub(crate) build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
     pub(crate) psi_work_budget: Option<std::num::NonZeroU64>,
     pub(crate) private_entry_ram: Vec<psi_entry_memory::PrivateEntryRamInitialization>,
@@ -18,7 +20,7 @@ pub(crate) struct RunArguments {
 
 macro_rules! run_help {
     (synopsis) => {
-        "omega run [--engine <native|psi>] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name>] [--inputs <dir> | --input <file>...] [--outputs <dir>] [--trusted-artifact <manifest-id>] <root.omg|program.psi>"
+        "omega run [--engine <native|psi>] [--build-directories-readonly <host::/guest>]... [--build-directories-readwrite <host::/guest>]... [--run-directories-readonly <host::/guest>]... [--run-directories-readwrite <host::/guest>]... [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name>] [--inputs <dir> | --input <file>...] [--outputs <dir>] [--trusted-artifact <manifest-id>] <root.omg|program.psi>"
     };
     (host_packages) => {
         "For saved Psi, OMEGA_HOST_PACKAGE_LOCK selects an absolute path to the host's reviewed omega.lock. Set OMEGA_HOST_PACKAGE_LOCK_SHA256 to its approved SHA-256 digest."
@@ -43,6 +45,8 @@ pub(super) fn parse_arguments(
     arguments: &mut super::Arguments,
 ) -> Result<Option<RunArguments>, String> {
     let mut build_inputs = Vec::new();
+    let mut build_directories = Default::default();
+    let mut run_directories = Default::default();
     let mut engine = None;
     let mut psi_work_budget = None;
     let mut private_entry_ram = Vec::new();
@@ -56,6 +60,12 @@ pub(super) fn parse_arguments(
     let mut trusted_artifact = None;
     while let Some(argument) = arguments.next_argument() {
         match argument.to_str() {
+            Some(flag @ ("--build-directories-readonly" | "--build-directories-readwrite")) => {
+                super::parse_directory(arguments, flag, &mut build_directories)?;
+            }
+            Some(flag @ ("--run-directories-readonly" | "--run-directories-readwrite")) => {
+                super::parse_directory(arguments, flag, &mut run_directories)?;
+            }
             Some(flag @ ("--build-input" | "--optional-build-input")) => {
                 build_inputs.push(super::parse_build_input(arguments, flag)?);
             }
@@ -191,6 +201,9 @@ pub(super) fn parse_arguments(
     }
     let selection = engine.unwrap_or_default();
     let terminal = selection == ExecutionSelection::Terminal;
+    if !terminal && !run_directories.is_empty() {
+        return Err("Product directory mappings require --engine psi".into());
+    }
     let cases = inputs.is_some() || !input_files.is_empty();
     if inputs.is_some() && !input_files.is_empty() {
         return Err("use either --inputs <dir> or --input <file>, not both".into());
@@ -221,6 +234,13 @@ pub(super) fn parse_arguments(
             build_inputs,
         )?)
     };
+    if !build_directories.is_empty()
+        && main_path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
+    {
+        return Err("Build directory mappings require a source Build".into());
+    }
     if trusted_artifact.is_some()
         && !main_path
             .extension()
@@ -231,6 +251,8 @@ pub(super) fn parse_arguments(
     Ok(Some(RunArguments {
         trusted_artifact,
         build_inputs,
+        build_directories,
+        run_directories,
         private_entry_ram,
         selection,
         psi_work_budget,

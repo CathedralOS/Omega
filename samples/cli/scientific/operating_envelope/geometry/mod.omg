@@ -1,5 +1,5 @@
-use omega\language\core\F64::from_i32;
-use input;
+use input/mod.omg;
+use {omega}/language/core/float_operations.omg;
 
 // Sutherland-Hodgman clipping keeps counterclockwise order. Two fixed buffers
 // own all scratch: at most four window corners plus eight additional edges.
@@ -13,12 +13,12 @@ public data Envelope {
     bound: f64; area: f64;
     valid: bool; window_active: bool;
 }
-public machine load(envelope: @mutable Envelope, packet: @input\Packet) -> bool {
+public machine load(envelope: @mutable Envelope, packet: @|mod|::Packet) -> bool {
     transition packet.valid && packet.count >= 2 {
         true -> header(envelope, packet),
         _ -> false
     }
-    machine header(envelope: @mutable Envelope, packet: @input\Packet) -> bool {
+    machine header(envelope: @mutable Envelope, packet: @|mod|::Packet) -> bool {
         let bound: i32 = packet.values[0];
         let count: i32 in Wrapping = packet.values[1] as i32 +Wrapping;
         transition bound > 0 && bound <= 100 && count >= 0 && count <= 8
@@ -27,9 +27,9 @@ public machine load(envelope: @mutable Envelope, packet: @input\Packet) -> bool 
             _ -> false
         }
     }
-    machine initialize(envelope: @mutable Envelope, packet: @input\Packet, bound: i32,
+    machine initialize(envelope: @mutable Envelope, packet: @|mod|::Packet, bound: i32,
                      count: i32 in Wrapping) -> bool {
-        envelope.bound = F64::from_i32(bound);
+        envelope.bound = |float_operations|::F64::from_i32(bound);
         envelope.constraints = count;
         envelope.count = 4;
         envelope.area = 0.0;
@@ -41,21 +41,21 @@ public machine load(envelope: @mutable Envelope, packet: @input\Packet) -> bool 
         envelope.x[3] = 0.0 - envelope.bound; envelope.y[3] = envelope.bound;
         transition { _ -> constraint(envelope, packet, 0) }
     }
-    machine constraint(envelope: @mutable Envelope, packet: @input\Packet,
+    machine constraint(envelope: @mutable Envelope, packet: @|mod|::Packet,
                      index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < envelope.constraints && index < 8 {
             true -> offsets(envelope, packet, index, 2 + index * 3),
             _ -> true
         }
     }
-    machine offsets(envelope: @mutable Envelope, packet: @input\Packet,
+    machine offsets(envelope: @mutable Envelope, packet: @|mod|::Packet,
                   index: i32 in Wrapping, offset: i32 in Wrapping) -> bool {
         transition offset >= 0 && offset < 24 && index >= 0 && index < 8 {
             true -> coefficients(envelope, packet, index, offset),
             _ -> false
         }
     }
-    machine coefficients(envelope: @mutable Envelope, packet: @input\Packet,
+    machine coefficients(envelope: @mutable Envelope, packet: @|mod|::Packet,
                        index: i32 in Wrapping, offset: i32 in Wrapping) -> bool {
         let a: i32 = packet.values[offset];
         let b: i32 = packet.values[offset + 1];
@@ -65,11 +65,11 @@ public machine load(envelope: @mutable Envelope, packet: @input\Packet) -> bool 
             _ -> false
         }
     }
-    machine assign(envelope: @mutable Envelope, packet: @input\Packet, index: i32 in Wrapping,
+    machine assign(envelope: @mutable Envelope, packet: @|mod|::Packet, index: i32 in Wrapping,
                  a: i32, b: i32, limit: i32) -> bool {
-        envelope.a[index] = F64::from_i32(a);
-        envelope.b[index] = F64::from_i32(b);
-        envelope.limit[index] = F64::from_i32(limit) / 1000000.0;
+        envelope.a[index] = |float_operations|::F64::from_i32(a);
+        envelope.b[index] = |float_operations|::F64::from_i32(b);
+        envelope.limit[index] = |float_operations|::F64::from_i32(limit) / 1000000.0;
         transition { _ -> constraint(envelope, packet, index + 1) }
     }
 }

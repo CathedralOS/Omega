@@ -412,13 +412,10 @@ mod tests {
         assert!(retained_unit(&discovery, Path::new("/elsewhere/odd.omg")).is_none());
     }
 
-    /// What a Build source's import acquires in its own package. The first
-    /// two paths name a dependency, which this package declares nothing of:
-    /// they select no unit, so the import can wait for that dependency. The
-    /// rest name a declaration or a module of the package and select the
-    /// module that holds it, never the unrelated module-less units.
+    /// A Product declaration query selects the unit that declares the consumed
+    /// name. An unknown selection leaves discovery empty for the query to diagnose.
     #[test]
-    fn a_build_import_selects_only_the_module_that_declares_its_name() {
+    fn a_product_query_selects_only_the_module_that_declares_its_name() {
         let filesystem = captured(&[
             ("main.omg", "public machine entry() -> u8 { 7 }"),
             ("other.omg", "machine helper() -> u8 { 7 }"),

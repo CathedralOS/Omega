@@ -1,5 +1,7 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: PASS
 //
@@ -14,9 +16,6 @@ use omega\language\core\ProcessExit;
 // to 8.75. An exact 2 * 3 + 4 agrees under both roundings. x86 builds admit
 // AVX+FMA3; that feature is not inferred from the host.
 
-use system\Console;
-use omega\language\core\F64::fused_multiply_add;
-use omega\language\core\F64::multiply_then_add;
 
 data Moment {
     differences: [f64; 3];
@@ -26,11 +25,11 @@ data Moment {
 }
 
 machine fused_parameter(left: f64, right: f64, addend: f64) -> f64 {
-    F64::fused_multiply_add(left, right, addend)
+    |float_operations|::F64::fused_multiply_add(left, right, addend)
 }
 
 machine separate_parameter(left: f64, right: f64, addend: f64) -> f64 {
-    F64::multiply_then_add(left, right, addend)
+    |float_operations|::F64::multiply_then_add(left, right, addend)
 }
 
 machine difference(moment: @Moment, index: i32 in Wrapping) -> f64 {
@@ -66,7 +65,7 @@ data Main {
     moment: Moment;
 }
 
-machine measure(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine measure(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     main.moment.differences[0] = 0.5;
     main.moment.differences[1] = 1.5;
     main.moment.differences[2] = 2.5;
@@ -75,8 +74,8 @@ machine measure(main: @mutable Main) reaches ProcessExit + StandardOutput {
     machine cancel(main: @mutable Main) {
         let left: f64 = 1.0000000000000002220446049250313080847263336181640625;
         let addend: f64 = 0.0 - 1.000000000000000444089209850062616169452667236328125;
-        let local_fused: f64 = F64::fused_multiply_add(left, left, addend);
-        let local_separate: f64 = F64::multiply_then_add(left, left, addend);
+        let local_fused: f64 = |float_operations|::F64::fused_multiply_add(left, left, addend);
+        let local_separate: f64 = |float_operations|::F64::multiply_then_add(left, left, addend);
         main.moment.fused = fused_parameter(left, left, addend);
         main.moment.separate = separate_parameter(left, left, addend);
         transition local_fused > 0.0 && local_separate == 0.0
@@ -101,17 +100,17 @@ machine measure(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine pass(main: @mutable Main) {
-        Console::write_line("PASS");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("PASS");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine fail(main: @mutable Main) {
-        Console::write_line("FAIL");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL");
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     measure(@mutable entry_storage);
 }

@@ -1,5 +1,6 @@
 // Windows canonicalize runtime canary: select the exact supported entry.
 
+use main.omg as app;
 use {omega}/build/dependency.omg;
 
 machine build(builder: @mutable Build) {
@@ -7,6 +8,6 @@ machine build(builder: @mutable Build) {
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../../../../../source/library/system"
     }));
-    Build::bind(builder, windows_x86_64::ProgramEntry, windows_entry);
-    Build::bind(builder, linux_x86_64::ProgramEntry, posix_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::windows_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::posix_entry);
 }

@@ -52,16 +52,13 @@ from a package name. Purpose, checked target, and build execution profile remain
 exact occurrence coordinates; root, dependency, Product, and Build acceptance
 are not interchangeable.
 
-In version 4, [assumed binding relationships](../build/assumed_binding_contracts.md) are
-risk-bearing assumption rows: retain the required/supplied contract identities,
-positional mapping, admitted semantic difference, runtime/root scope, and exact
-selected implementation and semantic-dependency commitment. These are not the
-ordinary selected-provider tables excluded below. A changed relationship or
-implementation invalidates its acceptance; retaining a friendly provider name
-or unchanged permission list is insufficient. The lock never authorizes use of
-these assumptions during build execution.
+Historical version 4 locks could record an assumed binding between two
+different requirement contracts. Current provider selection requires the
+selected implementation or a checked adapter to satisfy the caller-facing
+contract. Existing assumed-binding rows must be removed when migrating.
+See [provider contracts and migration](../resources/native_borrows.md#provider-contracts-and-migration).
 
-Restricted-build rows bind the exact package and permission meaning, operation,
+Version 4 restricted-build rows bind the exact package and permission meaning, operation,
 logical resource scope, bounds, and applicable context. They record the consuming
 project's explicit acceptance, not authority supplied by a dependency's own lock.
 Fresh checked contracts reconstruct the direct/transitive requests at each use;

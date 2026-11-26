@@ -2,9 +2,9 @@
 // Owning requirement: RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.
 // Package review keeps the argument's Utf8 requirement and records that
 // the returned view borrows from that argument.
-use omega\language\core\byte_observation;
+use {omega}/language/core/byte_observation/byte_observation.omg;
 
-public domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);
+public domain [u8]::Utf8 requires |byte_observation|::valid_utf8(@self[..]);
 
 data Utf8View = machine(packet: @[u8] in Utf8) -> @[u8] in Utf8 reaches none crashes none;
 

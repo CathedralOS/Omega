@@ -61,7 +61,7 @@ Identity of two byte views' contents needs its own Identity carrier, which no
 program asks for yet. Readers reject earlier markers before reading the
 payload, so a saved program from marker 294 or earlier must be rebuilt.
 
-Marker 294 publishes `core\Identity` between inputs and scalar terms
+Marker 294 publishes `Identity` between inputs and scalar terms
 as [proposition](#propositions) tag 23, the general Identity row, and retires
 tag 18, the structural identity row it replaces: nothing wrote tag 18, and an
 Identity of two inputs at their data type is a tag 23 row. Readers reject
@@ -861,7 +861,7 @@ integer math and content operands are their own encodings inside the row.
 
 Tags 12, 18 and 19 are retired; a decoder rejects them.
 
-Tag 23 is `core\Identity` at a type: two values of one carrier are the same
+Tag 23 is `Identity` at a type: two values of one carrier are the same
 value. Its layout is a counted list of values, then the `u32` positions of the
 left and right value. Each value is a carrier followed by an operand. A module
 publishes only an Identity whose every value is an input, or a field of one,

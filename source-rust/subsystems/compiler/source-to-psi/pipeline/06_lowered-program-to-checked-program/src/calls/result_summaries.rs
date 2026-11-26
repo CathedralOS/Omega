@@ -483,7 +483,6 @@ fn summarize(
             declared: &declared_joins,
             unreached: &beyond,
             law_instances: &[],
-            donated: None,
         },
         &mut scratch,
         &mut decided,
@@ -532,7 +531,7 @@ fn summarize(
                 &prepared.context,
                 &known.assumptions,
                 &known.axioms,
-                &*scratch.values,
+                &scratch.values,
                 activity,
             );
             // A caller's goal on this result then depends on an operation

@@ -17,9 +17,9 @@ application needs: its own units, the driver, frontend, Alpha backend, wire foun
 standard library and core library. It copies each file byte for byte, keeps package
 and unit identities, and writes an exact manifest. Package Build declarations
 and core’s default Build are recorded separately as build inputs. The capture skips
-`.git` directories, each package’s root `build/` output, and the example packages
-under its `tests/fixtures/`. A nested source file such as `tools/build/reader.omg`
-keeps its complete package-relative path. The entry is
+`.git` directories and each package’s root `build/` output. Every other
+`.omg` file keeps its complete package-relative path, including files in
+`tests/fixtures/` and `tools/build/`. The entry is
 `source/application/construction/main.omg::entry_start`.
 
 ```sh

@@ -1,1 +1,1 @@
-machine build(builder: @mutable Build) { Build::package(builder, "qualified_call_lib"); }
+machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "qualified_call_lib" }; }

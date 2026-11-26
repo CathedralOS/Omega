@@ -393,7 +393,7 @@ pub(crate) mod rematerialization {
         ReceiptMismatch,
     }
 
-    stage_error_display!(
+    failed_display!(
         OptimizedActiveResidentRematerializationError,
         "optimized active-resident rematerialization failed"
     );

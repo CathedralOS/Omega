@@ -1,7 +1,7 @@
 // Equivalence lemma trio: `proposition equivalent(a, b) = a == b`
 // declares a proposition WITH a definitional body; reflexive/
 // symmetric/transitive lemma machines give it the equivalence
-// structure core\relation traits consume.
+// structure {omega}/language/core/relation.omg traits consume.
 //
 //   * `proposition p(a, b) = <expr>` — body, not just a signature.
 //   * Three machines whose ensures spell the equivalence laws.

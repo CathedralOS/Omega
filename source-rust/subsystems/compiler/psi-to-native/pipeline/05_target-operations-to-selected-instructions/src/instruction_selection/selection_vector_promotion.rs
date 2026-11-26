@@ -2340,8 +2340,7 @@ fn coalesce_external_stores(
     mem_delete: &mut HashSet<SelectedInstructionId>,
 ) -> Result<(), SelectedInstructionError> {
     let block_local_ptrs = collect_block_local_ptrs(insts, local_slots, multi_def_vregs);
-    let mut cached_zero: Option<VirtualRegisterId> = None;
-    let mut prepend_zero: Option<SelectedInstruction> = None;
+    let mut last_zero_store: Option<(usize, VirtualRegisterId)> = None;
     let mut removed = vec![false; insts.len()];
 
     let mut i = 0;
@@ -2406,11 +2405,25 @@ fn coalesce_external_stores(
         }
 
         if let Some((j, low_off, vec_opt)) = match_idx {
+            let old1 = insts[i].id;
+            removed[i] = true;
             let store_vreg = match vec_opt {
                 Some(v) => v,
                 None => {
-                    if let Some(z) = cached_zero {
-                        z
+                    // Keep the zero in a vector register only across a store run that
+                    // the selector can cross. An intervening call can clobber every lane.
+                    let reusable = last_zero_store.filter(|&(last, _)| {
+                        last < i
+                            && insts[last + 1..i].iter().all(|instruction| {
+                                is_memory_barrier_free_for_coalesce(
+                                    instruction,
+                                    local_slots,
+                                    &block_local_ptrs,
+                                )
+                            })
+                    });
+                    let zero = if let Some((_, zero)) = reusable {
+                        zero
                     } else {
                         let z_id = SelectedInstructionId(*next_inst_id);
                         *next_inst_id += 1;
@@ -2438,16 +2451,18 @@ fn coalesce_external_stores(
                             clobbers: z_row.clobbers.clone(),
                             provenance: SelectedInstructionProvenance::default(),
                         };
-                        cached_zero = Some(z_reg);
-                        prepend_zero = Some(z_inst);
+                        insts[i] = z_inst;
+                        removed[i] = false;
                         z_reg
-                    }
+                    };
+                    last_zero_store = Some((j, zero));
+                    zero
                 }
             };
             let coalesced_id = SelectedInstructionId(*next_inst_id);
             *next_inst_id += 1;
             let store_row = constraint_row(environment, packed_keys.store_128)?;
-            let old1 = insts[i].id;
+
             let old2 = insts[j].id;
             let prov = insts[j].provenance.clone();
             insts[j] = SelectedInstruction {
@@ -2462,7 +2477,6 @@ fn coalesce_external_stores(
                 clobbers: store_row.clobbers.clone(),
                 provenance: prov,
             };
-            removed[i] = true;
             mem_delete.insert(old1);
             mem_remap
                 .entry(old2)
@@ -2479,9 +2493,6 @@ fn coalesce_external_stores(
             idx += 1;
             keep
         });
-    }
-    if let Some(z_inst) = prepend_zero {
-        insts.insert(0, z_inst);
     }
     Ok(())
 }
@@ -4086,7 +4097,7 @@ mod tests {
     }
 
     #[test]
-    fn coalesces_contiguous_external_zero_stores_to_packed_store_128() {
+    fn coalesces_external_zero_stores_without_carrying_a_vector_across_a_call() {
         let env =
             register_environment::baseline_target_register_environment(NativeTarget::windows_x64())
                 .unwrap();
@@ -4122,6 +4133,28 @@ mod tests {
                 entry_fixed_view: None,
             },
         ];
+        let store = |id, byte_offset| SelectedInstruction {
+            id: SelectedInstructionId(id),
+            kind: SelectedInstructionKind::Store {
+                byte_offset,
+                byte_size: 8,
+            },
+            constraint: store_key,
+            operands: vec![
+                op_from(store_row, 0, ext_ptr),
+                op_from(store_row, 1, g_zero),
+            ],
+            implicit_uses: vec![],
+            implicit_defs: vec![],
+            clobbers: vec![],
+            provenance: SelectedInstructionProvenance::default(),
+        };
+        let call_target = selected_instructions::SelectedCallTarget::Machine(
+            semantic_vocabulary::MachineId::new(7).unwrap(),
+        );
+        let call = SelectedInstructionKind::CallUnit {
+            target: call_target,
+        };
         let insts = vec![
             SelectedInstruction {
                 id: SelectedInstructionId(0),
@@ -4143,41 +4176,29 @@ mod tests {
                 clobbers: vec![],
                 provenance: SelectedInstructionProvenance::default(),
             },
+            store(1, 0),
+            store(2, 8),
+            store(3, 16),
+            store(4, 24),
             SelectedInstruction {
-                id: SelectedInstructionId(1),
-                kind: SelectedInstructionKind::Store {
-                    byte_offset: 0,
-                    byte_size: 8,
-                },
-                constraint: store_key,
-                operands: vec![
-                    op_from(store_row, 0, ext_ptr),
-                    op_from(store_row, 1, g_zero),
-                ],
+                id: SelectedInstructionId(5),
+                kind: call,
+                constraint: env.selected_keys().call_unit[0],
+                operands: vec![],
                 implicit_uses: vec![],
                 implicit_defs: vec![],
-                clobbers: vec![],
+                clobbers: env
+                    .constraint(env.selected_keys().call_unit[0])
+                    .unwrap()
+                    .clobbers
+                    .clone(),
                 provenance: SelectedInstructionProvenance::default(),
             },
-            SelectedInstruction {
-                id: SelectedInstructionId(2),
-                kind: SelectedInstructionKind::Store {
-                    byte_offset: 8,
-                    byte_size: 8,
-                },
-                constraint: store_key,
-                operands: vec![
-                    op_from(store_row, 0, ext_ptr),
-                    op_from(store_row, 1, g_zero),
-                ],
-                implicit_uses: vec![],
-                implicit_defs: vec![],
-                clobbers: vec![],
-                provenance: SelectedInstructionProvenance::default(),
-            },
+            store(6, 32),
+            store(7, 40),
         ];
 
-        let mut func = base_function(vec![], vregs, insts, SelectedInstructionId(3), ret_key);
+        let mut func = base_function(vec![], vregs, insts, SelectedInstructionId(8), ret_key);
         promote_and_simplify(std::slice::from_mut(&mut func), &env).unwrap();
 
         let kinds: Vec<_> = func.blocks[0].instructions.iter().map(|i| i.kind).collect();
@@ -4186,6 +4207,10 @@ mod tests {
             vec![
                 SelectedInstructionKind::PackedMaterializeZero,
                 SelectedInstructionKind::PackedStore128 { byte_offset: 0 },
+                SelectedInstructionKind::PackedStore128 { byte_offset: 16 },
+                call,
+                SelectedInstructionKind::PackedMaterializeZero,
+                SelectedInstructionKind::PackedStore128 { byte_offset: 32 },
             ]
         );
     }

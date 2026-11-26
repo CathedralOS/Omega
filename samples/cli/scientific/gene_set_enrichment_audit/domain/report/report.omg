@@ -1,13 +1,10 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use domain\exact;
-use domain\exact\Fraction;
-use domain\sets;
-use domain\sets\member;
-use domain\sets\size;
+use domain/exact/exact.omg;
+use domain/sets/sets.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
-public machine number(value: u64 in Wrapping) reaches StandardOutput
-invokes Console
+public machine number(value: u64 in Wrapping) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     // The declared model displays values at most 756. Subtraction extracts
     // its three decimal columns without retaining a division operand over IO.
@@ -25,7 +22,7 @@ invokes Console
         }
     }
     machine high(left: u64 in Wrapping, count: u64 in Wrapping) {
-        Console::write_byte((count % 10 + 48) as i32);
+        |console|::Console::write_byte((count % 10 + 48) as i32);
         transition { _ -> tens(left, 0, true) }
     }
     machine tens(left: u64 in Wrapping, count: u64 in Wrapping, high: bool) {
@@ -41,22 +38,22 @@ invokes Console
         }
     }
     machine low(left: u64 in Wrapping, count: u64 in Wrapping) {
-        Console::write_byte((count % 10 + 48) as i32);
+        |console|::Console::write_byte((count % 10 + 48) as i32);
         transition { _ -> units(left) }
     }
     machine units(left: u64 in Wrapping) {
-        Console::write_byte((left % 10 + 48) as i32);
+        |console|::Console::write_byte((left % 10 + 48) as i32);
     }
 }
 
-public machine fraction(value: Fraction) reaches StandardOutput
-invokes Console
+public machine fraction(value: |exact|::Fraction) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    number(value.numerator); Console::write("/"); number(value.denominator);
+    number(value.numerator); |console|::Console::write("/"); number(value.denominator);
 }
 
-public machine membership(mask: u64 in Wrapping) reaches StandardOutput
-invokes Console
+public machine membership(mask: u64 in Wrapping) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition { _ -> step(mask, 0) }
     machine step(mask: u64 in Wrapping, gene: u64 in Wrapping) {
@@ -65,26 +62,26 @@ invokes Console
  }
     }
     machine inspect(mask: u64 in Wrapping, gene: u64 in Wrapping) {
-        transition member(mask, gene) { true -> emit(mask, gene),
+        transition |sets|::member(mask, gene) { true -> emit(mask, gene),
  false -> step(mask, gene + 1)
  }
     }
     machine emit(mask: u64 in Wrapping, gene: u64 in Wrapping) {
-        Console::write_byte((gene + 65) as i32);
+        |console|::Console::write_byte((gene + 65) as i32);
         transition { _ -> step(mask, gene + 1) }
     }
     machine done() { }
 }
 
-public machine result(identifier: u64 in Wrapping, annotated: u64 in Wrapping, hits: u64 in Wrapping, probability: Fraction, adjusted: Fraction, rank: u64 in Wrapping) reaches StandardOutput
-invokes Console
+public machine result(identifier: u64 in Wrapping, annotated: u64 in Wrapping, hits: u64 in Wrapping, probability: |exact|::Fraction, adjusted: |exact|::Fraction, rank: u64 in Wrapping) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write("set="); number(identifier);
-    Console::write(" K="); number(size(annotated));
-    Console::write(" hits="); number(size(hits));
-    Console::write(" p="); fraction(probability);
-    Console::write(" q="); fraction(adjusted);
-    Console::write(" rank="); number(rank);
-    Console::write(" members="); membership(annotated);
-    Console::write(" overlap="); membership(hits); Console::write_line("");
+    |console|::Console::write("set="); number(identifier);
+    |console|::Console::write(" K="); number(|sets|::size(annotated));
+    |console|::Console::write(" hits="); number(|sets|::size(hits));
+    |console|::Console::write(" p="); fraction(probability);
+    |console|::Console::write(" q="); fraction(adjusted);
+    |console|::Console::write(" rank="); number(rank);
+    |console|::Console::write(" members="); membership(annotated);
+    |console|::Console::write(" overlap="); membership(hits); |console|::Console::write_line("");
 }

@@ -55,6 +55,16 @@ macro_rules! image_digest {
                 &self.0
             }
         }
+
+        impl crate::region_extent::ImageDigest for $name {
+            fn from_digest(digest: [u8; 32]) -> Self {
+                Self(digest)
+            }
+
+            fn as_bytes(&self) -> &[u8; 32] {
+                &self.0
+            }
+        }
     };
 }
 
@@ -191,8 +201,10 @@ mod patch_bytes {
     }
 }
 
+mod region_extent;
 mod relocation_envelope;
 mod relocations;
+mod slot_thunk;
 mod symbols {
     use crate::final_image::{
         FinalImage, FinalImageLayout, FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle,
@@ -296,6 +308,7 @@ pub use output::{
 };
 pub use relocation_envelope::validate_final_text_relocation_envelope;
 pub use relocations::{apply_relocations, validate_relative_relocation_target};
+pub use slot_thunk::SlotThunkIsa;
 pub use symbols::{
     final_image_entry_symbol, final_image_imports_symbol, final_image_symbol_address,
     final_image_symbol_name,

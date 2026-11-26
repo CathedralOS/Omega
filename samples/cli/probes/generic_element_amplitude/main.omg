@@ -1,13 +1,13 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Const-generic element amplitude. antenna_array_pattern sums four concrete
 // weights; this walk uses the same absolute-value sum at a runtime index
 // proved against the array's const extent, through a field and a parameter.
 //
 // Expected exit: 0.
 // Expected output contains: generic element amplitude 6 4
-use system\Console;
-use omega\language\core\abs_f64;
 
 data Elements<const Count: u64> {
     weights: [f64; Count];
@@ -22,7 +22,7 @@ machine amplitude<const Count: u64>(elements: @Elements<Count>) -> f64 {
         }
     }
     machine step(elements: @Elements<Count>, index: u64, total: f64) -> f64 {
-        let next: f64 = total + abs_f64(elements.weights[index]);
+        let next: f64 = total + |math|::abs_f64(elements.weights[index]);
         transition { _ -> walk(elements, index + 1, next) }
     }
     machine done(total: f64) -> f64 { total }
@@ -38,7 +38,7 @@ machine parameter_amplitude<const Count: u64>(weights: @[f64; Count]) -> f64 {
     }
     machine step(weights: @[f64; Count], index: u64, total: f64) -> f64 {
         let weight: f64 = weights[index];
-        let next: f64 = total + abs_f64(weight);
+        let next: f64 = total + |math|::abs_f64(weight);
         transition { _ -> walk(weights, index + 1, next) }
     }
     machine done(total: f64) -> f64 { total }
@@ -50,7 +50,7 @@ data Main {
     local: [f64; 3];
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     main.broadside.weights[0] = 1.0;
     main.broadside.weights[1] = 2.0;
     main.broadside.weights[2] = 2.0;
@@ -69,17 +69,17 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         _ -> fail(main)
     }
     machine pass(main: @mutable Main) {
-        Console::write_line("generic element amplitude 6 4");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("generic element amplitude 6 4");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine fail(main: @mutable Main) {
-        Console::write_line("generic element amplitude mismatch");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("generic element amplitude mismatch");
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

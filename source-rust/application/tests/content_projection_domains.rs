@@ -78,7 +78,7 @@ fn an_arbitrary_helper_call_remains_outside_the_content_projection_fragment() {
 #[test]
 fn interval_projection_orders_proof_naturals_before_qualifying_the_resource() {
     let source = FIELD_PROJECTION
-        .replace("data Region { length: u64; }", "data Region { base: addr; length: u64; }")
+        .replace("data Region { length: u64; }", "data Region { base: address; length: u64; }")
         .replace("CountedQuantity", "IntervalSet")
         .replace("magnitude: embed(subject.length) as |nat|::Nat", "start: embed(subject.base) as |nat|::Nat, end: (embed(subject.base) + embed(subject.length)) as |nat|::Nat");
     let (output, report) = program::invoke(&source, &["psi", "inspect", "--machine", "retain"]);
@@ -111,6 +111,33 @@ fn promising_content_membership_requires_a_qualified_returned_value() {
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("normal completion does not establish its promised runtime membership"),
+        "{report}"
+    );
+}
+
+#[test]
+fn installed_core_joins_two_owned_vacant_extents_only_under_its_contract() {
+    let source = r#"use {omega}/language/core/extent.omg as ranges;
+machine join(
+    left: |ranges|::Extent in |ranges|::Extent::Granted & |ranges|::Extent::Vacant,
+    right: |ranges|::Extent in |ranges|::Extent::Granted & |ranges|::Extent::Vacant
+) -> |ranges|::Extent in |ranges|::Extent::Granted & |ranges|::Extent::Vacant
+requires
+    embed(left.length) + embed(right.length) <= 18446744073709551615,
+    left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)
+{
+    |ranges|::merge_vacant_extents(left, right)
+}
+machine main() {}"#;
+    let inspect = &["psi", "inspect", "--machine", "join"];
+    let (output, report) = program::invoke(source, inspect);
+    assert!(output.status.success(), "{report}");
+
+    let gap = source.replace("embed(left.base) + embed(left.length)", "embed(left.base)");
+    let (output, report) = program::invoke(&gap, inspect);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove requires") && report.contains("merge_vacant_extents"),
         "{report}"
     );
 }

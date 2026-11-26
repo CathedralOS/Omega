@@ -1,5 +1,5 @@
-use omega\language\core\byte_observation;
-public domain [u8; 8]::Ascii requires byte_observation\ascii_only(@self[..]);
+use {omega}/language/core/byte_observation/byte_observation.omg;
+public domain [u8; 8]::Ascii requires |byte_observation|::ascii_only(@self[..]);
 data Command [copy] { storage: [u8; 8] in Ascii; used: u64; }
 data Exit [copy] { command: Command; destination: u32; }
 data Room [copy] { exits: [Exit; 2]; }

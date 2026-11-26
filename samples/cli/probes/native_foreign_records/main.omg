@@ -1,15 +1,14 @@
 // Expected exit: 0
-use omega\language\core\DllImport;
-use omega\language\core\ForeignBinding;
+use {omega}/language/core/external_binding.omg;
 
 // Windows returns a 32-bit comparison code in RAX. Wrapping those bits in an
 // ordinary record exercises aggregate ABI capture, not scalar normalization.
 data Comparison { code: i32; }
-data Functions { compare: addr; }
+data Functions { compare: address; }
 
 boundary trait Symbols {
-    machine module(name: @[u8; 13]) -> addr reaches none crashes none;
-    machine symbol(module: addr, name: @[u8; 21]) -> addr reaches none crashes none;
+    machine module(name: @[u8; 13]) -> address reaches none crashes none;
+    machine symbol(module: address, name: @[u8; 21]) -> address reaches none crashes none;
 }
 boundary trait Imports {
     machine compare(left: @[u16; 5], left_count: i32, right: @[u16; 5], right_count: i32, ignore_case: i32) -> Comparison reaches none crashes none;
@@ -18,23 +17,23 @@ boundary trait Tables {
     machine compare(table: @Functions, left: @[u16; 5], left_count: i32, right: @[u16; 5], right_count: i32, ignore_case: i32) -> Comparison reaches none crashes none;
 }
 
-windows_x86_64 machine module_binding() -> ForeignBinding<12, 16, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetModuleHandleA" } }
+windows_x86_64 machine module_binding() -> |external_binding|::ForeignBinding<12, 16, 0> {
+    |external_binding|::ForeignBinding::DllImport { import: |external_binding|::DllImport::PeByName { library: "kernel32.dll", export: "GetModuleHandleA" } }
 }
-windows_x86_64 machine symbol_binding() -> ForeignBinding<12, 14, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "GetProcAddress" } }
+windows_x86_64 machine symbol_binding() -> |external_binding|::ForeignBinding<12, 14, 0> {
+    |external_binding|::ForeignBinding::DllImport { import: |external_binding|::DllImport::PeByName { library: "kernel32.dll", export: "GetProcAddress" } }
 }
-windows_x86_64 machine compare_binding() -> ForeignBinding<12, 20, 0> {
-    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "CompareStringOrdinal" } }
+windows_x86_64 machine compare_binding() -> |external_binding|::ForeignBinding<12, 20, 0> {
+    |external_binding|::ForeignBinding::DllImport { import: |external_binding|::DllImport::PeByName { library: "kernel32.dll", export: "CompareStringOrdinal" } }
 }
-windows_x86_64 machine module(name: @[u8; 13]) -> addr
+windows_x86_64 machine module(name: @[u8; 13]) -> address
 satisfies Symbols::module via module_binding();
-windows_x86_64 machine symbol(module: addr, name: @[u8; 21]) -> addr
+windows_x86_64 machine symbol(module: address, name: @[u8; 21]) -> address
 satisfies Symbols::symbol via symbol_binding();
 windows_x86_64 machine compare_import(left: @[u16; 5], left_count: i32, right: @[u16; 5], right_count: i32, ignore_case: i32) -> Comparison
 satisfies Imports::compare via compare_binding();
 windows_x86_64 machine Functions::compare(table: @Functions, left: @[u16; 5], left_count: i32, right: @[u16; 5], right_count: i32, ignore_case: i32) -> Comparison
-satisfies Tables::compare via ForeignBinding::TableFunction(compare);
+satisfies Tables::compare via |external_binding|::ForeignBinding::TableFunction(compare);
 
 machine compare_folded(table: @Functions, left: @[u16; 5], right: @[u16; 5]) -> Comparison
 reaches Tables
@@ -52,8 +51,8 @@ crashes Trap
 {
     let library: [u8; 13] = "kernel32.dll\0";
     let name: [u8; 21] = "CompareStringOrdinal\0";
-    let module: addr = Symbols::module(@library);
-    let function: addr = Symbols::symbol(module, @name);
+    let module: address = Symbols::module(@library);
+    let function: address = Symbols::symbol(module, @name);
     let functions: Functions = Functions { compare: function };
     let left: [u16; 5] = utf16"Omega";
     let right: [u16; 5] = utf16"omega";

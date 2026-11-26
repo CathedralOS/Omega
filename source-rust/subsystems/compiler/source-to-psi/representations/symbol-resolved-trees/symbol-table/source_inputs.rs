@@ -471,6 +471,30 @@ impl SourceMap {
         })
     }
 
+    /// Check a retained selector that carries a declaration identity rather than
+    /// source syntax against the producing package's Product visibility.
+    pub fn product_description_visible(
+        &self,
+        supplier: PackageKeyIdentity,
+        declaration: &SourceFile,
+        public: bool,
+    ) -> bool {
+        declaration.dependency_scope == DependencyScope::Product
+            && self.source_is_selected(declaration.source_id)
+            && (declaration.package_identity == Some(supplier)
+                || public
+                    && (declaration.origin == SourceOrigin::Toolchain
+                        && declaration.resolution_stratum == SourceResolutionStratum::Base
+                        || self
+                            .product_dependencies
+                            .get(&supplier)
+                            .is_some_and(|edges| {
+                                edges
+                                    .values()
+                                    .any(|target| Some(*target) == declaration.package_identity)
+                            })))
+    }
+
     pub fn retain_query_dependencies(
         &mut self,
         root: PathBuf,
@@ -863,6 +887,53 @@ mod tests {
 
         assert_eq!(span.source_id, SourceId(7));
         assert_eq!(file.text_at(span.span), "main");
+    }
+
+    #[test]
+    fn retained_descriptions_use_visibility_in_the_captured_product() {
+        use DependencyScope::{Build, Product};
+        use SourceOrigin::{Toolchain, User};
+        use SourceResolutionStratum::{Base, CurrentActivationExtension};
+
+        let owner = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let dependency = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let mut sources = SourceMap::default();
+        sources.retain_product_dependency_scope([(owner, "protocol", dependency)]);
+        let mut visible = |origin, scope, stratum, package, public| {
+            let file = sources
+                .add_checked_instance(
+                    PathBuf::from("record.omg"),
+                    "",
+                    PathBuf::from("."),
+                    package,
+                    origin,
+                    stratum,
+                    scope,
+                )
+                .clone();
+            let mut hidden = sources.clone();
+            hidden.retain_selected_sources(|_| false);
+            assert!(!hidden.product_description_visible(owner, &file, public));
+            sources.product_description_visible(owner, &file, public)
+        };
+        assert!(visible(
+            User,
+            Product,
+            CurrentActivationExtension,
+            Some(owner),
+            false
+        ));
+        assert!(visible(User, Product, Base, Some(dependency), true));
+        assert!(!visible(User, Product, Base, Some(dependency), false));
+        assert!(visible(Toolchain, Product, Base, None, true));
+        assert!(!visible(
+            Toolchain,
+            Product,
+            CurrentActivationExtension,
+            None,
+            true
+        ));
+        assert!(!visible(User, Build, Base, Some(owner), true));
     }
 
     #[test]

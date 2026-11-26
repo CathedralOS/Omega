@@ -37,34 +37,46 @@ pub struct AtomicPermissions {
 }
 
 impl AtomicPermissions {
+    /// Every permission in field order; access-plan fingerprints hash this order.
+    pub const fn bits(self) -> [bool; 12] {
+        [
+            self.load,
+            self.store,
+            self.fetch_add,
+            self.fetch_sub,
+            self.fetch_xor,
+            self.fetch_or,
+            self.fetch_and,
+            self.swap,
+            self.compare_exchange,
+            self.compare_exchange_once,
+            self.try_exchange,
+            self.try_exchange_once,
+        ]
+    }
+
     pub const fn any(self) -> bool {
-        self.load
-            || self.store
-            || self.fetch_add
-            || self.fetch_sub
-            || self.fetch_xor
-            || self.fetch_or
-            || self.fetch_and
-            || self.swap
-            || self.compare_exchange
-            || self.compare_exchange_once
-            || self.try_exchange
-            || self.try_exchange_once
+        let bits = self.bits();
+        let mut index = 0;
+        while index < bits.len() {
+            if bits[index] {
+                return true;
+            }
+            index += 1;
+        }
+        false
     }
 
     pub const fn contains(self, required: Self) -> bool {
-        (!required.load || self.load)
-            && (!required.store || self.store)
-            && (!required.fetch_add || self.fetch_add)
-            && (!required.fetch_sub || self.fetch_sub)
-            && (!required.fetch_xor || self.fetch_xor)
-            && (!required.fetch_or || self.fetch_or)
-            && (!required.fetch_and || self.fetch_and)
-            && (!required.swap || self.swap)
-            && (!required.compare_exchange || self.compare_exchange)
-            && (!required.compare_exchange_once || self.compare_exchange_once)
-            && (!required.try_exchange || self.try_exchange)
-            && (!required.try_exchange_once || self.try_exchange_once)
+        let (granted, required) = (self.bits(), required.bits());
+        let mut index = 0;
+        while index < granted.len() {
+            if required[index] && !granted[index] {
+                return false;
+            }
+            index += 1;
+        }
+        true
     }
 }
 

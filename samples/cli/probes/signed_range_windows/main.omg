@@ -1,7 +1,6 @@
 // Signed inputs must fit their u64 slice coordinates. The program
 // observes an exclusive window and then an inclusive prefix of that view.
-use omega\language\core\narrow_u64_to_i32_wrapping;
-use omega\language\core\widen_u8_to_i32;
+use {omega}/language/core/numeric_conversion.omg;
 
 machine head(items: @[u8], index: i64) -> u8
 requires 0 <= index && (index as u64) < items.length {
@@ -22,11 +21,11 @@ machine entry_start() crashes Trap {
     let all: @[u8] = @slots[..];
     let count: u64 = window_len(all, 1, 4);
     let last: u8 = head(all, 4);
-    let width: i32 = narrow_u64_to_i32_wrapping(count);
-    let value: i32 = widen_u8_to_i32(last);
+    let width: i32 = |numeric_conversion|::narrow_u64_to_i32_wrapping(count);
+    let value: i32 = |numeric_conversion|::widen_u8_to_i32(last);
     let window: @[u8] = @all[1..4];
     let prefix: @[u8] = @window[0..=1];
-    let extra: i32 = narrow_u64_to_i32_wrapping(prefix.length);
+    let extra: i32 = |numeric_conversion|::narrow_u64_to_i32_wrapping(prefix.length);
     let total: i32 in Wrapping = (width as +Wrapping) + (value as +Wrapping) + (extra as +Wrapping);
     transition (total as -Wrapping) == 55 {
         true -> done(),

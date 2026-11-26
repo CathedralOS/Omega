@@ -1,9 +1,7 @@
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-use omega\language\core\widen_i32_to_i64;
-use clock\model;
-use clock\model\Acquisition;
+use clock/model/model.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 data Token {
     case End;
@@ -13,17 +11,17 @@ data Token {
 
 // Nonnegative decimal tokens, ASCII whitespace, at most 19 digits and i64::MAX.
 // The guard precedes multiply/add, including at the signed overflow boundary.
-machine next_token() -> Token reaches StandardInput
+machine next_token() -> Token reaches |process_authority|::StandardInput
 blocks
 crashes Trap
 {
     transition { _ -> scan(0, 0) }
     machine scan(value: i64 in Wrapping, digits: i64 in Wrapping) -> Token {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> (Token::Invalid),
-            ByteRead::Eof -> end(value, digits),
-            ByteRead::Byte { value as byte } -> classify(value, digits, byte)
+            |console|::ByteRead::Error -> (Token::Invalid),
+            |console|::ByteRead::Eof -> end(value, digits),
+            |console|::ByteRead::Byte { value as byte } -> classify(value, digits, byte)
         }
     }
     machine end(value: i64 in Wrapping, digits: i64 in Wrapping) -> Token {
@@ -46,7 +44,7 @@ crashes Trap
     }
     machine digit(value: i64 in Wrapping, digits: i64 in Wrapping, byte: i32) -> Token {
         transition byte >= 48 && byte <= 57 && digits < 19 {
-            true -> bounded(value, digits, (widen_i32_to_i64(byte) as i64 +Wrapping) - 48),
+            true -> bounded(value, digits, (|numeric_conversion|::widen_i32_to_i64(byte) as i64 +Wrapping) - 48),
             false -> (Token::Invalid)
         }
     }
@@ -58,31 +56,31 @@ crashes Trap
     }
 }
 
-public machine read_acquisition(acquisition: @mutable Acquisition) reaches StandardInput
+public machine read_acquisition(acquisition: @mutable |model|::Acquisition) reaches |process_authority|::StandardInput
 blocks
 crashes Trap
 {
     acquisition.used = 0;
     acquisition.error = 0;
     transition { _ -> read(acquisition) }
-    machine read(acquisition: @mutable Acquisition) {
+    machine read(acquisition: @mutable |model|::Acquisition) {
         transition block next_token() {
             Token::End -> done(),
             Token::Invalid -> invalid(acquisition),
             Token::Number { value } -> store(acquisition, value)
         }
     }
-    machine store(acquisition: @mutable Acquisition, value: i64 in Wrapping) {
+    machine store(acquisition: @mutable |model|::Acquisition, value: i64 in Wrapping) {
         transition acquisition.used < 53 && acquisition.used >= 0 {
             true -> append(acquisition, value),
             false -> invalid(acquisition)
         }
     }
-    machine append(acquisition: @mutable Acquisition, value: i64 in Wrapping) {
+    machine append(acquisition: @mutable |model|::Acquisition, value: i64 in Wrapping) {
         acquisition.tokens[acquisition.used] = value;
         acquisition.used = acquisition.used + 1;
         transition { _ -> read(acquisition) }
     }
-    machine invalid(acquisition: @mutable Acquisition) { acquisition.error = 1; }
+    machine invalid(acquisition: @mutable |model|::Acquisition) { acquisition.error = 1; }
     machine done() { }
 }

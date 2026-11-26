@@ -59,7 +59,7 @@ pub(super) fn describe(report: &CompletedProduct) -> Result<String, &'static str
                             provider.program_fingerprint,
                             candidate.get()
                         ),
-                        NormalizedForeignCallMechanism::HostedImport { locator, .. }
+                        NormalizedForeignCallMechanism::BuildImport { locator, .. }
                         | NormalizedForeignCallMechanism::Import { locator, .. } => {
                             describe_import(locator.locator())
                         }

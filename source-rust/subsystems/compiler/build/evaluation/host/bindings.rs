@@ -24,9 +24,9 @@ use source_compiler::publication::{
     TerminalBuildBindingOperation, TerminalBuildBindings,
 };
 use source_compiler::representations::declaration_selection::{
-    BuildOperation, BuildSelectionRequest, ExecutedBuildSelection, ExecutedProductSelection,
-    NativeBindingFormation, ProductDeclarationRequest, ProductEntryBinding,
-    ProviderReadinessRequest, RootBindingOperand, RootBindingSelection,
+    BuildOperation, BuildSelectionRequest, BuildServiceOperation, ExecutedBuildSelection,
+    ExecutedProductSelection, NativeBindingFormation, ProductDeclarationRequest,
+    ProductEntryBinding, ProviderReadinessRequest, RootBindingOperand, RootBindingSelection,
 };
 use std::sync::{Arc, Mutex, MutexGuard};
 use terminal_interpreter::{
@@ -597,7 +597,7 @@ impl TerminalBuildBindingAdapter {
             return Ok(result);
         }
         if let (
-            BuildSelectionRequest::Service { requirement, .. },
+            BuildSelectionRequest::Service { requirement, operation: BuildServiceOperation::Describe, .. },
             TerminalBuildBindingOperation::DescribeService,
             [],
         ) = (&call.request, call.action, values)
@@ -632,6 +632,10 @@ impl TerminalBuildBindingAdapter {
             return Ok(TerminalEffectResult::Unit);
         }
         let selection = match (&call.request, call.action, values) {
+            (BuildSelectionRequest::Service {
+                operation: BuildServiceOperation::EnableUnsafe(atom),
+                ..
+            }, TerminalBuildBindingOperation::EnableUnsafe, []) => ExecutedBuildSelection::EnableUnsafe(*atom),
             (BuildSelectionRequest::Entry(binding), TerminalBuildBindingOperation::Bind, []) => {
                 let implementation = match (&binding.implementation, description) {
                     (RootBindingOperand::AuthoredPath(path), None) => {

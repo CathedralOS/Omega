@@ -138,7 +138,7 @@ impl SelectedProgramEntryCallingPlans {
         let target = slot.owner;
         let terminal = program.terminal_program();
         let analysis = terminal.callable_analysis(Some(admission.providers()));
-        let (semantic_signature, semantic_plan) = program.evaluate(
+        let semantic_calling_application = program.evaluate(
             &analysis,
             policy,
             target,
@@ -146,13 +146,12 @@ impl SelectedProgramEntryCallingPlans {
             providers,
             admission.clone(),
         )?;
-        let (physical_signature, physical_plan) =
-            program.evaluate(&analysis, policy, target, physical, providers, admission)?;
-        let semantic_calling_application =
-            semantic_signature.native_application_with_owner(&semantic_plan, None, &owner)?;
         let physical_calling_application =
-            physical_signature.native_application_with_owner(&physical_plan, None, &owner)?;
+            program.evaluate(&analysis, policy, target, physical, providers, admission)?;
         for application in [&semantic_calling_application, &physical_calling_application] {
+            if application.dispatch_only_formal.is_some() {
+                return Err("a program entry cannot omit a table lookup argument".into());
+            }
             let requirement = schema
                 .declaration
                 .identities

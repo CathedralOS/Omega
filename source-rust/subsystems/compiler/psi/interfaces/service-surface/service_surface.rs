@@ -286,6 +286,23 @@ impl PartialEq for ServiceSurface {
 impl Eq for ServiceSurface {}
 
 impl ServiceSurface {
+    /// Resolve a role designated by the target within this exact inherited service surface.
+    pub fn entry_requirement(&self, nominated: &str) -> Result<&ServiceMethod, String> {
+        let (owner, name) = nominated.rsplit_once("::").ok_or_else(|| {
+            format!("installed entry requirement `{nominated}` has no declaring owner")
+        })?;
+        let mut methods = self
+            .methods
+            .iter()
+            .filter(|method| method.requirement_owner == owner && method.name == name);
+        let (Some(method), None) = (methods.next(), methods.next()) else {
+            return Err(format!(
+                "selected entry schema does not declare exactly one `{nominated}` arrival"
+            ));
+        };
+        Ok(method)
+    }
+
     /// The exact declaring receivers of this method in the selected surface.
     pub fn declaring_receivers<'a>(
         &'a self,

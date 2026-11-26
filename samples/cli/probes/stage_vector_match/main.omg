@@ -1,12 +1,12 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: stage vector 9
 // A mass-action stage selects one concentration triple. The match subject is
 // the reaction order, and every arm is a call that returns a fresh [f64; 3].
 // The selected triple is then carried by value through a state, stored in a
 // field, and read back through a parameter.
-use system\Console;
 
 data Stage { values: [f64; 3]; }
 data Main { stage: Stage; }
@@ -23,7 +23,7 @@ machine choose(order: u64) -> [f64; 3] {
 
 machine sum(values: [f64; 3]) -> f64 { values[0] + values[1] + values[2] }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let chosen: [f64; 3] = choose(1);
     transition { _ -> carry(main, chosen) }
     machine carry(main: @mutable Main, values: [f64; 3]) {
@@ -38,17 +38,17 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine pass() {
-        Console::write_line("stage vector 9");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("stage vector 9");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine fail() {
-        Console::write_line("stage vector mismatch");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("stage vector mismatch");
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

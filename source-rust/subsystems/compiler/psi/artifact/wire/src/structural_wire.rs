@@ -6,70 +6,54 @@ operation results, and machine structural signatures.
 pub(crate) use crate::semantic_module::*;
 
 pub(crate) mod structural_field_wire {
-
     use semantic_vocabulary::{BoundedIntegerType, ScalarRefinement};
     use terminal_psi::{
-        BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
+        BindingRelevance, ByteSequenceCarrier, ByteSequencePredicateSet,
+        StructuralFieldDeclaration, StructuralFieldType, TerminalIdentityIndex,
     };
 
     use super::CodecError;
-    use super::proposition_wire::{decode_proposition, encode_proposition};
-    use super::scalar_wire::{
-        decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
-        encode_integer_value, encode_scalar_type,
-    };
     use super::wire::{Reader, Writer};
-    use terminal_psi::TerminalIdentityIndex;
+    use super::wire_fields::{
+        Field, FloatFormatField, Id, Index, Integer, IntegerTypeField, OptionalAccess, OptionalId,
+        Proposition, Scalar, U64, wire_enum,
+    };
 
     pub(crate) use psi_declaration_encoding::structural_fields::*;
 
-    pub(crate) fn encode_byte_sequence_carrier(writer: &mut Writer, carrier: ByteSequenceCarrier) {
-        match carrier {
-            ByteSequenceCarrier::BorrowedView { access } => {
-                writer.u8(1);
-                match access {
-                    Some(access) => {
-                        super::structural_signature_wire::encode_structural_access(writer, access);
-                    }
-                    None => writer.u8(0),
-                }
-            }
-            ByteSequenceCarrier::BoundedView { access, capacity } => {
-                writer.u8(3);
-                match access {
-                    Some(access) => {
-                        super::structural_signature_wire::encode_structural_access(writer, access);
-                    }
-                    None => writer.u8(0),
-                }
-                writer.u64(capacity);
-            }
-            ByteSequenceCarrier::BoundedOwned { capacity } => {
-                writer.u8(2);
-                writer.u64(capacity);
-            }
+    wire_enum! {
+        Carrier: ByteSequenceCarrier, "ByteSequenceCarrier" {
+            1 => BorrowedView { access: OptionalAccess },
+            2 => BoundedOwned { capacity: U64 },
+            3 => BoundedView { access: OptionalAccess, capacity: U64 },
+        }
+        Relevance: BindingRelevance, "BindingRelevance" {
+            1 => Relevant,
+            2 => Erased,
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn decode_byte_sequence_carrier(
         reader: &mut Reader<'_>,
     ) -> Result<ByteSequenceCarrier, CodecError> {
-        match reader.u8()? {
-            1 => Ok(ByteSequenceCarrier::BorrowedView {
-                access: super::structural_signature_wire::decode_optional_structural_access(
-                    reader,
-                )?,
-            }),
-            2 => Ok(ByteSequenceCarrier::BoundedOwned {
-                capacity: reader.u64()?,
-            }),
-            3 => Ok(ByteSequenceCarrier::BoundedView {
-                access: super::structural_signature_wire::decode_optional_structural_access(
-                    reader,
-                )?,
-                capacity: reader.u64()?,
-            }),
-            tag => Err(CodecError::InvalidTag("ByteSequenceCarrier", tag)),
+        Carrier::read(reader)
+    }
+
+    struct BoundedInt;
+    impl Field<BoundedIntegerType> for BoundedInt {
+        fn write(writer: &mut Writer, value: &BoundedIntegerType) -> Result<(), CodecError> {
+            IntegerTypeField::write(writer, &value.integer_type())?;
+            Integer::write(writer, &value.minimum())?;
+            Integer::write(writer, &value.maximum())
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<BoundedIntegerType, CodecError> {
+            BoundedIntegerType::new(
+                IntegerTypeField::read(reader)?,
+                Integer::read(reader)?,
+                Integer::read(reader)?,
+            )
+            .map_err(CodecError::MalformedProposition)
         }
     }
 
@@ -77,15 +61,26 @@ pub(crate) mod structural_field_wire {
         writer: &mut Writer,
         field: &StructuralFieldDeclaration,
     ) -> Result<(), CodecError> {
-        writer.id(field.id);
-        writer.u32(field.identity.0);
-        writer.u32(field.declaration_identity.0);
-        writer.u8(match field.relevance {
-            BindingRelevance::Relevant => 1,
-            BindingRelevance::Erased => 2,
-        });
-        super::wire::encode_optional_id(writer, field.inline_carrier);
+        Id::write(writer, &field.id)?;
+        Index::write(writer, &field.identity)?;
+        Index::write(writer, &field.declaration_identity)?;
+        Relevance::write(writer, &field.relevance)?;
+        OptionalId::write(writer, &field.inline_carrier)?;
         encode_structural_field_type(writer, &field.field_type)
+    }
+
+    pub(crate) fn decode_structural_field(
+        reader: &mut Reader<'_>,
+    ) -> Result<StructuralFieldDeclaration, CodecError> {
+        Ok(StructuralFieldDeclaration {
+            id: Id::read(reader)?,
+            identity: Index::read(reader)?,
+            declaration_identity: Index::read(reader)?,
+            relevance: Relevance::read(reader)?,
+            inline_carrier: OptionalId::read(reader)?,
+            field_type: decode_structural_field_type(reader)?,
+            storage: None,
+        })
     }
 
     pub(crate) fn encode_structural_field_type(
@@ -93,139 +88,83 @@ pub(crate) mod structural_field_wire {
         field_type: &StructuralFieldType,
     ) -> Result<(), CodecError> {
         match field_type {
-            StructuralFieldType::AtomicBoundedInteger(bounded) => {
-                writer.u8(10);
-                encode_integer_type(writer, bounded.integer_type())?;
-                encode_integer_value(writer, bounded.minimum());
-                encode_integer_value(writer, bounded.maximum());
-            }
-            StructuralFieldType::Atomic(scalar_type) => {
-                writer.u8(8);
-                encode_scalar_type(writer, *scalar_type)?;
-            }
-            StructuralFieldType::Scalar(scalar_type) => {
+            StructuralFieldType::Scalar(s) => {
                 writer.u8(1);
-                encode_scalar_type(writer, *scalar_type)?;
+                Scalar::write(writer, s)
             }
-            StructuralFieldType::BoundedInteger(bounded) => {
-                writer.u8(6);
-                encode_integer_type(writer, bounded.integer_type())?;
-                encode_integer_value(writer, bounded.minimum());
-                encode_integer_value(writer, bounded.maximum());
-            }
-            StructuralFieldType::RefinedScalar(refinement) => {
-                writer.u8(9);
-                encode_scalar_type(writer, refinement.carrier())?;
-                encode_proposition(writer, refinement.predicate())?;
-            }
-            StructuralFieldType::IeeeFloat(format) => {
-                writer.u8(4);
-                encode_ieee_float_format(writer, *format);
-            }
-            StructuralFieldType::PredicateByteSequence {
-                carrier,
-                predicates,
-            } => {
-                writer.u8(7);
-                encode_byte_sequence_carrier(writer, *carrier);
-                writer.u8(predicates.bits());
-            }
-            StructuralFieldType::ByteSequence(carrier) => {
-                writer.u8(5);
-                encode_byte_sequence_carrier(writer, *carrier);
-            }
-            StructuralFieldType::Structural(structural_type) => {
+            StructuralFieldType::Structural(id) => {
                 writer.u8(2);
-                writer.id(*structural_type);
+                Id::write(writer, id)
             }
             StructuralFieldType::Erased {
                 type_identity,
                 scalar: None,
             } => {
                 writer.u8(3);
-                writer.u32(type_identity.0);
+                Index::write(writer, type_identity)
+            }
+            StructuralFieldType::IeeeFloat(f) => {
+                writer.u8(4);
+                FloatFormatField::write(writer, f)
+            }
+            StructuralFieldType::ByteSequence(c) => {
+                writer.u8(5);
+                Carrier::write(writer, c)
+            }
+            StructuralFieldType::BoundedInteger(b) => {
+                writer.u8(6);
+                BoundedInt::write(writer, b)
+            }
+            StructuralFieldType::PredicateByteSequence {
+                carrier,
+                predicates,
+            } => {
+                writer.u8(7);
+                Carrier::write(writer, carrier)?;
+                writer.u8(predicates.bits());
+                Ok(())
+            }
+            StructuralFieldType::Atomic(s) => {
+                writer.u8(8);
+                Scalar::write(writer, s)
+            }
+            StructuralFieldType::RefinedScalar(r) => {
+                writer.u8(9);
+                Scalar::write(writer, &r.carrier())?;
+                Proposition::write(writer, r.predicate())
+            }
+            StructuralFieldType::AtomicBoundedInteger(b) => {
+                writer.u8(10);
+                BoundedInt::write(writer, b)
             }
             StructuralFieldType::Erased {
                 type_identity,
-                scalar: Some(scalar),
+                scalar: Some(s),
             } => {
                 writer.u8(11);
-                writer.u32(type_identity.0);
-                encode_scalar_type(writer, *scalar)?;
+                Index::write(writer, type_identity)?;
+                Scalar::write(writer, s)
             }
         }
-        Ok(())
-    }
-
-    pub(crate) fn decode_structural_field(
-        reader: &mut Reader<'_>,
-    ) -> Result<StructuralFieldDeclaration, CodecError> {
-        let id = reader.id("StructuralFieldId")?;
-        let identity = TerminalIdentityIndex(reader.u32()?);
-        let declaration_identity = TerminalIdentityIndex(reader.u32()?);
-        let relevance = match reader.u8()? {
-            1 => BindingRelevance::Relevant,
-            2 => BindingRelevance::Erased,
-            tag => return Err(CodecError::InvalidTag("BindingRelevance", tag)),
-        };
-        let inline_carrier = super::wire::decode_optional_id(reader, "StructuralTypeId")?;
-        let field_type = decode_structural_field_type(reader)?;
-        Ok(StructuralFieldDeclaration {
-            declaration_identity,
-            inline_carrier,
-            storage: None,
-            id,
-            identity,
-            relevance,
-            field_type,
-        })
     }
 
     pub(crate) fn decode_structural_field_type(
         reader: &mut Reader<'_>,
     ) -> Result<StructuralFieldType, CodecError> {
         Ok(match reader.u8()? {
-            1 => StructuralFieldType::Scalar(decode_scalar_type(reader)?),
-            8 => StructuralFieldType::Atomic(decode_scalar_type(reader)?),
-            10 => StructuralFieldType::AtomicBoundedInteger(
-                BoundedIntegerType::new(
-                    decode_integer_type(reader)?,
-                    decode_integer_value(reader)?,
-                    decode_integer_value(reader)?,
-                )
-                .map_err(CodecError::MalformedProposition)?,
-            ),
-            9 => StructuralFieldType::RefinedScalar(
-                ScalarRefinement::new(decode_scalar_type(reader)?, decode_proposition(reader)?)
-                    .map_err(|_| {
-                        CodecError::MalformedStructuralFoundation(
-                            "scalar field predicate is not closed and carrier-typed",
-                        )
-                    })?,
-            ),
-            2 => StructuralFieldType::Structural(reader.id("StructuralTypeId")?),
+            1 => StructuralFieldType::Scalar(Scalar::read(reader)?),
+            2 => StructuralFieldType::Structural(Id::read(reader)?),
             3 => StructuralFieldType::Erased {
                 type_identity: TerminalIdentityIndex(reader.u32()?),
                 scalar: None,
             },
-            11 => StructuralFieldType::Erased {
-                type_identity: TerminalIdentityIndex(reader.u32()?),
-                scalar: Some(decode_scalar_type(reader)?),
-            },
-            4 => StructuralFieldType::IeeeFloat(decode_ieee_float_format(reader)?),
-            5 => StructuralFieldType::ByteSequence(decode_byte_sequence_carrier(reader)?),
-            6 => StructuralFieldType::BoundedInteger(
-                BoundedIntegerType::new(
-                    decode_integer_type(reader)?,
-                    decode_integer_value(reader)?,
-                    decode_integer_value(reader)?,
-                )
-                .map_err(CodecError::MalformedProposition)?,
-            ),
+            4 => StructuralFieldType::IeeeFloat(FloatFormatField::read(reader)?),
+            5 => StructuralFieldType::ByteSequence(Carrier::read(reader)?),
+            6 => StructuralFieldType::BoundedInteger(BoundedInt::read(reader)?),
             7 => {
-                let carrier = decode_byte_sequence_carrier(reader)?;
+                let carrier = Carrier::read(reader)?;
                 let bits = reader.u8()?;
-                let predicates = terminal_psi::ByteSequencePredicateSet::from_bits(bits)
+                let predicates = ByteSequencePredicateSet::from_bits(bits)
                     .filter(|predicates| !predicates.is_empty())
                     .ok_or(CodecError::InvalidTag("ByteSequencePredicateSet", bits))?;
                 StructuralFieldType::PredicateByteSequence {
@@ -233,6 +172,21 @@ pub(crate) mod structural_field_wire {
                     predicates,
                 }
             }
+            8 => StructuralFieldType::Atomic(Scalar::read(reader)?),
+            9 => StructuralFieldType::RefinedScalar(
+                ScalarRefinement::new(Scalar::read(reader)?, Proposition::read(reader)?).map_err(
+                    |_| {
+                        CodecError::MalformedStructuralFoundation(
+                            "scalar field predicate is not closed and carrier-typed",
+                        )
+                    },
+                )?,
+            ),
+            10 => StructuralFieldType::AtomicBoundedInteger(BoundedInt::read(reader)?),
+            11 => StructuralFieldType::Erased {
+                type_identity: TerminalIdentityIndex(reader.u32()?),
+                scalar: Some(Scalar::read(reader)?),
+            },
             tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
         })
     }
@@ -281,122 +235,75 @@ pub(crate) mod structural_field_wire {
 }
 
 pub(crate) mod structural_place_wire {
-
     use crate::codec_error::CodecError;
-    use crate::sections::semantic_module::structural_signature_wire;
-    use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted, decode_ids};
+    use crate::sections::semantic_module::wire::{Reader, Writer};
+    use crate::wire_fields::{
+        Argument, ClaimTransfers, Field, Id, Ids, List, Path, wire_enum, wire_record,
+    };
 
-    use semantic_vocabulary::ObligationId;
     use terminal_psi::{
         OwnedCleanupInvocation, StructuralAffineDiscard, StructuralArgument,
         TerminalAffineCleanupAction,
     };
 
+    pub(crate) use psi_declaration_encoding::places::*;
+
+    // Borrowed-cleanup tags 3 and 5 remain retired. An owned call keeps its
+    // exact source, access, path and claim correspondence.
+    wire_record! {
+        ResidualDiscard: StructuralAffineDiscard {
+            place: Id,
+            path: Path,
+            structural_type: Id,
+        }
+        OwnedCleanup: OwnedCleanupInvocation {
+            subject: Argument,
+            structural_type: Id,
+            cleanup_machine: Id,
+            claim_transfers: ClaimTransfers,
+            requirement_obligations: Ids,
+        }
+    }
+
+    wire_enum! {
+        Cleanup: TerminalAffineCleanupAction, "TerminalAffineCleanupAction" {
+            1 => DiscardRoot(place: Id),
+            2 => DiscardResidual(discard: ResidualDiscard),
+            4 => RetireHome(place: Id),
+            6 => InvokeOwned(cleanup: OwnedCleanup),
+        }
+    }
+
     pub(crate) fn encode_structural_arguments(
         writer: &mut Writer,
         arguments: &[StructuralArgument],
     ) -> Result<(), CodecError> {
-        writer.len("structural arguments", arguments.len())?;
-        for argument in arguments {
-            writer.id(argument.place);
-            structural_signature_wire::encode_structural_access(writer, argument.access);
-            encode_structural_path(writer, "structural argument path", &argument.path)?;
-        }
-        Ok(())
+        writer.counted("structural arguments", arguments, Argument::write)
+    }
+
+    pub(crate) fn decode_structural_arguments(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<StructuralArgument>, CodecError> {
+        List::<Argument>::read(reader)
     }
 
     pub(crate) fn encode_affine_cleanup_action(
         writer: &mut Writer,
         action: &TerminalAffineCleanupAction,
     ) -> Result<(), CodecError> {
-        match action {
-            TerminalAffineCleanupAction::DiscardRoot(place) => {
-                writer.u8(1);
-                writer.id(*place);
-            }
-            TerminalAffineCleanupAction::RetireHome(place) => {
-                writer.u8(4);
-                writer.id(*place);
-            }
-            TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                writer.u8(2);
-                writer.id(discard.place);
-                encode_structural_path(writer, "affine cleanup residual path", &discard.path)?;
-                writer.id(discard.structural_type);
-            }
-            TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
-                // Borrowed-cleanup tags 3 and 5 remain retired. An owned call
-                // keeps its exact source, access, path and claim correspondence.
-                writer.u8(6);
-                use crate::wire_fields::{Argument, ClaimTransfers, Field};
-                Argument::write(writer, &cleanup.subject)?;
-                writer.id(cleanup.structural_type);
-                writer.id(cleanup.cleanup_machine);
-                ClaimTransfers::write(writer, &cleanup.claim_transfers)?;
-                encode_obligation_ids(writer, &cleanup.requirement_obligations)?;
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) use psi_declaration_encoding::places::*;
-    pub(crate) fn encode_obligation_ids(
-        writer: &mut Writer,
-        obligations: &[ObligationId],
-    ) -> Result<(), CodecError> {
-        writer.ids("requirement obligations", obligations)?;
-        Ok(())
+        Cleanup::write(writer, action)
     }
 
     pub(crate) fn decode_affine_cleanup_action(
         reader: &mut Reader<'_>,
     ) -> Result<TerminalAffineCleanupAction, CodecError> {
-        match reader.u8()? {
-            1 => Ok(TerminalAffineCleanupAction::DiscardRoot(
-                reader.id("PlaceId")?,
-            )),
-            4 => Ok(TerminalAffineCleanupAction::RetireHome(
-                reader.id("PlaceId")?,
-            )),
-            2 => Ok(TerminalAffineCleanupAction::DiscardResidual(
-                StructuralAffineDiscard {
-                    place: reader.id("PlaceId")?,
-                    path: decode_structural_path(reader)?,
-                    structural_type: reader.id("StructuralTypeId")?,
-                },
-            )),
-            6 => {
-                use crate::wire_fields::{Argument, ClaimTransfers, Field};
-                Ok(TerminalAffineCleanupAction::InvokeOwned(
-                    OwnedCleanupInvocation {
-                        subject: Argument::read(reader)?,
-                        structural_type: reader.id("StructuralTypeId")?,
-                        cleanup_machine: reader.id("MachineId")?,
-                        claim_transfers: ClaimTransfers::read(reader)?,
-                        requirement_obligations: decode_ids(reader, "ObligationId")?,
-                    },
-                ))
-            }
-            tag => Err(CodecError::InvalidTag("TerminalAffineCleanupAction", tag)),
-        }
-    }
-
-    pub(crate) fn decode_structural_arguments(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<StructuralArgument>, CodecError> {
-        decode_counted(reader, |reader| {
-            Ok(StructuralArgument {
-                place: reader.id("PlaceId")?,
-                access: structural_signature_wire::decode_structural_access(reader)?,
-                path: decode_structural_path(reader)?,
-            })
-        })
+        Cleanup::read(reader)
     }
 
     #[cfg(test)]
     mod tests {
         use super::*;
-        use semantic_vocabulary::{ClaimId, MachineId, PlaceId, StructuralTypeId};
+        use semantic_vocabulary::{ClaimId, MachineId, ObligationId, PlaceId, StructuralTypeId};
         use terminal_psi::{StructuralPathSegment, TerminalIdentityIndex};
 
         #[test]
@@ -696,20 +603,26 @@ pub(crate) mod structural_result_wire {
         OperationResult::read(reader)
     }
 
-    pub(crate) use psi_declaration_encoding::results::{decode_multiplicity, encode_multiplicity};
+    #[cfg(test)]
+    pub(crate) use psi_declaration_encoding::results::decode_multiplicity;
 }
 
 pub(crate) mod structural_signature_wire {
     pub(crate) use psi_callable_encoding::signatures::{ParameterKind, StructuralParameter};
+    #[cfg(test)]
+    pub(crate) use psi_declaration_encoding::access::mode::decode_structural_access;
+    pub(crate) use psi_declaration_encoding::access::mode::encode_structural_access;
+    pub(crate) use psi_declaration_encoding::results::CallResult;
 
+    use psi_declaration_encoding::access::mode::decode_structural_access_tag;
     use semantic_vocabulary::{ContentPlaceSegment, ContentPlaceVersion};
     use terminal_psi::{
         BoundaryCompletion, BoundaryContentGuarantee, BoundaryDeclarationRole,
-        BoundaryMachineDeclaration, BoundaryReferenceOutput, BoundaryRequirementKind,
-        CheckedBoundaryCallable, CheckedBoundaryExecution, ExternalCompletionKind,
-        ProgramLocalRootIntroductionSchema, RetainedBorrowContentProjection, RetainedBorrowCustody,
-        RetainedBorrowPlace, RetainedBorrowPlaceRoot, ScalarDomainRequirement, StructuralAccess,
-        StructuralDomainRequirement, StructuralParameterDeclaration,
+        BoundaryMachineDeclaration, BoundaryRequirementKind, CheckedBoundaryCallable,
+        CheckedBoundaryExecution, ExternalCompletionKind, ProgramLocalRootIntroductionSchema,
+        RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
+        RetainedBorrowPlaceRoot, ScalarDomainRequirement, StructuralAccess,
+        StructuralDomainRequirement,
     };
 
     use super::CodecError;
@@ -717,76 +630,58 @@ pub(crate) mod structural_signature_wire {
     use super::wire_fields::{
         Access, ContentAlgebra, ContentExpression, ContentProjection, CrashRoutes, Digest, Field,
         Flag, Id, Ids, Index, List, MachineDeclaration, Multiplicity, Nominal, Optional,
-        OptionalId, ProjectionIdentity, Proposition, QualificationPath, ReachArgument, Scalar,
-        Text, U32, U64, wire_enum, wire_record,
+        OptionalId, Path, ProjectionIdentity, Proposition, QualificationPath, ReachArgument,
+        Scalar, Text, U32, U64, delegated_fields, wire_enum, wire_record,
     };
-    use crate::sections::semantic_module::wire::decode_counted;
 
     pub(crate) mod reference_outputs {
-
         use super::super::structural_place_wire::{decode_structural_path, encode_structural_path};
         use super::{
-            CodecError, Reader, Writer, decode_counted, decode_structural_access,
-            encode_structural_access,
+            Access, CodecError, Field, List, Path, Reader, U32, Writer, wire_enum, wire_record,
         };
-        use terminal_psi::{BoundaryReferenceDestination, BoundaryReferenceOutput};
-
-        pub(crate) fn encode(
-            writer: &mut Writer,
-            outputs: &[BoundaryReferenceOutput],
-        ) -> Result<(), CodecError> {
-            writer.len("boundary reference outputs", outputs.len())?;
-            for output in outputs {
-                match output.destination {
-                    BoundaryReferenceDestination::Parameter(position) => {
-                        writer.u8(0);
-                        writer.u32(position);
-                    }
-                }
-                encode_structural_path(writer, "boundary reference output path", &output.path)?;
-                encode_structural_access(writer, output.access);
-                writer.len(
-                    "boundary reference lifetime dependencies",
-                    output.dependencies.len(),
-                )?;
-                for dependency in &output.dependencies {
-                    encode_dependency(writer, dependency, |writer, path| {
-                        encode_structural_path(writer, "boundary reference lifetime path", path)
-                    })?;
-                }
-            }
-            Ok(())
-        }
-
-        pub(crate) fn decode(
-            reader: &mut Reader<'_>,
-        ) -> Result<Vec<BoundaryReferenceOutput>, CodecError> {
-            decode_counted(reader, |reader| {
-                let destination = match reader.u8()? {
-                    0 => BoundaryReferenceDestination::Parameter(reader.u32()?),
-                    tag => return Err(CodecError::InvalidTag("BoundaryReferenceDestination", tag)),
-                };
-                let path = decode_structural_path(reader)?;
-                let access = decode_structural_access(reader)?;
-                let dependencies = decode_counted(reader, |reader| {
-                    decode_dependency(reader, decode_structural_path)
-                })?;
-                Ok(BoundaryReferenceOutput {
-                    destination,
-                    path,
-                    access,
-                    dependencies,
-                })
-            })
-        }
+        use terminal_psi::{
+            BoundaryLifetimeDependency, BoundaryReferenceDestination, BoundaryReferenceOutput,
+        };
 
         pub(crate) use psi_callable_encoding::signatures::{decode_dependency, encode_dependency};
+
+        wire_enum! {
+            Destination: BoundaryReferenceDestination, "BoundaryReferenceDestination" {
+                0 => Parameter(position: U32),
+            }
+        }
+
+        struct Dependency;
+        impl Field<BoundaryLifetimeDependency> for Dependency {
+            fn write(
+                writer: &mut Writer,
+                value: &BoundaryLifetimeDependency,
+            ) -> Result<(), CodecError> {
+                encode_dependency(writer, value, |writer, path| {
+                    encode_structural_path(writer, "boundary reference lifetime path", path)
+                })
+            }
+            fn read(reader: &mut Reader<'_>) -> Result<BoundaryLifetimeDependency, CodecError> {
+                decode_dependency(reader, decode_structural_path)
+            }
+        }
+
+        wire_record! {
+            ReferenceOutput: BoundaryReferenceOutput {
+                destination: Destination,
+                path: Path,
+                access: Access,
+                dependencies: List<Dependency>,
+            }
+        }
     }
+
+    type ReferenceOutputs = List<reference_outputs::ReferenceOutput>;
 
     wire_record! {
         BoundaryMachine: BoundaryMachineDeclaration {
             id: Id,
-            declaration: OptionalCallable,
+            declaration: Optional<Callable>,
             numeric_intrinsic: NumericIntrinsic,
             identity: Index,
             owner: Nominal,
@@ -873,12 +768,13 @@ pub(crate) mod structural_signature_wire {
             writer: &mut Writer,
             value: &language_core::sealed_intrinsics::HostedOperation,
         ) -> Result<(), CodecError> {
-            use language_core::sealed_intrinsics::HostedOperation;
-            writer.u8(match value {
-                HostedOperation::ProcessExit => 0,
-                _ => return Err(CodecError::InvalidTag("hosted primitive operation", 255)),
-            });
-            Ok(())
+            match value {
+                language_core::sealed_intrinsics::HostedOperation::ProcessExit => {
+                    writer.u8(0);
+                    Ok(())
+                }
+                _ => Err(CodecError::InvalidTag("hosted primitive operation", 255)),
+            }
         }
         fn read(
             reader: &mut Reader<'_>,
@@ -928,65 +824,36 @@ pub(crate) mod structural_signature_wire {
         }
     }
 
-    pub(crate) use psi_declaration_encoding::results::CallResult;
-
-    struct OptionalCallable;
-    impl Field<Option<CheckedBoundaryCallable>> for OptionalCallable {
-        fn write(
-            writer: &mut Writer,
-            value: &Option<CheckedBoundaryCallable>,
-        ) -> Result<(), CodecError> {
-            writer.boolean(value.is_some());
-            if let Some(callable) = value {
-                Callable::write(writer, callable)?;
-            }
-            Ok(())
-        }
-        fn read(reader: &mut Reader<'_>) -> Result<Option<CheckedBoundaryCallable>, CodecError> {
-            Ok(if reader.boolean()? {
-                Some(Callable::read(reader)?)
-            } else {
-                None
-            })
-        }
-    }
-
     struct NumericIntrinsic;
-    impl Field<Option<numerics::intrinsics::NumericIntrinsic>>
-        for NumericIntrinsic
-    {
+    impl Field<Option<numerics::intrinsics::NumericIntrinsic>> for NumericIntrinsic {
         fn write(
             writer: &mut Writer,
             value: &Option<numerics::intrinsics::NumericIntrinsic>,
         ) -> Result<(), CodecError> {
             writer.boolean(value.is_some());
             if let Some(meaning) = value {
-                let Some(bytes) = meaning.canonical_encoding() else {
-                    return crate::codec_error::malformed("unsupported numeric intrinsic meaning");
-                };
+                let bytes = meaning.canonical_encoding().ok_or(
+                    CodecError::MalformedStructuralFoundation(
+                        "unsupported numeric intrinsic meaning",
+                    ),
+                )?;
                 writer.bytes(&bytes);
             }
             Ok(())
         }
         fn read(
             reader: &mut Reader<'_>,
-        ) -> Result<Option<numerics::intrinsics::NumericIntrinsic>, CodecError>
-        {
+        ) -> Result<Option<numerics::intrinsics::NumericIntrinsic>, CodecError> {
             if !reader.boolean()? {
                 return Ok(None);
             }
-            let mut bytes =
-                [0; numerics::intrinsics::NumericIntrinsic::ENCODED_SIZE];
-            for byte in &mut bytes {
-                *byte = reader.u8()?;
-            }
-            numerics::intrinsics::NumericIntrinsic::from_canonical_encoding(
-                bytes,
-            )
-            .map(Some)
-            .ok_or({
-                CodecError::MalformedStructuralFoundation("invalid numeric intrinsic meaning")
-            })
+            let bytes =
+                reader.array::<{ numerics::intrinsics::NumericIntrinsic::ENCODED_SIZE }>()?;
+            numerics::intrinsics::NumericIntrinsic::from_canonical_encoding(bytes)
+                .map(Some)
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "invalid numeric intrinsic meaning",
+                ))
         }
     }
 
@@ -1010,40 +877,11 @@ pub(crate) mod structural_signature_wire {
         }
     }
 
-    struct ReferenceOutputs;
-    impl Field<Vec<BoundaryReferenceOutput>> for ReferenceOutputs {
-        fn write(
-            writer: &mut Writer,
-            value: &Vec<BoundaryReferenceOutput>,
-        ) -> Result<(), CodecError> {
-            reference_outputs::encode(writer, value)
-        }
-        fn read(reader: &mut Reader<'_>) -> Result<Vec<BoundaryReferenceOutput>, CodecError> {
-            reference_outputs::decode(reader)
-        }
+    delegated_fields! {
+        ReferenceRegions: Vec<terminal_psi::TerminalDynamicReferenceRegion>
+            => super::module_wire::dynamic_dispatch_wire::encode_reference_regions,
+               super::module_wire::dynamic_dispatch_wire::decode_reference_regions;
     }
-
-    pub(crate) fn encode_structural_parameters(
-        writer: &mut Writer,
-        parameters: &[StructuralParameterDeclaration],
-    ) -> Result<(), CodecError> {
-        writer.counted(
-            "structural parameters",
-            parameters,
-            StructuralParameter::write,
-        )
-    }
-
-    pub(crate) fn decode_structural_parameters(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<StructuralParameterDeclaration>, CodecError> {
-        List::<StructuralParameter>::read(reader)
-    }
-
-    use psi_declaration_encoding::access::mode::decode_structural_access_tag;
-    pub(crate) use psi_declaration_encoding::access::mode::{
-        decode_structural_access, encode_structural_access,
-    };
 
     pub(crate) fn decode_optional_structural_access(
         reader: &mut Reader<'_>,
@@ -1051,21 +889,6 @@ pub(crate) mod structural_signature_wire {
         match reader.u8()? {
             0 => Ok(None),
             tag => Ok(Some(decode_structural_access_tag(tag)?)),
-        }
-    }
-
-    struct ReferenceRegions;
-    impl Field<Vec<terminal_psi::TerminalDynamicReferenceRegion>> for ReferenceRegions {
-        fn write(
-            writer: &mut Writer,
-            value: &Vec<terminal_psi::TerminalDynamicReferenceRegion>,
-        ) -> Result<(), CodecError> {
-            super::module_wire::dynamic_dispatch_wire::encode_reference_regions(writer, value)
-        }
-        fn read(
-            reader: &mut Reader<'_>,
-        ) -> Result<Vec<terminal_psi::TerminalDynamicReferenceRegion>, CodecError> {
-            super::module_wire::dynamic_dispatch_wire::decode_reference_regions(reader)
         }
     }
 
@@ -1098,23 +921,26 @@ pub(crate) mod structural_signature_wire {
 }
 
 pub(crate) mod structural_type_wire {
-
-    use terminal_psi::TerminalIdentityIndex;
+    use semantic_vocabulary::{
+        AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, AuthoredRecordStorage,
+    };
     use terminal_psi::{
-        ArrayExtent, LayoutApplicationId, StructuralCaseDeclaration, StructuralRecordStorage,
-        StructuralTypeDeclaration, StructuralTypeShape,
+        ArrayExtent, LayoutApplicationId, NominalCleanupSelection, NominalDeclarationIdentity,
+        StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralRecordStorage,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex,
     };
 
     use super::CodecError;
-    use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
     use super::structural_field_wire::{
-        decode_byte_sequence_carrier, decode_structural_field, decode_structural_field_type,
-        encode_byte_sequence_carrier, encode_structural_field, encode_structural_field_type,
+        Carrier, decode_structural_field, decode_structural_field_type, encode_structural_field,
+        encode_structural_field_type,
     };
-    use super::structural_signature_wire::{decode_structural_access, encode_structural_access};
     use super::wire::{Reader, Writer};
-    use crate::sections::semantic_module::wire::{bounded_count, decode_counted};
-    use crate::term_wire::proposition_wire::{decode_proposition, encode_proposition};
+    use super::wire_fields::{
+        Access, Field, Flag, Id, Index, List, Multiplicity, Optional, Proposition, Scalar, U64,
+        delegated_fields, wire_record,
+    };
+    use crate::sections::semantic_module::wire::bounded_count;
 
     /// A record keeps its invariant regardless of how its fields are laid
     /// out. Its existing requires wrapper encloses the ordinary storage shape;
@@ -1122,26 +948,66 @@ pub(crate) mod structural_type_wire {
     const RECORD_WITH_REQUIRES: u8 = 17;
     const SUM_WITH_REQUIRES: u8 = 18;
 
+    delegated_fields! {
+        FieldDecl: StructuralFieldDeclaration => encode_structural_field, decode_structural_field;
+    }
+
+    wire_record! {
+        RecordGeometry: AuthoredRecordStorage { byte_size: U64, byte_alignment: U64 }
+        BitFragment: AuthoredBitFragment {
+            container_byte_offset: U64,
+            container_width_bits: U64,
+            destination_lsb: U64,
+            source_lsb: U64,
+            width: U64,
+        }
+        CaseDecl: StructuralCaseDeclaration {
+            declaration_identity: Index,
+            id: Id,
+            identity: Index,
+            fields: List<FieldDecl>,
+        }
+    }
+
+    struct NominalCleanup;
+    impl Field<NominalCleanupSelection> for NominalCleanup {
+        fn write(writer: &mut Writer, value: &NominalCleanupSelection) -> Result<(), CodecError> {
+            writer.u32(value.declaration.identity().0);
+            writer.id(value.cleanup_machine);
+            Ok(())
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<NominalCleanupSelection, CodecError> {
+            Ok(NominalCleanupSelection {
+                declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
+                cleanup_machine: reader.id("MachineId")?,
+            })
+        }
+    }
+
+    fn decode_authored_record_fields(
+        reader: &mut Reader<'_>,
+    ) -> Result<(AuthoredRecordStorage, Vec<StructuralFieldDeclaration>), CodecError> {
+        let geometry = RecordGeometry::read(reader)?;
+        let mut fields = List::<FieldDecl>::read(reader)?;
+        for field in &mut fields {
+            field.storage = decode_authored_field_storage(reader)?;
+        }
+        Ok((geometry, fields))
+    }
+
     pub(crate) fn encode_structural_type(
         writer: &mut Writer,
         declaration: &StructuralTypeDeclaration,
     ) -> Result<(), CodecError> {
-        writer.boolean(declaration.quotient_carrier.is_some());
-        if let Some(carrier) = declaration.quotient_carrier {
-            writer.id(carrier);
-        }
-        writer.id(declaration.id);
-        writer.u32(declaration.identity.0);
-        writer.u32(declaration.declaration_identity.0);
-        writer.boolean(declaration.owns_linear_claim);
-        writer.boolean(declaration.no_code_affine_cleanup);
-        writer.boolean(declaration.descriptor_cleanup);
-        super::structural_result_wire::encode_multiplicity(writer, declaration.multiplicity);
-        writer.boolean(declaration.nominal_cleanup.is_some());
-        if let Some(selection) = &declaration.nominal_cleanup {
-            writer.u32(selection.declaration.identity().0);
-            writer.id(selection.cleanup_machine);
-        }
+        Optional::<Id>::write(writer, &declaration.quotient_carrier)?;
+        Id::write(writer, &declaration.id)?;
+        Index::write(writer, &declaration.identity)?;
+        Index::write(writer, &declaration.declaration_identity)?;
+        Flag::write(writer, &declaration.owns_linear_claim)?;
+        Flag::write(writer, &declaration.no_code_affine_cleanup)?;
+        Flag::write(writer, &declaration.descriptor_cleanup)?;
+        Multiplicity::write(writer, &declaration.multiplicity)?;
+        Optional::<NominalCleanup>::write(writer, &declaration.nominal_cleanup)?;
         match &declaration.shape {
             StructuralTypeShape::TypeParameter => {
                 return Err(CodecError::MalformedStructuralFoundation(
@@ -1161,8 +1027,8 @@ pub(crate) mod structural_type_wire {
             }
             StructuralTypeShape::Reference { referent, access } => {
                 writer.u8(7);
-                writer.id(*referent);
-                encode_structural_access(writer, *access);
+                Id::write(writer, referent)?;
+                Access::write(writer, access)?;
             }
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 writer.u8(if declaration.scalar_restriction.is_some() {
@@ -1170,7 +1036,7 @@ pub(crate) mod structural_type_wire {
                 } else {
                     6
                 });
-                encode_scalar_type(writer, *scalar_type)?;
+                Scalar::write(writer, scalar_type)?;
                 if let Some(restriction) = &declaration.scalar_restriction {
                     encode_structural_field_type(writer, restriction)?;
                 }
@@ -1186,15 +1052,12 @@ pub(crate) mod structural_type_wire {
             }
             StructuralTypeShape::ByteSequence(carrier) => {
                 writer.u8(4);
-                encode_byte_sequence_carrier(writer, *carrier);
+                Carrier::write(writer, carrier)?;
             }
             StructuralTypeShape::ElementView { element, access } => {
                 writer.u8(8);
-                writer.id(*element);
-                writer.boolean(access.is_some());
-                if let Some(access) = access {
-                    encode_structural_access(writer, *access);
-                }
+                Id::write(writer, element)?;
+                Optional::<Access>::write(writer, access)?;
             }
             StructuralTypeShape::Record { fields, storage } => {
                 if !declaration.requires.is_empty() {
@@ -1202,28 +1065,26 @@ pub(crate) mod structural_type_wire {
                 }
                 writer.u8(match storage {
                     StructuralRecordStorage::Packed => 1,
-                    StructuralRecordStorage::AccessView(_) => 14,
-                    StructuralRecordStorage::Accessor(_) => 15,
                     StructuralRecordStorage::Authored(_) => 10,
                     StructuralRecordStorage::TargetLayout(_) => 13,
+                    StructuralRecordStorage::AccessView(_) => 14,
+                    StructuralRecordStorage::Accessor(_) => 15,
                 });
-                if let StructuralRecordStorage::TargetLayout(application) = storage {
-                    writer.u32(application.0);
-                }
-                if let StructuralRecordStorage::Authored(storage)
-                | StructuralRecordStorage::AccessView(storage)
-                | StructuralRecordStorage::Accessor(storage) = storage
-                {
-                    writer.u64(storage.byte_size);
-                    writer.u64(storage.byte_alignment);
-                }
+                let has_authored_fields = match storage {
+                    StructuralRecordStorage::TargetLayout(application) => {
+                        writer.u32(application.0);
+                        false
+                    }
+                    StructuralRecordStorage::Authored(geometry)
+                    | StructuralRecordStorage::AccessView(geometry)
+                    | StructuralRecordStorage::Accessor(geometry) => {
+                        RecordGeometry::write(writer, geometry)?;
+                        true
+                    }
+                    StructuralRecordStorage::Packed => false,
+                };
                 writer.counted("structural fields", fields, encode_structural_field)?;
-                if matches!(
-                    storage,
-                    StructuralRecordStorage::Authored(_)
-                        | StructuralRecordStorage::AccessView(_)
-                        | StructuralRecordStorage::Accessor(_)
-                ) {
+                if has_authored_fields {
                     for field in fields {
                         encode_authored_field_storage(writer, field.storage.as_ref())?;
                     }
@@ -1231,7 +1092,7 @@ pub(crate) mod structural_type_wire {
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 writer.u8(2);
-                writer.id(*element);
+                Id::write(writer, element)?;
                 match length {
                     ArrayExtent::Parameter { .. } => {
                         return Err(CodecError::MalformedStructuralFoundation(
@@ -1254,30 +1115,12 @@ pub(crate) mod structural_type_wire {
                 } else {
                     SUM_WITH_REQUIRES
                 });
-                writer.len("structural cases", cases.len())?;
-                for case in cases {
-                    writer.u32(case.declaration_identity.0);
-                    writer.id(case.id);
-                    writer.u32(case.identity.0);
-                    writer.len("structural case payload fields", case.fields.len())?;
-                    for field in &case.fields {
-                        encode_structural_field(writer, field)?;
-                    }
-                }
+                List::<CaseDecl>::write(writer, cases)?;
             }
             StructuralTypeShape::Mixed { fields, cases } => {
                 writer.u8(5);
-                writer.counted("mixed structural fields", fields, encode_structural_field)?;
-                writer.len("mixed structural cases", cases.len())?;
-                for case in cases {
-                    writer.u32(case.declaration_identity.0);
-                    writer.id(case.id);
-                    writer.u32(case.identity.0);
-                    writer.len("mixed structural case payload fields", case.fields.len())?;
-                    for field in &case.fields {
-                        encode_structural_field(writer, field)?;
-                    }
-                }
+                List::<FieldDecl>::write(writer, fields)?;
+                List::<CaseDecl>::write(writer, cases)?;
             }
         }
         if !declaration.requires.is_empty() {
@@ -1289,10 +1132,7 @@ pub(crate) mod structural_type_wire {
                     "only a record or a sum declares requires clauses",
                 ));
             }
-            writer.len("structural type requires", declaration.requires.len())?;
-            for clause in &declaration.requires {
-                encode_proposition(writer, clause)?;
-            }
+            List::<Proposition>::write(writer, &declaration.requires)?;
         }
         Ok(())
     }
@@ -1300,28 +1140,15 @@ pub(crate) mod structural_type_wire {
     pub(crate) fn decode_structural_type(
         reader: &mut Reader<'_>,
     ) -> Result<StructuralTypeDeclaration, CodecError> {
-        let quotient_carrier = if reader.boolean()? {
-            Some(reader.id("StructuralTypeId")?)
-        } else {
-            None
-        };
-        let id = reader.id("StructuralTypeId")?;
-        let identity = TerminalIdentityIndex(reader.u32()?);
-        let declaration_identity = TerminalIdentityIndex(reader.u32()?);
-        let owns_linear_claim = reader.boolean()?;
-        let no_code_affine_cleanup = reader.boolean()?;
-        let descriptor_cleanup = reader.boolean()?;
-        let multiplicity = super::structural_result_wire::decode_multiplicity(reader)?;
-        let nominal_cleanup = if reader.boolean()? {
-            Some(terminal_psi::NominalCleanupSelection {
-                declaration: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(
-                    reader.u32()?,
-                )),
-                cleanup_machine: reader.id("MachineId")?,
-            })
-        } else {
-            None
-        };
+        let quotient_carrier = Optional::<Id>::read(reader)?;
+        let id = Id::read(reader)?;
+        let identity = Index::read(reader)?;
+        let declaration_identity = Index::read(reader)?;
+        let owns_linear_claim = Flag::read(reader)?;
+        let no_code_affine_cleanup = Flag::read(reader)?;
+        let descriptor_cleanup = Flag::read(reader)?;
+        let multiplicity = Multiplicity::read(reader)?;
+        let nominal_cleanup = Optional::<NominalCleanup>::read(reader)?;
         let mut scalar_restriction = None;
         let tag = reader.u8()?;
         let declares_requires = matches!(tag, RECORD_WITH_REQUIRES | SUM_WITH_REQUIRES);
@@ -1337,107 +1164,65 @@ pub(crate) mod structural_type_wire {
             tag
         };
         let shape = match shape_tag {
-            19 => StructuralTypeShape::Opaque,
-            7 => StructuralTypeShape::Reference {
-                referent: reader.id("StructuralTypeId")?,
-                access: decode_structural_access(reader)?,
-            },
-            6 => StructuralTypeShape::PrimitiveScalar(decode_scalar_type(reader)?),
-            16 => {
-                let cell = decode_structural_field_type(reader)?
-                    .atomic_cell_type()
-                    .ok_or(CodecError::MalformedStructuralFoundation(
-                        "atomic storage has an invalid resident contract",
-                    ))?;
-                StructuralTypeShape::AtomicCell(cell)
-            }
-            12 => {
-                let carrier = decode_scalar_type(reader)?;
-                scalar_restriction = Some(decode_structural_field_type(reader)?);
-                StructuralTypeShape::PrimitiveScalar(carrier)
-            }
-            tag @ (14 | 15) => {
-                let geometry = semantic_vocabulary::AuthoredRecordStorage {
-                    byte_size: reader.u64()?,
-                    byte_alignment: reader.u64()?,
-                };
-                let mut fields = decode_counted(reader, decode_structural_field)?;
-                for field in &mut fields {
-                    field.storage = decode_authored_field_storage(reader)?;
-                }
-                StructuralTypeShape::Record {
-                    fields,
-                    storage: if tag == 14 {
-                        StructuralRecordStorage::AccessView(geometry)
-                    } else {
-                        StructuralRecordStorage::Accessor(geometry)
-                    },
-                }
-            }
             1 => StructuralTypeShape::Record {
                 storage: StructuralRecordStorage::Packed,
-                fields: decode_counted(reader, decode_structural_field)?,
-            },
-            10 => {
-                let storage = semantic_vocabulary::AuthoredRecordStorage {
-                    byte_size: reader.u64()?,
-                    byte_alignment: reader.u64()?,
-                };
-                let mut fields = decode_counted(reader, decode_structural_field)?;
-                for field in &mut fields {
-                    field.storage = decode_authored_field_storage(reader)?;
-                }
-                StructuralTypeShape::Record {
-                    fields,
-                    storage: StructuralRecordStorage::Authored(storage),
-                }
-            }
-            13 => StructuralTypeShape::Record {
-                storage: StructuralRecordStorage::TargetLayout(LayoutApplicationId(reader.u32()?)),
-                fields: decode_counted(reader, decode_structural_field)?,
-            },
-            8 => StructuralTypeShape::ElementView {
-                element: reader.id("StructuralTypeId")?,
-                access: if reader.boolean()? {
-                    Some(decode_structural_access(reader)?)
-                } else {
-                    None
-                },
+                fields: List::<FieldDecl>::read(reader)?,
             },
             2 => StructuralTypeShape::FixedArray {
-                element: reader.id("StructuralTypeId")?,
+                element: Id::read(reader)?,
                 length: match reader.u8()? {
                     0 => ArrayExtent::Literal(reader.u64()?),
-                    1 => ArrayExtent::Application(reader.id("ScalarApplicationId")?),
+                    1 => ArrayExtent::Application(Id::read(reader)?),
                     tag => return Err(CodecError::InvalidTag("ArrayExtent", tag)),
                 },
             },
             3 | SUM_WITH_REQUIRES => StructuralTypeShape::Sum {
-                cases: decode_counted(reader, |reader| {
-                    Ok(StructuralCaseDeclaration {
-                        declaration_identity: TerminalIdentityIndex(reader.u32()?),
-                        id: reader.id("StructuralCaseId")?,
-                        identity: TerminalIdentityIndex(reader.u32()?),
-                        fields: decode_counted(reader, decode_structural_field)?,
-                    })
-                })?,
+                cases: List::<CaseDecl>::read(reader)?,
             },
-            4 => StructuralTypeShape::ByteSequence(decode_byte_sequence_carrier(reader)?),
+            4 => StructuralTypeShape::ByteSequence(Carrier::read(reader)?),
             5 => StructuralTypeShape::Mixed {
-                fields: decode_counted(reader, decode_structural_field)?,
-                cases: decode_counted(reader, |reader| {
-                    Ok(StructuralCaseDeclaration {
-                        declaration_identity: TerminalIdentityIndex(reader.u32()?),
-                        id: reader.id("StructuralCaseId")?,
-                        identity: TerminalIdentityIndex(reader.u32()?),
-                        fields: decode_counted(reader, decode_structural_field)?,
-                    })
-                })?,
+                fields: List::<FieldDecl>::read(reader)?,
+                cases: List::<CaseDecl>::read(reader)?,
             },
+            6 => StructuralTypeShape::PrimitiveScalar(Scalar::read(reader)?),
+            7 => StructuralTypeShape::Reference {
+                referent: Id::read(reader)?,
+                access: Access::read(reader)?,
+            },
+            8 => StructuralTypeShape::ElementView {
+                element: Id::read(reader)?,
+                access: Optional::<Access>::read(reader)?,
+            },
+            tag @ (10 | 14 | 15) => {
+                let (geometry, fields) = decode_authored_record_fields(reader)?;
+                let storage = match tag {
+                    10 => StructuralRecordStorage::Authored(geometry),
+                    14 => StructuralRecordStorage::AccessView(geometry),
+                    _ => StructuralRecordStorage::Accessor(geometry),
+                };
+                StructuralTypeShape::Record { fields, storage }
+            }
+            12 => {
+                let carrier = Scalar::read(reader)?;
+                scalar_restriction = Some(decode_structural_field_type(reader)?);
+                StructuralTypeShape::PrimitiveScalar(carrier)
+            }
+            13 => StructuralTypeShape::Record {
+                storage: StructuralRecordStorage::TargetLayout(LayoutApplicationId(reader.u32()?)),
+                fields: List::<FieldDecl>::read(reader)?,
+            },
+            16 => StructuralTypeShape::AtomicCell(
+                decode_structural_field_type(reader)?
+                    .atomic_cell_type()
+                    .ok_or(CodecError::MalformedStructuralFoundation(
+                        "atomic storage has an invalid resident contract",
+                    ))?,
+            ),
+            19 => StructuralTypeShape::Opaque,
             tag => return Err(CodecError::InvalidTag("StructuralTypeShape", tag)),
         };
         let requires = if declares_requires {
-            let requires = decode_counted(reader, decode_proposition)?;
+            let requires = List::<Proposition>::read(reader)?;
             if requires.is_empty() {
                 // The tags without clauses already say "none"; a second
                 // spelling of no clauses would give one declaration two
@@ -1468,9 +1253,8 @@ pub(crate) mod structural_type_wire {
 
     pub(crate) fn encode_authored_field_storage(
         writer: &mut Writer,
-        storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
+        storage: Option<&AuthoredFieldStorage>,
     ) -> Result<(), CodecError> {
-        use semantic_vocabulary::AuthoredFieldStorage;
         match storage {
             None => writer.u8(0),
             Some(AuthoredFieldStorage::Scalar {
@@ -1480,7 +1264,7 @@ pub(crate) mod structural_type_wire {
                 writer.u8(if stored_scalar.is_some() { 2 } else { 1 });
                 writer.u64(*byte_offset);
                 if let Some(scalar) = stored_scalar {
-                    encode_scalar_type(writer, *scalar)?;
+                    Scalar::write(writer, scalar)?;
                 }
             }
             Some(AuthoredFieldStorage::Repeated {
@@ -1497,14 +1281,11 @@ pub(crate) mod structural_type_wire {
             }
             Some(AuthoredFieldStorage::Fragmented(recipe)) => {
                 writer.u8(6);
-                writer.len("authored bit fragments", recipe.fragments().len())?;
-                for fragment in recipe.fragments() {
-                    writer.u64(fragment.container_byte_offset);
-                    writer.u64(fragment.container_width_bits);
-                    writer.u64(fragment.destination_lsb);
-                    writer.u64(fragment.source_lsb);
-                    writer.u64(fragment.width);
-                }
+                writer.counted(
+                    "authored bit fragments",
+                    recipe.fragments(),
+                    BitFragment::write,
+                )?;
             }
         }
         Ok(())
@@ -1512,8 +1293,7 @@ pub(crate) mod structural_type_wire {
 
     pub(crate) fn decode_authored_field_storage(
         reader: &mut Reader<'_>,
-    ) -> Result<Option<semantic_vocabulary::AuthoredFieldStorage>, CodecError> {
-        use semantic_vocabulary::AuthoredFieldStorage;
+    ) -> Result<Option<AuthoredFieldStorage>, CodecError> {
         Ok(match reader.u8()? {
             0 => None,
             1 => Some(AuthoredFieldStorage::Scalar {
@@ -1522,7 +1302,7 @@ pub(crate) mod structural_type_wire {
             }),
             2 => Some(AuthoredFieldStorage::Scalar {
                 byte_offset: reader.u64()?,
-                stored_scalar: Some(decode_scalar_type(reader)?),
+                stored_scalar: Some(Scalar::read(reader)?),
             }),
             3 => Some(AuthoredFieldStorage::Repeated {
                 byte_offset: reader.u64()?,
@@ -1544,17 +1324,11 @@ pub(crate) mod structural_type_wire {
                 }
                 let mut fragments = Vec::with_capacity(count);
                 for _ in 0..count {
-                    fragments.push(semantic_vocabulary::AuthoredBitFragment {
-                        container_byte_offset: reader.u64()?,
-                        container_width_bits: reader.u64()?,
-                        destination_lsb: reader.u64()?,
-                        source_lsb: reader.u64()?,
-                        width: reader.u64()?,
-                    });
+                    fragments.push(BitFragment::read(reader)?);
                 }
-                Some(AuthoredFieldStorage::Fragmented(
-                    semantic_vocabulary::AuthoredBitFragments::new(fragments),
-                ))
+                Some(AuthoredFieldStorage::Fragmented(AuthoredBitFragments::new(
+                    fragments,
+                )))
             }
             tag => return Err(CodecError::InvalidTag("AuthoredFieldStorage", tag)),
         })

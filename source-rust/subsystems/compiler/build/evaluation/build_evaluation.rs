@@ -86,6 +86,12 @@ mod catalog_declaration;
 pub use catalog_declaration::SourceBuildDeclaration;
 
 impl PreparedBuildEvaluation {
+    pub fn demanded_programs(
+        &self,
+    ) -> impl Iterator<Item = &package_compilation::DelegatedProgram> {
+        self.execution.programs.demanded()
+    }
+
     pub fn source_completion_accounting(
         &self,
     ) -> &source_compiler::compile_time_invocations::SourceCompletionAccounting {
@@ -230,6 +236,7 @@ pub fn prepare_build_evaluation(
         diagnostic_output_bytes,
         programs,
         interpreter_providers,
+        prepared_unsafe_atoms,
         profile: execution_profile,
         directory: build_directory,
         filesystem_sponsor,
@@ -298,7 +305,7 @@ pub fn prepare_build_evaluation(
             })?,
         None => Arc::default(),
     };
-    let (prepared, providers, entry_constants, source_completion_accounting) =
+    let (prepared, mut providers, entry_constants, source_completion_accounting) =
         crate::admission::checking::prepare_admitted_build(
             typed,
             selected_machine,
@@ -309,6 +316,7 @@ pub fn prepare_build_evaluation(
             subject_validation == BuildSubjectValidation::Checked,
             timings,
         )?;
+    providers.admit_prepared_unsafe_atoms(prepared_unsafe_atoms);
     let constants = match check_only {
         Some((subject, capture)) => crate::admission::checking::check_subject_before_execution(
             subject,
@@ -351,6 +359,9 @@ pub fn prepare_build_evaluation(
         let restricted_build_requests = admitted.restricted_build_requests();
         if !restricted_build_requests.is_empty() {
             let site = package_compilation::build_execution::RestrictedBuildSite {
+                subject: restricted_build_grants
+                    .as_ref()
+                    .and_then(|grants| grants.subject()),
                 entry: admitted.machine.normalized_callable_identity.clone(),
                 program: *admitted
                     .produced

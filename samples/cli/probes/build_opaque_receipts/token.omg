@@ -1,4 +1,4 @@
-use omega\language\core\OpaqueRepresentation;
+use {omega}/language/core/representation.omg;
 
 public boundary data Token;
 
@@ -6,4 +6,4 @@ public data TokenBytes [copy] {
     value: u64;
 }
 
-public TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }
+public TokenRepresentation satisfies |representation|::OpaqueRepresentation<Token, TokenBytes> { }

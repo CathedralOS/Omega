@@ -8,17 +8,20 @@ against the original prepared source request before charging result-custody
 storage and decoding the `NativeLocatorValue` tree.
 */
 
+mod function_field;
 mod locator;
 use locator::{NativeLocatorCase, NativeLocatorValue, decode_native_locator};
 
 use super::{TerminalBuildBindingAdapter, activation_ticket, lock_state};
 use semantic_vocabulary::source_selections::ProductTarget;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerSign, IntegerValue};
+use source_compiler::publication::{
+    TerminalBuildBindingOperation, TerminalBuildNativeLocatorKind, TerminalBuildValueShape,
+};
 use source_compiler::representations::declaration_selection::BuildOperation;
 use source_compiler::representations::declaration_selection::BuildSelectionRequest;
 use source_compiler::representations::declaration_selection::ExecutedBuildSelection;
 use source_compiler::representations::declaration_selection::ExecutedNativeBinding;
-use source_compiler::publication::{TerminalBuildBindingOperation, TerminalBuildValueShape};
 use terminal_interpreter::{
     TerminalBoundaryStorageBuffer, TerminalBoundaryStorageValue, TerminalEffect,
     TerminalEffectRejection, TerminalEffectResult, TerminalScalarValue, TerminalStorageContents,
@@ -87,11 +90,22 @@ impl TerminalBuildBindingAdapter {
         let selecting_machine = call
             .selecting_machine
             .ok_or_else(|| refuse("native Build call lost its selecting machine"))?;
-        let bytes = schema
-            .widths
-            .into_iter()
-            .try_fold(0u64, |total, width| total.checked_add(width))
-            .ok_or_else(|| refuse("native locator retained-byte count overflowed"))?;
+        let bytes = match schema.kind {
+            TerminalBuildNativeLocatorKind::ForeignBinding { widths } => widths
+                .into_iter()
+                .try_fold(0u64, |total, width| total.checked_add(width)),
+            TerminalBuildNativeLocatorKind::FunctionFieldBinding => {
+                snapshot
+                    .iter()
+                    .try_fold(0u64, |total, cell| match &cell.contents {
+                        TerminalStorageContents::Bytes(bytes) => {
+                            total.checked_add(u64::try_from(bytes.len()).ok()?)
+                        }
+                        _ => Some(total),
+                    })
+            }
+        }
+        .ok_or_else(|| refuse("native locator retained-byte count overflowed"))?;
         let storage = self
             .host
             .account
@@ -101,14 +115,17 @@ impl TerminalBuildBindingAdapter {
             .map_err(|error| {
                 TerminalEffectRejection::new(format!("native locator retained storage: {error}"))
             })?;
-        let locator = decode_native_locator(
-            ValueRef {
-                shape: &schema.shape,
-                values: snapshot,
-                path: Vec::new(),
-            },
-            schema.widths,
-        )
+        let value = ValueRef {
+            shape: &schema.shape,
+            values: snapshot,
+            path: Vec::new(),
+        };
+        let locator = match schema.kind {
+            TerminalBuildNativeLocatorKind::ForeignBinding { widths } => {
+                decode_native_locator(value, widths)
+            }
+            TerminalBuildNativeLocatorKind::FunctionFieldBinding => function_field::decode(&value),
+        }
         .map_err(TerminalEffectRejection::new)?;
         state
             .executed

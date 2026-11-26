@@ -209,41 +209,28 @@ fn empty_parameter_list_names_a_nullary_definition() {
 
 #[test]
 fn top_level_let_requires_a_body_or_boundary() {
-    let tokens = Lexer::new("let f(): A;").tokenize().expect("tokenize");
-    let error = parse_syntax_trees(&tokens).expect_err("parse must reject");
+    let error = crate::tests::parse_error("let f(): A;");
     crate::tests::expect_error(&error, "boundary let");
 }
 
 #[test]
 fn boundary_let_rejects_a_body() {
-    let tokens = Lexer::new("boundary let f(): A = term;")
-        .tokenize()
-        .expect("tokenize");
-    let error = parse_syntax_trees(&tokens).expect_err("parse must reject");
+    let error = crate::tests::parse_error("boundary let f(): A = term;");
     crate::tests::expect_error(&error, "`;`");
 }
 
 #[test]
 fn let_declaration_rejects_lifetime_and_machine_binders() {
-    let tokens = Lexer::new("let f<'a>(): A = term;")
-        .tokenize()
-        .expect("tokenize");
-    let error = parse_syntax_trees(&tokens).expect_err("parse must reject");
+    let error = crate::tests::parse_error("let f<'a>(): A = term;");
     assert!(error.message.contains("lifetime"), "{}", error.message);
 
-    let tokens = Lexer::new("let f<machine M>(): A = term;")
-        .tokenize()
-        .expect("tokenize");
-    let error = parse_syntax_trees(&tokens).expect_err("parse must reject");
+    let error = crate::tests::parse_error("let f<machine M>(): A = term;");
     assert!(error.message.contains("machine"), "{}", error.message);
 }
 
 #[test]
 fn dependent_binder_requires_an_arrow() {
-    let tokens = Lexer::new("let f(): (value: A) = term;")
-        .tokenize()
-        .expect("tokenize");
-    let error = parse_syntax_trees(&tokens).expect_err("parse must reject");
+    let error = crate::tests::parse_error("let f(): (value: A) = term;");
     assert!(error.message.contains("->"), "{}", error.message);
 }
 

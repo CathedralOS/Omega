@@ -33,17 +33,38 @@ pub(super) enum FileSelection {
 }
 
 impl<'a> FileImport<'a> {
-    pub fn from(source: &'a ParsedSourceSummary, import: &'a SourceImport) -> Option<Self> {
+    pub fn from(
+        source: &'a ParsedSourceSummary,
+        import: &'a SourceImport,
+    ) -> Result<Option<Self>, Vec<Diagnostic>> {
         let SourceImportTarget::File { root, path, alias } = &import.target else {
-            return None;
+            // The installed core and target contracts have their own issued source.
+            // A package or installed Build helper must select an exact file before entry.
+            if source.scope == DependencyScope::Build
+                && !matches!(
+                    source.origin,
+                    Some(
+                        source_admission::SourceOrigin::Toolchain
+                            | source_admission::SourceOrigin::ToolchainContract
+                    )
+                )
+            {
+                let error = Diagnostic::error(format!(
+                    "Build import `{}` requires an exact .omg filename",
+                    import.target
+                ))
+                .with_source_span(source_text::SourceSpan::new(source.source_id, import.span));
+                return Err(vec![error]);
+            }
+            return Ok(None);
         };
-        Some(Self {
+        Ok(Some(Self {
             root: root.as_deref(),
             path,
             alias,
             import,
             source,
-        })
+        }))
     }
 
     fn occurrence(&self) -> ImportOccurrence {
@@ -137,7 +158,7 @@ impl<'a> FileImport<'a> {
 
     pub fn standalone(
         &self,
-        current_root: &Path,
+        current_root: Option<&Path>,
         mounted: Option<&PackageCompilationInputs>,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
@@ -146,8 +167,16 @@ impl<'a> FileImport<'a> {
         {
             return Ok(FileSelection::Unbound);
         }
+        if self.root == Some("omega") {
+            return self.toolchain(filesystem);
+        }
+        let current_root = current_root.ok_or_else(|| {
+            self.error(format!(
+                "file import `{}` has no admitted package root",
+                self.import.target
+            ))
+        })?;
         match self.root {
-            Some("omega") => self.toolchain(filesystem),
             Some(_) if let Some(inputs) = mounted => self.package(inputs, inputs.root(), true),
             Some(_) => self.unavailable(match self.source.scope {
                 DependencyScope::Build => DependencyPurpose::Build,
@@ -183,7 +212,7 @@ impl<'a> FileImport<'a> {
                         .then_some(core.as_path())
                 })
                 .ok_or_else(|| self.error("file import has no admitted package owner".into()))?;
-            return self.standalone(root, None, filesystem);
+            return self.standalone(Some(root), None, filesystem);
         };
         match self.package_owner(inputs, requester, purpose)? {
             Some(owner) => self.package(inputs, owner, self.root.is_some()),

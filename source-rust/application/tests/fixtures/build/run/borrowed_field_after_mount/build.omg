@@ -4,12 +4,12 @@ machine helper_value() -> i32 { 7 }
 
 data Gauge { amount: i32; neighbor: i32; }
 
-machine initial(builder: @mutable Build) -> Gauge {
-    Build::application(builder, "field_borrow");
+machine initial(builder: @mutable BuildPlan) -> Gauge {
+    builder.product = BuildProduct::Application { name: "field_borrow" };
     Gauge { amount: 3, neighbor: 19 }
 }
 
-machine build(builder: @mutable Build) suspends {
+machine build(builder: @mutable BuildPlan) suspends {
     builder.tests.disabled = true;
     let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
     |dependency|::with_alias(@mutable request, "kit");
@@ -24,6 +24,6 @@ machine build(builder: @mutable Build) suspends {
         true -> done(builder),
         _ -> wrong(builder)
     }
-    machine done(builder: @mutable Build) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }
-    machine wrong(builder: @mutable Build) { Build::application(builder, "duplicate_role"); }
+    machine done(builder: @mutable BuildPlan) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }
+    machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Unselected; }
 }

@@ -8,8 +8,8 @@ pub mod host;
 
 pub use activation::preparation::PreparedBuildExecution;
 pub use activation::{
-    BuildDependencySelection, BuildSourceResult, ReturnedBuild, TerminalBuildActivation,
-    TerminalBuildHost, TerminalBuildStep,
+    BuildDependencySelection, BuildSourceResult, DependencyBacking, ReturnedBuild,
+    TerminalBuildActivation, TerminalBuildHost, TerminalBuildStep,
 };
 pub use admission::checking::settle_rejoined_build_slice;
 use admission::program::{AdmittedBuildProgram, admit_build_program};

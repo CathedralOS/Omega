@@ -375,6 +375,9 @@ impl<'a> Reviewer<'a> {
                     )?;
                 }
             }
+            ProviderBinding::FunctionField { .. } => {
+                return Err("a Build-owned function table must retain its own binding receipt".into());
+            }
             ProviderBinding::VtableSlot { .. } => {
                 return Err(format!(
                     "selected requirement `{requirement}` uses the unsupported vtable-slot terminal role"

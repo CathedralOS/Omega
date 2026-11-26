@@ -194,10 +194,7 @@ fn selected_descriptor(
     if let Some(kernel) = binding.system_call() {
         runtime_abi::descriptor_system_call(kernel.target, kernel.number)
     } else {
-        binding
-            .hosted_import()
-            .or_else(|| binding.import().map(|(locator, _)| locator))
-            .and_then(runtime_abi::descriptor_import)
+        binding.foreign_import_locator().and_then(runtime_abi::descriptor_import)
     }
 }
 

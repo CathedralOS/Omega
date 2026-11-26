@@ -1,7 +1,6 @@
 // Declared synthetic stacks. Orientation is (cos^2,sin^2,cos*sin).
-use mechanics\model;
-use mechanics\model\Laminate;
-public machine fixture(model: @mutable Laminate,mode: u8) {
+use mechanics/model/model.omg;
+public machine fixture(model: @mutable |model|::Laminate,mode: u8) {
     model.count = 2;
     model.thickness = [0.5,0.5,0.0,0.0];
     model.m2 = [1.0,0.0,0.0,0.0];
@@ -18,23 +17,23 @@ public machine fixture(model: @mutable Laminate,mode: u8) {
         56 -> orientation(model),
         _ -> done()
     }
-    machine reverse(model: @mutable Laminate) { model.m2 = [0.0,1.0,0.0,0.0]; model.n2 = [1.0,0.0,0.0,0.0]; }
-    machine symmetric(model: @mutable Laminate) {
+    machine reverse(model: @mutable |model|::Laminate) { model.m2 = [0.0,1.0,0.0,0.0]; model.n2 = [1.0,0.0,0.0,0.0]; }
+    machine symmetric(model: @mutable |model|::Laminate) {
         model.count = 4; model.thickness = [0.25,0.25,0.25,0.25];
         model.m2 = [1.0,0.0,0.0,1.0]; model.n2 = [0.0,1.0,1.0,0.0];
     }
-    machine balanced(model: @mutable Laminate) {
+    machine balanced(model: @mutable |model|::Laminate) {
         model.count = 4; model.thickness = [0.25,0.25,0.25,0.25];
         model.m2 = [0.5,0.5,0.5,0.5]; model.n2 = [0.5,0.5,0.5,0.5];
         model.mn = [0.5,-0.5,-0.5,0.5];
     }
-    machine oblique(model: @mutable Laminate) {
+    machine oblique(model: @mutable |model|::Laminate) {
         model.count = 3; model.thickness = [0.2,0.3,0.5,0.0];
         model.m2 = [0.36,0.5,0.0,0.0]; model.n2 = [0.64,0.5,1.0,0.0];
         model.mn = [0.48,-0.5,0.0,0.0];
     }
-    machine negative(model: @mutable Laminate) { model.thickness[0] = -0.5; }
-    machine empty(model: @mutable Laminate) { model.count = 0; }
-    machine orientation(model: @mutable Laminate) { model.mn[0] = 0.5; }
+    machine negative(model: @mutable |model|::Laminate) { model.thickness[0] = -0.5; }
+    machine empty(model: @mutable |model|::Laminate) { model.count = 0; }
+    machine orientation(model: @mutable |model|::Laminate) { model.mn[0] = 0.5; }
     machine done() { }
 }

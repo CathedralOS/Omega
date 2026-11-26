@@ -14,7 +14,9 @@ where the call's result completes the caller. Source nesting plays no part:
 `wiki/spec/terminal-psi/control_flow.md`, "Source nesting does not bound the
 component or justify any edge." The lowered graph checks its invocation's
 published guarantees at every normal return. A jump within the component
-supplies no callee guarantee.
+supplies no callee guarantee. An ordinary invocation that needs no owned
+storage or result proof can enter one of these loops through its checked
+callee. The receiver retains the loop so every later iteration stays local.
 
 Everything else about a cycle that the loops lane has not yet served is
 refused here by name, as `Unsupported`, before anything is lowered
@@ -224,7 +226,73 @@ pub(crate) fn components(
     for machine in forwarding {
         table.forward_entry(machine);
     }
+    share_loop_entries(bodies, signatures, &calls, &mut table)?;
     Ok(table)
+}
+
+/// An ordinary invocation can execute its first body and pass its result
+/// straight back from a receiver that owns the loop. Keep every such receiver
+/// as a loop entry: no traversal of a cycle can accumulate calling frames.
+fn share_loop_entries(
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+    calls: &CallGraph<'_>,
+    components: &mut Components,
+) -> Checked<()> {
+    for (machine, body) in bodies.iter() {
+        let caller = index(machine);
+        if components.members(machine)?.len() < 2
+            || !components.can_forward(machine)
+            || calls.has_designated[caller]
+        {
+            continue;
+        }
+        let signature =
+            terminal_check_tables::row(signatures, machine, machine, Construct::Machine)?;
+        // Input loans may stay in this outer invocation. Owned storage,
+        // results and guarantees that need the combined bodies' facts
+        // continue in the local loop, along with its ranking evidence.
+        if !can_forward_result(body, signature)
+            || !matches!(signature.result, None | Some(ValueType::Scalar(..)))
+        {
+            continue;
+        }
+        let mut receivers = Vec::new();
+        let inputs = unchanged_inputs(body, signature);
+        for site in calls.calls(caller) {
+            if !components.same_component(caller, index(site.callee)) {
+                continue;
+            }
+            let borrows_inputs = site.arguments.iter().all(|argument| match &argument.kind {
+                ExpressionKind::Borrow { place, .. } => {
+                    static_field_slot(place).is_some_and(|slot| {
+                        inputs.get(slot) == Some(&true) && signature.borrowed(slot).is_some()
+                    })
+                }
+                _ => matches!(argument.result, Some(ValueType::Scalar(..))),
+            });
+            if site.callee == machine || components.forwards(site.callee) || !borrows_inputs {
+                receivers.clear();
+                break;
+            }
+            receivers.push(site.callee);
+        }
+        if !receivers.is_empty() {
+            components.forward_entry(machine);
+            for receiver in receivers {
+                components.retain_loop_entry(receiver);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn can_forward_result(body: &Body, signature: &Signature) -> bool {
+    has_no_owned_structural_slots(body, signature)
+        && signature.ensures.is_empty()
+        && !signature.has_structural_guarantees()
+        && signature.ranking.is_none()
+        && signature.termination == Termination::Silent
 }
 
 /// Keep the first reborrow under the invocation that supplies its exact
@@ -246,15 +314,11 @@ fn forwarding_receiver(
     // the receiver runs its component. Its normal exit owes no extra result
     // or guarantee, and the canonical heads keep their ranking evidence.
     if signature.result.is_some()
-        || !signature.ensures.is_empty()
-        || signature.has_structural_guarantees()
-        || signature.ranking.is_some()
-        || signature.termination != Termination::Silent
+        || !can_forward_result(body, signature)
         || !signature
             .borrowed
             .iter()
             .any(|formal| formal.access == ReferenceAccess::Shared)
-        || !has_no_owned_structural_slots(body, signature)
     {
         return Ok(None);
     }

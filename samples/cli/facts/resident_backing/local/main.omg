@@ -1,6 +1,7 @@
 // Expected exit: 0
 // A granted vacant extent retains actual backing through transport, initialization, permitted writes, and extraction.
 
+use {omega}/language/core/foundation.omg as proof;
 use {omega}/language/core/extent.omg as extent;
 use {omega}/language/core/content.omg as content;
 use {omega}/language/core/nat.omg as nat;
@@ -57,7 +58,7 @@ MemorySupply satisfies |layout|::ResourceProfileSupply<TestMemory> {
 }
 
 boundary trait NativeAllocation {
-    machine allocate(count: u64, width: u64) -> addr reaches none crashes none;
+    machine allocate(count: u64, width: u64) -> address reaches none crashes none;
 }
 TestRoots satisfies |extent|::ExtentRootProvider {
     machine grant(root: |extent|::Extent) -> |extent|::Extent { root }
@@ -65,7 +66,7 @@ TestRoots satisfies |extent|::ExtentRootProvider {
 TestVacant satisfies |extent|::VacantContentTransfer {
     machine transfer(storage: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
         ensures result in |extent|::Extent::Granted,
-            core\Identity::<|content|::IntervalSet<|nat|::Nat>>(
+            |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
                 |extent|::Granted::content(old(@storage)),
                 |extent|::Granted::content(@result)
             )
@@ -75,9 +76,9 @@ TestVacant satisfies |extent|::VacantContentTransfer {
 // Place: local.
 const CAPACITY: u64 = 64;
 machine main() crashes Trap {
-    let address: addr = NativeAllocation::allocate(1, CAPACITY);
+    let address: address = NativeAllocation::allocate(1, CAPACITY);
     transition address != 0 { true -> allocated(address), false -> bad() }
-    machine allocated(address: addr) {
+    machine allocated(address: address) {
         let granted: |extent|::Extent in |extent|::Extent::Granted =
             |extent|::ExtentRootProvider::grant(|extent|::Extent { base: address, length: CAPACITY })
                 as + |extent|::Extent::Granted;

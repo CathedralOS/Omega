@@ -6,7 +6,7 @@ use super::*;
 fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
     let program = "data Cell { word: u64; }
         machine main(cell: @mutable Cell) -> bool {
-            let first: addr = address_of(@mutable cell.word);
+            let first: address = address_of(@mutable cell.word);
             cell.word = 11u64;
             let alias: @u64 = @cell.word;
             address_of(alias) == first
@@ -24,7 +24,7 @@ fn storage_address_exposes_the_referent_of_an_ordinary_reference() {
     accepted.publish_invocation().unwrap();
 
     let typed = super::boundary_calls::typed(
-        "machine main(value: u64) -> addr { address_of(value) }",
+        "machine main(value: u64) -> address { address_of(value) }",
     );
     let verdict = super::entryless::judged_typed_result(&typed, false).unwrap();
     let RouteVerdict::Rejected { violations, .. } = verdict else {
@@ -72,7 +72,7 @@ requires size_of::<u32>() == 4, align_of::<u32>() == 4
 machine main() crashes Trap {
     transition size_of::<u32>() == 4 && align_of::<u32>() == 4 &&
         size_of::<f64>() == 8 && align_of::<f64>() == 8 &&
-        size_of::<addr>() == 8 && align_of::<addr>() == 8 &&
+        size_of::<address>() == 8 && align_of::<address>() == 8 &&
         size_of::<u32 in Empty>() == 4 &&
         size_of::<Wrapped in Tagged>() == 4 && align_of::<Wrapped in Tagged>() == 4 {
         true -> finish(difference()),

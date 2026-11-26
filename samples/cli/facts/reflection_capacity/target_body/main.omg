@@ -1,20 +1,20 @@
 // Fact: A pure source reflection query computes the complete capacity of the exact selected schema, and its foreign nominal result retains that bound through every value transport.
 // Expected exit: 0
-use omega\language\core\CompactBinary;
-use omega\language\core\ScalarBound;
-use omega\language\core\reflect;
+use {omega}/language/core/CompactBinary/compact_binary.omg;
+use {omega}/language/core/reflect/reflect.omg;
+use {omega}/language/core/wire.omg;
 data First { #0 counter: u32; }
 data Second { #0 counter: u32; #1 timestamp: u32; }
-machine inspect(bound: @mutable ScalarBound) { reflect\inspect_record_fields::<First, CompactBinary\max_scalar_field>(bound); }
-const BOUND: ScalarBound = CompactBinary\scalar_bound::<inspect>();
-machine accept(bound: @ScalarBound) requires bound.valid && bound.bytes == 7u64 {}
-boundary trait Measure { machine apply(bound: @ScalarBound) reaches none requires bound.valid && bound.bytes == 7u64 crashes none; }
-WindowsMeasure satisfies Measure { machine apply(bound: @ScalarBound) requires bound.valid && bound.bytes == 7u64 { accept(bound); } }
-LinuxX86Measure satisfies Measure { machine apply(bound: @ScalarBound) requires bound.valid && bound.bytes == 7u64 { accept(bound); } }
-MacMeasure satisfies Measure { machine apply(bound: @ScalarBound) requires bound.valid && bound.bytes == 7u64 { accept(bound); } }
-LinuxArmMeasure satisfies Measure { machine apply(bound: @ScalarBound) requires bound.valid && bound.bytes == 7u64 { accept(bound); } }
+machine inspect(bound: @mutable |wire|::ScalarBound) { |reflect|::inspect_record_fields::<First, |compact_binary|::max_scalar_field>(bound); }
+const BOUND: |wire|::ScalarBound = |compact_binary|::scalar_bound::<inspect>();
+machine accept(bound: @|wire|::ScalarBound) requires bound.valid && bound.bytes == 7u64 {}
+boundary trait Measure { machine apply(bound: @|wire|::ScalarBound) reaches none requires bound.valid && bound.bytes == 7u64 crashes none; }
+WindowsMeasure satisfies Measure { machine apply(bound: @|wire|::ScalarBound) requires bound.valid && bound.bytes == 7u64 { accept(bound); } }
+LinuxX86Measure satisfies Measure { machine apply(bound: @|wire|::ScalarBound) requires bound.valid && bound.bytes == 7u64 { accept(bound); } }
+MacMeasure satisfies Measure { machine apply(bound: @|wire|::ScalarBound) requires bound.valid && bound.bytes == 7u64 { accept(bound); } }
+LinuxArmMeasure satisfies Measure { machine apply(bound: @|wire|::ScalarBound) requires bound.valid && bound.bytes == 7u64 { accept(bound); } }
 machine main() reaches Measure crashes Trap {
-    let bound: ScalarBound = BOUND;
+    let bound: |wire|::ScalarBound = BOUND;
     Measure::apply(@bound);
     transition bound.valid && bound.bytes == 7u64 { true -> done(), false -> bad() }
     machine done() {}

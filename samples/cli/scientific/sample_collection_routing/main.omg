@@ -1,32 +1,25 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use input/parse/parse.omg;
+use reporting/certificate/certificate.omg;
+use routing/model/model.omg;
+use routing/search/search.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // With closed stdin the application rejects the missing record.
 // Expected exit: 64.
 // Expected output contains: INVALID: expected
-use system\Console;
-use system\LineReadResult;
-use routing\model;
-use routing\model\Plan;
-use routing\model\Certificate;
-use routing\search;
-use routing\search\solve;
-use input\parse;
-use input\parse\parse;
-use reporting\certificate;
-use reporting\certificate\report;
 
 data Collection {
     input: [u8; 12];
-    plan: Plan;
-    certificate: Certificate;
+    plan: |model|::Plan;
+    certificate: |model|::Certificate;
 }
 
-machine main(collection: @mutable Collection) reaches ProcessExit + StandardInput + StandardOutput {
-    let read: LineReadResult = block Console::read_line(@mutable collection.input[..]);
+machine main(collection: @mutable Collection) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let read: |console|::LineReadResult = block |console|::Console::read_line(@mutable collection.input[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> newline(collection, count),
-        LineReadResult::EndOfInput { count } -> eof(collection, count),
+        |console|::LineReadResult::LineComplete { count } -> newline(collection, count),
+        |console|::LineReadResult::EndOfInput { count } -> eof(collection, count),
         _ -> invalid(collection)
     }
     machine newline(collection: @mutable Collection, count: u64) {
@@ -42,24 +35,24 @@ machine main(collection: @mutable Collection) reaches ProcessExit + StandardInpu
         }
     }
     machine decode(collection: @mutable Collection) {
-        let valid: bool = parse(@collection.input, @mutable collection.plan);
+        let valid: bool = |parse|::parse(@collection.input, @mutable collection.plan);
         transition valid {
             true -> route(collection),
             false -> invalid(collection)
         }
     }
     machine route(collection: @mutable Collection) {
-        solve(@collection.plan, @mutable collection.certificate);
-        report(@collection.certificate);
+        |search|::solve(@collection.plan, @mutable collection.certificate);
+        |certificate|::report(@collection.certificate);
     }
     machine invalid(collection: @mutable Collection) {
-        Console::write_line("INVALID: expected C A B RA RB LA(2) LB(2) H(2), eleven digits; C=1..2, A/B=1..9, ready<=latest");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("INVALID: expected C A B RA RB LA(2) LB(2) H(2), eleven digits; C=1..2, A/B=1..9, ready<=latest");
+        |process_exit|::ProcessExit::exit_process(64);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Collection;
     block main(@mutable entry_storage);
 }

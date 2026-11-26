@@ -300,48 +300,43 @@ executor. Neither grants extra service access.
 Omega can check calls into a foreign library, but it cannot prove that the
 library obeys its declared contract.
 
+The system package declares the Windows clock operation with a writable
+64-bit output and a crash ceiling.
+
 ```omega
-use omega::language::core::time_authority;
+use time_host.omg as time_host;
 
-data FileTime {
-    low: u32;
-    high: u32;
-}
-
-boundary trait WindowsWallClock:
-    Calling<MicrosoftX64Policy>
-{
-    machine read(output: @mutable CLayout<FileTime>)
-        reaches ClockObservation
+// From targets/windows_x86_64/time_host_impl.omg
+boundary trait WindowsTimeRead {
+    machine system_time_as_file_time(file_time: @mutable u64)
+        reaches |time_host|::TimeHost
         crashes none;
-}
-
-machine read_wall_clock(output: @mutable CLayout<FileTime>)
-reaches ClockObservation
-crashes none
-{
-    WindowsWallClock::read(output);
-}
-
-// In build.omg
-machine build(builder: @mutable Build) {
-    Build::package(builder, "windows_wall_clock");
-    Build::bind_native::<WindowsWallClock::read>(
-        builder,
-        windows_x86_64,
-        ForeignBinding::DllImport {
-            import: DllImport::PeByName {
-                library: "kernel32.dll",
-                export: "GetSystemTimePreciseAsFileTime",
-            },
-        }
-    );
+    // Other clock operations omitted.
 }
 ```
 
-The foreign implementation must be explicitly trusted to keep its contract; if
-it lies, the caller's guarantees no longer hold. Wrapping the call cannot hide
-its `ClockObservation` reach, but reach checking does not sandbox native code.
+Its Build selects the DLL export for that declaration. Here is the relevant
+binding from `build.omg`.
+
+```omega
+use targets/windows_x86_64/time_host_impl.omg as clock;
+use {omega}/language/core/external_binding.omg as native;
+
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "system" };
+    Build::bind_native::<|clock|::WindowsTimeRead::system_time_as_file_time>(
+        plan, windows_x86_64,
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
+            library: "kernel32.dll", export: "GetSystemTimePreciseAsFileTime"
+        } }
+    );
+    // Other system bindings omitted.
+}
+```
+
+The caller can rely on the declared contract only if the DLL honors it. Omega
+checks the caller's reach and writable output. The host supplies the DLL and
+controls what it can do. [Windows requirement](source/library/system/targets/windows_x86_64/time_host_impl.omg) · [System Build](source/library/system/build.omg)
 
 See [foreign bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
 and [reach contracts](wiki/spec/language/effects.md).

@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "opaque_representation");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "opaque_representation" };
     Build::select_representation::<Token, TokenRepresentation>(builder);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);

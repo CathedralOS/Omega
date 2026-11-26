@@ -2,7 +2,7 @@
 // its own satisfies lands textually later, reversing declaration order
 // relative to the two boundary data declarations' module order.
 
-use omega\language\core\OpaqueRepresentation;
+use {omega}/language/core/representation.omg;
 
 public boundary data Seal;
 
@@ -10,4 +10,4 @@ public data SealBytes [copy] {
     value: u64;
 }
 
-public SealRepresentation satisfies OpaqueRepresentation<Seal, SealBytes> { }
+public SealRepresentation satisfies |representation|::OpaqueRepresentation<Seal, SealBytes> { }

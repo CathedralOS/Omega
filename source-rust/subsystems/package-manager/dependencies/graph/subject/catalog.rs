@@ -3,15 +3,14 @@
 // strictly ordered list and verified for consistent immutable custody across
 // catalog and `Product` packages.
 
+use super::usage::Budget;
 use super::validation::validate_package_navigation;
 use super::validation::validate_source_identity;
 use super::{
-    CanonicalCatalogDependency, CanonicalDependencySourceRequest,
-    CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
+    CanonicalCatalogDependency, CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,
     CatalogObserver,
 };
-use super::{request_view::Request, usage::Budget};
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::DependencyPurpose;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
@@ -69,7 +68,7 @@ pub(super) fn project(
                         preparation: input.preparation.clone(),
                         purpose: input.purpose,
                         ordinal: input.ordinal,
-                        request: CanonicalDependencySourceRequest::from(&input.request.source),
+                        request: input.request.source.clone(),
                         max_reach: input.request.max_reach.clone(),
                         provider,
                     };
@@ -172,7 +171,7 @@ pub(super) fn validate(
             }
         }
         super::validation::validate_dependency_request(
-            Request::from(&dependency.request),
+            &dependency.request,
             limits.maximum_request_bytes,
         )?;
         let selected = dependency.provider.root().selected();
@@ -254,7 +253,9 @@ pub(super) fn validate(
 
 #[cfg(test)]
 mod tests {
-    use super::super::{CanonicalRootSourceRequest, CanonicalRootSourceSelection};
+    use super::super::{
+        CanonicalDependencySourceRequest, CanonicalRootSourceRequest, CanonicalRootSourceSelection,
+    };
     use super::*;
     use crate::declarations::dependencies::read::{DependencyProjections, PackageSelection};
     use crate::declarations::{PackageKey, PackageName};

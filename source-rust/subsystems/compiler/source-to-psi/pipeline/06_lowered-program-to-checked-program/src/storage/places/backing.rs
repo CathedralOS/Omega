@@ -8,6 +8,9 @@ use terminal_semantics::descriptor_results::DescriptorCallOrigin;
 #[derive(Debug, Clone)]
 struct CapturedRegion {
     place: Lineage,
+    /// A captured window's enclosing place bounds overlap. A write through
+    /// the window does not initialize that entire place.
+    place_is_exact: bool,
     // Keep the complete formation address, rather than only its flattened
     // path. Different capture events are not the same selected reference.
     origin: Option<DescriptorCallOrigin>,
@@ -37,6 +40,7 @@ impl Backing {
             place: place.clone(),
             regions: vec![CapturedRegion {
                 place,
+                place_is_exact: true,
                 origin: None,
                 index_can_change_on_reentry: false,
             }],
@@ -53,7 +57,7 @@ impl Backing {
         let first = regions
             .first()
             .ok_or("captured storage has no actual address")?;
-        let place = if regions.len() == 1 {
+        let place = if regions.len() == 1 && first.place_is_exact {
             first.place.clone()
         } else {
             subject.clone()
@@ -87,7 +91,7 @@ impl Backing {
     /// recurring instruction can select a new element on its next execution.
     pub(super) fn same_single_region(&self, other: &Self) -> bool {
         match (self.regions.as_slice(), other.regions.as_slice()) {
-            ([left], [right]) => {
+            ([left], [right]) if left.place_is_exact && right.place_is_exact => {
                 left.place == right.place
                     && (left
                         .place
@@ -103,7 +107,7 @@ impl Backing {
 
     pub(super) fn single_place(&self) -> Option<&Lineage> {
         match self.regions.as_slice() {
-            [region] => Some(&region.place),
+            [region] if region.place_is_exact => Some(&region.place),
             _ => None,
         }
     }
@@ -116,6 +120,20 @@ impl Backing {
     }
 
     fn contains_regions(&self, selected: &Self, comparison: CaptureComparison) -> bool {
+        if self
+            .regions
+            .iter()
+            .chain(&selected.regions)
+            .any(|region| !region.place_is_exact)
+        {
+            return matches!(comparison, CaptureComparison::CheckedReborrow)
+                && self.regions.iter().all(|parent| {
+                    selected
+                        .regions
+                        .iter()
+                        .all(|child| Self::region_contains(parent, child, comparison))
+                });
+        }
         let Some(deepest) = self
             .regions
             .iter()
@@ -182,7 +200,9 @@ impl Backing {
         child: &CapturedRegion,
         comparison: CaptureComparison,
     ) -> bool {
-        if child.place.root != parent.place.root
+        if !parent.place_is_exact
+            || (!child.place_is_exact && matches!(comparison, CaptureComparison::Independent))
+            || child.place.root != parent.place.root
             || !child.place.segments.starts_with(&parent.place.segments)
         {
             return false;
@@ -278,12 +298,29 @@ impl Backing {
             .strip_prefix(parent.place.segments.as_slice())
     }
 
+    /// Split window alternatives can share one logical name and different
+    /// captured addresses. Keep their reaching equations distinct.
+    pub(super) fn single_window(&self) -> Option<&DescriptorCallOrigin> {
+        match self.regions.as_slice() {
+            [region] if !region.place_is_exact => region.origin.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub(super) fn has_alternatives(&self) -> bool {
+        self.regions.len() > 1
+    }
+
     /// Possible effect footprints only; this iterator proves no selected identity.
     /// Each address keeps its capture while an earlier storage version is
     /// checked. The joined descriptor may not yet exist at that point.
     pub(super) fn captured_regions(&self) -> impl Iterator<Item = Self> + '_ {
         self.regions.iter().map(|region| Self {
-            place: region.place.clone(),
+            place: if region.place_is_exact {
+                region.place.clone()
+            } else {
+                self.place.clone()
+            },
             regions: vec![region.clone()],
             subject: None,
         })
@@ -336,7 +373,8 @@ impl<'a> Storage<'a> {
                         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                     )
                 });
-        if *owner != block
+        if !region.place_is_exact
+            || *owner != block
             || subject != original
             || !readable
             || original == &backing.place
@@ -411,13 +449,10 @@ impl<'a> Storage<'a> {
             let Segment::RuntimeIndex { selector } = step else {
                 continue;
             };
-            let current = match terminal_check_tables::row(
-                &tables.values,
-                *selector,
-                self.machine,
-                concerns,
-            )?
-            .origin
+            let current = match tables
+                .values
+                .checked(*selector, self.machine, concerns)?
+                .origin
             {
                 ValueOrigin::MachineParameter { .. } => true,
                 ValueOrigin::BlockParameter { block: defined, .. } => defined == block,
@@ -450,6 +485,9 @@ impl<'a> Storage<'a> {
         let ([parent], [child]) = (write.regions.as_slice(), selected.regions.as_slice()) else {
             return Ok(None);
         };
+        if !parent.place_is_exact || !child.place_is_exact {
+            return Ok(None);
+        }
         let Some((Segment::Field(field), payload)) = child.place.segments.split_last() else {
             return Ok(None);
         };
@@ -571,7 +609,9 @@ impl<'a> Storage<'a> {
         else {
             return Ok(None);
         };
-        if parent.place.root != child.place.root
+        if !parent.place_is_exact
+            || !child.place_is_exact
+            || parent.place.root != child.place.root
             || !child.place.segments.starts_with(&parent.place.segments)
             || !parent
                 .place
@@ -660,9 +700,10 @@ impl<'a> Storage<'a> {
             let Segment::RuntimeIndex { selector } = step else {
                 continue;
             };
-            let origin =
-                terminal_check_tables::row(&tables.values, *selector, self.machine, concerns)?
-                    .origin;
+            let origin = tables
+                .values
+                .checked(*selector, self.machine, concerns)?
+                .origin;
             let definition = match origin {
                 ValueOrigin::MachineParameter { .. } => continue,
                 ValueOrigin::BlockParameter { block, .. } => ProgramPoint::BlockEntry(block),
@@ -773,9 +814,18 @@ impl<'a> Storage<'a> {
                     "reference backing is not an original storage address",
                 ));
             };
-            let path = projection
-                .captured_address_path()
-                .map_err(|detail| self.unsupported(concerns, detail))?;
+            let (resolved, place_is_exact) = match projection
+                .validate_captured_storage_address(|_| true)
+                .map_err(|detail| self.unsupported(concerns, detail))?
+            {
+                Some(path) => (self.stored_beneath(*source, &path, suffix, concerns)?, true),
+                None => {
+                    let owner = projection.enclosing_storage().ok_or_else(|| {
+                        self.unsupported(concerns, "a captured window has no enclosing storage")
+                    })?;
+                    (self.stored_beneath(*source, &owner.path, &[], concerns)?, false)
+                }
+            };
             let mut index_can_change_on_reentry = false;
             for (selector, (block, _)) in projection.index_captures() {
                 if self.graph.in_cycle(block)?
@@ -789,9 +839,9 @@ impl<'a> Storage<'a> {
                     break;
                 }
             }
-            let resolved = self.stored_beneath(*source, &path, suffix, concerns)?;
             regions.push(CapturedRegion {
                 place: resolved,
+                place_is_exact,
                 origin: Some(origin),
                 index_can_change_on_reentry,
             });
@@ -806,6 +856,51 @@ mod address_comparison_tests {
     use super::*;
 
     #[test]
+    fn a_window_overlaps_its_owner_without_becoming_the_whole_place() {
+        use terminal_semantics::borrowed_storage::Projection;
+
+        let root = PlaceId::new(1).unwrap();
+        let bounds = Lineage {
+            root,
+            segments: Vec::new(),
+        };
+        let subject = Lineage {
+            root: PlaceId::new(4).unwrap(),
+            segments: Vec::new(),
+        };
+        let capture = DescriptorCallOrigin::Argument {
+            source: root,
+            projection: Projection::window(
+                ValueId::new(1).unwrap(),
+                ValueId::new(2).unwrap(),
+                (BlockId::new(1).unwrap(), 0),
+            ),
+        };
+        let window = Backing::captured(
+            &subject,
+            vec![CapturedRegion {
+                place: bounds.clone(),
+                place_is_exact: false,
+                origin: Some(capture.clone()),
+                index_can_change_on_reentry: true,
+            }],
+            None,
+        )
+        .unwrap();
+        let whole = Backing::direct(bounds);
+        assert!(overlap(&window, &whole));
+        assert_eq!(window.place, subject);
+        assert_eq!(window.single_place(), None);
+        assert_eq!(window.single_window(), Some(&capture));
+        assert!(!window.has_alternatives());
+        assert!(!window.same_single_region(&whole));
+        assert!(!window.definitely_contains(&whole));
+        assert!(!whole.definitely_contains(&window));
+        assert!(whole.contains_reborrow(&window));
+        assert_eq!(window.relative_suffix(&whole, &[]), None);
+    }
+
+    #[test]
     fn complete_address_families_share_the_single_place_overlap_policy() {
         let root = |id| PlaceId::new(id).unwrap();
         let field = |id| Segment::Field(semantic_vocabulary::StructuralFieldId::new(id).unwrap());
@@ -818,6 +913,7 @@ mod address_comparison_tests {
                     .into_iter()
                     .map(|place| CapturedRegion {
                         place,
+                        place_is_exact: true,
                         origin: None,
                         index_can_change_on_reentry: false,
                     })

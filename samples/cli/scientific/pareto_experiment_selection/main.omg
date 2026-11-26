@@ -1,80 +1,72 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/model/model.omg;
+use domain/selection/selection.omg;
+use input/numbers/numbers.omg;
+use report/render/render.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // IND11: complete runtime research-experiment admission, Pareto selection and report.
-use domain\model;
-use domain\model\Experiment;
-use domain\model\Application;
-use domain\selection;
-use domain\selection\duplicate;
-use input\numbers;
-use input\numbers\Parsed;
-use input\numbers\read_number;
-use input\numbers\only_whitespace;
-use report\render;
-use report\render\report;
-use system\Console;
 
-machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput {
-    let count: Parsed = block read_number();
-    let budget: Parsed = block read_number();
-    let deadline: Parsed = block read_number();
-    let risk_limit: Parsed = block read_number();
+machine main(application: @mutable |model|::Application) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let count: |numbers|::Parsed = block |numbers|::read_number();
+    let budget: |numbers|::Parsed = block |numbers|::read_number();
+    let deadline: |numbers|::Parsed = block |numbers|::read_number();
+    let risk_limit: |numbers|::Parsed = block |numbers|::read_number();
     transition count.valid && budget.valid && deadline.valid && risk_limit.valid
         && count.value <= 12 && budget.value > 0 && deadline.value > 0 && risk_limit.value <= 100 {
         true -> block configure(application, count.value, budget.value, deadline.value, risk_limit.value),
         false -> invalid(application)
     }
-    machine configure(application: @mutable Application, count: u64, budget: u64, deadline: u64, risk_limit: u64) {
+    machine configure(application: @mutable |model|::Application, count: u64, budget: u64, deadline: u64, risk_limit: u64) {
         application.count = count;
         application.budget = budget;
         application.deadline = deadline;
         application.risk_limit = risk_limit;
         transition { _ -> block load(application, 0) }
     }
-    machine load(application: @mutable Application, index: u64) {
+    machine load(application: @mutable |model|::Application, index: u64) {
         transition index < application.count && index < 12 {
             true -> block read_row(application, index),
             false -> block trailing(application)
         }
     }
-    machine read_row(application: @mutable Application, index: u64)
+    machine read_row(application: @mutable |model|::Application, index: u64)
     requires index < 12 {
-        let identifier: Parsed = block read_number();
-        let provenance: Parsed = block read_number();
-        let cost: Parsed = block read_number();
-        let days: Parsed = block read_number();
-        let gain: Parsed = block read_number();
-        let risk: Parsed = block read_number();
-        let repeated: bool = duplicate(application, identifier.value, index);
+        let identifier: |numbers|::Parsed = block |numbers|::read_number();
+        let provenance: |numbers|::Parsed = block |numbers|::read_number();
+        let cost: |numbers|::Parsed = block |numbers|::read_number();
+        let days: |numbers|::Parsed = block |numbers|::read_number();
+        let gain: |numbers|::Parsed = block |numbers|::read_number();
+        let risk: |numbers|::Parsed = block |numbers|::read_number();
+        let repeated: bool = |selection|::duplicate(application, identifier.value, index);
         transition identifier.valid && provenance.valid && cost.valid && days.valid && gain.valid && risk.valid
             && identifier.value > 0 && provenance.value > 0 && days.value > 0 && risk.value <= 100 && !repeated {
             true -> block store(application, index, identifier.value, provenance.value, cost.value, days.value, gain.value, risk.value),
             false -> invalid(application)
         }
     }
-    machine store(application: @mutable Application, index: u64, identifier: u64, provenance: u64, cost: u64, days: u64, gain: u64, risk: u64)
+    machine store(application: @mutable |model|::Application, index: u64, identifier: u64, provenance: u64, cost: u64, days: u64, gain: u64, risk: u64)
     requires index < 12 {
-        application.rows[index] = Experiment { identifier: identifier, provenance: provenance, position: index + 1,
+        application.rows[index] = |model|::Experiment { identifier: identifier, provenance: provenance, position: index + 1,
             cost: cost, days: days, gain: gain, risk: risk };
         transition { _ -> block load(application, index + 1) }
     }
-    machine trailing(application: @mutable Application) {
-        let clean: bool = block only_whitespace();
+    machine trailing(application: @mutable |model|::Application) {
+        let clean: bool = block |numbers|::only_whitespace();
         transition clean { true -> accepted(application), false -> invalid(application) }
     }
-    machine accepted(application: @mutable Application) {
-        report(application);
-        ProcessExit::exit_process(0);
+    machine accepted(application: @mutable |model|::Application) {
+        |render|::report(application);
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine invalid(application: @mutable Application) {
-        Console::write_line("ERROR|invalid-input");
-        ProcessExit::exit_process(2);
+    machine invalid(application: @mutable |model|::Application) {
+        |console|::Console::write_line("ERROR|invalid-input");
+        |process_exit|::ProcessExit::exit_process(2);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
-    let mutable entry_storage: Application;
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let mutable entry_storage: |model|::Application;
     block main(@mutable entry_storage);
 }

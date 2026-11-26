@@ -7,44 +7,6 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
 use std::sync::Arc;
-mod copies {
-    use super::{Error, Expressions, RegisterOperandAccess, SelectedInstruction};
-
-    impl Expressions<'_> {
-        pub(super) fn register_copy(&self, row: &SelectedInstruction) -> Result<bool, Error> {
-            let [source, destination] = row.operands.as_slice() else {
-                return Ok(false);
-            };
-            if source.operand != 0
-                || source.access != RegisterOperandAccess::Use
-                || destination.operand != 1
-                || destination.access != RegisterOperandAccess::Def
-                || !row.implicit_uses.is_empty()
-                || !row.implicit_defs.is_empty()
-                || !row.clobbers.is_empty()
-            {
-                return Ok(false);
-            }
-            let (Some(from), Some(to)) = (
-                self.function.virtual_register(source.virtual_register),
-                self.function.virtual_register(destination.virtual_register),
-            ) else {
-                return Ok(false);
-            };
-            if from.scalar_type != to.scalar_type
-                || from.class != to.class
-                || source.class != from.class
-                || destination.class != to.class
-                || self.defining_instruction(to.id)? != row.id
-            {
-                return Ok(false);
-            }
-            self.require_available(from.id, row.id)?;
-            Ok(true)
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct Expr(Arc<Word>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -118,34 +80,6 @@ impl Expr {
     }
     pub fn word(&self) -> &Word {
         &self.0
-    }
-    pub fn visit_loads<E>(
-        &self,
-        visit: &mut impl FnMut(&Expr, u8, Option<SelectedInstructionId>) -> Result<(), E>,
-    ) -> Result<(), E> {
-        match self.word() {
-            Word::Load {
-                address,
-                bytes,
-                instruction,
-            } => {
-                visit(address, *bytes, *instruction)?;
-                address.visit_loads(visit)?;
-            }
-            Word::Binary(_, left, right) => {
-                left.visit_loads(visit)?;
-                right.visit_loads(visit)?;
-            }
-            Word::Cpu {
-                gdt, task, scratch, ..
-            } => {
-                gdt.visit_loads(visit)?;
-                task.visit_loads(visit)?;
-                scratch.visit_loads(visit)?;
-            }
-            _ => {}
-        }
-        Ok(())
     }
     pub fn constant(value: u64) -> Self {
         Self::new(Word::Constant(value))
@@ -222,7 +156,7 @@ pub fn operand(row: &SelectedInstruction, index: u16) -> Result<VirtualRegisterI
 
 pub struct Expressions<'a> {
     function: &'a SelectedFunction,
-    graph: &'a super::Graph<'a>,
+    graph: &'a super::Graph,
     definitions: Vec<Option<&'a SelectedInstruction>>,
     preceding: Vec<(SelectedInstructionId, Option<&'a SelectedInstruction>)>,
     memo: Vec<Option<Expr>>,
@@ -230,7 +164,7 @@ pub struct Expressions<'a> {
     spills: super::spill_values::SpillValues<'a>,
 }
 impl<'a> Expressions<'a> {
-    pub fn new(function: &'a SelectedFunction, graph: &'a super::Graph<'a>) -> Result<Self, Error> {
+    pub fn new(function: &'a SelectedFunction, graph: &'a super::Graph) -> Result<Self, Error> {
         let mut definitions = vec![None; function.virtual_registers.len()];
         let mut preceding = Vec::new();
         for block in &function.blocks {
@@ -273,33 +207,6 @@ impl<'a> Expressions<'a> {
         let register = operand(row, index)?;
         self.require_available(register, row.id)?;
         self.value(register)
-    }
-    pub fn private_store(&self, row: &SelectedInstruction) -> bool {
-        self.spills.private_store(row)
-    }
-    pub fn allocation_transport(&mut self, row: &SelectedInstruction) -> Result<bool, Error> {
-        if self.spills.private_store(row) || self.spills.private_address(row) {
-            return Ok(true);
-        }
-        if row.kind == Kind::CopyI64 {
-            return self.register_copy(row);
-        }
-        self.private_reload(row)
-    }
-    pub fn private_reload(&mut self, row: &SelectedInstruction) -> Result<bool, Error> {
-        if row.kind != (Kind::Load64 { byte_offset: 0 }) {
-            return Ok(false);
-        }
-        let address = self.input(row, 0)?;
-        if let Word::Frame(FrameStorageSlotId::Local(
-            home @ selected_instructions::LocalStorageSlotId::Spill { .. },
-        )) = address.word()
-        {
-            let writer = self.spills.writer(row.id, *home).map_err(Error::Mismatch)?;
-            self.input(writer, 0)?;
-            return Ok(true);
-        }
-        Ok(false)
     }
     fn loaded(&mut self, row: &SelectedInstruction, offset: u32, bytes: u8) -> Result<Expr, Error> {
         let address = self.input(row, 0)?;

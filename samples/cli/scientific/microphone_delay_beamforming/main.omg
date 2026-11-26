@@ -1,25 +1,21 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\ByteRead;
-use system\Console;
-use domain\records;
-use domain\records\Beamforming;
-use domain\beamforming;
-use domain\beamforming\analyze;
+use domain/beamforming/beamforming.omg;
+use domain/records/records.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
-data Main { records: Beamforming; }
+data Main { records: |records|::Beamforming; }
 
 // Runtime input is a bounded 36-digit stream with optional ASCII whitespace.
 // Reject truncation and trailing digits rather than silently selecting fixtures.
-machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     transition { _ -> read(context, 0) }
     machine read(context: @mutable Main, position: u64) {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> invalid(context),
-            ByteRead::Eof -> finish_input(context, position),
-            ByteRead::Byte { value } -> classify(context, position, value)
+            |console|::ByteRead::Error -> invalid(context),
+            |console|::ByteRead::Eof -> finish_input(context, position),
+            |console|::ByteRead::Byte { value } -> classify(context, position, value)
         }
     }
     machine classify(context: @mutable Main, position: u64, value: i32) {
@@ -46,37 +42,37 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
         }
     }
     machine analyze_input(context: @mutable Main) {
-        let status: u64 = analyze(@mutable context.records);
+        let status: u64 = |beamforming|::analyze(@mutable context.records);
         transition status == 0 {
             true -> report(context),
             false -> reject(context, status)
         }
     }
     machine reject(context: @mutable Main, status: u64) {
-        Console::write("ERROR ");
+        |console|::Console::write("ERROR ");
         print_integer(context, status as i64 +Wrapping);
-        Console::write_line("");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine report(context: @mutable Main) {
-        Console::write("ACTIVE ");
+        |console|::Console::write("ACTIVE ");
         let active: i64 in Wrapping = context.records.active;
         print_integer(context, active);
-        Console::write_line("");
+        |console|::Console::write_line("");
         transition { _ -> direction(context, 0) }
     }
     machine direction(context: @mutable Main, direction: u64) requires direction < 4 {
-        Console::write("DIRECTION ");
+        |console|::Console::write("DIRECTION ");
         print_integer(context, direction as i64 +Wrapping);
-        Console::write(" WAVE");
+        |console|::Console::write(" WAVE");
         transition { _ -> wave(context, direction, 0) }
     }
     machine wave(context: @mutable Main, direction: u64, position: u64)
     requires direction < 4 requires position < 4 {
-        Console::write(" ");
+        |console|::Console::write(" ");
         let numerator: i64 in Wrapping = context.records.waveform[direction][position];
         print_integer(context, numerator);
-        Console::write("/");
+        |console|::Console::write("/");
         let active: i64 in Wrapping = context.records.active;
         print_integer(context, active);
         let next: u64 = position + 1;
@@ -86,13 +82,13 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
         }
     }
     machine energy(context: @mutable Main, direction: u64) requires direction < 4 {
-        Console::write(" ENERGY ");
+        |console|::Console::write(" ENERGY ");
         let score: i64 in Wrapping = context.records.energy[direction];
         print_integer(context, score);
-        Console::write("/");
+        |console|::Console::write("/");
         let denominator: i64 in Wrapping = context.records.active * context.records.active;
         print_integer(context, denominator);
-        Console::write_line("");
+        |console|::Console::write_line("");
         let next: u64 = direction + 1;
         transition next < 4 {
             true -> direction(context, next),
@@ -100,7 +96,7 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
         }
     }
     machine ambiguities(context: @mutable Main) {
-        Console::write("WINNERS");
+        |console|::Console::write("WINNERS");
         transition { _ -> winner(context, 0) }
     }
     machine winner(context: @mutable Main, direction: u64) requires direction < 4 {
@@ -110,7 +106,7 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
         }
     }
     machine emit_winner(context: @mutable Main, direction: u64) requires direction < 4 {
-        Console::write(" ");
+        |console|::Console::write(" ");
         print_integer(context, direction as i64 +Wrapping);
         transition { _ -> next_winner(context, direction + 1) }
     }
@@ -121,12 +117,12 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
         }
     }
     machine done(context: @mutable Main) {
-        Console::write_line("");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("");
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 
-machine print_integer(context: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + StandardOutput {
+machine print_integer(context: @mutable Main, value: i64 in Wrapping) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition value >= 0 - 576 && value <= 576 {
         true -> sign(context, value),
         false -> invalid(context)
@@ -138,10 +134,10 @@ machine print_integer(context: @mutable Main, value: i64 in Wrapping) reaches Pr
             false -> digits(context, value)
         }
     }
-    machine invalid(context: @mutable Main) { ProcessExit::exit_process(70); }
+    machine invalid(context: @mutable Main) { |process_exit|::ProcessExit::exit_process(70); }
     machine negative(context: @mutable Main, value: i64 in Wrapping)
     requires value >= 0 - 576 requires value < 0 {
-        Console::write("-");
+        |console|::Console::write("-");
         print_digits(context, 0 - value);
     }
     machine digits(context: @mutable Main, value: i64 in Wrapping)
@@ -152,16 +148,16 @@ machine print_integer(context: @mutable Main, value: i64 in Wrapping) reaches Pr
 // All report magnitudes are <=576, so three decimal places suffice.
 machine print_digits(context: @mutable Main, value: i64 in Wrapping)
 requires value >= 0 requires value <= 576
-reaches ProcessExit + StandardOutput {
+reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition value >= 100 {
         true -> hundreds(context, value),
         false -> short(context, value)
     }
     machine hundreds(context: @mutable Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
-        Console::write_byte((value / 100 + 48) as i32);
-        Console::write_byte((value / 10 % 10 + 48) as i32);
-        Console::write_byte((value % 10 + 48) as i32);
+        |console|::Console::write_byte((value / 100 + 48) as i32);
+        |console|::Console::write_byte((value / 10 % 10 + 48) as i32);
+        |console|::Console::write_byte((value % 10 + 48) as i32);
     }
     machine short(context: @mutable Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
@@ -172,17 +168,17 @@ reaches ProcessExit + StandardOutput {
     }
     machine tens(context: @mutable Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
-        Console::write_byte((value / 10 + 48) as i32);
-        Console::write_byte((value % 10 + 48) as i32);
+        |console|::Console::write_byte((value / 10 + 48) as i32);
+        |console|::Console::write_byte((value % 10 + 48) as i32);
     }
     machine digit(context: @mutable Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
-        Console::write_byte((value + 48) as i32);
+        |console|::Console::write_byte((value + 48) as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

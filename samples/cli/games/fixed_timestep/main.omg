@@ -1,8 +1,8 @@
 // Replay uneven frame times with 10 ms simulation ticks and interpolated output.
 // Expected exit: 0.
 
-use omega\language\core\StandardOutput;
-use system\Console;
+use {omega}/language/core/process_authority.omg as streams;
+use {system}/console.omg;
 
 const TICK_MS: i32 = 10;
 const MAX_FRAME_MS: i32 = 40;
@@ -14,14 +14,14 @@ data Simulation {
     current_position: i32 in Wrapping;
 }
 
-machine main() reaches StandardOutput {
+public machine main() reaches |streams|::StandardOutput {
     let frames: [i32; 6] = [4, 16, 27, 120, 3, 10];
     let mutable simulation: Simulation;
-    Console::write_line("frame_ms used_ms ticks left_ms position");
+    |console|::Console::write_line("frame_ms used_ms ticks left_ms position");
     replay(@frames, @mutable simulation);
 }
 
-machine replay(frames: @[i32; 6], simulation: @mutable Simulation) reaches StandardOutput {
+machine replay(frames: @[i32; 6], simulation: @mutable Simulation) reaches |streams|::StandardOutput {
     transition { _ -> next_frame(frames, simulation, 0) }
 
     machine next_frame(frames: @[i32; 6], simulation: @mutable Simulation, frame: u64) {
@@ -68,7 +68,7 @@ machine consume_ticks(simulation: @mutable Simulation) -> i32 in Wrapping {
 }
 
 machine render(simulation: @Simulation, elapsed_ms: i32, used_ms: i32, ticks: i32 in Wrapping)
-reaches StandardOutput {
+reaches |streams|::StandardOutput {
     // The remaining time divided by TICK_MS is the weight of the current
     // position. Keep the printed result in tenths so the replay uses integers.
     let distance: i32 in Wrapping = simulation.current_position - simulation.previous_position;
@@ -76,26 +76,26 @@ reaches StandardOutput {
         simulation.previous_position * 10 + distance * simulation.accumulator_ms * 10 / (TICK_MS as +Wrapping);
 
     write_three_digits(elapsed_ms as +Wrapping);
-    Console::write("      ");
+    |console|::Console::write("      ");
     write_three_digits(used_ms as +Wrapping);
-    Console::write("     ");
+    |console|::Console::write("     ");
     write_digit(ticks);
-    Console::write("     ");
+    |console|::Console::write("     ");
     write_digit(simulation.accumulator_ms);
-    Console::write("       ");
+    |console|::Console::write("       ");
     write_three_digits(position_tenths / 10);
-    Console::write(".");
+    |console|::Console::write(".");
     write_digit(position_tenths % 10);
-    Console::write_line("");
+    |console|::Console::write_line("");
 }
 
-machine write_three_digits(value: i32 in Wrapping) reaches StandardOutput {
+machine write_three_digits(value: i32 in Wrapping) reaches |streams|::StandardOutput {
     write_digit(value / 100);
     write_digit(value / 10 % 10);
     write_digit(value % 10);
 }
 
-machine write_digit(value: i32 in Wrapping) reaches StandardOutput {
+machine write_digit(value: i32 in Wrapping) reaches |streams|::StandardOutput {
     let ascii: i32 in Wrapping = value + 48;
-    Console::write_byte(ascii as -Wrapping);
+    |console|::Console::write_byte(ascii as -Wrapping);
 }

@@ -1,4 +1,4 @@
-machine build(builder: @mutable Build) {
-    Build::package(builder, "invalid_artifact_package");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "invalid_artifact_package" };
     Build::artifact_only(builder);
 }

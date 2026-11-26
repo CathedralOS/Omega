@@ -1,6 +1,5 @@
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 public data Image {
     width: i32 in Wrapping;
@@ -21,16 +20,16 @@ data Token { value: i32 in Wrapping; valid: bool; }
 // number is accepted; EOF before a required number is invalid. Only ASCII
 // whitespace separates tokens. An offending character never becomes zero.
 machine token(token: @mutable Token)
-reaches StandardInput {
+reaches |process_authority|::StandardInput {
     token.valid = false;
     token.value = 0;
     transition { _ -> leading(token) }
     machine leading(token: @mutable Token) {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> stopped(),
-            ByteRead::Eof -> stopped(),
-            ByteRead::Byte { value } -> first(token, value)
+            |console|::ByteRead::Error -> stopped(),
+            |console|::ByteRead::Eof -> stopped(),
+            |console|::ByteRead::Byte { value } -> first(token, value)
         }
     }
     machine first(token: @mutable Token, character: i32) {
@@ -50,11 +49,11 @@ reaches StandardInput {
         transition { _ -> next(token, count + 1) }
     }
     machine next(token: @mutable Token, count: i32 in Wrapping) {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> stopped(),
-            ByteRead::Eof -> complete(token),
-            ByteRead::Byte { value } -> separator(token, value, count)
+            |console|::ByteRead::Error -> stopped(),
+            |console|::ByteRead::Eof -> complete(token),
+            |console|::ByteRead::Byte { value } -> separator(token, value, count)
         }
     }
     machine separator(token: @mutable Token, character: i32, count: i32 in Wrapping) {
@@ -68,8 +67,8 @@ reaches StandardInput {
 }
 
 public machine read_image(image: @mutable Image) -> bool
-invokes Console
-reaches StandardInput
+invokes |console|::Console
+reaches |process_authority|::StandardInput
 blocks
 crashes Trap
 {
@@ -128,11 +127,11 @@ crashes Trap
         transition { _ -> pixels(image, position + 1) }
     }
     machine trailing() -> bool {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> false,
-            ByteRead::Eof -> true,
-            ByteRead::Byte { value } -> whitespace(value)
+            |console|::ByteRead::Error -> false,
+            |console|::ByteRead::Eof -> true,
+            |console|::ByteRead::Byte { value } -> whitespace(value)
         }
     }
     machine whitespace(character: i32) -> bool {

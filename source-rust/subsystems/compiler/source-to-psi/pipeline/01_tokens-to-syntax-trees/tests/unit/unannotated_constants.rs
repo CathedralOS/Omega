@@ -8,15 +8,13 @@
 //! Boolean literal names, placed at the initializer. An initializer that names
 //! no type is refused there.
 
-use crate::frontend_fixture::Lexer;
 use syntax_trees::item::Item;
 use syntax_trees::types::TypeReferenceNode;
 
 /// The declared type of the one constant in `source`, as the name it spells
 /// and the source text its span covers.
 fn declared_type(source: &str) -> (String, String) {
-    let tokens = Lexer::new(source).tokenize().expect("the source lexes");
-    let syntax = crate::parse_syntax_trees(&tokens).expect("the constant parses");
+    let syntax = crate::tests::parse_source(source);
     let constant = syntax
         .root_items()
         .find_map(|item| match item {
@@ -40,8 +38,7 @@ fn declared_type(source: &str) -> (String, String) {
 }
 
 fn refusal(source: &str) -> (String, String) {
-    let tokens = Lexer::new(source).tokenize().expect("the source lexes");
-    let error = crate::parse_syntax_trees(&tokens).expect_err("the constant is refused");
+    let error = crate::tests::parse_error(source);
     let span = error.source_span.span;
     (error.message, source[span.start..span.end].to_owned())
 }

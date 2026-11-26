@@ -44,7 +44,7 @@ Then examine:
   rules into a different accepted foundation or disguise them as translation.
 - One inductive carrier's finite base/step/decrease certificate and its intended
   model. Unrestricted least-fixpoint proof search is not a prerequisite.
-- Typed-to-one-sorted encoding of `Nat`, `Int`, `addr`, slices, and a user sum:
+- Typed-to-one-sorted encoding of `Nat`, `Int`, `address`, slices, and a user sum:
   sort membership, definedness, junk models, revisions, borrows, and multiplicity.
   The encoding is drafted in
   [matching_logic_sort_encoding.md](matching_logic_sort_encoding.md).

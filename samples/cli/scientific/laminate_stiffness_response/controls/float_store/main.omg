@@ -1,20 +1,20 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 data Model { z: [f64; 5]; }
 data Main { model: Model; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition { _ -> centered(main, 1.0) }
     machine centered(main: @mutable Main, total: f64) {
         main.model.z[0] = 0.0-total/2.0;
         transition main.model.z[0] == -0.5 { true -> good(main), false -> bad(main) }
     }
-    machine good(main: @mutable Main) { Console::write_line("FLOAT STORE OK"); ProcessExit::exit_process(0); }
-    machine bad(main: @mutable Main) { Console::write_line("FLOAT STORE WRONG"); ProcessExit::exit_process(4); }
+    machine good(main: @mutable Main) { |console|::Console::write_line("FLOAT STORE OK"); |process_exit|::ProcessExit::exit_process(0); }
+    machine bad(main: @mutable Main) { |console|::Console::write_line("FLOAT STORE WRONG"); |process_exit|::ProcessExit::exit_process(4); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

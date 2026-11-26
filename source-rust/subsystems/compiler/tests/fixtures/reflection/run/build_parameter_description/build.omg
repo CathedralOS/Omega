@@ -1,5 +1,7 @@
+use main.omg as app;
+use {api}/main.omg as api;
 use {omega}/build/dependency.omg;
-use omega\language\core\reflect;
+use {omega}/language/core/reflect/reflect.omg;
 use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_parameter_description");
@@ -7,8 +9,8 @@ machine build(builder: @mutable Build) {
     |dependency|::with_alias(@mutable description, "api");
     let registration: DependencyRegistration = Build::dependency(builder, description);
     let binding: |native|::FunctionFieldBinding = |native|::FunctionFieldBinding {
-        table: reflect\parameter(api\Query::invoke::table),
-        field: reflect\field(api\Table::invoke),
+        table: |reflect|::parameter(|api|::Query::invoke::table),
+        field: |reflect|::field(|api|::Table::invoke),
     };
     transition binding.table.declaration_position == 1u64 && binding.field.declaration_position == 1u64
         && binding.field.name == "invoke" && binding.table.parameter_identity != ""
@@ -18,10 +20,10 @@ machine build(builder: @mutable Build) {
         false -> reject()
     }
     machine accept(builder: @mutable Build) {
-        Build::bind(builder, linux_x86_64::ProgramEntry, main);
-        Build::bind(builder, linux_arm64::ProgramEntry, main);
-        Build::bind(builder, macos_arm64::ProgramEntry, main);
-        Build::bind(builder, windows_x86_64::ProgramEntry, main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+        Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+        Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     }
     machine reject() crashes Trap { crash Trap; }
 }

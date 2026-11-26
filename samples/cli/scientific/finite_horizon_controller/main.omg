@@ -1,28 +1,20 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use controller/model/model.omg;
+use controller/search/search.omg;
+use data/fixtures/fixtures.omg;
+use io/render/render.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Offline controller: input selection, validation, exhaustive search, reporting.
 // No source outside this application supplies any controller algorithm.
-use system\Console;
-use system\LineReadResult;
-use controller\model;
-use controller\model\Problem;
-use controller\model\Plan;
-use controller\model\valid_problem;
-use controller\search;
-use controller\search\optimize;
-use data\fixtures;
-use data\fixtures\load_case;
-use io\render;
-use io\render\report;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("IND07 finite horizon controller: select 0..7");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("IND07 finite horizon controller: select 0..7");
     let mutable input: [u8; 8];
-    let observed: LineReadResult = block Console::read_line(@mutable input[..]);
+    let observed: |console|::LineReadResult = block |console|::Console::read_line(@mutable input[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> parse(main, @input, count),
+        |console|::LineReadResult::LineComplete { count } -> parse(main, @input, count),
         _ -> bad_input(main)
     }
     machine parse(main: @mutable Main, input: @[u8; 8], count: u64) {
@@ -32,31 +24,31 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine selected(main: @mutable Main, selector: i32) {
-        let mutable problem: Problem;
-        load_case(@mutable problem, selector);
-        let valid: bool = valid_problem(@problem);
+        let mutable problem: |model|::Problem;
+        |fixtures|::load_case(@mutable problem, selector);
+        let valid: bool = |model|::valid_problem(@problem);
         transition valid {
             true -> solve(main, @problem),
             _ -> bad_problem(main)
         }
     }
-    machine solve(main: @mutable Main, problem: @Problem) {
-        let mutable plan: Plan;
-        optimize(problem, @mutable plan);
-        report(problem, @plan);
+    machine solve(main: @mutable Main, problem: @|model|::Problem) {
+        let mutable plan: |model|::Plan;
+        |search|::optimize(problem, @mutable plan);
+        |render|::report(problem, @plan);
     }
     machine bad_input(main: @mutable Main) {
-        Console::write_line("INVALID: expected one selector digit and LF");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("INVALID: expected one selector digit and LF");
+        |process_exit|::ProcessExit::exit_process(2);
     }
     machine bad_problem(main: @mutable Main) {
-        Console::write_line("INVALID: problem outside supported bounds");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("INVALID: problem outside supported bounds");
+        |process_exit|::ProcessExit::exit_process(2);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -19,8 +19,8 @@ use crate::native_artifact::boundary_application_coverage_identity;
 use crate::physical::PhysicalEvidencePass;
 use crate::physical::derivation::foreign_calls::derive_normalized_foreign_child;
 use crate::physical::derivation::hashing::{
-    canonical_usize, hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
-    hash_relocation_origin, physical_evidence_gap_identity, sha256,
+    hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
+    hash_relocation_origin, physical_evidence_gap_identity,
 };
 use crate::physical::derivation::hosted_builtins::{
     derive_hosted_builtin_child, hosted_builtin_settlement,
@@ -56,6 +56,21 @@ pub(crate) enum NativePhysicalEvidenceDerivation {
     Unavailable,
     Complete(NativePhysicalEvidence),
     Blocked(NativePhysicalEvidenceGap),
+}
+
+impl NativePhysicalEvidenceDerivation {
+    pub(crate) fn split(
+        self,
+    ) -> (
+        Option<NativePhysicalEvidence>,
+        Option<NativePhysicalEvidenceGap>,
+    ) {
+        match self {
+            Self::Complete(evidence) => (Some(evidence), None),
+            Self::Unavailable => (None, None),
+            Self::Blocked(gap) => (None, Some(gap)),
+        }
+    }
 }
 
 fn blocked(subject: NativePhysicalEvidenceGapSubject) -> NativePhysicalEvidenceDerivation {
@@ -453,32 +468,21 @@ fn derive_object_physical_evidence(
         };
         let parent = PhysicalChildParent::OperatorApplicationCoverage(**reference);
         let physical_occurrence = NativePhysicalOccurrence::Operator(occurrence.identity());
-        let identity = physical_child_identity(
-            &parent,
-            projection.identity(),
-            physical_occurrence,
-            &[span.machine],
-            &[span.object],
-            &[span.final_image],
-            span.machine_bytes_digest,
-            span.object_bytes_digest,
-            span.final_image_bytes_digest,
-            &span.relocation,
-        );
         children.push(
-            NativePhysicalChildParts {
+            seal_physical_child_parts(
                 parent,
-                projection: projection.identity(),
-                occurrence: physical_occurrence,
-                machine_spans: vec![span.machine],
-                object_spans: vec![span.object],
-                final_image_spans: vec![span.final_image],
-                machine_bytes_digest: span.machine_bytes_digest,
-                object_bytes_digest: span.object_bytes_digest,
-                final_image_bytes_digest: span.final_image_bytes_digest,
-                relocation: span.relocation,
-                identity,
-            }
+                projection.identity(),
+                physical_occurrence,
+                vec![span.machine],
+                vec![span.object],
+                vec![span.final_image],
+                [
+                    span.machine_bytes_digest,
+                    span.object_bytes_digest,
+                    span.final_image_bytes_digest,
+                ],
+                span.relocation,
+            )
             .into(),
         );
     }
@@ -538,10 +542,10 @@ fn derive_object_physical_evidence(
     if !evidence.private_functions.is_empty() {
         let mut digest = DomainDigestEncoder::new(b"omega.native-physical-composition.sha256.v1\0");
         digest.raw(&evidence.identity);
-        digest.raw(&canonical_usize(evidence.private_functions.len()));
+        digest.len(evidence.private_functions.len());
         for private in &evidence.private_functions {
             hash_machine_function_identity(&mut digest, private.function);
-            digest.raw(&canonical_usize(private.text_offset));
+            digest.len(private.text_offset);
             digest.raw(private.evidence.identity());
         }
         evidence.identity = digest.finish();
@@ -606,7 +610,7 @@ fn validate_exact_physical_children(
         children.iter().map(|child| PhysicalChildCoordinate {
             projection: child.projection(),
             occurrence: child.occurrence(),
-            parent_role: child.parent().occurrence_role_tag(),
+            parent_role: child.parent().role_tag(),
         }),
     )
 }
@@ -740,14 +744,14 @@ fn derive_identity_projection(
     if operator_occurrences.len() != operator_operations.len() {
         return Err("native optimization projection cannot rejoin every D29 operation");
     }
-    let mut canonical = terminal_identity_bytes(terminal);
+    let mut canonical = crate::physical::identity_bytes::terminal_identity_bytes(terminal);
     canonical.push(1);
-    canonical.extend_from_slice(&canonical_usize(operator_occurrences.len()));
+    crate::codec_bytes::push_count_u64(&mut canonical, operator_occurrences.len());
     for occurrence in &operator_occurrences {
         canonical.extend_from_slice(&occurrence.identity().bytes());
     }
     canonical.push(2);
-    canonical.extend_from_slice(&canonical_usize(boundary_occurrences.len()));
+    crate::codec_bytes::push_count_u64(&mut canonical, boundary_occurrences.len());
     for occurrence in &boundary_occurrences {
         canonical.extend_from_slice(&occurrence.identity().bytes());
     }
@@ -766,7 +770,7 @@ pub(crate) fn operator_occurrence_identity(
     operation: semantic_vocabulary::OperationId,
     operation_ordinal: usize,
 ) -> OptimizedOperatorOccurrenceIdentity {
-    let mut canonical = terminal_identity_bytes(terminal);
+    let mut canonical = crate::physical::identity_bytes::terminal_identity_bytes(terminal);
     append_operator_occurrence_identity(&mut canonical, machine, operation, operation_ordinal);
     OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(&canonical)
 }
@@ -778,7 +782,7 @@ pub(crate) fn boundary_occurrence_identity(
     boundary: semantic_vocabulary::BoundaryMachineId,
     operation_ordinal: usize,
 ) -> OptimizedBoundaryOccurrenceIdentity {
-    let mut canonical = terminal_identity_bytes(terminal);
+    let mut canonical = crate::physical::identity_bytes::terminal_identity_bytes(terminal);
     append_boundary_occurrence_identity(&mut canonical, machine, site, boundary, operation_ordinal);
     OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(&canonical)
 }
@@ -803,10 +807,10 @@ pub(crate) fn physical_child_identity(
     digest.byte(occurrence.role_tag());
     digest.raw(&occurrence.identity());
     for spans in [machine_spans, object_spans, final_image_spans] {
-        digest.raw(&canonical_usize(spans.len()));
+        digest.len(spans.len());
         for span in spans {
-            digest.raw(&canonical_usize(span.offset()));
-            digest.raw(&canonical_usize(span.byte_count()));
+            digest.len(span.offset());
+            digest.len(span.byte_count());
         }
     }
     digest.raw(&machine_bytes_digest);
@@ -823,11 +827,11 @@ pub(crate) fn physical_child_identity(
         digest.raw(relocation.boundary_plan_identity());
         hash_object_symbol(&mut digest, relocation.object_symbol());
         hash_relocation_origin(&mut digest, relocation.origin());
-        digest.raw(&canonical_usize(relocation.offset()));
-        digest.raw(&canonical_usize(relocation.byte_width()));
+        digest.len(relocation.offset());
+        digest.len(relocation.byte_width());
         digest.raw(&relocation.addend().to_le_bytes());
         digest.byte(relocation_kind_tag(relocation.kind()));
-        digest.raw(&canonical_usize(relocation.callbacks().len()));
+        digest.len(relocation.callbacks().len());
         for callback in relocation.callbacks() {
             match callback {
                 NormalizedForeignCallbackRelocations::X86_64Relative32 {
@@ -858,33 +862,15 @@ pub(crate) fn physical_child_identity(
         digest.raw(field.locator_identity());
         digest.raw(field.boundary_plan_identity());
         digest.raw(&field.caller().get().to_le_bytes());
-        match field.invocation_site() {
-            InvocationSite::Operation(operation) => {
-                digest.byte(0);
-                digest.raw(&operation.get().to_le_bytes());
-            }
-            InvocationSite::ExternalCompletion(edge) => {
-                digest.byte(1);
-                digest.raw(&edge.get().to_le_bytes());
-            }
-            InvocationSite::InvokeNoNormal(edge) => {
-                digest.byte(2);
-                digest.raw(&edge.get().to_le_bytes());
-            }
-            InvocationSite::Cleanup {
-                edge,
-                action_ordinal,
-            } => {
-                digest.byte(3);
-                digest.raw(&edge.get().to_le_bytes());
-                digest.raw(&action_ordinal.to_le_bytes());
-            }
-        }
+        crate::physical::derivation::hashing::hash_invocation_site(
+            &mut digest,
+            field.invocation_site(),
+        );
         digest.raw(&field.boundary().get().to_le_bytes());
         digest.raw(&field.ordinal().to_le_bytes());
         digest.raw(&field.object_symbol().get().to_le_bytes());
-        digest.raw(&canonical_usize(field.offset()));
-        digest.raw(&canonical_usize(field.byte_width()));
+        digest.len(field.offset());
+        digest.len(field.byte_width());
         digest.raw(&field.addend().to_le_bytes());
         digest.byte(relocation_kind_tag(field.kind()));
         digest.raw(field.final_image_symbol_identity());
@@ -898,15 +884,11 @@ fn physical_evidence_identity(
 ) -> [u8; 32] {
     let mut digest = DomainDigestEncoder::new(b"omega.native-physical-evidence.sha256.v2\0");
     digest.raw(&projection.bytes());
-    digest.raw(&canonical_usize(children.len()));
+    digest.len(children.len());
     for child in children {
         digest.raw(child.identity());
     }
     digest.finish()
-}
-
-fn terminal_identity_bytes(terminal: terminal_psi::TerminalPsiIdentity) -> Vec<u8> {
-    crate::physical::identity_bytes::terminal_identity_bytes(terminal)
 }
 
 pub(crate) fn span(bytes: &[u8], span: NativeByteSpan) -> Result<&[u8], &'static str> {
@@ -995,16 +977,49 @@ pub(crate) fn boundary_physical_child_parts(
     final_image_bytes: &[u8],
     relocation: PhysicalRelocationDisposition,
 ) -> NativePhysicalChildParts {
-    let machine_bytes_digest = sha256(machine_bytes);
-    let object_bytes_digest = sha256(object_bytes);
-    let final_image_bytes_digest = sha256(final_image_bytes);
+    let machine_bytes_digest = crate::digest_encoder::content_identity(machine_bytes);
+    let object_bytes_digest = crate::digest_encoder::content_identity(object_bytes);
+    let final_image_bytes_digest = crate::digest_encoder::content_identity(final_image_bytes);
+    seal_physical_child_parts(
+        parent,
+        projection,
+        occurrence,
+        vec![machine_span],
+        vec![object_span],
+        vec![final_image_span],
+        [
+            machine_bytes_digest,
+            object_bytes_digest,
+            final_image_bytes_digest,
+        ],
+        relocation,
+    )
+}
+
+/// Builds a physical child and computes its identity over exactly the spans,
+/// byte digests and relocation it retains.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn seal_physical_child_parts(
+    parent: PhysicalChildParent,
+    projection: NativeOptimizationProjectionIdentity,
+    occurrence: NativePhysicalOccurrence,
+    machine_spans: Vec<NativeByteSpan>,
+    object_spans: Vec<NativeByteSpan>,
+    final_image_spans: Vec<NativeByteSpan>,
+    [
+        machine_bytes_digest,
+        object_bytes_digest,
+        final_image_bytes_digest,
+    ]: [[u8; 32]; 3],
+    relocation: PhysicalRelocationDisposition,
+) -> NativePhysicalChildParts {
     let identity = physical_child_identity(
         &parent,
         projection,
         occurrence,
-        &[machine_span],
-        &[object_span],
-        &[final_image_span],
+        &machine_spans,
+        &object_spans,
+        &final_image_spans,
         machine_bytes_digest,
         object_bytes_digest,
         final_image_bytes_digest,
@@ -1014,9 +1029,9 @@ pub(crate) fn boundary_physical_child_parts(
         parent,
         projection,
         occurrence,
-        machine_spans: vec![machine_span],
-        object_spans: vec![object_span],
-        final_image_spans: vec![final_image_span],
+        machine_spans,
+        object_spans,
+        final_image_spans,
         machine_bytes_digest,
         object_bytes_digest,
         final_image_bytes_digest,

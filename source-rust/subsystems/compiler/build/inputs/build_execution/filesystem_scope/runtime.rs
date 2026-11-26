@@ -39,11 +39,10 @@ struct OpenFile {
     _handle: EvaluationStorageLease,
 }
 
-enum FileStorage {
-    Captured {
+enum FileStorage {    Captured {
         cursor: u64,
     },
-    LiveSource {
+    Opened {
         file: std::fs::File,
     },
     Output {
@@ -54,12 +53,26 @@ enum FileStorage {
 }
 
 pub struct BuildFilesystemRuntime {
+    staging: super::bound_directory::BoundDirectory,
     account: EvaluationInvocationAccount,
     descriptors: Vec<Option<OpenFile>>,
     effects: BuildFilesystemEffects,
     sealed: Vec<(Vec<u8>, usize)>,
     incomplete_attempt: Option<usize>,
     refused: Option<String>,
+}
+
+fn staging_create_error(
+    reason: filesystem_authority::FilesystemSponsorError,
+) -> Result<(i32, std::io::ErrorKind), String> {
+    use filesystem_authority::FilesystemSponsorError;
+    use std::io::ErrorKind;
+    match reason {
+        FilesystemSponsorError::EntryAlreadyExists(_) => Ok((17, ErrorKind::AlreadyExists)),
+        FilesystemSponsorError::ParentEntryMissing(_) => Ok((2, ErrorKind::NotFound)),
+        FilesystemSponsorError::ParentIsNotDirectory(_) => Ok((20, ErrorKind::InvalidInput)),
+        other => Err(other.to_string()),
+    }
 }
 
 impl BuildMachineFilesystemScope {
@@ -70,14 +83,21 @@ impl BuildMachineFilesystemScope {
         if self.captured_source_input.is_none() && self.live_source.is_none() {
             return Err("Terminal Build requires admitted Source backing".into());
         }
-        if !self
-            .sponsor
-            .as_ref()
-            .is_some_and(|sponsor| sponsor.owns_private_staging_root(&self.build_dir))
-        {
+        if !self.has_private_staging() {
             return Err("Build Output is not owned by its private staging sponsor".into());
         }
-        Ok(BuildFilesystemRuntime {
+        let staging = super::bound_directory::BoundDirectory::bind(&self.build_dir)
+            .map_err(|e| e.to_string())?;
+        Ok(self.runtime_at(staging, account))
+    }
+
+    pub(super) fn runtime_at(
+        &self,
+        staging: super::bound_directory::BoundDirectory,
+        account: EvaluationInvocationAccount,
+    ) -> BuildFilesystemRuntime {
+        BuildFilesystemRuntime {
+            staging,
             account,
             descriptors: Vec::new(),
             effects: BuildFilesystemEffects {
@@ -90,7 +110,7 @@ impl BuildMachineFilesystemScope {
             sealed: Vec::new(),
             incomplete_attempt: None,
             refused: None,
-        })
+        }
     }
 }
 
@@ -129,6 +149,110 @@ impl BuildFilesystemRuntime {
         Ok(())
     }
 
+    /// An empty path denotes the root directory; ordinary file operations retain their own checks.
+    pub fn resolve_view(
+        &self,
+        root: FilesystemGrantRootIdentity,
+        relative: &[u8],
+    ) -> Result<(), String> {
+        if !relative.is_empty() {
+            return self.resolve(root, relative);
+        }
+        if root != BUILD_OUTPUT_ROOT_IDENTITY && root != BUILD_SOURCE_ROOT_IDENTITY {
+            self.snapshot(root)?;
+        }
+        Ok(())
+    }
+
+    pub fn successor_directory(
+        &self,
+        root: FilesystemGrantRootIdentity,
+        relative: &[u8],
+    ) -> Result<super::successor_directory::SuccessorDirectory, String> {
+        self.resolve_view(root, relative)?;
+        Ok(super::successor_directory::SuccessorDirectory {
+            relative: relative.into(),
+            captured: if root == BUILD_OUTPUT_ROOT_IDENTITY {
+                None
+            } else {
+                Some(self.snapshot(root)?.clone())
+            },
+        })
+    }
+
+    pub fn runtime_directory(
+        &self,
+        root: FilesystemGrantRootIdentity,
+        relative: &[u8],
+        access: platform_custody::directory_mappings::DirectoryAccess,
+    ) -> Result<super::runtime_directory::BuildDirectory, String> {
+        use super::runtime_directory::BuildDirectory;
+        self.resolve_view(root, relative)?;
+        if root == BUILD_OUTPUT_ROOT_IDENTITY {
+            let selected = self.staging.subtree(relative).map_err(|e| e.to_string())?;
+            let mut scope = self.effects.scope.clone();
+            scope
+                .build_dir
+                .push(std::str::from_utf8(relative).map_err(|_| "staging path must be UTF-8")?);
+            scope.directories = Default::default();
+            return Ok(BuildDirectory::output(selected, scope));
+        }
+        if access == platform_custody::directory_mappings::DirectoryAccess::ReadWrite {
+            return Err("a captured Build directory cannot be delegated read-write".into());
+        }
+        BuildDirectory::captured(self.snapshot(root)?, relative).map_err(|e| e.to_string())
+    }
+
+    pub fn forward_directory(
+        &self,
+        from: &str,
+        guest: &str,
+        access: platform_custody::directory_mappings::DirectoryAccess,
+    ) -> Result<
+        (
+            super::runtime_directory::BuildDirectoryMappings,
+            EvaluationStorageLease,
+        ),
+        String,
+    > {
+        use super::runtime_directory::BuildDirectory;
+        let incoming = &self.effects.scope.directories;
+        // Charge the remapped names before joining prefixes or cloning any backing.
+        let row = std::mem::size_of::<BuildDirectory>()
+            .checked_add(guest.len())
+            .ok_or("directory mapping size overflowed")?;
+        let (rows, bytes) = incoming
+            .descendants(from)
+            .try_fold(
+                (
+                    1u64,
+                    row.checked_add(from.len())
+                        .ok_or("directory mapping size overflowed")?,
+                ),
+                |(rows, bytes), (suffix, _)| {
+                    Some((
+                        rows.checked_add(1)?,
+                        bytes
+                            .checked_add(row)?
+                            .checked_add(1)?
+                            .checked_add(suffix.len())?,
+                    ))
+                },
+            )
+            .ok_or("directory mapping size overflowed")?;
+        let storage = self
+            .account
+            .reserve_storage(
+                rows,
+                u64::try_from(bytes).map_err(|_| "directory mapping size overflowed")?,
+            )
+            .map_err(|e| e.to_string())?;
+        let grants = incoming
+            .remount(from, guest, access, BuildDirectory::subtree)
+            .map_err(|error| format!("cannot forward directory {from} to {guest}: {error}"))?;
+        Ok((grants, storage))
+    }
+
     fn snapshot(
         &self,
         root: FilesystemGrantRootIdentity,
@@ -158,6 +282,33 @@ impl BuildFilesystemRuntime {
         access: FilesystemGrantAccess,
         descriptor: Option<i32>,
     ) -> Result<usize, String> {
+        let meaning = if root == BUILD_SOURCE_ROOT_IDENTITY {
+            BuildFilesystemRoot::Source
+        } else if root == BUILD_OUTPUT_ROOT_IDENTITY {
+            BuildFilesystemRoot::Output
+        } else {
+            self.snapshot(root)?;
+            BuildFilesystemRoot::NamedInput(root.get())
+        };
+        let provider = if root == BUILD_OUTPUT_ROOT_IDENTITY
+            || (root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some())
+        {
+            FilesystemObservationProvider::RealScoped
+        } else {
+            FilesystemObservationProvider::Captured
+        };
+        self.begin_path_attempt(operation, meaning, provider, path, access, descriptor)
+    }
+
+    fn begin_path_attempt(
+        &mut self,
+        operation: FilesystemHostOperation,
+        meaning: BuildFilesystemRoot,
+        provider: FilesystemObservationProvider,
+        path: &[u8],
+        access: FilesystemGrantAccess,
+        descriptor: Option<i32>,
+    ) -> Result<usize, String> {
         if self.incomplete_attempt.is_some() || self.refused.is_some() {
             return Err("Build filesystem activation has already failed".into());
         }
@@ -170,14 +321,6 @@ impl BuildFilesystemRuntime {
                 path.len() as u64,
             )
             .map_err(|error| error.to_string())?;
-        let meaning = if root == BUILD_SOURCE_ROOT_IDENTITY {
-            BuildFilesystemRoot::Source
-        } else if root == BUILD_OUTPUT_ROOT_IDENTITY {
-            BuildFilesystemRoot::Output
-        } else {
-            self.snapshot(root)?;
-            BuildFilesystemRoot::NamedInput(root.get())
-        };
         let mut input = Vec::new();
         let mut retired_logical_handles = Vec::new();
         if let Some(descriptor) = descriptor {
@@ -218,13 +361,7 @@ impl BuildFilesystemRuntime {
             .map_err(|_| "cannot retain filesystem reservation")?;
         self.effects.attempts.push(BuildFilesystemOperationAttempt {
             operation_tag: operation.operation_tag(),
-            provider: if root == BUILD_OUTPUT_ROOT_IDENTITY
-                || (root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some())
-            {
-                FilesystemObservationProvider::RealScoped
-            } else {
-                FilesystemObservationProvider::Captured
-            },
+            provider,
             result: FilesystemOperationResult::Scalar(-1),
             post_error: 0,
             authorized_paths,
@@ -243,6 +380,23 @@ impl BuildFilesystemRuntime {
         self.effects.attempts[ordinal].post_error = error;
         self.incomplete_attempt = None;
         result
+    }
+
+    fn refuse_write(&mut self, ordinal: usize) -> i64 {
+        self.refuse_access(ordinal, FilesystemGrantAccess::Write)
+    }
+
+    fn refuse_access(&mut self, ordinal: usize, access: FilesystemGrantAccess) -> i64 {
+        let attempt = &mut self.effects.attempts[ordinal];
+        attempt.authorized_paths.clear();
+        attempt
+            .grant_refusals
+            .push(filesystem_authority::FilesystemGrantRefusal::new(
+                0,
+                access,
+                filesystem_authority::FilesystemGrantRefusalReason::OutsideGrantedRoots,
+            ));
+        self.complete_attempt(ordinal, -1, 13)
     }
 
     fn complete_logical_handle(&mut self, ordinal: usize, descriptor: i32) -> Result<i32, String> {
@@ -265,9 +419,6 @@ impl BuildFilesystemRuntime {
         flags: i32,
     ) -> Result<i32, String> {
         self.resolve(root, path)?;
-        if root == BUILD_OUTPUT_ROOT_IDENTITY {
-            return Err("BuildSource cannot open the Output root".into());
-        }
         let ordinal = self.begin_attempt(
             FilesystemHostOperation::Open,
             root,
@@ -277,24 +428,22 @@ impl BuildFilesystemRuntime {
         )?;
         if flags != 0 {
             let wants_write = open_flags::wants_write(flags) || flags & 3 != 0;
-            if wants_write {
-                let attempt = &mut self.effects.attempts[ordinal];
-                attempt.authorized_paths.clear();
-                attempt
-                    .grant_refusals
-                    .push(filesystem_authority::FilesystemGrantRefusal::new(
-                        0,
-                        FilesystemGrantAccess::Write,
-                        filesystem_authority::FilesystemGrantRefusalReason::OutsideGrantedRoots,
-                    ));
-            }
-            return Ok(
-                self.complete_attempt(ordinal, -1, if wants_write { 13 } else { 45 }) as i32,
-            );
+            return Ok(if wants_write {
+                self.refuse_write(ordinal)
+            } else {
+                self.complete_attempt(ordinal, -1, 45)
+            } as i32);
         }
-        let live_source = (root == BUILD_SOURCE_ROOT_IDENTITY)
-            .then(|| self.effects.scope.live_source.clone())
-            .flatten();
+        let live_source = if root == BUILD_OUTPUT_ROOT_IDENTITY {
+            if !self.sealed.iter().any(|(name, _)| name == path) {
+                return Ok(self.complete_attempt(ordinal, -1, 13) as i32);
+            }
+            Some(self.staging.clone())
+        } else if root == BUILD_SOURCE_ROOT_IDENTITY {
+            self.effects.scope.live_source.clone()
+        } else {
+            None
+        };
         if live_source.is_none() {
             use build_output::SourceSnapshotError;
             if let Err(reason) = self.snapshot(root)?.open_file(path) {
@@ -324,7 +473,7 @@ impl BuildFilesystemRuntime {
         let retained_path = copy_bytes(path)?;
         let storage = match live_source {
             Some(source) => match source.open_read(path) {
-                Ok(file) => FileStorage::LiveSource { file },
+                Ok(file) => FileStorage::Opened { file },
                 Err(error) => {
                     return Ok(
                         self.complete_attempt(ordinal, -1, error.raw_os_error().unwrap_or(5))
@@ -343,6 +492,304 @@ impl BuildFilesystemRuntime {
         self.complete_logical_handle(ordinal, descriptor)
     }
 
+    /// An absolute path is resolved exclusively within this activation's caller-issued
+    /// directories. Reads and writes still consume the evaluated call's work budget.
+    fn mapped_operation(
+        &mut self,
+        path: &[u8],
+        access: FilesystemGrantAccess,
+        operation: FilesystemHostOperation,
+        perform: impl FnOnce(
+            &super::runtime_directory::BuildDirectory,
+            &[u8],
+            &EvaluationInvocationAccount,
+        ) -> Result<std::io::Result<usize>, String>,
+    ) -> Result<Result<usize, std::io::ErrorKind>, String> {
+        use platform_custody::directory_mappings::DirectoryAccess;
+        use std::io::ErrorKind;
+        let relative = path
+            .strip_prefix(b"/")
+            .ok_or("mapped path must be absolute")?;
+        let mapping = self
+            .effects
+            .scope
+            .directories
+            .resolve_file(path)
+            .map(|(mapping, file)| (mapping.clone(), file));
+        let provider = mapping
+            .as_ref()
+            .map_or(FilesystemObservationProvider::RealScoped, |(mapping, _)| {
+                mapping.backing().provider()
+            });
+        let ordinal = self.begin_path_attempt(
+            operation,
+            BuildFilesystemRoot::MappedDirectories,
+            provider,
+            relative,
+            access,
+            None,
+        )?;
+        let result = match mapping {
+            Ok((directory, _))
+                if access == FilesystemGrantAccess::Write
+                    && directory.access() == DirectoryAccess::ReadOnly =>
+            {
+                self.refuse_access(ordinal, access);
+                return Ok(Err(ErrorKind::PermissionDenied));
+            }
+            Ok((directory, file)) => perform(directory.backing(), file, &self.account)?,
+            Err(error) if error.kind() == ErrorKind::PermissionDenied => {
+                self.refuse_access(ordinal, access);
+                return Ok(Err(error.kind()));
+            }
+            Err(error) => Err(error),
+        };
+        match result {
+            Ok(count) => {
+                self.complete_attempt(
+                    ordinal,
+                    i64::try_from(count).map_err(|_| "mapped size exceeds i64")?,
+                    0,
+                );
+                Ok(Ok(count))
+            }
+            Err(error) => {
+                let kind = error.kind();
+                let errno = match kind {
+                    std::io::ErrorKind::NotFound => 2,
+                    std::io::ErrorKind::PermissionDenied => 13,
+                    std::io::ErrorKind::IsADirectory => 21,
+                    std::io::ErrorKind::InvalidInput => 22,
+                    _ => error.raw_os_error().unwrap_or(5),
+                };
+                self.complete_attempt(ordinal, -1, errno);
+                Ok(Err(kind))
+            }
+        }
+    }
+
+    /// Open, read and close the admitted captured file using ordinary observation
+    /// and handle accounting. Missing bytes never trigger a live-host lookup.
+    pub fn read_file(
+        &mut self,
+        path: &[u8],
+        buffer: &mut [u8],
+        count: u64,
+    ) -> Result<Result<u64, std::io::ErrorKind>, String> {
+        const ROOT: FilesystemGrantRootIdentity = BUILD_SOURCE_ROOT_IDENTITY;
+        use std::io::ErrorKind;
+        if count > buffer.len() as u64 {
+            return Ok(Err(ErrorKind::InvalidInput));
+        }
+        if path.starts_with(b"/") {
+            return self
+                .mapped_operation(
+                    path,
+                    FilesystemGrantAccess::Read,
+                    FilesystemHostOperation::Read,
+                    |directory, file, _| Ok(directory.read(file, &mut buffer[..count as usize])),
+                )
+                .map(|result| result.map(|bytes| bytes as u64));
+        }
+        if !filesystem_authority::source_snapshot_path_is_canonical(path, false) {
+            return Ok(Err(ErrorKind::InvalidInput));
+        }
+        // The package remains read-only even if an explicitly granted Output
+        // operation used the same spelling in the independent staging tree.
+        let absent = matches!(
+            self.snapshot(ROOT)?.lookup(path),
+            Err(build_output::SourceSnapshotError::NotFound)
+        );
+        let has_writer =
+            |file: &OpenFile| file.root == BUILD_OUTPUT_ROOT_IDENTITY && file.path == path;
+        let root = if absent && self.sealed.iter().any(|(name, _)| name == path) {
+            BUILD_OUTPUT_ROOT_IDENTITY
+        } else if absent && self.descriptors.iter().flatten().any(has_writer) {
+            return Ok(Err(ErrorKind::PermissionDenied));
+        } else {
+            ROOT
+        };
+        let descriptor = self.open(root, path, 0)?;
+        if descriptor < 0 {
+            let attempt = self
+                .effects
+                .attempts
+                .last()
+                .ok_or("missing snapshot open observation")?;
+            let kind = match attempt.post_error {
+                2 => ErrorKind::NotFound,
+                20 | 22 => ErrorKind::InvalidInput,
+                21 => ErrorKind::IsADirectory,
+                40 => ErrorKind::PermissionDenied,
+                value => return Err(format!("unexpected snapshot open error {value}")),
+            };
+            return Ok(Err(kind));
+        }
+        let read = self.read(root, descriptor, buffer, count);
+        let closed = self.close(root, descriptor)?;
+        if closed != 0 {
+            return Err("could not close an admitted snapshot file".into());
+        }
+        Ok(Ok(
+            u64::try_from(read?).map_err(|_| "could not read an admitted snapshot file")?
+        ))
+    }
+
+    /// The installed writer sees fresh private files beside the read-only package.
+    /// Output grants from launched programs use the same sealed-file operation.
+    pub fn write_private_file(
+        &mut self,
+        path: &[u8],
+        bytes: &[u8],
+    ) -> Result<Result<(), std::io::ErrorKind>, String> {
+        if path.starts_with(b"/") {
+            return self
+                .mapped_operation(
+                    path,
+                    FilesystemGrantAccess::Write,
+                    FilesystemHostOperation::Write,
+                    |directory, file, account| directory.write(account, file, bytes),
+                )
+                .map(|result| result.map(|_| ()));
+        }
+        if let Err(kind) = self.private_destination(path, FilesystemHostOperation::Create)? {
+            return Ok(Err(kind));
+        }
+        self.write_staged_file(path, bytes)
+    }
+
+    fn private_destination(
+        &mut self,
+        path: &[u8],
+        operation: FilesystemHostOperation,
+    ) -> Result<Result<(), std::io::ErrorKind>, String> {
+        use build_output::SourceSnapshotError;
+        use std::io::ErrorKind;
+
+        if !filesystem_root_relative_path_is_canonical(path, false) {
+            return Ok(Err(ErrorKind::InvalidInput));
+        }
+        match self.snapshot(BUILD_SOURCE_ROOT_IDENTITY)?.lookup(path) {
+            Err(SourceSnapshotError::NotFound) => {}
+            Ok(_) | Err(SourceSnapshotError::SymlinkTraversal) => {
+                let attempted = self.begin_attempt(
+                    operation,
+                    BUILD_SOURCE_ROOT_IDENTITY,
+                    path,
+                    FilesystemGrantAccess::Write,
+                    None,
+                )?;
+                self.refuse_write(attempted);
+                return Ok(Err(ErrorKind::PermissionDenied));
+            }
+            Err(_) => return Ok(Err(ErrorKind::InvalidInput)),
+        }
+        Ok(Ok(()))
+    }
+
+    pub fn create_directory(
+        &mut self,
+        path: &[u8],
+    ) -> Result<Result<(), std::io::ErrorKind>, String> {
+        let operation = FilesystemHostOperation::CreateDir;
+        if path.starts_with(b"/") {
+            return self
+                .mapped_operation(
+                    path,
+                    FilesystemGrantAccess::Write,
+                    operation,
+                    |mapping, path, account| mapping.create_dir(account, path),
+                )
+                .map(|result| result.map(|_| ()));
+        }
+        if let Err(kind) = self.private_destination(path, operation)? {
+            return Ok(Err(kind));
+        }
+        self.create_staged_directory(path)
+    }
+
+    pub(super) fn create_staged_directory(
+        &mut self,
+        path: &[u8],
+    ) -> Result<Result<(), std::io::ErrorKind>, String> {
+        let operation = FilesystemHostOperation::CreateDir;
+        let ordinal = self.begin_attempt(
+            operation,
+            BUILD_OUTPUT_ROOT_IDENTITY,
+            path,
+            FilesystemGrantAccess::Write,
+            None,
+        )?;
+        let (sponsor, bound) = self.staging_entry(path)?;
+        let prepared = match sponsor.prepare_create_directory(&bound) {
+            Ok(prepared) => prepared,
+            Err(filesystem_authority::FilesystemSponsorError::EntryAlreadyExists(_))
+                if self
+                    .staging
+                    .is_directory(path)
+                    .map_err(|error| error.to_string())? =>
+            {
+                self.complete_attempt(ordinal, 0, 0);
+                return Ok(Ok(()));
+            }
+            Err(reason) => {
+                let (errno, kind) = staging_create_error(reason)?;
+                self.complete_attempt(ordinal, -1, errno);
+                return Ok(Err(kind));
+            }
+        };
+        if let Err(error) = self.staging.create_dir(path) {
+            prepared.abort();
+            self.complete_attempt(ordinal, -1, error.raw_os_error().unwrap_or(5));
+            return Ok(Err(error.kind()));
+        }
+        message(prepared.commit())?;
+        self.complete_attempt(ordinal, 0, 0);
+        Ok(Ok(()))
+    }
+
+    pub fn write_staged_file(
+        &mut self,
+        path: &[u8],
+        mut bytes: &[u8],
+    ) -> Result<Result<(), std::io::ErrorKind>, String> {
+        use std::io::ErrorKind;
+        if !filesystem_root_relative_path_is_canonical(path, false) {
+            return Ok(Err(ErrorKind::InvalidInput));
+        }
+        let descriptor = self.create(path, 0o600)?;
+        if descriptor < 0 {
+            let attempt = self
+                .effects
+                .attempts
+                .last()
+                .ok_or("missing staging create observation")?;
+            let kind = match attempt.post_error {
+                2 => ErrorKind::NotFound,
+                17 => ErrorKind::AlreadyExists,
+                20 | 22 => ErrorKind::InvalidInput,
+                13 | 40 => ErrorKind::PermissionDenied,
+                errno => {
+                    return Err(format!(
+                        "private staging could not create its file ({errno})"
+                    ));
+                }
+            };
+            return Ok(Err(kind));
+        }
+        while !bytes.is_empty() {
+            let written = usize::try_from(self.write(descriptor, bytes)?)
+                .ok()
+                .filter(|n| *n > 0 && *n <= bytes.len())
+                .ok_or("private staging failed to write the complete file")?;
+            bytes = &bytes[written..];
+        }
+        if self.close(BUILD_OUTPUT_ROOT_IDENTITY, descriptor)? != 0 {
+            return Err("private staging failed to seal its file".into());
+        }
+        Ok(Ok(()))
+    }
+
     pub fn read(
         &mut self,
         root: FilesystemGrantRootIdentity,
@@ -356,7 +803,7 @@ impl BuildFilesystemRuntime {
             .ok_or("closed Build descriptor")?;
         let cursor = match &file.storage {
             FileStorage::Captured { cursor } => Some(*cursor),
-            FileStorage::LiveSource { .. } => None,
+            FileStorage::Opened { .. } => None,
             FileStorage::Output { .. } => {
                 return Err("BuildSource read requires an input descriptor".into());
             }
@@ -391,7 +838,7 @@ impl BuildFilesystemRuntime {
             length
         } else {
             let Some(OpenFile {
-                storage: FileStorage::LiveSource { file },
+                storage: FileStorage::Opened { file },
                 ..
             }) = self.descriptors[slot].as_mut()
             else {
@@ -409,6 +856,31 @@ impl BuildFilesystemRuntime {
             }
         };
         Ok(self.complete_attempt(ordinal, length as i64, 0))
+    }
+
+    fn staging_entry(
+        &self,
+        path: &[u8],
+    ) -> Result<
+        (
+            &filesystem_authority::FilesystemSponsor,
+            filesystem_authority::FilesystemSponsorPath,
+        ),
+        String,
+    > {
+        let physical = self
+            .effects
+            .scope
+            .build_dir
+            .join(std::str::from_utf8(path).map_err(|_| "Build path is not UTF-8")?);
+        let sponsor = self
+            .effects
+            .scope
+            .sponsor
+            .as_ref()
+            .ok_or("Output sponsor is absent")?;
+        let bound = message(sponsor.bind_path(&physical))?;
+        Ok((sponsor, bound))
     }
 
     pub fn create(&mut self, path: &[u8], _mode: i32) -> Result<i32, String> {
@@ -429,24 +901,15 @@ impl BuildFilesystemRuntime {
             .try_reserve(1)
             .map_err(|_| "cannot retain Build descriptor")?;
         let retained_path = copy_bytes(path)?;
-        let physical = self
-            .effects
-            .scope
-            .build_dir
-            .join(std::str::from_utf8(path).map_err(|_| "Build path is not UTF-8")?);
-        let sponsor = self
-            .effects
-            .scope
-            .sponsor
-            .as_ref()
-            .ok_or("Output sponsor is absent")?;
-        let bound = message(sponsor.bind_path(&physical))?;
-        let prepared = message(sponsor.prepare_create_object_open(&bound, 0))?;
-        let file = match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&physical)
-        {
+        let (sponsor, bound) = self.staging_entry(path)?;
+        let prepared = match sponsor.prepare_create_object_open(&bound, 0) {
+            Ok(prepared) => prepared,
+            Err(reason) => {
+                let (errno, _) = staging_create_error(reason)?;
+                return Ok(self.complete_attempt(ordinal, -1, errno) as i32);
+            }
+        };
+        let file = match self.staging.create_new(path) {
             Ok(file) => file,
             Err(error) => {
                 prepared.abort();
@@ -634,8 +1097,8 @@ impl BuildFilesystemRuntime {
             .obligations
             .get(obligation)
             .ok_or("unknown Build output obligation")?;
-        if row.relative_path != path || row.state != BuildOutputObligationState::Pending {
-            return Err("Build output obligation is consumed or names another output".into());
+        if row.state != BuildOutputObligationState::Pending {
+            return Err("Build output obligation is consumed".into());
         }
         Ok(self.sealed.iter().any(|(sealed, _)| sealed == path))
     }
@@ -784,14 +1247,6 @@ mod tests {
     };
 
     fn scope(root: &std::path::Path, name: &str) -> BuildMachineFilesystemScope {
-        let source_root = root.join("source");
-        std::fs::create_dir_all(&source_root).unwrap();
-        let sponsor = filesystem_authority::FilesystemSponsor::create_private(
-            root.join(name),
-            filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
-        )
-        .unwrap();
-        let output = sponsor.session_root().unwrap().join("output");
         let metadata = CanonicalFilesystemMetadataIndex::version_1(
             [42; 32],
             [
@@ -826,6 +1281,22 @@ mod tests {
             ],
         )
         .unwrap();
+        scope_with_input(root, name, input)
+    }
+
+    fn scope_with_input(
+        root: &std::path::Path,
+        name: &str,
+        input: CapturedBuildSourceInput,
+    ) -> BuildMachineFilesystemScope {
+        let source_root = root.join("source");
+        std::fs::create_dir_all(&source_root).unwrap();
+        let sponsor = filesystem_authority::FilesystemSponsor::create_private(
+            root.join(name),
+            filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
+        )
+        .unwrap();
+        let output = sponsor.session_root().unwrap().join("output");
         let mut scope = BuildMachineFilesystemScope::for_root(
             &source_root.join("main.omg"),
             output,
@@ -887,6 +1358,189 @@ mod tests {
     }
 
     #[test]
+    fn read_all_observes_captured_bytes_and_leaves_the_remaining_buffer_alone() {
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "captured-read-all",
+            false,
+        )
+        .unwrap();
+        let source = temp.path().join("source");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::write(source.join("asset"), b"hello").unwrap();
+        let captured = source_acquisition::local::operations::capture_local_source_input(
+            &source,
+            source_acquisition::LocalSourceLimits::default(),
+        )
+        .unwrap();
+        let input = crate::source::source_snapshot::retained_source_input(captured.tree()).unwrap();
+        let scope = scope_with_input(temp.path(), "session", input);
+        std::fs::write(source.join("asset"), b"later").unwrap();
+        std::fs::write(source.join("sibling"), b"unadmitted").unwrap();
+        let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
+        let mut buffer = [0xff; 8];
+
+        assert_eq!(runtime.read_file(b"asset", &mut buffer, 8).unwrap(), Ok(5));
+        assert_eq!(&buffer, b"hello\xff\xff\xff");
+        for (path, count, expected) in [
+            (b"sibling".as_slice(), 8, std::io::ErrorKind::NotFound),
+            (b"../asset", 8, std::io::ErrorKind::InvalidInput),
+            (b"asset", 9, std::io::ErrorKind::InvalidInput),
+        ] {
+            assert_eq!(
+                runtime.read_file(path, &mut buffer, count).unwrap(),
+                Err(expected)
+            );
+            assert_eq!(&buffer, b"hello\xff\xff\xff");
+        }
+        assert_eq!(runtime.read_file(b"asset", &mut buffer, 0).unwrap(), Ok(0));
+        let effects = runtime.finish().unwrap();
+        assert!(
+            effects
+                .attempts
+                .iter()
+                .all(|attempt| attempt.provider == FilesystemObservationProvider::Captured)
+        );
+    }
+
+    #[test]
+    fn delegated_staging_retains_the_issuing_sponsors_limits() {
+        use platform_custody::directory_mappings::DirectoryAccess;
+        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "successor-directory-budget",
+            false,
+        )
+        .unwrap();
+        let mut child = scope(temporary.path(), "child");
+        let sponsor = filesystem_authority::FilesystemSponsor::create_private(
+            temporary.path().join("parent"),
+            filesystem_authority::FilesystemSponsorLimits {
+                maximum_entries: 8,
+                maximum_total_logical_bytes: 2,
+                maximum_object_extent: 2,
+            },
+        )
+        .unwrap();
+        let mut parent = BuildMachineFilesystemScope::for_root(
+            &temporary.path().join("source/build.omg"),
+            sponsor.session_root().unwrap().join("output"),
+            Some(sponsor),
+        )
+        .with_captured_source_input(child.captured_source_input.clone().unwrap())
+        .unwrap();
+        parent.establish_filesystem_access().unwrap();
+        let parent = parent.begin_filesystem_runtime(account()).unwrap();
+        let held = parent
+            .runtime_directory(BUILD_OUTPUT_ROOT_IDENTITY, b"", DirectoryAccess::ReadWrite)
+            .unwrap();
+        child
+            .directories
+            .insert("/out", held, DirectoryAccess::ReadWrite)
+            .unwrap();
+        drop(parent);
+        let mut runtime = child.begin_filesystem_runtime(account()).unwrap();
+        assert_eq!(
+            runtime.write_private_file(b"/out/first", b"ok").unwrap(),
+            Ok(())
+        );
+        let mut bytes = [0; 2];
+        assert_eq!(
+            runtime.read_file(b"/out/first", &mut bytes, 2).unwrap(),
+            Ok(2)
+        );
+        assert_eq!(&bytes, b"ok");
+        assert!(runtime.write_private_file(b"/out/second", b"X").is_err());
+        assert_eq!(
+            std::fs::read(temporary.path().join("parent/output/first")).unwrap(),
+            b"ok"
+        );
+        assert_eq!(
+            std::fs::metadata(temporary.path().join("parent/output/second"))
+                .unwrap()
+                .len(),
+            0
+        );
+    }
+
+    #[test]
+    fn private_directories_preserve_captured_entries_and_record_each_creation() {
+        use std::io::ErrorKind;
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "filesystem-staging-directories",
+            false,
+        )
+        .unwrap();
+        let scope = scope(temp.path(), "session");
+        let mut fs = scope.begin_filesystem_runtime(account()).unwrap();
+        for (path, result) in [
+            (b"asset".as_slice(), Err(ErrorKind::PermissionDenied)),
+            (b"link/escape", Err(ErrorKind::PermissionDenied)),
+            (b"../sibling", Err(ErrorKind::InvalidInput)),
+            (b"unknown/child", Err(ErrorKind::NotFound)),
+            (b"generated", Ok(())),
+            (b"generated", Ok(())),
+            (b"generated/sub", Ok(())),
+        ] {
+            assert_eq!(fs.create_directory(path).unwrap(), result);
+        }
+        assert_eq!(
+            fs.write_private_file(b"generated/sub/input", b"R").unwrap(),
+            Ok(())
+        );
+        assert_eq!(
+            fs.create_directory(b"generated/sub/input").unwrap(),
+            Err(ErrorKind::AlreadyExists)
+        );
+        assert!(scope.build_dir.join("generated/sub/input").is_file());
+        assert!(!scope.build_dir.join("unknown").exists());
+        let created = fs
+            .effects
+            .attempts
+            .iter()
+            .filter(|attempt| {
+                attempt.operation_tag == FilesystemHostOperation::CreateDir.operation_tag()
+                    && attempt.result == FilesystemOperationResult::Scalar(0)
+            })
+            .count();
+        assert_eq!(created, 3);
+    }
+
+    #[test]
+    fn private_file_writes_preserve_captured_inputs_and_can_read_back_sealed_bytes() {
+        use std::io::ErrorKind;
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "filesystem-staging-writes",
+            false,
+        )
+        .unwrap();
+        let scope = scope(temp.path(), "session");
+        let mut fs = scope.begin_filesystem_runtime(account()).unwrap();
+        for (path, result) in [
+            (b"asset".as_slice(), ErrorKind::PermissionDenied),
+            (b"link", ErrorKind::PermissionDenied),
+            (b"link/escape", ErrorKind::PermissionDenied),
+            (b"../sibling", ErrorKind::InvalidInput),
+            (b"no-directory/entry", ErrorKind::NotFound),
+        ] {
+            assert_eq!(fs.write_private_file(path, b"wrong").unwrap(), Err(result));
+        }
+        assert_eq!(
+            fs.write_private_file(b"generated.omg", b"code").unwrap(),
+            Ok(())
+        );
+        assert_eq!(
+            fs.write_private_file(b"generated.omg", b"replace").unwrap(),
+            Err(ErrorKind::AlreadyExists)
+        );
+        let mut buf = [0; 5];
+        assert_eq!(fs.read_file(b"generated.omg", &mut buf, 5).unwrap(), Ok(4));
+        assert_eq!(&buf[..4], b"code");
+        assert_eq!(fs.write_staged_file(b"asset", b"shadow").unwrap(), Ok(()));
+        assert_eq!(fs.read_file(b"asset", &mut buf, 5).unwrap(), Ok(5));
+        assert_eq!(&buf, b"hello");
+        assert!(fs.finish().is_ok());
+    }
+
+    #[test]
     fn snapshot_open_records_why_a_path_cannot_be_read() {
         let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
             "snapshot-open",
@@ -930,9 +1584,10 @@ mod tests {
             false,
         )
         .unwrap();
-        let scope = scope(temporary.path(), "staging");
-        let invocation = account();
-        let mut runtime = scope.begin_filesystem_runtime(invocation.clone()).unwrap();
+        let scope = scope(temporary.path(), "staging")
+            .with_required_outputs([b"public/generated.omg".to_vec()])
+            .unwrap();
+        let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
         let reader = runtime
             .open(BUILD_SOURCE_ROOT_IDENTITY, b"asset", 0)
             .unwrap();
@@ -945,7 +1600,7 @@ mod tests {
         );
         assert_eq!(&bytes, b"hello");
         runtime.close(BUILD_SOURCE_ROOT_IDENTITY, reader).unwrap();
-        let obligation = runtime.require(b"generated.omg").unwrap();
+        let obligation = runtime.require(b"public/generated.omg").unwrap();
         assert!(!runtime.can_complete(obligation, b"generated.omg").unwrap());
         let writer = runtime.create(b"generated.omg", 0).unwrap();
         runtime.write(writer, &bytes).unwrap();
@@ -963,20 +1618,27 @@ mod tests {
         let exported = runtime.create(b"z-export.omg", 0).unwrap();
         runtime.write(exported, b"exported").unwrap();
         runtime.close(BUILD_OUTPUT_ROOT_IDENTITY, exported).unwrap();
-        let mut publications = crate::BuildSourcePublications::default();
-        publications
-            .publish(&invocation, b"generated.omg", b"published source")
-            .unwrap();
         let effects = runtime.finish().unwrap();
         let mut observations = crate::CapturedBuildObservations::new(&scope);
         observations.retain_filesystem_effects(effects).unwrap();
-        observations
-            .retain_source_publications(publications, &invocation)
-            .unwrap();
         let summary = observations.settle(true, "build").unwrap();
         assert_eq!(summary.required_output_settlements().len(), 1);
-        assert_eq!(summary.generated_sources().len(), 1);
-        assert_eq!(summary.generated_sources()[0].bytes(), b"published source");
+        let completed = crate::build_execution::RetainedBuildOutputs::from_observation(&summary)
+            .unwrap()
+            .unwrap();
+        assert!(completed.files().sealed_entry(b"generated.omg").is_none());
+        assert!(matches!(
+            completed
+                .files()
+                .sealed_entry(b"public/generated.omg")
+                .unwrap()
+                .kind(),
+            build_output::BuildStagedOutputEntryKind::File {
+                bytes: b"hello",
+                ..
+            }
+        ));
+        assert!(summary.generated_sources().is_empty());
         let tree = summary.staged_output_tree().unwrap();
         assert!(matches!(
             tree.sealed_entry(b"generated.omg").unwrap().kind(),
@@ -993,6 +1655,30 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn an_invocation_required_name_needs_a_completed_obligation() {
+        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "required-name-without-completion",
+            false,
+        )
+        .unwrap();
+        let scope = scope(temporary.path(), "staging")
+            .with_required_outputs([b"artifact".to_vec()])
+            .unwrap();
+        let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
+        runtime
+            .write_private_file(b"artifact", b"staged but unclaimed")
+            .unwrap()
+            .unwrap();
+        let mut observations = crate::CapturedBuildObservations::new(&scope);
+        observations
+            .retain_filesystem_effects(runtime.finish().unwrap())
+            .unwrap();
+        let errors = observations.settle(true, "build").unwrap_err();
+        assert!(errors.iter().any(|error| error.message.contains("artifact")
+            && error.message.contains("no completed obligation")));
     }
 
     #[test]

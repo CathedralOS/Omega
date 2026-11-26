@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "indexed_crash_guard");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "indexed_crash_guard" };
     Build::bind(builder, macos_x86_64::ProgramEntry, main);
     Build::select_provider::<SelectedForward, X86Forward>(builder, macos_x86_64);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

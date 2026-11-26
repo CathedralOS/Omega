@@ -1,19 +1,19 @@
-use chemistry\model;
+use chemistry/model/model.omg;
 
 // All arithmetic is bounded independently of machine representation: atoms
 // <=16, coefficients <=8, and each elemental side <=256. Wrapping carriers
 // specify ordinary operators, but none of these operations can wrap.
 // A three-species reaction has no fourth product. The match arms are calls,
 // and each call returns a fresh signature record.
-machine absent_signature(first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping) -> chemistry\model\Signature {
-    chemistry\model\Signature { active: 3, fourth: 0 }
+machine absent_signature(first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping) -> |model|::Signature {
+    |model|::Signature { active: 3, fourth: 0 }
 }
 
-machine present_signature(first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping, fourth: i64 in Wrapping) -> chemistry\model\Signature {
-    chemistry\model\Signature { active: 4, fourth: fourth }
+machine present_signature(first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping, fourth: i64 in Wrapping) -> |model|::Signature {
+    |model|::Signature { active: 4, fourth: fourth }
 }
 
-machine signature_of(species: i64 in Wrapping, first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping, fourth: i64 in Wrapping) -> chemistry\model\Signature {
+machine signature_of(species: i64 in Wrapping, first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping, fourth: i64 in Wrapping) -> |model|::Signature {
     match species as i64 {
         3 -> absent_signature(first, second, third),
         _ -> present_signature(first, second, third, fourth)
@@ -83,7 +83,7 @@ machine conserved(atoms: @[i64 in Wrapping; 4], coefficient_first: i64 in Wrappi
 // Fixed radix traversal visits coefficient tuples lexicographically. Only
 // primitive tuples count, so scalar multiples are not alternative balances.
 // Retaining the first tuple at coefficient_first minimum sum gives the declared tie break.
-machine solve(reaction: @chemistry\model\Reaction, result: @mutable chemistry\model\Balance) {
+machine solve(reaction: @|model|::Reaction, result: @mutable |model|::Balance) {
     result.coefficients[0] = 0;
     result.coefficients[1] = 0;
     result.coefficients[2] = 0;
@@ -91,13 +91,13 @@ machine solve(reaction: @chemistry\model\Reaction, result: @mutable chemistry\mo
     result.solutions = 0;
     result.sum = 33;
     transition { _ -> scan(reaction, result, 0) }
-    machine scan(reaction: @chemistry\model\Reaction, result: @mutable chemistry\model\Balance, ordinal: i64 in Wrapping) {
+    machine scan(reaction: @|model|::Reaction, result: @mutable |model|::Balance, ordinal: i64 in Wrapping) {
         transition ordinal < 4096 {
             true -> decode(reaction, result, ordinal),
             false -> done()
         }
     }
-    machine decode(reaction: @chemistry\model\Reaction, result: @mutable chemistry\model\Balance, ordinal: i64 in Wrapping) {
+    machine decode(reaction: @|model|::Reaction, result: @mutable |model|::Balance, ordinal: i64 in Wrapping) {
         let coefficient_first: i64 in Wrapping = ordinal / 512 + 1;
         let coefficient_second: i64 in Wrapping = (ordinal / 64) % 8 + 1;
         let coefficient_third: i64 in Wrapping = (ordinal / 8) % 8 + 1;
@@ -107,26 +107,26 @@ machine solve(reaction: @chemistry\model\Reaction, result: @mutable chemistry\mo
             false -> scan(reaction, result, ordinal + 1)
         }
     }
-    machine fourth(reaction: @chemistry\model\Reaction, result: @mutable chemistry\model\Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+    machine fourth(reaction: @|model|::Reaction, result: @mutable |model|::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
         transition reaction.species == 3 {
             true -> absent(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth),
             false -> present(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth)
         }
     }
-    machine absent(reaction: @chemistry\model\Reaction, result: @mutable chemistry\model\Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+    machine absent(reaction: @|model|::Reaction, result: @mutable |model|::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
         transition coefficient_fourth == 1 {
             true -> consider(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, 0),
             false -> scan(reaction, result, ordinal + 1)
         }
     }
-    machine present(reaction: @chemistry\model\Reaction, result: @mutable chemistry\model\Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+    machine present(reaction: @|model|::Reaction, result: @mutable |model|::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
         transition coefficient_fourth <= reaction.bound {
             true -> consider(reaction, result, ordinal, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth),
             false -> scan(reaction, result, ordinal + 1)
         }
     }
-    machine consider(reaction: @chemistry\model\Reaction, result: @mutable chemistry\model\Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
-        let signature: chemistry\model\Signature = signature_of(reaction.species, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
+    machine consider(reaction: @|model|::Reaction, result: @mutable |model|::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+        let signature: |model|::Signature = signature_of(reaction.species, coefficient_first, coefficient_second, coefficient_third, coefficient_fourth);
         let pair: i64 in Wrapping = divisor(coefficient_first, coefficient_second);
         let triple: i64 in Wrapping = divisor(pair, coefficient_third);
         let common: i64 in Wrapping = divisor(triple, coefficient_fourth);
@@ -141,7 +141,7 @@ machine solve(reaction: @chemistry\model\Reaction, result: @mutable chemistry\mo
             false -> scan(reaction, result, ordinal + 1)
         }
     }
-    machine accept(reaction: @chemistry\model\Reaction, result: @mutable chemistry\model\Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
+    machine accept(reaction: @|model|::Reaction, result: @mutable |model|::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping) {
         result.solutions = result.solutions + 1;
         let sum: i64 in Wrapping = coefficient_first + coefficient_second + coefficient_third + coefficient_fourth;
         transition sum < result.sum {
@@ -149,7 +149,7 @@ machine solve(reaction: @chemistry\model\Reaction, result: @mutable chemistry\mo
             false -> scan(reaction, result, ordinal + 1)
         }
     }
-    machine select(reaction: @chemistry\model\Reaction, result: @mutable chemistry\model\Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping, sum: i64 in Wrapping) {
+    machine select(reaction: @|model|::Reaction, result: @mutable |model|::Balance, ordinal: i64 in Wrapping, coefficient_first: i64 in Wrapping, coefficient_second: i64 in Wrapping, coefficient_third: i64 in Wrapping, coefficient_fourth: i64 in Wrapping, sum: i64 in Wrapping) {
         result.coefficients[0] = coefficient_first;
         result.coefficients[1] = coefficient_second;
         result.coefficients[2] = coefficient_third;

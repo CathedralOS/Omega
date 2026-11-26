@@ -157,6 +157,12 @@ impl ProviderPlanDigestEncoder {
                 }
                 self.bytes(&evaluated.receipt().identity_digest());
             }
+            ProviderBinding::FunctionField { evaluated } => {
+                self.byte(8);
+                self.string(evaluated.target().target_name());
+                self.bytes(&evaluated.selector().identity_digest());
+                self.bytes(&evaluated.receipt().identity_digest());
+            }
             ProviderBinding::Syscall { number } => {
                 self.byte(2);
                 self.i64(*number);

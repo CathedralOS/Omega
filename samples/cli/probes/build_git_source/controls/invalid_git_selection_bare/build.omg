@@ -1,6 +1,6 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_git_selection_bare");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_git_selection_bare" };
     let kit_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Git { repository: "https://example.invalid/kit.git", revision: "deadbeef", selection: PackageSelection::Root }));
 }

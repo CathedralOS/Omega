@@ -30,7 +30,7 @@ fn build_ran(stderr: &str) {
     for refusal in [
         "project source discovery failed",
         "rewritten call contradicts its original selection record",
-        "call private machine of another package",
+        "cannot call a private machine of another package",
     ] {
         assert!(!stderr.contains(refusal), "{stderr}");
     }

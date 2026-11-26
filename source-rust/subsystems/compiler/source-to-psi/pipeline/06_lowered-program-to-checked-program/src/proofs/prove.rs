@@ -177,7 +177,10 @@ fn covered(
         // A comparison of two closed terms is the kernel's to evaluate
         // (`Prover::closed`), whatever its relation.
         Proposition::IntegerMathEqual(left, right) => {
-            left == right || (closed_mathematical(left, fixed) && closed_mathematical(right, fixed))
+            left == right
+                || (closed_mathematical(left, fixed) && closed_mathematical(right, fixed))
+                || (covered(&Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()), fixed, width)
+                    && covered(&Proposition::IntegerMathLessOrEqual(right.clone(), left.clone()), fixed, width))
         }
         Proposition::IntegerMathLessThan(left, right) => {
             closed_mathematical(left, fixed) && closed_mathematical(right, fixed)
@@ -1618,6 +1621,23 @@ impl<'a> Prover<'a> {
             .map(|()| primitive(proposition, judgment))
     }
 
+    fn antisymmetry(
+        &mut self,
+        goal: &Proposition,
+        forward: Proposition,
+        backward: Proposition,
+    ) -> Result<ProofNode, Unproven> {
+        let forward = self.prove(&forward)?;
+        let backward = self.prove(&backward)?;
+        Ok(node(
+            goal.clone(),
+            ProofRule::IntegerOrderAntisymmetry {
+                forward: Box::new(forward),
+                backward: Box::new(backward),
+            },
+        ))
+    }
+
     fn reflexive(&self, proposition: Proposition) -> Option<ProofNode> {
         decide_primitive(
             self.context,
@@ -2348,12 +2368,26 @@ impl<'a> Prover<'a> {
         let result = match self.prove_structural(goal) {
             Ok(proof) => Ok(proof),
             Err(detail) => self
-                .by_implication(goal)
+                .by_normalized_integer_fact(goal)
+                .or_else(|| self.by_implication(goal))
                 .or_else(|| self.by_transport(goal))
                 .ok_or(detail),
         };
         self.refuting = refuting;
         result
+    }
+
+    /// Mixed comparisons are mathematical orders. A fixed-carrier obligation
+    /// may therefore have exactly the same operands as an admitted math fact.
+    fn by_normalized_integer_fact(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let alternate = proof_admission::lift_fixed_integer_relation(goal)
+            .or_else(|| lower_integer_math_relation(goal))?;
+        let index = self.exact_fact(&alternate)?;
+        Some(proof_admission::restate_integer_relation(
+            goal.clone(),
+            self.facts[index].proof(&self.facts),
+            self.assumptions.len(),
+        ))
     }
 
     fn prove_structural(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
@@ -2444,19 +2478,16 @@ impl<'a> Prover<'a> {
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
                 }
-                if !matches!(left.scalar_type(), ScalarType::Integer(_)) {
-                    return Err("equality of non-integers is proved only by a hypothesis");
+                if left.scalar_type() != right.scalar_type()
+                    || !left.scalar_type().as_integer().is_some_and(|integer| !integer.is_address())
+                {
+                    return Err("integer order antisymmetry requires one non-address integer carrier");
                 }
-                let forward = self.prove(&Proposition::LessOrEqual(left.clone(), right.clone()))?;
-                let backward =
-                    self.prove(&Proposition::LessOrEqual(right.clone(), left.clone()))?;
-                Ok(node(
-                    goal.clone(),
-                    ProofRule::IntegerOrderAntisymmetry {
-                        forward: Box::new(forward),
-                        backward: Box::new(backward),
-                    },
-                ))
+                self.antisymmetry(
+                    goal,
+                    Proposition::LessOrEqual(left.clone(), right.clone()),
+                    Proposition::LessOrEqual(right.clone(), left.clone()),
+                )
             }
             Proposition::IntegerMathLessOrEqual(left, right) => {
                 if let Some(proof) = self.closed(goal.clone()) {
@@ -2477,10 +2508,19 @@ impl<'a> Prover<'a> {
                 }
                 self.arithmetic(left, right)
             }
-            Proposition::IntegerMathEqual(..) => self
-                .reflexive(goal.clone())
-                .or_else(|| self.closed(goal.clone()))
-                .ok_or("non-reflexive mathematical equality over open terms"),
+            Proposition::IntegerMathEqual(left, right) => {
+                if let Some(proof) = self
+                    .reflexive(goal.clone())
+                    .or_else(|| self.closed(goal.clone()))
+                {
+                    return Ok(proof);
+                }
+                self.antisymmetry(
+                    goal,
+                    Proposition::IntegerMathLessOrEqual(left.clone(), right.clone()),
+                    Proposition::IntegerMathLessOrEqual(right.clone(), left.clone()),
+                )
+            }
             Proposition::IntegerMathLessThan(left, right) => self
                 .closed(goal.clone())
                 .or_else(|| self.strict_sum_bound(left, right))
@@ -4024,10 +4064,20 @@ impl<'a> Prover<'a> {
                 integer,
                 direction,
                 best.as_ref().map(|bound| bound.literal),
-            ) && best.as_ref().is_none_or(|current| {
-                direction.prefers(integer.compare(next.literal, current.literal))
-            }) {
-                best = Some(next);
+            ) {
+                if best.as_ref().is_none_or(|current| {
+                    direction.prefers(integer.compare(next.literal, current.literal))
+                }) {
+                    best = Some(next);
+                }
+                // A direct equality supplies the exact literal. Following
+                // aliases past it can cache a provisional bound for a caller.
+                if matches!(
+                    self.facts[index].proposition(),
+                    Proposition::Equal(..) | Proposition::IntegerMathEqual(..)
+                ) {
+                    return best;
+                }
             }
         }
         self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(best.clone());
@@ -4173,9 +4223,17 @@ impl<'a> Prover<'a> {
                     ),
                 })
             }
+            (Proposition::IntegerMathEqual(left, right), _)
+                if matches!(left, IntegerMathTerm::IntegerLiteral(_))
+                    || matches!(right, IntegerMathTerm::IntegerLiteral(_)) =>
+            {
+                // This expression has a closed endpoint, so its bound can be
+                // built before any neighboring value's bounds are inspected.
+                self.bound_from_fact(index, subject, integer, direction, current)
+            }
             (Proposition::Equal(left, right), _)
-                if (left == subject && improves(right, false))
-                    || (right == subject && improves(left, false)) =>
+                if (left == subject && right.integer_value().is_some())
+                    || (right == subject && left.integer_value().is_some()) =>
             {
                 // Orient the equality so the weakened `<=` points the right way.
                 let proof = fact_proof_for_literal_bound(&self.facts, index, self.activity);

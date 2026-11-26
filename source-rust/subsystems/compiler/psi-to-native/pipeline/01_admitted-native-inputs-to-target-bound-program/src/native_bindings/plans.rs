@@ -44,6 +44,7 @@ fn evaluate(
     let author_identity = &selection.producer_identity;
     let source_occurrence_digest = selection.source_occurrence_digest;
     let (locator, binding_digest) = match &selection.locator {
+        NativeBindingLocator::FunctionField(selector) => (None, provider_plans::EvaluatedFunctionField::identity_for(target, selector)),
         NativeBindingLocator::Import(raw) => {
             let locator = target::normalize_foreign_locator(raw.clone(), target)
                 .map_err(|reason| format!("native Build locator: {reason}"))?;
@@ -136,6 +137,9 @@ fn evaluate(
     Ok(match (locator, &selection.locator) {
         (Some(locator), _) => EvaluatedNativeBinding::Import(
             EvaluatedForeignImport::from_retained_evidence(locator, receipt)?,
+        ),
+        (None, NativeBindingLocator::FunctionField(selector)) => EvaluatedNativeBinding::FunctionField(
+            provider_plans::EvaluatedFunctionField::from_retained_evidence(target, selector.clone(), receipt)?,
         ),
         (None, NativeBindingLocator::Syscall { number }) => EvaluatedNativeBinding::Syscall(
             EvaluatedForeignSyscall::from_retained_evidence(target, *number, receipt)?,

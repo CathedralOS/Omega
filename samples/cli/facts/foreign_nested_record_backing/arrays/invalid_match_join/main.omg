@@ -1,7 +1,6 @@
 // Fact: Completion consumes Pending and returns the original nested array Buffer with its declared ResidentValue and MarkerValue predicates restored, permitting exact subtraction; C writes the middle cell to 73 while marker 91, neighbors 305419896 and 1515863100, and the earlier copy 37 stay unchanged.
 // Expected exit: 0. Completion updates the nested cell; marker and copied scalar retain their original values.
-use omega\language\core\Content;
-use omega\language\core\CountedQuantity;
+use {omega}/language/core/content.omg;
 public data ByteUnit {}
 public domain u64::ResidentValue requires self >= 0 && self <= 2147483647 && self != 42;
 public domain u64::MarkerValue requires self >= 0 && self <= 100;
@@ -9,15 +8,15 @@ public data Cell [copy] { value: u64 in ResidentValue; }
 public data Buffer [linear] dropped by drop_buffer { marker: u64 in MarkerValue; cells: [Cell; 3]; }
 machine drop_buffer(buffer: @mutable Buffer) {}
 public domain Buffer::Owned;
-machine Owned::content(buffer: @Buffer) -> CountedQuantity<ByteUnit>
-satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
-    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+machine Owned::content(buffer: @Buffer) -> |content|::CountedQuantity<ByteUnit>
+satisfies |content|::Content<Buffer, |content|::CountedQuantity<ByteUnit>>::project {
+    |content|::CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 public data Pending<'source> [linear] { slot: u64; }
 public domain Pending::Retained established by Writer::register;
-machine Retained::content<'source>(pending: @Pending<'source>) -> CountedQuantity<ByteUnit>
-satisfies Content<Pending<'source>, CountedQuantity<ByteUnit>>::project {
-    CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
+machine Retained::content<'source>(pending: @Pending<'source>) -> |content|::CountedQuantity<ByteUnit>
+satisfies |content|::Content<Pending<'source>, |content|::CountedQuantity<ByteUnit>>::project {
+    |content|::CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 public data Capacity [linear] { token: u64; }
 public domain Capacity::Available established by Writer::acquire, Writer::complete;

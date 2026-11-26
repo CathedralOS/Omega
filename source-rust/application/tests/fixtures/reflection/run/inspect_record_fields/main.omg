@@ -7,10 +7,10 @@
 // published callback binder is still met. The fail twin
 // `fail/reflection/inspect_record_fields_input_precondition` differs only in
 // a precondition on `note`'s inputs.
-use omega\language\core\reflect;
+use {omega}/language/core/reflect/reflect.omg;
 data Reading { value: u64; flag: bool; }
 data Notes { last: u64; first_seen: bool; }
-machine note<Kind>(notes: @mutable Notes, field: @reflect\FieldInfo)
+machine note<Kind>(notes: @mutable Notes, field: @|reflect|::FieldInfo)
 requires Kind == u64 || Kind == bool
 {
     notes.first_seen = notes.first_seen || field.declaration_position == 0u64;
@@ -20,7 +20,7 @@ machine described() -> bool {
     let mutable notes: Notes;
     notes.last = 7u64;
     notes.first_seen = false;
-    reflect\inspect_record_fields::<Reading, note>(@mutable notes);
+    |reflect|::inspect_record_fields::<Reading, note>(@mutable notes);
     notes.first_seen && notes.last == 1u64
 }
 machine main() crashes Trap {

@@ -73,7 +73,7 @@ fn pairs(rows: &[(&str, &str)]) -> Vec<(String, String)> {
 /// sum, which is a root declaration `Command::Operation` with its own cases.
 #[test]
 fn a_nested_declaration_is_a_root_declaration_under_its_owner_name() {
-    let parsed = super::parse_source(
+    let parsed = crate::tests::parse_source(
         "data Command {
             command_id: u64;
             op: Operation;
@@ -83,7 +83,6 @@ fn a_nested_declaration_is_a_root_declaration_under_its_owner_name() {
                 case CountUsers;
             }
         }",
-        "nested data parses",
     );
     assert_eq!(root_data_names(&parsed), ["Command", "Command::Operation"]);
     let command = data(&parsed, "Command");
@@ -114,7 +113,7 @@ fn a_nested_declaration_is_a_root_declaration_under_its_owner_name() {
 /// again even when its first segment spells an enclosing nested name.
 #[test]
 fn each_name_selects_its_innermost_nested_declaration() {
-    let parsed = super::parse_source(
+    let parsed = crate::tests::parse_source(
         "data A {
             b: B;
             x: X;
@@ -128,7 +127,6 @@ fn each_name_selects_its_innermost_nested_declaration() {
             data A { v: u8; }
         }
         data Outside { a: A; x: A::X; }",
-        "nested scopes parse",
     );
     assert_eq!(
         root_data_names(&parsed),
@@ -153,7 +151,7 @@ fn each_name_selects_its_innermost_nested_declaration() {
 /// in a case payload: a case is not a scope.
 #[test]
 fn a_field_declared_with_its_type_names_the_type_under_the_enclosing_data() {
-    let parsed = super::parse_source(
+    let parsed = crate::tests::parse_source(
         "data Holder {
             payload: data Payload {
                 case Small(value: u8);
@@ -161,7 +159,6 @@ fn a_field_declared_with_its_type_names_the_type_under_the_enclosing_data() {
             };
             count: u8;
         }",
-        "inline nested data parses",
     );
     assert_eq!(
         root_data_names(&parsed),
@@ -184,14 +181,13 @@ fn a_field_declared_with_its_type_names_the_type_under_the_enclosing_data() {
 /// applied at the owner's field, and a nested alias.
 #[test]
 fn a_nested_declaration_keeps_its_own_parameters() {
-    let parsed = super::parse_source(
+    let parsed = crate::tests::parse_source(
         "data Outer {
             slot: Inner<4>;
             data Inner<const N: u64> { values: [u8; N]; }
             data Header = Inner<2>;
         }
         data Empty { data Inner { v: u8; } }",
-        "nested data with parameters parses",
     );
     assert_eq!(
         member_types(&parsed, data(&parsed, "Outer")),
@@ -226,11 +222,8 @@ fn a_nested_declaration_keeps_its_own_parameters() {
 /// A nested declaration inherits its owner's visibility, recursively.
 #[test]
 fn a_nested_declaration_inherits_its_owners_visibility() {
-    let parsed = super::parse_source(
-        "public data Command { op: Operation; data Operation { case Stop; data Detail { v: u8; } } }
-        data Private { data Inner { v: u8; } }",
-        "public nested data parses",
-    );
+    let parsed = crate::tests::parse_source("public data Command { op: Operation; data Operation { case Stop; data Detail { v: u8; } } }
+        data Private { data Inner { v: u8; } }");
     for (name, public) in [
         ("Command", true),
         ("Command::Operation", true),
@@ -272,7 +265,7 @@ fn nested_declarations_reject_their_own_visibility_parameters_inline_and_order()
             "nested in an owner with static parameters",
         ),
     ] {
-        let error = super::parse_source_error(source, "tokens", "refused nested data");
+        let error = crate::tests::parse_error(source);
         assert!(
             error.message.contains(expected),
             "{source}: {}",

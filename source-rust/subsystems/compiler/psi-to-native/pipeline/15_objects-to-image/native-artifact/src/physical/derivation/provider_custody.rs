@@ -250,14 +250,6 @@ pub(crate) fn direct_port_read_custody(
     Ok(())
 }
 
-pub(crate) fn linux_write_line_custody_is_exact(
-    target: NativeTarget,
-    settlement: &machine_code::BoundarySettlementRecord,
-    function_bytes: Option<&[u8]>,
-) -> bool {
-    image_emission::linux_write_line_custody_is_exact(target, settlement, function_bytes)
-}
-
 pub(crate) fn settlement_completion_custody_is_exact(
     settlement: &machine_code::BoundarySettlementRecord,
     identities: &terminal_psi::TerminalIdentityTable,

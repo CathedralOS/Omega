@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "recorded_build_role_local");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "recorded_build_role_local" };
     let library_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "library" }));
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

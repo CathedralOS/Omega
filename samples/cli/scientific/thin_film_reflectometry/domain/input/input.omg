@@ -1,17 +1,16 @@
 // Bounded plain decimal scanner: optional minus, 1–12 digits, optional dot
 // with digits on both sides. No exponent, NaN or infinity spelling is accepted.
 // The total budget includes separators. EOF after a complete token is valid.
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-use omega\language\core\F64::from_i32;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Reader { consumed: i32; }
 public data Number [copy] { valid: bool; value: f64; }
-machine character(reader: @mutable Reader) -> i32 reaches StandardInput {
+machine character(reader: @mutable Reader) -> i32 reaches |process_authority|::StandardInput {
     transition reader.consumed >= 0 && reader.consumed < 4096 { true -> block read(reader), _ -> -2 }
     machine read(reader: @mutable Reader) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
-        let byte: ByteRead = block Console::read_byte();
-        transition byte { ByteRead::Error -> -2, ByteRead::Eof -> -1, ByteRead::Byte { value } -> counted(reader, value) }
+        let byte: |console|::ByteRead = block |console|::Console::read_byte();
+        transition byte { |console|::ByteRead::Error -> -2, |console|::ByteRead::Eof -> -1, |console|::ByteRead::Byte { value } -> counted(reader, value) }
     }
     machine counted(reader: @mutable Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
         reader.consumed = reader.consumed + 1;
@@ -19,7 +18,7 @@ machine character(reader: @mutable Reader) -> i32 reaches StandardInput {
     }
 }
 machine whitespace(value: i32) -> bool { transition { _ -> (value == 32 || value == 10 || value == 13 || value == 9) } }
-public machine number(reader: @mutable Reader) -> Number reaches StandardInput invokes Console blocks crashes Trap {
+public machine number(reader: @mutable Reader) -> Number reaches |process_authority|::StandardInput invokes |console|::Console blocks crashes Trap {
     transition { _ -> block start(reader) }
     machine start(reader: @mutable Reader) -> Number {
         let value: i32 = block character(reader);
@@ -40,7 +39,7 @@ public machine number(reader: @mutable Reader) -> Number reaches StandardInput i
     }
     machine append(reader: @mutable Reader, value: i32, sign: f64, accumulated: f64, scale: f64, digits: i32, decimal: bool) -> Number
     requires value >= 48 && value <= 57 && digits >= 0 && digits < 12 {
-        let numeric: f64 = F64::from_i32(value - 48);
+        let numeric: f64 = |float_operations|::F64::from_i32(value - 48);
         let next_scale: f64 = match decimal { true -> scale * 0.1, _ -> scale };
         let next: f64 = match decimal { true -> accumulated + numeric * next_scale, _ -> accumulated * 10.0 + numeric };
         let observed: i32 = block character(reader);
@@ -63,7 +62,7 @@ public machine number(reader: @mutable Reader) -> Number reaches StandardInput i
         }
     }
 }
-public machine ended(reader: @mutable Reader) -> bool reaches StandardInput invokes Console blocks crashes Trap {
+public machine ended(reader: @mutable Reader) -> bool reaches |process_authority|::StandardInput invokes |console|::Console blocks crashes Trap {
     transition { _ -> scan(reader) }
     machine scan(reader: @mutable Reader) -> bool {
         let value: i32 = block character(reader);

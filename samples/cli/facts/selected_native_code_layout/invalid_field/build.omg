@@ -1,4 +1,4 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_selected_native_code_layout_field");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_selected_native_code_layout_field" };
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

@@ -3876,6 +3876,72 @@ fn generic_named_map_source_application_retains_actual_constructor_bindings() {
 }
 
 #[test]
+fn named_map_arguments_keep_the_supplying_machines_distinct_regions() {
+    let mut program = typed(
+        r#"
+data Cell { value: u32; }
+data Link<'storage> { cell: @'storage Cell; }
+trait Measure { machine number() -> u32 reaches none crashes none; }
+Chosen<T> satisfies Measure {
+    machine number() -> u32 reaches none crashes none { 1 }
+}
+machine observe<'left, 'right>(first: @'left Cell, second: @'right Cell) -> u32 {
+    let left: u32 = Chosen::<Link<'left>>::number();
+    Chosen::<Link<'right>>::number()
+}
+machine no_regions() {}
+"#,
+    );
+    let calls = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_, expression)| {
+            let crate::source_state::expression::ExpressionNode::Call(call) = expression else {
+                return None;
+            };
+            Some(call.clone())
+        })
+        .collect::<Vec<_>>();
+    let [left, right] = calls.as_slice() else {
+        panic!("the source contains two named calls")
+    };
+    let left_key = program
+        .named_conformance_capture_key(left)
+        .unwrap()
+        .unwrap();
+    let right_key = program
+        .named_conformance_capture_key(right)
+        .unwrap()
+        .unwrap();
+    assert_eq!(left_key.0, right_key.0);
+    assert_ne!(left_key.1, right_key.1);
+    let left_application = program
+        .prepare_named_conformance_application(left)
+        .unwrap()
+        .unwrap();
+    let right_application = program
+        .prepare_named_conformance_application(right)
+        .unwrap()
+        .unwrap();
+    assert_ne!(
+        left_application.type_arguments,
+        right_application.type_arguments
+    );
+    assert_ne!(left_application, right_application);
+    let foreign = program
+        .machines()
+        .iter()
+        .find(|m| m.name.as_str() == "no_regions")
+        .unwrap()
+        .symbol;
+    program
+        .expression_table
+        .static_machine_application_mut(left.authored_machine_application)
+        .lexical_owner = foreign;
+    assert!(program.named_conformance_call_member(left).is_err());
+}
+
+#[test]
 fn generic_named_map_source_rejects_a_foreign_unused_argument() {
     let text = generic_named_map_source()
         .replacen(
@@ -3918,7 +3984,7 @@ fn generic_named_map_source_rejects_a_foreign_unused_argument() {
         },
     );
     let failure = program.named_conformance_call_member(&call).unwrap_err();
-    assert!(failure.contains("region-free map argument"), "{failure}");
+    assert!(failure.contains("map argument in its supplying scope"), "{failure}");
     assert!(program.named_conformance_capture_key(&call).is_err());
     assert!(
         program

@@ -1,5 +1,10 @@
-use custody_kernel;
+use {custody_kernel}/main.omg as kernel;
 
-machine entry() -> i32 {
-    custody_kernel\seed()
+public machine main() crashes Trap {
+    transition |kernel|::seed() == 3 {
+        true -> ready(),
+        false -> refused()
+    }
+    machine ready() {}
+    machine refused() crashes Trap { crash Trap; }
 }

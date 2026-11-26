@@ -15,8 +15,13 @@ mod native_locator {
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct TerminalBuildNativeLocator {
         pub structural_type: StructuralTypeId,
-        pub widths: [u64; 3],
+        pub kind: TerminalBuildNativeLocatorKind,
         pub shape: Arc<TerminalBuildValueShape>,
+    }
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub enum TerminalBuildNativeLocatorKind {
+        ForeignBinding { widths: [u64; 3] },
+        FunctionFieldBinding,
     }
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub enum TerminalBuildValueShape {
@@ -47,8 +52,8 @@ mod native_locator {
     }
 }
 pub use native_locator::{
-    TerminalBuildNativeLocator, TerminalBuildValueCase, TerminalBuildValueField,
-    TerminalBuildValueShape,
+    TerminalBuildNativeLocator, TerminalBuildNativeLocatorKind, TerminalBuildValueCase,
+    TerminalBuildValueField, TerminalBuildValueShape,
 };
 
 use crate::TerminalBuildQueryCall;
@@ -74,6 +79,7 @@ pub type TerminalBuildSelectionRequest = BuildSelectionRequest<TerminalBuildProv
 pub enum TerminalBuildBindingOperation {
     AwaitProvider,
     DescribeService,
+    EnableUnsafe,
     Prepare,
     PrepareTests, // A group selection prepared on the original tests facet.
     Bind,
@@ -244,6 +250,11 @@ pub(crate) mod build_filesystem {
         Complete,
         Fail,
         RequiredPath,
+        ReadAll,
+        WriteAll,
+        CreateDirectory,
+        MapDirectory,
+        ForwardDirectory,
     }
 
     #[derive(Debug, PartialEq, Eq, record_storage::Record)]
@@ -387,16 +398,21 @@ pub(crate) mod build_requests {
             program: source_text::SourceSpan,
         },
         ArtifactOnly,
+        ForwardProgram {
+            program: source_text::SourceSpan,
+        },
         PathDependency,
+        BundledDependency,
         GitDependency,
         InputBinding,
         AddBinding,
         ExtendReach,
         ExtendWorkspace,
+        CopyBytes,
         PrepareDependency,
         ValidateDependency,
+        ValidateBinding,
         LogLine,
-        PublishSource,
         ConfigureTestFixture,
         ConfigureTestEngine,
         SandboxWrite,

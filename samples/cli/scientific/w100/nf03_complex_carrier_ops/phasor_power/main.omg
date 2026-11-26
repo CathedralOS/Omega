@@ -1,31 +1,27 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/complex/complex.omg;
+use {omega}/language/core/float_accuracy/float_accuracy.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_exit.omg;
 // Expected exit: 0
-use omega\language\core\F64::is_finite;
-use omega\language\core\complex\Complex;
-use omega\language\core\complex\ComplexF64;
-use omega\language\core\complex\ComplexMagnitude;
-use omega\language\core\float_accuracy\AccuracyComparison;
-use omega\language\core\float_accuracy\ReferenceAdditiveTolerance64;
-use omega\language\core\float_accuracy\compare_reference_additive_f64;
 // Complex power S = V * conjugate(I), with borrowed immutable V and I.
 data Main {
-    voltage: Complex<f64>;
-    current: Complex<f64>;
-    conjugated: Complex<f64>;
-    power: Complex<f64>;
-    sum: Complex<f64>;
-    real_only: Complex<f64>;
-    large: Complex<f64>;
+    voltage: |complex|::Complex<f64>;
+    current: |complex|::Complex<f64>;
+    conjugated: |complex|::Complex<f64>;
+    power: |complex|::Complex<f64>;
+    sum: |complex|::Complex<f64>;
+    real_only: |complex|::Complex<f64>;
+    large: |complex|::Complex<f64>;
 }
-machine main(main: @mutable Main) reaches ProcessExit {
-    main.voltage = Complex { real: 3.0, imaginary: 4.0 };
-    main.current = Complex { real: -2.0, imaginary: 0.5 };
-    ComplexF64::conjugate(@mutable main.conjugated, @main.current);
-    ComplexF64::multiply(@mutable main.power, @main.voltage, @main.conjugated);
-    ComplexF64::add(@mutable main.sum, @main.voltage, @main.current);
-    let norm: f64 = ComplexF64::norm_squared(@main.voltage);
-    main.real_only = Complex { real: 7.0, imaginary: 0.0 };
-    let real_norm: f64 = ComplexF64::norm_squared(@main.real_only);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    main.voltage = |complex|::Complex { real: 3.0, imaginary: 4.0 };
+    main.current = |complex|::Complex { real: -2.0, imaginary: 0.5 };
+    |complex|::ComplexF64::conjugate(@mutable main.conjugated, @main.current);
+    |complex|::ComplexF64::multiply(@mutable main.power, @main.voltage, @main.conjugated);
+    |complex|::ComplexF64::add(@mutable main.sum, @main.voltage, @main.current);
+    let norm: f64 = |complex|::ComplexF64::norm_squared(@main.voltage);
+    main.real_only = |complex|::Complex { real: 7.0, imaginary: 0.0 };
+    let real_norm: f64 = |complex|::ComplexF64::norm_squared(@main.real_only);
     transition main.power.real == -4.0 && main.power.imaginary == -9.5
         && main.sum.real == 1.0 && main.sum.imaginary == 4.5
         && main.voltage.real == 3.0 && main.voltage.imaginary == 4.0
@@ -36,23 +32,23 @@ machine main(main: @mutable Main) reaches ProcessExit {
         _ -> bad(main)
     }
     machine large(main: @mutable Main) {
-        main.large = Complex { real: 3.0e200, imaginary: 4.0e200 };
-        let direct: f64 = ComplexF64::norm_squared(@main.large);
-        let direct_finite: bool = F64::is_finite(direct);
-        let outcome: ComplexMagnitude<f64> = ComplexF64::try_magnitude(@main.large);
+        main.large = |complex|::Complex { real: 3.0e200, imaginary: 4.0e200 };
+        let direct: f64 = |complex|::ComplexF64::norm_squared(@main.large);
+        let direct_finite: bool = |float_operations|::F64::is_finite(direct);
+        let outcome: |complex|::ComplexMagnitude<f64> = |complex|::ComplexF64::try_magnitude(@main.large);
         transition direct_finite { false -> magnitude(main, outcome), _ -> bad(main) }
     }
-    machine magnitude(main: @mutable Main, outcome: ComplexMagnitude<f64>) {
+    machine magnitude(main: @mutable Main, outcome: |complex|::ComplexMagnitude<f64>) {
         transition outcome {
-            ComplexMagnitude::Value { value } -> check_magnitude(main, value),
+            |complex|::ComplexMagnitude::Value { value } -> check_magnitude(main, value),
             _ -> bad(main)
         }
     }
     machine check_magnitude(main: @mutable Main, value: f64) {
-        let comparison: AccuracyComparison = compare_reference_additive_f64(value, 5.0e200,
-            ReferenceAdditiveTolerance64 { atol: 0.0, rtol: 2.0e-15 });
+        let comparison: |float_accuracy|::AccuracyComparison = |float_accuracy|::compare_reference_additive_f64(value, 5.0e200,
+            |float_accuracy|::ReferenceAdditiveTolerance64 { atol: 0.0, rtol: 2.0e-15 });
         transition comparison {
-            AccuracyComparison::Close -> frozen_interval(main, value),
+            |float_accuracy|::AccuracyComparison::Close -> frozen_interval(main, value),
             _ -> bad(main)
         }
     }
@@ -62,12 +58,12 @@ machine main(main: @mutable Main) reaches ProcessExit {
             true -> good(main), _ -> bad(main)
         }
     }
-    machine good(main: @mutable Main) { ProcessExit::exit_process(0); }
-    machine bad(main: @mutable Main) { ProcessExit::exit_process(1); }
+    machine good(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
+    machine bad(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(1); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

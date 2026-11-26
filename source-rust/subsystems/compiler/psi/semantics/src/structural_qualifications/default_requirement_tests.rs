@@ -149,7 +149,7 @@ fn inventory_keeps_a_content_domains_predicate_without_proving_a_changed_value()
     });
     let domains = [owner];
     let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
-    let held = defaults.declared().unwrap();
+    let held = defaults.declared(|_, _, _| None).unwrap();
     assert_eq!(held.len(), 1);
     assert_eq!(held[0].origin, DefaultClause::Domain(domains[0].id));
     assert_eq!(defaults.clause(&held[0]).unwrap(), Proposition::Truth);
@@ -187,7 +187,7 @@ fn named_defaults_are_rerooted_goals_not_membership_truth() {
             ScalarTerm::Boolean(true),
         )
     );
-    assert_eq!(defaults.declared().unwrap(), rows);
+    assert_eq!(defaults.declared(|_, _, _| None).unwrap(), rows);
 }
 
 #[test]
@@ -263,7 +263,7 @@ fn additional_input_membership_is_not_a_declared_default() {
     });
     let domains = vec![domain(types[1].id)];
     let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
-    assert!(defaults.declared().unwrap().is_empty());
+    assert!(defaults.declared(|_, _, _| None).unwrap().is_empty());
     assert!(
         defaults
             .declared_operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
@@ -273,11 +273,52 @@ fn additional_input_membership_is_not_a_declared_default() {
 }
 
 #[test]
+fn a_window_requires_coordinates_only_for_its_potential_owners() {
+    use crate::borrowed_storage::Projection;
+
+    let root = PlaceId::new(2).unwrap();
+    let window = Projection::window(
+        ValueId::new(1).unwrap(),
+        ValueId::new(2).unwrap(),
+        (BlockId::new(1).unwrap(), 0),
+    );
+    let project = |types: &[_], domains: &[_], machine: &TerminalMachine| {
+        DefaultRequirements::new(types, domains, machine)
+            .unwrap()
+            .has_no_window_defaults(root, &window, &[], &[StructuralPathSegment::FixedIndex(1)])
+            .unwrap()
+    };
+    let mut types = types(2);
+    let record = StructuralTypeShape::Record {
+        fields: Vec::new(),
+        storage: terminal_psi::StructuralRecordStorage::Packed,
+    };
+    types[0].shape = record.clone();
+    types[1].shape = StructuralTypeShape::ElementView {
+        element: types[0].id,
+        access: Some(StructuralAccess::MutableBorrow),
+    };
+    let mut unrelated = ty(3, record);
+    unrelated.requires.push(Proposition::Truth);
+    types.push(unrelated);
+    let mut machine = machine();
+    assert!(project(&types, &[], &machine));
+
+    types[0].requires.push(Proposition::Truth);
+    assert!(!project(&types, &[], &machine));
+    types[0].requires.clear();
+
+    let owner = domain(types[1].id);
+    machine.structural_parameters[0].qualifications.push(owner.id);
+    assert!(!project(&types, &[owner], &machine));
+}
+
+#[test]
 fn plain_arrays_do_not_enumerate_elements_for_default_inventory() {
     let types = types(u64::MAX);
     let machine = machine();
     let defaults = DefaultRequirements::new(&types, &[], &machine).unwrap();
-    assert!(defaults.declared().unwrap().is_empty());
+    assert!(defaults.declared(|_, _, _| None).unwrap().is_empty());
     assert!(
         defaults
             .declared_operation(&store(vec![StructuralPathSegment::FixedIndex(0)]))
@@ -311,7 +352,7 @@ fn a_universal_marker_leaves_only_the_sparse_element_predicate() {
     ];
     let domains = [marker, predicated];
     let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
-    let rows = defaults.declared().unwrap();
+    let rows = defaults.declared(|_, _, _| None).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].path, [FixedIndex(index)]);
     assert_eq!(rows[0].origin, DefaultClause::Domain(domains[1].id));
@@ -346,7 +387,7 @@ fn a_nested_element_predicate_reaches_each_concrete_storage_path_once() {
     }
     let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
     let paths = defaults
-        .declared()
+        .declared(|_, _, _| None)
         .unwrap()
         .into_iter()
         .map(|row| row.path)
@@ -387,4 +428,32 @@ fn reference_display_does_not_become_a_lender_default() {
         refused.detail,
         "a reference display is not a lender's declared default"
     );
+}
+
+#[test]
+fn sparse_snapshot_names_the_read_index_and_each_explicit_qualification() {
+    use StructuralPathSegment::FixedIndex;
+
+    let mut types = types(4096);
+    types[0].shape = StructuralTypeShape::Record {
+        fields: Vec::new(),
+        storage: terminal_psi::StructuralRecordStorage::Packed,
+    };
+    types[0].requires.push(Proposition::Truth);
+    let domains = [domain(types[0].id)];
+    let mut machine = machine();
+    machine.structural_parameters[0]
+        .projected_qualifications
+        .push(StructuralPathQualification {
+            path: vec![FixedIndex(11)],
+            domain: domains[0].id,
+        });
+    let defaults = DefaultRequirements::new(&types, &domains, &machine).unwrap();
+    let sparse = defaults.declared(|_, _, _| Some(vec![4095])).unwrap();
+    let paths: Vec<_> = sparse.into_iter().map(|row| row.path).collect();
+    assert_eq!(
+        paths,
+        [vec![FixedIndex(11)], vec![FixedIndex(11)], vec![FixedIndex(4095)]]
+    );
+    assert_eq!(defaults.declared(|_, _, _| None).unwrap().len(), 4097);
 }

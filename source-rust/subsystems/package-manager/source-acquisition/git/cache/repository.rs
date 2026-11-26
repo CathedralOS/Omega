@@ -25,8 +25,8 @@ use crate::custody::tree::{
     CacheCustodyKind, git_cache_custody_byte_limit, read_bounded_cache_record_from_open_directory,
     verify_cache_custody_from_open_root,
 };
-use crate::git::cache::configuration::replace_canonical_git_control_file_from_open_repository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::cache::replace_canonical_git_control_file_from_open_repository;
+use crate::git::executable::GitExecutor;
 use crate::git::git_command::reconciliation::reconcile_git_cache_operation_result;
 use crate::git::git_command::{run_git, run_git_bytes_stdout, run_git_stdout};
 use crate::git::request::GitExecutionTransport;

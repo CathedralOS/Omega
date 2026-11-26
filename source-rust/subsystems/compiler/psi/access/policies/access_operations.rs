@@ -1,19 +1,7 @@
 use language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum BorrowPolarity {
-    Shared,
-    Exclusive,
-}
-
-impl From<extent_contracts::LoanPolarity> for BorrowPolarity {
-    fn from(polarity: extent_contracts::LoanPolarity) -> Self {
-        match polarity {
-            extent_contracts::LoanPolarity::Shared => BorrowPolarity::Shared,
-            extent_contracts::LoanPolarity::Exclusive => BorrowPolarity::Exclusive,
-        }
-    }
-}
+/// Access plans name borrows with the same polarity the extent loan carries.
+pub type BorrowPolarity = extent_contracts::LoanPolarity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AccessOperation {

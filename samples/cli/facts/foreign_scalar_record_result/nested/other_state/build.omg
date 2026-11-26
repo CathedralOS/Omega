@@ -1,19 +1,18 @@
-use omega\language\core\DllImport;
-use omega\language\core\ForeignBinding;
-machine build(builder: @mutable Build) {
- Build::application(builder, "foreign_nested_scalar_record_result");
+use {omega}/language/core/external_binding.omg as native;
+machine build(builder: @mutable BuildPlan) {
+ builder.product = BuildProduct::Application { name: "foreign_nested_scalar_record_result" };
  Build::bind(builder, macos_arm64::ProgramEntry, main);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);
  Build::bind(builder, linux_arm64::ProgramEntry, main);
  Build::bind(builder, windows_x86_64::ProgramEntry, main);
 
- Build::bind_native::<IntegerDivision::divide>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_nesteddiv_fixture.dylib", symbol: "_nesteddiv_lldiv" } });
- Build::bind_native::<IntegerDivision::divide>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_nesteddiv_fixture.so", symbol: "nesteddiv_lldiv", version: "NESTDIV_1.0" } });
- Build::bind_native::<IntegerDivision::divide>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_nesteddiv_fixture.so", symbol: "nesteddiv_lldiv", version: "NESTDIV_1.0" } });
- Build::bind_native::<IntegerDivision::divide>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_nesteddiv_fixture.dll", export: "nesteddiv_lldiv" } });
+ Build::bind_native::<IntegerDivision::divide>(builder, macos_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol { install_name: "libomega_nesteddiv_fixture.dylib", symbol: "_nesteddiv_lldiv" } });
+ Build::bind_native::<IntegerDivision::divide>(builder, linux_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libomega_nesteddiv_fixture.so", symbol: "nesteddiv_lldiv", version: "NESTDIV_1.0" } });
+ Build::bind_native::<IntegerDivision::divide>(builder, linux_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libomega_nesteddiv_fixture.so", symbol: "nesteddiv_lldiv", version: "NESTDIV_1.0" } });
+ Build::bind_native::<IntegerDivision::divide>(builder, windows_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: "omega_nesteddiv_fixture.dll", export: "nesteddiv_lldiv" } });
 
- Build::bind_native::<IntegerDivision::verify>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_nesteddiv_fixture.dylib", symbol: "_nesteddiv_verify" } });
- Build::bind_native::<IntegerDivision::verify>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_nesteddiv_fixture.so", symbol: "nesteddiv_verify", version: "NESTDIV_1.0" } });
- Build::bind_native::<IntegerDivision::verify>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_nesteddiv_fixture.so", symbol: "nesteddiv_verify", version: "NESTDIV_1.0" } });
- Build::bind_native::<IntegerDivision::verify>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_nesteddiv_fixture.dll", export: "nesteddiv_verify" } });
+ Build::bind_native::<IntegerDivision::verify>(builder, macos_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol { install_name: "libomega_nesteddiv_fixture.dylib", symbol: "_nesteddiv_verify" } });
+ Build::bind_native::<IntegerDivision::verify>(builder, linux_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libomega_nesteddiv_fixture.so", symbol: "nesteddiv_verify", version: "NESTDIV_1.0" } });
+ Build::bind_native::<IntegerDivision::verify>(builder, linux_arm64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned { object: "libomega_nesteddiv_fixture.so", symbol: "nesteddiv_verify", version: "NESTDIV_1.0" } });
+ Build::bind_native::<IntegerDivision::verify>(builder, windows_x86_64, |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: "omega_nesteddiv_fixture.dll", export: "nesteddiv_verify" } });
 }

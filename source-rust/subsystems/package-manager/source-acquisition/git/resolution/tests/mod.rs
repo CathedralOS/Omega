@@ -7,7 +7,7 @@ use crate::git::cache::{
     creation::{create_git_cache_entry, parse_git_remote_object_format},
     identity::*,
 };
-use crate::git::executable::executor::test_system_git_executor;
+use crate::git::executable::test_system_git_executor;
 use crate::git::request::*;
 use crate::identity::*;
 use crate::limits::*;

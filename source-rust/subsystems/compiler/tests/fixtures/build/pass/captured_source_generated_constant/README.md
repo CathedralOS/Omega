@@ -1,12 +1,15 @@
 # Captured source generates a checked, sealed artifact
 
-The Build reads the captured bytes of `asset.txt` and publishes them as
-`generated.omg` for Product checking. It also writes the same bytes to a
-promised output and seals the file. Generated
-scalar constants use normal typing and initializer evidence, not a private
-structured-value recognizer. No authored body references the later stratum.
+The generator stages the handwritten `main.omg`, the declaration in
+`asset.txt` as `generated.omg`, and the receiving Build as `finish.omg`. The
+receiver calls the handwritten code to check the generated value, then
+publishes the same declaration bytes as its required output.
 
-Run `omega build.omg` from this directory.
-Explicit selection needs `--build-input main.omg --build-input build.omg
---build-input asset.txt`; already-required source members cannot be omitted.
-Successful publication contains `files/generated.omg` with the asset's bytes.
+Run this from the fixture directory.
+
+```sh
+omega build --build-input build.omg --build-input main.omg --build-input asset.txt --build-input finish.template build.omg
+```
+
+The completed set contains `files/generated.omg` with the contents of
+`asset.txt`. An invalid declaration in that asset fails in `generated.omg`.

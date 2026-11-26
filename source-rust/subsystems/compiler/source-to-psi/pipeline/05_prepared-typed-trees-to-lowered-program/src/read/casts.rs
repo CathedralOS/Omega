@@ -20,7 +20,9 @@ use semantic_vocabulary::{MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 
 use super::{Program, Slot};
-use crate::body::{DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification, ValueType};
+use crate::body::{
+    DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification, ValueType,
+};
 use crate::{SourceOrigin, Unserved, refuse, reject};
 
 #[derive(Clone, Copy)]
@@ -90,7 +92,33 @@ impl Program<'_> {
         // A represented scalar conversion carries its target and policy separately.
         use numerics::arithmetic::ArithmeticDomain;
         let named = Policy::of_domain(cast.domain);
-        let target = match (self.value_type(id, cast.target_type)?, named) {
+        let target_type = self.value_type(id, cast.target_type)?;
+        if named.is_none()
+            && let Some(quotient) = self.executable_quotient_of(target_type).cloned()
+        {
+            if cast.result_type.is_valid() && self.value_type(id, cast.result_type)? != target_type
+            {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("cast result type"),
+                ));
+            }
+            let operand = self.expression(id, slots, cast.value, Some(quotient.carrier))?;
+            if operand.result != Some(quotient.carrier) {
+                return unserved("quotient construction operand does not match its carrier");
+            }
+            return Ok(Expression {
+                call_context: None,
+                kind: ExpressionKind::Record {
+                    fields: vec![(0, operand)],
+                    erased: Vec::new(),
+                },
+                result: Some(target_type),
+                source,
+            });
+        }
+        let target = match (target_type, named) {
             (
                 ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE),
                 Some(policy),
@@ -112,7 +140,9 @@ impl Program<'_> {
         }
         // An explicit carrier supplies the landing type for an anonymous
         // numeric operand, including the carrier step before a named domain.
-        let landing = target.scalar().filter(|_| self.wholly_anonymous(cast.value));
+        let landing = target
+            .scalar()
+            .filter(|_| self.wholly_anonymous(cast.value));
         let operand = match landing {
             // `as` to a computational integer type lands the complete
             // anonymous operand, fractional intermediates included.
@@ -196,11 +226,11 @@ impl Program<'_> {
                     semantic_vocabulary::ValueId::new(1).expect("fixed predicate formal"),
                     ScalarType::IeeeFloat(from),
                 );
-                let clause =
-                    semantic_vocabulary::ClauseIdentity::float_conversion_roundtrip(source_term, to)
-                        .map_err(|detail| {
-                            refuse(id, Construct::Machine, Unserved::Expression(detail))
-                        })?;
+                let clause = semantic_vocabulary::ClauseIdentity::float_conversion_roundtrip(
+                    source_term,
+                    to,
+                )
+                .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
                 Expression {
                     result: operand.result,
                     kind: ExpressionKind::Establish {
@@ -249,9 +279,10 @@ impl Program<'_> {
                         source: source_term,
                         target: to,
                     }],
-                    stated: terminal_check_tables::program::EstablishedCondition::ExactRepresentation(
-                        format!("the float value is exactly representable in {carrier}"),
-                    ),
+                    stated:
+                        terminal_check_tables::program::EstablishedCondition::ExactRepresentation(
+                            format!("the float value is exactly representable in {carrier}"),
+                        ),
                 },
                 call_context: None,
                 source,
@@ -436,7 +467,8 @@ impl Program<'_> {
             } else {
                 None
             };
-        let operand = self.expression(id, slots, value, landing)?
+        let operand = self
+            .expression(id, slots, value, landing)?
             .with_membership_tests(tests.into_iter().rev());
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let actual = operand
@@ -557,7 +589,13 @@ impl Program<'_> {
             if let CastContext::Body(slots) = context {
                 // The run is read from its outermost entry back to its
                 // operand. Restore source order when wrapping that operand.
-                for test in self.typed.expression_table.executable_domain_tests(handle).iter().rev() {
+                for test in self
+                    .typed
+                    .expression_table
+                    .executable_domain_tests(handle)
+                    .iter()
+                    .rev()
+                {
                     if let Some(question) = self.require_membership_carrier(id, slots, *test)? {
                         tests.push(question);
                     }
@@ -932,7 +970,9 @@ impl Program<'_> {
                 let refusal = refuse(
                     id,
                     Construct::Machine,
-                    Unserved::Expression("cast that adds a domain whose issuers are in an access plan"),
+                    Unserved::Expression(
+                        "cast that adds a domain whose issuers are in an access plan",
+                    ),
                 )
                 .with_source_span(source.span());
                 return Err(explain_policy_refusal(policy, refusal));

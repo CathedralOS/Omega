@@ -78,6 +78,7 @@ fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Re
     )
     .unwrap();
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("kit").unwrap(),
         source: BuildDependencySource::Path(library.into()),
     }];
@@ -209,23 +210,26 @@ fn a_query_issued_by_a_generated_build_helper_keeps_its_source() {
     )
     .unwrap();
     let root = project.path();
+    std::fs::write(root.join("build.omg"), r#"use {omega}/build/dependency.omg;
+machine build(plan: @mutable BuildPlan) {
+    let mutable kit: DependencyDescription = |dependency|::from_source(Source::Path { location: "vendor" });
+    |dependency|::with_alias(@mutable kit, "kit");
+    _ = |dependency|::add(plan, kit);
+    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+}"#).unwrap();
     let kit = root.join("vendor");
     std::fs::create_dir(&kit).unwrap();
-    let generated = r#"public machine select(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
+    let generator = support::repository_root().join("source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_source_generated_constant/build.omg");
+    std::fs::copy(generator, kit.join("build.omg")).unwrap();
+    std::fs::write(
+        kit.join("asset.txt"),
+        r#"public machine select(builder: @mutable BuildPlan, slot: @[u8]) -> ProductEntryRef {
     BuildDeclarations::entry(@builder.declarations, "launch", slot)
-}
-"#;
-    let fixture = support::repository_root().join("source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_source_generated_constant/build.omg");
-    let generator = std::fs::read_to_string(fixture)
-        .unwrap()
-        .replace(
-            "Build::application(builder, \"captured_source_generated_constant\");",
-            "Build::package(builder, \"kit\");",
-        )
-        .replace("    Build::artifact_only(builder);", "")
-        .replace("31", &generated.len().to_string());
-    std::fs::write(kit.join("build.omg"), generator).unwrap();
-    std::fs::write(kit.join("asset.txt"), generated).unwrap();
+}"#,
+    ).unwrap();
+    std::fs::write(kit.join("finish.template"), r#"machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "kit" };
+}"#).unwrap();
     std::fs::write(kit.join("main.omg"), "public machine launch() {}").unwrap();
     std::fs::write(
         root.join("main.omg"),
@@ -236,15 +240,30 @@ machine launch() crashes Trap { crash Trap; }",
     .unwrap();
     let build = r#"use {kit}/generated.omg as selector;
 use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) suspends {
-    Build::application(builder, "generated_query");
+machine build(builder: @mutable BuildPlan) suspends {
+    builder.product = BuildProduct::Application { name: "generated_query" };
     let mutable product_request: DependencyDescription = |dependency|::from_source(Source::Path { location: "vendor" });
     |dependency|::with_alias(@mutable product_request, "kit");
-    let for_product: DependencyRegistration = Build::dependency(builder, product_request);
+    let for_product: DependencyRegistration = |dependency|::add(builder, product_request);
     suspend Build::prepare_dependency(builder, for_product);
     Build::bind(builder, HOST::ProgramEntry, |selector|::select(builder, "HOST::ProgramEntry"));
 }
 "#.replace("HOST", target.target_name());
-    std::fs::write(root.join("build.omg"), build).unwrap();
-    run_with_kit(root, "vendor", target).unwrap();
+    std::fs::write(root.join("configure.omg"), build).unwrap();
+    for engine in ["native", "psi"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["run", "--engine", engine, "--outputs", engine, "build.omg"])
+            .current_dir(root)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let observations = root.join(engine);
+        let result = std::fs::read_to_string(observations.join("termination.tsv")).unwrap();
+        if engine == "psi" {
+            assert_eq!(result, "psi\treturn\n");
+        } else {
+            assert!(result.starts_with("native\texit\t0\t"), "{result}");
+        }
+    }
 }

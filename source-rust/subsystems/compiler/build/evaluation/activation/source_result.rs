@@ -29,13 +29,13 @@ impl<'result> BuildSourceResult<'result> {
         self.returned.requests.iter().map(|issued| issued.request())
     }
 
-    pub fn frozen_dependencies(
+    pub fn dependency_backings(
         &self,
     ) -> std::collections::BTreeMap<
         (build_declarations::DependencyPurpose, usize),
-        crate::host::requests::FrozenBuildBinding,
+        super::source_join::DependencyBacking,
     > {
-        self.returned.frozen_dependencies()
+        self.returned.dependency_backings()
     }
 
     pub fn source_requests(&self) -> impl Iterator<Item = &BuildRequest> {

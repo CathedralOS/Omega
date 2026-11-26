@@ -332,6 +332,7 @@ fn lower_records(
     bodies.push(body);
     let boundary_signatures = crate::declare::boundaries::BoundaryNamespace::default();
     let signatures = crate::body::Signatures {
+        inferred_inputs: None,
         theorems: &[],
         declarations: &IdTable::default(),
         declaration_aliases: None,
@@ -1985,12 +1986,14 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         let table = outcomes(
             &bodies,
             crate::body::Signatures {
+                inferred_inputs: None,
                 theorems: &[],
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
                 boundaries: &crate::declare::boundaries::BoundaryNamespace::default(),
             },
+            &[],
             &[],
             &crate::callables::CallableNamespace::default(),
             None,
@@ -2049,12 +2052,14 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
         outcomes(
             &bodies,
             crate::body::Signatures {
+                inferred_inputs: None,
                 theorems: &[],
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
                 boundaries: &crate::declare::boundaries::BoundaryNamespace::default(),
             },
+            &[],
             &[],
             &crate::callables::CallableNamespace::default(),
             None,
@@ -2127,12 +2132,14 @@ fn a_skipped_operand_cannot_end_the_machine() {
     let table = outcomes(
         &bodies,
         crate::body::Signatures {
+            inferred_inputs: None,
             theorems: &[],
             declarations: &IdTable::default(),
             declaration_aliases: None,
             machines: &signatures,
             boundaries: &crate::declare::boundaries::BoundaryNamespace::default(),
         },
+        &[],
         &[],
         &crate::callables::CallableNamespace::default(),
         None,
@@ -2222,6 +2229,7 @@ fn settle_both(
         });
     }
     let signatures = crate::body::Signatures {
+        inferred_inputs: None,
         theorems: &[],
         declarations: &IdTable::default(),
         declaration_aliases: None,
@@ -2588,12 +2596,13 @@ fn lower_places(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, Mac
 fn projected(tables: &MachineTables, root: PlaceId, fields: &[u64]) -> ExactPlaceId {
     let mut place = *tables.roots.get(root).unwrap();
     for field in fields {
-        let children = &tables.places.get(place).unwrap().children;
         let segment = Segment::Field(id::<StructuralFieldId>(*field));
-        let found = children
-            .binary_search_by_key(&segment, |(segment, _)| *segment)
+        place = tables
+            .places
+            .get(place)
+            .unwrap()
+            .child(&tables.places, segment)
             .unwrap();
-        place = children[found].1;
     }
     place
 }
@@ -2601,16 +2610,10 @@ fn projected(tables: &MachineTables, root: PlaceId, fields: &[u64]) -> ExactPlac
 /// Every write to `place`, as its content and the operation it follows.
 fn written(tables: &MachineTables, place: ExactPlaceId) -> Vec<(Content, ProgramPoint)> {
     tables
-        .places
-        .get(place)
-        .unwrap()
         .writes
-        .iter()
-        .map(|write| {
-            let row = tables.writes.get(*write).unwrap();
-            assert_eq!(row.place, place);
-            (row.content, row.at)
-        })
+        .values()
+        .filter(|write| write.place == place)
+        .map(|write| (write.content, write.at))
         .collect()
 }
 
@@ -2877,7 +2880,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
             written(&tables, root(copy)),
             [(Content::Overwritten, after(position))]
         );
-        for (_, leaf) in &tables.places.get(root(copy)).unwrap().children {
+        for leaf in &tables.places.get(root(copy)).unwrap().children {
             assert!(written(&tables, *leaf).is_empty());
         }
     }
@@ -3521,9 +3524,8 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
             .places
             .get(p_root)
             .unwrap()
-            .children
-            .iter()
-            .all(|(segment, _)| *segment != Segment::Field(id(2)))
+            .child(&tables.places, Segment::Field(id(2)))
+            .is_none()
     );
     // Each use of `x` is a fresh read of its home, and the store into `p.x`
     // records that read's value independently of the whole zero establishment.
@@ -3671,11 +3673,12 @@ fn lower_sums(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, Machi
 fn projected_by(tables: &MachineTables, root: PlaceId, segments: &[Segment]) -> ExactPlaceId {
     let mut place = *tables.roots.get(root).unwrap();
     for segment in segments {
-        let children = &tables.places.get(place).unwrap().children;
-        let found = children
-            .binary_search_by_key(segment, |(segment, _)| *segment)
+        place = tables
+            .places
+            .get(place)
+            .unwrap()
+            .child(&tables.places, *segment)
             .unwrap();
-        place = children[found].1;
     }
     place
 }
@@ -3988,17 +3991,9 @@ fn a_case_test_observes_the_sum_in_place_and_a_payload_read_ends_its_carrier_in_
         weighs(),
     );
     let input = tables.roots.get(id(1)).unwrap();
-    let children = &tables.places.get(*input).unwrap().children;
-    assert!(
-        children
-            .iter()
-            .any(|(segment, _)| *segment == case_segment(1))
-    );
-    assert!(
-        children
-            .iter()
-            .all(|(segment, _)| *segment != case_segment(4))
-    );
+    let input = tables.places.get(*input).unwrap();
+    assert!(input.child(&tables.places, case_segment(1)).is_some());
+    assert!(input.child(&tables.places, case_segment(4)).is_none());
     let [test] = block(&machine, 1).operations.as_slice() else {
         panic!("one operation");
     };

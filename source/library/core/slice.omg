@@ -1,11 +1,6 @@
-// Checked slice helpers retain bounds, extent and the original backing loan.
-// Index and range syntax uses the compiler catalog's collection operations;
-// importing this module neither replaces those operations nor selects a provider.
-use omega\language\core\slice_views;
-
 public machine slice_index<Element [copy]>(items: @[Element], index: u64) -> Element
 requires index < items.length {
-    slice_views\element::<Element>(items, index)
+    items[index]
 }
 
 public machine slice_range<'backing, Element>(
@@ -13,59 +8,5 @@ public machine slice_range<'backing, Element>(
 ) -> @'backing [Element]
 requires start <= end && end <= items.length
 ensures result.length == end - start {
-    slice_views\subslice::<Element>(items, start, end)
-}
-
-// The remaining named views share one boundary trait. A selected implementation
-// must supply its complete row set; the slice stays an ordinary explicit argument.
-boundary trait SliceAccess {
-    machine Length<T>(items: @[T]) -> u64 reaches none crashes none;
-
-    machine index_mut<T>(items: @mutable [T], index: u64) -> @mutable T
-    reaches none
-    requires
-        index < items.length
-    crashes none;
-
-    machine tail<T>(items: @[T]) -> @[T]
-    reaches none
-    requires
-        items.length > 0
-    crashes none;
-
-    machine tail_mut<T>(items: @mutable [T]) -> @mutable [T]
-    reaches none
-    requires
-        items.length > 0
-    crashes none;
-
-    machine from<T>(items: @[T], start: u64) -> @[T]
-    reaches none
-    requires
-        start <= items.length
-    crashes none;
-
-    machine from_mut<T>(items: @mutable [T], start: u64) -> @mutable [T]
-    reaches none
-    requires
-        start <= items.length
-    crashes none;
-
-    machine to<T>(items: @[T], end: u64) -> @[T]
-    reaches none
-    requires
-        end <= items.length
-    crashes none;
-
-    machine to_mut<T>(items: @mutable [T], end: u64) -> @mutable [T]
-    reaches none
-    requires
-        end <= items.length
-    crashes none;
-
-    machine range_mut<T>(items: @mutable [T], start: u64, end: u64) -> @mutable [T]
-    reaches none
-    requires
-        start <= end && end <= items.length
-    crashes none;
+    @items[start..end]
 }

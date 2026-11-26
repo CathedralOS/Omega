@@ -12,9 +12,6 @@ use terminal_semantics::closed_owned_sequence_bounds;
 pub fn derive_native_scope(
     binding: NativeScopeBinding<'_>,
 ) -> Result<NativeExecutionScope, Vec<diagnostics::Diagnostic>> {
-    let assumptions = binding
-        .assumed_bindings()
-        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     let reach = TargetReach::derive(ScopeInputs {
         artifact: binding.artifact(),
         entry: binding.entry(),
@@ -22,7 +19,6 @@ pub fn derive_native_scope(
             .entry_call()
             .map(|call| (call.boundary(), call.entry())),
         adapters: binding.local_adapters(),
-        assumptions: &assumptions,
         callbacks: binding.callbacks(),
     })
     .map_err(|reason| vec![diagnostics::Diagnostic::error(reason.to_string())])?;
@@ -37,7 +33,6 @@ struct ScopeInputs<'a> {
     entry: MachineId,
     entry_call: Option<(BoundaryMachineId, MachineId)>,
     adapters: &'a [SelectedProviderAdapter],
-    assumptions: &'a [(BoundaryMachineId, BoundaryMachineId)],
     callbacks: &'a [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
 }
 
@@ -110,7 +105,6 @@ impl TargetReach {
             entry,
             entry_call,
             adapters: selected,
-            assumptions,
             callbacks,
         } = input;
         let module = artifact.module();
@@ -257,7 +251,6 @@ impl TargetReach {
                             index.retain_boundary(
                                 module,
                                 entry_call,
-                                assumptions,
                                 &function_positions,
                                 *boundary,
                                 &mut pending,
@@ -282,7 +275,6 @@ impl TargetReach {
                     index.retain_boundary(
                         module,
                         entry_call,
-                        assumptions,
                         &function_positions,
                         boundary,
                         &mut pending,
@@ -316,7 +308,6 @@ impl ScopeBoundaryIndex<'_> {
         &mut self,
         module: &TerminalModule,
         entry_call: Option<(BoundaryMachineId, MachineId)>,
-        assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
         function_positions: &[(MachineId, usize)],
         boundary: BoundaryMachineId,
         pending: &mut Vec<MachineId>,
@@ -331,19 +322,6 @@ impl ScopeBoundaryIndex<'_> {
         if let Some(entry) = entry_call.filter(|(required, _)| *required == boundary) {
             pending.push(entry.1);
             return Ok(());
-        }
-        if let Some((_, supplied)) = assumptions
-            .iter()
-            .find(|(required, _)| *required == boundary)
-        {
-            return self.retain_boundary(
-                module,
-                entry_call,
-                assumptions,
-                function_positions,
-                *supplied,
-                pending,
-            );
         }
         let Some(candidates) = self.candidates_by_boundary.get(&boundary) else {
             return Ok(());

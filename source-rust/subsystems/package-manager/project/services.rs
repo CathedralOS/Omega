@@ -4,7 +4,9 @@ use crate::PackageCommandError;
 use crate::resolution::source::{AcquiredBuildSource, AcquiredSourceSelection};
 use build_declarations::{BuildRequest, DependencyPurpose};
 use build_execution::host::bindings::BuildProductQuery;
-use build_execution::host::requests::{BuildDependencyPreparation, IssuedBuildRequest};
+use build_execution::host::requests::{
+    BuildDependencyPreparation, BuildValidationRequest, IssuedBuildRequest,
+};
 use build_execution::{CompileFailure, TerminalBuildActivation};
 use diagnostics::Diagnostic;
 use package_compilation::source_imports::ProductQueryDependency;
@@ -66,9 +68,18 @@ impl SourceServices<'_, '_, '_> {
         if let Some(request) = self.requests.get(&(purpose, ordinal)) {
             return Ok(request.settled);
         }
-        let frozen = issued.iter().filter(|issued| matches!(issued.request(), BuildRequest::Dependency {purpose: registered, ..} if *registered == purpose)).nth(ordinal)
+        let issued_request = issued.iter().filter(|issued| matches!(issued.request(), BuildRequest::Dependency {purpose: registered, ..} if *registered == purpose)).nth(ordinal);
+        let programs = issued_request
+            .map(IssuedBuildRequest::delegated_programs)
+            .unwrap_or_default();
+        let frozen = issued_request
             .and_then(IssuedBuildRequest::forwarded)
-            .map(|binding| self.host.frozen_library(binding.library()).map(|index| self.host.settled[index].source.clone())).transpose()?;
+            .map(|binding| {
+                self.host
+                    .frozen_library(binding.library())
+                    .map(|index| self.host.settled[index].source.clone())
+            })
+            .transpose()?;
         let selected = self
             .host
             .acquisitions
@@ -86,7 +97,7 @@ impl SourceServices<'_, '_, '_> {
                 self.host.select_workspace(workspace).map_err(failure)?
             }
         };
-        let index = self.host.settle_dependency(&child)?;
+        let index = self.host.settle_dependency(&child, purpose, programs)?;
         self.requests.insert(
             (purpose, ordinal),
             PreparedRequest {
@@ -165,7 +176,7 @@ impl SourceHost<'_, '_> {
         let requests: Vec<_> = libraries
             .iter()
             .map(|library| BuildRequest::Dependency {
-                max_reach: Default::default(),
+                max_reach: library.max_reach.clone(),
                 purpose: DependencyPurpose::Build,
                 alias: Some(library.alias.clone()),
                 source: library.source.clone(),
@@ -185,19 +196,24 @@ impl SourceHost<'_, '_> {
                     self.select_workspace(workspace)?
                 }
             };
-            let index = self.settle_dependency(&child)?;
+            let index = self.settle_dependency(&child, DependencyPurpose::Build, &[])?;
             let input = self.library_input(
                 &self.settled[index],
                 DependencyPurpose::Build,
                 library.alias.as_str().to_owned(),
-                Default::default(),
+                library.max_reach.clone(),
             )?;
             supplied.push(SuppliedBuildLibrary::new(library.source.clone(), input)?);
         }
         Ok(supplied)
     }
 
-    fn settle_dependency(&mut self, child: &AcquiredBuildSource) -> Result<usize, CompileFailure> {
+    fn settle_dependency(
+        &mut self,
+        child: &AcquiredBuildSource,
+        purpose: DependencyPurpose,
+        programs: &[package_compilation::DelegatedProgram],
+    ) -> Result<usize, CompileFailure> {
         self.acquisitions
             .admit_build_descent(&self.active, child)
             .map_err(refused)?;
@@ -209,9 +225,16 @@ impl SourceHost<'_, '_> {
             child
                 .verify_reused_capture(&self.settled[i].source)
                 .map_err(refused)?;
+            super::require_programs(&self.settled[i].required_programs, programs)
+                .map_err(refused)?;
             return Ok(i);
         }
-        let stage = self.member_or_execute(child).map_err(failure)?.stage;
+        let executed = self
+            .member_or_execute(child, purpose, programs)
+            .map_err(failure)?;
+        let child = &executed.receiving;
+        let stage = executed.stage;
+        let required_programs = stage.used_programs();
         let declared = child.declare_build(stage.returned()).map_err(refused)?;
         declared.require_dependency().map_err(refused)?;
         let resolved = self.join(child.clone(), stage).map_err(failure)?;
@@ -221,6 +244,7 @@ impl SourceHost<'_, '_> {
         let i = self.settled.len();
         self.settled.push(SettledSource {
             source: child.clone(),
+            required_programs,
             declaration: declared,
             build: settled,
             graph: resolved.sources,
@@ -243,13 +267,19 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
     fn validation_subject(
         &mut self,
         issued: &[IssuedBuildRequest],
-        purpose: DependencyPurpose,
-        ordinal: usize,
+        request: &BuildValidationRequest,
     ) -> Result<build_execution::DependencyValidationSubject, CompileFailure> {
-        let index = self.dependency(issued, purpose, ordinal)?;
+        let index = match request {
+            BuildValidationRequest::Registered { purpose, ordinal } => {
+                self.dependency(issued, *purpose, *ordinal)?
+            }
+            BuildValidationRequest::Incoming(binding) => {
+                self.host.frozen_library(binding.library())?
+            }
+        };
         let build = &self.host.settled[index].build;
         Ok(build_execution::DependencyValidationSubject {
-            purpose,
+            purpose: request.purpose(),
             inputs: build.inputs().clone(),
             configuration: std::sync::Arc::clone(&build.evaluated().configuration),
         })

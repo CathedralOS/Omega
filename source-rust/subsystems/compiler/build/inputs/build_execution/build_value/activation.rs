@@ -68,6 +68,8 @@ pub(super) fn admit_toolchain_build_activation(
         "BuildProduct",
         std::slice::from_ref(storage),
     )?;
+    require_toolchain_field(typed, build, "package_root", "BuildPackageRoot", &[])?;
+    require_toolchain_field(typed, build, "directories", "BuildDirectories", &[])?;
     let mut seals = typed
         .data_members(build)
         .iter()
@@ -176,9 +178,13 @@ public trait AccessPolicy { machine plan() -> u64; }
 public data BuildSeal { }
 BuildSealAccess satisfies AccessPolicy { machine plan() -> u64 { 0u64 } }
 public domain BuildSeal::Issued access BuildSealAccess;
+public data BuildPackageRoot { case Current; }
+public data BuildDirectories [copy] {}
 public data BuildProduct<'storage> { case Unselected; case Package(name: @'storage [u8]); }
 public data BuildPlan<'storage> {
     product: BuildProduct<'storage>;
+    package_root: BuildPackageRoot;
+    directories: BuildDirectories;
     seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
     optimizations: Optimizations;

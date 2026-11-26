@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Conway's Game of Life on a 4x4 flat grid ([i32; 16], row-major).
 //
 // Seed pattern: 2x2 Block (still-life) at rows 1-2, cols 1-2:
@@ -38,7 +38,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 // Whether every cell is dead (0) or alive (1), one state per cell.
 machine cells_valid(cells: @[i32; 16]) -> bool {
@@ -722,8 +721,8 @@ machine checksum(context: @mutable Main) -> i32 {
     }
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("game_of_life: one generation of a 2x2 still-life block on a 4x4 grid");
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("game_of_life: one generation of a 2x2 still-life block on a 4x4 grid");
     // Seed the board with the 2x2 block still-life.
     init_board(context);
 
@@ -740,22 +739,22 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
     }
 
     machine good(context: @mutable Main) {
-        Console::write_line("PASS: block still-life preserved, checksum 4 (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable context.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: block still-life preserved, checksum 4 (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable context.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 
     machine bad(context: @mutable Main) {
-        Console::write_line("FAIL: wrong checksum after one generation (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable context.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: wrong checksum after one generation (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable context.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

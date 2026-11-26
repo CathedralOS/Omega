@@ -4,7 +4,7 @@
 
 use crate::error::{too_many_bytes, too_many_files};
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::git::objects::{AuthenticatedGitTreeInspection, GitTreeEntry, GitTreeEntryKind};
 use crate::git::workspace::{GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits};
 use crate::{LocalSourceLimits, SourceRelativePath, SourceResolveError};

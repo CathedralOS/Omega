@@ -1,9 +1,8 @@
 // Toolchain-provided build vocabulary.
-use omega\language\core\AccessPolicy;
-use omega\language\core\AccessPlan;
-use omega\language\core\reflect\TypeSchema;
-use omega\language\core\Issuance;
-use omega\language\core\access;
+use {omega}/language/core/access/access.omg;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/reflect/reflect.omg;
+
 public data Subsystem {
     case Console;
     case Gui;

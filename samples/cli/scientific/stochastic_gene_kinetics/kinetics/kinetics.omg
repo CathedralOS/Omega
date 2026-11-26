@@ -1,7 +1,7 @@
 // Direct-method continuous-time Markov chain. Both independent uniforms are
 // generated from the same explicit Park–Miller stream. The 64-bit product is
 // at most 36,089,477,735,730, well below u64 overflow.
-use omega\language\core\F64::from_u64;
+use {omega}/language/core/float_operations.omg;
 public data Model {
     seed: u64; time: f64; x: u64; y: u64; events: u64; budget: u64;
     birth: f64; translation: f64; decay_x: f64; decay_y: f64;
@@ -12,7 +12,7 @@ public machine draw(model: @mutable Model) -> f64 {
     model.seed = (product as u64) % 2147483647;
     transition { _ -> uniform(model.seed) }
     machine uniform(value: u64) -> f64 {
-        let converted: f64 = F64::from_u64(value);
+        let converted: f64 = |float_operations|::F64::from_u64(value);
         transition { _ -> (converted / 2147483647.0) }
     }
 }
@@ -45,8 +45,8 @@ public machine natural_log(value: f64) -> f64 {
 // status: 0 running, 1 horizon reached, 2 budget exhausted, 3 population
 // overflow. A pending event is tested before consuming the budget.
 public machine advance(model: @mutable Model) {
-    let x_float: f64 = F64::from_u64(model.x);
-    let y_float: f64 = F64::from_u64(model.y);
+    let x_float: f64 = |float_operations|::F64::from_u64(model.x);
+    let y_float: f64 = |float_operations|::F64::from_u64(model.y);
     let transcription: f64 = model.birth;
     let translation: f64 = model.translation * x_float;
     let x_death: f64 = model.decay_x * x_float;

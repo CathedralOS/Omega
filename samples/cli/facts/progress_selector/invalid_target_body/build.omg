@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "progress_selector_through_target_body");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "progress_selector_through_target_body" };
     Build::accept_boundary::<Grants>(builder);
     Build::accept_boundary::<SelectedProgress>(builder);
     Build::select_provider::<Grants, Provider>(builder, linux_arm64);

@@ -2,7 +2,7 @@
 
 Two pinned surfaces:
 
-- Required outputs are not artifact-only: a plain `Build::application`
+- Required outputs are not artifact-only: an application Build
   completes the full `require` → `resolve` → `create` → `write` →
   `close` → `complete` custody loop for `manifest.txt`.
 - `BuildInputs::get(@builder.inputs, name)` returns a `BuildSource`

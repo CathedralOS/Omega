@@ -1,9 +1,8 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use omega\language\core\abs_f64;
-use omega\language\core\max_f64;
-use omega\language\core\F64::square_root;
-use system\Console;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 // Expected exit: 0
 // Expected output contains: pair contact root 2 impulse 1.5
@@ -30,7 +29,7 @@ machine contact(a: Disk, b: Disk) -> Contact {
         _ -> absent()
     }
     machine root(a: Disk, b: Disk, speed: f64, radial: f64, discriminant: f64, vx: f64) -> Contact {
-        let time: f64 = (0.0 - radial - F64::square_root(discriminant)) / speed;
+        let time: f64 = (0.0 - radial - |float_operations|::F64::square_root(discriminant)) / speed;
         transition time >= -0.000000001 { true -> impulse(a, b, time, vx), _ -> absent() }
     }
     machine impulse(a: Disk, b: Disk, time: f64, vx: f64) -> Contact {
@@ -39,34 +38,34 @@ machine contact(a: Disk, b: Disk) -> Contact {
         // the unit-normal rate is `vx` itself while the disks stay colinear.
         let inverse: f64 = 1.0 / a.mass + 1.0 / b.mass;
         let magnitude: f64 = (0.0 - (1.0 + 1.0) * vx) / inverse;
-        Contact { time: max_f64(0.0, time), impulse: magnitude }
+        Contact { time: |math|::max_f64(0.0, time), impulse: magnitude }
     }
     machine absent() -> Contact { Contact { time: 100.0, impulse: 0.0 } }
 }
 
 data Main { hit: Contact; }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let left: Disk = Disk { x: 0.0, vx: 1.0, radius: 1.0, mass: 1.0 };
     let right: Disk = Disk { x: 4.0, vx: 0.0, radius: 1.0, mass: 3.0 };
     main.hit = contact(left, right);
-    transition abs_f64(main.hit.time - 2.0) <= 0.000000001
-        && abs_f64(main.hit.impulse - 1.5) <= 0.000000001 {
+    transition |math|::abs_f64(main.hit.time - 2.0) <= 0.000000001
+        && |math|::abs_f64(main.hit.impulse - 1.5) <= 0.000000001 {
         true -> report(main),
         _ -> failed(main)
     }
     machine report(main: @mutable Main) {
-        Console::write_line("pair contact root 2 impulse 1.5");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("pair contact root 2 impulse 1.5");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine failed(main: @mutable Main) {
-        Console::write_line("pair contact root mismatch");
-        ProcessExit::exit_process(4);
+        |console|::Console::write_line("pair contact root mismatch");
+        |process_exit|::ProcessExit::exit_process(4);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

@@ -20,39 +20,6 @@ pub struct DirectBoundaryLeaf {
     pub execution: DirectBoundaryExecution, // Preserves exact refusal until executable demand activates this row.
 }
 
-/// An authored native grant whose complete checked contract and selected
-/// locator have been validated against the receiving Terminal module.
-#[derive(Debug, Clone)]
-pub struct NativeRequirementTrust {
-    grant: symbols::root_grants::AuthoredRootGrant,
-    commitment: String,
-    contract: [u8; 32],
-    plan: provider_plans::ProviderPlanDigest,
-    report_identity: u64,
-}
-
-impl NativeRequirementTrust {
-    pub fn matches_grant(&self, grant: &symbols::root_grants::AuthoredRootGrant) -> bool {
-        self.grant == *grant
-    }
-
-    pub fn commitment(&self) -> &str {
-        &self.commitment
-    }
-
-    pub fn contract(&self) -> &[u8; 32] {
-        &self.contract
-    }
-
-    pub fn plan(&self) -> provider_plans::ProviderPlanDigest {
-        self.plan
-    }
-
-    pub fn report_identity(&self) -> u64 {
-        self.report_identity
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DirectBoundaryExecution {
     Foreign(Result<calling_conventions::ExternalBindingRow, Vec<diagnostics::Diagnostic>>),
@@ -63,7 +30,6 @@ impl DirectBoundaryLeaf {
     pub fn matches_any_requirement(&self, requirements: &std::collections::BTreeSet<&str>) -> bool {
         self.plan.rows.iter().any(|row| requirements.contains(self.plan.identities.text(row.requirement_identity)))
     }
-
 
     /// Keep the closed callable tied to its original method and complete ABI
     /// instance. Sharing a template or physical signature is insufficient.
@@ -130,12 +96,12 @@ impl DirectBoundaryLeaf {
 
     /// Plain requirements owe their own full checked contract and a completed
     /// Build locator. No external conformance substitutes for this association.
-    pub fn validate_plain_execution<'module>(
-        &self,
-        module: &'module terminal_psi::TerminalModule,
-        evaluated: &[provider_plans::EvaluatedNativeBinding],
-        identities: &terminal_psi::TerminalIdentityTable,
-    ) -> Result<&'module terminal_psi::BoundaryMachineDeclaration, String> {
+    pub fn validate_plain_execution<'binding>(
+        &'binding self,
+        module: &terminal_psi::TerminalModule,
+        evaluated: &'binding [provider_plans::EvaluatedNativeBinding],
+        identities: &'binding terminal_psi::TerminalIdentityTable,
+    ) -> Result<native_binding_admission::NativeBindingInput<'binding>, String> {
         let boundary = self.bound_calling_declaration(module)?;
         let DirectBoundaryExecution::Foreign(Ok(binding)) = &self.execution else {
             return Err("plain requirement has no completed foreign execution".into());
@@ -178,67 +144,22 @@ impl DirectBoundaryLeaf {
                 provider_plans::EvaluatedNativeBinding::Syscall(syscall),
                 calling_conventions::ExternalBindingKind::Syscall { number },
             ) if syscall.number() == *number => {}
+            (provider_plans::EvaluatedNativeBinding::FunctionField(field), calling_conventions::ExternalBindingKind::FunctionField(candidate))
+                if *candidate == native_binding_admission::resolve_function_field(module, boundary, field)? => {}
             _ => return Err("plain binding changes its normalized execution mechanism".into()),
         }
-        Ok(boundary)
-    }
-
-    pub fn prepare_native_trust(
-        &self,
-        grant: &symbols::root_grants::AuthoredRootGrant,
-        target: Option<&str>,
-        module: &terminal_psi::TerminalModule,
-        evaluated: &[provider_plans::EvaluatedNativeBinding],
-        identities: &terminal_psi::TerminalIdentityTable,
-    ) -> Result<NativeRequirementTrust, String> {
-        use symbols::root_grants::RootGrantSubject;
-        let RootGrantSubject::BoundaryRequirement {
-            declaration,
-            callable,
-        } = &grant.subject
-        else {
-            return Err("root native grant has another subject kind".into());
-        };
-        if self.declaration_identity != *declaration || self.callable_identity != *callable {
-            return Err(
-                "root native grant changes its exact declaration or callable application".into(),
-            );
-        }
-        if Some(self.plan.target.as_str()) != target {
-            return Err("root native grant changes its selected deployment target".into());
-        }
-        if self.plan.origin_package_identity != grant.subject_package {
-            return Err("root native grant changes its binding's package ownership".into());
-        }
-        let boundary = self.validate_plain_execution(module, evaluated, identities)?;
-        let contract = boundary
-            .declaration
-            .as_ref()
-            .ok_or("root native grant lost its checked requirement contract")?
-            .source
-            .contract;
-        if contract == [0; 32] {
-            return Err("native trust requires the complete checked requirement contract".into());
-        }
-        Ok(NativeRequirementTrust {
-            grant: grant.clone(),
-            commitment: format!(
-                "native requirement: {declaration} {callable} on {}",
-                self.plan.target
-            ),
-            contract,
-            plan: self.plan.identity_digest(),
-            report_identity: self.plan.report_fingerprint(),
+        Ok(native_binding_admission::NativeBindingInput {
+            boundary: boundary.id,
+            binding: receipt,
+            identities,
+            schema: &self.satisfied_schema,
         })
     }
 
-    /// Bind the projected callable to its exact receiving declaration before
-    /// deriving any schema-keyed permission or executable realization.
-    /// A retained but unused source declaration may be absent from this module.
-    pub fn bind_to_terminal(
-        &mut self,
-        module: &terminal_psi::TerminalModule,
-    ) -> Result<bool, String> {
+    pub fn receiving_declaration<'module>(
+        &self,
+        module: &'module terminal_psi::TerminalModule,
+    ) -> Result<Option<&'module terminal_psi::BoundaryMachineDeclaration>, String> {
         let mut declarations = module.interfaces.boundary_machines.iter().filter(|boundary| {
             boundary.declaration.as_ref().is_some_and(|declaration| {
                 module.identities.text(
@@ -254,12 +175,23 @@ impl DirectBoundaryLeaf {
                         == Some(self.callable_identity.as_str())
             })
         });
-        let Some(boundary) = declarations.next() else {
-            return Ok(false);
-        };
+        let boundary = declarations.next();
         if declarations.next().is_some() {
             return Err("direct boundary leaf has multiple exact Terminal declarations".into());
         }
+        Ok(boundary)
+    }
+
+    /// Bind the projected callable to its exact receiving declaration before
+    /// deriving any schema-keyed permission or executable realization.
+    /// A retained but unused source declaration may be absent from this module.
+    pub fn bind_to_terminal(
+        &mut self,
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<bool, String> {
+        let Some(boundary) = self.receiving_declaration(module)? else {
+            return Ok(false);
+        };
         self.validate_calling_custody()?;
         let identity = module
             .identities
@@ -547,83 +479,5 @@ impl DirectBoundaryLeaf {
             }
         }
         Ok(boundary)
-    }
-}
-
-#[cfg(test)]
-mod native_trust_tests {
-    use super::{DirectBoundaryExecution, DirectBoundaryLeaf};
-    use symbols::root_grants::{AuthoredRootGrant, RootGrantSubject};
-
-    #[test]
-    fn native_grant_preparation_requires_the_exact_subject_target_and_owner() {
-        let owner = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap();
-        let other = semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap();
-        let leaf = DirectBoundaryLeaf {
-            declaration_identity: "root::allocate".into(),
-            callable_identity: "root::allocate<u32>".into(),
-            satisfied_schema: Default::default(),
-            plan: provider_plans::ProviderPlan {
-                target: "macos_arm64".into(),
-                origin_package_identity: Some(owner),
-                ..Default::default()
-            },
-            satisfied_requirement_identity: "root::allocate".into(),
-            target_realization: None,
-            execution: DirectBoundaryExecution::Foreign(Err(Vec::new())),
-        };
-        let grant = AuthoredRootGrant {
-            selector: "allocate<u32>".into(),
-            subject: RootGrantSubject::BoundaryRequirement {
-                declaration: leaf.declaration_identity.clone(),
-                callable: leaf.callable_identity.clone(),
-            },
-            subject_package: Some(owner),
-            selecting_machine: Default::default(),
-            source_span: Default::default(),
-        };
-        let mut changed_application = grant.clone();
-        let RootGrantSubject::BoundaryRequirement { callable, .. } =
-            &mut changed_application.subject
-        else {
-            unreachable!()
-        };
-        *callable = "root::allocate<u64>".into();
-        let mut changed_owner = grant.clone();
-        changed_owner.subject_package = Some(other);
-        let module = terminal_psi::TerminalModule::declarations();
-        let identities = terminal_psi::TerminalIdentityTable::default();
-        let observed = [
-            (
-                "application",
-                changed_application,
-                "macos_arm64",
-                "changes its exact declaration or callable application",
-            ),
-            (
-                "target",
-                grant,
-                "linux_arm64",
-                "changes its selected deployment target",
-            ),
-            (
-                "owner",
-                changed_owner,
-                "macos_arm64",
-                "changes its binding's package ownership",
-            ),
-        ]
-        .map(|(name, grant, target, expected)| {
-            let error = leaf
-                .prepare_native_trust(&grant, Some(target), &module, &[], &identities)
-                .unwrap_err();
-            (name, error, expected)
-        });
-        for (name, error, _) in &observed {
-            eprintln!("{name}: {error}");
-        }
-        for (name, error, expected) in observed {
-            assert!(error.contains(expected), "{name}: {error}");
-        }
     }
 }

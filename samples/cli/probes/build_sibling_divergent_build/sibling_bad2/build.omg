@@ -2,7 +2,7 @@
 // source calls a machine that does not exist — a checked-compilation
 // failure inside the dep's own build file rather than an eval failure.
 
-machine build(builder: @mutable Build) {
-    Build::package(builder, "sibling_bad2");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "sibling_bad2" };
     let missing: i32 = ghost_machine();
 }

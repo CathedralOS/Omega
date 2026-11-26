@@ -1,5 +1,5 @@
 use selected_instructions::{
-    BlockSlotEvent, FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstruction,
+    BlockSlotEvent, LocalStorageSlotId, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind as Kind,
 };
 
@@ -271,32 +271,6 @@ impl<'a> SpillValues<'a> {
             instructions,
             successors,
         })
-    }
-    pub fn private_store(&self, row: &SelectedInstruction) -> bool {
-        match row.kind {
-            Kind::Store64 {
-                slot: FrameStorageSlotId::Local(LocalStorageSlotId::Spill { register }),
-                byte_offset: 0,
-            } => self
-                .slots
-                .get(register.0 as usize)
-                .and_then(Option::as_ref)
-                .is_some_and(|slot| slot.valid),
-            _ => false,
-        }
-    }
-    pub fn private_address(&self, row: &SelectedInstruction) -> bool {
-        match row.kind {
-            Kind::FrameAddress {
-                slot: FrameStorageSlotId::Local(LocalStorageSlotId::Spill { register }),
-                byte_offset: 0,
-            } => self
-                .slots
-                .get(register.0 as usize)
-                .and_then(Option::as_ref)
-                .is_some_and(|slot| slot.valid),
-            _ => false,
-        }
     }
     pub fn writer(
         &mut self,

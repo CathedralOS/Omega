@@ -117,19 +117,10 @@ impl ReconciledPackageImportRequest {
         Ok(resolved)
     }
 
-    /// Leave an unresolved Build name with its source occurrence so admission can
-    /// report it at the import. Known foreign packages report their missing edge here.
-    pub(super) fn is_unbound_build_import(&self, importer: DependencyScope) -> bool {
-        importer == DependencyScope::Build
-            && !self.dependency_build_forbidden
-            && self.missing_edge.is_none()
-    }
-
     pub(crate) fn logical_sources(
         &self,
         packages: &PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
-        importer: DependencyScope,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let logical_path = self
             .relative_path
@@ -141,23 +132,12 @@ impl ReconciledPackageImportRequest {
             .filter(|(owner, root)| *owner != self.package && root.starts_with(&self.expected_root))
             .map(|(_, root)| root.to_path_buf())
             .collect();
-        let own_build_import =
-            importer == DependencyScope::Build && !self.dependency_build_forbidden;
-        let paths = if own_build_import {
-            discovery.select_declaring(
-                &self.expected_root,
-                &logical_path,
-                packages.source_filesystem(),
-                excluded,
-            )?
-        } else {
-            discovery.select_owned(
-                &self.expected_root,
-                &logical_path,
-                packages.source_filesystem(),
-                excluded,
-            )?
-        };
+        let paths = discovery.select_owned(
+            &self.expected_root,
+            &logical_path,
+            packages.source_filesystem(),
+            excluded,
+        )?;
         if paths.is_empty()
             && let Some(edge) = &self.missing_edge
         {

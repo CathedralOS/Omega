@@ -76,15 +76,11 @@ pub(crate) struct PackageSourceClosureConflictCandidate {
     requesting_paths: Vec<DependencyRequestPath>,
 }
 
-impl PackageSourceClosureConflictCandidate {}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageSourceClosureConflict {
     key: PackageKey,
     candidates: Vec<PackageSourceClosureConflictCandidate>,
 }
-
-impl PackageSourceClosureConflict {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PackageSourceClosureLimits {
@@ -143,8 +139,6 @@ pub(crate) enum PackageSourceClosureResolutionError<E> {
         error: DependencyAliasError,
     },
 }
-
-impl<E> PackageSourceClosureResolutionError<E> {}
 
 impl<E: fmt::Display> fmt::Display for PackageSourceClosureResolutionError<E> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

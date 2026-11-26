@@ -3,7 +3,7 @@
 // for the caller.
 // Place: other_state.
 // Expected exit: 0
-use lib\ops;
+use {lib}/ops/ops.omg;
 
 machine hold(total: u64) -> bool
 requires total == 260
@@ -12,11 +12,11 @@ requires total == 260
 }
 
 machine main() crashes Trap {
-    let left: lib\ops\Wrapped = lib\ops\Wrapped { value: 250u16 };
-    let right: lib\ops\Wrapped = lib\ops\Wrapped { value: 10u16 };
+    let left: |ops|::Wrapped = |ops|::Wrapped { value: 250u16 };
+    let right: |ops|::Wrapped = |ops|::Wrapped { value: 10u16 };
     transition { _ -> check(left, right) }
-    machine check(left: lib\ops\Wrapped, right: lib\ops\Wrapped) {
-        let total: u64 = lib\ops\Wrapped::describe(@left, @right);
+    machine check(left: |ops|::Wrapped, right: |ops|::Wrapped) {
+        let total: u64 = |ops|::Wrapped::describe(@left, @right);
         transition hold(total) && total == 260 {
             true -> done(),
             _ -> bad()

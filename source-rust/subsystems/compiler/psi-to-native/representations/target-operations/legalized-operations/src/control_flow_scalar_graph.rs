@@ -418,7 +418,7 @@ impl LegalizedScalarInstruction {
                     visit(selector);
                 }
                 call.arguments.iter().for_each(|argument| match argument {
-                    LegalizedScalarArgument::Scalar { source, .. } => visit(*source),
+                    LegalizedScalarArgument::Scalar { source, .. } => visit(source.value),
                     LegalizedScalarArgument::Structural { indices, .. } => {
                         indices.iter().for_each(|index| visit(index.operand.value))
                     }
@@ -1432,10 +1432,7 @@ impl LegalizedScalarTerminator {
             call_plan: call_plan.clone(),
             arguments: arguments
                 .iter()
-                .map(|argument| LegalizedScalarArgument::Scalar {
-                    source: argument.source.source_value(),
-                    placement: argument.placement.clone(),
-                })
+                .map(LegalizedScalarArgument::from)
                 .collect(),
             result_placement: None,
             structural_result: None,
