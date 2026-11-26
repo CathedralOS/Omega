@@ -1725,7 +1725,7 @@ Recorded questions and where each stands:
    Is a level argument a type position, and may a level binder be named `u`?
    The library declares no level binder, so this blocks only
    `representation_agreement`, not steps 1-3. Recorded as
-   [owner question 2](../../../OWNER_QUESTIONS.md#level-binder-spelling).
+   [level-binder spelling question](../../../OWNER_QUESTIONS.md#level-binder-spelling).
 2. **Where the signature lives.** Not an owner question: [OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md)
    delegates Psi representation and encoding design and counts a schema
    change needed for accepted behavior as implementation work. Terminal Psi has `mathematical_carriers`,

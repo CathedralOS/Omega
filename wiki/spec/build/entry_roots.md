@@ -36,13 +36,14 @@ it must instead satisfy [required artifact completion](scoped_execution.md#stage
 Runtime-installed slots may remain open until installation validates the
 same shape, portable demands, target supply, authority, and lifecycle.
 
-The `entry-slot-schema-resolved-by-bare-name` issue is answered by the exact
-identity rule above. Resolve the target-owned schema, or the exact
-consumer-accepted package/schema on a package-aware route. An unrelated
-same-leaf declaration neither shadows that selection nor creates a second
-candidate. The caller's package and a declaration's leaf spelling cannot
-choose the schema. Selecting an alternate package contract requires the
-existing explicit accepted binding; loading it is not selection.
+Under `entry-slot-schema-resolved-by-bare-name`, selecting a target profile
+selects the exact package and declaration defining its entry contract.
+Build selects the application machine for that slot. The compiler checks it
+against the designated schema and calling policy. Selecting another dependency,
+including one with an identical declaration, cannot replace the profile's
+contract. Reject a missing designated contract or a mismatched entry machine.
+The toolchain supplies target profiles. Packages can define [calling policies](calling_plans.md#authorship-and-evaluation)
+using the supported primitives without registering another target.
 
 ## Source selection is not invocation
 
@@ -236,10 +237,11 @@ available.
 
 Physical contracts bind exact target-contract source bytes with domain-separated
 SHA-256 and retain the target role. Compact source/report fingerprints are not
-identity. Source custody, accepted package/schema, contract identities, and
-calling plans remain separate checks. Standalone UEFI compatibility requires
-the byte-exact bundled contract; package-aware UEFI requires an exact
-consumer-accepted ordinary-package binding, not origin or location inference.
+identity. Source custody, designated package and schema, contract identities,
+and calling plans remain separate checks. The UEFI x64 profile designates the
+UEFI target package's application contract. The standalone route checks the
+byte-exact bundled contract. The package-aware route checks the designated
+package instance and its exact contract source. Both replay the calling plans.
 
 [Installed content](../resources/content_custody.md#installed-introduction-schemas)
 reuses these slots: only statically enumerable installed environment-to-program

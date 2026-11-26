@@ -64,19 +64,8 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="supplying-build-library-bindings"></a>
-### 1. How does the caller supply remaining component and compiler inputs after version 4?
-
-The invocation supplies Build grants. Each consumer declares and checks its
-own package edges. At a separately admitted component boundary, which
-caller-owned input carries required terminal permissions or named external
-premises, and how are exact compiler binding identities supplied after the
-project lock is retired? The format must work for unattended builds and
-identify when an input no longer applies.
-[Remaining migration decision](wiki/spec/packages/staged_inputs.md#remaining-design-decisions)
-
 <a id="level-binder-spelling"></a>
-### 2. May a `core\Level` binder be named with a builtin type spelling such as `u`?
+### 1. May a `core\Level` binder be named with a builtin type spelling such as `u`?
 
 [Builtin type names](wiki/spec/language/modules.md#builtin-type-names)
 (`role-separated-builtin-type-names`) decides by the role of the name being

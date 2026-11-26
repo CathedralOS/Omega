@@ -158,16 +158,13 @@ Reflection alone cannot certify the absence of hidden executable authority.
 
 Named decision: `component-acceptance-and-build-attenuation`, settled 2026-11-04.
 
-A consuming project decides which component assumptions and permissions it
-accepts. Compilation checks the selected product against that acceptance; a
-component cannot approve its own environmental premises or outgoing authority.
-For packaged dependencies, the existing
-[package acceptance workflow](../packages/acceptance.md#review-and-publication)
-records reviewed canonical rows in the consuming project's lock and supplies
-the exact accepted compilation inputs to verification. Existing root grants
-remain the acceptance route for the root's own claims, not a way for dependency
-Build code to add approval. There is one acceptance system, not a second file
-or a mandatory duplicate approval list in Build.
+The receiver decides which environmental premises and physical permissions it
+accepts for a separately admitted component. A component cannot approve its
+own demands. In a staged build, ordinary artifact production requires no
+receiver policy. A loader that requests verification supplies its policy at
+admission. It remains responsible for enforcement when it executes the code.
+The [version 4 package workflow](../packages/acceptance.md#review-and-publication)
+retains consumer decisions in the project lock during migration.
 
 An accepted row preserves readable assumption or permission meaning and exact
 component/subject, profile, package occurrence, and product target scope where
@@ -178,17 +175,17 @@ ordinary comparison and verification rules. Accepting an environmental premise
 does not prove it true, turn it into checked reach, or grant installation,
 execution, callable, or host authority.
 
-Build may optionally attenuate the consumer-approved ceiling for its selected
-product. Omitting a Build restriction uses that accepted ceiling; an explicitly
+When checking a product for a particular receiver, Build may further restrict
+that receiver's accepted ceiling. Omitting a Build restriction uses that accepted ceiling; an explicitly
 empty restriction permits no demand in the restricted category. A Build
 restriction that widens beyond acceptance rejects. Selection or restriction
-grants no new assumption or permission, and a dependency's own lock or Build
-cannot approve one on the consumer's behalf. Checked reach, authority demands,
+grants no new assumption or permission, and a dependency cannot approve
+one on the receiver's behalf. Checked reach, authority demands,
 and accepted assumptions retain their distinct meanings even when all are
 bounded by the product policy.
 
-For each target, verify that the complete selected closure's demands fit the
-effective Build ceiling and that this ceiling fits consumer acceptance. Include
+For each target under admission, verify that the complete selected closure's
+demands fit the effective Build ceiling and that this ceiling fits consumer acceptance. Include
 helpers, all possible callbacks, initialization, constructors, cleanup, retained
 dependencies, and selected providers. A library may contain unused functionality
 outside that selected product; this does not waive its ordinary source checks,

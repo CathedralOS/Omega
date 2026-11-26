@@ -32,6 +32,13 @@ the libraries its product can import. In
 dependency and `vec` names one file inside the importing source. [Chapter 15](chapter_15_modules_imports_visibility.md#build-helpers)
 shows the two dependency kinds.
 
+For a firmware application, the Build can bind
+`Build::bind(build, uefi_x86_64::ProgramEntry, |app|::start)`. Selecting
+`uefi_x86_64` selects the target package's entry contract, including its
+package-authored calling policy. The bind selects your machine. A dependency
+with its own `UefiApplication` declaration cannot change the firmware ABI.
+[UEFI handoff](../spec/build/uefi_entry.md#physical-arrival-and-semantic-roots)
+
 ## Using the same console in a Build and an application
 
 In the staged design, `omega build build.omg` starts at the named file. Here

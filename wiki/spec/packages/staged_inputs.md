@@ -7,8 +7,8 @@ without knowing which libraries the board uses to configure itself.
 
 This page specifies the source-based replacement for the [version 4 project lock](locks.md).
 The Rust tools currently use the lock workflow. Successor plans and their
-package and provider selections are implementation work. One [caller-input
-decision](#remaining-design-decisions) remains before retiring version 4.
+package and provider selections are implementation work. The [binding and
+admission rules](#binding-identity-and-admission) govern the staged workflow.
 
 ## From source to the next stage
 
@@ -198,15 +198,25 @@ last argument of `|git|::dependency`. The resolver supplies the verified tree;
 the compiler supplies the candidate's reach if the caller requests review.
 Neither Git-specific syntax nor the updater determines the reach verdict.
 
-## Remaining design decisions
+## Binding identity and admission
+
+The target profile designates the exact entry-contract package and declaration.
+Build binds the product's entry machine to that slot. For provider and native
+bindings, Build selects the implementation or native locator for the exact
+requirement. A host installing an interpreter service identifies its declaration
+and supplies its backing. The compiler checks each selection in its frozen
+context and derives its [semantic binding](toolchain.md#semantic-bindings-in-a-staged-build).
+An unattended build uses the same inputs. A missing required selection, wrong
+owner, incompatible schema or ambiguous resolution fails at the selection.
 
 The invocation and per-child delegation supply restricted Build grants.
 Selecting an output authorizes driver publication of that output. Filesystem
-operations inside a Build use its admitted backing. An unattended build
-receives the same checks. A saved package approval cannot grant new reach.
+operations inside a Build use its admitted backing.
 
-One migration detail remains: how does the caller supply exact compiler
-binding inputs and the terminal permissions or named external premises still
-required at a separately admitted component boundary after version 4? A
-missing required input rejects admission. Old assumed-provider contracts and
-their receipts cannot supply unsafe reach grants.
+The receiver owns the decision to load native code and any policy for accepting
+its physical authority or external premises. Staged builds require no replacement
+lock approval for plugins. Loading and entering native code retain the
+[Unsafe reach rules](../resources/native_borrows.md#build-admission-and-diagnostics).
+A receiver requesting [component verification](../build/component_publication.md#verified-component-descriptions)
+must match the selected subject and profile and supply any premises required
+for the claim. Ordinary compilation makes no claim about a loader's enforcement.
