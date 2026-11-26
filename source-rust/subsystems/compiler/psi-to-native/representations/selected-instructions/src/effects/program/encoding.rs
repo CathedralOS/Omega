@@ -515,6 +515,18 @@ mod v6 {
                     }
                     22 => SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg,
                     23 => SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg,
+                    24 => SelectedInstructionKind::PackedAddU8x16,
+                    25 => SelectedInstructionKind::PackedMinI16x8,
+                    26 => SelectedInstructionKind::PackedCmpGtI16x8,
+                    27 => SelectedInstructionKind::PackedBitAndI16x8,
+                    28 => SelectedInstructionKind::PackedBitAndNotI16x8,
+                    29 => SelectedInstructionKind::PackedAbsI16x8,
+                    30 => SelectedInstructionKind::PackedAddU8x16Reg,
+                    31 => SelectedInstructionKind::PackedMinI16x8Reg,
+                    32 => SelectedInstructionKind::PackedCmpGtI16x8Reg,
+                    33 => SelectedInstructionKind::PackedBitAndI16x8Reg,
+                    34 => SelectedInstructionKind::PackedBitAndNotI16x8Reg,
+                    35 => SelectedInstructionKind::PackedAbsI16x8Reg,
                     _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
                 },
                 59 => SelectedInstructionKind::CopyBytes,
@@ -966,6 +978,18 @@ mod v6 {
                 295 => MachineAlternativeFamily::PackedShuffleI16x8Reg,
                 296 => MachineAlternativeFamily::PackedWidenU8x8ToI16x8Reg,
                 297 => MachineAlternativeFamily::PackedNarrowI16x8ToU8x8SaturatingReg,
+                298 => MachineAlternativeFamily::PackedAddU8x16,
+                299 => MachineAlternativeFamily::PackedMinI16x8,
+                300 => MachineAlternativeFamily::PackedCmpGtI16x8,
+                301 => MachineAlternativeFamily::PackedBitAndI16x8,
+                302 => MachineAlternativeFamily::PackedBitAndNotI16x8,
+                303 => MachineAlternativeFamily::PackedAbsI16x8,
+                304 => MachineAlternativeFamily::PackedAddU8x16Reg,
+                305 => MachineAlternativeFamily::PackedMinI16x8Reg,
+                306 => MachineAlternativeFamily::PackedCmpGtI16x8Reg,
+                307 => MachineAlternativeFamily::PackedBitAndI16x8Reg,
+                308 => MachineAlternativeFamily::PackedBitAndNotI16x8Reg,
+                309 => MachineAlternativeFamily::PackedAbsI16x8Reg,
                 59 => MachineAlternativeFamily::CopyBytes,
                 233 => MachineAlternativeFamily::ScanByteSequence,
                 234 => MachineAlternativeFamily::CompareByteSequences,
@@ -1494,7 +1518,7 @@ mod v6 {
                 let mut cursor = Cursor::new(&encoded);
                 assert_eq!(decode_alternative(&mut cursor).unwrap(), alternative);
                 assert_eq!(cursor.remaining(), 0);
-                for tag in [298_u16, u16::MAX] {
+                for tag in [310_u16, u16::MAX] {
                     encoded[..2].copy_from_slice(&tag.to_le_bytes());
                     assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
                 }

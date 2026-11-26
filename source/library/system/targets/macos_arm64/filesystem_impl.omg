@@ -1,37 +1,26 @@
-use DarwinStat;
-use ErrorKind;
-use Metadata;
-use MetadataResult;
-use Permissions;
-use PosixDirectoryKind;
-use PosixFilesystem;
-use PosixFilesystemTarget;
-use PosixMetadata;
-use PosixMetadataResult;
-use TimestampResult;
-use error_kind_reconstruct;
-use posix_flag_bit;
-use posix_metadata_kind;
+use filesystem.omg;
+use macos_arm64_filesystem_abi.omg as darwin;
+use posix_filesystem_adapter.omg as adapter;
+use posix_filesystem_host.omg as raw_fs;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // Darwin ABI facts for the shared POSIX portable service. Layout and flag
 // values follow the SDK's sys/stat.h, sys/fcntl.h and sys/dirent.h; the
 // complete raw provider supplies negative errno, never retained libc state.
 // Application data holds no carrier; callers invoke `FilesystemService` requirements directly.
-use omega\language\core\widen_u32_to_u64;
-use omega\language\core\narrow_i32_to_u32_wrapping;
-use omega\language\core\narrow_i64_to_u64_exact;
 
 // Borrow the complete aligned stat buffer, including the record's padding.
 // A borrowed byte element cannot supply the rest of that storage.
-machine macos_arm64_posix_decode_metadata(filesystem: @mutable PosixFilesystem) -> MetadataResult
-    satisfies PosixFilesystemTarget::decode_metadata {
-    let stat: @DarwinStat = @filesystem.stat_buf as @DarwinStat;
+machine macos_arm64_posix_decode_metadata(filesystem: @mutable |adapter|::PosixFilesystem) -> |filesystem|::MetadataResult
+    satisfies |raw_fs|::PosixFilesystemTarget::decode_metadata {
+    let stat: @|darwin|::DarwinStat = @filesystem.stat_buf as @|darwin|::DarwinStat;
     let blocks: i64 = stat.blocks;
     let blksize: i64 = stat.blksize as i64;
     transition blocks >= 0 && blksize >= 0 {
         true -> decode(stat, blocks, blksize),
-        _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
+        _ -> |filesystem|::MetadataResult::Error { kind: |filesystem|::ErrorKind::InvalidInput }
     }
-    machine decode(stat: @DarwinStat, block_count: i64, block_size: i64) -> MetadataResult
+    machine decode(stat: @|darwin|::DarwinStat, block_count: i64, block_size: i64) -> |filesystem|::MetadataResult
     requires block_count >= 0 && block_size >= 0
     {
         let mode: u32 = stat.mode as u32;
@@ -39,107 +28,117 @@ machine macos_arm64_posix_decode_metadata(filesystem: @mutable PosixFilesystem) 
         let ino: u64 = stat.ino;
         let uid: u32 = stat.uid;
         let gid: u32 = stat.gid;
-        let dev: u64 = widen_u32_to_u64(narrow_i32_to_u32_wrapping(stat.dev));
-        let rdev: u64 = widen_u32_to_u64(narrow_i32_to_u32_wrapping(stat.rdev));
+        let dev: u64 = |numeric|::widen_u32_to_u64(|numeric|::narrow_i32_to_u32_wrapping(stat.dev));
+        let rdev: u64 = |numeric|::widen_u32_to_u64(|numeric|::narrow_i32_to_u32_wrapping(stat.rdev));
         let ctime: i64 = stat.ctime.seconds;
-        let blocks: u64 = narrow_i64_to_u64_exact(block_count);
-        let blksize: u64 = narrow_i64_to_u64_exact(block_size);
+        let blocks: u64 = |numeric|::narrow_i64_to_u64_exact(block_count);
+        let blksize: u64 = |numeric|::narrow_i64_to_u64_exact(block_size);
         let len: i64 = stat.size;
         let mtime: i64 = stat.mtime.seconds;
         let atime: i64 = stat.atime.seconds;
         let btime: i64 = stat.btime.seconds;
-        let details: PosixMetadata = PosixMetadata { mode: mode, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize };
-        let metadata: Metadata = Metadata { length: len, kind: posix_metadata_kind(mode), permissions: Permissions::Posix { mode: mode & 4095 }, nlink: nlink, posix: PosixMetadataResult::Ok { details: details }, modified_secs: mtime, accessed_secs: atime, creation_time: TimestampResult::Ok { seconds: btime }, changed_secs: ctime };
-        MetadataResult::Ok { meta: metadata }
+        let details: |filesystem|::PosixMetadata = |filesystem|::PosixMetadata { mode: mode, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize };
+        let metadata: |filesystem|::Metadata = |filesystem|::Metadata {
+            length: len,
+            kind: |adapter|::posix_metadata_kind(mode),
+            permissions: |filesystem|::Permissions::Posix { mode: mode & 4095 },
+            nlink: nlink,
+            posix: |filesystem|::PosixMetadataResult::Ok { details: details },
+            modified_secs: mtime,
+            accessed_secs: atime,
+            creation_time: |filesystem|::TimestampResult::Ok { seconds: btime },
+            changed_secs: ctime
+        };
+        |filesystem|::MetadataResult::Ok { meta: metadata }
     }
 }
 
-machine macos_arm64_posix_permission_bits(filesystem: @PosixFilesystem) -> u32
-    satisfies PosixFilesystemTarget::permission_bits {
-    let stat: @DarwinStat = @filesystem.stat_buf as @DarwinStat;
+machine macos_arm64_posix_permission_bits(filesystem: @|adapter|::PosixFilesystem) -> u32
+    satisfies |raw_fs|::PosixFilesystemTarget::permission_bits {
+    let stat: @|darwin|::DarwinStat = @filesystem.stat_buf as @|darwin|::DarwinStat;
     (stat.mode as u32) & 4095
 }
 
-machine macos_arm64_posix_encode_open_options(filesystem: @mutable PosixFilesystem)
-    satisfies PosixFilesystemTarget::encode_open_options {
-    filesystem.open_writable = posix_flag_bit(filesystem.open_options.write) | posix_flag_bit(filesystem.open_options.append);
-    filesystem.open_readable = posix_flag_bit(filesystem.open_options.read);
-    filesystem.open_creating = posix_flag_bit(filesystem.open_options.create) | posix_flag_bit(filesystem.open_options.create_new);
+machine macos_arm64_posix_encode_open_options(filesystem: @mutable |adapter|::PosixFilesystem)
+    satisfies |raw_fs|::PosixFilesystemTarget::encode_open_options {
+    filesystem.open_writable = |adapter|::posix_flag_bit(filesystem.open_options.write) | |adapter|::posix_flag_bit(filesystem.open_options.append);
+    filesystem.open_readable = |adapter|::posix_flag_bit(filesystem.open_options.read);
+    filesystem.open_creating = |adapter|::posix_flag_bit(filesystem.open_options.create) | |adapter|::posix_flag_bit(filesystem.open_options.create_new);
     filesystem.open_flags = ((filesystem.open_writable & (filesystem.open_readable ^ 1))
         | ((filesystem.open_writable & filesystem.open_readable) << 1)
-        | (posix_flag_bit(filesystem.open_options.append) << 3)
+        | (|adapter|::posix_flag_bit(filesystem.open_options.append) << 3)
         | (filesystem.open_creating << 9)
-        | (posix_flag_bit(filesystem.open_options.truncate) << 10)
-        | (posix_flag_bit(filesystem.open_options.create_new) << 11));
+        | (|adapter|::posix_flag_bit(filesystem.open_options.truncate) << 10)
+        | (|adapter|::posix_flag_bit(filesystem.open_options.create_new) << 11));
 }
 
 // Resolve an absent directory hint from the native mode without decoding
 // unrelated size/timestamp fields or following a final symlink.
-machine macos_arm64_posix_decode_directory_kind(filesystem: @mutable PosixFilesystem) -> PosixDirectoryKind
-    satisfies PosixFilesystemTarget::decode_directory_kind {
-    let stat: @DarwinStat = @filesystem.stat_buf as @DarwinStat;
+machine macos_arm64_posix_decode_directory_kind(filesystem: @mutable |adapter|::PosixFilesystem) -> |adapter|::PosixDirectoryKind
+    satisfies |raw_fs|::PosixFilesystemTarget::decode_directory_kind {
+    let stat: @|darwin|::DarwinStat = @filesystem.stat_buf as @|darwin|::DarwinStat;
     let kind: u32 = (stat.mode as u32) & 61440;
     transition kind {
-        16384 -> PosixDirectoryKind::Directory,
-        32768 -> PosixDirectoryKind::Regular,
-        _ -> PosixDirectoryKind::Other
+        16384 -> |adapter|::PosixDirectoryKind::Directory,
+        32768 -> |adapter|::PosixDirectoryKind::Regular,
+        _ -> |adapter|::PosixDirectoryKind::Other
     }
 }
 machine macos_arm64_posix_metadata_no_follow_flag() -> i32
-    satisfies PosixFilesystemTarget::metadata_no_follow_flag { 32 }
+    satisfies |raw_fs|::PosixFilesystemTarget::metadata_no_follow_flag { 32 }
 
 machine macos_arm64_posix_directory_type_offset() -> u64
-    satisfies PosixFilesystemTarget::directory_type_offset
+    satisfies |raw_fs|::PosixFilesystemTarget::directory_type_offset
     ensures result >= 18 && result <= 20
 { 20 }
 machine macos_arm64_posix_directory_name_offset() -> u64
-    satisfies PosixFilesystemTarget::directory_name_offset
+    satisfies |raw_fs|::PosixFilesystemTarget::directory_name_offset
     ensures result >= 19 && result <= 21
 { 21 }
 machine macos_arm64_posix_remove_directory_flag() -> i32
-    satisfies PosixFilesystemTarget::remove_directory_flag { 128 }
+    satisfies |raw_fs|::PosixFilesystemTarget::remove_directory_flag { 128 }
 machine macos_arm64_posix_directory_descent_flags() -> i32
-    satisfies PosixFilesystemTarget::directory_descent_flags { 1048832 }
+    satisfies |raw_fs|::PosixFilesystemTarget::directory_descent_flags { 1048832 }
 
 // The PosixCanonicalLibc requirements are bound in system's Build machine.
 
 // Error numbers belong to this OS, not to a synthetic shared POSIX catalog.
-machine macos_arm64_posix_kind_of_stored_error_code(filesystem: @mutable PosixFilesystem) -> ErrorKind
-    satisfies PosixFilesystemTarget::kind_of_stored_error_code {
+machine macos_arm64_posix_kind_of_stored_error_code(filesystem: @mutable |adapter|::PosixFilesystem) -> |filesystem|::ErrorKind
+    satisfies |raw_fs|::PosixFilesystemTarget::kind_of_stored_error_code {
     filesystem.err_kind = match filesystem.err_code {
-        2 -> ErrorKind::NotFound,
-        13 -> ErrorKind::PermissionDenied,
-        1 -> ErrorKind::PermissionDenied,
-        17 -> ErrorKind::AlreadyExists,
-        9 -> ErrorKind::BadDescriptor,
-        20 -> ErrorKind::InvalidInput,
-        21 -> ErrorKind::IsADirectory,
-        35 -> ErrorKind::WouldBlock,
-        22 -> ErrorKind::InvalidInput,
-        34 -> ErrorKind::InvalidInput,
-        63 -> ErrorKind::InvalidInput,
-        45 -> ErrorKind::Unsupported,
-        78 -> ErrorKind::Unsupported,
-        102 -> ErrorKind::Unsupported,
-        _ -> ErrorKind::Other
+        2 -> |filesystem|::ErrorKind::NotFound,
+        13 -> |filesystem|::ErrorKind::PermissionDenied,
+        1 -> |filesystem|::ErrorKind::PermissionDenied,
+        17 -> |filesystem|::ErrorKind::AlreadyExists,
+        9 -> |filesystem|::ErrorKind::BadDescriptor,
+        20 -> |filesystem|::ErrorKind::InvalidInput,
+        21 -> |filesystem|::ErrorKind::IsADirectory,
+        35 -> |filesystem|::ErrorKind::WouldBlock,
+        22 -> |filesystem|::ErrorKind::InvalidInput,
+        34 -> |filesystem|::ErrorKind::InvalidInput,
+        63 -> |filesystem|::ErrorKind::InvalidInput,
+        45 -> |filesystem|::ErrorKind::Unsupported,
+        78 -> |filesystem|::ErrorKind::Unsupported,
+        102 -> |filesystem|::ErrorKind::Unsupported,
+        _ -> |filesystem|::ErrorKind::Other
     };
-    error_kind_reconstruct(@filesystem.err_kind)
+    |filesystem|::error_kind_reconstruct(@filesystem.err_kind)
 }
 
 machine macos_arm64_posix_would_block_error() -> i32
-    satisfies PosixFilesystemTarget::would_block_error { 35 }
+    satisfies |raw_fs|::PosixFilesystemTarget::would_block_error { 35 }
 
 // The macos_arm64 record layouts and constants. system's Build selects them for macos_arm64.
-MacosArm64PosixFilesystemTarget satisfies PosixFilesystemTarget {
-    PosixFilesystemTarget::decode_metadata = macos_arm64_posix_decode_metadata;
-    PosixFilesystemTarget::permission_bits = macos_arm64_posix_permission_bits;
-    PosixFilesystemTarget::encode_open_options = macos_arm64_posix_encode_open_options;
-    PosixFilesystemTarget::decode_directory_kind = macos_arm64_posix_decode_directory_kind;
-    PosixFilesystemTarget::metadata_no_follow_flag = macos_arm64_posix_metadata_no_follow_flag;
-    PosixFilesystemTarget::directory_type_offset = macos_arm64_posix_directory_type_offset;
-    PosixFilesystemTarget::directory_name_offset = macos_arm64_posix_directory_name_offset;
-    PosixFilesystemTarget::remove_directory_flag = macos_arm64_posix_remove_directory_flag;
-    PosixFilesystemTarget::directory_descent_flags = macos_arm64_posix_directory_descent_flags;
-    PosixFilesystemTarget::kind_of_stored_error_code = macos_arm64_posix_kind_of_stored_error_code;
-    PosixFilesystemTarget::would_block_error = macos_arm64_posix_would_block_error;
+MacosArm64PosixFilesystemTarget satisfies |raw_fs|::PosixFilesystemTarget {
+    |raw_fs|::PosixFilesystemTarget::decode_metadata = macos_arm64_posix_decode_metadata;
+    |raw_fs|::PosixFilesystemTarget::permission_bits = macos_arm64_posix_permission_bits;
+    |raw_fs|::PosixFilesystemTarget::encode_open_options = macos_arm64_posix_encode_open_options;
+    |raw_fs|::PosixFilesystemTarget::decode_directory_kind = macos_arm64_posix_decode_directory_kind;
+    |raw_fs|::PosixFilesystemTarget::metadata_no_follow_flag = macos_arm64_posix_metadata_no_follow_flag;
+    |raw_fs|::PosixFilesystemTarget::directory_type_offset = macos_arm64_posix_directory_type_offset;
+    |raw_fs|::PosixFilesystemTarget::directory_name_offset = macos_arm64_posix_directory_name_offset;
+    |raw_fs|::PosixFilesystemTarget::remove_directory_flag = macos_arm64_posix_remove_directory_flag;
+    |raw_fs|::PosixFilesystemTarget::directory_descent_flags = macos_arm64_posix_directory_descent_flags;
+    |raw_fs|::PosixFilesystemTarget::kind_of_stored_error_code = macos_arm64_posix_kind_of_stored_error_code;
+    |raw_fs|::PosixFilesystemTarget::would_block_error = macos_arm64_posix_would_block_error;
 }

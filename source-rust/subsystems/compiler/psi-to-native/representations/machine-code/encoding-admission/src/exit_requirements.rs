@@ -784,7 +784,12 @@ fn validate_non_return_effects(
         (
             SelectedInstructionKind::PackedAddI16x8
             | SelectedInstructionKind::PackedSubI16x8
-            | SelectedInstructionKind::PackedShuffleI16x8 { .. },
+            | SelectedInstructionKind::PackedShuffleI16x8 { .. }
+            | SelectedInstructionKind::PackedAddU8x16
+            | SelectedInstructionKind::PackedMinI16x8
+            | SelectedInstructionKind::PackedCmpGtI16x8
+            | SelectedInstructionKind::PackedBitAndI16x8
+            | SelectedInstructionKind::PackedBitAndNotI16x8,
             MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
                 left_pointer_operand: 0,
                 right_pointer_operand: 1,
@@ -810,7 +815,8 @@ fn validate_non_return_effects(
                 && effects.external_operand_writes == [3]
         }
         (
-            SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. },
+            SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { .. }
+            | SelectedInstructionKind::PackedAbsI16x8,
             MachineEncodedMemoryEffect::PackedUnary16To16BytesV1 {
                 source_pointer_operand: 0,
                 destination_pointer_operand: 1,
@@ -1204,6 +1210,12 @@ fn validate_non_return_effects(
                 | SelectedInstructionKind::PackedLoadI16x4ZeroExtend
                 | SelectedInstructionKind::PackedWidenU8x4ToI16x8
                 | SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating
+                | SelectedInstructionKind::PackedAddU8x16
+                | SelectedInstructionKind::PackedMinI16x8
+                | SelectedInstructionKind::PackedCmpGtI16x8
+                | SelectedInstructionKind::PackedBitAndI16x8
+                | SelectedInstructionKind::PackedBitAndNotI16x8
+                | SelectedInstructionKind::PackedAbsI16x8
         ),
         _ => false,
     };

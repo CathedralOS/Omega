@@ -6,13 +6,12 @@
 // https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation
 // https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew
 // https://learn.microsoft.com/windows/win32/api/stringapiset/nf-stringapiset-widechartomultibyte
-use omega\language\core\FilesystemMetadataQuery;
-
+use {omega}/language/core/filesystem_authority.omg as authority;
 
 boundary trait WindowsFilesystemPathIo {
     machine final_path(handle: i64, output: @mutable [u16; 32768], capacity: u32, flags: u32) -> u32
     requires handle != 0 && handle != -1 && capacity == 32768 && flags == 0
-    reaches FilesystemMetadataQuery blocks
+    reaches |authority|::FilesystemMetadataQuery blocks
     crashes none;
 }
 

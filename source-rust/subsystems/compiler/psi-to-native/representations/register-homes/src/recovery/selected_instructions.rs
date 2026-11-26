@@ -143,7 +143,19 @@ pub(super) fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
         | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
         | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
-        | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg => 241,
+        | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+        | SelectedInstructionKind::PackedAddU8x16
+        | SelectedInstructionKind::PackedMinI16x8
+        | SelectedInstructionKind::PackedCmpGtI16x8
+        | SelectedInstructionKind::PackedBitAndI16x8
+        | SelectedInstructionKind::PackedBitAndNotI16x8
+        | SelectedInstructionKind::PackedAbsI16x8
+        | SelectedInstructionKind::PackedAddU8x16Reg
+        | SelectedInstructionKind::PackedMinI16x8Reg
+        | SelectedInstructionKind::PackedCmpGtI16x8Reg
+        | SelectedInstructionKind::PackedBitAndI16x8Reg
+        | SelectedInstructionKind::PackedBitAndNotI16x8Reg
+        | SelectedInstructionKind::PackedAbsI16x8Reg => 241,
         SelectedInstructionKind::CopyBytes => 59,
         SelectedInstructionKind::Store64 { .. } => 17,
         SelectedInstructionKind::FrameAddress { .. } => 18,
@@ -591,6 +603,18 @@ pub(super) fn decode_kind(
             }
             22 => SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg,
             23 => SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg,
+            24 => SelectedInstructionKind::PackedAddU8x16,
+            25 => SelectedInstructionKind::PackedMinI16x8,
+            26 => SelectedInstructionKind::PackedCmpGtI16x8,
+            27 => SelectedInstructionKind::PackedBitAndI16x8,
+            28 => SelectedInstructionKind::PackedBitAndNotI16x8,
+            29 => SelectedInstructionKind::PackedAbsI16x8,
+            30 => SelectedInstructionKind::PackedAddU8x16Reg,
+            31 => SelectedInstructionKind::PackedMinI16x8Reg,
+            32 => SelectedInstructionKind::PackedCmpGtI16x8Reg,
+            33 => SelectedInstructionKind::PackedBitAndI16x8Reg,
+            34 => SelectedInstructionKind::PackedBitAndNotI16x8Reg,
+            35 => SelectedInstructionKind::PackedAbsI16x8Reg,
             _ => return Err(FixedViewCopyDecodeError::UnknownInstructionKind(241)),
         },
         59 => SelectedInstructionKind::CopyBytes,
@@ -769,6 +793,18 @@ mod tests {
             },
             SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg,
             SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg,
+            SelectedInstructionKind::PackedAddU8x16,
+            SelectedInstructionKind::PackedMinI16x8,
+            SelectedInstructionKind::PackedCmpGtI16x8,
+            SelectedInstructionKind::PackedBitAndI16x8,
+            SelectedInstructionKind::PackedBitAndNotI16x8,
+            SelectedInstructionKind::PackedAbsI16x8,
+            SelectedInstructionKind::PackedAddU8x16Reg,
+            SelectedInstructionKind::PackedMinI16x8Reg,
+            SelectedInstructionKind::PackedCmpGtI16x8Reg,
+            SelectedInstructionKind::PackedBitAndI16x8Reg,
+            SelectedInstructionKind::PackedBitAndNotI16x8Reg,
+            SelectedInstructionKind::PackedAbsI16x8Reg,
         ] {
             let mut bytes = Vec::new();
             encode_kind(&mut bytes, kind);

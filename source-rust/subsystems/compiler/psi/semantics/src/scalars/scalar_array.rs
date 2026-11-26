@@ -12,13 +12,17 @@ pub fn packed_integer_array_type<'types>(
     root: StructuralTypeId,
     operation: semantic_vocabulary::PackedIntegerBinaryOperation,
 ) -> Option<semantic_vocabulary::IntegerType> {
-    use semantic_vocabulary::PackedIntegerBinaryOperation::*;
-    match operation {
-        WrappingAddI16x8 | WrappingSubI16x8 => {}
-        ShuffleI16x8 { lanes } if lanes.iter().all(|&index| index < 16) => {}
+    use semantic_vocabulary::{IntegerSign, PackedIntegerBinaryOperation::*};
+    let (sign, bits, lanes) = match operation {
+        WrappingAddU8x16 => (IntegerSign::Unsigned, 8, 16),
+        WrappingAddI16x8 | WrappingSubI16x8 | MinI16x8 | CmpGtI16x8 | BitAndI16x8
+        | BitAndNotI16x8 => (IntegerSign::Signed, 16, 8),
+        ShuffleI16x8 { lanes } if lanes.iter().all(|&index| index < 16) => {
+            (IntegerSign::Signed, 16, 8)
+        }
         ShuffleI16x8 { .. } => return None,
-    }
-    packed_array_lane_type(types, root, semantic_vocabulary::IntegerSign::Signed, 16, 8)
+    };
+    packed_array_lane_type(types, root, sign, bits, lanes)
 }
 
 pub fn packed_integer_unary_array_type<'types>(
@@ -29,7 +33,7 @@ pub fn packed_integer_unary_array_type<'types>(
 ) -> Option<semantic_vocabulary::IntegerType> {
     use semantic_vocabulary::{IntegerSign, PackedIntegerUnaryOperation::*};
     let (sign, bits, lanes) = match (operation, role) {
-        (ShiftRightArithmeticI16x8 { count: 0..=15 }, _)
+        (ShiftRightArithmeticI16x8 { count: 0..=15 } | AbsI16x8, _)
         | (LoadI16x4ZeroExtend | WidenU8x8ToI16x8 | WidenU8x4ToI16x8, PackedArrayRole::Result)
         | (NarrowI16x8ToU8x8Saturating | NarrowI16x8ToU8x4Saturating, PackedArrayRole::Input) => {
             (IntegerSign::Signed, 16, 8)
