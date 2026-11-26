@@ -102,10 +102,11 @@ access, process grants and filesystem backing have their own activation scope.
 A simple project needs no preparatory stage. A project can name an ordinary
 preparing file `build.lock.omg` and invoke it explicitly. No stage searches
 for an adjacent lock or builds through a companion file by convention.
-[Fixed Build imports](../build/scoped_execution.md#checked-build-stages) still
-apply. Two unchanged compilations of the same file both check its file-scoped
-imports. An unresolved import cannot be postponed until a later entry. Use
-separate source files or a prepared successor source view.
+A shared file may declare `use {layout}/api.omg as layout;` in both stages.
+If only the successor needs `layout`, the preparing stage can register the
+binding for it. Calling a helper that uses `layout` during preparation would
+require an incoming binding in that earlier stage.
+[Checked Build stages](../build/scoped_execution.md#checked-build-stages)
 
 ## Acquisition and authority
 

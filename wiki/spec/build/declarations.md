@@ -16,8 +16,8 @@ requires no such policy declaration.
 
 A Build runs as one checked Omega program. The invoker supplies the root's
 library bindings and the parent configures each child's bindings before that
-child starts. The compiler resolves local and external imports and checks the
-Build against those inputs before entry. See [fixed Build imports](scoped_execution.md#checked-build-stages).
+child starts. Before entry the compiler resolves the local and external imports
+it needs to check that Build. See [checked Build stages](scoped_execution.md#checked-build-stages).
 
 The running Build may conditionally register product libraries with
 `Build::dependency`. The registration fixes the description's source, alias

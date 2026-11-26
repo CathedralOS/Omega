@@ -105,18 +105,21 @@ aliases within one purpose scope reject.
 
 ## Checked Build stages
 
-Under the `fixed-build-imports` decision (2026-11-23), the compiler resolves
-the Build program's imports and checks its code before the interpreter enters
-`build`. An unresolved import rejects before the first statement, even if its
-only use is in a branch that would not run. Both local and external imports
-follow this rule. Ordinary [layout demand](../layouts/plans.md#layout-demand-and-validation)
-still determines which concrete layouts must be computed.
+The compiler resolves a file-scoped `use` when it needs the alias to check
+the selected stage. It checks the entry, the helpers it calls, and their
+types and contracts against that stage's frozen inputs. A missing file or
+package binding needed by any of them is an error before the Build runs,
+even for a call behind a runtime condition. Selecting a successor schedules
+a separate compilation with its own inputs. The same rule applies to Build
+and Product checking, regardless of execution engine.
 
-For example, stage A can write `parser.omg` through its filesystem. At handoff
-the driver freezes the selected source view. Stage B can import that file when
-the compiler checks it. Stage A cannot import its own future output. The stages
-may be a Build and its Product or separately requested compilations coordinated
-by a [release program](declarations.md#releases-with-independent-products).
+For example, a shared source file can declare `use parser.omg as parser;`.
+If only the successor calls `|parser|::parse`, the preparing Build can run
+with `parser.omg` absent and generate it. At handoff the driver freezes the
+successor's source view. The successor resolves the alias there, including
+when it compiles the same shared file again. Calling `|parser|::parse` from
+the preparing Build would require the file before that Build's first write.
+For the end-of-build warning, see [module imports](../language/modules.md#names-and-imports).
 
 A checked Build can suspend for ordinary work. Resuming preserves its program,
 live values, storage, borrows and pending obligations and runs each initializer
@@ -789,7 +792,7 @@ and mutation tests.
 The exact sequencing is:
 
 ```text
-resolve Build imports against supplied bindings, check and admit the Build
+resolve imports needed to check this Build against supplied bindings, check and admit the Build
   -> one activation registers product libraries and configures their child Builds
   -> final dependency join and frozen product-selection frontier
   -> Product checking from the frozen source view and final target/component checks
@@ -812,14 +815,14 @@ a new manifest as output.
 | A Build imports a missing helper and would write a file before using it | Refuse before the write, including when the use is conditional. |
 | A Build conditionally registers a product library | Include it in the product when registration executes. The Build's own imports remain fixed. |
 | A Build suspends with a live borrow | Resume the same program and storage. Preserve the borrow and pending obligations under ordinary suspension rules. |
-| A Build tries to supply its own missing import or mutate a registered alias | Reject. The caller supplies Build libraries before entry. |
+| A Build tries to supply an import it needs to execute or mutate a registered alias | Reject. The caller supplies Build libraries before entry. |
 | Local multi-file build helper | Checked in the build context with exact Build vocabulary and normal visibility. |
 | Product-only entry/provider selected from a build with no host import of that implementation | Exact designated product operand resolves; no target code executes on the host. |
 | Same alias names different host and product packages | Ordinary calls select only the host package; product operands select only the product package. No fallback. |
 | User-defined lookalike of a product-selection operation | Ordinary build resolution; no special product authority. |
 | Helper queries a caller-private product member or uses a description as a host callable | Reject; an explicitly delegated restricted entry reference may only be used for its permitted binding. |
 | Build queries its own generated entry or final component | Reject the phase cycle; use a separately staged build. |
-| Application or generated source imports a build-only dependency | Reject, even if build evaluation already loaded its source. |
+| Checking application or generated source requires a build-only dependency | Reject, even if build evaluation already loaded its source. |
 | One source package used for host tools and a different product target | Shared acquisition permitted; checked contexts and outputs remain distinct. |
 | Changed build-tool revision or input | Build provenance and affected results change; no stale output reuse. |
 | A parent gives one child a read-only schema directory and registers a sibling with defaults | Only the first child can read the supplied directory. Neither child can change that grant by editing its plan. |
