@@ -71,37 +71,29 @@ pub(super) fn parse_arguments(
             }
             Some("--help" | "-h") => super::set_flag(&mut help, &argument.to_string_lossy())?,
             Some("--offline") => return Err("omega run does not support --offline".into()),
-            Some("--engine") => {
-                if engine.is_some() {
-                    return Err("duplicate --engine".into());
-                }
+            Some("--engine") => super::set_once(&mut engine, "--engine", || {
                 let value =
                     super::option_value(arguments).ok_or("--engine requires `native` or `psi`")?;
-                engine = Some(match value.to_str() {
-                    Some("native") => ExecutionSelection::Native,
-                    Some("psi") => ExecutionSelection::Terminal,
-                    _ => {
-                        return Err(format!(
-                            "--engine requires `native` or `psi`, not `{}`",
-                            value.to_string_lossy()
-                        ));
-                    }
-                });
-            }
+                match value.to_str() {
+                    Some("native") => Ok(ExecutionSelection::Native),
+                    Some("psi") => Ok(ExecutionSelection::Terminal),
+                    _ => Err(format!(
+                        "--engine requires `native` or `psi`, not `{}`",
+                        value.to_string_lossy()
+                    )),
+                }
+            })?,
             Some("--keep") => super::set_flag(&mut keep, "--keep")?,
             Some("--psi-work-budget") => {
-                if psi_work_budget.is_some() {
-                    return Err("duplicate --psi-work-budget".into());
-                }
-                let value = super::option_value(arguments)
-                    .ok_or("--psi-work-budget requires a positive u64")?
-                    .into_string()
-                    .map_err(|_| "--psi-work-budget requires a positive u64")?;
-                psi_work_budget = Some(
+                super::set_once(&mut psi_work_budget, "--psi-work-budget", || {
+                    let value = super::option_value(arguments)
+                        .ok_or("--psi-work-budget requires a positive u64")?
+                        .into_string()
+                        .map_err(|_| "--psi-work-budget requires a positive u64")?;
                     value
                         .parse::<std::num::NonZeroU64>()
-                        .map_err(|_| "--psi-work-budget requires a positive u64")?,
-                );
+                        .map_err(|_| "--psi-work-budget requires a positive u64".into())
+                })?
             }
             Some("--entry-ram") => {
                 let value = arguments
@@ -159,17 +151,13 @@ pub(super) fn parse_arguments(
                 } else {
                     &mut outputs
                 };
-                if slot.is_some() {
-                    return Err(format!("duplicate {flag}"));
-                }
-                let directory = super::option_value(arguments)
-                    .ok_or_else(|| format!("{flag} requires a directory"))?;
-                *slot = Some(std::path::PathBuf::from(directory));
+                super::set_once(slot, flag, || {
+                    super::option_value(arguments)
+                        .map(std::path::PathBuf::from)
+                        .ok_or_else(|| format!("{flag} requires a directory"))
+                })?;
             }
-            Some("--target") => {
-                if target_name.is_some() {
-                    return Err("duplicate --target".into());
-                }
+            Some("--target") => super::set_once(&mut target_name, "--target", || {
                 let name = arguments.next_value().ok_or("--target requires a name")?;
                 if name == "--offline" {
                     return Err("omega run does not support --offline".into());
@@ -180,23 +168,11 @@ pub(super) fn parse_arguments(
                 if name.is_empty() || name.starts_with('-') {
                     return Err("--target requires a name, not an option or empty argument".into());
                 }
-                target_name = Some(name);
-            }
-            _ => {
-                if argument.as_encoded_bytes().starts_with(b"-") {
-                    return Err(format!(
-                        "unrecognized option `{}`",
-                        argument.to_string_lossy()
-                    ));
-                }
-                if main_path.is_some() {
-                    return Err(format!(
-                        "unexpected extra argument `{}`",
-                        argument.to_string_lossy()
-                    ));
-                }
-                main_path = Some(std::path::PathBuf::from(argument));
-            }
+                Ok(name)
+            })?,
+            _ => super::positional(argument, &mut main_path, |path| {
+                Ok(std::path::PathBuf::from(path))
+            })?,
         }
     }
     let selection = engine.unwrap_or_default();
