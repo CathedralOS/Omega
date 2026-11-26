@@ -62,7 +62,7 @@ impl fmt::Display for BuildDeclarationError {
                 formatter.write_str("package build machine has no callable entry")
             }
             Self::InvalidBuildParameter => formatter.write_str(
-                "package build machine must have exactly one parameter: `builder: @mutable Build`",
+                "package build machine requires one parameter of type `@mutable Build`",
             ),
             Self::UnsupportedPackageShape => formatter.write_str(
                 "package declaration must be one direct canonical `Build::package(builder, \"kebab_name\")` statement in the root build entry",

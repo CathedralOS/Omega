@@ -16,12 +16,13 @@ anywhere in the file fails with that operation's `Unsupported*Shape` error.
 use super::BuildDeclarationError;
 use super::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
 use super::{
-    APPLICATION_MACHINE_NAME, ARTIFACT_ONLY_MACHINE_NAME, BUILD_MACHINE_NAME,
-    BUILDER_PARAMETER_NAME, MEMBER_MACHINE_NAME, PACKAGE_MACHINE_NAME,
+    APPLICATION_MACHINE_NAME, ARTIFACT_ONLY_MACHINE_NAME, BUILD_MACHINE_NAME, MEMBER_MACHINE_NAME,
+    PACKAGE_MACHINE_NAME,
 };
 use build_declarations::{
-    ApplicationDeclaration, BUILD_TYPE_NAME, BuildDeclaration, BuildDeclarationKind, DependencyOperation,
-    PackageDeclaration, ProjectName, WorkspaceDeclaration, WorkspaceMemberPath,
+    ApplicationDeclaration, BUILD_TYPE_NAME, BuildDeclaration, BuildDeclarationKind,
+    DependencyOperation, PackageDeclaration, ProjectName, WorkspaceDeclaration,
+    WorkspaceMemberPath,
 };
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -38,6 +39,14 @@ pub struct BuildEntrySyntaxProjection {
 impl BuildEntrySyntaxProjection {
     pub const fn build_entry(&self) -> StateHandle {
         self.build_entry
+    }
+
+    pub(crate) fn receiver_name<'s>(&self, syntax: &'s SyntaxTrees) -> &'s str {
+        syntax
+            .items
+            .state_parameter(self.builder_parameter)
+            .name
+            .as_str(syntax)
     }
 
     #[cfg(test)]
@@ -105,7 +114,7 @@ pub fn project_build_entry_syntax(
     };
     let builder_parameter = *builder_parameter;
     let builder = syntax_trees.items.state_parameter(builder_parameter);
-    if builder.name.as_str(syntax_trees) != BUILDER_PARAMETER_NAME || builder.is_const {
+    if builder.is_const {
         return Err(BuildDeclarationError::InvalidBuildParameter);
     }
     let TypeReferenceNode::Reference {
@@ -146,12 +155,12 @@ pub(super) fn project_build_declaration_syntax(
         }
         Err(error) => return Err(error),
     };
-    project_build_declaration_in_entry(syntax_trees, build)
+    project_build_declaration_in_entry(syntax_trees, &build)
 }
 
 pub fn project_build_declaration_in_entry(
     syntax_trees: &SyntaxTrees,
-    build: BuildEntrySyntaxProjection,
+    build: &BuildEntrySyntaxProjection,
 ) -> Result<BuildDeclaration, BuildDeclarationError> {
     let entry = syntax_trees.items.state(build.build_entry());
 
@@ -171,7 +180,7 @@ pub fn project_build_declaration_in_entry(
             continue;
         };
         let operands =
-            direct_build_call_operands(syntax_trees, call).map_err(|failure| match failure {
+            direct_build_call_operands(syntax_trees, call, build.receiver_name(syntax_trees)).map_err(|failure| match failure {
                 DirectBuildCallError::WrongReceiver => operation.wrong_receiver(),
                 DirectBuildCallError::WrongArguments => operation.wrong_arguments(),
             })?;

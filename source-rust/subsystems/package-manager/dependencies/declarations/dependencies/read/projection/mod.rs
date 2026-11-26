@@ -21,6 +21,7 @@ use declaration::map_build_declaration_error;
 
 pub(crate) struct EditableSource<'a> {
     pub parsed: source_syntax::ParsedText<'a>,
+    pub entry: editable_build::BuildEntrySyntaxProjection,
     pub requests: Vec<(DependencyPurpose, DependencySourceRequest)>,
     pub import: DependencyImport,
 }
@@ -28,17 +29,21 @@ pub(crate) struct EditableSource<'a> {
 pub(crate) fn extract_scoped_from_source(
     source: &str,
 ) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
-    project_editable_dependencies(&parse_build(source)?.syntax)
+    let parsed = parse_build(source)?;
+    let entry = project_entry(&parsed.syntax)?;
+    project_editable_dependencies(&parsed.syntax, &entry)
 }
 
 pub(crate) fn project_source_for_edit(
     source: &str,
 ) -> Result<EditableSource<'_>, DependencyProjectionError> {
     let parsed = parse_build(source)?;
-    let requests = project_editable_dependencies(&parsed.syntax)?;
+    let entry = project_entry(&parsed.syntax)?;
+    let requests = project_editable_dependencies(&parsed.syntax, &entry)?;
     let import = DependencyImport::for_edit(&parsed.syntax);
     Ok(EditableSource {
         parsed,
+        entry,
         requests,
         import,
     })
@@ -55,19 +60,25 @@ fn parse_build(source: &str) -> Result<source_syntax::ParsedText<'_>, Dependency
     })
 }
 
-fn project_editable_dependencies(
+fn project_entry(
     syntax_trees: &SyntaxTrees,
-) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
+) -> Result<editable_build::BuildEntrySyntaxProjection, DependencyProjectionError> {
     reject_authored_toolchain_vocabulary(syntax_trees)?;
-    let build_entry = match editable_build::project_build_entry_syntax(syntax_trees) {
-        Ok(projection) => projection,
+    match editable_build::project_build_entry_syntax(syntax_trees) {
+        Ok(projection) => Ok(projection),
         Err(error @ editable_build::BuildDeclarationError::MissingBuildDeclaration) => {
             reject_unprojected_dependency_syntax(syntax_trees, &[], &[])?;
-            return Err(map_build_declaration_error(error));
+            Err(map_build_declaration_error(error))
         }
-        Err(error) => return Err(map_build_declaration_error(error)),
-    };
-    let dependencies = calls::project_direct_dependencies(syntax_trees, &build_entry)?;
+        Err(error) => Err(map_build_declaration_error(error)),
+    }
+}
+
+fn project_editable_dependencies(
+    syntax_trees: &SyntaxTrees,
+    build_entry: &editable_build::BuildEntrySyntaxProjection,
+) -> Result<Vec<(DependencyPurpose, DependencySourceRequest)>, DependencyProjectionError> {
+    let dependencies = calls::project_direct_dependencies(syntax_trees, build_entry)?;
     reject_unprojected_dependency_syntax(
         syntax_trees,
         &dependencies.accepted_sources,
