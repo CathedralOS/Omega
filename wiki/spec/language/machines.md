@@ -44,8 +44,7 @@ machine example() {
 ```
 
 Every argument, including context and capabilities, is ordinary and explicit.
-This includes the toolchain-authored build API: `Build::application(builder,
-"example")` and `Build::dependency(builder, dependency\from_source(source))` pass the build context explicitly.
+For example, `Build::application(builder, "example")` takes the build context as its first argument. A Build that imports `{omega}/build/dependency.omg` passes the same context to `Build::dependency(builder, |dependency|::from_source(source))`.
 Owned, shared, mutable and write-only access retain their normal contracts;
 removing receiver syntax removes no ownership, invariant, effect or proof check.
 Trait requirements and satisfiers use the same explicit parameter correspondence:
