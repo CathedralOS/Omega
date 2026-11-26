@@ -21,9 +21,9 @@ pub use realizations::{
     ClaimCompletionOnlyRealization, CompilerImport, DirectPortReadU8Realization,
     ForeignCallOperands, HostedExitProcessI32Realization, HostedReadByteRealization,
     HostedWriteByteI32Realization, LinuxWriteLineRealization, MetadataOnlyPortRealization,
-    NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
+    NativeBindingStack, NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
     NormalizedForeignCallMechanism, NormalizedForeignExecution, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
+    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, TableBindingSource,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

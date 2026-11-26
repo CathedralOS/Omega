@@ -4,7 +4,7 @@ Digest-bound, conservative edit plans for `build.omg` dependency declarations.
 `BuildDependencyEditPlan` distinguishes unchanged sources, automatic
 digest-bound replacements (`BuildFileReplacement`), and manual patch guidance
 (`BuildDependencyManualPatch`) when `build.omg` uses noncanonical signatures,
-inline body layouts, comments inside dependency rows, or ambiguous rows.
+inline insertion layouts or ambiguous revisions.
 Every proposed statement escapes caller-controlled strings as Omega literals,
 and executed Build discovery plus Product review validate the resulting meaning
 before publication.
@@ -15,9 +15,7 @@ mod planning;
 mod rendering;
 
 use crate::declarations::dependencies::read::DependencyProjectionError;
-pub(crate) use planning::{
-    plan_dependency_addition_from_source, plan_dependency_replacement_from_source,
-};
+pub(crate) use planning::{plan_dependency_addition_from_source, plan_git_revision_from_source};
 use rendering::source_digest;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -99,14 +97,18 @@ impl BuildDependencyManualPatch {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum BuildDependencyEditError {
+    ExpectedGitDependency,
+    InvalidBuild(DependencyProjectionError),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BuildDependencyManualReason {
-    NonCanonicalBuildSignature,
-    NonCanonicalBuildBodyLayout,
-    NonCanonicalDependencyRows,
-    DependencyRowContainsComment,
     AcceptedRequestMissing,
     AcceptedRequestAmbiguous,
+    NonCanonicalBuildSignature,
+    NonCanonicalBuildBodyLayout,
     CandidateAlreadyPresent,
     GeneratedEditRejected,
 }
@@ -115,16 +117,10 @@ impl fmt::Display for BuildDependencyManualReason {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::NonCanonicalBuildSignature => {
-                "the build entry is not the canonical `machine build(builder: @mutable Build)` form"
+                "dependency editing requires one mutable BuildPlan parameter on the free build machine"
             }
             Self::NonCanonicalBuildBodyLayout => {
                 "the build entry closing brace has a noncanonical inline layout"
-            }
-            Self::NonCanonicalDependencyRows => {
-                "the parsed dependency rows cannot be mapped uniquely to direct source statements"
-            }
-            Self::DependencyRowContainsComment => {
-                "the accepted dependency row contains a comment that an automatic rewrite would discard"
             }
             Self::AcceptedRequestMissing => {
                 "the accepted dependency row is not present in the current build projection"
@@ -142,14 +138,12 @@ impl fmt::Display for BuildDependencyManualReason {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum BuildDependencyEditError {
-    InvalidBuild(DependencyProjectionError),
-}
-
 impl fmt::Display for BuildDependencyEditError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ExpectedGitDependency => {
+                formatter.write_str("a targeted revision update requires a Git dependency")
+            }
             Self::InvalidBuild(error) => {
                 write!(formatter, "cannot edit invalid package build: {error}")
             }

@@ -1,1 +1,0 @@
-project source discovery failed: Build returned mixed project roles

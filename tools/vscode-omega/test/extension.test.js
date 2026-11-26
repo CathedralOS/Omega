@@ -14,10 +14,10 @@ const { loadExtension } = require('./fake-vscode');
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'omega-definition-'));
 const files = {
-  'source/library/core/extent.omg': 'public data Extent { base: addr; length: u64; }\npublic domain Extent::Granted;\n',
+  'source/library/core/extent.omg': 'public data Extent { base: address; length: u64; }\npublic domain Extent::Granted;\n',
   'source/library/core/integer.omg': 'public machine max<T>() -> T;\n',
   'source/library/system/console.omg': 'public boundary trait Console {\n    machine write_line(text: @[u8]);\n}\n',
-  'app/build.omg': 'machine build(builder: @mutable Build) {\n    dependency(Source::Path { location: "../dep" });\n}\n',
+  'app/build.omg': 'machine build(builder: @mutable Build) {\n    dependency(Source::Path { location: "../dep" }); dependency(Source::Path { location: "../source/library/system" });\n}\n',
   'dep/build.omg': 'machine build(builder: @mutable Build) {}\n',
   'dep/sound/sound.omg': 'public machine play(note: u64);\n',
   'dep/wave/wave.omg': 'public data Wave {}\n',
@@ -28,19 +28,22 @@ const files = {
   'app/tests/fixtures/case/main.omg': 'machine double(x: u64) -> u64 { x }\n',
   'app/main.omg': [
     'use calling.omg as abi;',
-    'use omega\\language\\core\\Extent;',
-    'use system\\Console;',
+    'use {omega}/language/core/extent.omg;',
+    'use {system}/console.omg;',
     'use {dep}/sound/sound.omg as sound;',
-    'use dep\\wave\\Wave;',
-    'data Main { extent: Extent; count: u64; }',
+    'use {dep}/wave/wave.omg;',
+    'data Main { extent: |extent|::Extent; count: u64; }',
     'machine entry_start(main: @mutable Main) {',
     '    let total: u64 = |abi|::plan(main.count);',
     '    let doubled: u64 = double(total);',
-    '    let largest: u64 = integer::max<u64>();',
-    '    Console::write_line(orphan_target());',
-    '    let wave: Wave = |sound|::play(0);',
+    '    let largest: u64 = |integer|::max::<u64>();',
+    '    |console|::Console::write_line(orphan_target());',
+    '    let wave: |wave|::Wave = |sound|::play(0);',
+    '    |absent|::plan();',
+    '    |abi|::play();',
     '    // Main in a comment',
     '}',
+    'use {omega}/language/core/integer.omg;',
     '',
   ].join('\n'),
   'other/build.omg': 'machine build(builder: @mutable Build) {}\n',
@@ -61,6 +64,8 @@ const where = async (context) =>
 
 test('an alias leads to the file its use line names', async () => {
   assert.deepEqual(await where('|abi|::pl$an'), ['app/calling.omg:1']);
+  assert.deepEqual(await where('|absent|::pl$an'), []);
+  assert.deepEqual(await where('|abi|::pl$ay'), []);
 });
 
 test('the current file wins over its imports and other packages', async () => {
@@ -81,14 +86,14 @@ test('the package is searched before other packages', async () => {
 });
 
 test('library imports and module-qualified library names', async () => {
-  assert.deepEqual(await where('extent: Ext$ent'), ['source/library/core/extent.omg:1']);
-  assert.deepEqual(await where('integer::ma$x'), ['source/library/core/integer.omg:1']);
+  assert.deepEqual(await where('extent: |extent|::Ext$ent'), ['source/library/core/extent.omg:1']);
+  assert.deepEqual(await where('|integer|::ma$x'), ['source/library/core/integer.omg:1']);
   assert.deepEqual(await where('Console::write_$line'), ['source/library/system/console.omg:2']);
 });
 
 test('dependency packages from build.omg locations', async () => {
   assert.deepEqual(await where('|sound|::pl$ay'), ['dep/sound/sound.omg:1']);
-  assert.deepEqual(await where('let wave: Wa$ve'), ['dep/wave/wave.omg:1']);
+  assert.deepEqual(await where('let wave: |wave|::Wa$ve'), ['dep/wave/wave.omg:1']);
 });
 
 test('the whole workspace is the last resort and skips the archive', async () => {

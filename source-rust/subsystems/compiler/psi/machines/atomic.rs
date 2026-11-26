@@ -202,24 +202,9 @@ impl<Operand: Copy> AtomicAccessEvent<Operand> {
     }
 
     pub fn map_operands(&mut self, map: &mut impl FnMut(Operand) -> Operand) {
-        match self {
-            Self::Load { .. } => {}
-            Self::Store { value, .. } | Self::Swap { value, .. } => *value = map(*value),
-            Self::ReadModifyWrite { operand, .. } => *operand = map(*operand),
-            Self::CompareExchange {
-                expected,
-                replacement,
-                ..
-            }
-            | Self::CompareExchangeOnce {
-                expected,
-                replacement,
-                ..
-            } => {
-                *expected = map(*expected);
-                *replacement = map(*replacement);
-            }
-        }
+        *self = self
+            .try_map::<Operand, std::convert::Infallible>(|value| Ok(map(value)))
+            .unwrap();
     }
 }
 

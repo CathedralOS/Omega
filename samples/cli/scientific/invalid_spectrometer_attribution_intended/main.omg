@@ -1,22 +1,22 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 public data InvalidEntry { }
 // This is a complete executable source control. It must fail Exact overflow
 // admission, independently of the valid application's runtime input rejection.
-public machine main(application: @mutable InvalidEntry) reaches ProcessExit + StandardOutput
-invokes Console
+public machine main(application: @mutable InvalidEntry) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput
+invokes |console|::Console
 {
     let maximum: i32 = 2147483647;
     let overflow: i32 = maximum + 1;
-    Console::write_line("must never execute");
-    ProcessExit::exit_process(overflow);
+    |console|::Console::write_line("must never execute");
+    |process_exit|::ProcessExit::exit_process(overflow);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput
-invokes Console
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput
+invokes |console|::Console
 {
     let mutable entry_storage: InvalidEntry;
     main(@mutable entry_storage);

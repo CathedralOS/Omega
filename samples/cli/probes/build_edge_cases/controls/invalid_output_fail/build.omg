@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_output_fail");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_output_fail" };
     Build::artifact_only(builder);
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "out.bin");
     BuildOutput::fail(@mutable builder.output, obligation, "deliberate failure probe");

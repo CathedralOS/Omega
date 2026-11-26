@@ -3,8 +3,8 @@
     ".gitignore",
     "README.md",
     "build.omg",
+    "configure.omg",
     "dependency",
-    "generator",
     "main.omg"
   ]
 }

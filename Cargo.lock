@@ -117,6 +117,7 @@ dependencies = [
  "language-core",
  "layout",
  "layout-plans",
+ "native-binding-admission",
  "native-execution-scope",
  "native-intrinsics",
  "native-scalar-inputs",
@@ -297,6 +298,7 @@ dependencies = [
  "diagnostics",
  "evaluation-contracts",
  "evaluation-receipts",
+ "language-core",
  "normalized-build-settings",
  "optimization-requests",
  "package-compilation",
@@ -315,12 +317,15 @@ version = "0.1.0"
 dependencies = [
  "artifacts",
  "behavior-exclusion-requests",
+ "bounded-process",
  "build-declarations",
  "build-evaluation-result",
  "build-output",
+ "build-program-launch",
  "build-scalar-evaluation",
  "build-settings",
  "build-time-values",
+ "build-value-projection",
  "declaration-scope",
  "diagnostics",
  "evaluation-accounting",
@@ -329,6 +334,7 @@ dependencies = [
  "evaluation-receipts",
  "evaluation-work",
  "filesystem-authority",
+ "language-core",
  "normalized-build-settings",
  "optimization-requests",
  "package-compilation",
@@ -390,6 +396,7 @@ dependencies = [
  "platform-custody",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -734,6 +741,7 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "language-core",
+ "native-binding-admission",
  "native-execution-reach",
  "native-intrinsics",
  "provider-plans",
@@ -853,6 +861,7 @@ dependencies = [
 name = "evaluation-receipts"
 version = "0.1.0"
 dependencies = [
+ "evaluation-accounting",
  "evaluation-contracts",
  "psi-program-identity",
  "record-storage",
@@ -1292,6 +1301,7 @@ name = "language-core"
 version = "0.1.0"
 dependencies = [
  "record-storage",
+ "source-provenance",
 ]
 
 [[package]]
@@ -1725,7 +1735,9 @@ dependencies = [
  "libc",
  "native-compiler",
  "native-provider-sponsor",
+ "platform-custody",
  "runtime-abi",
+ "rustix-linux-procfs",
  "sha2",
  "target",
  "windows-sys 0.61.2",
@@ -2031,6 +2043,7 @@ dependencies = [
  "build-consent",
  "build-declarations",
  "build-output",
+ "build-program-launch",
  "build-time-values",
  "cap-fs-ext",
  "cap-primitives",

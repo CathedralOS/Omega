@@ -1080,6 +1080,37 @@ fn a_guard_on_an_array_element_reaches_a_helper_that_borrows_the_array() {
 }
 
 #[test]
+fn a_guard_on_the_last_shared_record_reaches_its_exact_field() {
+    for (guarded, supplied, accepts) in [
+        (4095, "items", true),
+        (4094, "items", false),
+        (4095, "other", false),
+    ] {
+        let source = format!(
+            "public data Cell {{ marker: u64; other: u64; }}
+             machine need(items: @[Cell; 4096], index: u64) -> u64
+             requires index < 4096 requires items[index].marker < 5 {{ items[index].marker }}
+             public machine entry(items: @[Cell; 4096], other: @[Cell; 4096]) -> u64 {{
+                 transition items[{guarded}].marker < 5 {{ true -> finish({supplied}), false -> (0) }}
+                 machine finish(items: @[Cell; 4096]) -> u64 {{ need(items, 4095) }}
+             }}"
+        );
+        match judge_source_arrivals(&source, &["finish"]) {
+            RouteVerdict::Accepted(proved) if accepts => {
+                proved.publish_invocation().unwrap();
+            }
+            RouteVerdict::Rejected { unproved, .. } if !accepts => assert!(
+                unproved
+                    .iter()
+                    .any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. })),
+                "{unproved:?}"
+            ),
+            verdict => panic!("guard items[{guarded}] with {supplied} supplied: {verdict:?}"),
+        }
+    }
+}
+
+#[test]
 fn an_uncovered_boundary_call_names_the_member_it_calls() {
     // A boundary requirement has no machine names of its own, so the
     // diagnostic for its uncovered crash route names the member the caller

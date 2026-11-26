@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 70.
 // Alarm scheduler: 5-arm case dispatch stress test.
 //
@@ -33,7 +33,6 @@ use omega\language\core\ProcessExit;
 // Payload-free variants intentionally follow payload-bearing ones, also covered
 // by the no_payload_case_variant_after_payload_dispatch_exit corpus fixture.
 
-use system\Console;
 
 data AlarmEvent {
     case Set(hour: i32 in Saturating, minute: i32 in Saturating);
@@ -89,8 +88,8 @@ machine dispatch(alarm: @mutable Alarm, event: AlarmEvent) {
     machine done() {}
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("alarm_scheduler: 5-arm case dispatch over a scripted alarm sequence (set/snooze/trigger/dismiss/cancel)");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("alarm_scheduler: 5-arm case dispatch over a scripted alarm sequence (set/snooze/trigger/dismiss/cancel)");
     let mutable alarm: Alarm;
     dispatch(@mutable alarm, AlarmEvent::Set { hour: 6 as +Saturating, minute: 30 as +Saturating });
     dispatch(@mutable alarm, AlarmEvent::Snooze { minutes: 5 as +Saturating });
@@ -132,48 +131,48 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: fire_count 2, alarm 7:00 inactive after the full sequence (exit 70)");
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("PASS: fire_count 2, alarm 7:00 inactive after the full sequence (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(70);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 
     machine bad_score(main: @mutable Main) {
-        Console::write_line("FAIL: fire_count*35 != 70 -- wrong fire_count (exit 71)");
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("FAIL: fire_count*35 != 70 -- wrong fire_count (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(71);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 
     machine bad_active(main: @mutable Main) {
-        Console::write_line("FAIL: alarm still active after Cancel (exit 72)");
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("FAIL: alarm still active after Cancel (exit 72)");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(72);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(72);
     }
 
     machine bad_hour(main: @mutable Main) {
-        Console::write_line("FAIL: alarm hour != 7 after second Set (exit 73)");
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("FAIL: alarm hour != 7 after second Set (exit 73)");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(73);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(73);
     }
 
     machine bad_minute(main: @mutable Main) {
-        Console::write_line("FAIL: alarm minute != 0 after second Set (exit 74)");
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("FAIL: alarm minute != 0 after second Set (exit 74)");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(74);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(74);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

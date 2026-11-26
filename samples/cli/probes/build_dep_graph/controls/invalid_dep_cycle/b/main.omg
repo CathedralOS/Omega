@@ -1,5 +1,5 @@
-use a2\main;
+use {a2}/main.omg as a2;
 
 public machine vb() -> i32 {
-    va()
+    |a2|::va()
 }

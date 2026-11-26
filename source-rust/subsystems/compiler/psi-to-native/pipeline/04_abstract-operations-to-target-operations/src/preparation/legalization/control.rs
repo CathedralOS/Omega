@@ -242,10 +242,7 @@ pub(crate) fn project(
         } => {
             let mut actuals = scalar_arguments
                 .iter()
-                .map(|argument| LegalizedScalarArgument::Scalar {
-                    source: argument.source.source_value(),
-                    placement: argument.placement.clone(),
-                })
+                .map(LegalizedScalarArgument::from)
                 .collect::<Vec<_>>();
             actuals.extend(structural_arguments(machine, *psi_edge, arguments, facts)?);
             let call = LegalizedScalarCall {

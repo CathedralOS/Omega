@@ -368,9 +368,11 @@ pub struct DefaultRequirements<'a> {
     routed: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum DefaultDemand {
-    Snapshot,
+type SnapshotIndices<'a> = dyn Fn(PlaceId, &[StructuralPathSegment], u64) -> Option<Vec<u64>> + 'a;
+
+#[derive(Clone, Copy)]
+enum DefaultDemand<'a> {
+    Snapshot(&'a SnapshotIndices<'a>),
     Restoration,
 }
 
@@ -454,7 +456,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &[StructuralPathSegment],
         carrier: StructuralTypeId,
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
     ) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
         for position in 0..self.declaration(carrier)?.requires.len() {
@@ -486,7 +488,7 @@ impl<'a> DefaultRequirements<'a> {
         id: StructuralDomainId,
         carrier: StructuralTypeId,
         path: &[StructuralPathSegment],
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
     ) -> Judged<Vec<StructuralDomainId>> {
         let mut named = Vec::new();
         let row = self
@@ -505,7 +507,7 @@ impl<'a> DefaultRequirements<'a> {
             // Snapshot demand names predicate operands. Restoring storage additionally
             // owes the value's content, which predicate clauses cannot establish.
             if !domain.complete_predicate_theory
-                || demand == DefaultDemand::Restoration && domain.content_projection.is_some()
+                || matches!(demand, DefaultDemand::Restoration) && domain.content_projection.is_some()
             {
                 return Err(self.error("a named default has no complete storage predicate theory"));
             }
@@ -540,9 +542,13 @@ impl<'a> DefaultRequirements<'a> {
         )
     }
 
-    /// Every clause used for snapshot demand, including nested type defaults.
-    /// This inventory supplies no assumptions about those contents.
-    pub fn declared(&self) -> Judged<Vec<DefaultRequirement>> {
+    /// Name the held storage visible to the machine. At each fixed array the
+    /// caller can select the observed indices, or request the full extent.
+    /// Explicit projected qualifications and restoration have independent demands.
+    pub fn declared(
+        &self,
+        observed_indices: impl Fn(PlaceId, &[StructuralPathSegment], u64) -> Option<Vec<u64>>,
+    ) -> Judged<Vec<DefaultRequirement>> {
         let mut result = Vec::new();
         for (place, ty, _) in &self.declared.declared {
             if self
@@ -557,7 +563,7 @@ impl<'a> DefaultRequirements<'a> {
                 *place,
                 &mut Vec::new(),
                 *ty,
-                DefaultDemand::Snapshot,
+                DefaultDemand::Snapshot(&observed_indices),
                 &mut Vec::new(),
                 &mut result,
             )?;
@@ -586,7 +592,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &mut Vec<StructuralPathSegment>,
         carrier: StructuralTypeId,
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
         active: &mut Vec<StructuralTypeId>,
         result: &mut Vec<DefaultRequirement>,
     ) -> Judged<()> {
@@ -594,15 +600,22 @@ impl<'a> DefaultRequirements<'a> {
             return Err(self.error("recursive inline storage has no finite default inventory"));
         }
         active.push(carrier);
-        let zero = demand == DefaultDemand::Restoration;
+        let zero = matches!(demand, DefaultDemand::Restoration);
         result.extend(self.at(root, path, carrier, demand)?);
         match &self.declaration(carrier)?.shape {
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
-                let mut all = self.type_has_defaults(*element)?;
+                let element_has_defaults = self.type_has_defaults(*element)?;
                 let mut selected = Vec::new();
+                let mut all = element_has_defaults;
+                if all && let DefaultDemand::Snapshot(observed) = demand
+                    && let Some(indices) = observed(root, path, *length)
+                {
+                    selected.extend(indices.into_iter().filter(|index| index < length));
+                    all = false;
+                }
                 if let Some(row) = self.declared.row(root) {
                     for qualified in &row.2.projected {
                         let Some(suffix) =
@@ -695,7 +708,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &mut Vec<StructuralPathSegment>,
         fields: &[terminal_psi::StructuralFieldDeclaration],
-        demand: DefaultDemand,
+        demand: DefaultDemand<'_>,
         active: &mut Vec<StructuralTypeId>,
         result: &mut Vec<DefaultRequirement>,
     ) -> Judged<()> {
@@ -928,9 +941,9 @@ impl<'a> DefaultRequirements<'a> {
                     } else {
                         descriptor.path.to_vec()
                     };
-                    for (root, mut selected) in
-                        self.backings(module, descriptor.root, &selected, true, before, references)?
-                    {
+                    for (root, mut selected) in self.backings(
+                        module, descriptor.root, &selected, true, path, before, references,
+                    )? {
                         selected.extend_from_slice(path);
                         selected.pop(); // Only the containing owner carries the default.
                         visit(Changed::Containing {
@@ -950,7 +963,7 @@ impl<'a> DefaultRequirements<'a> {
                     | OperationKind::AtomicAccess { .. }
             );
             for (owner, mut selected) in
-                self.backings(module, root, &path, payload, before, references)?
+                self.backings(module, root, &path, payload, &[], before, references)?
             {
                 if replaces_whole {
                     visit(Changed::Replaced {
@@ -982,6 +995,7 @@ impl<'a> DefaultRequirements<'a> {
                 argument.place,
                 &argument.path,
                 true,
+                &[],
                 before,
                 references,
             )? {
@@ -1041,6 +1055,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &[StructuralPathSegment],
         payload: bool,
+        element_path: &[StructuralPathSegment],
         before: crate::descriptor_lifetimes::DescriptorPosition,
         references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
     ) -> Judged<Vec<(PlaceId, Vec<StructuralPathSegment>)>> {
@@ -1132,39 +1147,88 @@ impl<'a> DefaultRequirements<'a> {
         let captured = references
             .captured_storage_family(self.machine.id, before, &location)
             .map_err(|detail| self.error(detail))?;
-        captured
-            .into_iter()
-            .map(|origin| {
-                let DescriptorCallOrigin::Argument { source, projection } = origin else {
-                    return Err(self.error("default restoration has no exact captured lender"));
-                };
-                let (root, mut selected) = if let Some(path) = projection.captured_storage_path() {
-                    (source, path)
-                } else {
-                    let unique = references
-                        .location(self.machine.id, before, &location)
-                        .ok_or_else(|| {
-                            self.error("default restoration has no unique incoming lender")
-                        })?;
-                    let ty = self
-                        .declared
-                        .row(unique.root)
-                        .map(|row| row.1)
-                        .ok_or_else(|| {
-                            self.error("default restoration lost its incoming carrier")
-                        })?;
-                    let path =
-                        crate::descriptor_lifetimes::descriptor_path(self.types, ty, &unique.path)
-                            .ok_or_else(|| {
-                                self.error("default restoration lost its incoming storage path")
-                            })?;
-                    (unique.root, path)
-                };
-                selected.extend_from_slice(suffix);
-                self.carrier(root, &selected)?;
-                Ok((root, selected))
-            })
-            .collect()
+        let mut backings = Vec::new();
+        for origin in captured {
+            let DescriptorCallOrigin::Argument { source, projection } = origin else {
+                return Err(self.error("default restoration has no exact captured lender"));
+            };
+            let (root, mut selected) = if let Some(path) = projection.captured_storage_path() {
+                (source, path)
+            } else {
+                if self.has_no_window_defaults(source, &projection, suffix, element_path)? {
+                    continue;
+                }
+                let unique = references
+                    .location(self.machine.id, before, &location)
+                    .ok_or_else(|| self.error("default restoration has no unique incoming lender"))?;
+                let ty = self
+                    .declared
+                    .row(unique.root)
+                    .map(|row| row.1)
+                    .ok_or_else(|| self.error("default restoration lost its incoming carrier"))?;
+                let path = crate::descriptor_lifetimes::descriptor_path(self.types, ty, &unique.path)
+                    .ok_or_else(|| self.error("default restoration lost its incoming storage path"))?;
+                (unique.root, path)
+            };
+            selected.extend_from_slice(suffix);
+            self.carrier(root, &selected)?;
+            backings.push((root, selected));
+        }
+        Ok(backings)
+    }
+
+    /// A window can lose its exact offset while retaining all its types.
+    /// Discharge an empty restoration inventory without inventing an address.
+    /// A possible type clause or lender membership still needs its true place.
+    fn has_no_window_defaults(
+        &self,
+        source: PlaceId,
+        projection: &crate::borrowed_storage::Projection,
+        suffix: &[StructuralPathSegment],
+        element_path: &[StructuralPathSegment],
+    ) -> Judged<bool> {
+        let Some((_, root_type, memberships)) = self.declared.row(source) else {
+            return Ok(false);
+        };
+        if !memberships.is_empty()
+            || suffix.contains(&StructuralPathSegment::Referent)
+            || element_path.contains(&StructuralPathSegment::Referent)
+        {
+            return Ok(false);
+        }
+        let Some(mut path) = projection.captured_window_carrier_path() else {
+            return Ok(false);
+        };
+        path.extend_from_slice(suffix);
+        path.extend_from_slice(element_path);
+        for step in &mut path {
+            if matches!(
+                step,
+                StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::FixedIndex(_)
+            ) {
+                *step = StructuralPathSegment::AllElements;
+            }
+        }
+        for length in 0..=path.len() {
+            let prefix = &path[..length];
+            if matches!(prefix.last(), Some(StructuralPathSegment::Case(_))) {
+                continue;
+            }
+            let Some(carrier) =
+                crate::qualification_path_carrier(self.types.iter(), *root_type, prefix)
+            else {
+                return Ok(false);
+            };
+            if self.type_has_defaults(carrier)? {
+                return Ok(false);
+            }
+            if let StructuralTypeShape::ElementView { element, .. } = self.declaration(carrier)?.shape
+                && self.type_has_defaults(element)?
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     fn declared_operation(&self, operation: &Operation) -> Judged<Vec<DefaultRequirement>> {

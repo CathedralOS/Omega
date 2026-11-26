@@ -2,7 +2,7 @@
 We own the host and captured filesystem authority granted to an admitted `build.omg` machine (`BuildMachineFilesystemScope`).
 
 Every build activation operates under explicit grant roots:
-1. `BUILD_SOURCE_ROOT_IDENTITY` (`1`) is the read-only `Source` root, backed either by an immutable compiler-captured `CapturedBuildSourceInput` or by an explicitly admitted `LiveBuildSource` directory capability.
+1. `BUILD_SOURCE_ROOT_IDENTITY` (`1`) is the read-only `Source` root, backed either by an immutable compiler-captured `CapturedBuildSourceInput` or by an explicitly admitted `BoundDirectory` directory capability.
 2. `BUILD_OUTPUT_ROOT_IDENTITY` (`2`) is the append-and-seal `Output` staging directory (`build_dir`), governed by a `FilesystemSponsor`.
 3. `NamedBuildInput` slots (`3..`) bind additional read-only `CapturedBuildSourceInput` snapshots under `$OmegaBuildInputSlots`.
 */
@@ -17,22 +17,23 @@ When the selected build machine cannot reach the filesystem at all, the `Output`
 
 /*
 Provenance:
-- Capability-bound live source directory (`LiveBuildSource`): `build_execution/filesystem_scope/live_source.rs`.
+- Capability-bound reads from admitted directories: `build_execution/filesystem_scope/bound_directory.rs`.
 - Request-to-scope preparation and private sponsor provisioning: `build_execution/filesystem_scope/preparation.rs`.
 - Terminal Psi runtime filesystem host (`BuildFilesystemRuntime`): `build_execution/filesystem_scope/runtime.rs`.
 */
 
-mod live_source;
+use platform_custody::bound_directory;
 pub mod preparation;
 pub mod runtime;
+pub(super) mod runtime_directory;
+pub(super) mod successor_directory;
 
 use super::observations::{
     BuildActivation, BuildCapturedSourceInventory, BuildNamedInputInventory,
+    BuildRequiredOutputSettlement,
 };
 use crate::BuildCanonicalSourceMetadataIdentity;
-use build_output::{
-    BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture, empty,
-};
+use build_output::{BuildStagedOutputTree, CapturedBuildSourceInput, capture, empty};
 use diagnostics::Diagnostic;
 use filesystem_authority::{
     FilesystemGrantRoot, FilesystemGrantRootIdentity, FilesystemMetadataLayout, FilesystemSponsor,
@@ -86,19 +87,21 @@ pub const BUILD_OUTPUT_ROOT_IDENTITY: FilesystemGrantRootIdentity =
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildMachineFilesystemScope {
-    source_root: PathBuf,                              // Physical source root path.
-    live_source: Option<live_source::LiveBuildSource>, // Capability-bound live source directory when uncaptured.
+    source_root: PathBuf, // Physical source root path.
+    live_source: Option<bound_directory::BoundDirectory>, // Capability-bound live source directory when uncaptured.
     canonical_source_metadata: Option<filesystem_authority::CanonicalFilesystemMetadataIndex>, // Validated canonical Source metadata index.
     canonical_source_metadata_required: bool, // Whether package/anonymous custody requires canonical metadata.
     build_dir: PathBuf,                       // Physical Output staging root path.
     admitted_build_dir_key: PathBuf,          // Overlap key of `build_dir` recorded at admission.
-    sponsor: Option<FilesystemSponsor>, // Staging directory quota and custody sponsor.
+    sponsor: Option<FilesystemSponsor>,       // Staging directory quota and custody sponsor.
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>, // Bound root package identity.
     root_role: Option<crate::BuildDeclarationKind>, // Bound root declaration role (`Library` or `Product`).
     build_execution_profile: Option<target::TargetProfile>, // Admitted execution profile for build-scope evaluation.
     captured_source_input: Option<CapturedBuildSourceInput>, // Immutable captured Source inventory.
+    pub(super) product_source_directory: Option<Vec<u8>>,
     required_outputs: BTreeSet<Vec<u8>>, // Declared required sealed output paths in canonical order.
-    named_inputs: Vec<NamedBuildInput>,  // Assigned named input roots (`3..`).
+    directories: runtime_directory::BuildDirectoryMappings,
+    named_inputs: Vec<NamedBuildInput>, // Assigned named input roots (`3..`).
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,7 +167,7 @@ impl BuildMachineFilesystemScope {
         self.ensure_canonical_source_metadata()?;
         if self.captured_source_input.is_none() && self.live_source.is_none() {
             self.live_source = Some(
-                live_source::LiveBuildSource::bind(&self.source_root).map_err(|error| {
+                bound_directory::BoundDirectory::bind(&self.source_root).map_err(|error| {
                     vec![Diagnostic::error(format!(
                         "could not bind admitted live Build Source: {error}"
                     ))]
@@ -198,6 +201,8 @@ impl BuildMachineFilesystemScope {
             build_execution_profile: None,
             captured_source_input: None,
             required_outputs: BTreeSet::new(),
+            product_source_directory: None,
+            directories: Default::default(),
             named_inputs: Vec::new(),
         }
     }
@@ -223,6 +228,8 @@ impl BuildMachineFilesystemScope {
             build_execution_profile: None,
             captured_source_input: None,
             required_outputs: BTreeSet::new(),
+            product_source_directory: None,
+            directories: Default::default(),
             named_inputs: Vec::new(),
         }
     }
@@ -399,6 +406,41 @@ impl BuildMachineFilesystemScope {
 
     pub fn required_outputs(&self) -> &BTreeSet<Vec<u8>> {
         &self.required_outputs
+    }
+
+    /// Before Build entry, resolve the program's file grants against the same
+    /// Source and private Output that will serve the call at execution.
+    pub fn admit_program_files(&self, read: &[Vec<u8>], write: &[Vec<u8>]) -> Result<(), String> {
+        if read.is_empty() && write.is_empty() {
+            return Ok(());
+        }
+        if !self.has_private_staging() {
+            return Err("program file grants require private activation staging".into());
+        }
+        for path in read {
+            let present = match (&self.captured_source_input, &self.live_source) {
+                (Some(snapshot), _) => snapshot.open_file(path).is_ok(),
+                (None, Some(source)) => source.open_read(path).is_ok(),
+                (None, None) => false,
+            };
+            if !present {
+                return Err(format!(
+                    "readable file `{}` is outside the activation's admitted Source",
+                    String::from_utf8_lossy(path)
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn has_private_staging(&self) -> bool {
+        self.sponsor
+            .as_ref()
+            .is_some_and(|s| s.owns_private_staging_root(&self.build_dir))
+    }
+
+    pub fn has_captured_files(&self) -> bool {
+        self.captured_source_input.is_some()
     }
 
     pub fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
@@ -594,32 +636,15 @@ impl BuildMachineFilesystemScope {
 
     pub(crate) fn verify_required_outputs(
         &self,
-        staged_output_tree: Option<&BuildStagedOutputTree>,
+        completed: &[BuildRequiredOutputSettlement],
         machine_name: &str,
     ) -> Result<(), Vec<Diagnostic>> {
-        if self.required_outputs.is_empty() {
-            return Ok(());
-        }
-        let Some(tree) = staged_output_tree else {
-            return Err(vec![Diagnostic::error(format!(
-                "build-time evaluation of `{machine_name}` cannot complete its required outputs without staged-output custody"
-            ))]);
-        };
         for name in &self.required_outputs {
-            match tree.sealed_entry(name) {
-                Some(entry) if matches!(entry.kind(), BuildStagedOutputEntryKind::File { .. }) => {}
-                Some(_) => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "required build output `{}` of `{machine_name}` is not a sealed regular file",
-                        String::from_utf8_lossy(name)
-                    ))]);
-                }
-                None => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "required build output `{}` of `{machine_name}` was omitted from the sealed staged-output tree",
-                        String::from_utf8_lossy(name)
-                    ))]);
-                }
+            if !completed.iter().any(|file| file.relative_path() == name) {
+                return Err(vec![Diagnostic::error(format!(
+                    "required build output `{}` of `{machine_name}` has no completed obligation",
+                    String::from_utf8_lossy(name)
+                ))]);
             }
         }
         Ok(())

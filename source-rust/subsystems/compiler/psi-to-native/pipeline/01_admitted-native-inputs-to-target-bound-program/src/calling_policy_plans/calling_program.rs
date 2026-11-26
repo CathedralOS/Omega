@@ -5,7 +5,7 @@
 // allowance with independent logical storage metering and no host imports.
 
 use super::{CanonicalCallingSignature, TerminalCallingPolicyInvocation};
-use calling_conventions::ValidatedBoundaryEntryPlan;
+use calling_conventions::BoundaryCallingApplication;
 use evaluation_accounting::BuildEvaluationSponsor;
 use evaluation_contracts::{
     BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
@@ -55,7 +55,13 @@ impl CallingProgram {
         declaration: semantic_vocabulary::CallingSignatureId,
         providers: &[provider_plans::ProviderPlan],
         admission: super::TerminalCallingPolicyAdmission,
-    ) -> Result<(CanonicalCallingSignature, ValidatedBoundaryEntryPlan), String> {
+    ) -> Result<BoundaryCallingApplication, String> {
+        let owner = self
+            .artifact
+            .semantic_module()
+            .identities
+            .text(policy.declaring_application)
+            .ok_or("calling policy lost its exact declaring application")?;
         let policy = *policy.policy.as_ref().map_err(Clone::clone)?;
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
             work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
@@ -109,7 +115,7 @@ impl CallingProgram {
             },
             providers,
         )?;
-        let (plan, _) =
+        let (plan, dispatch_only, _) =
             super::execution::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
                 artifact: &self.artifact,
                 analysis,
@@ -119,7 +125,7 @@ impl CallingProgram {
                 account,
                 admission,
             })?;
-        Ok((canonical, plan))
+        canonical.native_application_with_owner(&plan, dispatch_only, owner)
     }
 
     pub(crate) fn materialize_default(

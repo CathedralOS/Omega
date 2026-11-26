@@ -1076,8 +1076,7 @@ fn resolve_domain_symbol(
     match super::lookup::membership_domain_lookup(symbols, name, reference) {
         super::lookup::DomainMembership::Unique(symbol) => symbol,
         super::lookup::DomainMembership::NotFound
-        | super::lookup::DomainMembership::Ambiguous { .. }
-        | super::lookup::DomainMembership::Contested => SymbolHandle::invalid(),
+        | super::lookup::DomainMembership::Multiple { .. } => SymbolHandle::invalid(),
     }
 }
 

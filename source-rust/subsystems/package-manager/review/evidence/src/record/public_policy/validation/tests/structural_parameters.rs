@@ -81,7 +81,6 @@ fn policy(positions: Option<Vec<u32>>) -> PackagePolicyBaseline {
             demands: vec![],
             realizations: vec![],
         },
-        assumed_bindings: vec![],
         service_audits: vec![],
         restricted_build_requests: vec![],
         component_assumptions: vec![],
@@ -139,6 +138,33 @@ fn saved_structural_positions_are_unique_ordered_source_parameters() {
             recover(&policy(Some(positions))),
             Err(PackagePolicyRecoveryError::InvalidValue)
         );
+    }
+}
+
+#[test]
+fn a_saved_domain_distinguishes_unrestricted_denied_and_named_issuance() {
+    let mut base = policy(Some(vec![1, 3]));
+    base.public_api.domains.push(PackagePolicyDomainShape {
+        identity: identity("Initialized"),
+        type_parameters: vec![],
+        target_type: type_identity(U64),
+        index_arguments: vec![],
+        predicate_presence: language_core::DomainPredicatePresence::Absent,
+        predicate_facts: vec![],
+        alias_expansion: None,
+        classification: None,
+        semantic_roles: vec![],
+        issuance: None,
+    });
+    let issuers = vec![PackageReviewDomainEstablishmentRoute::BoundaryRequirement {
+        trait_identity: identity("TableSource"),
+        requirement_identity: identity("TableSource::provide"),
+    }];
+    let mut encoded = std::collections::BTreeSet::new();
+    for issuance in [None, Some(vec![]), Some(issuers)] {
+        base.public_api.domains[0].issuance = issuance;
+        assert_eq!(recover(&base), Ok(base.clone()));
+        assert!(encoded.insert(base.canonical_bytes().unwrap()));
     }
 }
 

@@ -9,7 +9,7 @@ use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 use arena::IdTable;
 use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, ValueId};
 use terminal_check_tables::obligations::ObligationKind;
-use terminal_check_tables::values::{ValueOrigin, ValueRow};
+use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralArgument, TerminalBlockNaturalRank,
@@ -506,7 +506,7 @@ impl Lowering<'_> {
 /// Unrecognized producers keep the strict candidate and its proof obligation;
 /// this comparison grants no equality fact to any program.
 fn same_rank_computation(
-    values: &IdTable<ValueId, ValueRow>,
+    values: &terminal_check_tables::MachineValues,
     operations: &IdTable<OperationId, Option<&Operation>>,
     left: ValueId,
     right: ValueId,

@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_dup_enable");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_dup_enable" };
     Optimizations::enable(@mutable builder.optimizations, Optimization::CopyPropagation);
     Optimizations::enable(@mutable builder.optimizations, Optimization::CopyPropagation);
 }

@@ -12,12 +12,12 @@ fn project(source: &str) -> Result<BuildEntrySyntaxProjection, DependencyProject
 fn the_build_entry_has_exactly_one_mutable_build_parameter() {
     for source in [
         "machine build() {}",
-        "machine build(builder: @mutable Build, filesystem: @mutable Filesystem) {}",
-        "machine build(builder: Build) {}",
-        "machine build(builder: @Build) {}",
-        "machine build(builder: @write Build) {}",
+        "machine build(builder: @mutable BuildPlan, filesystem: @mutable Filesystem) {}",
+        "machine build(builder: BuildPlan) {}",
+        "machine build(builder: @BuildPlan) {}",
+        "machine build(builder: @write BuildPlan) {}",
         "machine build(builder: @mutable Builder) {}",
-        "machine build(filesystem: @mutable Filesystem, builder: @mutable Build) {}",
+        "machine build(filesystem: @mutable Filesystem, builder: @mutable BuildPlan) {}",
     ] {
         assert_eq!(
             project(source),
@@ -29,8 +29,9 @@ fn the_build_entry_has_exactly_one_mutable_build_parameter() {
 #[test]
 fn rejects_spoofed_toolchain_vocabulary_and_nonordinary_builds() {
     for source in [
-        r#"data Build {} machine build(builder: @mutable Build) { Build::package(builder, "spoof"); }"#,
-        r#"machine Build::dependency(name: @[u8]) {} machine build(builder: @mutable Build) { Build::package(builder, "spoof"); }"#,
+        r#"data BuildPlan {} machine build(builder: @mutable BuildPlan) {}"#,
+        r#"data Build {} machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "spoof" }; }"#,
+        r#"machine Build::dependency(name: @[u8]) {} machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "spoof" }; }"#,
     ] {
         assert!(matches!(
             project(source),
@@ -39,12 +40,12 @@ fn rejects_spoofed_toolchain_vocabulary_and_nonordinary_builds() {
     }
     assert!(matches!(
         project(
-            r#"machine Owner::build(builder: @mutable Build) { Build::package(builder, "scoped"); }"#
+            r#"machine Owner::build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "scoped" }; }"#
         ),
         Err(DependencyProjectionError::ScopedBuildMachine { .. })
     ));
     assert_eq!(
-        project("boundary machine build(builder: @mutable Build);"),
+        project("boundary machine build(builder: @mutable BuildPlan);"),
         Err(DependencyProjectionError::InvalidBuildMachine)
     );
 }

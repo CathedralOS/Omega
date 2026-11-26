@@ -650,7 +650,6 @@ pub enum FilesystemSponsorError {
     ParentIsNotDirectory(PathBuf),
     EntryAlreadyExists(PathBuf),
     EntryIsNotRegularObject(PathBuf),
-    UnsealedEntry(PathBuf),
     UnsupportedStagingOperation(&'static str),
     BackingStore(String),
     OpenDescriptorNotFound,
@@ -716,13 +715,6 @@ impl fmt::Display for FilesystemSponsorError {
                 write!(
                     formatter,
                     "entry is not a regular object: {}",
-                    path.to_string_lossy().replace('\\', "/")
-                )
-            }
-            Self::UnsealedEntry(path) => {
-                write!(
-                    formatter,
-                    "staging entry is not sealed: {}",
                     path.to_string_lossy().replace('\\', "/")
                 )
             }

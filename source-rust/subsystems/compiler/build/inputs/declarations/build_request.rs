@@ -3,14 +3,10 @@
 // granting acquisition, execution, or publication authority, and keep Product
 // and Build dependency alias scopes separate.
 
-use crate::{DependencyPurpose, ProjectName, WorkspaceMemberPath};
+use crate::{DependencyPurpose, ProjectName};
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub enum BuildRequest {
-    Package(ProjectName),
-    Application(ProjectName),
-    Member(WorkspaceMemberPath),
-    BuildEntry(BuildEntryPath),
     ArtifactOnly,
     Dependency {
         purpose: DependencyPurpose,
@@ -51,6 +47,7 @@ impl BuildEntryPath {
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub enum BuildDependencySource {
     Path(String),
+    Bundled(ProjectName),
     Git {
         repository: String,
         revision: String,

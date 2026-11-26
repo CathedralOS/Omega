@@ -1,12 +1,12 @@
 //! Encode the complete graph with explicit dependency purposes.
 
 use super::super::SOURCE_CLOSURE_SUBJECT_MAGIC;
+use super::super::usage::Budget;
 use super::super::{
-    CanonicalDependencySourceSelection, CanonicalRootSourceRequest, CanonicalRootSourceSelection,
-    CanonicalSourceClosureSubjectError, CanonicalSourceClosureSubjectLimits,
-    SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
+    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
+    CanonicalRootSourceRequest, CanonicalRootSourceSelection, CanonicalSourceClosureSubjectError,
+    CanonicalSourceClosureSubjectLimits, SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION,
 };
-use super::super::{request_view::Request, usage::Budget};
 use super::framing::Encoder;
 use super::source::{
     encode_package_key, encode_resolution, encode_source_identity, encode_source_lineage,
@@ -108,7 +108,7 @@ fn encode_subject_to(
         }
         encoder.count(dependency.ordinal)?;
         encoder.byte(dependency.purpose.canonical_tag());
-        encode_dependency_request(encoder, Request::from(&dependency.request), limits)?;
+        encode_dependency_request(encoder, &dependency.request, limits)?;
         encode_reach(encoder, &dependency.max_reach, limits)?;
         encoder.bytes_bounded(
             dependency.provider.canonical_bytes(),
@@ -135,7 +135,7 @@ fn encode_dependency_scope(
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     encoder.count(dependencies.authored_dependencies().len())?;
     for request in dependencies.authored_dependencies() {
-        encode_dependency_request(encoder, Request::from(&request.source), limits)?;
+        encode_dependency_request(encoder, &request.source, limits)?;
         encode_reach(encoder, &request.max_reach, limits)?;
     }
     Ok(())
@@ -147,6 +147,10 @@ fn encode_root_selection(
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     match &root.request {
+        CanonicalRootSourceRequest::Bundled { name } => {
+            encoder.byte(3);
+            encoder.bytes_bounded(name.as_str().as_bytes(), limits.maximum_identity_bytes)?;
+        }
         CanonicalRootSourceRequest::Git {
             requested_locator,
             requested_revision,
@@ -197,7 +201,7 @@ fn encode_dependency_selection(
     encoder.u32(u32::try_from(selection.dependency_index).map_err(|_| {
         CanonicalSourceClosureSubjectError::new("dependency ordinal exceeds canonical range")
     })?);
-    encode_dependency_request(encoder, Request::from(&selection.request), limits)?;
+    encode_dependency_request(encoder, &selection.request, limits)?;
     encoder.bytes_bounded(
         selection.alias.as_str().as_bytes(),
         limits.maximum_identity_bytes,
@@ -207,26 +211,46 @@ fn encode_dependency_selection(
 
 pub(super) fn encode_dependency_request(
     encoder: &mut Encoder,
-    request: Request<'_>,
+    request: &CanonicalDependencySourceRequest,
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     match request {
-        Request::Path {
+        CanonicalDependencySourceRequest::Bundled {
+            explicit_alias,
+            name,
+        } => {
+            encoder.byte(2);
+            encode_optional_alias(
+                encoder,
+                explicit_alias.as_ref(),
+                limits.maximum_identity_bytes,
+            )?;
+            encoder.bytes_bounded(name.as_str().as_bytes(), limits.maximum_identity_bytes)?;
+        }
+        CanonicalDependencySourceRequest::Path {
             explicit_alias,
             location,
         } => {
             encoder.byte(0);
-            encode_optional_alias(encoder, explicit_alias, limits.maximum_identity_bytes)?;
+            encode_optional_alias(
+                encoder,
+                explicit_alias.as_ref(),
+                limits.maximum_identity_bytes,
+            )?;
             encoder.bytes_bounded(location.as_bytes(), limits.maximum_request_bytes)?;
         }
-        Request::Git {
+        CanonicalDependencySourceRequest::Git {
             explicit_alias,
             repository,
             revision,
             selection,
         } => {
             encoder.byte(1);
-            encode_optional_alias(encoder, explicit_alias, limits.maximum_identity_bytes)?;
+            encode_optional_alias(
+                encoder,
+                explicit_alias.as_ref(),
+                limits.maximum_identity_bytes,
+            )?;
             encoder.bytes_bounded(repository.as_bytes(), limits.maximum_request_bytes)?;
             encoder.bytes_bounded(revision.as_bytes(), limits.maximum_request_bytes)?;
             encode_package_selection(encoder, selection, limits.maximum_identity_bytes)?;

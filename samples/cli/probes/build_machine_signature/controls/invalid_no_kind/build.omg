@@ -1,2 +1,2 @@
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
 }

@@ -2368,12 +2368,26 @@ impl<'a> Prover<'a> {
         let result = match self.prove_structural(goal) {
             Ok(proof) => Ok(proof),
             Err(detail) => self
-                .by_implication(goal)
+                .by_normalized_integer_fact(goal)
+                .or_else(|| self.by_implication(goal))
                 .or_else(|| self.by_transport(goal))
                 .ok_or(detail),
         };
         self.refuting = refuting;
         result
+    }
+
+    /// Mixed comparisons are mathematical orders. A fixed-carrier obligation
+    /// may therefore have exactly the same operands as an admitted math fact.
+    fn by_normalized_integer_fact(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let alternate = proof_admission::lift_fixed_integer_relation(goal)
+            .or_else(|| lower_integer_math_relation(goal))?;
+        let index = self.exact_fact(&alternate)?;
+        Some(proof_admission::restate_integer_relation(
+            goal.clone(),
+            self.facts[index].proof(&self.facts),
+            self.assumptions.len(),
+        ))
     }
 
     fn prove_structural(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
@@ -4050,10 +4064,20 @@ impl<'a> Prover<'a> {
                 integer,
                 direction,
                 best.as_ref().map(|bound| bound.literal),
-            ) && best.as_ref().is_none_or(|current| {
-                direction.prefers(integer.compare(next.literal, current.literal))
-            }) {
-                best = Some(next);
+            ) {
+                if best.as_ref().is_none_or(|current| {
+                    direction.prefers(integer.compare(next.literal, current.literal))
+                }) {
+                    best = Some(next);
+                }
+                // A direct equality supplies the exact literal. Following
+                // aliases past it can cache a provisional bound for a caller.
+                if matches!(
+                    self.facts[index].proposition(),
+                    Proposition::Equal(..) | Proposition::IntegerMathEqual(..)
+                ) {
+                    return best;
+                }
             }
         }
         self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(best.clone());
@@ -4199,9 +4223,17 @@ impl<'a> Prover<'a> {
                     ),
                 })
             }
+            (Proposition::IntegerMathEqual(left, right), _)
+                if matches!(left, IntegerMathTerm::IntegerLiteral(_))
+                    || matches!(right, IntegerMathTerm::IntegerLiteral(_)) =>
+            {
+                // This expression has a closed endpoint, so its bound can be
+                // built before any neighboring value's bounds are inspected.
+                self.bound_from_fact(index, subject, integer, direction, current)
+            }
             (Proposition::Equal(left, right), _)
-                if (left == subject && improves(right, false))
-                    || (right == subject && improves(left, false)) =>
+                if (left == subject && right.integer_value().is_some())
+                    || (right == subject && left.integer_value().is_some()) =>
             {
                 // Orient the equality so the weakened `<=` points the right way.
                 let proof = fact_proof_for_literal_bound(&self.facts, index, self.activity);

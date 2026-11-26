@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "nominal_record_representation_target_body_invalid");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "nominal_record_representation_target_body_invalid" };
     Build::select_provider::<RecordOperation, SelectedRecordOperation>(builder, linux_x86_64);
     Build::select_provider::<RecordOperation, SelectedRecordOperation>(builder, linux_arm64);
     Build::select_provider::<RecordOperation, SelectedRecordOperation>(builder, macos_arm64);

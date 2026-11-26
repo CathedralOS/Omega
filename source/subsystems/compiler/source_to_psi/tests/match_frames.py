@@ -9,7 +9,7 @@ from execution import check_silent_execution
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
-FIXTURE = PACKAGE / "tests/fixtures/parser/run/match_frames"
+FIXTURE = PACKAGE.parent / "tests/fixtures/source_to_psi/parser/run/match_frames"
 SOURCES = (
     "pipeline/tokens_to_syntax_trees/expression_frames.omg",
     "representations/syntax_trees/syntax_trees.omg",

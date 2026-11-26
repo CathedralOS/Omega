@@ -1,21 +1,15 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use model/netlist/netlist.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 2. (closed stdin; valid mode oracles are in data/.)
 // Expected output contains: REJECT input: expected one byte 0,1,2,d
 // ADD08: event-driven propagation, pulse cancellation, exhaustive steady truth.
 // Calendar slots hold zero=absent, one=false, two=true. One gate can schedule
 // at most one value per timestamp. Equal-time deliveries use ascending node ID.
-use system\ByteRead;
-use system\Console;
-use model\netlist;
-use model\netlist\Gate;
-use model\netlist\Network;
-use model\netlist\configure;
-use model\netlist\evaluate;
 
 data Main {
-    network: Network;
+    network: |netlist|::Network;
     calendar: [i32; 640];
     due: [u64; 9];
     time: u64;
@@ -31,17 +25,17 @@ data Main {
     expected_trace: u64;
 }
 
-machine number(main: @mutable Main, value: u64) reaches StandardOutput {
+machine number(main: @mutable Main, value: u64) reaches |process_authority|::StandardOutput {
     // All reports are below 100; two ASCII decimal digits are emitted directly.
-    Console::write_byte((((value % 100) / 10) as i32) + 48);
-    Console::write_byte(((value % 10) as i32) + 48);
+    |console|::Console::write_byte((((value % 100) / 10) as i32) + 48);
+    |console|::Console::write_byte(((value % 10) as i32) + 48);
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("logic_hazard_timing: mode 0=transport1 1=transport4 2=inertial4");
-    let input: ByteRead = block Console::read_byte();
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("logic_hazard_timing: mode 0=transport1 1=transport4 2=inertial4");
+    let input: |console|::ByteRead = block |console|::Console::read_byte();
     transition input {
-        ByteRead::Byte { value } -> mode(main, value),
+        |console|::ByteRead::Byte { value } -> mode(main, value),
         _ -> bad_input(main)
     }
     machine mode(main: @mutable Main, value: i32) {
@@ -54,7 +48,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine setup(main: @mutable Main, delay: u64, inertial: bool, changes: u64, trace: u64) {
-        configure(@mutable main.network, delay);
+        |netlist|::configure(@mutable main.network, delay);
         main.inertial = inertial;
         main.expected_changes = changes;
         main.expected_trace = trace;
@@ -68,7 +62,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine gate_valid(main: @mutable Main) {
-        let definition: Gate = main.network.gates[main.gate];
+        let definition: |netlist|::Gate = main.network.gates[main.gate];
         transition definition.left < main.gate && definition.right < main.gate && definition.delay > 0 && definition.delay <= 8 && definition.kind >= 1 && definition.kind <= 3 {
             true -> next_validation(main),
             false -> bad_netlist(main)
@@ -102,7 +96,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine truth_compute(main: @mutable Main) {
-        let result: bool = evaluate(@main.network, main.gate);
+        let result: bool = |netlist|::evaluate(@main.network, main.gate);
         main.network.values[main.gate] = result;
         main.gate = (main.gate % 9) + 1;
         transition { _ -> truth_gates(main) }
@@ -115,16 +109,16 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine truth_report(main: @mutable Main) {
-        Console::write("truth row=");
+        |console|::Console::write("truth row=");
         let reported_row: u64 = main.row; number(main, reported_row);
-        Console::write(" value=");
+        |console|::Console::write(" value=");
         transition main.network.values[6] {
             true -> truth_one(main),
             false -> truth_zero(main)
         }
     }
-    machine truth_one(main: @mutable Main) { Console::write_line("1"); transition { _ -> truth_next(main) } }
-    machine truth_zero(main: @mutable Main) { Console::write_line("0"); transition { _ -> truth_next(main) } }
+    machine truth_one(main: @mutable Main) { |console|::Console::write_line("1"); transition { _ -> truth_next(main) } }
+    machine truth_zero(main: @mutable Main) { |console|::Console::write_line("0"); transition { _ -> truth_next(main) } }
     machine truth_next(main: @mutable Main) { main.row = (main.row % 8) + 1; transition { _ -> truth_row(main) } }
     machine initial(main: @mutable Main) {
         main.network.values[0] = true;
@@ -140,14 +134,14 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine initialize_gate(main: @mutable Main) {
-        let result: bool = evaluate(@main.network, main.gate);
+        let result: bool = |netlist|::evaluate(@main.network, main.gate);
         main.network.values[main.gate] = result;
         main.network.desired[main.gate] = result;
         main.gate = (main.gate % 9) + 1;
         transition { _ -> initialize_gates(main) }
     }
     machine stimulus(main: @mutable Main) {
-        Console::write_line("initial nodes 0..8=111010111");
+        |console|::Console::write_line("initial nodes 0..8=111010111");
         main.calendar[100] = 1; // t=10, input a falls.
         main.time = 0;
         transition { _ -> clock(main) }
@@ -185,13 +179,13 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine changed(main: @mutable Main, value: bool) {
         main.network.values[main.node] = value;
-        Console::write("wave t="); let reported_time: u64 = main.time; number(main, reported_time);
-        Console::write(" node="); let reported_node: u64 = main.node; number(main, reported_node);
-        Console::write(" value=");
+        |console|::Console::write("wave t="); let reported_time: u64 = main.time; number(main, reported_time);
+        |console|::Console::write(" node="); let reported_node: u64 = main.node; number(main, reported_node);
+        |console|::Console::write(" value=");
         transition value { true -> emit_one(main), false -> emit_zero(main) }
     }
-    machine emit_one(main: @mutable Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2 + 1) % 65521; Console::write_line("1"); transition { _ -> observe(main) } }
-    machine emit_zero(main: @mutable Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2) % 65521; Console::write_line("0"); transition { _ -> observe(main) } }
+    machine emit_one(main: @mutable Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2 + 1) % 65521; |console|::Console::write_line("1"); transition { _ -> observe(main) } }
+    machine emit_zero(main: @mutable Main) { main.trace = ((main.trace % 65521) * 17 + (main.time % 64) * 100 + (main.node % 10) * 2) % 65521; |console|::Console::write_line("0"); transition { _ -> observe(main) } }
     machine observe(main: @mutable Main) {
         transition main.node == 6 { true -> observe_output(main), false -> reschedule(main) }
     }
@@ -202,10 +196,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine pulse_start(main: @mutable Main) { main.fall = main.time; transition { _ -> reschedule(main) } }
     machine pulse_end(main: @mutable Main) {
         main.glitches = (main.glitches % 64) + 1;
-        Console::write("glitch node=06 start="); let reported_fall: u64 = main.fall; number(main, reported_fall);
-        Console::write(" end="); let reported_time: u64 = main.time; number(main, reported_time);
-        Console::write(" width="); let reported_width: u64 = ((main.time % 64) + 64 - (main.fall % 64)) % 64; number(main, reported_width);
-        Console::write_line("");
+        |console|::Console::write("glitch node=06 start="); let reported_fall: u64 = main.fall; number(main, reported_fall);
+        |console|::Console::write(" end="); let reported_time: u64 = main.time; number(main, reported_time);
+        |console|::Console::write(" width="); let reported_width: u64 = ((main.time % 64) + 64 - (main.fall % 64)) % 64; number(main, reported_width);
+        |console|::Console::write_line("");
         transition { _ -> reschedule(main) }
     }
     machine reschedule(main: @mutable Main) { main.gate = 3; transition { _ -> gates(main) } }
@@ -213,7 +207,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition main.gate < 9 { true -> desired(main), false -> next_node(main) }
     }
     machine desired(main: @mutable Main) {
-        let value: bool = evaluate(@main.network, main.gate);
+        let value: bool = |netlist|::evaluate(@main.network, main.gate);
         transition value != main.network.desired[main.gate] {
             true -> schedule(main, value),
             false -> next_gate(main)
@@ -231,7 +225,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     requires previous < 640
     { main.calendar[previous] = 0; transition { _ -> enqueue(main, value) } }
     machine enqueue(main: @mutable Main, value: bool) {
-        let definition: Gate = main.network.gates[main.gate];
+        let definition: |netlist|::Gate = main.network.gates[main.gate];
         let arrival: u64 = (main.time % 64) + (definition.delay % 9);
         let slot: u64 = (arrival % 64) * 10 + (main.gate % 10);
         main.due[main.gate] = slot;
@@ -252,14 +246,14 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
             false -> failed(main)
         }
     }
-    machine success(main: @mutable Main) { Console::write_line("PASS truth=08 steady=1 consensus=1"); ProcessExit::exit_process(0); }
-    machine failed(main: @mutable Main) { Console::write_line("FAIL oracle"); ProcessExit::exit_process(1); }
-    machine bad_input(main: @mutable Main) { Console::write_line("REJECT input: expected one byte 0,1,2,d"); ProcessExit::exit_process(2); }
-    machine bad_netlist(main: @mutable Main) { Console::write_line("REJECT netlist: positive delay <=8 and acyclic valid gates required"); ProcessExit::exit_process(3); }
+    machine success(main: @mutable Main) { |console|::Console::write_line("PASS truth=08 steady=1 consensus=1"); |process_exit|::ProcessExit::exit_process(0); }
+    machine failed(main: @mutable Main) { |console|::Console::write_line("FAIL oracle"); |process_exit|::ProcessExit::exit_process(1); }
+    machine bad_input(main: @mutable Main) { |console|::Console::write_line("REJECT input: expected one byte 0,1,2,d"); |process_exit|::ProcessExit::exit_process(2); }
+    machine bad_netlist(main: @mutable Main) { |console|::Console::write_line("REJECT netlist: positive delay <=8 and acyclic valid gates required"); |process_exit|::ProcessExit::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -45,10 +45,7 @@ pub(super) fn settle_build_output_obligations(
                 "build-time evaluation of `{machine_name}` issued no completion receipt for required output `{name}`"
             ))]);
         };
-        if receipt.obligation() != index
-            || receipt.root() != obligation.root()
-            || receipt.relative_path() != obligation.relative_path()
-        {
+        if receipt.obligation() != index || receipt.root() != obligation.root() {
             return Err(vec![Diagnostic::error(format!(
                 "build-time evaluation of `{machine_name}` completed required output `{name}` against a different output than it declared"
             ))]);
@@ -58,7 +55,7 @@ pub(super) fn settle_build_output_obligations(
                 "required output `{name}` of `{machine_name}` was mutated after its completion was accepted"
             ))]);
         }
-        match staged_output_tree.and_then(|tree| tree.sealed_entry(obligation.relative_path())) {
+        match staged_output_tree.and_then(|tree| tree.sealed_entry(receipt.relative_path())) {
             Some(entry) if matches!(entry.kind(), BuildStagedOutputEntryKind::File { .. }) => {}
             Some(_) => {
                 return Err(vec![Diagnostic::error(format!(
@@ -73,6 +70,7 @@ pub(super) fn settle_build_output_obligations(
         }
         settlements.push(BuildRequiredOutputSettlement {
             relative_path: obligation.relative_path().to_vec(),
+            staged_file: receipt.relative_path().to_vec(),
             sealed_attempt_ordinal: u64::try_from(receipt.sealed_at()).map_err(|_| {
                 vec![Diagnostic::error(format!(
                     "build-time evaluation of `{machine_name}` produced a sealed-output ordinal outside canonical u64"

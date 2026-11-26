@@ -16,7 +16,7 @@ no `Main::exit` — run a check target, not native.
   proof-only and cannot be used as executable values or
   statements") and literal call arguments cannot reach it
   (`no_wrap(4096, 512)` fails a mathematical-application
-  type check — `addr` expected, `u64` literal given). Only
+  type check — `address` expected, `u64` literal given). Only
   a caller's own requires or a domain/prior guarantee
   discharges the callee's `no_wrap` clause — no
   value-level guard or literal establishment exists.

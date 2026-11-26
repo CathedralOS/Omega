@@ -9,10 +9,11 @@ pub(crate) struct BuildProviderScope {
     owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     packages: Option<package_compilation::PackageCompilationInputs>,
     supplied_scope: Option<declaration_scope::PackageDeclarationScope>,
-    dependency_edges: Vec<semantic_vocabulary::dependency_reach::DependencyServiceEdge>,
+    reach_policy: semantic_vocabulary::dependency_reach::ExecutionReachPolicy,
 }
 
 pub(crate) struct BuildProviderInstallation {
+    pub(crate) imports: Vec<semantic_vocabulary::BoundaryMachineId>,
     pub(crate) diagnostic_output_bytes: Option<u64>,
     pub(crate) supplies: terminal_interpreter::TerminalRuntimeSupplies,
     pub(crate) awaited: Vec<semantic_vocabulary::BoundaryMachineId>,
@@ -25,12 +26,13 @@ impl BuildProviderScope {
         owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> Self {
         use build_declarations::DependencyPurpose;
-        let mut dependency_edges = packages
-            .map(|inputs| inputs.execution_service_edges(DependencyPurpose::Build))
+        let mut reach_policy = packages
+            .map(|inputs| inputs.execution_reach_policy(DependencyPurpose::Build))
             .unwrap_or_default();
+        reach_policy.root = owner;
         for library in libraries {
             let dependency = library.dependency();
-            dependency_edges.push(
+            reach_policy.edges.push(
                 semantic_vocabulary::dependency_reach::DependencyServiceEdge {
                     requester: owner,
                     package: dependency.inputs.root(),
@@ -38,21 +40,29 @@ impl BuildProviderScope {
                     max_reach: library.max_reach().clone(),
                 },
             );
-            dependency_edges.extend(
-                dependency
-                    .inputs
-                    .execution_service_edges(DependencyPurpose::Product),
-            );
+            let child = dependency.inputs.execution_reach_policy(DependencyPurpose::Product);
+            reach_policy.edges.extend(child.edges);
+            reach_policy.enabled_unsafe.extend(child.enabled_unsafe);
+            if let Some(handoff) = &dependency.generated {
+                reach_policy.enabled_unsafe.insert(Some(handoff.package()), handoff.enabled_unsafe_atoms().clone());
+            }
         }
         Self {
             owner,
             packages: packages.cloned(),
-            dependency_edges,
+            reach_policy,
             supplied_scope:
                 package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
                     libraries, owner,
                 ),
         }
+    }
+
+    pub(crate) fn admit_prepared_unsafe_atoms(
+        &mut self,
+        atoms: std::collections::BTreeSet<semantic_vocabulary::dependency_reach::UnsafeAtom>,
+    ) {
+        self.reach_policy.enabled_unsafe.insert(self.owner, atoms);
     }
 
     pub(crate) fn selection_scope(
@@ -68,7 +78,9 @@ impl BuildProviderScope {
     pub(crate) fn admit(
         &self,
         program: &source_compiler::publication::ProducedTerminalProgram,
+        prepared: &source_compiler::publication::AcceptedTerminalSource,
         diagnostic_output_bytes: Option<u64>,
+        filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
     ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
         let artifact = program.view();
         let module = artifact.module();
@@ -79,12 +91,7 @@ impl BuildProviderScope {
             psi_provider_selections::logical_reach::admit_interpreted_providers(artifact)?;
         let implementations = checked
             .providers()
-            .chain(
-                checked
-                    .assumed_bindings()
-                    .iter()
-                    .map(|row| (row.required, row.implementation)),
-            )
+
             .map(|(boundary, machine)| {
                 terminal_semantics::callable_values::CallableBoundaryImplementation {
                     boundary,
@@ -101,7 +108,8 @@ impl BuildProviderScope {
             entry,
             &implementations,
             None,
-            &self.dependency_edges,
+            &self.reach_policy,
+            &prepared.unsafe_services()?,
             &selections.dependency_calls,
         )?;
         let authority = self.selection_scope(build_declarations::DependencyPurpose::Build);
@@ -137,15 +145,6 @@ impl BuildProviderScope {
             .build_filesystem()
             .calls_for(artifact)
             .ok_or_else(|| failure("Build filesystem calls lost their artifact custody"))?;
-        let mut host_imports = requests
-            .iter()
-            .map(|call| call.site.boundary)
-            .chain(bindings.iter().map(|call| call.site.boundary))
-            .chain(queries.iter().map(|call| call.site.boundary))
-            .chain(filesystem.iter().map(|call| call.site.boundary))
-            .collect::<Vec<_>>();
-        host_imports.sort_unstable();
-        host_imports.dedup();
         let mut awaited = Vec::new();
         for call in bindings.iter() {
             if let source_compiler::representations::declaration_selection::BuildSelectionRequest::ProviderReadiness(request) = &call.request {
@@ -154,6 +153,24 @@ impl BuildProviderScope {
         }
         awaited.sort_unstable();
         awaited.dedup();
+
+        let mut host_imports = requests
+            .iter()
+            .map(|call| call.site.boundary)
+            .chain(bindings.iter().map(|call| call.site.boundary))
+            .chain(queries.iter().map(|call| call.site.boundary))
+            .chain(filesystem.iter().filter_map(|call| {
+                let boundary = call.site.boundary;
+                let optional = crate::host::filesystem::installed_operation(call.action);
+                let selected = implementations
+                    .iter()
+                    .any(|provider| provider.boundary == boundary)
+                    || awaited.binary_search(&boundary).is_ok();
+                (!optional || !selected).then_some(boundary)
+            }))
+            .collect::<Vec<_>>();
+        host_imports.sort_unstable();
+        host_imports.dedup();
 
         let program = terminal_interpreter::TerminalProgram::borrow(artifact);
         let mut supplies = program
@@ -195,6 +212,28 @@ impl BuildProviderScope {
                 "Build requires `{name}` before entry; the caller supplied no bounded StandardOutput diagnostic sink"
             )));
         }
+        use source_compiler::publication::TerminalBuildFilesystemOperation as Fs;
+        for call in filesystem
+            .iter()
+            .filter(|call| demand.imports.contains(&call.site.boundary))
+        {
+            match call.action {
+                Fs::ReadAll if !filesystem_scope.has_captured_files() => {
+                    return Err(failure(
+                        "Build requires Filesystem::read_all before entry, but the caller supplied no captured filesystem",
+                    ));
+                }
+                Fs::WriteAll | Fs::CreateDirectory
+                    if !filesystem_scope.has_private_staging()
+                        || !filesystem_scope.has_captured_files() =>
+                {
+                    return Err(failure(
+                        "Build filesystem mutation requires captured package input and private staging before entry",
+                    ));
+                }
+                _ => {}
+            }
+        }
         let missing = demand
             .missing_providers
             .iter()
@@ -213,6 +252,7 @@ impl BuildProviderScope {
             return Err(errors);
         }
         Ok(BuildProviderInstallation {
+            imports: demand.imports,
             supplies,
             awaited,
             diagnostic_output_bytes,

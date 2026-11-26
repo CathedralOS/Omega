@@ -1,21 +1,10 @@
-/*
-Decode plain `Build` configuration settings from the root `@mutable Build` parameter
-after normal Terminal interpreter return.
-
-`extract` reads the six plain configuration fields (`subsystem`, `identifier`,
-`optimizations`, `x86_deployment_features`,
-`elf_interpreter`, `tests`) out of borrowed entry `0` of the
-completed `TerminalInstance` and passes the reconstructed `BuildTimeValue::Struct`
-to `BuildValueAdmission::extract`.
-
-Why we use `initial` only as a descriptor template:
-The admitted initial `BuildTimeValue` provides the field names and nested struct
-labels expected by `BuildValueAdmission::extract`, while every runtime path,
-active sum case, scalar value, and fixed-array element (`Optimizations.selected`
-has a closed literal extent) is observed directly from the instance's own
-canonical structural catalog. Erased fields, references, host facets, and
-product selections are never copied as plain settings.
-*/
+//! Read the six plain settings from the returned BuildPlan. The selected
+//! Build machine identifies its receiver type, and the interpreter retains
+//! that argument's storage after return.
+//!
+//! The initial record supplies field names and nested type labels. Values,
+//! active sum cases and array elements come from the completed invocation.
+//! Product selection and host facets have separate admission rules.
 
 use optimization_requests::OptimizationReportRequest;
 use normalized_build_settings::EvaluatedBuildSettings;
@@ -132,7 +121,7 @@ fn read_structural(
         }
         StructuralTypeShape::Sum { cases } => {
             let observed = instance
-                .observe_borrowed_entry(0, path)
+                .observe_storage(terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0), path)
                 .map_err(|error| format!("Build case readback: {error:?}"))?;
             let TerminalStorageObservationValue::Storage(TerminalStorageContents::Case(selected)) =
                 observed
@@ -204,7 +193,7 @@ fn read_fields(
 
 fn read_leaf(instance: &TerminalInstance<'_, '_>, path: &[Path]) -> Result<BuildTimeValue, String> {
     let observed = instance
-        .observe_borrowed_entry(0, path)
+        .observe_storage(terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0), path)
         .map_err(|error| format!("Build field readback: {error:?}"))?;
     match observed {
         TerminalStorageObservationValue::Bytes(bytes) => {

@@ -15,8 +15,8 @@ import construct
 
 class BuildSourceTests(unittest.TestCase):
     packages = [('app', 0), ('core', 1), ('library', 0)]
-    sources = [(0, 'build.omg', b'// app\r\nmachine build(builder: @mutable Build) {}'),
-               (1, 'defaults/build.omg', b'machine build(builder: @mutable Build) {}')]
+    sources = [(0, 'build.omg', b'// app\r\nmachine build(builder: @mutable BuildPlan) {}'),
+               (1, 'defaults/build.omg', b'machine build(builder: @mutable BuildPlan) {}')]
     entries = [(0, 0), (1, 1), (2, 1)]
 
     def frame(self, packages=None, sources=None, entries=None):
@@ -83,28 +83,34 @@ class BuildSourceTests(unittest.TestCase):
             for _, package, _ in construct.PACKAGES:
                 root = Path(temp) / package
                 root.mkdir(parents=True)
-                (root / 'build.omg').write_text('machine build(builder: @mutable Build) {}')
+                (root / 'build.omg').write_text('machine build(builder: @mutable BuildPlan) {}')
                 (root / 'main.omg').write_text('machine entry_start() {}')
             psi = Path(temp) / 'source/subsystems/compiler/source_to_psi'
             before = [construct.compiler_input(scoped)[0] for scoped in (False, True)]
-            for directory in ('tests/fixtures/example', 'build', '.git', 'tools/.git'):
+            for directory in ('build', '.git', 'tools/.git'):
                 excluded = psi / directory
                 excluded.mkdir(parents=True)
-                (excluded / 'build.omg').write_text('machine build(builder: @mutable Build) {}')
+                (excluded / 'build.omg').write_text('machine build(builder: @mutable BuildPlan) {}')
                 (excluded / 'main.omg').write_text('machine main() -> u8 { 42 }')
-            nested = psi / 'tools/build/reader.omg'
-            nested.parent.mkdir(parents=True)
-            contents = b'machine read() -> u8 { 7 }'
-            nested.write_bytes(contents)
+            examples = {
+                'tools/build/reader.omg': b'machine read() -> u8 { 7 }',
+                'tests/fixtures/sample.omg': b'machine fixture() -> u8 { 8 }',
+            }
+            for relative, contents in examples.items():
+                path = psi / relative
+                path.parent.mkdir(parents=True)
+                path.write_bytes(contents)
             for scoped in (False, True):
-                with self.subTest(scoped=scoped):
-                    packet, manifest = construct.compiler_input(scoped)
-                    path = nested.relative_to(construct.ROOT).as_posix()
-                    unit, = (row for row in manifest['units'] if row['path'] == path)
-                    arena = packet[-struct.unpack_from('<I', packet, 32)[0]:]
-                    self.assertEqual(arena[unit['start']:unit['end']], contents)
-                    self.assertEqual(arena[unit['path_start']:unit['path_end']], b'tools/build/reader.omg')
-            nested.unlink()
+                packet, manifest = construct.compiler_input(scoped)
+                arena = packet[-struct.unpack_from('<I', packet, 32)[0]:]
+                for relative, contents in examples.items():
+                    with self.subTest(scoped=scoped, relative=relative):
+                        path = (psi / relative).relative_to(construct.ROOT).as_posix()
+                        unit, = (row for row in manifest['units'] if row['path'] == path)
+                        self.assertEqual(arena[unit['start']:unit['end']], contents)
+                        self.assertEqual(arena[unit['path_start']:unit['path_end']], relative.encode())
+            for relative in examples:
+                (psi / relative).unlink()
             self.assertEqual(before, [construct.compiler_input(scoped)[0] for scoped in (False, True)])
 
     def test_complete_capture_preserves_product_coordinates(self):

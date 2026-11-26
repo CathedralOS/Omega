@@ -1,8 +1,7 @@
 // One private bounded unsigned-decimal scanner. Six digits and at most
 // 4096 consumed bytes prevent overflow and unbounded malformed input work.
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 public data Reader {
     value: i64 in Wrapping;
@@ -11,8 +10,8 @@ public data Reader {
     digits: i32 in Wrapping;
 }
 
-public machine next(reader: @mutable Reader) reaches StandardInput
-invokes Console
+public machine next(reader: @mutable Reader) reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
@@ -27,12 +26,12 @@ crashes Trap
         }
     }
     machine read(reader: @mutable Reader) {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         reader.consumed = reader.consumed + 1;
         transition observed {
-            ByteRead::Error -> invalid(reader),
-            ByteRead::Eof -> finish(reader),
-            ByteRead::Byte { value } -> block classify(reader, value)
+            |console|::ByteRead::Error -> invalid(reader),
+            |console|::ByteRead::Eof -> finish(reader),
+            |console|::ByteRead::Byte { value } -> block classify(reader, value)
         }
     }
     machine classify(reader: @mutable Reader, value: i32) {

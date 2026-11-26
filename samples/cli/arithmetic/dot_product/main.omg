@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Dot product of two vectors: sum over i of a[i] * b[i]. This reads cleanly now
 // that a runtime-indexed read works as a sub-expression operand -- two indexed
 // reads inside a multiplication inside the running sum, written directly:
@@ -15,21 +15,20 @@ use omega\language\core\ProcessExit;
 // [1,2,3] . [4,5,6] = 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32.
 // Expected exit: 32.
 
-use system\Console;
 
 data Main {
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("dot_product: [1,2,3] . [4,5,6] via inline indexed multiply-accumulate");
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("dot_product: [1,2,3] . [4,5,6] via inline indexed multiply-accumulate");
     let a: [i32 in Wrapping; 3] = [1 as +Wrapping, 2 as +Wrapping, 3 as +Wrapping];
     let b: [i32 in Wrapping; 3] = [4 as +Wrapping, 5 as +Wrapping, 6 as +Wrapping];
     let sum: i32 in Wrapping = compute_dot_product(@a, @b);
-    Console::write_line("result: the dot product, 32 for these vectors (the exit code)");
-    Console::write_line("[press Enter to close]");
+    |console|::Console::write_line("result: the dot product, 32 for these vectors (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
     let mutable pause: [u8; 256];
-    _ = block Console::read_line(@mutable pause[..]);
-    ProcessExit::exit_process(sum as i32);
+    _ = block |console|::Console::read_line(@mutable pause[..]);
+    |process_exit|::ProcessExit::exit_process(sum as i32);
 }
 
 machine compute_dot_product(a: @[i32 in Wrapping; 3], b: @[i32 in Wrapping; 3]) -> i32 in Wrapping {
@@ -54,7 +53,7 @@ machine compute_dot_product(a: @[i32 in Wrapping; 3], b: @[i32 in Wrapping; 3]) 
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

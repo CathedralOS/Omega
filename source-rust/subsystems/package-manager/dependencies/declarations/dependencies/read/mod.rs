@@ -26,7 +26,9 @@ use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
 use build_declarations::BuildRequest;
 pub use build_declarations::DependencyPurpose;
-pub(crate) use projection::{EditableSource, extract_scoped_from_source, project_source_for_edit};
+pub(crate) use projection::{
+    EditableSource, extract_requests_from_source, project_source_for_edit,
+};
 use semantic_vocabulary::dependency_reach::DependencyReach;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,6 +39,10 @@ pub(crate) enum PackageSelection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DependencySourceRequest {
+    Bundled {
+        explicit_alias: Option<AliasName>,
+        name: PackageName,
+    },
     Path {
         explicit_alias: Option<AliasName>,
         location: String,
@@ -121,6 +127,10 @@ impl DependencyProjections {
                 .map(|name| AliasName::parse(name.as_str()))
                 .transpose()?;
             let request = match source {
+                BuildDependencySource::Bundled(name) => DependencySourceRequest::Bundled {
+                    explicit_alias,
+                    name: name.clone().into(),
+                },
                 BuildDependencySource::Path(location) => DependencySourceRequest::Path {
                     explicit_alias,
                     location: location.clone(),
@@ -212,6 +222,9 @@ impl DependencySourceRequest {
             .map(|name| ProjectName::parse(name.as_str()))
             .transpose()?;
         let source = match self {
+            Self::Bundled { name, .. } => {
+                BuildDependencySource::Bundled(ProjectName::parse(name.as_str())?)
+            }
             Self::Path { location, .. } => BuildDependencySource::Path(location.clone()),
             Self::Git {
                 repository,
@@ -237,9 +250,9 @@ impl DependencySourceRequest {
 
     pub fn explicit_alias(&self) -> Option<&AliasName> {
         match self {
-            Self::Path { explicit_alias, .. } | Self::Git { explicit_alias, .. } => {
-                explicit_alias.as_ref()
-            }
+            Self::Path { explicit_alias, .. }
+            | Self::Bundled { explicit_alias, .. }
+            | Self::Git { explicit_alias, .. } => explicit_alias.as_ref(),
         }
     }
 

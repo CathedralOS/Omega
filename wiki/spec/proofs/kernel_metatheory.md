@@ -623,7 +623,7 @@ strict-motive non-dependent instance is the plain projection
 `Box A → A`), and the derived strict unit `sUnit := Π(_ : sEmpty).
 sEmpty`. Definitional proof irrelevance is governed by the shared
 type's sort, so `Box`'s relevant payload is precisely where a neutral
-proof stays distinct from a canonical `box`. `core\Squash` from
+proof stays distinct from a canonical `box`. `Squash` from
 [mathematical bindings](mathematical_bindings.md) has this kernel
 counterpart.
 

@@ -118,7 +118,11 @@ fn library(files: &[&str]) -> String {
         "/../../../../../../source/library/core/nat.omg"
     ));
     let first = nat.find("public data Nat {").expect("the data declaration");
-    let mut program = String::from("use omega\\language\\core\\CommutativeSemiring;\n");
+    // The combined IntPair fixture still selects the trait by declaration.
+    // Nat's conformance names the file that owns the trait.
+    let mut program = String::from(
+        "use {omega}/language/core/algebra.omg;\nuse omega\\language\\core\\CommutativeSemiring;\n",
+    );
     program.push_str(&nat[first..]);
     for file in files {
         program.push_str(file);

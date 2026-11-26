@@ -20,12 +20,12 @@ use std::sync::Arc;
 const PRELUDE: &str = r#"
 public data Build {
     marker: u64;
-    product: BuildProduct;
+    declarations: BuildDeclarations;
 }
-public data BuildProduct {}
+public data BuildDeclarations {}
 public data ProductEntryRef [copy] {}
 public boundary trait BuildProductOperations {
-    machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
+    machine entry(product: @BuildDeclarations, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
 }
 public boundary trait BuildBindingOperations {
     machine prepare(builder: @Build) -> u64 reaches none crashes none;
@@ -46,7 +46,7 @@ public const LIMIT: u64 = 4;
 "#;
 
 const BUILD_PRODUCT_MODULE: &str = r#"
-public machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
+public machine entry(product: @BuildDeclarations, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::entry(product, path, slot)
 }
 "#;
@@ -105,7 +105,7 @@ fn typed_with_core_sources(
             source_admission::SourceOrigin::Toolchain,
         ),
         (
-            "<build-prelude>/BuildProduct/mod.omg",
+            "<build-prelude>/BuildDeclarations/mod.omg",
             BUILD_PRODUCT_MODULE,
             "<build-prelude>",
             Some(package()),
@@ -166,7 +166,7 @@ fn typed_with_core_sources(
     request.top_level_bindings = vec![
         source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
     ];
-    for (namespace, module) in [("Build", ids[2]), ("BuildProduct", ids[3])] {
+    for (namespace, module) in [("Build", ids[2]), ("BuildDeclarations", ids[3])] {
         request.top_level_bindings.push(
             source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::module_import(
                 ids[0], module, namespace, 0,
@@ -283,8 +283,8 @@ fn only_the_checked_invocation_can_borrow_its_published_build_receiver() {
 
 #[test]
 fn a_user_declared_build_type_cannot_receive_the_hosts_build() {
-    let text = "data BuildProduct {}
-                data Build { marker: u64; product: BuildProduct; }
+    let text = "data BuildDeclarations {}
+                data Build { marker: u64; declarations: BuildDeclarations; }
                 machine build(builder: @mutable Build) {}";
     let mut files = source_compiler::representations::source_inputs::SourceMap::default();
     let id = files
@@ -308,7 +308,7 @@ fn a_user_declared_build_type_cannot_receive_the_hosts_build() {
     let source = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation).unwrap();
     assert_eq!(
         source.build_receiver(selected_entry(&source)).unwrap_err(),
-        "Build entry receiver must name the exact toolchain Build type"
+        "Build entry receiver must name the exact toolchain BuildPlan type"
     );
 }
 
@@ -653,7 +653,7 @@ use checked_program_to_psi::{TerminalBuildQueryCall, TerminalBuildRequestCall};
     let original = program.build_requests().calls_for(view).unwrap()[0].clone();
     let binding = &program.build_bindings().calls_for(view).unwrap()[0];
     let mut different_action = original.clone();
-    different_action.action = TerminalBuildRequestOperation::Application;
+    different_action.action = TerminalBuildRequestOperation::LogLine;
     let mut different_family = original.clone();
     different_family.site = binding.site;
     for request in [original, different_action, different_family] {
@@ -844,7 +844,12 @@ machine build(builder: @mutable Build) {
 "#;
     let program = native_binding_program(build);
     let locator = published_native_locator(&program);
-    assert_eq!(locator.widths, [0, 0, 0]);
+    assert_eq!(
+        locator.kind,
+        checked_program_to_psi::TerminalBuildNativeLocatorKind::ForeignBinding {
+            widths: [0, 0, 0]
+        }
+    );
     let formations = program
         .build_bindings()
         .native_formations_for(program.view())
@@ -1007,7 +1012,12 @@ machine build(builder: @mutable Build) {
 "#,
     );
     let locator = published_native_locator(&program);
-    assert_eq!(locator.widths, [9, 10, 0]);
+    assert_eq!(
+        locator.kind,
+        checked_program_to_psi::TerminalBuildNativeLocatorKind::ForeignBinding {
+            widths: [9, 10, 0]
+        }
+    );
     let TerminalBuildValueShape::Sum { cases } = locator.shape.as_ref() else {
         panic!("the locator retains its checked sum")
     };
@@ -1049,7 +1059,12 @@ machine build(builder: @mutable Build) {
 }
 "#,
     );
-    assert_eq!(published_native_locator(&program).widths, [9, 10, 0]);
+    assert_eq!(
+        published_native_locator(&program).kind,
+        checked_program_to_psi::TerminalBuildNativeLocatorKind::ForeignBinding {
+            widths: [9, 10, 0]
+        }
+    );
 }
 
 #[test]
@@ -1414,8 +1429,8 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
 fn product_queries_keep_their_selected_operation_in_value_positions() {
     let build = r#"
 machine build(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
-    let selected: ProductEntryRef = BuildProduct::entry(@builder.product, "first", slot);
-    BuildProduct::entry(@builder.product, "second", slot)
+    let selected: ProductEntryRef = BuildDeclarations::entry(@builder.declarations, "first", slot);
+    BuildDeclarations::entry(@builder.declarations, "second", slot)
 }
 "#;
     let accepted = accepted(build).unwrap_or_else(|refused| {
@@ -1527,7 +1542,7 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
             )
             .unwrap();
         let providers =
-            psi_provider_selections::admit_provider_execution_installation(view, &[], &[]).unwrap();
+            psi_provider_selections::admit_provider_execution_installation(view, &[]).unwrap();
         let refusal = evaluation_admission::admit_compiler_evaluation(
             view,
             None,

@@ -1,28 +1,9 @@
 /*
 We represent pressure-victim evidence (`SpillChoicePlan`), recovery
-eligibility classification (`RecoveryClassificationPlan`), and durable
+eligibility classification (`RecoveryClassificationPlan`), and in-process
 fixed-view copy insertion (`FixedViewCopyPlan`), together with their
-domain-separated cryptographic identities and versioned `OMGSPC\0\0` and
-`OMGRCV\0\0` wire codecs.
-
-None of these artifacts grant allocation, spill, rematerialization, stack-slot,
-or publication authority on decode alone. Independent validators must replay
-each plan against its retained validated roots (`SelectedInstructionPlan`,
-`LiveRangePlan`, `AllocationLegalityPlan`, and the target register environment)
-before admitting any transformation.
+domain-separated identities.
 */
-
-#[cfg(test)]
-mod codec_tests;
-mod execution_facts;
-mod fixed_view_copy_codec;
-mod program_contracts;
-mod publication;
-mod selected_blocks;
-mod selected_instructions;
-mod structural_calls;
-mod structural_contracts;
-mod structural_declarations;
 
 use ::selected_instructions::{
     FixedViewCopyIdentity, LiveRangeIdentity, LiveRangePoint, SelectedBlockId,
@@ -31,18 +12,17 @@ use ::selected_instructions::{
     VirtualRegisterOrigin, selected_instruction_plan_identity,
 };
 use operation_evidence::provenance::{
-    PsiProvenance, ValueDefinitionSite, WorkSettlement, encode_value_definition_site_identity,
+    PsiProvenance, ValueDefinitionSite, encode_value_definition_site_identity,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{
     RegisterClassId, RegisterConstraintKey, RegisterViewId, TargetRegisterEnvironmentIdentity,
 };
 use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
-    ScalarType, ValueId, WorkScheduleIdentity,
+    IntegerSign, IntegerValue, MachineId, ScalarType, ValueId, WorkScheduleIdentity,
 };
 
-use crate::codec_bytes::{Envelope, domain_identity, length, list, option, push_encoded};
+use crate::codec_bytes::{domain_identity, length, list, option, push_encoded};
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedPrecoloredIntervalPlanIdentity,
     FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSplitRequirementPlanIdentity,
@@ -52,29 +32,25 @@ use crate::{
 pub mod classification {
     pub use super::{
         FunctionRecoveryClassification, NoAdmittedRecoveryReason, PressureRecoveryClassification,
-        RecoveryClassification, RecoveryClassificationDecodeError, RecoveryClassificationIdentity,
-        RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
-        RecoveryVictimRole, recovery_classification_identity,
+        RecoveryClassification, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+        RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole,
+        recovery_classification_identity,
     };
 }
 
 pub mod spill_choice {
     pub use super::{
         FunctionSpillChoices, PressureContender, PressureResident, SpillChoice,
-        SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
-        spill_choice_identity,
+        SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy, spill_choice_identity,
     };
 }
 
 pub mod fixed_view_copy {
     pub use super::{
-        FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyPlan,
-        FixedViewCopyPolicy, FixedViewCopySourceEvidence, fixed_view_copy_identity,
+        FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
+        FixedViewCopySourceEvidence, fixed_view_copy_identity,
     };
 }
-
-const RECOVERY_CLASSIFICATION_ENVELOPE: Envelope = Envelope::new(b"OMGRCV\0\0", 8);
-const SPILL_CHOICE_ENVELOPE: Envelope = Envelope::new(b"OMGSPC\0\0", 2);
 
 crate::identity_newtype! { pub struct RecoveryClassificationIdentity(pub(crate) [u8; 32]); }
 crate::identity_newtype! { pub struct SpillChoiceIdentity(pub(crate) [u8; 32]); }
@@ -159,399 +135,6 @@ pub enum NoAdmittedRecoveryReason {
     NonMaterializeDefinition,
     ProofBearingDefinition,
     NoFutureUse,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RecoveryClassificationDecodeError {
-    Truncated,
-    WrongMagic,
-    UnsupportedVersion(u32),
-    UnknownPolicy(u8),
-    UnknownOption(u8),
-    UnknownVictimRole(u8),
-    UnknownClassification(u8),
-    UnknownReason(u8),
-    UnknownScalarType(u8),
-    UnknownFloatFormat(u8),
-    UnknownIntegerValue(u8),
-    UnknownOrigin(u8),
-    UnknownDefinitionSite(u8),
-    UnknownProvenance(u8),
-    InvalidBudget,
-    InvalidUsage,
-    InvalidWorkSchedule(u32),
-    InvalidMachineId(u64),
-    InvalidBlockId(u64),
-    InvalidOperationId(u64),
-    InvalidValueId(u64),
-    InvalidPlaceId(u64),
-    InvalidEdgeId(u64),
-    InvalidObligationId(u64),
-    InvalidCallableContractId(u64),
-    InvalidIntegerType,
-    LengthOverflow,
-    IdentityMismatch,
-    TrailingBytes,
-}
-
-crate::decode_error! { RecoveryClassificationDecodeError, "invalid Terminal recovery-classification encoding" }
-
-impl RecoveryClassificationPlan {
-    pub fn encode(&self) -> Vec<u8> {
-        let content = encode_terminal_recovery_classification_content(self);
-        let identity = recovery_classification_identity(self);
-        RECOVERY_CLASSIFICATION_ENVELOPE.frame(identity.bytes(), &content)
-    }
-
-    pub fn decode(encoded: &[u8]) -> Result<Self, RecoveryClassificationDecodeError> {
-        let (mut cursor, identity) = RECOVERY_CLASSIFICATION_ENVELOPE.open(
-            encoded,
-            || RecoveryClassificationDecodeError::WrongMagic,
-            RecoveryClassificationDecodeError::UnsupportedVersion,
-        )?;
-        let identity = RecoveryClassificationIdentity::from_bytes(identity);
-        let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
-        let spill_choices = SpillChoiceIdentity::from_bytes(cursor.array()?);
-        let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
-        let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
-        let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
-        let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
-        let optimization_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
-        let raw_work_schedule = cursor.u32()?;
-        let work_schedule = WorkScheduleIdentity::new(raw_work_schedule).ok_or(
-            RecoveryClassificationDecodeError::InvalidWorkSchedule(raw_work_schedule),
-        )?;
-        let policy = match cursor.byte()? {
-            0 => RecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
-            tag => {
-                return Err(RecoveryClassificationDecodeError::UnknownPolicy(tag));
-            }
-        };
-        let budget = OptimizationWorkBudget::decode(cursor.take(40)?)
-            .map_err(|_| RecoveryClassificationDecodeError::InvalidBudget)?;
-        let usage = OptimizationWorkUsage::decode(cursor.take(40)?)
-            .map_err(|_| RecoveryClassificationDecodeError::InvalidUsage)?;
-        let functions = crate::codec_bytes::decode_list::<_, RecoveryClassificationDecodeError>(
-            &mut cursor,
-            |cursor| {
-                let machine = decode_classification_machine(&mut *cursor)?;
-                let classification = crate::cursor::optional(
-                    &mut *cursor,
-                    |c| classification_row(&mut *c),
-                    RecoveryClassificationDecodeError::UnknownOption,
-                )?;
-                Ok(FunctionRecoveryClassification {
-                    machine,
-                    classification,
-                })
-            },
-        )?;
-        if cursor.remaining() != 0 {
-            return Err(RecoveryClassificationDecodeError::TrailingBytes);
-        }
-        let plan = Self {
-            selected,
-            spill_choices,
-            ranges,
-            legality,
-            register_environment,
-            allocator_availability,
-            optimization_unit,
-            work_schedule,
-            policy,
-            budget,
-            usage,
-            functions,
-        };
-        if recovery_classification_identity(&plan) != identity {
-            return Err(RecoveryClassificationDecodeError::IdentityMismatch);
-        }
-        Ok(plan)
-    }
-}
-
-fn decode_classification_machine(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<MachineId, RecoveryClassificationDecodeError> {
-    let raw = cursor.u64()?;
-    MachineId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidMachineId(raw))
-}
-
-fn decode_classification_block_id(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<BlockId, RecoveryClassificationDecodeError> {
-    let raw = cursor.u64()?;
-    BlockId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidBlockId(raw))
-}
-
-fn decode_classification_operation_id(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<OperationId, RecoveryClassificationDecodeError> {
-    let raw = cursor.u64()?;
-    OperationId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidOperationId(raw))
-}
-
-fn decode_classification_value_id(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<ValueId, RecoveryClassificationDecodeError> {
-    let raw = cursor.u64()?;
-    ValueId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidValueId(raw))
-}
-
-fn decode_classification_edge_id(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<EdgeId, RecoveryClassificationDecodeError> {
-    let raw = cursor.u64()?;
-    EdgeId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidEdgeId(raw))
-}
-
-fn decode_classification_obligation_id(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<ObligationId, RecoveryClassificationDecodeError> {
-    let raw = cursor.u64()?;
-    ObligationId::new(raw).ok_or(RecoveryClassificationDecodeError::InvalidObligationId(raw))
-}
-
-fn classification_row(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<PressureRecoveryClassification, RecoveryClassificationDecodeError> {
-    let block = SelectedBlockId(cursor.u32()?);
-    let point = LiveRangePoint(cursor.u32()?);
-    let victim = VirtualRegisterId(cursor.u32()?);
-    let role = match cursor.byte()? {
-        0 => RecoveryVictimRole::Incoming,
-        1 => RecoveryVictimRole::ActiveResident {
-            current_view: RegisterViewId(cursor.u16()?),
-            reclaimed_view: RegisterViewId(cursor.u16()?),
-        },
-        tag => {
-            return Err(RecoveryClassificationDecodeError::UnknownVictimRole(tag));
-        }
-    };
-    let scalar_type = decode_classification_scalar_type(cursor)?;
-    let class = RegisterClassId(cursor.u16()?);
-    let origin = decode_classification_origin(cursor)?;
-    let definition_site = crate::cursor::optional(
-        cursor,
-        decode_classification_definition_site,
-        RecoveryClassificationDecodeError::UnknownDefinitionSite,
-    )?;
-    let classification = match cursor.byte()? {
-        0 => {
-            let defining_instruction = SelectedInstructionId(cursor.u32()?);
-            let source_value = decode_classification_value_id(cursor)?;
-            let value = decode_classification_integer_value(cursor)?;
-            let provenance = decode_classification_provenance(cursor)?;
-            let use_count = cursor.length()?;
-            let mut future_uses = Vec::with_capacity(use_count.min(cursor.remaining()));
-            for _ in 0..use_count {
-                future_uses.push(RecoveryFutureUse {
-                    block: SelectedBlockId(cursor.u32()?),
-                    point: LiveRangePoint(cursor.u32()?),
-                    instruction: SelectedInstructionId(cursor.u32()?),
-                    operand: cursor.u16()?,
-                });
-            }
-            RecoveryClassification::ImmediateU64RematerializationCandidate {
-                defining_instruction,
-                source_value,
-                value,
-                provenance,
-                future_uses,
-            }
-        }
-        1 => RecoveryClassification::NoAdmittedRecovery {
-            reason: match cursor.byte()? {
-                0 => NoAdmittedRecoveryReason::UnsupportedScalarType,
-                1 => NoAdmittedRecoveryReason::EntryParameter,
-                2 => NoAdmittedRecoveryReason::UnsupportedRangeShape,
-                3 => NoAdmittedRecoveryReason::FutureFixedUse,
-                4 => NoAdmittedRecoveryReason::NonMaterializeDefinition,
-                5 => NoAdmittedRecoveryReason::ProofBearingDefinition,
-                6 => NoAdmittedRecoveryReason::NoFutureUse,
-                tag => {
-                    return Err(RecoveryClassificationDecodeError::UnknownReason(tag));
-                }
-            },
-        },
-        tag => {
-            return Err(RecoveryClassificationDecodeError::UnknownClassification(
-                tag,
-            ));
-        }
-    };
-    Ok(PressureRecoveryClassification {
-        block,
-        point,
-        victim,
-        role,
-        scalar_type,
-        class,
-        origin,
-        definition_site,
-        classification,
-    })
-}
-
-fn decode_classification_scalar_type(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<ScalarType, RecoveryClassificationDecodeError> {
-    let scalar = match cursor.byte()? {
-        0 => ScalarType::Boolean,
-        1 => ScalarType::Integer(
-            IntegerType::new(IntegerSign::Signed, cursor.u16()?)
-                .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
-        ),
-        2 => ScalarType::Integer(
-            IntegerType::new(IntegerSign::Unsigned, cursor.u16()?)
-                .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
-        ),
-        3 => ScalarType::Integer(
-            IntegerType::address(cursor.u16()?)
-                .map_err(|_| RecoveryClassificationDecodeError::InvalidIntegerType)?,
-        ),
-        // Stage 06 keeps a float or callable victim's own type beside the
-        // `UnsupportedScalarType` reason, so these tags must read back too.
-        4 => ScalarType::IeeeFloat(match cursor.byte()? {
-            0 => semantic_vocabulary::IeeeFloatFormat::Binary32,
-            1 => semantic_vocabulary::IeeeFloatFormat::Binary64,
-            format => {
-                return Err(RecoveryClassificationDecodeError::UnknownFloatFormat(
-                    format,
-                ));
-            }
-        }),
-        5 => {
-            let raw = cursor.u64()?;
-            ScalarType::Callable(
-                semantic_vocabulary::CallableContractId::new(raw)
-                    .ok_or(RecoveryClassificationDecodeError::InvalidCallableContractId(raw))?,
-            )
-        }
-        tag => return Err(RecoveryClassificationDecodeError::UnknownScalarType(tag)),
-    };
-    Ok(scalar)
-}
-
-fn decode_classification_integer_value(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<IntegerValue, RecoveryClassificationDecodeError> {
-    match cursor.byte()? {
-        0 => Ok(IntegerValue::Signed(cursor.i128()?)),
-        1 => Ok(IntegerValue::Unsigned(cursor.u128()?)),
-        tag => Err(RecoveryClassificationDecodeError::UnknownIntegerValue(tag)),
-    }
-}
-
-fn decode_classification_origin(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<VirtualRegisterOrigin, RecoveryClassificationDecodeError> {
-    match cursor.byte()? {
-        9 => Ok(VirtualRegisterOrigin::InstructionScratch {
-            instruction: SelectedInstructionId(cursor.u32()?),
-            operand: cursor.u16()?,
-        }),
-        7 => Ok(VirtualRegisterOrigin::ScalarAbiAddress {
-            instruction: SelectedInstructionId(cursor.u32()?),
-            source_value: decode_classification_value_id(cursor)?,
-        }),
-        6 => Ok(VirtualRegisterOrigin::SpillAddress {
-            instruction: SelectedInstructionId(cursor.u32()?),
-            register: VirtualRegisterId(cursor.u32()?),
-        }),
-        4 => {
-            let raw = cursor.u64()?;
-            Ok(VirtualRegisterOrigin::StructuralParameter {
-                place: semantic_vocabulary::PlaceId::new(raw)
-                    .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
-                parameter_index: cursor.length()?,
-            })
-        }
-        8 => {
-            let instruction = SelectedInstructionId(cursor.u32()?);
-            let raw = cursor.u64()?;
-            Ok(VirtualRegisterOrigin::StructuralObservation {
-                instruction,
-                place: semantic_vocabulary::PlaceId::new(raw)
-                    .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
-                byte_offset: cursor.u32()?,
-            })
-        }
-        5 => {
-            let instruction = SelectedInstructionId(cursor.u32()?);
-            let raw = cursor.u64()?;
-            Ok(VirtualRegisterOrigin::AbiTransport {
-                instruction,
-                place: semantic_vocabulary::PlaceId::new(raw)
-                    .ok_or(RecoveryClassificationDecodeError::InvalidPlaceId(raw))?,
-                byte_offset: cursor.u32()?,
-            })
-        }
-        3 => Ok(VirtualRegisterOrigin::BlockParameter {
-            source_value: decode_classification_value_id(cursor)?,
-            block: SelectedBlockId(cursor.u32()?),
-            parameter_index: cursor.length()?,
-        }),
-        0 => Ok(VirtualRegisterOrigin::EntryParameter {
-            source_value: decode_classification_value_id(cursor)?,
-            parameter_index: cursor.length()?,
-        }),
-        1 => Ok(VirtualRegisterOrigin::InstructionResult {
-            instruction: SelectedInstructionId(cursor.u32()?),
-            source_value: decode_classification_value_id(cursor)?,
-        }),
-        tag => Err(RecoveryClassificationDecodeError::UnknownOrigin(tag)),
-    }
-}
-
-fn decode_classification_definition_site(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<ValueDefinitionSite, RecoveryClassificationDecodeError> {
-    match cursor.byte()? {
-        0 => Ok(ValueDefinitionSite::FunctionParameter(cursor.u32()?)),
-        1 => Ok(ValueDefinitionSite::BlockParameter {
-            block: decode_classification_block_id(cursor)?,
-            position: cursor.u32()?,
-        }),
-        2 => Ok(ValueDefinitionSite::Node {
-            block: decode_classification_block_id(cursor)?,
-            node: cursor.u32()?,
-        }),
-        tag => Err(RecoveryClassificationDecodeError::UnknownDefinitionSite(
-            tag,
-        )),
-    }
-}
-
-fn decode_classification_provenance(
-    cursor: &mut crate::cursor::Cursor<'_>,
-) -> Result<SelectedInstructionProvenance, RecoveryClassificationDecodeError> {
-    let operations = crate::codec_bytes::decode_list(cursor, decode_classification_operation_id)?;
-    let values = crate::codec_bytes::decode_list(cursor, decode_classification_value_id)?;
-    let edges = crate::codec_bytes::decode_list(cursor, decode_classification_edge_id)?;
-    let obligations = crate::codec_bytes::decode_list(cursor, decode_classification_obligation_id)?;
-    let work_count = cursor.length()?;
-    let mut work = Vec::with_capacity(work_count.min(cursor.remaining()));
-    for _ in 0..work_count {
-        let site = match cursor.byte()? {
-            0 => PsiProvenance::Operation(decode_classification_operation_id(cursor)?),
-            1 => PsiProvenance::Edge(decode_classification_edge_id(cursor)?),
-            tag => {
-                return Err(RecoveryClassificationDecodeError::UnknownProvenance(tag));
-            }
-        };
-        work.push(WorkSettlement {
-            site,
-            units: cursor.u64()?,
-        });
-    }
-    Ok(SelectedInstructionProvenance {
-        operations,
-        values,
-        edges,
-        obligations,
-        work,
-    })
 }
 
 pub fn recovery_classification_identity(
@@ -776,132 +359,6 @@ pub struct PressureContender {
     pub reclaimed_view: Option<RegisterViewId>, // Lowest legal incoming view recovered by evicting the active resident
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpillChoiceDecodeError {
-    Truncated,
-    WrongMagic,
-    UnsupportedVersion(u32),
-    UnknownPolicy(u8),
-    UnknownOption(u8),
-    InvalidBudget,
-    InvalidUsage,
-    InvalidMachineId(u64),
-    LengthOverflow,
-    IdentityMismatch,
-    TrailingBytes,
-}
-
-crate::decode_error! { SpillChoiceDecodeError, "invalid Terminal spill-choice encoding" }
-
-impl SpillChoicePlan {
-    pub fn encode(&self) -> Vec<u8> {
-        let content = encode_terminal_spill_choice_content(self);
-        let identity = spill_choice_identity(self);
-        SPILL_CHOICE_ENVELOPE.frame(identity.bytes(), &content)
-    }
-
-    pub fn decode(encoded: &[u8]) -> Result<Self, SpillChoiceDecodeError> {
-        let (mut cursor, identity) = SPILL_CHOICE_ENVELOPE.open(
-            encoded,
-            || SpillChoiceDecodeError::WrongMagic,
-            SpillChoiceDecodeError::UnsupportedVersion,
-        )?;
-        let identity = SpillChoiceIdentity::from_bytes(identity);
-        let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
-        let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
-        let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
-        let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
-        let policy = match cursor.byte()? {
-            0 => SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
-            tag => return Err(SpillChoiceDecodeError::UnknownPolicy(tag)),
-        };
-        let budget = OptimizationWorkBudget::decode(cursor.take(40)?)
-            .map_err(|_| SpillChoiceDecodeError::InvalidBudget)?;
-        let usage = OptimizationWorkUsage::decode(cursor.take(40)?)
-            .map_err(|_| SpillChoiceDecodeError::InvalidUsage)?;
-        let function_count = cursor.length()?;
-        let mut functions = Vec::with_capacity(function_count.min(cursor.remaining()));
-        for _ in 0..function_count {
-            let raw_machine = cursor.u64()?;
-            let machine = MachineId::new(raw_machine)
-                .ok_or(SpillChoiceDecodeError::InvalidMachineId(raw_machine))?;
-            let choice = match cursor.byte()? {
-                0 => None,
-                1 => {
-                    let block = SelectedBlockId(cursor.u32()?);
-                    let point = LiveRangePoint(cursor.u32()?);
-                    let incoming = VirtualRegisterId(cursor.u32()?);
-                    let incoming_class = RegisterClassId(cursor.u16()?);
-                    let incoming_common_candidates =
-                        crate::codec_bytes::decode_list::<_, SpillChoiceDecodeError>(
-                            &mut cursor,
-                            |cursor| Ok(RegisterViewId(cursor.u16()?)),
-                        )?;
-                    let resident_count = cursor.length()?;
-                    let mut active_residents =
-                        Vec::with_capacity(resident_count.min(cursor.remaining()));
-                    for _ in 0..resident_count {
-                        active_residents.push(PressureResident {
-                            virtual_register: VirtualRegisterId(cursor.u32()?),
-                            class: RegisterClassId(cursor.u16()?),
-                            start: LiveRangePoint(cursor.u32()?),
-                            exclusive_end: LiveRangePoint(cursor.u32()?),
-                            view: RegisterViewId(cursor.u16()?),
-                        });
-                    }
-                    let contender_count = cursor.length()?;
-                    let mut contenders =
-                        Vec::with_capacity(contender_count.min(cursor.remaining()));
-                    for _ in 0..contender_count {
-                        let virtual_register = VirtualRegisterId(cursor.u32()?);
-                        let exclusive_end = LiveRangePoint(cursor.u32()?);
-                        let reclaimed_view = crate::cursor::optional(
-                            &mut cursor,
-                            |cursor| Ok(RegisterViewId(cursor.u16()?)),
-                            SpillChoiceDecodeError::UnknownOption,
-                        )?;
-                        contenders.push(PressureContender {
-                            virtual_register,
-                            exclusive_end,
-                            reclaimed_view,
-                        });
-                    }
-                    let selected_victim = VirtualRegisterId(cursor.u32()?);
-                    Some(SpillChoice {
-                        block,
-                        point,
-                        incoming,
-                        incoming_class,
-                        incoming_common_candidates,
-                        active_residents,
-                        contenders,
-                        selected_victim,
-                    })
-                }
-                tag => return Err(SpillChoiceDecodeError::UnknownOption(tag)),
-            };
-            functions.push(FunctionSpillChoices { machine, choice });
-        }
-        if cursor.remaining() != 0 {
-            return Err(SpillChoiceDecodeError::TrailingBytes);
-        }
-        let plan = Self {
-            legality,
-            ranges,
-            register_environment,
-            allocator_availability,
-            policy,
-            budget,
-            usage,
-            functions,
-        };
-        if spill_choice_identity(&plan) != identity {
-            return Err(SpillChoiceDecodeError::IdentityMismatch);
-        }
-        Ok(plan)
-    }
-}
-
 pub fn spill_choice_identity(plan: &SpillChoicePlan) -> SpillChoiceIdentity {
     SpillChoiceIdentity(domain_identity(
         b"omega.terminal-spill-choices.v2\0",
@@ -1026,111 +483,6 @@ pub struct FixedViewCopyDestination {
     pub view: RegisterViewId, // Fixed view required by `site`; equal to the action-wide `to_view`
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FixedViewCopyDecodeError {
-    InvalidExecutionFacts(target_vocabulary::NativeExecutionFactsError),
-    InvalidCodeCatalog {
-        catalog: &'static str,
-        cause: terminal_wire::CodecError,
-    },
-    InvalidProgramContracts(&'static str),
-    InvalidStructuralBlockParameters,
-    InvalidBorrowedStorage(runtime_abi::BorrowedStorageEncodingError),
-    InvalidQuotientCatalog,
-    InvalidAccessLifecycleCatalog {
-        catalog: &'static str,
-        cause: terminal_wire::CodecError,
-    },
-    Truncated,
-    WrongMagic,
-    UnsupportedVersion(u32),
-    UnknownPolicy(u8),
-    UnknownDefinitionSite(u8),
-    UnknownFixedSite(u8),
-    UnknownRegisterOrigin(u8),
-    UnknownTerminator(u8),
-    UnknownCrashCause(u8),
-    InvalidCrashPredicate,
-    InvalidScalarRefinement,
-    InvalidStructuralTypeRequirement,
-    UnknownValueTransport(u8),
-    UnknownBlockOrigin(u8),
-    UnknownSuccessorRole(u8),
-    InvalidSuccessorLineage,
-    IdentityNotPosition, // Block or virtual register ID differs from its row position
-    UnknownInstructionKind(u8),
-    InvalidPackedByteWidth(u8),
-    UnknownWorkSite(u8),
-    UnknownArchitecture(u8),
-    UnknownObjectFormat(u8),
-    UnknownScalarType(u8),
-    UnknownIntegerCarrier(u8),
-    UnknownIntegerSign(u8),
-    UnknownIntegerValue(u8),
-    UnknownConstraintFamily(u8),
-    UnknownOperandAccess(u8),
-    UnknownBoolean(u8),
-    UnknownOption(u8),
-    UnknownStructuralAbiRecipe(u8),
-    UnknownMachineRegister(u8),
-    InvalidMachineRegisterPayload(u8),
-    UnknownCallingPolicy(u8),
-    UnknownEntryControl(u8),
-    UnknownNativePlace(u8),
-    UnknownValueClass(u8),
-    UnknownSystemVEightbyteClass(u8),
-    UnknownValueLocation(u8),
-    UnknownIndirectPointer(u8),
-    UnknownStructuralMultiplicity(u8),
-    UnknownStructuralAccess(u8),
-    UnknownReferenceOriginExtent(u8),
-    UnknownStructuralTypeShape(u8),
-    UnknownArrayExtent(u8),
-    UnknownByteSequenceCarrier(u8),
-    UnknownBindingRelevance(u8),
-    UnknownStructuralFieldType(u8),
-    UnknownIeeeFloatFormat(u8),
-    UnknownStructuralPlaceKind(u8),
-    UnknownStructuralPathSegment(u8),
-    UnknownCallSource(u8),
-    UnknownBoundaryRealization(u8),
-    UnknownContentPlaceVersion(u8),
-    UnknownContentPlaceSegment(u8),
-    UnknownContentAlgebra(u8),
-    UnknownOwnershipEvent(u8),
-    UnknownCleanupAction(u8),
-    InvalidVocabulary(u16),
-    InvalidWorkSchedule(u32),
-    InvalidSemanticId(u64),
-    InvalidIntegerType,
-    InvalidBudget,
-    InvalidUsage,
-    InvalidUtf8,
-    InvalidNominalId(u64),
-    InvalidProviderExecution,
-    InvalidForeignTargetProfile,
-    InvalidForeignLocator,
-    InvalidSystemCallBinding,
-    UnknownForeignLocatorCase(u8),
-    UnknownMachineRegime(u8),
-    UnknownEntryStack(u8),
-    UnknownPreemption(u8),
-    InvalidMachineFunctionIdentity,
-    InvalidMachineStateSet(u16),
-    UnknownForeignScalarSource(u8),
-    InvalidSameStackContribution,
-    InvalidRankedCustody,
-    InvalidCrashContinuations,
-    InvalidStructuralTransport,
-    LengthOverflow,
-    TransformedIdentityMismatch,
-    TransformedPayloadMismatch,
-    IdentityMismatch,
-    TrailingBytes,
-}
-
-crate::decode_error! { FixedViewCopyDecodeError, "invalid Terminal fixed-view-copy artifact" }
-
 pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&plan.source_selected.bytes());
@@ -1138,7 +490,9 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
     bytes.extend_from_slice(&plan.source_legality.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    fixed_view_copy_codec::encode_source_evidence(&mut bytes, plan.source_evidence);
+    bytes.extend_from_slice(&plan.source_evidence.fixed_intervals.bytes());
+    bytes.extend_from_slice(&plan.source_evidence.split_requirements.bytes());
+    bytes.extend_from_slice(&plan.source_evidence.segment_homes.bytes());
     bytes.push(match plan.policy {
         FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => 0,
         FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => 1,
@@ -1184,11 +538,9 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
 mod tests {
     use super::{
         FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
-        FixedViewCopySourceEvidence, FunctionRecoveryClassification, FunctionSpillChoices,
-        NoAdmittedRecoveryReason, PressureContender, PressureRecoveryClassification,
-        PressureResident, RecoveryClassification, RecoveryClassificationDecodeError,
-        RecoveryClassificationPlan, RecoveryClassificationPolicy, RecoveryFutureUse,
-        RecoveryVictimRole, SpillChoice, SpillChoiceDecodeError, SpillChoiceIdentity,
+        FixedViewCopySourceEvidence, FunctionRecoveryClassification, NoAdmittedRecoveryReason,
+        PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationPlan,
+        RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoiceIdentity,
         SpillChoicePlan, SpillChoicePolicy, fixed_view_copy_identity,
         recovery_classification_identity, spill_choice_identity,
     };
@@ -1353,7 +705,7 @@ mod tests {
     }
 
     #[test]
-    fn scalar_abi_address_recovery_codec_retains_its_distinct_origin() {
+    fn scalar_abi_address_recovery_identity_retains_its_distinct_origin() {
         let mut source = classification_plan();
         let value = ValueId::new(17).unwrap();
         let row = source.functions[0].classification.as_mut().unwrap();
@@ -1364,10 +716,6 @@ mod tests {
         row.classification = RecoveryClassification::NoAdmittedRecovery {
             reason: NoAdmittedRecoveryReason::UnsupportedRangeShape,
         };
-        assert_eq!(
-            RecoveryClassificationPlan::decode(&source.encode()).unwrap(),
-            source
-        );
         let identity = recovery_classification_identity(&source);
         for origin in [
             VirtualRegisterOrigin::ScalarAbiAddress {
@@ -1387,80 +735,6 @@ mod tests {
             changed.functions[0].classification.as_mut().unwrap().origin = origin;
             assert_ne!(recovery_classification_identity(&changed), identity);
         }
-    }
-
-    #[test]
-    fn unsupported_float_and_callable_victims_round_trip_through_the_codec() {
-        // Stage 06 records a float or callable victim with its own scalar type
-        // and the `UnsupportedScalarType` reason. The codec must read back
-        // every scalar type the identity encoder writes.
-        for scalar_type in [
-            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
-            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
-            ScalarType::Callable(semantic_vocabulary::CallableContractId::new(21).unwrap()),
-            ScalarType::Boolean,
-            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
-            ScalarType::Integer(IntegerType::address(64).unwrap()),
-        ] {
-            let mut source = classification_plan();
-            let row = source.functions[0].classification.as_mut().unwrap();
-            row.scalar_type = scalar_type;
-            row.classification = RecoveryClassification::NoAdmittedRecovery {
-                reason: NoAdmittedRecoveryReason::UnsupportedScalarType,
-            };
-            assert_eq!(
-                RecoveryClassificationPlan::decode(&source.encode()),
-                Ok(source),
-                "{scalar_type:?}"
-            );
-        }
-        let decode = |bytes: &[u8]| {
-            super::decode_classification_scalar_type(&mut crate::cursor::Cursor::new(bytes))
-        };
-        assert_eq!(
-            decode(&[4, 2]),
-            Err(RecoveryClassificationDecodeError::UnknownFloatFormat(2))
-        );
-        assert_eq!(
-            decode(&[5, 0, 0, 0, 0, 0, 0, 0, 0]),
-            Err(RecoveryClassificationDecodeError::InvalidCallableContractId(0))
-        );
-        assert_eq!(
-            decode(&[6]),
-            Err(RecoveryClassificationDecodeError::UnknownScalarType(6))
-        );
-    }
-
-    #[test]
-    fn classification_codec_round_trips_and_rejects_corrupt_framing_and_identity() {
-        let plan = classification_plan();
-        let encoded = plan.encode();
-        assert_eq!(RecoveryClassificationPlan::decode(&encoded), Ok(plan));
-
-        let mut identity_tamper = encoded.clone();
-        identity_tamper[12] ^= 1;
-        assert_eq!(
-            RecoveryClassificationPlan::decode(&identity_tamper),
-            Err(RecoveryClassificationDecodeError::IdentityMismatch)
-        );
-
-        let mut trailing = encoded.clone();
-        trailing.push(0);
-        assert_eq!(
-            RecoveryClassificationPlan::decode(&trailing),
-            Err(RecoveryClassificationDecodeError::TrailingBytes)
-        );
-        assert_eq!(
-            RecoveryClassificationPlan::decode(&encoded[..encoded.len() - 1]),
-            Err(RecoveryClassificationDecodeError::Truncated)
-        );
-
-        let mut wrong_version = encoded;
-        crate::codec_bytes::patch_encoded(&mut wrong_version, 8, 3_u32.to_le_bytes());
-        assert_eq!(
-            RecoveryClassificationPlan::decode(&wrong_version),
-            Err(RecoveryClassificationDecodeError::UnsupportedVersion(3))
-        );
     }
 
     #[test]
@@ -1491,80 +765,6 @@ mod tests {
         changed = plan.clone();
         changed.allocator_availability = crate::AllocatorAvailabilityIdentity::from_bytes([6; 32]);
         assert_ne!(baseline, spill_choice_identity(&changed));
-    }
-
-    #[test]
-    fn spill_choice_codec_round_trips_and_rejects_framing_and_identity_corruption() {
-        let plan = SpillChoicePlan {
-            legality: AllocationLegalityIdentity::from_bytes([1; 32]),
-            ranges: LiveRangeIdentity::from_bytes([2; 32]),
-            register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
-            allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([5; 32]),
-            policy: SpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
-            budget: OptimizationWorkBudget::new(10, 10, 20, 2, 1).unwrap(),
-            usage: OptimizationWorkUsage {
-                rule_evaluations: 3,
-                candidates: 2,
-                validation_steps: 7,
-                commits: 1,
-                iterations: 1,
-            },
-            functions: vec![FunctionSpillChoices {
-                machine: MachineId::new(1).unwrap(),
-                choice: Some(SpillChoice {
-                    block: SelectedBlockId(0),
-                    point: LiveRangePoint(2),
-                    incoming: VirtualRegisterId(2),
-                    incoming_class: RegisterClassId(0),
-                    incoming_common_candidates: vec![RegisterViewId(0)],
-                    active_residents: vec![PressureResident {
-                        virtual_register: VirtualRegisterId(0),
-                        class: RegisterClassId(0),
-                        start: LiveRangePoint(0),
-                        exclusive_end: LiveRangePoint(4),
-                        view: RegisterViewId(0),
-                    }],
-                    contenders: vec![
-                        PressureContender {
-                            virtual_register: VirtualRegisterId(0),
-                            exclusive_end: LiveRangePoint(4),
-                            reclaimed_view: Some(RegisterViewId(0)),
-                        },
-                        PressureContender {
-                            virtual_register: VirtualRegisterId(2),
-                            exclusive_end: LiveRangePoint(3),
-                            reclaimed_view: None,
-                        },
-                    ],
-                    selected_victim: VirtualRegisterId(0),
-                }),
-            }],
-        };
-        let encoded = plan.encode();
-        assert_eq!(SpillChoicePlan::decode(&encoded), Ok(plan));
-
-        let mut identity_tamper = encoded.clone();
-        identity_tamper[12] ^= 1;
-        assert_eq!(
-            SpillChoicePlan::decode(&identity_tamper),
-            Err(SpillChoiceDecodeError::IdentityMismatch)
-        );
-        let mut trailing = encoded.clone();
-        trailing.push(0);
-        assert_eq!(
-            SpillChoicePlan::decode(&trailing),
-            Err(SpillChoiceDecodeError::TrailingBytes)
-        );
-        assert_eq!(
-            SpillChoicePlan::decode(&encoded[..encoded.len() - 1]),
-            Err(SpillChoiceDecodeError::Truncated)
-        );
-        let mut wrong_version = encoded;
-        crate::codec_bytes::patch_encoded(&mut wrong_version, 8, 3_u32.to_le_bytes());
-        assert_eq!(
-            SpillChoicePlan::decode(&wrong_version),
-            Err(SpillChoiceDecodeError::UnsupportedVersion(3))
-        );
     }
 
     type FixedViewCopyMutation = fn(&mut FixedViewCopyPlan);

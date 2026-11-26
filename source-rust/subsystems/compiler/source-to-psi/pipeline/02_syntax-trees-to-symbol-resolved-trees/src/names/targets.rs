@@ -716,10 +716,8 @@ mod calls {
                     }
                     argument.application = application;
                 }
-                Some(
-                    BuildOperation::AssumedBindingContract | BuildOperation::TestGroupRegistration,
-                ) => {
-                    assign_assumed_binding_argument_symbol(symbols, argument);
+                Some(BuildOperation::TestGroupRegistration) => {
+                    assign_build_requirement_argument_symbol(symbols, argument);
                 }
                 Some(BuildOperation::RepresentationSelection) => {
                     assign_representation_selection_argument_symbol(symbols, argument, index == 0);
@@ -920,11 +918,10 @@ mod calls {
     }
 
     /*
-        A relationship names two exact requirement declarations, not callable bodies.
-        Requirement members are State symbols beneath their boundary trait. Product
-        visibility still gates both paths; later typed admission rejects other states.
+        A test group names its exact requirement and may supply an adapter.
+        Both operands use the Build occurrence’s visibility.
     */
-    pub(in crate::resolution::names) fn assign_assumed_binding_argument_symbol(
+    pub(in crate::resolution::names) fn assign_build_requirement_argument_symbol(
         symbols: &SymbolTable,
         argument: &mut StaticMachineArgument,
     ) {
@@ -1501,7 +1498,7 @@ mod tests {
     #[test]
     fn compiler_queries_resolve_to_declarations_without_stealing_authored_calls() {
         let text = "machine chosen() -> u32 { 1 }\n\
-                    machine expose(value: @u32) -> addr { address_of(value) }\n\
+                    machine expose(value: @u32) -> address { address_of(value) }\n\
                     machine describe() { let layout: CodeLayout = code_layout::<chosen>(); }";
         for query in ["address_of", "code_layout"] {
             let call = resolved_call(text, query);
@@ -2215,7 +2212,7 @@ mod tests {
             data Fixed {}
             machine build(builder: u64) {
                 select_provider::<Clock, Fixed>(builder);
-                assume_binding_contract::<Clock::now, Clock::now>(builder);
+                group::<Clock::now>(builder);
             }
         "#;
         let resolve_with = |imports: &[&str]| {
@@ -2311,7 +2308,7 @@ mod tests {
             };
             (
                 operand("select_provider"),
-                operand("assume_binding_contract"),
+                operand("group"),
             )
         };
 

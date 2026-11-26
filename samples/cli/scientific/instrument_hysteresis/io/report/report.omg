@@ -1,13 +1,13 @@
-use omega\language\core\StandardOutput;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 // All authored output integers have magnitude <= 51200000 (256 rows).
-public machine number(value: i32 in Wrapping) reaches StandardOutput {
+public machine number(value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition value < 0 {
         true -> negative(value),
         false -> digits(value, 100000000, false)
     }
     machine negative(value: i32 in Wrapping) {
-        Console::write_byte(45);
+        |console|::Console::write_byte(45);
         transition { _ -> digits(0 - value, 100000000, false) }
     }
     machine digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) requires divisor > 0 {
@@ -18,7 +18,7 @@ public machine number(value: i32 in Wrapping) reaches StandardOutput {
         }
     }
     machine emit(value: i32 in Wrapping, divisor: i32 in Wrapping, digit: i32 in Wrapping) requires divisor > 0 {
-        Console::write_byte((digit + 48) as i32);
+        |console|::Console::write_byte((digit + 48) as i32);
         transition { _ -> next(value % divisor, divisor, true) }
     }
     machine next(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) requires divisor > 0 {
@@ -29,7 +29,7 @@ public machine number(value: i32 in Wrapping) reaches StandardOutput {
     }
     machine done() { }
 }
-public machine field(value: i32 in Wrapping) reaches StandardOutput {
-    Console::write_byte(32);
+public machine field(value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
+    |console|::Console::write_byte(32);
     number(value);
 }

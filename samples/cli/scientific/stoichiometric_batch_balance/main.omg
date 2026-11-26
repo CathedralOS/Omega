@@ -1,37 +1,36 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use chemistry/balance/balance.omg;
+use chemistry/inventory/inventory.omg;
+use chemistry/model/model.omg;
+use chemistry/report/report.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Entire input, solve, batch and report workflow runs in Omega.
 // The generic sample harness closes stdin; this is the empty-input control.
 // Expected exit: 64.
 // Expected output contains: INVALID_INPUT
-use system\ByteRead;
-use system\Console;
-use chemistry\model;
-use chemistry\balance;
-use chemistry\inventory;
-use chemistry\report;
 
-data Main { signature: chemistry\model\Signature; }
+data Main { signature: |model|::Signature; }
 data Input {
     values: [i64 in Wrapping; 19];
     count: u64;
     status: i32;
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let produced: chemistry\model\Signature = chemistry\balance\signature_of(3, 2, 1, 2, 1);
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let produced: |model|::Signature = |balance|::signature_of(3, 2, 1, 2, 1);
     let local_fourth: i64 in Wrapping = produced.fourth;
     transition { _ -> block hold(context, produced, local_fourth) }
-    machine hold(context: @mutable Main, parameter: chemistry\model\Signature, local_fourth: i64 in Wrapping) {
+    machine hold(context: @mutable Main, parameter: |model|::Signature, local_fourth: i64 in Wrapping) {
         transition parameter.active == 3 && parameter.fourth == 0 && local_fourth == 0 {
             true -> block store(context, parameter),
             false -> signature_mismatch(context)
         }
     }
-    machine store(context: @mutable Main, parameter: chemistry\model\Signature) {
+    machine store(context: @mutable Main, parameter: |model|::Signature) {
         context.signature = parameter;
-        let called: chemistry\model\Signature = chemistry\balance\signature_of(4, 1, 1, 1, 1);
+        let called: |model|::Signature = |balance|::signature_of(4, 1, 1, 1, 1);
         transition context.signature.active == 3 && context.signature.fourth == 0 && called.active == 4 && called.fourth == 1 {
             true -> block rows(context),
             false -> signature_mismatch(context)
@@ -41,10 +40,10 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
         let first: [i64 in Wrapping; 4] = [2, 0, 1, 0];
         let second: [i64 in Wrapping; 4] = [0, 1, 0, 0];
         let third: [i64 in Wrapping; 4] = [0, 0, 0, 1];
-        let selected: @[i64 in Wrapping; 4] = chemistry\balance\axis(@first, @second, @third, 0);
-        let held: chemistry\model\Held = chemistry\model\Held { row: selected };
-        let via_parameter: i64 in Wrapping = chemistry\balance\read_axis(selected);
-        let via_call: @[i64 in Wrapping; 4] = chemistry\balance\axis(@first, @second, @third, 2);
+        let selected: @[i64 in Wrapping; 4] = |balance|::axis(@first, @second, @third, 0);
+        let held: |model|::Held = |model|::Held { row: selected };
+        let via_parameter: i64 in Wrapping = |balance|::read_axis(selected);
+        let via_call: @[i64 in Wrapping; 4] = |balance|::axis(@first, @second, @third, 2);
         transition selected[0] == 2 && held.row[0] == 2 && via_parameter == 2 && via_call[3] == 1 {
             true -> block windows(context),
             false -> signature_mismatch(context)
@@ -52,12 +51,12 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
     }
     machine windows(context: @mutable Main) {
         let mutable coefficients: [i64 in Wrapping; 4] = [0, 0, 0, 0];
-        let reactants_mut: @mutable [i64 in Wrapping] = chemistry\balance\mutable_reactant_window(@mutable coefficients, 0);
-        chemistry\balance\write_reactants(reactants_mut);
-        let reactants: @[i64 in Wrapping] = chemistry\balance\reactant_window(@coefficients, 0);
-        let held: chemistry\model\HeldWindow = chemistry\model\HeldWindow { values: reactants };
-        let via_parameter: i64 in Wrapping = chemistry\balance\read_window(held.values);
-        let via_call: @[i64 in Wrapping] = chemistry\balance\reactant_window(@coefficients, 1);
+        let reactants_mut: @mutable [i64 in Wrapping] = |balance|::mutable_reactant_window(@mutable coefficients, 0);
+        |balance|::write_reactants(reactants_mut);
+        let reactants: @[i64 in Wrapping] = |balance|::reactant_window(@coefficients, 0);
+        let held: |model|::HeldWindow = |model|::HeldWindow { values: reactants };
+        let via_parameter: i64 in Wrapping = |balance|::read_window(held.values);
+        let via_call: @[i64 in Wrapping] = |balance|::reactant_window(@coefficients, 1);
         transition reactants.length == 2 && reactants[0] == 2 && reactants[1] == 1 && held.values.length == 2 && via_parameter == 2 && via_call.length == 2 {
             true -> block consume(context),
             false -> signature_mismatch(context)
@@ -72,7 +71,7 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
         }
     }
     machine declare(context: @mutable Main, input: @Input) {
-        let mutable reaction: chemistry\model\Reaction;
+        let mutable reaction: |model|::Reaction;
         reaction.species = input.values[0];
         reaction.bound = input.values[1];
         reaction.first[0] = input.values[2];
@@ -97,20 +96,20 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
             false -> invalid(context)
         }
     }
-    machine atoms(context: @mutable Main, reaction: @chemistry\model\Reaction, input: @Input, index: u64) {
+    machine atoms(context: @mutable Main, reaction: @|model|::Reaction, input: @Input, index: u64) {
         transition index < 14 {
             true -> atom(context, reaction, input, index),
             false -> nonempty(context, reaction)
         }
     }
-    machine atom(context: @mutable Main, reaction: @chemistry\model\Reaction, input: @Input, index: u64)
+    machine atom(context: @mutable Main, reaction: @|model|::Reaction, input: @Input, index: u64)
     requires index < 14 {
         transition input.values[index] <= 16 {
             true -> atoms(context, reaction, input, index + 1),
             false -> invalid(context)
         }
     }
-    machine nonempty(context: @mutable Main, reaction: @chemistry\model\Reaction) {
+    machine nonempty(context: @mutable Main, reaction: @|model|::Reaction) {
         let first: i64 in Wrapping = reaction.first[0] + reaction.second[0] + reaction.third[0];
         let second: i64 in Wrapping = reaction.first[1] + reaction.second[1] + reaction.third[1];
         let third: i64 in Wrapping = reaction.first[2] + reaction.second[2] + reaction.third[2];
@@ -120,103 +119,102 @@ machine main(context: @mutable Main) reaches ProcessExit + StandardInput + Stand
             false -> invalid(context)
         }
     }
-    machine fourth_species(context: @mutable Main, reaction: @chemistry\model\Reaction, fourth: i64 in Wrapping) {
+    machine fourth_species(context: @mutable Main, reaction: @|model|::Reaction, fourth: i64 in Wrapping) {
         transition (reaction.species == 4 && fourth > 0) || (reaction.species == 3 && fourth == 0 && reaction.stock[3] == 0) {
             true -> balance(context, reaction),
             false -> invalid(context)
         }
     }
-    machine balance(context: @mutable Main, reaction: @chemistry\model\Reaction) {
-        let mutable result: chemistry\model\Balance;
-        chemistry\balance\solve(reaction, @mutable result);
+    machine balance(context: @mutable Main, reaction: @|model|::Reaction) {
+        let mutable result: |model|::Balance;
+        |balance|::solve(reaction, @mutable result);
         transition result.solutions > 0 && result.coefficients[0] > 0 && result.coefficients[1] > 0 {
             true -> batch(context, reaction, @result),
             false -> impossible(context)
         }
     }
-    machine batch(context: @mutable Main, reaction: @chemistry\model\Reaction, balance: @chemistry\model\Balance)
+    machine batch(context: @mutable Main, reaction: @|model|::Reaction, balance: @|model|::Balance)
     requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
-        let mutable result: chemistry\model\Batch;
-        chemistry\inventory\process(reaction, balance, @mutable result);
+        let mutable result: |model|::Batch;
+        |inventory|::process(reaction, balance, @mutable result);
         transition result.overflow {
             true -> overflow(context, @result),
             false -> verify(context, reaction, balance, @result)
         }
     }
-    machine verify(context: @mutable Main, reaction: @chemistry\model\Reaction, balance: @chemistry\model\Balance, batch: @chemistry\model\Batch) {
-        let before_first: i64 in Wrapping = chemistry\model\element_total(@reaction.first, @reaction.stock);
-        let before_second: i64 in Wrapping = chemistry\model\element_total(@reaction.second, @reaction.stock);
-        let before_third: i64 in Wrapping = chemistry\model\element_total(@reaction.third, @reaction.stock);
-        let after_first: i64 in Wrapping = chemistry\model\element_total(@reaction.first, @batch.inventory);
-        let after_second: i64 in Wrapping = chemistry\model\element_total(@reaction.second, @batch.inventory);
-        let after_third: i64 in Wrapping = chemistry\model\element_total(@reaction.third, @batch.inventory);
+    machine verify(context: @mutable Main, reaction: @|model|::Reaction, balance: @|model|::Balance, batch: @|model|::Batch) {
+        let before_first: i64 in Wrapping = |model|::element_total(@reaction.first, @reaction.stock);
+        let before_second: i64 in Wrapping = |model|::element_total(@reaction.second, @reaction.stock);
+        let before_third: i64 in Wrapping = |model|::element_total(@reaction.third, @reaction.stock);
+        let after_first: i64 in Wrapping = |model|::element_total(@reaction.first, @batch.inventory);
+        let after_second: i64 in Wrapping = |model|::element_total(@reaction.second, @batch.inventory);
+        let after_third: i64 in Wrapping = |model|::element_total(@reaction.third, @batch.inventory);
         transition before_first == after_first && before_second == after_second && before_third == after_third {
             true -> report(context, balance, batch, before_first, before_second, before_third),
             false -> corrupt(context)
         }
     }
-    machine report(context: @mutable Main, balance: @chemistry\model\Balance, batch: @chemistry\model\Batch, first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping) {
-        Console::write_line("BALANCED");
-        Console::write("coefficients ");
-        chemistry\report\line_four(@balance.coefficients);
-        Console::write("primitive_solutions ");
-        chemistry\report\line_number(balance.solutions);
-        Console::write("extent ");
-        chemistry\report\line_number(batch.extent);
-        Console::write("limiting_mask ");
-        chemistry\report\line_number(batch.limiting);
-        Console::write("cap_limited ");
-        chemistry\report\line_number(batch.cap_limited);
-        Console::write("inventory ");
-        chemistry\report\line_four(@batch.inventory);
-        Console::write("elements ");
-        chemistry\report\number(first);
-        Console::write(" ");
-        chemistry\report\number(second);
-        Console::write(" ");
-        chemistry\report\line_number(third);
-        Console::write_line("CONSERVATION_OK");
-        ProcessExit::exit_process(0);
+    machine report(context: @mutable Main, balance: @|model|::Balance, batch: @|model|::Batch, first: i64 in Wrapping, second: i64 in Wrapping, third: i64 in Wrapping) {
+        |console|::Console::write_line("BALANCED");
+        |console|::Console::write("coefficients ");
+        |report|::line_four(@balance.coefficients);
+        |console|::Console::write("primitive_solutions ");
+        |report|::line_number(balance.solutions);
+        |console|::Console::write("extent ");
+        |report|::line_number(batch.extent);
+        |console|::Console::write("limiting_mask ");
+        |report|::line_number(batch.limiting);
+        |console|::Console::write("cap_limited ");
+        |report|::line_number(batch.cap_limited);
+        |console|::Console::write("inventory ");
+        |report|::line_four(@batch.inventory);
+        |console|::Console::write("elements ");
+        |report|::number(first);
+        |console|::Console::write(" ");
+        |report|::number(second);
+        |console|::Console::write(" ");
+        |report|::line_number(third);
+        |console|::Console::write_line("CONSERVATION_OK");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine signature_mismatch(context: @mutable Main) {
-        Console::write_line("SIGNATURE_MISMATCH");
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("SIGNATURE_MISMATCH");
+        |process_exit|::ProcessExit::exit_process(71);
     }
     machine invalid(context: @mutable Main) {
-        Console::write_line("INVALID_INPUT");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("INVALID_INPUT");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine impossible(context: @mutable Main) {
-        Console::write_line("NO_BALANCE_WITHIN_BOUND");
-        ProcessExit::exit_process(65);
+        |console|::Console::write_line("NO_BALANCE_WITHIN_BOUND");
+        |process_exit|::ProcessExit::exit_process(65);
     }
-    machine overflow(context: @mutable Main, result: @chemistry\model\Batch) {
-        Console::write_line("OVERFLOW_REFUSED");
-        Console::write("inventory ");
-        chemistry\report\line_four(@result.inventory);
-        ProcessExit::exit_process(66);
+    machine overflow(context: @mutable Main, result: @|model|::Batch) {
+        |console|::Console::write_line("OVERFLOW_REFUSED");
+        |console|::Console::write("inventory ");
+        |report|::line_four(@result.inventory);
+        |process_exit|::ProcessExit::exit_process(66);
     }
     machine corrupt(context: @mutable Main) {
-        Console::write_line("CONSERVATION_FAILURE");
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("CONSERVATION_FAILURE");
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
-use omega\language\core\widen_i32_to_i64;
 
 // ASCII decimal fields, whitespace separated, finite input <=1024 bytes.
 // Refuse malformed, oversized and extra fields before exposing any reaction.
 // Accumulation multiplies only values <=INT32_MAX, hence fits comfortably in i64.
-machine read(context: @mutable Main, input: @mutable Input) reaches ProcessExit + StandardInput {
+machine read(context: @mutable Main, input: @mutable Input) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput {
     input.count = 0;
     input.status = 0;
     transition { _ -> block scan(context, input, 0, false, 0) }
     machine scan(context: @mutable Main, input: @mutable Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> invalid(input),
-            ByteRead::Eof -> end(context, input, value, digits),
-            ByteRead::Byte { value as byte } -> block byte_value(context, input, value, digits, consumed, byte)
+            |console|::ByteRead::Error -> invalid(input),
+            |console|::ByteRead::Eof -> end(context, input, value, digits),
+            |console|::ByteRead::Byte { value as byte } -> block byte_value(context, input, value, digits, consumed, byte)
         }
     }
     machine byte_value(context: @mutable Main, input: @mutable Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
@@ -232,7 +230,7 @@ machine read(context: @mutable Main, input: @mutable Input) reaches ProcessExit 
         }
     }
     machine digit(context: @mutable Main, input: @mutable Input, value: i64 in Wrapping, consumed: i64 in Wrapping, byte: i32) {
-        let wide: i64 in Wrapping = widen_i32_to_i64(byte) as i64 +Wrapping;
+        let wide: i64 in Wrapping = |numeric_conversion|::widen_i32_to_i64(byte) as i64 +Wrapping;
         let next: i64 in Wrapping = value * 10 + wide - 48;
         transition next <= 2147483647 {
             true -> block scan(context, input, next, true, consumed),
@@ -287,7 +285,7 @@ machine read(context: @mutable Main, input: @mutable Input) reaches ProcessExit 
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

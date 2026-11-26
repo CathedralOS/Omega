@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // FNV-1a string hash -- a real byte-string algorithm over a `[u8;N] in Utf8`
 // carrier. It walks the string's bytes by runtime index, bounded by the carrier's
 // runtime `.length`, and folds each byte into a 32-bit hash:
@@ -19,9 +20,6 @@ requires
 domain [u8; 5]::Utf8
 requires
     valid_utf8(self);
-use system\Console;
-use omega\language\core\narrow_u32_to_i32_trapping;
-use omega\language\core\widen_u8_to_u32;
 
 data Main {
 }
@@ -47,7 +45,7 @@ machine hash_text(text: @[u8; 5] in Utf8) -> u32 in Wrapping {
     requires position >= 0
     {
         let byte: u8 = text[position];
-        let widened: u32 in Wrapping = widen_u8_to_u32(byte) as u32 +Wrapping;
+        let widened: u32 in Wrapping = |numeric_conversion|::widen_u8_to_u32(byte) as u32 +Wrapping;
         let mixed: u32 in Wrapping = hash ^ widened;
         let next_hash: u32 in Wrapping = mixed * 16777619;
         transition position < 8 {
@@ -65,21 +63,21 @@ machine hash_text(text: @[u8; 5] in Utf8) -> u32 in Wrapping {
     }
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("string_hash: FNV-1a hashes the bytes of the string omega");
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("string_hash: FNV-1a hashes the bytes of the string omega");
     let text: [u8; 5] in Utf8 = "omega";
     let hash: u32 in Wrapping = hash_text(@text);
     let digest: u32 in Wrapping = hash & 255;
-    let output: i32 = narrow_u32_to_i32_trapping(digest as u32);
-    Console::write_line("result: the digest's low byte, 40 for omega (the exit code)");
-    Console::write_line("[press Enter to close]");
+    let output: i32 = |numeric_conversion|::narrow_u32_to_i32_trapping(digest as u32);
+    |console|::Console::write_line("result: the digest's low byte, 40 for omega (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
     let mutable pause: [u8; 256];
-    _ = block Console::read_line(@mutable pause[..]);
-    ProcessExit::exit_process(output);
+    _ = block |console|::Console::read_line(@mutable pause[..]);
+    |process_exit|::ProcessExit::exit_process(output);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -46,6 +46,25 @@ pub(crate) trait ProofValues {
     }
 }
 
+impl ProofValues for terminal_check_tables::MachineValues {
+    fn count(&self) -> usize {
+        self.len()
+    }
+
+    fn identity(&self, position: usize) -> Option<ValueId> {
+        self.identity_at(position)
+    }
+
+    fn scalar_type(&self, value: ValueId) -> Option<ScalarType> {
+        self.get(value).map(|row| row.scalar_type)
+    }
+
+    fn is_storage_content(&self, value: ValueId) -> bool {
+        self.get(value)
+            .is_some_and(|row| row.origin.is_storage_observation())
+    }
+}
+
 impl ProofValues for IdTable<ValueId, ValueRow> {
     fn count(&self) -> usize {
         self.len()

@@ -1,6 +1,6 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_product_provider");
-    let provider: ProductProviderRef = BuildProduct::provider(@builder.product, "omega::language::system");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_product_provider" };
+    let provider: ProductProviderRef = BuildDeclarations::provider(@builder.declarations, "omega::language::system");
     let ppath: @[u8] = ProductProviderRef::path(@provider);
     BuildLog::write_line(@mutable builder.log, ppath);
 }

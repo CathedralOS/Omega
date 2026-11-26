@@ -354,43 +354,57 @@ machine entry() -> bool {{
     let supplied = read(
         "machine [] at(cells: @[Cell; 1], index: u64 in Wrapping) -> Cell { Cell { value: 7u32 } }",
     );
-    match supplied {
-        Ok(verdict) => assert_operator_value(Ok(verdict), true),
-        Err(refusal) => assert!(
-            refusal.contains("remains unresolved as CheckedOperator"),
-            "{refusal}"
-        ),
-    }
+    assert_operator_value(supplied, true);
 }
 
 #[test]
-fn an_unselected_declared_value_index_is_explicitly_refused_for_reads_and_writes() {
+fn declared_index_lends_the_collection_and_returns_the_selected_value() {
     let declarations = "data Cell [copy] { value: u32; }\n\
         machine [] at(buffer: @[Cell; 4], index: u64) -> Cell { Cell { value: 99u32 } }";
-    for body in [
-        "let buffer: [Cell; 4]; buffer[0u64].value == 99u32",
-        "let mutable buffer: [Cell; 4]; buffer[0u64] = Cell { value: 7u32 }; true",
-    ] {
+    let read = |body| {
         let typed = super::boundary_calls::typed(&format!(
             "{declarations}\nmachine entry() -> bool {{ {body} }}"
         ));
-        let typed = crate::preparation::prepare_typed_trees(typed, &[], &[])
-            .expect("the ordinary preparation path retains the indexed expression");
-        let refusal = operator_program(typed.trees())
-            .expect_err("an unselected value index cannot silently acquire builtin semantics");
-        let (reason, completion) = refusal
-            .split_once("; operator completion: ")
-            .expect("the refused source operation includes its completion coordinates");
-        assert_eq!(
-            reason,
-            "admitted source selection Operator remains unresolved as CheckedOperator in `entry` at buffer[0]"
-        );
-        assert!(
-            completion.starts_with("expected (")
-                && completion.contains("; materialization source="),
-            "{completion}"
-        );
-    }
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        operator_program(prepared.trees())
+    };
+    assert_operator_value(
+        read("let buffer: [Cell; 4]; buffer[0u64].value == 99u32"),
+        true,
+    );
+    let refused = read(
+        "let mutable buffer: [Cell; 4]; let replacement: Cell = Cell { value: 7u32 }; \
+         buffer[0u64] = replacement; true",
+    )
+    .expect_err("a value returned by the index operator is not an assignable place");
+    assert!(
+        refused.contains("assignment to a projected place"),
+        "{refused}"
+    );
+}
+
+#[test]
+fn exclusive_index_evaluates_the_selector_once_and_lends_the_original_collection() {
+    let source = r#"
+data Buffer { value: u64; }
+machine [] update(buffer: @mutable Buffer, index: u64) -> u64 {
+    buffer.value = index;
+    buffer.value
+}
+machine next(calls: @mutable u64) -> u64 {
+    $calls = $calls +% 1u64;
+    $calls
+}
+machine entry() -> bool {
+    let mutable buffer: Buffer = Buffer { value: 99u64 };
+    let mutable calls: u64 = 0u64;
+    let result: u64 = buffer[next(@mutable calls)];
+    result == 1u64 && calls == 1u64 && buffer.value == 1u64
+}
+"#;
+    let typed = super::boundary_calls::typed(source);
+    let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+    assert_operator_value(operator_program(prepared.trees()), true);
 }
 
 fn indexed_writer_source(requirement: &str) -> String {

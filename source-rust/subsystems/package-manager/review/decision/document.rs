@@ -331,15 +331,56 @@ fn purposes(output: &mut Output, prefix: &str, values: &[PackageCheckedContext])
     writeln!(output)
 }
 
+pub(crate) fn render_build_request(
+    request: &RestrictedBuildRequest,
+    maximum_bytes: usize,
+) -> Result<String, PackagePolicyReviewError> {
+    let mut output = Output::new(maximum_bytes);
+    let result = build_request(&mut output, request);
+    Ok(output.finish(result)?.text)
+}
+
 fn build_request(output: &mut Output, request: &RestrictedBuildRequest) -> fmt::Result {
     use package_compilation::build_execution::{
-        RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
+        ProgramDeclarationOwner, RestrictedBuildGrant, RestrictedBuildGrantRoot,
+        RestrictedBuildOperation,
     };
     let operation = match request.operation() {
+        RestrictedBuildOperation::ProgramLaunch(_) => "program-launch",
         RestrictedBuildOperation::ScopedFilesystemExecution => "scoped-filesystem-execution",
         RestrictedBuildOperation::UnscopedFilesystemExecution => "unscoped-filesystem-execution",
     };
     writeln!(output, "build-request {operation}")?;
+    if let RestrictedBuildOperation::ProgramLaunch(program) = request.operation() {
+        writeln!(
+            output,
+            "program {:?} file {:?} sha256 {} timeout-ms {}",
+            program.declaration,
+            program.file,
+            Hex(&program.image_sha256),
+            program.timeout_ms
+        )?;
+        match &program.owner {
+            ProgramDeclarationOwner::RequestingSource => {
+                writeln!(output, "program-owner requesting-source")?
+            }
+            ProgramDeclarationOwner::Package(package) => {
+                writeln!(output, "program-owner package {}", Hex(package))?
+            }
+            ProgramDeclarationOwner::Toolchain(source) => {
+                writeln!(output, "program-owner toolchain {}", Hex(source))?
+            }
+        }
+        for (access, paths) in [("read", &program.readable), ("write", &program.writable)] {
+            for path in paths {
+                writeln!(
+                    output,
+                    "program-{access} {:?}",
+                    String::from_utf8_lossy(path)
+                )?;
+            }
+        }
+    }
     let grant = |output: &mut Output, access: &str, grant: &RestrictedBuildGrant| {
         write!(output, "{access} ")?;
         match grant.root() {
@@ -444,7 +485,20 @@ fn package_key(output: &mut Output, prefix: &str, key: &PackageKey) -> fmt::Resu
         key.name().as_str(),
         Hex(&key.identity().digest())
     )?;
-    match key.source_lineage() {
+    source_lineage(output, key.source_lineage())
+}
+
+pub(crate) fn render_build_lineage(
+    lineage: &SourceLineage,
+    maximum_bytes: usize,
+) -> Result<String, PackagePolicyReviewError> {
+    let mut output = Output::new(maximum_bytes);
+    let result = source_lineage(&mut output, lineage);
+    Ok(output.finish(result)?.text)
+}
+
+fn source_lineage(output: &mut Output, lineage: &SourceLineage) -> fmt::Result {
+    match lineage {
         SourceLineage::GitHub(source) => writeln!(
             output,
             "github {:?} {:?}",
@@ -467,6 +521,12 @@ fn package_key(output: &mut Output, prefix: &str, key: &PackageKey) -> fmt::Resu
                 source.repository_path()
             )
         }
+        SourceLineage::Bundled { library, directory } => writeln!(
+            output,
+            "bundled {:?} library {}",
+            directory.as_str(),
+            library.to_hex()
+        ),
         SourceLineage::Workspace(source) => {
             writeln!(output, "workspace {:?}", source.member_path().as_str())
         }
@@ -494,6 +554,9 @@ fn resolution(
             tree.to_hex(),
             content.to_hex()
         ),
+        Some(ImmutableSourceResolution::Bundled { content }) => {
+            writeln!(output, "{prefix} bundled content {}", content.to_hex())
+        }
         Some(ImmutableSourceResolution::Workspace { content }) => {
             writeln!(output, "{prefix} workspace content {}", content.to_hex())
         }

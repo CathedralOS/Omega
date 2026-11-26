@@ -1,12 +1,5 @@
+use representations/syntax_trees/syntax_trees.omg;
 use representations/source_files/source.omg;
-use representations\source_files\SourceId;
-use representations\source_files\SourceSpan;
-use representations\syntax_trees\GenericParameter;
-use representations\syntax_trees\GenericParameterKind;
-use representations\syntax_trees\IdentifierSpan;
-use representations\syntax_trees\MachineContainer;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\syntax_trees_generic_parameter;
 
 // Name bindings for the parsed roots of a compilation's source set. Each
 // binding table is indexed by the syntax table whose names it binds
@@ -205,10 +198,10 @@ public data DomainBinding [copy] {
 // `Conformance::name`), whose `SyntaxTrees::traits` or `conformances` handle
 // is `item`. Overload families, duplicates and callees compare these paths.
 public data MachineOwner [copy] {
-    container: MachineContainer;
+    container: |syntax_trees|::MachineContainer;
     item: u64 in Trapping;
     has_owner: bool;
-    owner: IdentifierSpan;
+    owner: |syntax_trees|::IdentifierSpan;
 }
 
 public data ResolveDiagnosticCode [copy] {
@@ -295,7 +288,7 @@ public data ResolveDiagnosticCode [copy] {
 
 public data ResolveDiagnostic [copy] {
     code: ResolveDiagnosticCode;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data NameResolution
@@ -386,7 +379,7 @@ crashes Trap
     machine invalid() -> u64 in Trapping { crash Trap; }
 }
 
-public machine name_resolution_clear(resolution: @mutable NameResolution, source: SourceId) {
+public machine name_resolution_clear(resolution: @mutable NameResolution, source: |source|::SourceId) {
     resolution.binding_count = 0;
     resolution.value_binding_count = 0;
     resolution.path_binding_count = 0;
@@ -402,7 +395,7 @@ public machine name_resolution_clear(resolution: @mutable NameResolution, source
 public machine name_resolution_reject(
     resolution: @mutable NameResolution,
     code: ResolveDiagnosticCode,
-    source_span: SourceSpan
+    source_span: |source|::SourceSpan
 ) {
     resolution.accepted = false;
     resolution.diagnostic.code = code;
@@ -438,7 +431,7 @@ public data MachineArgument [copy] {
 
 // What static argument row `row` names for a machine binder
 // (wiki/spec/language/generics.md#static-machine-binder-categories).
-public machine name_resolution_machine_argument(syntax: @SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping) -> MachineArgument
+public machine name_resolution_machine_argument(syntax: @|syntax_trees|::SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping) -> MachineArgument
 crashes Trap
 {
     let binding: TypeBinding = type_binding_at(resolution, row);
@@ -448,9 +441,9 @@ crashes Trap
         _ -> chosen(MachineArgument::Absent)
     }
 
-    machine generic(syntax: @SyntaxTrees, parameter: u64 in Trapping) -> MachineArgument {
-        let declared: GenericParameter = syntax_trees_generic_parameter(syntax, parameter);
-        transition declared.kind == GenericParameterKind::Machine {
+    machine generic(syntax: @|syntax_trees|::SyntaxTrees, parameter: u64 in Trapping) -> MachineArgument {
+        let declared: |syntax_trees|::GenericParameter = |syntax_trees|::syntax_trees_generic_parameter(syntax, parameter);
+        transition declared.kind == |syntax_trees|::GenericParameterKind::Machine {
             true -> chosen(MachineArgument::Forwarded { parameter: parameter }),
             _ -> chosen(MachineArgument::Absent)
         }

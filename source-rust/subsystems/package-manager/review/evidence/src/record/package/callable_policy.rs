@@ -10,24 +10,19 @@
 // the reachable checked machine closure without exposing private helper
 // identities.
 
-use crate::record::PackageReviewServiceIdentity;
-mod conformances;
-mod getters;
-mod reach_dependency;
-pub(crate) use conformances::PackagePolicyCallableConformance;
-pub use reach_dependency::PackagePolicyServiceReachDependency;
-pub(in crate::record) mod validation;
-
 use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackagePolicyCapabilityFlow, PackagePolicyCrash, PackagePolicyMutation,
     PackagePolicyTermination, PackagePolicyTypeParameter, PackageReviewCallableContract,
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
     PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewOperatorRealization,
-    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
+    PackageReviewServiceIdentity, PackageReviewSignatureParameter,
+    PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
+mod getters;
+pub(in crate::record) mod validation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyCallables {
@@ -83,4 +78,43 @@ pub struct PackagePolicyCallable {
     pub checked_termination: PackagePolicyTermination,
     pub checked_crash: PackagePolicyCrash,
     pub mutation: PackagePolicyMutation,
+}
+
+// Callable conformance claims (`PackagePolicyCallableConformance`), keeping
+// caller lifetime choices distinct from the requirement's alpha-normalized
+// equality partition.
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackagePolicyCallableConformance {
+    pub(crate) trait_identity: PackageReviewNominalIdentity,
+    pub(crate) requirement_identity: PackageReviewNominalIdentity,
+    pub(crate) requirement_lifetime_partition: Vec<u32>,
+    pub(crate) trait_lifetime_arguments: Vec<u32>,
+    pub(crate) arguments: Vec<PackageReviewTypeIdentity>,
+    pub(crate) alias: Option<String>,
+}
+
+impl PackagePolicyCallableConformance {
+    field_projection_accessors!(borrowed trait_identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(borrowed requirement_identity: &PackageReviewNominalIdentity);
+    field_projection_accessors!(sliced requirement_lifetime_partition: &[u32]);
+    field_projection_accessors!(sliced trait_lifetime_arguments: &[u32]);
+    field_projection_accessors!(sliced arguments: &[PackageReviewTypeIdentity]);
+    pub fn alias(&self) -> Option<&str> {
+        self.alias.as_deref()
+    }
+}
+
+// Normalized finite union of concrete services and static-telescope parameter
+// ordinals (`PackagePolicyServiceReachDependency`).
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PackagePolicyServiceReachDependency {
+    pub concrete: Vec<PackageReviewServiceIdentity>,
+    pub parameters: Vec<u32>,
+}
+
+impl PackagePolicyServiceReachDependency {
+    field_projection_accessors!(sliced concrete: &[PackageReviewServiceIdentity]);
+    field_projection_accessors!(sliced parameters: &[u32]);
 }

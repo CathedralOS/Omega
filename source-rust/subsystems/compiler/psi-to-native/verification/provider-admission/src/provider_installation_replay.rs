@@ -49,7 +49,6 @@ pub(super) fn replay_installed_provider_calls(
     plan: &AbstractOperationPlan,
     module: &terminal_psi::TerminalModule,
     installed: &[ProviderCandidateConformance],
-    assumed: &[psi_provider_selections::AdmittedAssumedBinding],
 ) -> Result<Vec<AdmittedInstalledProviderCall>, ProviderInstallationError> {
     if installed.is_empty() {
         return Ok(Vec::new());
@@ -57,10 +56,6 @@ pub(super) fn replay_installed_provider_calls(
     let mut installed_by_boundary = std::collections::BTreeMap::new();
     for row in installed {
         installed_by_boundary.entry(row.boundary).or_insert(row);
-    }
-    let mut assumed_by_required = std::collections::BTreeMap::new();
-    for row in assumed {
-        assumed_by_required.entry(row.required).or_insert(row);
     }
     let mut boundary_by_id = std::collections::BTreeMap::new();
     for row in &plan.boundary_machines {
@@ -168,7 +163,6 @@ pub(super) fn replay_installed_provider_calls(
                     invocation_site,
                     boundary: *boundary,
                     provider: provider.clone(),
-                    assumption: None,
                     result: terminal_psi::OperationResult::Unit,
                     scalar_arguments: arguments.clone(),
                     structural_arguments: structural_arguments.clone(),
@@ -189,15 +183,7 @@ pub(super) fn replay_installed_provider_calls(
             else {
                 continue;
             };
-            let assumption = assumed_by_required.get(boundary).copied();
-            let Some(provider) = installed_by_boundary.get(boundary).copied().or_else(|| {
-                assumption.and_then(|link| {
-                    installed.iter().find(|row| {
-                        row.candidate == link.implementation
-                            && row.boundary == link.selected_requirement
-                    })
-                })
-            }) else {
+            let Some(&provider) = installed_by_boundary.get(boundary) else {
                 continue;
             };
             let malformed = || ProviderInstallationError::InstalledCallReplayMismatch {
@@ -240,8 +226,7 @@ pub(super) fn replay_installed_provider_calls(
                 _ => false,
             };
             if !exact_result
-                || (assumption.is_none()
-                    && boundary_declaration.identity != provider.requirement_identity)
+                || boundary_declaration.identity != provider.requirement_identity
                 || !replays_result(
                     &terminal_operation.result,
                     boundary_declaration,
@@ -376,7 +361,6 @@ pub(super) fn replay_installed_provider_calls(
                 result: terminal_operation.result.clone(),
                 boundary: *boundary,
                 provider: provider.clone(),
-                assumption: assumption.cloned(),
                 scalar_arguments: arguments.clone(),
                 structural_arguments: structural_arguments.clone(),
                 completion_claim_sources: completion_claim_sources.clone(),

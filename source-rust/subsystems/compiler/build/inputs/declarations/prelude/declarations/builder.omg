@@ -39,26 +39,49 @@ public data TestInvocationInputs {
     // Each engine and each test starts with its own empty filesystem.
     private_filesystem: bool;
 }
-// What makes `Build` a value only the toolchain issues. The seal holds no
+// What makes `BuildPlan` a value only the toolchain issues. The seal holds no
 // settings; it is here for its type. `BuildSeal` is not `[copy]`, and
 // `Issued` is governed by an access policy that names no source issuer
 // (wiki/spec/resources/access.md: a zeroed plan admits nobody), so source can
-// neither make a seal nor take the one in the `Build` it was lent, and a
+// neither make a seal nor take the one in the `BuildPlan` it was lent, and a
 // record with a field it cannot supply cannot be constructed or
 // zero-established. The toolchain establishes the seal when it hands the
-// Build entry its `Build`.
+// Build entry its `BuildPlan`.
 public data BuildSeal {
 }
-BuildSealAccess satisfies AccessPolicy {
-    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access\new_plan(@schema, Issuance::Only { routes: [] })
+BuildSealAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Only { routes: [] })
     }
 }
 public domain BuildSeal::Issued
     access BuildSealAccess;
-// Stored views share an explicit backing lifetime. Opaque mutable boundaries
-// must promise output safety; an unnamed relation cannot imply preservation.
-public data Build<'storage> {
+// A value returned by the workspace library names an immutable collection of
+// paths in this Build invocation. An ordinary empty value denotes no members.
+public data WorkspaceMembers [copy] {}
+
+public data BuildProduct<'storage> {
+    case Unselected;
+    case Package(name: @'storage [u8]);
+    case Application(name: @'storage [u8]);
+    case Workspace(members: WorkspaceMembers);
+    case InterpretedBuild(entry: @'storage [u8]);
+}
+
+// An issued BuildPath selects one directory in this activation's held view.
+public data BuildPackageRoot {
+    case Current;
+    case Directory(path: BuildPath);
+}
+
+// Empty selects no runtime mounts. Appending a held directory produces a new list.
+public data BuildDirectories [copy] {}
+
+// Stored views in this plan share one explicit backing lifetime.
+public data BuildPlan<'storage> {
+    product: BuildProduct<'storage>;
+    package_root: BuildPackageRoot;
+    directories: BuildDirectories;
     seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
     subsystem: Subsystem;
@@ -74,6 +97,6 @@ public data Build<'storage> {
     inputs: BuildInputs;
     output: BuildOutput;
     log: BuildLog;
-    product: BuildProduct;
+    declarations: BuildDeclarations;
     tests: BuildTests;
 }

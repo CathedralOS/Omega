@@ -1,4 +1,4 @@
-use omega\language\core\I32::from_f64;
+use {omega}/language/core/float_operations.omg;
 
 // A four-sample detector scratch splits into a leading baseline window and a
 // trailing peak window. Both arms have length 2. The record carries that
@@ -48,10 +48,10 @@ public machine baseline_ready() -> bool {
         let selected: @mutable [f64] = window(trace, 1);
         let trailing: Held = hold(selected);
         scale_peak(trailing.values);
-        let baseline: i32 in Saturating = I32::from_f64(trace[0]);
-        let neighbor: i32 in Saturating = I32::from_f64(trace[1]);
-        let peak_value: i32 in Saturating = I32::from_f64(trace[2]);
-        let tail: i32 in Saturating = I32::from_f64(trace[3]);
+        let baseline: i32 in Saturating = |float_operations|::I32::from_f64(trace[0]);
+        let neighbor: i32 in Saturating = |float_operations|::I32::from_f64(trace[1]);
+        let peak_value: i32 in Saturating = |float_operations|::I32::from_f64(trace[2]);
+        let tail: i32 in Saturating = |float_operations|::I32::from_f64(trace[3]);
         transition baseline == 0 && neighbor == 0 && peak_value == 4 && tail == 5 {
             true -> true,
             _ -> false

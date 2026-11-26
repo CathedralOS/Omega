@@ -7,6 +7,11 @@ A folder or catalog label neither admits a package nor claims it works on every
 target. The specification defines the required behavior; owning tasks record
 unfinished implementation.
 
+The distribution lists ordinary packages in `packages.tsv`, one declared name
+and relative directory per tab-separated row. A `Source::Bundled` registration
+reads that catalog and the selected package from the same verified library
+snapshot. The selected Build must return the listed package name.
+
 Build programs can import the installed files under `build/` by their exact
 logical paths. For example, `use {omega}/build/dependency.omg;` makes
 `|dependency|::from_source` available in that file. Relative imports inside
@@ -29,6 +34,15 @@ Move a reusable sample helper into a library when real use establishes its
 contract. Move the implementation and migrate consumers together, preserving
 inputs, expected results and rejection reasons. Do not leave two permanent
 implementations or claim a consumer is validated without running its checks.
+
+The standard distribution ships the ordinary packages in this directory.
+Build source selects them by declared package name. See
+[selecting a bundled package](../../wiki/spec/packages/toolchain.md#selecting-a-bundled-package).
+
+The specified import for the numeric laws is
+`use {omega}/language/core/foundation.omg as proof;`. The resolver and
+library migration is tracked under `PROOF-KERNEL-CORE` in [TASKS.md](../../TASKS.md).
+[Mathematical declarations](../../wiki/spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation)
 
 ## Core integer and float APIs
 
@@ -65,7 +79,9 @@ executes on each host.
 
 ## Fixed-width SIMD
 
-The `simd` package provides fixed-width lane values and a four-by-four transpose.
+The `system` package provides fixed-width lane values under
+`{system}/simd/simd.omg` and a four-by-four transpose under
+`{system}/simd/transpose.omg`.
 Its loads and stores take borrows of fixed arrays. The element type and count
 determine exactly how much memory each operation accesses.
 [Fixed-width SIMD values](../../wiki/spec/language/simd.md)

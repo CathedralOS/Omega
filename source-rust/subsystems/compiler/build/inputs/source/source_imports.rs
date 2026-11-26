@@ -3,8 +3,8 @@
 //! grants of its checked Build or Product. A file checked in both contexts
 //! has a separate set of imports in each.
 //!
-//! `files` selects exact filenames. `logical` finds declarations for legacy
-//! namespace imports and inventories package operators. `package_selection`
+//! `files` selects exact filenames for authored Builds. `logical` inventories
+//! Product declarations and operators, and resolves remaining Product and toolchain imports. `package_selection`
 //! checks dependencies before and after a target is chosen. `bindings` records
 //! which file each import selected for name resolution.
 
@@ -32,7 +32,7 @@ pub(crate) use bindings::{
 pub(crate) use build_prelude::prepare_build_prelude;
 pub(crate) use entry_contract_seed::seed_entry_contracts;
 pub(crate) use frontier::{InstalledSourceRoots, SourceStorage, validate_package_source_frontier};
-pub(crate) use generated::{collect_generated_files, generated_file_path};
+pub(crate) use generated::GeneratedFiles;
 
 pub(crate) use import_queue::ImportQueue;
 pub(crate) use logical::{LogicalSourceDiscovery, retained_unit};
@@ -82,9 +82,9 @@ pub(crate) fn discover_imports(
             default_root
         };
         for import in &unit.imports {
-            if let Some(file) = FileImport::from(unit, import) {
+            if let Some(file) = FileImport::from(unit, import)? {
                 let root = contracts.root_for(&unit.path).unwrap_or(source_root);
-                match file.standalone(root, None, filesystem)? {
+                match file.standalone(Some(root), None, filesystem)? {
                     FileSelection::Selected(resolved) => {
                         imports.push((resolved.path.clone(), unit.scope));
                         retained.push(resolved);
@@ -110,24 +110,8 @@ pub(crate) fn discover_imports(
                 .iter()
                 .map(|name| name.as_str().to_owned())
                 .collect::<Vec<_>>();
-            // modules.md, "Names and imports": in Build source "a logical
-            // `use dependency;` may remain deferred until explicit dependency
-            // registration and preparation make its exact declaration scope
-            // available". A Build import of its own package therefore
-            // selects only what declares the imported name, and one that
-            // names nothing here selects no source and is left for the stage
-            // that prepares the dependency it names.
-            let own_build_import =
-                unit.scope == DependencyScope::Build && prefix == 0 && root == default_root;
-            let selected = if own_build_import {
-                discovery.select_declaring(root, &logical, filesystem, Vec::new())?
-            } else {
-                discovery.select(root, &logical, filesystem)?
-            };
+            let selected = discovery.select(root, &logical, filesystem)?;
             if selected.is_empty() {
-                if own_build_import {
-                    continue;
-                }
                 return Err(vec![Diagnostic::error(format!(
                     "import `{}` selects no logical source namespace",
                     identifier_path_text(members)
@@ -163,7 +147,7 @@ pub(crate) fn discover_package_imports(
         let purpose = source_import_scope(packages, parsed_source.scope, &parsed_source.path);
         let contract_root = contract_custody.root_for(&parsed_source.path);
         for import in &parsed_source.imports {
-            if let Some(file) = FileImport::from(parsed_source, import) {
+            if let Some(file) = FileImport::from(parsed_source, import)? {
                 match file.reconciled(packages, requester, purpose, contract_root, filesystem)? {
                     FileSelection::Selected(resolved) => {
                         imports.push((resolved.path.clone(), parsed_source.scope));

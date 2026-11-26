@@ -1,20 +1,16 @@
 // Fact: A suspended independent component writes 73 to the caller's original scalar-backed record, preserving neighbor cells and storage addresses.
 // Place: match_join.
 // Expected exit: 0
-use producer\Lending;
-use producer\Observation;
-use producer\Reading;
-use producer\Token;
-use producer\Word;
-machine choose(token: @Token, first_selected: bool) -> u64 reaches Lending Reading Observation suspends crashes Trap {
-    let mutable first: Word = Word { before: 11, count: 0, after: 29 };
-    let mutable second: Word = Word { before: 11, count: 1, after: 29 };
-    let selected: @mutable Word = match first_selected { true -> @mutable first, _ -> @mutable second };
-    let original: addr = address_of(selected);
-    let member: addr = address_of(@selected.count);
-    let reported: u64 = suspend Lending::write(selected, token, original, member);
-    let reused: u64 = suspend Reading::read(@selected, @selected, token, token, original, member);
-    Observation::seen(token);
+use {producer}/main.omg as producer;
+machine choose(token: @|producer|::Token, first_selected: bool) -> u64 reaches |producer|::Lending |producer|::Reading |producer|::Observation suspends crashes Trap {
+    let mutable first: |producer|::Word = |producer|::Word { before: 11, count: 0, after: 29 };
+    let mutable second: |producer|::Word = |producer|::Word { before: 11, count: 1, after: 29 };
+    let selected: @mutable |producer|::Word = match first_selected { true -> @mutable first, _ -> @mutable second };
+    let original: address = address_of(selected);
+    let member: address = address_of(@selected.count);
+    let reported: u64 = suspend |producer|::Lending::write(selected, token, original, member);
+    let reused: u64 = suspend |producer|::Reading::read(@selected, @selected, token, token, original, member);
+    |producer|::Observation::seen(token);
     let addresses: bool = address_of(selected) == original && address_of(@selected.count) == member;
     let observed: u64 = selected.count;
     let correct: bool = match first_selected { true -> first.count == 73 && second.count == 1, _ -> second.count == 73 && first.count == 0 };
@@ -24,14 +20,14 @@ machine choose(token: @Token, first_selected: bool) -> u64 reaches Lending Readi
     }
     machine bad() -> u64 { crash Trap; }
 }
-machine entry(token: Token) -> u64 reaches Lending Reading Observation suspends crashes Trap {
+machine entry(token: |producer|::Token) -> u64 reaches |producer|::Lending |producer|::Reading |producer|::Observation suspends crashes Trap {
     let first: u64 = suspend choose(@token, true);
     let second: u64 = suspend choose(@token, false);
     transition first == 73 && second == 73 { true -> first, _ -> bad() }
     machine bad() -> u64 { crash Trap; }
 }
-machine main() reaches Lending Reading Observation suspends crashes Trap {
-    let result: u64 = suspend entry(Token {});
+machine main() reaches |producer|::Lending |producer|::Reading |producer|::Observation suspends crashes Trap {
+    let result: u64 = suspend entry(|producer|::Token {});
     transition result == 73 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

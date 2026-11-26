@@ -109,9 +109,6 @@ pub(crate) fn parse_member_suffix<'tokens, 'source>(
             "require_wire_compatibility" => Some(
                 "receiver-style wire compatibility is retired; use Build::require_wire_compatibility::<Edge, Lineage, Local, Peer, Fact>(builder)",
             ),
-            "assume_binding_contract" => Some(
-                "receiver-style assumed binding is retired; use Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder)",
-            ),
             _ => None,
         };
         if let Some(message) = retired {

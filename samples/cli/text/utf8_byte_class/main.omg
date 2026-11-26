@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Classify a UTF-8 byte by its high bits -- the natural home for shifts and casts
 // used DIRECTLY in transition guards (both recently supported). A UTF-8 byte's
 // shape is entirely in its leading bits:
@@ -16,16 +17,14 @@ use omega\language\core\ProcessExit;
 // the start of `€`), and exits with its class code 3.
 // Expected exit: 3.
 
-use system\Console;
-use omega\language\core\narrow_u8_to_i8_wrapping;
 
 data Main {
     byte: u8 in Wrapping;
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("utf8_byte_class: classify a byte by its leading bits using shift/cast guards");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("utf8_byte_class: classify a byte by its leading bits using shift/cast guards");
     main.byte = 226 as +Wrapping; // 0xE2 = 11100010, a 3-byte-sequence lead
 
     // High bit clear -> ASCII (0xxxxxxx). Unsigned `>>` in a guard subject.
@@ -34,7 +33,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     // Every non-ASCII byte has its high bit set: as an i8 it is negative. A CAST
     // in a guard subject confirms the branch we are on before classifying further.
     machine high_bit_set(main: @mutable Main) {
-        transition narrow_u8_to_i8_wrapping(main.byte as u8) < 0 {
+        transition |numeric_conversion|::narrow_u8_to_i8_wrapping(main.byte as u8) < 0 {
             true -> block multibyte(main),
             _ -> block unreachable(main)
         }
@@ -51,25 +50,25 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine ascii(main: @mutable Main) {
-        Console::write_line("class: ASCII (0xxxxxxx) -- exit 1");
+        |console|::Console::write_line("class: ASCII (0xxxxxxx) -- exit 1");
         transition { _ -> block done1(main) }
     }
     machine continuation(main: @mutable Main) {
-        Console::write_line("class: continuation byte (10xxxxxx) -- exit 4");
+        |console|::Console::write_line("class: continuation byte (10xxxxxx) -- exit 4");
         transition { _ -> block done4(main) }
     }
     machine lead2(main: @mutable Main) {
-        Console::write_line("class: 2-byte sequence lead (110xxxxx) -- exit 2");
+        |console|::Console::write_line("class: 2-byte sequence lead (110xxxxx) -- exit 2");
         transition { _ -> block done2(main) }
     }
     machine lead3(main: @mutable Main) {
-        Console::write_line("class: 3-byte sequence lead (1110xxxx) -- exit 3");
+        |console|::Console::write_line("class: 3-byte sequence lead (1110xxxx) -- exit 3");
         transition { _ -> block done3(main) }
     }
     machine unreachable(main: @mutable Main) {
         // A high-bit-set byte that is non-negative as i8 is impossible; guard the
         // dispatch anyway (no silent fall-through) and report the contradiction.
-        Console::write_line("class: IMPOSSIBLE -- high bit set but non-negative as i8 -- exit 99");
+        |console|::Console::write_line("class: IMPOSSIBLE -- high bit set but non-negative as i8 -- exit 99");
         transition { _ -> block done99(main) }
     }
 
@@ -79,15 +78,15 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine done4(main: @mutable Main) { transition { _ -> block finish4(main) } }
     machine done99(main: @mutable Main) { transition { _ -> block finish99(main) } }
 
-    machine finish1(main: @mutable Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(@mutable main.pause[..]); ProcessExit::exit_process(1); }
-    machine finish2(main: @mutable Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(@mutable main.pause[..]); ProcessExit::exit_process(2); }
-    machine finish3(main: @mutable Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(@mutable main.pause[..]); ProcessExit::exit_process(3); }
-    machine finish4(main: @mutable Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(@mutable main.pause[..]); ProcessExit::exit_process(4); }
-    machine finish99(main: @mutable Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(@mutable main.pause[..]); ProcessExit::exit_process(99); }
+    machine finish1(main: @mutable Main) { |console|::Console::write_line("[press Enter to close]"); _ = block |console|::Console::read_line(@mutable main.pause[..]); |process_exit|::ProcessExit::exit_process(1); }
+    machine finish2(main: @mutable Main) { |console|::Console::write_line("[press Enter to close]"); _ = block |console|::Console::read_line(@mutable main.pause[..]); |process_exit|::ProcessExit::exit_process(2); }
+    machine finish3(main: @mutable Main) { |console|::Console::write_line("[press Enter to close]"); _ = block |console|::Console::read_line(@mutable main.pause[..]); |process_exit|::ProcessExit::exit_process(3); }
+    machine finish4(main: @mutable Main) { |console|::Console::write_line("[press Enter to close]"); _ = block |console|::Console::read_line(@mutable main.pause[..]); |process_exit|::ProcessExit::exit_process(4); }
+    machine finish99(main: @mutable Main) { |console|::Console::write_line("[press Enter to close]"); _ = block |console|::Console::read_line(@mutable main.pause[..]); |process_exit|::ProcessExit::exit_process(99); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

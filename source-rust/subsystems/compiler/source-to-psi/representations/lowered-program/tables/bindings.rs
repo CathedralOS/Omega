@@ -16,10 +16,9 @@ The write log records, in program order, what each place holds after each
 write. The binding at a point is the last reaching write to the place or to
 any place that overlaps it, which the checker derives from the log.
 
-Three lookups are derived columns, filled by elaboration as it pushes rows,
-so no lane needs a map: a root by `PlaceId` (`MachineTables::roots`), a
-child by segment (`PlaceRow::children`), and the writes to a place
-(`PlaceRow::writes`).
+Elaboration indexes roots by `PlaceId` (`MachineTables::roots`) and children
+by their projection segment (`PlaceRow::children`). The forward log owns each
+write in program order.
 */
 
 use arena::IdTable;
@@ -33,13 +32,33 @@ use crate::{ExactPlaceId, ProgramPoint, WriteId};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PlaceRow {
     pub origin: PlaceOrigin,
-    /// The projections of this place, sorted by `Segment`, at most one per
-    /// segment: interning a child is a binary search here.
-    pub children: Vec<(Segment, ExactPlaceId)>,
-    /// The writes whose `place` is exactly this place, in program order.
-    /// Writes to ancestors and descendants are on their own rows; reach them
-    /// through `PlaceOrigin::Projection::parent` and `children`.
-    pub writes: Vec<WriteId>,
+    /// Child identities, ordered by the segment in each child's origin.
+    pub children: Vec<ExactPlaceId>,
+}
+
+impl PlaceRow {
+    fn child_position(
+        &self,
+        places: &IdTable<ExactPlaceId, PlaceRow>,
+        segment: Segment,
+    ) -> Result<usize, usize> {
+        self.children.binary_search_by_key(&Some(segment), |child| {
+            match places.get(*child)?.origin {
+                PlaceOrigin::Projection { segment, .. } => Some(segment),
+                PlaceOrigin::Root(_) => None,
+            }
+        })
+    }
+
+    pub fn child(
+        &self,
+        places: &IdTable<ExactPlaceId, PlaceRow>,
+        segment: Segment,
+    ) -> Option<ExactPlaceId> {
+        self.child_position(places, segment)
+            .ok()
+            .map(|position| self.children[position])
+    }
 }
 
 /// Invariant: a projection's `parent` was minted before it, so every parent
@@ -67,7 +86,7 @@ pub use terminal_psi::ResolvedStructuralPathSegment as Segment;
 pub fn entry_snapshot_segment(
     segment: Segment,
     owner: semantic_vocabulary::StructuralPlaceKind,
-    values: &IdTable<ValueId, crate::values::ValueRow>,
+    values: &crate::MachineValues,
 ) -> bool {
     use crate::values::ValueOrigin;
     use semantic_vocabulary::StructuralPlaceKind;
@@ -132,10 +151,11 @@ pub enum Content {
 
 /// Calls can reveal a more precise written field after every body is lowered.
 /// Use the same interning owner as the original storage producer, so adding
-/// that projection cannot give one place two identities.
+/// that projection cannot give one place two identities. Lookups preserve the
+/// shared geometry until an entry needs to insert a new projection.
 pub fn intern_projection(
     machine: MachineId,
-    places: &mut IdTable<ExactPlaceId, PlaceRow>,
+    places: &mut super::CheckingRows<ExactPlaceId, PlaceRow>,
     parent: ExactPlaceId,
     segment: Segment,
 ) -> crate::Checked<ExactPlaceId> {
@@ -146,22 +166,18 @@ pub fn intern_projection(
         detail: "place is past the end of this machine".to_owned(),
     };
     let row = places.get(parent).ok_or_else(missing)?;
-    match row
-        .children
-        .binary_search_by_key(&segment, |(segment, _)| *segment)
-    {
-        Ok(position) => Ok(row.children[position].1),
+    match row.child_position(places, segment) {
+        Ok(position) => Ok(row.children[position]),
         Err(position) => {
             let child = places.push(PlaceRow {
                 origin: PlaceOrigin::Projection { parent, segment },
                 children: Vec::new(),
-                writes: Vec::new(),
             });
             places
                 .get_mut(parent)
                 .ok_or_else(missing)?
                 .children
-                .insert(position, (segment, child));
+                .insert(position, child);
             Ok(child)
         }
     }
@@ -169,54 +185,44 @@ pub fn intern_projection(
 
 pub fn record_write(
     machine: MachineId,
-    places: &mut IdTable<ExactPlaceId, PlaceRow>,
+    places: &IdTable<ExactPlaceId, PlaceRow>,
     writes: &mut IdTable<WriteId, WriteRow>,
     row: WriteRow,
 ) -> crate::Checked<()> {
-    let place = places.get_mut(row.place).ok_or_else(|| crate::Refusal {
+    places.get(row.place).ok_or_else(|| crate::Refusal {
         reason: crate::RefusalReason::ForeignIdentity,
         site: crate::RefusalSite::Machine(machine, crate::Construct::Place(row.place)),
         source_span: None,
         detail: "place is past the end of this machine".to_owned(),
     })?;
-    place.writes.push(writes.push(row));
+    writes.push(row);
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arena::{IdTable, NumericId};
     use semantic_vocabulary::StructuralFieldId;
 
     #[test]
     fn children_are_interned_once_per_segment_by_binary_search() {
         let field = |raw| Segment::Field(StructuralFieldId::new(raw).unwrap());
-        let mut places: IdTable<ExactPlaceId, PlaceRow> = IdTable::default();
+        let mut places = crate::CheckingRows::default();
         let root = places.push(PlaceRow {
             origin: PlaceOrigin::Root(PlaceId::new(1).unwrap()),
             children: Vec::new(),
-            writes: Vec::new(),
         });
-        for raw in [3, 1, 2] {
-            let child = places.push(PlaceRow {
-                origin: PlaceOrigin::Projection {
-                    parent: root,
-                    segment: field(raw),
-                },
-                children: Vec::new(),
-                writes: Vec::new(),
-            });
-            let row = places.get_mut(root).unwrap();
-            let at = row
-                .children
-                .binary_search_by_key(&field(raw), |(segment, _)| *segment)
-                .unwrap_err();
-            row.children.insert(at, (field(raw), child));
-        }
-        let children = &places.get(root).unwrap().children;
-        let found = children.binary_search_by_key(&field(2), |(segment, _)| *segment);
-        assert_eq!(children[found.unwrap()].1.get(), 4);
-        assert!(children.windows(2).all(|pair| pair[0].0 < pair[1].0));
+        let machine = MachineId::new(1).unwrap();
+        let children =
+            [3, 1, 2].map(|raw| intern_projection(machine, &mut places, root, field(raw)).unwrap());
+        let row = places.get(root).unwrap();
+        assert_eq!(row.children, [children[1], children[2], children[0]]);
+        assert_eq!(row.child(&places, field(2)), Some(children[2]));
+        assert_eq!(row.child(&places, field(4)), None);
+        assert_eq!(
+            intern_projection(machine, &mut places, root, field(2)).unwrap(),
+            children[2]
+        );
+        assert_eq!(places.len(), 4);
     }
 }

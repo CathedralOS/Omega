@@ -579,7 +579,7 @@ mod tests {
         let first = schema("FirstRoot", 1, false);
         let mut changed = schema("Parent", 1, true);
         let declaration = std::sync::Arc::make_mut(&mut changed.declaration);
-        declaration.methods[0].parameter_type_identities[0] = declaration.identities.intern("addr");
+        declaration.methods[0].parameter_type_identities[0] = declaration.identities.intern("address");
         assert!(!first.supplies_receiver_schema(&changed));
         std::sync::Arc::make_mut(&mut changed.declaration)
             .methods

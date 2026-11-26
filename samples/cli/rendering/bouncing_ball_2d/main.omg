@@ -1,6 +1,8 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
+use {system}/console.omg;
 // A 2D ball bouncing in a box under GRAVITY, animated in place -- the first physics
 // SIMULATION (a continuous state integrated over time), as opposed to the
 // static-per-frame fractals. Each frame homes the cursor (\x1b[H), redraws a 24x12
@@ -12,9 +14,6 @@ use omega\language\core\ProcessExit;
 // guards, runtime-indexed carrier writes, and nested state-machine loops.
 // Expected exit: 0.
 // Expected output contains: O
-use omega\language\core\I32::from_f64;
-use system\Console;
-use system\Clock;
 
 
 data Main
@@ -37,8 +36,8 @@ requires
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
-    Console::write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
     main.line = "                        ";
     main.home = "XXX";
     main.home[0] = 27;
@@ -57,7 +56,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition main.frame < 70 { true -> block frame_start(main), _ -> block finish(main) }
     }
     machine frame_start(main: @mutable Main) {
-        Console::write(@main.home[..]);
+        |console|::Console::write(@main.home[..]);
         main.y = 0;
         transition { _ -> block row_loop(main) }
     }
@@ -98,7 +97,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition { _ -> block col_loop(main) }
     }
     machine emit_row(main: @mutable Main) {
-        Console::write_line(@main.line[..]);
+        |console|::Console::write_line(@main.line[..]);
         transition main.y >= 0 && main.y < 12 { true -> block y_bump(main), _ -> block row_loop(main) }
     }
     machine y_bump(main: @mutable Main) {
@@ -148,11 +147,11 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     machine recompute(main: @mutable Main) {
         // Named saturating conversions truncate the float positions; the policy
         // then erases.
-        let column: i32 in Saturating = I32::from_f64(main.bx);
-        let row: i32 in Saturating = I32::from_f64(main.by);
+        let column: i32 in Saturating = |float_operations|::I32::from_f64(main.bx);
+        let row: i32 in Saturating = |float_operations|::I32::from_f64(main.by);
         main.ball_x = column as i32;
         main.ball_y = row as i32;
-        block Clock::sleep(40);
+        block |clock|::Clock::sleep(40);
         transition main.frame < 70 { true -> block frame_bump(main), _ -> block frame_loop(main) }
     }
     machine frame_bump(main: @mutable Main) {
@@ -161,15 +160,15 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     }
 
     machine finish(main: @mutable Main) {
-        Console::write_line("done: 70 frames of gravity-bounce animation complete (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("done: 70 frames of gravity-bounce animation complete (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

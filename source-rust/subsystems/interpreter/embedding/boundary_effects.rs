@@ -419,6 +419,29 @@ pub(crate) mod boundary_predicates {
                         self.read(*root, &selected, *scalar_type)?
                     }
                 }
+                ScalarTerm::ByteSequencePredicate { predicate, root, path } => {
+                    let Some(position) = self.observed_argument(*root)? else {
+                        return Ok(());
+                    };
+                    let parameter = &self.boundary.structural_parameters[position];
+                    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "boundary byte predicate cannot read a write-only argument",
+                        ));
+                    }
+                    let mut source = self.arguments.get(position).ok_or(malformed())?.clone();
+                    source.path.extend(
+                        terminal_semantics::canonical_structural_storage_path(
+                            self.execution.program.structural_types().values(),
+                            parameter.structural_type,
+                            path,
+                        )
+                        .ok_or(malformed())?,
+                    );
+                    source.access = terminal_psi::StructuralAccess::SharedBorrow;
+                    let bytes = self.execution.observed_byte_sequence(&source)?;
+                    Some(TerminalScalarValue::Boolean(predicate.holds_for(bytes.bytes())))
+                }
                 ScalarTerm::ViewExtent {
                     root,
                     path,
@@ -3138,32 +3161,10 @@ pub(crate) mod results {
                     .structural_types()
                     .get(&result.structural_type)
                     .is_some_and(|declaration| {
-                        let plain_fields =
-                            |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-                                fields.iter().all(|field| {
-                                    !field.relevance.is_erased()
-                                        && crate::boundary::values::AggregatePlan::is_plain_leaf(
-                                            &field.field_type,
-                                        )
-                                })
-                            };
-                        match &declaration.shape {
-                            StructuralTypeShape::Record { .. }
-                            | StructuralTypeShape::FixedArray { .. }
-                            | StructuralTypeShape::PrimitiveScalar(_)
-                            | StructuralTypeShape::ByteSequence(_)
-                            | StructuralTypeShape::ElementView { .. } => {
-                                crate::boundary::values::AggregatePlan::new(
-                                    declaration,
-                                    |identity| self.structural_types().get(&identity),
-                                )
-                                .is_ok()
-                            }
-                            StructuralTypeShape::Sum { cases } => {
-                                cases.iter().all(|case| plain_fields(&case.fields))
-                            }
-                            _ => false,
-                        }
+                        crate::boundary::values::AggregatePlan::supports_host_result(
+                            declaration,
+                            |identity| self.structural_types().get(&identity),
+                        )
                     })
         }
 
@@ -4499,9 +4500,7 @@ pub struct TerminalEffectRejection {
     sponsor_exhausted: bool,
 }
 
-pub use psi_provider_selections::{
-    AdmittedAssumedBinding, AssumedBindingSelection, ProviderInstallationSelection,
-};
+pub use psi_provider_selections::ProviderInstallationSelection;
 pub use psi_target_layouts::{
     AdmittedTargetLayouts, TerminalTargetContext, admit_target_layouts, terminal_target_context,
 };
@@ -4516,7 +4515,6 @@ pub struct TerminalRuntimeSupplies {
     pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
     pub(crate) code_identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
-    pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) folded_constant_target: Option<String>,
     pub(crate) target_machines: Option<TerminalTargetContext>,
     pub(crate) target_layouts: Option<std::sync::Arc<AdmittedTargetLayouts>>,
@@ -4562,14 +4560,8 @@ impl From<&psi_provider_selections::AdmittedProviderSelections> for TerminalRunt
                 .map(|(boundary, machine)| {
                     (boundary, AdmittedBoundarySupply::CheckedProvider(machine))
                 })
-                .chain(selected.assumed_bindings().iter().map(|relationship| {
-                    (
-                        relationship.required,
-                        AdmittedBoundarySupply::CheckedProvider(relationship.implementation),
-                    )
-                }))
+
                 .collect(),
-            assumed_bindings: selected.assumed_bindings().to_vec(),
             folded_constant_target: selected.folded_constant_target().map(str::to_owned),
             target_machines: None,
             target_layouts: None,
@@ -4657,9 +4649,6 @@ impl TerminalRuntimeSupplies {
         self.code_identity.semantic()
     }
 
-    pub fn assumed_bindings(&self) -> &[AdmittedAssumedBinding] {
-        &self.assumed_bindings
-    }
 }
 
 impl TerminalEffectRejection {

@@ -58,12 +58,7 @@ pub(crate) mod complete_values {
                 &|path, case| {
                     let mut original = prefix.to_vec();
                     original.extend_from_slice(path);
-                    crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
-                        &types,
-                        root,
-                        &self.array_initialization.cases(&self.structural_cases),
-                        &original,
-                    ) == Some(case)
+                    self.stored_case_at_value(root, &original) == Some(case)
                 },
             )
             .map_err(|reason| TerminalInterpretError::VerifiedOperationContractInvalid { reason })
@@ -266,14 +261,8 @@ pub(crate) mod windows {
                         return Err(TerminalInterpretError::ClaimTransferMismatch);
                     }
                 }
-                let case_membership = |current: &StructuralAffineDiscard| {
-                    crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
-                        &self.structural_types(),
-                        self.structural_values.get(&current.place)?,
-                        &self.array_initialization.cases(&self.structural_cases),
-                        &current.path,
-                    )
-                };
+                let case_membership =
+                    |current: &StructuralAffineDiscard| self.stored_case_at(current);
                 if let Some(containing) = frontier
                     .iter()
                     .find(|entry| {
@@ -366,12 +355,7 @@ pub(crate) mod windows {
             active_result.claims = self.active_claims_in_value(&selected, &result.claims)?;
             let result = &active_result;
             let case_membership = |current: &StructuralAffineDiscard| {
-                crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
-                    &self.structural_types(),
-                    &selected,
-                    &self.array_initialization.cases(&self.structural_cases),
-                    &current.path,
-                )
+                self.stored_case_at_value(&selected, &current.path)
             };
             let storage = self.structural_value(source)?;
             if let Some(argument) = self.owned_window_projection(source, storage, path, hole)? {
@@ -474,12 +458,7 @@ pub(crate) mod windows {
                             } else {
                                 (storage, current.path.as_slice())
                             };
-                            crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
-                            &self.structural_types(),
-                            root,
-                            &self.array_initialization.cases(&self.structural_cases),
-                            path,
-                        )
+                            self.stored_case_at_value(root, path)
                         },
                     )?;
                 }
@@ -654,14 +633,9 @@ impl crate::engine::execution::TerminalExecution<'_> {
             root_type,
             argument,
             &|path, case| {
-                self.structural_values.get(&argument.place).is_some_and(|value| {
-                    crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
-                        &self.structural_types(),
-                        value,
-                        &self.array_initialization.cases(&self.structural_cases),
-                        path,
-                    ) == Some(case)
-                })
+                self.structural_values
+                    .get(&argument.place)
+                    .is_some_and(|value| self.stored_case_at_value(value, path) == Some(case))
             },
         )
     }
@@ -2331,7 +2305,10 @@ pub(crate) fn transfer_claims(
     for entry_claim in callee_content_entry_claims {
         // Its structural transfer already selected the active case. An attached
         // projection cannot bring an inactive ordinary claim back to life.
-        if callee_entry_claims.binary_search_by_key(&entry_claim.claim, |entry| entry.claim).is_ok() {
+        if callee_entry_claims
+            .binary_search_by_key(&entry_claim.claim, |entry| entry.claim)
+            .is_ok()
+        {
             continue;
         }
         callee_claims.entry(entry_claim.claim).or_insert(LiveClaim {
@@ -2594,32 +2571,47 @@ pub(crate) mod tests {
             structural_type: structural_type(1),
         };
         let mut frontier = std::collections::BTreeSet::from([wrapper.clone()]);
+        let empty_refs = BTreeMap::new();
+        let empty_cases = BTreeMap::new();
+        let decompose = |types: &crate::embedding::program::ProgramDeclarations<'_, _>,
+                         frontier: &mut std::collections::BTreeSet<StructuralAffineDiscard>,
+                         claims: &mut BTreeMap<ClaimId, LiveClaim>| {
+            super::decompose_owned_subject(
+                types,
+                &values,
+                &empty_refs,
+                &empty_cases,
+                frontier,
+                claims,
+                &subject,
+                structural_type(1),
+            )
+        };
+        let validate_frontier =
+            |types: &crate::embedding::program::ProgramDeclarations<'_, _>,
+             frontier: &std::collections::BTreeSet<StructuralAffineDiscard>,
+             claims: &BTreeMap<ClaimId, LiveClaim>| {
+                super::validate_complete_affine_frontier(
+                    types,
+                    &values,
+                    &empty_cases,
+                    frontier,
+                    claims.values(),
+                    &subject,
+                    structural_type(1),
+                )
+            };
         // Independent claims must remain settled by an explicit correspondence.
         assert!(
-            super::decompose_owned_subject(
+            decompose(
                 &types,
-                &values,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
                 &mut frontier,
                 &mut BTreeMap::from([(claim(1), linear(1, Vec::new()))]),
-                &subject,
-                structural_type(1)
             )
             .is_err()
         );
         assert_eq!(frontier, std::collections::BTreeSet::from([wrapper]));
-        super::decompose_owned_subject(
-            &types,
-            &values,
-            &BTreeMap::new(),
-            &BTreeMap::new(),
-            &mut frontier,
-            &mut BTreeMap::new(),
-            &subject,
-            structural_type(1),
-        )
-        .unwrap();
+        decompose(&types, &mut frontier, &mut BTreeMap::new()).unwrap();
         assert_eq!(values.get(&place(1)), Some(&home));
         assert_eq!(
             frontier,
@@ -2629,24 +2621,12 @@ pub(crate) mod tests {
                 structural_type: structural_type(2),
             }])
         );
-        assert!(
-            super::decompose_owned_subject(
-                &types,
-                &values,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
-                &mut frontier,
-                &mut BTreeMap::new(),
-                &subject,
-                structural_type(1)
-            )
-            .is_err()
-        );
+        assert!(decompose(&types, &mut frontier, &mut BTreeMap::new()).is_err());
         assert!(
             super::consume_affine_projection(
                 &types,
                 &values,
-                &BTreeMap::new(),
+                &empty_cases,
                 &mut frontier,
                 &subject
             )
@@ -2683,27 +2663,8 @@ pub(crate) mod tests {
             )
             .unwrap();
             assert_eq!(frontier.len(), usize::from(has_sibling));
-            super::validate_complete_affine_frontier(
-                &types,
-                &values,
-                &BTreeMap::new(),
-                &frontier,
-                claims.values(),
-                &subject,
-                structural_type(1),
-            )
-            .unwrap();
-            super::decompose_owned_subject(
-                &types,
-                &values,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
-                &mut frontier,
-                &mut claims,
-                &subject,
-                structural_type(1),
-            )
-            .unwrap();
+            validate_frontier(&types, &frontier, &claims).unwrap();
+            decompose(&types, &mut frontier, &mut claims).unwrap();
             assert_eq!(claims, retained_claims);
             assert_eq!(frontier.len(), 1 + usize::from(has_sibling));
             let retained_frontier = frontier.clone();
@@ -2715,28 +2676,11 @@ pub(crate) mod tests {
                     .any(|entry| subject.path.starts_with(&entry.path))
             );
             assert_eq!(
-                super::validate_complete_affine_frontier(
-                    &types,
-                    &values,
-                    &BTreeMap::new(),
-                    &frontier,
-                    claims.values(),
-                    &subject,
-                    structural_type(1),
-                ),
+                validate_frontier(&types, &frontier, &claims),
                 Err(TerminalInterpretError::AffineFrontierMismatch)
             );
             assert_eq!(
-                super::decompose_owned_subject(
-                    &types,
-                    &values,
-                    &BTreeMap::new(),
-                    &BTreeMap::new(),
-                    &mut frontier,
-                    &mut claims,
-                    &subject,
-                    structural_type(1),
-                ),
+                decompose(&types, &mut frontier, &mut claims),
                 Err(TerminalInterpretError::AffineFrontierMismatch)
             );
             assert_eq!(claims, retained_claims);

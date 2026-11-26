@@ -1,23 +1,23 @@
-use omega\language\core\DllImport;
-use omega\language\core\ForeignBinding;
-use omega\language\core\ProcessExit;
+use main.omg as app;
+use {omega}/language/core/external_binding.omg as native;
+use {omega}/language/core/process_exit.omg;
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "source_scalar_operator_selection");
-    Build::bind_native::<ProcessExit::exit_process>(builder, linux_x86_64,
-        ForeignBinding::Syscall { number: 231u64 });
-    Build::bind_native::<ProcessExit::exit_process>(builder, linux_arm64,
-        ForeignBinding::Syscall { number: 94u64 });
-    Build::bind_native::<ProcessExit::exit_process>(builder, macos_arm64,
-        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+    Build::bind_native::<|process_exit|::ProcessExit::exit_process>(builder, linux_x86_64,
+        |native|::ForeignBinding::Syscall { number: 231u64 });
+    Build::bind_native::<|process_exit|::ProcessExit::exit_process>(builder, linux_arm64,
+        |native|::ForeignBinding::Syscall { number: 94u64 });
+    Build::bind_native::<|process_exit|::ProcessExit::exit_process>(builder, macos_arm64,
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "__exit"
         } });
-    Build::bind_native::<ProcessExit::exit_process>(builder, windows_x86_64,
-        ForeignBinding::DllImport { import: DllImport::PeByName {
+    Build::bind_native::<|process_exit|::ProcessExit::exit_process>(builder, windows_x86_64,
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
             library: "kernel32.dll", export: "ExitProcess"
         } });
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
 }

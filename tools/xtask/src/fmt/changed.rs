@@ -1,6 +1,6 @@
 //! Check the lines introduced since a Git base, including local edits to those lines.
-use super::{ARGV_BUDGET, Metadata};
-use serde::Serialize;
+use super::{Invocation, Metadata};
+use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::process::Command;
@@ -43,17 +43,52 @@ fn changed_ranges(diff: &str) -> Result<Vec<[usize; 2]>, String> {
         .collect()
 }
 
-#[derive(Serialize)]
-struct FileLines<'a> {
-    file: &'a str,
-    range: [usize; 2],
+#[derive(Deserialize)]
+struct FileReport {
+    name: String,
+    mismatches: Vec<Mismatch>,
+}
+
+#[derive(Deserialize)]
+struct Mismatch {
+    original_begin_line: usize,
+    original_end_line: usize,
+    original: String,
+    expected: String,
+}
+
+/// Compare complete formatting against the ranges in the original source. Passing
+/// partial syntax to rustfmt's --file-lines can change an untouched enum header.
+pub(super) fn report(output: &[u8], ranges: &[[usize; 2]]) -> Result<bool, String> {
+    let reports: Vec<FileReport> = serde_json::from_slice(output)
+        .map_err(|error| format!("invalid rustfmt JSON report: {error}"))?;
+    let mut clean = true;
+    for file in reports {
+        for mismatch in file.mismatches {
+            let first = mismatch.original_begin_line;
+            let last = mismatch.original_end_line.max(first);
+            if ranges
+                .iter()
+                .any(|[start, end]| *start <= last && first <= *end)
+            {
+                eprintln!(
+                    "Diff in {}:{first}:\n-{}\n+{}",
+                    file.name,
+                    mismatch.original.trim_end_matches('\n'),
+                    mismatch.expected.trim_end_matches('\n')
+                );
+                clean = false;
+            }
+        }
+    }
+    Ok(clean)
 }
 
 pub(super) fn invocations(
     metadata: &Metadata,
     base: &str,
     passthrough: &[String],
-) -> Result<Vec<Vec<String>>, String> {
+) -> Result<Vec<Invocation>, String> {
     let root = Path::new(&metadata.workspace_root);
     let commit = git(
         root,
@@ -160,37 +195,21 @@ pub(super) fn invocations(
         let filename = path
             .to_str()
             .ok_or_else(|| format!("non-UTF-8 Rust path: {relative}"))?;
-        // Windows limits the size of the complete command. Each serialized
-        // range repeats the file name and two line numbers.
-        let row_bytes = serde_json::to_string(filename).unwrap().len() + 68;
-        let rows_per_call = (ARGV_BUDGET / 2 / row_bytes).max(1);
-        for batch in ranges.chunks(rows_per_call) {
-            let lines = batch
-                .iter()
-                .map(|range| FileLines {
-                    file: filename,
-                    range: *range,
-                })
-                .collect::<Vec<_>>();
-            let json = serde_json::to_string(&lines).map_err(|error| error.to_string())?;
-            for edition in &editions {
-                let mut args = vec![
-                    "rustfmt".into(),
-                    "--edition".into(),
-                    (*edition).into(),
-                    "--check".into(),
-                ];
-                args.extend_from_slice(passthrough);
-                args.extend([
-                    "--unstable-features".into(),
-                    "--config".into(),
-                    "skip_children=true".into(),
-                    "--file-lines".into(),
-                    json.clone(),
-                    filename.into(),
-                ]);
-                invocations.push(args);
-            }
+        for edition in &editions {
+            let mut args = vec!["rustfmt".into(), "--edition".into(), (*edition).into()];
+            args.extend_from_slice(passthrough);
+            args.extend([
+                "--unstable-features".into(),
+                "--config".into(),
+                "skip_children=true".into(),
+                "--emit".into(),
+                "json".into(),
+                filename.into(),
+            ]);
+            invocations.push(Invocation {
+                args,
+                changed_lines: Some(ranges.clone()),
+            });
         }
     }
     Ok(invocations)
@@ -210,7 +229,7 @@ mod tests {
         )
         .unwrap();
         let path = root.join("src/lib.rs");
-        let old = "pub fn old()->usize{1}\n\npub fn current() -> usize {\n    2\n}\n";
+        let old = "pub fn old()->usize{1}\n\npub fn current() -> usize {\n    2\n}\n\npub enum Rows {\n    First ,\n    Second,\n}\n";
         std::fs::write(&path, old).unwrap();
         git(&root, &["init", "-q"]).unwrap();
         git(&root, &["add", "src/lib.rs", "Cargo.toml"]).unwrap();
@@ -237,6 +256,12 @@ mod tests {
         ]
         .map(String::from);
         assert!(super::super::run(&args).is_ok());
+        let changed_enum = old.replace("    Second,", "    Second,\n    Added,");
+        std::fs::write(&path, &changed_enum).unwrap();
+        assert!(super::super::run(&args).is_ok());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), changed_enum);
+        std::fs::write(&path, changed_enum.replace("    Added,", "    Added ,")).unwrap();
+        assert!(super::super::run(&args).is_err());
         std::fs::write(&path, old.replace("    2", "    3")).unwrap();
         assert!(super::super::run(&args).is_ok());
         std::fs::write(&path, old.replace("    2", " 3")).unwrap();

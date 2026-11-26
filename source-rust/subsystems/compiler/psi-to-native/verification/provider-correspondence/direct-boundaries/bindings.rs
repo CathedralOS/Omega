@@ -130,12 +130,12 @@ impl DirectBoundaryLeaf {
 
     /// Plain requirements owe their own full checked contract and a completed
     /// Build locator. No external conformance substitutes for this association.
-    pub fn validate_plain_execution<'module>(
-        &self,
-        module: &'module terminal_psi::TerminalModule,
-        evaluated: &[provider_plans::EvaluatedNativeBinding],
-        identities: &terminal_psi::TerminalIdentityTable,
-    ) -> Result<&'module terminal_psi::BoundaryMachineDeclaration, String> {
+    pub fn validate_plain_execution<'binding>(
+        &'binding self,
+        module: &terminal_psi::TerminalModule,
+        evaluated: &'binding [provider_plans::EvaluatedNativeBinding],
+        identities: &'binding terminal_psi::TerminalIdentityTable,
+    ) -> Result<native_binding_admission::NativeBindingInput<'binding>, String> {
         let boundary = self.bound_calling_declaration(module)?;
         let DirectBoundaryExecution::Foreign(Ok(binding)) = &self.execution else {
             return Err("plain requirement has no completed foreign execution".into());
@@ -178,9 +178,16 @@ impl DirectBoundaryLeaf {
                 provider_plans::EvaluatedNativeBinding::Syscall(syscall),
                 calling_conventions::ExternalBindingKind::Syscall { number },
             ) if syscall.number() == *number => {}
+            (provider_plans::EvaluatedNativeBinding::FunctionField(field), calling_conventions::ExternalBindingKind::FunctionField(candidate))
+                if *candidate == native_binding_admission::resolve_function_field(module, boundary, field)? => {}
             _ => return Err("plain binding changes its normalized execution mechanism".into()),
         }
-        Ok(boundary)
+        Ok(native_binding_admission::NativeBindingInput {
+            boundary: boundary.id,
+            binding: receipt,
+            identities,
+            schema: &self.satisfied_schema,
+        })
     }
 
     pub fn prepare_native_trust(
@@ -210,7 +217,9 @@ impl DirectBoundaryLeaf {
         if self.plan.origin_package_identity != grant.subject_package {
             return Err("root native grant changes its binding's package ownership".into());
         }
-        let boundary = self.validate_plain_execution(module, evaluated, identities)?;
+        let supply = self.validate_plain_execution(module, evaluated, identities)?;
+        let boundary = module.boundary_machine(supply.boundary)
+            .ok_or("root native grant lost its receiving boundary")?;
         let contract = boundary
             .declaration
             .as_ref()
@@ -232,13 +241,10 @@ impl DirectBoundaryLeaf {
         })
     }
 
-    /// Bind the projected callable to its exact receiving declaration before
-    /// deriving any schema-keyed permission or executable realization.
-    /// A retained but unused source declaration may be absent from this module.
-    pub fn bind_to_terminal(
-        &mut self,
-        module: &terminal_psi::TerminalModule,
-    ) -> Result<bool, String> {
+    pub fn receiving_declaration<'module>(
+        &self,
+        module: &'module terminal_psi::TerminalModule,
+    ) -> Result<Option<&'module terminal_psi::BoundaryMachineDeclaration>, String> {
         let mut declarations = module.interfaces.boundary_machines.iter().filter(|boundary| {
             boundary.declaration.as_ref().is_some_and(|declaration| {
                 module.identities.text(
@@ -254,12 +260,23 @@ impl DirectBoundaryLeaf {
                         == Some(self.callable_identity.as_str())
             })
         });
-        let Some(boundary) = declarations.next() else {
-            return Ok(false);
-        };
+        let boundary = declarations.next();
         if declarations.next().is_some() {
             return Err("direct boundary leaf has multiple exact Terminal declarations".into());
         }
+        Ok(boundary)
+    }
+
+    /// Bind the projected callable to its exact receiving declaration before
+    /// deriving any schema-keyed permission or executable realization.
+    /// A retained but unused source declaration may be absent from this module.
+    pub fn bind_to_terminal(
+        &mut self,
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<bool, String> {
+        let Some(boundary) = self.receiving_declaration(module)? else {
+            return Ok(false);
+        };
         self.validate_calling_custody()?;
         let identity = module
             .identities

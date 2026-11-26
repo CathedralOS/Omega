@@ -22,7 +22,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("omega", type=Path)
     cli = parser.parse_args().omega.resolve()
-    fixture = PACKAGE / "tests/fixtures/ownership/run/operator_holds"
+    fixture = PACKAGE.parent / "tests/fixtures/source_to_psi/ownership/run/operator_holds"
     declarations = []
     for filename, names in DECLARATIONS.items():
         source = (CHECKER / filename).read_text()

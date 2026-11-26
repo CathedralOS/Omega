@@ -1,5 +1,8 @@
 //! Validate compiler-owned native binding carriers and their closed widths.
 
+mod function_field;
+pub use function_field::{is_function_field_binding, validate_function_field_binding};
+
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataDefinition, DataMember, TypeParameterKind};
 use crate::source_state::types::{
@@ -176,6 +179,9 @@ fn exact_vocabulary(
     vocabulary: language_core::core_vocabulary::ExternalBindingVocabulary,
 ) -> Result<&DataDefinition, Vec<Diagnostic>> {
     let name = match vocabulary {
+        language_core::core_vocabulary::ExternalBindingVocabulary::FunctionFieldBinding => {
+            "FunctionFieldBinding"
+        }
         language_core::core_vocabulary::ExternalBindingVocabulary::ForeignBinding => {
             "ForeignBinding"
         }

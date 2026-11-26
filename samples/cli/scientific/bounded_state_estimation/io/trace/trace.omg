@@ -1,19 +1,18 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\I64::from_f64;
-use domain\filter;
-use domain\filter\Filter;
+use domain/filter/filter.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 // Decimal integer fields represent millionths, truncated toward zero. The
 // external oracle allows 2e-6 output quantization, independently of f64 checks.
 // Scan at most nineteen decimal places with state transfers. Only the final
 // remainder is negated, so even the minimum i64 value needs no magnitude cast.
-machine print_integer(value: i64) reaches StandardOutput {
+machine print_integer(value: i64) reaches |process_authority|::StandardOutput {
     transition value < 0 {
         true -> negative(value),
         false -> scan(value, 1000000000000000000, false)
     }
     machine negative(value: i64) {
-        Console::write("-");
+        |console|::Console::write("-");
         transition { _ -> scan(value, 1000000000000000000, false) }
     }
     machine scan(value: i64, divisor: i64, started: bool)
@@ -35,13 +34,13 @@ machine print_integer(value: i64) reaches StandardOutput {
     machine signed_digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= -9 requires remainder < 0 {
-        Console::write_byte((48 - remainder) as i32);
+        |console|::Console::write_byte((48 - remainder) as i32);
         transition { _ -> advance(value, divisor, true) }
     }
     machine unsigned_digit(value: i64, divisor: i64, remainder: i64)
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= 0 requires remainder <= 9 {
-        Console::write_byte((48 + remainder) as i32);
+        |console|::Console::write_byte((48 + remainder) as i32);
         transition { _ -> advance(value, divisor, true) }
     }
     machine advance(value: i64, divisor: i64, started: bool)
@@ -53,13 +52,13 @@ machine print_integer(value: i64) reaches StandardOutput {
     }
     machine finished() { }
 }
-machine print_number(value: f64) reaches StandardOutput {
-    let integer: i64 in Saturating = I64::from_f64(value * 1000000.0);
-    Console::write(" ");
+machine print_number(value: f64) reaches |process_authority|::StandardOutput {
+    let integer: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000.0);
+    |console|::Console::write(" ");
     print_integer(integer as i64);
 }
-public machine emit(filter: @Filter, step: u64) reaches StandardOutput requires step <= 8 {
-    Console::write("TRACE ");
+public machine emit(filter: @|filter|::Filter, step: u64) reaches |process_authority|::StandardOutput requires step <= 8 {
+    |console|::Console::write("TRACE ");
     print_integer(step as i64);
     print_number(filter.estimate.position);
     print_number(filter.estimate.velocity);
@@ -73,6 +72,6 @@ public machine emit(filter: @Filter, step: u64) reaches StandardOutput requires 
         true -> observed(),
         false -> missing()
     }
-    machine observed() { Console::write_line(" update"); }
-    machine missing() { Console::write_line(" missing"); }
+    machine observed() { |console|::Console::write_line(" update"); }
+    machine missing() { |console|::Console::write_line(" missing"); }
 }

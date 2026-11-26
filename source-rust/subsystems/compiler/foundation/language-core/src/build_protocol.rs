@@ -30,6 +30,7 @@ pub enum SelectionProtocolOperation {
     DescribeParameter,
     DescribeField,
     DescribeService,
+    EnableUnsafe,
 }
 
 impl SelectionProtocolOperation {
@@ -46,6 +47,7 @@ impl SelectionProtocolOperation {
             Self::DescribeParameter => "describe_parameter",
             Self::DescribeField => "describe_field",
             Self::DescribeService => "describe_service",
+            Self::EnableUnsafe => "enable_unsafe",
             Self::Select => "select",
             Self::SelectProvider => "select_provider",
             Self::SelectProviderOption => "select_provider_option",

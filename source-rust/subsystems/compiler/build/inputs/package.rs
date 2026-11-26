@@ -121,12 +121,21 @@ struct PackageCompilationSourceRecord {
     build_entries: PackageBuildEntries,
     resolution: Option<[u8; 32]>,
     source_root: PathBuf,
+    preparing_source: Option<crate::CapturedLocalSource>,
     canonical_name: String,
     canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
     captured_source: Option<Arc<source_capture::CapturedSourceTree>>,
     captured_build_source: Option<build_output::CapturedBuildSourceInput>,
     dependencies: BTreeMap<String, PackageUse>,
     build_dependencies: BTreeMap<String, PackageUse>, // Only the compilation root may hold build-scope edges.
+}
+
+impl PackageCompilationSourceRecord {
+    fn acquired_root(&self) -> &Path {
+        self.preparing_source
+            .as_ref()
+            .map_or(&self.source_root, |source| source.canonical_live_root())
+    }
 }
 
 impl PackageCompilationInputs {
@@ -164,6 +173,7 @@ impl PackageCompilationInputs {
         for (identity, record) in &self.source.packages {
             if let Some(previous) = other.source.packages.get(identity)
                 && (record.source_root != previous.source_root
+                    || record.preparing_source != previous.preparing_source
                     || record.canonical_name != previous.canonical_name
                     || record.build_entries != previous.build_entries
                     || record.resolution != previous.resolution
@@ -254,6 +264,7 @@ impl PackageCompilationInputs {
                     } else {
                         None
                     },
+                    preparing_source: record.preparing_source,
                     captured_source: record.captured_source,
                     captured_build_source: record.captured_build_source,
                 })

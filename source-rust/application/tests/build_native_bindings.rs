@@ -31,8 +31,8 @@ public boundary trait Host {
 machine main() { }
 ";
 
-const SLEEP: &str = "ForeignBinding::DllImport { import: DllImport::PeByName { library: \"kernel32.dll\", export: \"Sleep\" } }";
-const OTHER: &str = "ForeignBinding::DllImport { import: DllImport::PeByName { library: \"kernel32.dll\", export: \"SleepEx\" } }";
+const SLEEP: &str = "|native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: \"kernel32.dll\", export: \"Sleep\" } }";
+const OTHER: &str = "|native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName { library: \"kernel32.dll\", export: \"SleepEx\" } }";
 
 fn omega_check(directory: &std::path::Path, target: &str) -> Result<(), String> {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
@@ -63,10 +63,9 @@ fn check_product(name: &str, product: &str, bindings: &str) -> Result<(), String
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "use omega\\language\\core\\DllImport;
-use omega\\language\\core\\ForeignBinding;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"bound\");
+            "use {{omega}}/language/core/external_binding.omg as native;
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"bound\" }};
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {bindings}}}
 "
@@ -184,10 +183,9 @@ fn check_with_bound_library(name: &str, body: &str) -> String {
     std::fs::write(
         library.join("build.omg"),
         format!(
-            "use omega\\language\\core\\DllImport;
-use omega\\language\\core\\ForeignBinding;
-machine build(builder: @mutable Build) {{
-    Build::package(builder, \"bound_library\");
+            "use {{omega}}/language/core/external_binding.omg as native;
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Package {{ name: \"bound_library\" }};
     Build::bind_native::<Raw::read>(builder, macos_arm64, {SLEEP});
 }}
 "
@@ -196,14 +194,14 @@ machine build(builder: @mutable Build) {{
     .expect("staged library Build");
     std::fs::write(
         root.join("main.omg"),
-        format!("use bound;\n\nmachine main() {{\n{body}}}\n"),
+        format!("use {{bound}}/main.omg as bound;\n\nmachine main() {{\n{body}}}\n"),
     )
     .expect("staged program");
     std::fs::write(
         root.join("build.omg"),
         "use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"bound_user\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"bound_user\" };
     let mutable library: DependencyDescription = |dependency|::from_source(Source::Path { location: \"bound_library\" });
     |dependency|::with_alias(@mutable library, \"bound\");
     let registration: DependencyRegistration = Build::dependency(builder, library);
@@ -230,7 +228,7 @@ fn a_dependency_binding_nothing_reaches_is_not_judged() {
 /// so the requirement is judged at that call, in the library's own package.
 #[test]
 fn a_dependency_binding_the_program_reaches_is_judged() {
-    let stderr = check_with_bound_library("reached-dependency-binding", "    bound::reads();\n");
+    let stderr = check_with_bound_library("reached-dependency-binding", "    |bound|::reads();\n");
     assert!(stderr.contains(DEFAULT_BODY_REFUSAL), "{stderr}");
 }
 

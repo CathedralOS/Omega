@@ -1,12 +1,11 @@
-use omega\language\core\max_f64;
+use physics/model/model.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/math.omg;
 
 // Recompute all pair candidates after each impulse. Scan lexicographically;
 // strict replacement preserves pair order for equal times. Tangencies record
 // zero impulse once; their subsequent radial speed is zero and is skipped.
-use omega\language\core\F64::square_root;
-use physics\model;
-use physics\model\Lab;
-public machine contact(a:Disk,b:Disk)->f64 {
+public machine contact(a:|model|::Disk,b:|model|::Disk)->f64 {
  let dx:f64=b.x-a.x; let dy:f64=b.y-a.y;
  let vx:f64=b.vx-a.vx; let vy:f64=b.vy-a.vy;
  let speed:f64=vx*vx+vy*vy; let radial:f64=dx*vx+dy*vy;
@@ -17,57 +16,57 @@ public machine contact(a:Disk,b:Disk)->f64 {
   true -> root(speed,radial,discriminant), _ -> absent()
  }
  machine root(speed:f64,radial:f64,discriminant:f64)->f64 {
-  let time:f64=(0.0-radial-F64::square_root(discriminant))/speed;
+  let time:f64=(0.0-radial- |float_operations|::F64::square_root(discriminant))/speed;
   transition time >= -0.000000001 {true -> found(time), _ -> absent()}
  }
- machine found(time:f64)->f64 {max_f64(0.0,time)}
+ machine found(time:f64)->f64 {|math|::max_f64(0.0,time)}
  machine absent()->f64 {100.0}
 }
-public machine select_event(lab:@mutable Lab) {
+public machine select_event(lab:@mutable |model|::Lab) {
  lab.selected=false; lab.delay=100.0;
  transition { _ -> scan(lab,0,1) }
- machine scan(lab:@mutable Lab,left:u64,right:u64) {
+ machine scan(lab:@mutable |model|::Lab,left:u64,right:u64) {
   transition left < lab.count && left < 4 {true -> right_bound(lab,left,right), _ -> done()}
  }
- machine right_bound(lab:@mutable Lab,left:u64,right:u64) requires left < 4 {
+ machine right_bound(lab:@mutable |model|::Lab,left:u64,right:u64) requires left < 4 {
   transition right < lab.count && right < 4 {true -> pair(lab,left,right), _ -> next_left(lab,left)}
  }
- machine pair(lab:@mutable Lab,left:u64,right:u64) requires left < 4 && right < 4 {
+ machine pair(lab:@mutable |model|::Lab,left:u64,right:u64) requires left < 4 && right < 4 {
   lab.candidate=contact(lab.disks[left],lab.disks[right]);
   transition lab.candidate < lab.delay && lab.candidate <= lab.horizon-lab.time {
    true -> remember(lab,left,right), _ -> next_right(lab,left,right)
   }
  }
- machine remember(lab:@mutable Lab,left:u64,right:u64) {
+ machine remember(lab:@mutable |model|::Lab,left:u64,right:u64) {
   lab.selected=true; lab.first=left; lab.second=right; lab.delay=lab.candidate;
   transition { _ -> next_right(lab,left,right) }
  }
- machine next_right(lab:@mutable Lab,left:u64,right:u64) {
+ machine next_right(lab:@mutable |model|::Lab,left:u64,right:u64) {
   transition right < 4 {true -> scan(lab,left,right+1), _ -> done()}
  }
- machine next_left(lab:@mutable Lab,left:u64) {
+ machine next_left(lab:@mutable |model|::Lab,left:u64) {
   transition left < 4 {true -> scan(lab,left+1,left+2), _ -> done()}
  }
  machine done() {}
 }
-public machine advance(lab:@mutable Lab,delay:f64) {
+public machine advance(lab:@mutable |model|::Lab,delay:f64) {
  lab.time=lab.time+delay;
  transition { _ -> scan(lab,0,delay) }
- machine scan(lab:@mutable Lab,index:u64,delay:f64) {
+ machine scan(lab:@mutable |model|::Lab,index:u64,delay:f64) {
   transition index < lab.count && index < 4 {true -> move_disk(lab,index,delay), _ -> done()}
  }
- machine move_disk(lab:@mutable Lab,index:u64,delay:f64) requires index < 4 {
+ machine move_disk(lab:@mutable |model|::Lab,index:u64,delay:f64) requires index < 4 {
   lab.disks[index].x=lab.disks[index].x+delay*lab.disks[index].vx;
   lab.disks[index].y=lab.disks[index].y+delay*lab.disks[index].vy;
   transition index < 4 {true -> scan(lab,index+1,delay), _ -> done()}
  }
  machine done() {}
 }
-public machine resolve(lab:@mutable Lab) {
+public machine resolve(lab:@mutable |model|::Lab) {
  transition lab.first < 4 && lab.second < 4 {true -> impulse(lab), _ -> done()}
- machine impulse(lab:@mutable Lab) requires lab.first < 4 && lab.second < 4 {
-  let a:Disk=lab.disks[lab.first]; let b:Disk=lab.disks[lab.second];
-  let dx:f64=b.x-a.x; let dy:f64=b.y-a.y; let distance:f64=F64::square_root(dx*dx+dy*dy);
+ machine impulse(lab:@mutable |model|::Lab) requires lab.first < 4 && lab.second < 4 {
+  let a:|model|::Disk=lab.disks[lab.first]; let b:|model|::Disk=lab.disks[lab.second];
+  let dx:f64=b.x-a.x; let dy:f64=b.y-a.y; let distance:f64=|float_operations|::F64::square_root(dx*dx+dy*dy);
   lab.normal_x=dx/distance; lab.normal_y=dy/distance;
   lab.contact_error=distance-a.radius-b.radius;
   let radial:f64=(b.vx-a.vx)*lab.normal_x+(b.vy-a.vy)*lab.normal_y;
@@ -80,6 +79,6 @@ public machine resolve(lab:@mutable Lab) {
   lab.disks[lab.second].vy=b.vy+lab.impulse*lab.normal_y/b.mass;
   transition lab.events < 8 {true -> count(lab), _ -> done()}
  }
- machine count(lab:@mutable Lab) {lab.events=lab.events+1;}
+ machine count(lab:@mutable |model|::Lab) {lab.events=lab.events+1;}
  machine done() {}
 }

@@ -1,8 +1,7 @@
 // Private decimal token reader. Reject overflow before multiplying; at most
 // 256 input bytes and 51 tokens, so malformed input cannot grow storage.
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 public data Tokens {
     values: [i32; 51] in Saturating;
     count: i32 in Saturating;
@@ -12,8 +11,8 @@ public data Tokens {
     valid: bool;
 }
 public machine tokens_read(tokens: @mutable Tokens)
-reaches StandardInput
-invokes Console
+reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
@@ -26,12 +25,12 @@ crashes Trap
         }
     }
     machine pull(tokens: @mutable Tokens) {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         tokens.bytes = tokens.bytes + 1;
         transition observed {
-            ByteRead::Error -> reject(tokens),
-            ByteRead::Eof -> finish(tokens),
-            ByteRead::Byte { value } -> classify(tokens, value)
+            |console|::ByteRead::Error -> reject(tokens),
+            |console|::ByteRead::Eof -> finish(tokens),
+            |console|::ByteRead::Byte { value } -> classify(tokens, value)
         }
     }
     machine classify(tokens: @mutable Tokens, byte: i32) {

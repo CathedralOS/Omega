@@ -24,9 +24,9 @@ use source_compiler::publication::{
     TerminalBuildBindingOperation, TerminalBuildBindings,
 };
 use source_compiler::representations::declaration_selection::{
-    BuildOperation, BuildSelectionRequest, ExecutedBuildSelection, ExecutedProductSelection,
-    NativeBindingFormation, ProductDeclarationRequest, ProductEntryBinding,
-    ProviderReadinessRequest, RootBindingOperand, RootBindingSelection,
+    BuildOperation, BuildSelectionRequest, BuildServiceOperation, ExecutedBuildSelection,
+    ExecutedProductSelection, NativeBindingFormation, ProductDeclarationRequest,
+    ProductEntryBinding, ProviderReadinessRequest, RootBindingOperand, RootBindingSelection,
 };
 use std::sync::{Arc, Mutex, MutexGuard};
 use terminal_interpreter::{
@@ -48,7 +48,7 @@ pub struct TerminalBuildBindingHost {
     calls: Arc<[TerminalBuildBindingCall]>,
     group_requests: Vec<source_compiler::publication::TerminalBuildRequestCall>,
     queries: Arc<[source_compiler::publication::TerminalBuildQueryCall]>,
-    product_facet: Option<TerminalStructuralValue>,
+    declarations_facet: Option<TerminalStructuralValue>,
     group_shape: Option<GroupShape>,
     tests_facet: Option<TerminalStructuralValue>, // The original Build's `tests` facet, when a test group is registered.
     account: Option<evaluation_accounting::EvaluationInvocationAccount>,
@@ -142,10 +142,10 @@ impl TerminalBuildBindingHost {
         let queries = bindings
             .queries_for(artifact)
             .ok_or("Build queries belong to another Terminal artifact")?;
-        let product_facet = if queries.is_empty() {
+        let declarations_facet = if queries.is_empty() {
             None
         } else {
-            Some(build_facet(artifact, &original, "product")?)
+            Some(build_facet(artifact, &original, "declarations")?)
         };
         let group_shape = calls
             .iter()
@@ -172,7 +172,7 @@ impl TerminalBuildBindingHost {
                 .filter(|call| call.action.configures_test_group())
                 .cloned()
                 .collect(),
-            product_facet,
+            declarations_facet,
             tests_facet,
             group_shape,
             account: account.cloned(),
@@ -597,7 +597,7 @@ impl TerminalBuildBindingAdapter {
             return Ok(result);
         }
         if let (
-            BuildSelectionRequest::Service { requirement, .. },
+            BuildSelectionRequest::Service { requirement, operation: BuildServiceOperation::Describe, .. },
             TerminalBuildBindingOperation::DescribeService,
             [],
         ) = (&call.request, call.action, values)
@@ -632,6 +632,10 @@ impl TerminalBuildBindingAdapter {
             return Ok(TerminalEffectResult::Unit);
         }
         let selection = match (&call.request, call.action, values) {
+            (BuildSelectionRequest::Service {
+                operation: BuildServiceOperation::EnableUnsafe(atom),
+                ..
+            }, TerminalBuildBindingOperation::EnableUnsafe, []) => ExecutedBuildSelection::EnableUnsafe(*atom),
             (BuildSelectionRequest::Entry(binding), TerminalBuildBindingOperation::Bind, []) => {
                 let implementation = match (&binding.implementation, description) {
                     (RootBindingOperand::AuthoredPath(path), None) => {

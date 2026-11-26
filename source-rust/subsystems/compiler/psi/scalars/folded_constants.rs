@@ -38,17 +38,11 @@ impl FoldedConstantClosure {
             .map(|dependency| dependency.plan)
             .collect();
         if inputs.len() != expected.len() {
-            return Err(
-                "folded constant selected realization closure is incomplete or repeated",
-            );
+            return Err("folded constant selected realization closure is incomplete or repeated");
         }
         let supplied: std::collections::BTreeSet<_> = inputs
             .iter()
-            .map(|preimage| {
-                let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"");
-                digest.raw(preimage);
-                digest.finish()
-            })
+            .map(|preimage| crate::digest_encoder::content_identity(preimage))
             .collect();
         if supplied != expected || supplied.len() != inputs.len() {
             return Err(

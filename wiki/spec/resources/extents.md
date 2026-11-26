@@ -1,6 +1,6 @@
 # Extent authority and mappings
 
-An address is data, not authority. Computing or copying an `addr` grants no
+An address is data, not authority. Computing or copying an `address` grants no
 right to access storage, install a mapping, execute code, or transfer control.
 Hardware operations require checked authority, complete compiler-understood
 operation contracts, or explicitly admitted provider commitments with receipts.
@@ -15,7 +15,7 @@ constructing the plan never manufactures `Granted` or device correspondence.
 
 ## Qualified geometry
 
-`Extent` is ordinary linear data with runtime `base: addr` and `length: u64`.
+`Extent` is ordinary linear data with runtime `base: address` and `length: u64`.
 Its core-owned routed `Granted` domain establishes a live authority claim.
 Constructing identical fields produces unqualified data, not a usable resource.
 Zero-filled storage establishes neither `Granted` nor a linear debt;
@@ -32,7 +32,7 @@ custody through sealed core primitives. OS mapping, allocation and reclamation
 policy stays with the owning library or provider.
 
 The transparent geometry obligation is the proposition
-`embed(base) + embed(length) <= addr::Bound`, using unbounded proof `Int` and
+`embed(base) + embed(length) <= address::Bound`, using unbounded proof `Int` and
 the sealed selected-target bound. It is not wrapping address arithmetic or an
 executable Boolean validator. Its proof cannot establish routed authority.
 See [counts and addresses](../language/counts_and_addresses.md).
@@ -67,7 +67,7 @@ borrowed views below the installed image root.
 
 The owner-unique `Content` projection maps `Granted` to normalized half-open
 address-space intervals with proof-natural bounds. The one-past endpoint may
-equal the address-space bound without being representable as an `addr`.
+equal the address-space bound without being representable as an `address`.
 [Content conservation](content_custody.md) requires:
 
 ```text

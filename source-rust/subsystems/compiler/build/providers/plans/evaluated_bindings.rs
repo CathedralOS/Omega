@@ -458,10 +458,60 @@ pub fn evaluated_syscall_identity_digest(
     target::evaluated_syscall_identity_digest(target, number)
 }
 
+/// A completed Build selects the declaration pair. Target layout and the
+/// requirement's calling application still have to locate the actual call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvaluatedFunctionField {
+    target: TargetProfile,
+    selector: Box<semantic_vocabulary::FunctionFieldBinding>,
+    receipt: EvaluatedBindingReceipt,
+}
+
+impl EvaluatedFunctionField {
+    pub fn identity_for(
+        target: TargetProfile,
+        selector: &semantic_vocabulary::FunctionFieldBinding,
+    ) -> ForeignLocatorIdentityDigest {
+        let mut digest =
+            wire::digest_encoder::DomainDigestEncoder::new(b"omega.evaluated-function-field.v1\0");
+        digest.bytes(target.target_name().as_bytes());
+        digest.raw(&selector.identity_digest());
+        ForeignLocatorIdentityDigest::from_digest(digest.finish())
+    }
+
+    pub fn from_retained_evidence(
+        target: TargetProfile,
+        selector: Box<semantic_vocabulary::FunctionFieldBinding>,
+        receipt: EvaluatedBindingReceipt,
+    ) -> Result<Self, String> {
+        if receipt.locator_identity_digest() != Self::identity_for(target, &selector) {
+            return Err("function table selector or target differs from its Build receipt".into());
+        }
+        Ok(Self {
+            target,
+            selector,
+            receipt,
+        })
+    }
+
+    pub fn selector(&self) -> &semantic_vocabulary::FunctionFieldBinding {
+        &self.selector
+    }
+
+    pub const fn target(&self) -> TargetProfile {
+        self.target
+    }
+
+    pub const fn receipt(&self) -> &EvaluatedBindingReceipt {
+        &self.receipt
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvaluatedNativeBinding {
     Import(EvaluatedForeignImport),
     Syscall(EvaluatedForeignSyscall),
+    FunctionField(EvaluatedFunctionField),
 }
 
 impl EvaluatedNativeBinding {
@@ -472,6 +522,7 @@ impl EvaluatedNativeBinding {
     ) -> Result<Self, String> {
         let receipt = self.receipt().reintern_producer(source, destination)?;
         match self {
+            Self::FunctionField(field) => Ok(Self::FunctionField(EvaluatedFunctionField::from_retained_evidence(field.target, field.selector.clone(), receipt)?)),
             Self::Import(import) => Ok(Self::Import(
                 EvaluatedForeignImport::from_retained_evidence(import.locator().clone(), receipt)?,
             )),
@@ -490,6 +541,7 @@ impl EvaluatedNativeBinding {
         match self {
             Self::Import(evaluated) => evaluated.locator().target(),
             Self::Syscall(evaluated) => evaluated.target(),
+            Self::FunctionField(field) => field.target,
         }
     }
 
@@ -497,6 +549,7 @@ impl EvaluatedNativeBinding {
         match self {
             Self::Import(evaluated) => evaluated.receipt(),
             Self::Syscall(evaluated) => evaluated.receipt(),
+            Self::FunctionField(field) => &field.receipt,
         }
     }
 
@@ -504,6 +557,7 @@ impl EvaluatedNativeBinding {
         match self {
             Self::Import(evaluated) => evaluated.locator().identity_digest(),
             Self::Syscall(evaluated) => evaluated.identity_digest(),
+            Self::FunctionField(field) => field.receipt.locator_identity_digest(),
         }
     }
 
@@ -512,6 +566,7 @@ impl EvaluatedNativeBinding {
             Self::Import(evaluated) => super::ProviderBinding::Import {
                 evaluated: evaluated.clone(),
             },
+            Self::FunctionField(field) => super::ProviderBinding::FunctionField { evaluated: field.clone() },
             Self::Syscall(evaluated) => super::ProviderBinding::Syscall {
                 number: evaluated.number(),
             },

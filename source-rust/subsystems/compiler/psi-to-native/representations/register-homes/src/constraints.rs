@@ -7,7 +7,7 @@ constraints on physical register homes (`AllocatorAvailabilityPlan`,
 These records capture analysis facts and candidate domains prior to home
 assignment. Incompatible fixed views remain explicit transition or split
 requirements rather than being silently reconciled, and allocator availability
-policies restrict only unconstrained candidates (`OMGAVA\0\0` version 1).
+policies restrict only unconstrained candidates.
 */
 
 use std::sync::Arc;
@@ -24,11 +24,8 @@ use selected_instructions::{
 use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 
-use crate::codec_bytes::Envelope;
 use crate::digest_encoder::content_identity;
 use crate::encode_fixed_constraint_site_identity;
-
-const ALLOCATOR_AVAILABILITY_ENVELOPE: Envelope = Envelope::new(b"OMGAVA\0\0", 1);
 
 crate::identity_newtype! { pub struct AllocatorAvailabilityIdentity(pub(crate) [u8; 32]); }
 
@@ -48,82 +45,11 @@ pub struct AllocatorAvailabilityPlan {
     pub classes: Vec<RegisterClassAvailability>, // Class-ID-sorted availability rows
 }
 
-impl AllocatorAvailabilityPlan {
-    pub fn encode(&self) -> Vec<u8> {
-        let content = encode_terminal_allocator_availability_content(self);
-        let identity = allocator_availability_identity(self);
-        ALLOCATOR_AVAILABILITY_ENVELOPE.frame(identity.bytes(), &content)
-    }
-
-    pub fn decode(encoded: &[u8]) -> Result<Self, AllocatorAvailabilityDecodeError> {
-        let (mut cursor, identity) = ALLOCATOR_AVAILABILITY_ENVELOPE.open(
-            encoded,
-            || AllocatorAvailabilityDecodeError::WrongMagic,
-            AllocatorAvailabilityDecodeError::UnsupportedVersion,
-        )?;
-        let identity = AllocatorAvailabilityIdentity::from_bytes(identity);
-        let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
-        let physical = PhysicalRegisterModelIdentity::from_bytes(cursor.array()?);
-        let policy = match cursor.byte()? {
-            0 => AllocatorAvailabilityPolicy::AllEnvironmentAllocatableViewsV1,
-            1 => {
-                let views = crate::codec_bytes::decode_list::<_, AllocatorAvailabilityDecodeError>(
-                    &mut cursor,
-                    |cursor| Ok(RegisterViewId(cursor.u16()?)),
-                )?;
-                AllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views }
-            }
-            tag => return Err(AllocatorAvailabilityDecodeError::UnknownPolicy(tag)),
-        };
-        let classes = crate::codec_bytes::decode_list::<_, AllocatorAvailabilityDecodeError>(
-            &mut cursor,
-            |cursor| {
-                let class = RegisterClassId(cursor.u16()?);
-                let unconstrained_views =
-                    crate::codec_bytes::decode_list::<_, AllocatorAvailabilityDecodeError>(
-                        &mut *cursor,
-                        |cursor| Ok(RegisterViewId(cursor.u16()?)),
-                    )?;
-                Ok(RegisterClassAvailability {
-                    class,
-                    unconstrained_views,
-                })
-            },
-        )?;
-        if cursor.remaining() != 0 {
-            return Err(AllocatorAvailabilityDecodeError::TrailingBytes);
-        }
-        let plan = Self {
-            register_environment,
-            physical,
-            policy,
-            classes,
-        };
-        if allocator_availability_identity(&plan) != identity {
-            return Err(AllocatorAvailabilityDecodeError::IdentityMismatch);
-        }
-        Ok(plan)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegisterClassAvailability {
     pub class: RegisterClassId, // Physical register class identity
     pub unconstrained_views: Vec<RegisterViewId>, // Sorted allocatable views for this class
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AllocatorAvailabilityDecodeError {
-    Truncated,
-    WrongMagic,
-    UnsupportedVersion(u32),
-    UnknownPolicy(u8),
-    LengthOverflow,
-    TrailingBytes,
-    IdentityMismatch,
-}
-
-crate::decode_error! { AllocatorAvailabilityDecodeError, "invalid terminal allocator availability" }
 
 pub fn allocator_availability_identity(
     plan: &AllocatorAvailabilityPlan,
@@ -568,8 +494,8 @@ fn encode_connector(bytes: &mut Vec<u8>, connector: LiveRangeEdgeConnector) {
 
 pub mod allocator_availability {
     pub use super::{
-        AllocatorAvailabilityDecodeError, AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan,
-        AllocatorAvailabilityPolicy, RegisterClassAvailability, allocator_availability_identity,
+        AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
+        RegisterClassAvailability, allocator_availability_identity,
     };
 }
 
@@ -603,8 +529,8 @@ pub mod fixed_precolored_split_requirements {
 #[cfg(test)]
 mod tests {
     use super::{
-        AllocatorAvailabilityDecodeError, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
-        RegisterClassAvailability, allocator_availability_identity,
+        AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, RegisterClassAvailability,
+        allocator_availability_identity,
     };
     use register_model::{
         PhysicalRegisterModelIdentity, RegisterClassId, RegisterViewId,
@@ -650,41 +576,5 @@ mod tests {
         for changed in changes {
             assert_ne!(baseline, allocator_availability_identity(&changed));
         }
-    }
-
-    #[test]
-    fn codec_round_trips_plain_plan_and_rejects_framing_or_tamper() {
-        let source = plan();
-        let encoded = source.encode();
-        assert_eq!(AllocatorAvailabilityPlan::decode(&encoded).unwrap(), source);
-
-        let mut wrong_magic = encoded.clone();
-        wrong_magic[0] ^= 1;
-        assert_eq!(
-            AllocatorAvailabilityPlan::decode(&wrong_magic),
-            Err(AllocatorAvailabilityDecodeError::WrongMagic)
-        );
-        let mut wrong_version = encoded.clone();
-        crate::codec_bytes::patch_encoded(&mut wrong_version, 8, 2_u32.to_le_bytes());
-        assert_eq!(
-            AllocatorAvailabilityPlan::decode(&wrong_version),
-            Err(AllocatorAvailabilityDecodeError::UnsupportedVersion(2))
-        );
-        assert_eq!(
-            AllocatorAvailabilityPlan::decode(&encoded[..encoded.len() - 1]),
-            Err(AllocatorAvailabilityDecodeError::Truncated)
-        );
-        let mut trailing = encoded.clone();
-        trailing.push(0);
-        assert_eq!(
-            AllocatorAvailabilityPlan::decode(&trailing),
-            Err(AllocatorAvailabilityDecodeError::TrailingBytes)
-        );
-        let mut tampered = encoded;
-        *tampered.last_mut().unwrap() ^= 1;
-        assert_eq!(
-            AllocatorAvailabilityPlan::decode(&tampered),
-            Err(AllocatorAvailabilityDecodeError::IdentityMismatch)
-        );
     }
 }

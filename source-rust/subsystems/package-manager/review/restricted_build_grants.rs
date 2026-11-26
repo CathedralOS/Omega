@@ -6,9 +6,8 @@
     stopped request with its package, checked context, normalized request
     meaning and dependency path.
 
-    The lock-checkpoint grants that re-admitted accepted requests for an
-    operation consuming a locked compile are parked with their caller in
-    `_recycling/source-rust/subsystems/package-manager/v1-project-admission/`.
+    Root execution consumes the matching reviewed section for every selected
+    deployment after immutable source acquisition and compiler identity checks.
 */
 
 use semantic_vocabulary::PackageKeyIdentity;
@@ -71,5 +70,115 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
             }
             None => write!(formatter, "    path none"),
         }
+    }
+}
+
+/// A shared root Build executes once for its requested deployments. Every
+/// participating deployment must have accepted the complete normalized row
+/// for this exact occurrence, source and evaluator.
+pub(crate) struct OccurrenceBuildGrants {
+    pub(crate) subject: package_compilation::RestrictedBuildSubject,
+    pub(crate) name: Option<String>,
+    pub(crate) phase: Option<crate::transaction::restricted_build::BuildPhaseGrants>,
+    deployments: Vec<(
+        PackageKeyIdentity,
+        PackageCheckedContext,
+        std::collections::BTreeSet<String>,
+    )>,
+}
+
+impl OccurrenceBuildGrants {
+    pub(crate) fn for_phase(phase: crate::transaction::restricted_build::BuildPhaseGrants) -> Self {
+        Self {
+            subject: package_compilation::RestrictedBuildSubject::Root,
+            name: None,
+            phase: Some(phase),
+            deployments: Vec::new(),
+        }
+    }
+
+    pub(crate) fn for_source(
+        sections: &[&crate::lock::PackageLockTarget],
+        acquired: &crate::resolution::source::AcquiredBuildSource,
+        host: target::TargetProfile,
+        purpose: Option<build_declarations::DependencyPurpose>,
+    ) -> Option<Self> {
+        use review_evidence::record::PackagePolicyRowKind;
+        let mut name = None;
+        if sections.is_empty() {
+            return None;
+        }
+        let origin = acquired.acquisition_origin();
+        let mut deployments = Vec::new();
+        for section in sections {
+            let source = section.source();
+            let candidates = if purpose.is_some() {
+                source.packages()
+            } else {
+                std::slice::from_ref(source.root().selected())
+            };
+            let mut matching = candidates.iter().filter(|candidate| {
+                candidate.key().source_lineage() == origin.lineage
+                    && candidate.resolution() == origin.resolution
+                    && source.package_navigation(candidate.key()) == Some(origin.navigation)
+            });
+            let key = matching.next()?.key();
+            if matching.next().is_some() || name.as_ref().is_some_and(|n| n != key.name().as_str())
+            {
+                return None;
+            }
+            name = Some(key.name().as_str().to_owned());
+            let package = key.identity();
+            let context = PackageCheckedContext::new(
+                purpose.unwrap_or(build_declarations::DependencyPurpose::Product),
+                section.target(),
+                Some(host),
+            );
+            let occurrence = section
+                .occurrences()
+                .iter()
+                .find(|row| row.acceptance().package() == package && row.context() == context)?;
+            let rows = occurrence
+                .acceptance()
+                .rows()
+                .iter()
+                .filter(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
+                .map(|row| row.canonical_text().to_owned())
+                .collect();
+            deployments.push((package, context, rows));
+        }
+        Some(Self {
+            subject: package_compilation::RestrictedBuildSubject::Root,
+            name,
+            phase: None,
+            deployments,
+        })
+    }
+}
+
+impl package_compilation::build_execution::RestrictedBuildGrants for OccurrenceBuildGrants {
+    fn subject(&self) -> Option<package_compilation::RestrictedBuildSubject> {
+        Some(self.subject.clone())
+    }
+
+    fn admits(
+        &mut self,
+        site: &package_compilation::build_execution::RestrictedBuildSite,
+        request: &RestrictedBuildRequest,
+    ) -> Result<bool, Vec<diagnostics::Diagnostic>> {
+        if let Some(phase) = self.phase.as_mut()
+            && phase.admits(site, request)?
+        {
+            return Ok(true);
+        }
+        for (package, context, accepted) in &self.deployments {
+            let requested =
+                UngrantedRestrictedBuildRequest::project(*package, *context, None, request)
+                    .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?;
+            if !accepted.contains(&requested.request_meaning) {
+                return Ok(false);
+            }
+        }
+        Ok(!self.deployments.is_empty())
     }
 }

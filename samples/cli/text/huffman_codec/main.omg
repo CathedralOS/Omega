@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: PASS
 //
@@ -19,7 +19,6 @@ use omega\language\core\ProcessExit;
 //   6. Self-verify symbol frequencies, per-symbol code lengths (1, 2, 4, 4, 3),
 //      encoded bit count (29), packed bytes, and the 16-byte round-trip.
 
-use system\Console;
 
 domain u64::SymbolSlot requires self < 5;
 domain u8::HuffmanSymbol
@@ -85,8 +84,8 @@ machine record_frequency(frequencies: @mutable [u32 in Wrapping; 5], slot: u64 i
     frequencies[slot] = frequencies[slot] + 1;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("huffman_codec: bottom-up tree construction, bitstream pack, and round-trip decode");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("huffman_codec: bottom-up tree construction, bitstream pack, and round-trip decode");
 
     // Alphabet: 'A' (65), 'B' (66), 'C' (67), 'D' (68), 'R' (82)
     main.alphabet[0] = 65;
@@ -724,22 +723,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine pass(main: @mutable Main) {
-        Console::write_line("PASS: 16 bytes encoded to 29 bits [138, 215, 139, 56] and decoded back (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("PASS: 16 bytes encoded to 29 bits [138, 215, 139, 56] and decoded back (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 
     machine fail(main: @mutable Main) {
-        Console::write_line("FAIL: Huffman codec verification mismatch (exit 1)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: Huffman codec verification mismatch (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

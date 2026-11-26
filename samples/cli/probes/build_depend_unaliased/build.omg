@@ -1,25 +1,4 @@
-// Unaliased row family: `Build::dependency` and `Build::build_dependency` select
-// the same dependency without an alias. The question pinned: which name
-// imports the dep's machines — its declared package name, its directory
-// name, or an unqualified merge?
-
-use {omega}/build/dependency.omg;
-use custody_kernel;
-
-machine build(builder: @mutable Build)
-suspends
-{
-    Build::application(builder, "build_depend_unaliased");
-    let dependency_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "dependency" }));
-    let dependency_registration_2: DependencyRegistration = Build::build_dependency(builder, |dependency|::from_source(Source::Path { location: "dependency" }));
-    suspend Build::prepare_dependency(builder, dependency_registration_2);
-    let observed: i32 = custody_kernel\seed();
-    transition observed == 3 {
-        true -> done(),
-        _ -> wrong()
-    }
-    machine done() {
-    }
-    machine wrong() {
-    }
+machine build(plan: @mutable BuildPlan) {
+    _ = Build::dependency(plan, Source::Path { location: "dependency" });
+    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
 }

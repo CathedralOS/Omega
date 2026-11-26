@@ -1,0 +1,6 @@
+// A generator can create files only below its writable directory.
+machine build(plan: @mutable BuildPlan) {
+    let file: BuildPath = BuildOutput::resolve(@plan.output, "../start.omg");
+    _ = BuildOutput::create(@mutable plan.output, file, 0);
+    plan.product = BuildProduct::Package { name: "custody_break" };
+}

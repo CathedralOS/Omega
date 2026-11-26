@@ -98,45 +98,13 @@ pub(crate) fn aligned_frame_address_words(
     Some(words)
 }
 
-pub(crate) fn validate_aligned_frame_address_words(
-    words: &[u32],
-    destination: u8,
-    frame_offset: u32,
-    alignment: u16,
-    member_offset: u32,
-) -> bool {
-    if alignment <= 16 || !alignment.is_power_of_two() || !frame_offset.is_multiple_of(16) {
-        return false;
-    }
-    let Some(mask_position) = words
-        .iter()
-        .position(|word| word & 0xffc0_0000 == 0x9240_0000)
-    else {
-        return false;
-    };
-    let mask = words[mask_position];
-    let ones = (mask >> 10) & 63;
-    let rotation = (mask >> 16) & 63;
-    let decoded_mask = (u64::MAX >> (63 - ones)).rotate_right(rotation);
-    let suffix = &words[mask_position + 1..];
-    mask & 31 == u32::from(destination)
-        && (mask >> 5) & 31 == u32::from(destination)
-        && decoded_mask == !u64::from(alignment - 1)
-        && decode_address_words(&words[..mask_position], destination, 31)
-            == Some(u64::from(frame_offset) + u64::from(alignment - 1))
-        && if member_offset == 0 {
-            suffix.is_empty()
-        } else {
-            decode_address_words(suffix, destination, destination) == Some(u64::from(member_offset))
-        }
-}
-
 pub(crate) use target_aarch64::form_effects::address_word_count;
 
 #[cfg(test)]
 use target_aarch64::form_effects::MAX_ADDRESS_BYTES;
 
-pub(crate) use target_aarch64::inspection::decode_address_words;
+#[cfg(test)]
+use target_aarch64::inspection::decode_address_words;
 
 #[cfg(test)]
 mod tests {

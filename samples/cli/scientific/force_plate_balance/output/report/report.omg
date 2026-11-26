@@ -1,21 +1,19 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use domain\balance;
-use domain\balance\Frame;
-use domain\balance\Balance;
+use domain/balance/balance.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Collect decimal digits privately, then emit them in reverse order. Ten
 // digits cover every bounded application result; division precedes all I/O.
 data Decimal { digits: [i32; 10]; }
-public machine number(value: i64 in Wrapping) reaches ProcessExit + StandardOutput
-invokes Console
+public machine number(value: i64 in Wrapping) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition value < 0 {
         true -> negative(value),
         _ -> positive(value)
     }
     machine negative(value: i64 in Wrapping) {
-        Console::write_byte(45);
+        |console|::Console::write_byte(45);
         transition { _ -> positive(0 - value) }
     }
     machine positive(value: i64 in Wrapping) {
@@ -42,33 +40,33 @@ invokes Console
     machine byte(decimal: Decimal, count: u64)
     requires count > 0 && count <= 10
     {
-        Console::write_byte(decimal.digits[count - 1]);
+        |console|::Console::write_byte(decimal.digits[count - 1]);
         transition { _ -> emit(decimal, count - 1) }
     }
     machine done() { }
-    machine failed() { ProcessExit::exit_process(1); }
+    machine failed() { |process_exit|::ProcessExit::exit_process(1); }
 }
-public machine report(frame: @Frame, result: @Balance) reaches ProcessExit + StandardOutput
-invokes Console
+public machine report(frame: @|balance|::Frame, result: @|balance|::Balance) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write("loads=");
-    number(frame.values[0] as i64 +Wrapping); Console::write(",");
-    number(frame.values[1] as i64 +Wrapping); Console::write(",");
-    number(frame.values[2] as i64 +Wrapping); Console::write(",");
+    |console|::Console::write("loads=");
+    number(frame.values[0] as i64 +Wrapping); |console|::Console::write(",");
+    number(frame.values[1] as i64 +Wrapping); |console|::Console::write(",");
+    number(frame.values[2] as i64 +Wrapping); |console|::Console::write(",");
     number(frame.values[3] as i64 +Wrapping);
-    Console::write(" force="); number(result.force);
-    Console::write(" moments="); number(result.moment_x); Console::write(","); number(result.moment_y);
-    Console::write(" residuals="); number(result.force_residual); Console::write(","); number(result.x_residual); Console::write(","); number(result.y_residual);
+    |console|::Console::write(" force="); number(result.force);
+    |console|::Console::write(" moments="); number(result.moment_x); |console|::Console::write(","); number(result.moment_y);
+    |console|::Console::write(" residuals="); number(result.force_residual); |console|::Console::write(","); number(result.x_residual); |console|::Console::write(","); number(result.y_residual);
     transition result.force > 0 && result.status != 1 && result.status != 2 {
         true -> position(result),
         _ -> decision(result)
     }
-    machine position(result: @Balance) {
-        Console::write(" cop_mm="); number(result.moment_x); Console::write("/"); number(result.force);
-        Console::write(","); number(result.moment_y); Console::write("/"); number(result.force);
+    machine position(result: @|balance|::Balance) {
+        |console|::Console::write(" cop_mm="); number(result.moment_x); |console|::Console::write("/"); number(result.force);
+        |console|::Console::write(","); number(result.moment_y); |console|::Console::write("/"); number(result.force);
         transition { _ -> decision(result) }
     }
-    machine decision(result: @Balance) {
+    machine decision(result: @|balance|::Balance) {
         transition result.status {
             0 -> label(" SUPPORTED"),
             1 -> label(" INVALID_NEGATIVE_LOAD"),
@@ -78,5 +76,5 @@ invokes Console
             _ -> label(" OUTSIDE_SUPPORT")
         }
     }
-    machine label(text: @[u8]) { Console::write_line(text); }
+    machine label(text: @[u8]) { |console|::Console::write_line(text); }
 }

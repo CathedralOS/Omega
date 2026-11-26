@@ -1,58 +1,42 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/complex/complex.omg;
+use domain/evolve/evolve.omg;
+use domain/input/input.omg;
+use domain/model/model.omg;
+use domain/report/report.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 2. Empty stdin is invalid; valid problems return 0.
 // Expected output contains: INVALID quantum input
-use system\Console;
-use omega\language\core\F64::from_i32;
-use omega\language\core\F64::square_root;
-use omega\language\core\I32::from_f64;
-use domain\input;
-use domain\input\Reader;
-use domain\input\Number;
-use domain\input\number;
-use domain\input\ended;
-use domain\complex;
-use domain\complex\Complex;
-use domain\complex\subtract;
-use domain\complex\scale;
-use domain\complex\squared;
-use domain\model;
-use domain\model\Problem;
-use domain\evolve;
-use domain\evolve\factor;
-use domain\evolve\step;
-use domain\report;
-use domain\report\scaled;
-use domain\report\integer;
-data Main { reader: Reader; problem: Problem; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let count: Number = block number(@mutable main.reader);
-    let spacing: Number = block number(@mutable main.reader);
-    let timestep: Number = block number(@mutable main.reader);
-    let steps: Number = block number(@mutable main.reader);
-    let cells: i32 in Saturating = I32::from_f64(count.value);
+data Main { reader: |input|::Reader; problem: |model|::Problem; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let count: |input|::Number = block |input|::number(@mutable main.reader);
+    let spacing: |input|::Number = block |input|::number(@mutable main.reader);
+    let timestep: |input|::Number = block |input|::number(@mutable main.reader);
+    let steps: |input|::Number = block |input|::number(@mutable main.reader);
+    let cells: i32 in Saturating = |float_operations|::I32::from_f64(count.value);
     main.problem.cells = cells as i32;
-    let iterations: i32 in Saturating = I32::from_f64(steps.value);
+    let iterations: i32 in Saturating = |float_operations|::I32::from_f64(steps.value);
     main.problem.steps = iterations as i32;
     main.problem.spacing = spacing.value;
     main.problem.timestep = timestep.value;
-    transition count.valid && count.integer && spacing.valid && timestep.valid && steps.valid && steps.integer && count.value == F64::from_i32(main.problem.cells) && steps.value == F64::from_i32(main.problem.steps) && main.problem.cells >= 8 && main.problem.cells <= 32 && main.problem.steps >= 0 && main.problem.steps <= 256 && spacing.value > 0.0 && timestep.value > 0.0 {
+    transition count.valid && count.integer && spacing.valid && timestep.valid && steps.valid && steps.integer && count.value == |float_operations|::F64::from_i32(main.problem.cells) && steps.value == |float_operations|::F64::from_i32(main.problem.steps) && main.problem.cells >= 8 && main.problem.cells <= 32 && main.problem.steps >= 0 && main.problem.steps <= 256 && spacing.value > 0.0 && timestep.value > 0.0 {
         true -> block read(main, 0), false -> invalid(main)
     }
     machine read(main: @mutable Main, row: i32) {
         transition row >= 0 && row < main.problem.cells && row < 32 { true -> block cell(main, row), false -> block finish(main) }
     }
     machine cell(main: @mutable Main, row: i32) requires row >= 0 && row < 32 {
-        let potential: Number = block number(@mutable main.reader);
-        let real: Number = block number(@mutable main.reader);
-        let imaginary: Number = block number(@mutable main.reader);
+        let potential: |input|::Number = block |input|::number(@mutable main.reader);
+        let real: |input|::Number = block |input|::number(@mutable main.reader);
+        let imaginary: |input|::Number = block |input|::number(@mutable main.reader);
         main.problem.potential[row] = potential.value;
-        main.problem.amplitude[row] = Complex { real: real.value, imaginary: imaginary.value };
+        main.problem.amplitude[row] = |complex|::Complex { real: real.value, imaginary: imaginary.value };
         transition potential.valid && real.valid && imaginary.valid { true -> block read(main, row + 1), false -> invalid(main) }
     }
     machine finish(main: @mutable Main) {
-        let complete: bool = block ended(@mutable main.reader);
+        let complete: bool = block |input|::ended(@mutable main.reader);
         let norm: f64 = probability_norm(@main.problem);
         transition complete && norm > 0.0 { true -> conditioning(main, 0, norm), false -> invalid(main) }
     }
@@ -60,81 +44,81 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     // the identity in double-precision elimination. Refuse that numerical
     // regime before factorization rather than silently losing probability.
     machine conditioning(main: @mutable Main, row: i32, norm: f64) {
-        transition row >= 0 && row < main.problem.cells && row < 32 { true -> coefficient(main, row, norm), false -> normalize(main, 0, 1.0 / F64::square_root(norm)) }
+        transition row >= 0 && row < main.problem.cells && row < 32 { true -> coefficient(main, row, norm), false -> normalize(main, 0, 1.0 / |float_operations|::F64::square_root(norm)) }
     }
     machine coefficient(main: @mutable Main, row: i32, norm: f64) requires row >= 0 && row < 32 {
         let magnitude: f64 = absolute(main.problem.potential[row]);
         let stiffness: f64 = main.problem.timestep * (1.0 / (main.problem.spacing * main.problem.spacing) + magnitude);
         transition stiffness <= 1000.0 { true -> conditioning(main, row + 1, norm), false -> refused(main) }
     }
-    machine refused(main: @mutable Main) { Console::write_line("REFUSED quantum conditioning"); ProcessExit::exit_process(3); }
+    machine refused(main: @mutable Main) { |console|::Console::write_line("REFUSED quantum conditioning"); |process_exit|::ProcessExit::exit_process(3); }
     machine normalize(main: @mutable Main, row: i32, factor: f64) {
         transition row >= 0 && row < main.problem.cells && row < 32 { true -> normalized(main, row, factor), false -> prepare(main) }
     }
     machine normalized(main: @mutable Main, row: i32, factor: f64) requires row >= 0 && row < 32 {
-        main.problem.amplitude[row] = scale(main.problem.amplitude[row], factor);
+        main.problem.amplitude[row] = |complex|::scale(main.problem.amplitude[row], factor);
         transition { _ -> normalize(main, row + 1, factor) }
     }
     machine prepare(main: @mutable Main) {
-        factor(@mutable main.problem);
-        Console::write_line("quantum_wavepacket_evolution hbar=m=1");
+        |evolve|::factor(@mutable main.problem);
+        |console|::Console::write_line("quantum_wavepacket_evolution hbar=m=1");
         transition { _ -> checkpoint(main, 0) }
     }
     machine checkpoint(main: @mutable Main, iteration: i32) {
-        integer(iteration); Console::write(" ");
-        scaled(probability_norm(@main.problem)); Console::write(" ");
-        scaled(energy(@main.problem)); Console::write_line("");
+        |report|::integer(iteration); |console|::Console::write(" ");
+        |report|::scaled(probability_norm(@main.problem)); |console|::Console::write(" ");
+        |report|::scaled(energy(@main.problem)); |console|::Console::write_line("");
         transition { _ -> amplitudes(main, iteration, 0) }
     }
     machine amplitudes(main: @mutable Main, iteration: i32, row: i32) {
         transition row >= 0 && row < main.problem.cells && row < 32 { true -> emit(main, iteration, row), false -> advance(main, iteration) }
     }
     machine emit(main: @mutable Main, iteration: i32, row: i32) requires row >= 0 && row < 32 {
-        let value: Complex = main.problem.amplitude[row];
-        scaled(value.real); Console::write(" ");
-        scaled(value.imaginary); Console::write(" ");
-        scaled(main.problem.spacing * squared(value)); Console::write_line("");
+        let value: |complex|::Complex = main.problem.amplitude[row];
+        |report|::scaled(value.real); |console|::Console::write(" ");
+        |report|::scaled(value.imaginary); |console|::Console::write(" ");
+        |report|::scaled(main.problem.spacing * |complex|::squared(value)); |console|::Console::write_line("");
         transition { _ -> amplitudes(main, iteration, row + 1) }
     }
     machine advance(main: @mutable Main, iteration: i32) {
         transition iteration >= 0 && iteration < main.problem.steps && iteration < 256 { true -> evolve(main, iteration), false -> done() }
     }
     machine evolve(main: @mutable Main, iteration: i32) requires iteration >= 0 && iteration < 256 {
-        step(@mutable main.problem);
+        |evolve|::step(@mutable main.problem);
         transition { _ -> checkpoint(main, iteration + 1) }
     }
-    machine invalid(main: @mutable Main) { Console::write_line("INVALID quantum input"); ProcessExit::exit_process(2); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("INVALID quantum input"); |process_exit|::ProcessExit::exit_process(2); }
     machine done() {}
 }
-machine probability_norm(problem: @Problem) -> f64 {
+machine probability_norm(problem: @|model|::Problem) -> f64 {
     transition { _ -> rows(problem, 0, 0.0) }
-    machine rows(problem: @Problem, row: i32, sum: f64) -> f64 {
+    machine rows(problem: @|model|::Problem, row: i32, sum: f64) -> f64 {
         transition row >= 0 && row < problem.cells && row < 32 { true -> accumulate(problem, row, sum), false -> (problem.spacing * sum) }
     }
-    machine accumulate(problem: @Problem, row: i32, sum: f64) -> f64 requires row >= 0 && row < 32 {
-        transition { _ -> rows(problem, row + 1, sum + squared(problem.amplitude[row])) }
+    machine accumulate(problem: @|model|::Problem, row: i32, sum: f64) -> f64 requires row >= 0 && row < 32 {
+        transition { _ -> rows(problem, row + 1, sum + |complex|::squared(problem.amplitude[row])) }
     }
 }
 // The equivalent quadratic kinetic form avoids subtracting large adjacent
 // diagonal/off-diagonal energies for an almost constant wavefunction.
-machine energy(problem: @Problem) -> f64 {
+machine energy(problem: @|model|::Problem) -> f64 {
     transition { _ -> rows(problem, 0, 0.0) }
-    machine rows(problem: @Problem, row: i32, sum: f64) -> f64 {
+    machine rows(problem: @|model|::Problem, row: i32, sum: f64) -> f64 {
         transition row >= 0 && row < problem.cells && row < 32 { true -> neighbor(problem, row, sum), false -> (problem.spacing * sum) }
     }
-    machine neighbor(problem: @Problem, row: i32, sum: f64) -> f64 requires row >= 0 && row < 32 {
+    machine neighbor(problem: @|model|::Problem, row: i32, sum: f64) -> f64 requires row >= 0 && row < 32 {
         transition row + 1 < problem.cells && row + 1 < 32 { true -> accumulate(problem, row, row + 1, sum), false -> accumulate(problem, row, 0, sum) }
     }
-    machine accumulate(problem: @Problem, row: i32, neighbor: i32, sum: f64) -> f64 requires row >= 0 && row < 32 && neighbor >= 0 && neighbor < 32 {
-        let difference: Complex = subtract(problem.amplitude[neighbor], problem.amplitude[row]);
-        let term: f64 = 0.5 * squared(difference) / (problem.spacing * problem.spacing) + problem.potential[row] * squared(problem.amplitude[row]);
+    machine accumulate(problem: @|model|::Problem, row: i32, neighbor: i32, sum: f64) -> f64 requires row >= 0 && row < 32 && neighbor >= 0 && neighbor < 32 {
+        let difference: |complex|::Complex = |complex|::subtract(problem.amplitude[neighbor], problem.amplitude[row]);
+        let term: f64 = 0.5 * |complex|::squared(difference) / (problem.spacing * problem.spacing) + problem.potential[row] * |complex|::squared(problem.amplitude[row]);
         transition { _ -> rows(problem, row + 1, sum + term) }
     }
 }
 machine absolute(value: f64) -> f64 { transition value < 0.0 { true -> (0.0 - value), false -> (value) } }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

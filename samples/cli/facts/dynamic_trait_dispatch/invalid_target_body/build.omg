@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "dynamic_trait_dispatch_through_target_body_invalid");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "dynamic_trait_dispatch_through_target_body_invalid" };
     Build::accept_boundary::<HostedCombine>(builder);
     Build::select_provider::<SelectedCombine, HostedCombine>(builder, macos_x86_64);
     Build::select_provider::<SelectedCombine, HostedCombine>(builder, windows_x86_64);

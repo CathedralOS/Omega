@@ -683,8 +683,22 @@ impl DescriptorSlotKind {
         structural_type: StructuralTypeId,
         access: StructuralAccess,
     ) -> Option<Vec<DescriptorLocation>> {
+        let inventory = self.writable_inventory(types, root, structural_type, access)?;
+        inventory
+            .unknown_contents
+            .is_empty()
+            .then_some(inventory.slots)
+    }
+
+    fn writable_inventory(
+        self,
+        types: &[StructuralTypeDeclaration],
+        root: PlaceId,
+        structural_type: StructuralTypeId,
+        access: StructuralAccess,
+    ) -> Option<DescriptorSlotInventory> {
         if access == StructuralAccess::SharedBorrow {
-            return Some(Vec::new());
+            return Some(DescriptorSlotInventory::default());
         }
         if self.tracks_views()
             && matches!(
@@ -695,7 +709,7 @@ impl DescriptorSlotKind {
                 ) | StructuralTypeShape::ElementView { access: None, .. }
             )
         {
-            return Some(Vec::new());
+            return Some(DescriptorSlotInventory::default());
         }
         let inventory = self.inventory(types, root, structural_type)?;
         let writable = |path: &[DescriptorPathSegment]| -> Option<bool> {
@@ -725,27 +739,36 @@ impl DescriptorSlotKind {
             }
             Some(external && matches!(permission, terminal_psi::exclusive_borrow_pair_pattern!()))
         };
+        let mut result = DescriptorSlotInventory::default();
         for opaque in inventory.unknown_contents {
             if writable(&opaque.location.path)? {
-                return None;
+                result.unknown_contents.push(opaque);
             }
         }
-        let mut slots = Vec::new();
         for slot in inventory.slots {
             if writable(&slot.path)? {
-                slots.push(slot);
+                result.slots.push(slot);
             }
         }
-        Some(slots)
+        Some(result)
     }
 }
 
+#[derive(Default)]
 pub struct DescriptorSlotInventory {
     pub slots: Vec<DescriptorLocation>,
     pub unknown_contents: Vec<UnknownDescriptorContents>,
 }
 
 impl DescriptorSlotInventory {
+    /// Coordinates whose contents the inventory observes, including the
+    /// outstanding loans carried inside a value of unknown concrete type.
+    pub(super) fn into_observations(self) -> impl Iterator<Item = DescriptorLocation> {
+        self.slots
+            .into_iter()
+            .chain(self.unknown_contents.into_iter().map(|contents| contents.location))
+    }
+
     fn fully_enumerated(self) -> Option<Self> {
         self.unknown_contents
             .iter()

@@ -86,20 +86,6 @@ impl ObjectFileLayout {
             ObjectSymbolHandle::invalid(),
         )
     }
-
-    pub fn with_capacities(
-        section_capacity: usize,
-        symbol_capacity: usize,
-        function_symbol_capacity: usize,
-    ) -> Self {
-        Self::with_roots(
-            Arena::with_capacity(section_capacity),
-            Arena::with_capacity(symbol_capacity),
-            Arena::with_capacity(function_symbol_capacity),
-            Vec::new(),
-            ObjectSymbolHandle::invalid(),
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -261,22 +247,6 @@ impl ObjectPlan {
             ObjectFileLayout::with_capacity(section_capacity, symbol_capacity),
         )
     }
-
-    pub fn with_capacities(
-        target: NativeTarget,
-        section_capacity: usize,
-        symbol_capacity: usize,
-        function_symbol_capacity: usize,
-    ) -> Self {
-        Self::with_layout(
-            target,
-            ObjectFileLayout::with_capacities(
-                section_capacity,
-                symbol_capacity,
-                function_symbol_capacity,
-            ),
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -378,22 +348,7 @@ pub enum SymbolKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelocationPlan {
     pub target: NativeTarget,
-    pub record_set: RelocationRecordSet,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RelocationRecordSet {
     pub records: Arena<RelocationRecord>,
-}
-
-impl RelocationRecordSet {
-    pub fn with_roots(records: Arena<RelocationRecord>) -> Self {
-        Self { records }
-    }
-
-    pub fn with_capacity(record_capacity: usize) -> Self {
-        Self::with_roots(Arena::with_capacity(record_capacity))
-    }
 }
 
 impl Default for RelocationPlan {
@@ -407,24 +362,29 @@ impl RelocationPlan {
         Self::with_record_capacity(target, 0)
     }
 
-    pub fn with_roots(target: NativeTarget, record_set: RelocationRecordSet) -> Self {
-        Self { target, record_set }
-    }
-
     pub fn with_record_capacity(target: NativeTarget, record_capacity: usize) -> Self {
-        Self::with_roots(target, RelocationRecordSet::with_capacity(record_capacity))
+        Self {
+            target,
+            records: Arena::with_capacity(record_capacity),
+        }
     }
 
     pub fn push_record(&mut self, record: RelocationRecord) -> Handle<RelocationRecord> {
-        self.record_set.records.insert(record)
+        self.records.insert(record)
+    }
+
+    pub fn extend(&mut self, records: impl IntoIterator<Item = RelocationRecord>) {
+        for record in records {
+            self.records.insert(record);
+        }
     }
 
     pub fn record_count(&self) -> usize {
-        self.record_set.records.len()
+        self.records.len()
     }
 
     pub fn records(&self) -> impl Iterator<Item = (Handle<RelocationRecord>, &RelocationRecord)> {
-        self.record_set.records.iter()
+        self.records.iter()
     }
 }
 
@@ -493,18 +453,6 @@ impl RelocationOrigin {
             Self::Materialization {
                 object_symbol_handle,
             } => object_symbol_handle,
-        }
-    }
-
-    pub const fn selected_instruction_index(self) -> Option<u32> {
-        match self {
-            Self::Instruction {
-                selected_instruction_index,
-                ..
-            } => Some(selected_instruction_index),
-            Self::SemanticOperation { .. }
-            | Self::SemanticEdge { .. }
-            | Self::Materialization { .. } => None,
         }
     }
 

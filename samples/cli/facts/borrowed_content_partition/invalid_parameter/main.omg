@@ -1,17 +1,17 @@
 // Expected exit: 0
 // A brief exclusive borrow returns detached owned content and restores its source.
 // Numeric custody only; this does not supply physical backing.
-use borrowed_partition_support\main;
+use {borrowed_partition_support}/main.omg as borrowed_partition_support;
 
-machine consume(mutable strategy: Strategy) -> bool
+machine consume(mutable strategy: |borrowed_partition_support|::Strategy) -> bool
 requires strategy.tail.length == 48 && strategy.remaining == 48
 {
-    let first: Region in Owned = carve(@mutable strategy, 48, 17);
-    let second: Region in Owned = carve(@mutable strategy, 32, 8);
-    finish(strategy, first, second)
+    let first: |borrowed_partition_support|::Region in |borrowed_partition_support|::Region::Owned = |borrowed_partition_support|::carve(@mutable strategy, 48, 17);
+    let second: |borrowed_partition_support|::Region in |borrowed_partition_support|::Region::Owned = |borrowed_partition_support|::carve(@mutable strategy, 32, 8);
+    |borrowed_partition_support|::finish(strategy, first, second)
 }
 machine exercise(select: bool) -> bool {
-    consume(Strategy { tail: issue(), remaining: 48 })
+    consume(|borrowed_partition_support|::Strategy { tail: |borrowed_partition_support|::issue(), remaining: 48 })
 }
 
 machine main() crashes Trap {

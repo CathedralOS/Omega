@@ -5,29 +5,45 @@ the data half: records, sums, literals, locals and constants.
 
 ## Hello world
 
-```omega
-use system\console;
+`main.omg` imports the console from the system package and the output authority
+from core.
 
-machine start() {
-    Console::write_line("Hello, Omega.");
+```omega
+use {system}/console.omg;
+use {omega}/language/core/process_authority.omg as process;
+
+public machine start()
+reaches |process|::StandardOutput
+crashes none
+{
+    |console|::Console::write_line("Hello, Omega.");
 }
 ```
 
-A project's `build.omg` names the application and says which machine is its
-entry:
+For a copy of the system package at `../system`, this `build.omg` declares
+the dependency, grants it standard output and selects the Linux x64 entry.
 
 ```omega
-machine build(builder: @mutable Build) {
-    Build::application(builder, "hello");
-    Build::bind(builder, windows_x86_64::ProgramEntry, start);
+use main.omg as app;
+use {omega}/build/dependency.omg;
+use {omega}/language/core/process_authority.omg as process;
+
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "hello" };
+    let system: DependencyDescription = |dependency|::from_source(
+        Source::Path { location: "../system" }
+    );
+    let allowed: [BoundaryServiceReference; 1] = [
+        Build::service::<|process|::StandardOutput>(plan)
+    ];
+    _ = |dependency|::add(plan, system, @allowed[..]);
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::start);
 }
 ```
 
-The [CLI sample](../../samples/cli/basics/cli_mvp/main.omg) and its
-[build file](../../samples/cli/basics/cli_mvp/build.omg) show a complete
-project, including the standard-library dependency.
-[Chapter 19](chapter_19_capabilities_effects_boundaries.md) explains where
-`Console` comes from.
+The installation guide shows how to acquire the system package from a pinned
+Git revision. [Installation](../installation.md#build-a-native-program) ·
+[Capabilities and boundaries](chapter_19_capabilities_effects_boundaries.md)
 
 ## Records
 
@@ -207,9 +223,9 @@ See [integer widths](../spec/language/numeric_values.md#width-indexed-integers).
 
 A variable does not hide a builtin name in a type position. `let i: u32 = 0;`
 declares a variable `i` without touching the type `i`, and a loop index `i1`
-doesn't stop `i1` from meaning the one-bit type in an annotation. A mathematical
-definition can likewise declare `u: core\Level` and refer to that level in
-`core\Type<u>`. A type annotation such as `count: u` still reads the integer type. What you
+doesn't stop `i1` from meaning the one-bit type in an annotation. With the [foundation import](../spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation),
+a mathematical definition can likewise declare `u: |proof|::Level` and refer to that level in
+`|proof|::Type<u>`. A type annotation such as `count: u` still reads the integer type. What you
 can't do is declare a new type or module with a builtin's name, such as
 `data u7 { ... }`. See
 [builtin type names](../spec/language/modules.md#builtin-type-names).

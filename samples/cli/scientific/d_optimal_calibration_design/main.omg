@@ -1,43 +1,41 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use design/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
 // Expected output contains: status identifiable
 // Finite stdin: linear|quadratic, n k, n (setting precision) pairs, 3 predictions.
-use system\ByteRead;
-use system\Console;
-use design\model;
 data Main {
-    design: design\model\Design;
+    design: |model|::Design;
     tokens: [i64 in Wrapping; 29];
     used: i64 in Wrapping;
     bytes: i64 in Wrapping;
 }
-machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + StandardOutput {
+machine number(main: @mutable Main, value: i64 in Wrapping) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition value < 0 { true -> negative(main, value), _ -> digits(main, value, 100000000000000000) }
     machine negative(main: @mutable Main, value: i64 in Wrapping) {
-        Console::write("-");
+        |console|::Console::write("-");
         transition { _ -> digits(main, 0-value, 100000000000000000) }
     }
     machine digits(main: @mutable Main, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 { true -> emit(main, value, divisor), _ -> done() }
     }
     machine emit(main: @mutable Main, value: i64 in Wrapping, divisor: i64 in Wrapping) {
-        Console::write_byte((((value/divisor)%10) as i32) + 48);
+        |console|::Console::write_byte((((value/divisor)%10) as i32) + 48);
         transition { _ -> digits(main, value, divisor/10) }
     }
     machine done() { }
 }
-machine rational(main: @mutable Main, numerator: i64 in Wrapping, denominator: i64 in Wrapping) reaches ProcessExit + StandardOutput {
-    number(main, numerator); Console::write("/"); number(main, denominator);
+machine rational(main: @mutable Main, numerator: i64 in Wrapping, denominator: i64 in Wrapping) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
+    number(main, numerator); |console|::Console::write("/"); number(main, denominator);
 }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     main.bytes = 0; main.used = 0;
     transition { _ -> block mode(main) }
     machine mode(main: @mutable Main) {
-        let byte: ByteRead = block Console::read_byte();
+        let byte: |console|::ByteRead = block |console|::Console::read_byte();
         main.bytes = main.bytes+1;
-        transition byte { ByteRead::Byte { value } -> block mode_byte(main, value), _ -> invalid(main) }
+        transition byte { |console|::ByteRead::Byte { value } -> block mode_byte(main, value), _ -> invalid(main) }
     }
     machine mode_byte(main: @mutable Main, value: i32) {
         transition main.bytes <= 512 { true -> block mode_start(main, value), _ -> invalid(main) }
@@ -47,9 +45,9 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
             108 -> block mode_tail(main, 1, 1), 113 -> block mode_tail(main, 2, 1), _ -> invalid(main) }
     }
     machine mode_tail(main: @mutable Main, degree: i64 in Wrapping, position: i64 in Wrapping) {
-        let byte: ByteRead = block Console::read_byte();
+        let byte: |console|::ByteRead = block |console|::Console::read_byte();
         main.bytes = main.bytes+1;
-        transition byte { ByteRead::Byte { value } -> block mode_match(main, degree, position, value), _ -> invalid(main) }
+        transition byte { |console|::ByteRead::Byte { value } -> block mode_match(main, degree, position, value), _ -> invalid(main) }
     }
     machine mode_match(main: @mutable Main, degree: i64 in Wrapping, position: i64 in Wrapping, value: i32) {
         let expected: i32 = mode_character(degree, position);
@@ -72,12 +70,12 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> block read(main, 0, 1, 0, 0) }
     }
     machine read(main: @mutable Main, accumulator: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping, digits: i64 in Wrapping) {
-        let byte: ByteRead = block Console::read_byte();
+        let byte: |console|::ByteRead = block |console|::Console::read_byte();
         main.bytes = main.bytes+1;
         transition byte {
-            ByteRead::Error -> invalid(main),
-            ByteRead::Byte { value } -> block bounded(main, accumulator, sign, active, digits, value),
-            ByteRead::Eof -> eof(main, accumulator, sign, active, digits)
+            |console|::ByteRead::Error -> invalid(main),
+            |console|::ByteRead::Byte { value } -> block bounded(main, accumulator, sign, active, digits, value),
+            |console|::ByteRead::Eof -> eof(main, accumulator, sign, active, digits)
         }
     }
     machine bounded(main: @mutable Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping,
@@ -166,8 +164,8 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> prediction(main, index+1) }
     }
     machine analyze(main: @mutable Main) {
-        design\model\solve(@mutable main.design);
-        Console::write("selected");
+        |model|::solve(@mutable main.design);
+        |console|::Console::write("selected");
         transition { _ -> selected(main, 0) }
     }
     machine selected(main: @mutable Main, index: i64 in Wrapping) {
@@ -177,18 +175,18 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition main.design.selected[index] == 1 { true -> selected_emit(main, index), _ -> selected(main, index+1) }
     }
     machine selected_emit(main: @mutable Main, index: i64 in Wrapping) {
-        Console::write(" "); number(main, index);
+        |console|::Console::write(" "); number(main, index);
         transition { _ -> selected(main, index+1) }
     }
     machine information(main: @mutable Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         transition column == 0 { true -> information_label(main, row), _ -> information_bound(main, row, column) }
     }
     machine information_label(main: @mutable Main, row: i64 in Wrapping) {
-        Console::write_byte(10);
+        |console|::Console::write_byte(10);
         transition row <= main.design.degree { true -> information_start(main, row), _ -> determinant(main) }
     }
     machine information_start(main: @mutable Main, row: i64 in Wrapping) {
-        Console::write("information");
+        |console|::Console::write("information");
         transition { _ -> information_bound(main, row, 0) }
     }
     machine information_bound(main: @mutable Main, row: i64 in Wrapping, column: i64 in Wrapping) {
@@ -200,16 +198,16 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine information_emit(main: @mutable Main, row: i64 in Wrapping, column: i64 in Wrapping, position: i64 in Wrapping) {
         let value: i64 in Wrapping = main.design.information[position];
-        Console::write(" "); number(main, value);
+        |console|::Console::write(" "); number(main, value);
         transition { _ -> information(main, row, column+1) }
     }
     machine determinant(main: @mutable Main) {
         let value: i64 in Wrapping = main.design.determinant;
-        Console::write("determinant "); number(main, value); Console::write_byte(10);
+        |console|::Console::write("determinant "); number(main, value); |console|::Console::write_byte(10);
         transition main.design.determinant > 0 { true -> identifiable(main), _ -> singular(main) }
     }
     machine identifiable(main: @mutable Main) {
-        Console::write_line("status identifiable");
+        |console|::Console::write_line("status identifiable");
         transition { _ -> covariance(main, 0, 0) }
     }
     machine covariance(main: @mutable Main, row: i64 in Wrapping, column: i64 in Wrapping) {
@@ -219,14 +217,14 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition column == 0 { true -> covariance_start(main, row), _ -> covariance_bound(main, row, column) }
     }
     machine covariance_start(main: @mutable Main, row: i64 in Wrapping) {
-        Console::write("covariance");
+        |console|::Console::write("covariance");
         transition { _ -> covariance_bound(main, row, 0) }
     }
     machine covariance_bound(main: @mutable Main, row: i64 in Wrapping, column: i64 in Wrapping) {
         transition column <= main.design.degree { true -> covariance_index(main, row, column), _ -> covariance_next(main, row) }
     }
     machine covariance_next(main: @mutable Main, row: i64 in Wrapping) {
-        Console::write_byte(10);
+        |console|::Console::write_byte(10);
         transition { _ -> covariance(main, row+1, 0) }
     }
     machine covariance_index(main: @mutable Main, row: i64 in Wrapping, column: i64 in Wrapping) {
@@ -236,7 +234,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine covariance_emit(main: @mutable Main, row: i64 in Wrapping, column: i64 in Wrapping, position: i64 in Wrapping) {
         let numerator: i64 in Wrapping = main.design.covariance[position];
         let denominator: i64 in Wrapping = main.design.determinant;
-        Console::write(" "); rational(main, numerator, denominator);
+        |console|::Console::write(" "); rational(main, numerator, denominator);
         transition { _ -> covariance(main, row, column+1) }
     }
     machine variances(main: @mutable Main, index: i64 in Wrapping) {
@@ -245,12 +243,12 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine variance_emit(main: @mutable Main, index: i64 in Wrapping) {
         let numerator: i64 in Wrapping = main.design.variances[index];
         let denominator: i64 in Wrapping = main.design.determinant;
-        Console::write("variance "); rational(main, numerator, denominator); Console::write_byte(10);
+        |console|::Console::write("variance "); rational(main, numerator, denominator); |console|::Console::write_byte(10);
         transition { _ -> variances(main, index+1) }
     }
-    machine done(main: @mutable Main) { ProcessExit::exit_process(0); }
-    machine singular(main: @mutable Main) { Console::write_line("status non-identifiable"); ProcessExit::exit_process(3); }
-    machine invalid(main: @mutable Main) { Console::write_line("invalid input"); ProcessExit::exit_process(2); }
+    machine done(main: @mutable Main) { |process_exit|::ProcessExit::exit_process(0); }
+    machine singular(main: @mutable Main) { |console|::Console::write_line("status non-identifiable"); |process_exit|::ProcessExit::exit_process(3); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("invalid input"); |process_exit|::ProcessExit::exit_process(2); }
 }
 machine mode_character(degree: i64 in Wrapping, position: i64 in Wrapping) -> i32 {
     transition degree == 1 { true -> linear(position), _ -> quadratic(position) }
@@ -263,7 +261,7 @@ machine mode_character(degree: i64 in Wrapping, position: i64 in Wrapping) -> i3
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

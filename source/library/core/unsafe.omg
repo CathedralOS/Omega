@@ -1,0 +1,7 @@
+// These services describe obligations at native trust boundaries. Product policy
+// enables each specific child, and ordinary reach closure reports Unsafe.
+public boundary trait Unsafe {}
+public boundary trait RawMemoryRead: Unsafe {}
+public boundary trait RawMemoryWrite: Unsafe {}
+public boundary trait BorrowMutabilityUpgrade: Unsafe {}
+public boundary trait ForeignCodeExecution: Unsafe {}

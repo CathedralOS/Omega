@@ -10,6 +10,23 @@ The Rust driver follows authored successor entries and forwards explicitly
 registered package bindings. Install and update still use the lock workflow. The [binding and
 admission rules](#binding-identity-and-admission) govern the staged workflow.
 
+## Packages available to the initial Build
+
+For `omega build build.omg`, the driver supplies the toolchain's core and
+Build libraries by convention. The project declares additional packages in
+its checked-in Build source. The CLI has no option to inject a package
+binding into the initial Build. An embedding host can supply incoming
+bindings directly. The Build can select a
+[bundled dependency](toolchain.md#selecting-a-bundled-package) by package
+name wherever the project is checked out.
+
+If only the application imports `{system}/console.omg`, one `build.omg`
+registers `system` and its allowed reach for the application. If Build code
+itself needs to call `Filesystem::read_all` from `system`, the first entry
+registers that package for a successor such as `configure.omg`. The successor
+imports it when compiled with those bindings. In both cases the user runs
+the same command.
+
 ## From source to the next stage
 
 Each stage starts with a frozen source view and caller-supplied package
@@ -30,8 +47,8 @@ same board entry and uses the same revision.
 use {omega}/build/dependency.omg;
 use {omega}/build/dependencies/providers/git.omg;
 
-machine build(build: @mutable Build) {
-    Build::package(build, "firmware");
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Package { name: "firmware" };
     let board: DependencyDescription = |git|::dependency(
         "board", "https://example.org/board.git", "refs/heads/stable",
         "72bc01f59de8a314c60155e8c3b7474b261490fe"
@@ -45,14 +62,14 @@ machine build(build: @mutable Build) {
 use {omega}/build/dependency.omg;
 use {omega}/build/dependencies/providers/git.omg;
 
-machine build(build: @mutable Build) {
+machine build(build: @mutable BuildPlan) {
     let layout: DependencyDescription = |git|::dependency(
         "layout", "https://example.org/layout.git", "refs/heads/stable",
         "8e76d2a18f2ecb674b75670ab380aa1cf32f9d44"
     );
     let service_free: [BoundaryServiceReference; 0] = [];
     _ = |dependency|::add(build, layout, @service_free[..]);
-    Build::build_entry(build, "configure.omg");
+    build.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
 }
 ```
 
@@ -60,8 +77,8 @@ machine build(build: @mutable Build) {
 // board/configure.omg
 use {layout}/api.omg as layout;
 
-machine build(build: @mutable Build) {
-    Build::package(build, "board");
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Package { name: "board" };
     |layout|::configure_product(build);
 }
 ```
@@ -87,10 +104,11 @@ access, process grants and filesystem backing have their own activation scope.
 A simple project needs no preparatory stage. A project can name an ordinary
 preparing file `build.lock.omg` and invoke it explicitly. No stage searches
 for an adjacent lock or builds through a companion file by convention.
-[Fixed Build imports](../build/scoped_execution.md#checked-build-stages) still
-apply. Two unchanged compilations of the same file both check its file-scoped
-imports. An unresolved import cannot be postponed until a later entry. Use
-separate source files or a prepared successor source view.
+A shared file may declare `use {layout}/api.omg as layout;` in both stages.
+If only the successor needs `layout`, the preparing stage can register the
+binding for it. Calling a helper that uses `layout` during preparation would
+require an incoming binding in that earlier stage.
+[Checked Build stages](../build/scoped_execution.md#checked-build-stages)
 
 ## Acquisition and authority
 
@@ -221,7 +239,10 @@ context and derives its [semantic binding](toolchain.md#semantic-bindings-in-a-s
 An unattended build uses the same inputs. A missing required selection, wrong
 owner, incompatible schema or ambiguous resolution fails at the selection.
 
-The invocation and per-child delegation supply restricted Build grants.
+The invocation supplies restricted grants to the root. Explicit delegation
+to a child supplies its grant and constitutes project approval for its use
+within those bounds. The staged CLI and embedding host use the same rule.
+[Restricted Build approval](acceptance.md#restricted-build-acceptance)
 Selecting an output authorizes driver publication of that output. Filesystem
 operations inside a Build use its admitted backing.
 

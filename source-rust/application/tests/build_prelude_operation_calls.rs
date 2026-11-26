@@ -30,7 +30,7 @@ fn build_ran(stderr: &str) {
     for refusal in [
         "project source discovery failed",
         "rewritten call contradicts its original selection record",
-        "call private machine of another package",
+        "cannot call a private machine of another package",
     ] {
         assert!(!stderr.contains(refusal), "{stderr}");
     }
@@ -199,7 +199,7 @@ fn a_build_that_queries_a_product_entry_is_not_refused_for_its_selection() {
     Build::bind(builder, linux_x86_64::ProgramEntry, entry(builder, \"linux_x86_64::ProgramEntry\"));
 }
 machine entry(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
-    BuildProduct::entry(@builder.product, \"main\", slot)
+    BuildDeclarations::entry(@builder.declarations, \"main\", slot)
 }
 ",
         "machine main() {}",

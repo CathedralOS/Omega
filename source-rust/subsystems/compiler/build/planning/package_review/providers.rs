@@ -823,63 +823,28 @@ impl PolicySource<'_> {
                 .ok_or_else(|| unavailable("a boundary callable's conformance binder ordinal"))?;
             conformance_bounds.push(bound);
         }
-        Ok(PackagePolicyCallable {
-            target_context: PackagePolicyTargetContext::TargetIndependent,
-            role: PackagePolicyCallableRole::Boundary,
+        let lifetime_parameter_count = owner
+            .lifetime_parameters
+            .len()
+            .checked_add(requirement.lifetime_parameter_count)
+            .ok_or_else(|| unavailable("a boundary callable's lifetime binder count"))?;
+        Ok(boundary_callable(BoundaryCallable {
             identity: requirement.identity.clone(),
-            supply: PackageReviewCallableSupply::Boundary,
             spelling: requirement.spelling,
-            lifetime_parameter_count: owner
-                .lifetime_parameters
-                .len()
-                .checked_add(requirement.lifetime_parameter_count)
-                .ok_or_else(|| unavailable("a boundary callable's lifetime binder count"))?,
+            lifetime_parameter_count,
             type_parameters,
             conformance_bounds,
             parameters: requirement.parameters.clone(),
             return_type: requirement.return_type.clone(),
-            conformances: Vec::new(),
-            operator_realizations: Vec::new(),
-            requirement_realizations: Vec::new(),
             contracts: requirement.contracts.clone(),
-            declared_service_reach: Some(reach.clone()),
-            service_reach_dependency: PackagePolicyServiceReachDependency {
-                concrete: if installation {
-                    Vec::new()
-                } else {
-                    reach.clone()
-                },
-                parameters: Vec::new(),
-            },
-            checked_service_reach: PackageReviewCheckedServiceReach::NoCheckedBody,
-            unresolved_installation_reaches: installation
-                .then(|| PackageReviewInstallationReach {
-                    requirement: requirement.identity.clone(),
-                    upper_bound: reach,
-                })
-                .into_iter()
-                .collect(),
-            declared_synchronous_invocations: Some(requirement.synchronous_invocations.clone()),
-            realized_synchronous_invocations: Vec::new(),
-            capability_flows: Vec::new(),
-            reachable_capability_flows: Vec::new(),
-            checked_may_suspend: false,
-            checked_may_block: false,
-            declared_may_suspend: Some(requirement.suspends),
-            declared_may_block: Some(requirement.blocks),
-            declared_termination: Some(requirement.termination.clone()),
-            checked_termination: requirement.termination.clone(),
-            checked_crash: PackagePolicyCrash {
-                interface: PackageReviewCrashInterface::PublishedCeiling,
-                published: crashes,
-                structural_runtime_requirements: None,
-                inferred: PackagePolicyInferredCrash::Unknown,
-            },
-            mutation: PackagePolicyMutation {
-                completeness: PackageReviewWriteFrameCompleteness::Opaque,
-                paths: Vec::new(),
-            },
-        })
+            reach,
+            installation,
+            synchronous_invocations: requirement.synchronous_invocations.clone(),
+            may_suspend: requirement.suspends,
+            may_block: requirement.blocks,
+            termination: requirement.termination.clone(),
+            published_crash: crashes,
+        }))
     }
 
     fn authored_providers(
@@ -1663,70 +1628,114 @@ impl PolicySource<'_> {
         }
         let declared_reach =
             reviewed_services(declarations.services, &boundary.published_service_ceiling)?;
-        let unresolved_installation_reaches = signature
-            .service_reach_is_installation_bound
-            .then(|| PackageReviewInstallationReach {
-                requirement: requirement.clone(),
-                upper_bound: declared_reach.clone(),
-            })
-            .into_iter()
-            .collect();
-        Ok(PackagePolicyCallable {
-            target_context: PackagePolicyTargetContext::TargetIndependent,
-            role: PackagePolicyCallableRole::Boundary,
+        let synchronous_invocations = super::callables::reviewed_invocations(
+            declarations.services,
+            declarations
+                .accepted
+                .module()
+                .execution
+                .callables
+                .boundary_envelope(boundary.id)
+                .ok_or_else(|| unavailable("the boundary requirement's invocation contract"))?,
+        )?;
+        let published_crash = super::callables::published_crash_routes(&boundary.crash_routes)?;
+        Ok(boundary_callable(BoundaryCallable {
             identity: requirement,
-            supply: PackageReviewCallableSupply::Boundary,
             spelling: signature.spelling,
             lifetime_parameter_count,
             type_parameters,
             conformance_bounds: Vec::new(),
             parameters,
             return_type,
-            conformances: Vec::new(),
-            operator_realizations: Vec::new(),
-            requirement_realizations: Vec::new(),
             contracts,
-            declared_service_reach: Some(declared_reach.clone()),
-            service_reach_dependency: PackagePolicyServiceReachDependency {
-                concrete: if signature.service_reach_is_installation_bound {
-                    Vec::new()
-                } else {
-                    declared_reach
-                },
-                parameters: Vec::new(),
-            },
-            checked_service_reach: PackageReviewCheckedServiceReach::NoCheckedBody,
-            unresolved_installation_reaches,
-            declared_synchronous_invocations: Some(super::callables::reviewed_invocations(
-                declarations.services,
-                declarations
-                    .accepted
-                    .module()
-                    .execution
-                    .callables
-                    .boundary_envelope(boundary.id)
-                    .ok_or_else(|| unavailable("the boundary requirement's invocation contract"))?,
-            )?),
-            realized_synchronous_invocations: Vec::new(),
-            capability_flows: Vec::new(),
-            reachable_capability_flows: Vec::new(),
-            checked_may_suspend: false,
-            checked_may_block: false,
-            declared_may_suspend: Some(declaration.source.published_may_suspend),
-            declared_may_block: Some(declaration.source.published_may_block),
-            declared_termination: Some(termination.clone()),
-            checked_termination: termination,
-            checked_crash: PackagePolicyCrash {
-                interface: PackageReviewCrashInterface::PublishedCeiling,
-                published: super::callables::published_crash_routes(&boundary.crash_routes)?,
-                structural_runtime_requirements: None,
-                inferred: PackagePolicyInferredCrash::Unknown,
-            },
-            mutation: PackagePolicyMutation {
-                completeness: PackageReviewWriteFrameCompleteness::Opaque,
-                paths: Vec::new(),
-            },
-        })
+            reach: declared_reach,
+            installation: signature.service_reach_is_installation_bound,
+            synchronous_invocations,
+            may_suspend: declaration.source.published_may_suspend,
+            may_block: declaration.source.published_may_block,
+            termination,
+            published_crash,
+        }))
+    }
+}
+
+/// The declared parts of a boundary requirement's callable. A boundary has no
+/// checked body, so everything a body would add stays empty or opaque.
+struct BoundaryCallable {
+    identity: PackageReviewNominalIdentity,
+    spelling: Option<language_core::OperatorSpelling>,
+    lifetime_parameter_count: usize,
+    type_parameters: Vec<review_evidence::record::PackagePolicyTypeParameter>,
+    conformance_bounds: Vec<review_evidence::record::PackageReviewConformanceBound>,
+    parameters: Vec<PackageReviewSignatureParameter>,
+    return_type: Option<review_evidence::record::PackageReviewTypeIdentity>,
+    contracts: Vec<review_evidence::record::PackageReviewCallableContract>,
+    reach: Vec<PackageReviewServiceIdentity>,
+    /// An installation-bound reach stays unresolved until a provider is installed.
+    installation: bool,
+    synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
+    may_suspend: bool,
+    may_block: bool,
+    termination: PackagePolicyTermination,
+    published_crash: Vec<review_evidence::record::PackagePolicyCrashRoute>,
+}
+
+fn boundary_callable(boundary: BoundaryCallable) -> PackagePolicyCallable {
+    let BoundaryCallable {
+        identity,
+        reach,
+        installation,
+        termination,
+        ..
+    } = boundary;
+    PackagePolicyCallable {
+        target_context: PackagePolicyTargetContext::TargetIndependent,
+        role: PackagePolicyCallableRole::Boundary,
+        unresolved_installation_reaches: installation
+            .then(|| PackageReviewInstallationReach {
+                requirement: identity.clone(),
+                upper_bound: reach.clone(),
+            })
+            .into_iter()
+            .collect(),
+        identity,
+        supply: PackageReviewCallableSupply::Boundary,
+        spelling: boundary.spelling,
+        lifetime_parameter_count: boundary.lifetime_parameter_count,
+        type_parameters: boundary.type_parameters,
+        conformance_bounds: boundary.conformance_bounds,
+        parameters: boundary.parameters,
+        return_type: boundary.return_type,
+        conformances: Vec::new(),
+        operator_realizations: Vec::new(),
+        requirement_realizations: Vec::new(),
+        contracts: boundary.contracts,
+        declared_service_reach: Some(reach.clone()),
+        service_reach_dependency: PackagePolicyServiceReachDependency {
+            concrete: if installation { Vec::new() } else { reach },
+            parameters: Vec::new(),
+        },
+        checked_service_reach: PackageReviewCheckedServiceReach::NoCheckedBody,
+        declared_synchronous_invocations: Some(boundary.synchronous_invocations),
+        realized_synchronous_invocations: Vec::new(),
+        capability_flows: Vec::new(),
+        reachable_capability_flows: Vec::new(),
+        checked_may_suspend: false,
+        checked_may_block: false,
+        declared_may_suspend: Some(boundary.may_suspend),
+        declared_may_block: Some(boundary.may_block),
+        declared_termination: Some(termination.clone()),
+        checked_termination: termination,
+        checked_crash: PackagePolicyCrash {
+            interface: PackageReviewCrashInterface::PublishedCeiling,
+            published: boundary.published_crash,
+            structural_runtime_requirements: None,
+            inferred: PackagePolicyInferredCrash::Unknown,
+        },
+        mutation: PackagePolicyMutation {
+            completeness: PackageReviewWriteFrameCompleteness::Opaque,
+            paths: Vec::new(),
+        },
     }
 }
 

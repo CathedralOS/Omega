@@ -124,7 +124,7 @@ test('no reference inside comments, strings, keywords or lifetimes', () => {
 test('local bindings: let, parameter and generic parameter', () => {
   const source = (body) => [
     'machine view_from_profile<View, const Bound: u64>(main: @mutable Main, length: u64) -> u64 {',
-    '    let base: addr = main.base;',
+    '    let base: address = main.base;',
     '    if length > 0 {',
     '        let inner: u64 = 1;',
     '    }',
@@ -168,30 +168,20 @@ test('use lines and where they point', () => {
   const masked = scan.maskCommentsAndStrings([
     'use calling.omg as abi;',
     'use {omega}/language/core/numeric_conversion.omg;',
-    'use omega\\language\\core\\Extent::Granted;',
-    'use system\\Console;',
-    'use actors\\state\\Mood;',
-    'use kit\\main as k;',
     'use {system}/filesystem_host.omg as paths;',
     'use {wav_output}/wav_output/wav_output.omg as output;',
     'use {omega}/build/dependencies/providers/git.omg as remote;',
   ].join('\n'));
   const uses = scan.parseUses(masked);
   const target = (index, name, extra = {}) => scan.importTarget(uses[index], { name, alias: '', qualifier: '', member: false, ...extra });
-  assert.deepEqual(target(8, 'pin', { alias: 'remote' }), { library: 'build', file: 'dependencies/providers/git.omg' });
-  assert.deepEqual(target(0, 'plan'), { file: 'calling.omg' });
-  assert.equal(target(0, 'plan', { alias: 'other' }), null);
+  assert.deepEqual(target(0, 'plan', { alias: 'abi' }), { file: 'calling.omg' });
+  assert.equal(target(0, 'plan'), null);
   assert.equal(target(0, 'plan', { alias: 'calling' }), null);
   assert.deepEqual(target(1, 'convert', { alias: 'numeric_conversion' }), { library: 'core', file: 'numeric_conversion.omg' });
-  assert.deepEqual(target(1, 'convert'), { library: 'core', file: 'numeric_conversion.omg' });
-  assert.deepEqual(target(2, 'Granted'), { library: 'core' });
-  assert.deepEqual(target(2, 'Vacant', { qualifier: 'Extent' }), { library: 'core' });
-  assert.equal(target(2, 'Unrelated'), null);
-  assert.deepEqual(target(3, 'Console'), { module: 'system', dependency: 'system', inside: '' });
-  assert.deepEqual(target(4, 'Mood'), { module: 'actors/state', dependency: 'actors', inside: 'state' });
-  assert.deepEqual(target(5, 'start', { alias: 'k' }), { module: 'kit/main', dependency: 'kit', inside: 'main' });
-  assert.deepEqual(target(6, 'Path', { alias: 'paths' }), { dependency: 'system', file: 'filesystem_host.omg' });
-  assert.deepEqual(target(7, 'write_wav', { alias: 'output' }), { dependency: 'wav_output', file: 'wav_output/wav_output.omg' });
+  assert.deepEqual(target(2, 'Path', { alias: 'paths' }), { dependency: 'system', file: 'filesystem_host.omg' });
+  assert.deepEqual(target(3, 'write_wav', { alias: 'output' }), { dependency: 'wav_output', file: 'wav_output/wav_output.omg' });
+  assert.deepEqual(target(4, 'pin', { alias: 'remote' }), { library: 'build', file: 'dependencies/providers/git.omg' });
+  assert.equal(scan.importTarget({ path: 'old\\kit', alias: 'kit' }, { alias: 'kit' }), null);
 });
 
 test('qualified selection prefers the qualifier, then falls back to the name', () => {

@@ -22,8 +22,8 @@ const UNPROVED: &str = "may overflow `u64`";
 
 const APP_BUILD: &str = "use {omega}/build/dependency.omg;
 use main.omg as program;
-machine build(builder: @mutable Build) {
-    Build::application(builder, \"acceptance_app\");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: \"acceptance_app\" };
     let mutable vendor_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: \"../vendor\" });
     |dependency|::with_alias(@mutable vendor_dependency, \"vendor\");
     let vendor_registration: DependencyRegistration = Build::dependency(builder, vendor_dependency);
@@ -35,8 +35,7 @@ public machine main() {
     let value: u64 = |vendor|::count(3u64);
 }
 ";
-const VENDOR_BUILD: &str =
-    "machine build(builder: @mutable Build) { Build::package(builder, \"acceptance_vendor\"); }\n";
+const VENDOR_BUILD: &str = "machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: \"acceptance_vendor\" }; }\n";
 const VENDOR_MAIN: &str = "public machine count(value: u64) -> u64 { value }\n";
 
 struct Project {
@@ -207,9 +206,9 @@ fn a_dependency_build_checks_what_it_executes_and_not_its_unrelated_declarations
     assert_refused_in(&root.join("../vendor"), "unrelated");
 
     let reached = Project {
-        vendor_build: "machine build(builder: @mutable Build) {
+        vendor_build: "machine build(builder: @mutable BuildPlan) {
     let size: u64 = grow(3u64);
-    Build::package(builder, \"acceptance_vendor\");
+    builder.product = BuildProduct::Package { name: \"acceptance_vendor\" };
 }
 machine grow(count: u64) -> u64 { count + 1u64 }
 "
@@ -222,7 +221,7 @@ machine grow(count: u64) -> u64 { count + 1u64 }
 #[test]
 fn a_direct_package_checks_its_unused_build_declarations_under_its_owner() {
     let build = r#"use service.omg;
-machine build(builder: @mutable Build) { Build::package(builder, "root_tests"); }
+machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "root_tests" }; }
 machine unused() reaches |service|::Pulse { |service|::Pulse::tick(); }
 "#;
     let mut project = Project::valid();
@@ -319,7 +318,7 @@ fn validate_distinguishes_identical_aliases_in_build_and_product_scope() {
     std::fs::create_dir(&tools).unwrap();
     std::fs::write(
         tools.join("build.omg"),
-        "machine build(b: @mutable Build) { Build::package(b, \"build_tools\"); }",
+        "machine build(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: \"build_tools\" }; }",
     )
     .unwrap();
     std::fs::write(
@@ -328,15 +327,15 @@ fn validate_distinguishes_identical_aliases_in_build_and_product_scope() {
     )
     .unwrap();
     let prepare = r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
+machine build(builder: @mutable BuildPlan) {
     let mutable tool: DependencyDescription = |dependency|::from_source(Source::Path { location: "../build_tools" });
     |dependency|::with_alias(@mutable tool, "vendor");
     let registered: DependencyRegistration = |dependency|::add(builder, tool);
-    Build::build_entry(builder, "configure.omg");
+    builder.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
 }"#;
     let configure = r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::package(builder, "consumer");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "consumer" };
     let mutable vendor: DependencyDescription = |dependency|::from_source(Source::Path { location: "../vendor" });
     |dependency|::with_alias(@mutable vendor, "vendor");
     let registered: DependencyRegistration = |dependency|::add(builder, vendor);
@@ -346,10 +345,23 @@ machine build(builder: @mutable Build) {
     std::fs::write(root.join("build.omg"), prepare).unwrap();
     assert_accepted(&root);
     let selected = prepare.replace(
-        "    Build::build_entry(",
-        "    Build::validate(builder, @registered);\n    Build::build_entry(",
+        "    builder.product = BuildProduct::InterpretedBuild",
+        "    Build::validate(builder, @registered);\n    builder.product = BuildProduct::InterpretedBuild",
     );
     std::fs::write(root.join("build.omg"), selected).unwrap();
+    assert_refused_in(&root, "unrelated_build_library_body");
+
+    // The successor can check its incoming library under the same alias as its
+    // independent Product registration. The preparing Build requests no validation.
+    std::fs::write(root.join("build.omg"), prepare).unwrap();
+    let incoming = configure.replace(
+        "    Build::validate(builder, @registered);",
+        r#"    let incoming: PackageBinding = |dependency|::input(builder, "vendor");
+    Build::validate(builder, @incoming);
+    Build::validate(builder, @incoming);
+    Build::validate(builder, @registered);"#,
+    );
+    std::fs::write(root.join("configure.omg"), &incoming).unwrap();
     assert_refused_in(&root, "unrelated_build_library_body");
     std::fs::write(
         tools.join("unused.omg"),
@@ -361,7 +373,9 @@ machine build(builder: @mutable Build) {
     assert!(
         report
             .stdout
-            .contains("validated package build_tools (build, "),
+            .matches("validated package build_tools (build, ")
+            .count()
+            == 1,
         "{}",
         report.stdout
     );
@@ -371,5 +385,60 @@ machine build(builder: @mutable Build) {
             .contains("validated package acceptance_vendor (product, linux_x86_64)"),
         "{}",
         report.stdout
+    );
+    let forged = incoming.replace(
+        r#"|dependency|::input(builder, "vendor")"#,
+        "PackageBinding {}",
+    );
+    std::fs::write(root.join("configure.omg"), forged).unwrap();
+    let denied = check(&root);
+    assert!(
+        !denied.success
+            && denied
+                .stderr
+                .contains("requires a PackageBinding this activation issued"),
+        "{}",
+        denied.stderr
+    );
+}
+
+#[test]
+fn checking_an_incoming_library_does_not_import_it_into_the_product() {
+    let root = Project::valid().write("incoming_without_product_registration");
+    let preparing = r#"use {omega}/build/dependency.omg;
+machine build(plan: @mutable BuildPlan) {
+    let mutable vendor: DependencyDescription = |dependency|::from_source(Source::Path { location: "../vendor" });
+    |dependency|::with_alias(@mutable vendor, "vendor");
+    _ = |dependency|::add(plan, vendor);
+    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+}"#;
+    let successor = r#"use {omega}/build/dependency.omg;
+machine build(plan: @mutable BuildPlan) {
+    let vendor: PackageBinding = |dependency|::input(plan, "vendor");
+    Build::validate(plan, @vendor);
+    plan.product = BuildProduct::Package { name: "consumer" };
+}"#;
+    std::fs::write(root.join("build.omg"), preparing).unwrap();
+    std::fs::write(root.join("configure.omg"), successor).unwrap();
+    std::fs::write(root.join("main.omg"), "public machine main() {}").unwrap();
+    let checked = check(&root);
+    assert!(checked.success, "{}", checked.stderr);
+    assert!(
+        checked
+            .stdout
+            .contains("validated package acceptance_vendor (build, "),
+        "{}",
+        checked.stdout
+    );
+
+    std::fs::write(root.join("main.omg"), APP_MAIN).unwrap();
+    let absent = check(&root);
+    assert!(
+        !absent.success
+            && absent
+                .stderr
+                .contains("dependency `vendor` is unavailable in the product scope"),
+        "{}",
+        absent.stderr
     );
 }

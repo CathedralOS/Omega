@@ -7,7 +7,7 @@
 // record.
 //
 // Expected exit: 0
-use omega\language\core\I32::from_f64;
+use {omega}/language/core/float_operations.omg;
 
 data Held<'samples> { values: @'samples mutable [f64]; }
 data Holder { which: i64; samples: [f64; 4]; }
@@ -77,9 +77,9 @@ machine exercise_local() crashes Trap {
         _ -> check(@mutable samples)
     }
     machine check(samples: @mutable [f64; 4]) {
-        let first: i32 in Saturating = I32::from_f64(samples[0]);
-        let second: i32 in Saturating = I32::from_f64(samples[1]);
-        let third: i32 in Saturating = I32::from_f64(samples[2]);
+        let first: i32 in Saturating = |float_operations|::I32::from_f64(samples[0]);
+        let second: i32 in Saturating = |float_operations|::I32::from_f64(samples[1]);
+        let third: i32 in Saturating = |float_operations|::I32::from_f64(samples[2]);
         transition first == 0 && second == 1 && third == 9 {
             true -> done(),
             false -> bad()
@@ -98,9 +98,9 @@ machine exercise_field() crashes Trap {
         _ -> check(@mutable holder)
     }
     machine check(holder: @mutable Holder) {
-        let first: i32 in Saturating = I32::from_f64(holder.samples[0]);
-        let second: i32 in Saturating = I32::from_f64(holder.samples[1]);
-        let third: i32 in Saturating = I32::from_f64(holder.samples[2]);
+        let first: i32 in Saturating = |float_operations|::I32::from_f64(holder.samples[0]);
+        let second: i32 in Saturating = |float_operations|::I32::from_f64(holder.samples[1]);
+        let third: i32 in Saturating = |float_operations|::I32::from_f64(holder.samples[2]);
         transition first == 0 && second == 1 && third == 9 {
             true -> done(),
             false -> bad()
@@ -119,9 +119,9 @@ machine exercise_call() crashes Trap {
         _ -> check(@mutable samples)
     }
     machine check(samples: @mutable [f64; 4]) {
-        let first: i32 in Saturating = I32::from_f64(samples[0]);
-        let second: i32 in Saturating = I32::from_f64(samples[1]);
-        let third: i32 in Saturating = I32::from_f64(samples[2]);
+        let first: i32 in Saturating = |float_operations|::I32::from_f64(samples[0]);
+        let second: i32 in Saturating = |float_operations|::I32::from_f64(samples[1]);
+        let third: i32 in Saturating = |float_operations|::I32::from_f64(samples[2]);
         transition first == 0 && second == 1 && third == 9 {
             true -> done(),
             false -> bad()
@@ -148,10 +148,10 @@ machine main() crashes Trap {
         let selected: @mutable [f64] = window(trace, 1);
         let trailing: Held = hold(selected);
         write_pair(trailing.values);
-        let first: i32 in Saturating = I32::from_f64(trace[0]);
-        let second: i32 in Saturating = I32::from_f64(trace[1]);
-        let third: i32 in Saturating = I32::from_f64(trace[2]);
-        let fourth: i32 in Saturating = I32::from_f64(trace[3]);
+        let first: i32 in Saturating = |float_operations|::I32::from_f64(trace[0]);
+        let second: i32 in Saturating = |float_operations|::I32::from_f64(trace[1]);
+        let third: i32 in Saturating = |float_operations|::I32::from_f64(trace[2]);
+        let fourth: i32 in Saturating = |float_operations|::I32::from_f64(trace[3]);
         transition first == 0 && second == 1 && third == 0 && fourth == 1 {
             true -> done(),
             false -> bad()

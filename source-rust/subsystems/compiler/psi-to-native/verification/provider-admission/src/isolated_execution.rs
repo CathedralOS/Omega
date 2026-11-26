@@ -106,16 +106,6 @@ impl AdmittedNativeProviders<'_> {
                 "isolated execution has no grant for host interrupt installation",
             )]);
         }
-        if self.installation.as_ref().is_some_and(|installation| {
-            !installation
-                .terminal_selection()
-                .assumed_bindings()
-                .is_empty()
-        }) {
-            return Err(vec![Diagnostic::error(
-                "isolated execution cannot admit an assumed provider binding",
-            )]);
-        }
         let review = self.terminal_authority_closure_review();
         for leaf in review.leaves() {
             let subject = review

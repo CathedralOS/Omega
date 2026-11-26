@@ -55,9 +55,7 @@ pub fn prepare<'scope>(
                     targets: None,
                     providers: psi_provider_selections::admit_provider_installation(
                         artifact.view(),
-                        &[],
-                        &[],
-                    )
+                        &[])
                     .map_err(|error| format!("unscoped scalar provider installation: {error:?}"))?,
                     address_model: Ok(None),
                     carrier_layout: None,
@@ -133,8 +131,7 @@ impl TargetRealizedIntrinsics {
     ) -> Result<Self, String> {
         let selected = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
             selection.plans.clone(),
-        )?
-        .with_assumed_bindings(selection.assumed_bindings.clone());
+        )?;
         Ok(Self {
             profile,
             x86_fma,

@@ -16,25 +16,8 @@
 //! The tests lex with the real lexer, parse through `source_parser::parse`
 //! and read the syntax snapshot.
 
-use crate::frontend_fixture::{Lexer, parse_syntax_trees};
+use crate::parsing_support::{parse, snapshot};
 use serde_json::Value;
-
-fn parse(source: &str) -> Result<Value, source_parser::ParseError> {
-    let stream = Lexer::new(source).tokenize().expect("the source lexes");
-    parse_syntax_trees(&stream)
-        .map(|trees| serde_json::to_value(trees.snapshot()).expect("a syntax snapshot serializes"))
-}
-
-fn snapshot(source: &str) -> Value {
-    parse(source).unwrap_or_else(|error| {
-        let span = error.source_span.span;
-        panic!(
-            "{} at `{}` in {source:?}",
-            error.message,
-            &source[span.start..span.end]
-        )
-    })
-}
 
 /// How one pattern row picks its field.
 #[derive(Debug, PartialEq, Eq)]
@@ -331,3 +314,5 @@ use source_parser as parsing;
 
 #[path = "../../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
+#[path = "support/parsing.rs"]
+mod parsing_support;

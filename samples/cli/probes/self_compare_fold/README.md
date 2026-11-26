@@ -12,7 +12,7 @@ imports omega::language::core::relation — depend-free proof module).
   them; `i32 in Ten` interval-domained payload discharges
   `scale`'s `requires level in Ten` at the call.
 - relation_trait_machine: core Reflexive/Symmetric/Transitive/
-  Antisymmetric traits take `R: C -> C -> core\Type` relation families — user
+  Antisymmetric traits take `R: C -> C -> |proof|::Type` relation families — user
   propositions bind through `satisfies` (declaration surface).
 
 Compile-checked only (no ProcessExit provider):

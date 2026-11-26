@@ -105,3 +105,33 @@ fn a_positive_observation_reports_the_missing_backing_decision() {
     assert!(!output.status.success(), "{report}");
     assert!(report.contains("field observation requiring backing supply"), "{report}");
 }
+
+#[test]
+fn a_recast_array_lends_the_reordered_record_bytes_to_a_slice() {
+    program::assert_silent_return(r#"use {omega}/language/core/layout.omg;
+data Pair { first: u32; second: u32; }
+data PairStorage = |layout|::LayoutStorage<Pair, Reversed>;
+Reversed satisfies |layout|::FixedLayout<Pair> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan reaches none crashes none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 4 } };
+        entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 4 }
+    }
+}
+machine observe(pair: @PairStorage) -> bool {
+    let fixed: @[u8; 8] = pair as @[u8; 8];
+    let bytes: @[u8] = fixed[..];
+    transition bytes.length == 8u64 { true -> values(bytes), _ -> (false) }
+    machine values(bytes: @[u8]) -> bool requires bytes.length == 8u64 { bytes[0] == 17u8 && bytes[4] == 1u8 }
+}
+machine main() crashes Trap {
+    let mutable pair: PairStorage;
+    pair.first = 1u32;
+    pair.second = 17u32;
+    transition observe(@pair) { true -> done(), _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#);
+}

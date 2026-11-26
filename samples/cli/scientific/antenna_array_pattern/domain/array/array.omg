@@ -1,10 +1,8 @@
-use omega\language\core\abs_f64;
+use domain/phasor/phasor.omg;
+use {omega}/language/core/math.omg;
 
 // Direct element summation; co-located elements remain separate excitations.
 // Negative real weights encode a pi phase reversal. Zero excitation is valid.
-use domain\phasor;
-use domain\phasor\cosine;
-use domain\phasor\sine;
 public data Geometry {
     positions: [f64; 4];
     weights: [f64; 4];
@@ -38,8 +36,8 @@ public machine pattern_power(geometry: @Geometry, direction: f64) -> f64 {
     }
     machine add(geometry: @Geometry, direction: f64, index: i32, real: f64, imaginary: f64) -> f64 {
         let phase: f64 = 6.283185307179586 * geometry.positions[index] * (direction - geometry.steering);
-        let cosine: f64 = cosine(phase);
-        let sine: f64 = sine(phase);
+        let cosine: f64 = |phasor|::cosine(phase);
+        let sine: f64 = |phasor|::sine(phase);
         let next_real: f64 = real + geometry.weights[index] * cosine;
         let next_imaginary: f64 = imaginary + geometry.weights[index] * sine;
         transition { _ -> element(geometry, direction, index + 1, next_real, next_imaginary) }
@@ -49,7 +47,7 @@ public machine pattern_power(geometry: @Geometry, direction: f64) -> f64 {
     }
 }
 public machine amplitude(geometry: @Geometry) -> f64 {
-    abs_f64(geometry.weights[0]) + abs_f64(geometry.weights[1]) + abs_f64(geometry.weights[2]) + abs_f64(geometry.weights[3])
+    |math|::abs_f64(geometry.weights[0]) + |math|::abs_f64(geometry.weights[1]) + |math|::abs_f64(geometry.weights[2]) + |math|::abs_f64(geometry.weights[3])
 }
 public machine duplicates(geometry: @Geometry) -> i32 {
     transition { _ -> pair(geometry, 0, 1, 0) }

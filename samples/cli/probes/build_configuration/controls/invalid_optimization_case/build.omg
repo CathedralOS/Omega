@@ -1,4 +1,4 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_optimization_case");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_optimization_case" };
     Optimizations::enable(@mutable builder.optimizations, Optimization::NoSuchOpt);
 }

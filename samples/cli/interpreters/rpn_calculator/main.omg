@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 35.
 // RPN calculator: interpret an encoded postfix program with an operand stack -- a
 // real little bytecode VM. Each token is either a number (push it) or an operator
@@ -18,7 +18,6 @@ use omega\language\core\ProcessExit;
 //   program = [3, 4, -1, 5, -2]   // 3 4 + 5 *  ==  (3 + 4) * 5
 // The program exits with the value it computed. Expected exit: 35.
 
-use system\Console;
 
 data Main
 requires self.sp >= 0 && self.sp <= 16,
@@ -38,8 +37,8 @@ requires self.sp >= 0 && self.sp <= 16,
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("rpn_calculator: evaluates the postfix program 3 4 + 5 * on an operand stack");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("rpn_calculator: evaluates the postfix program 3 4 + 5 * on an operand stack");
     main.program[0] = 3i32 as +Wrapping;
     main.program[1] = 4i32 as +Wrapping;
     main.program[2] = (0i32 - 1) as +Wrapping;
@@ -182,15 +181,15 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
 
     machine finish(main: @mutable Main) {
         // The result is the bottom of the stack.
-        Console::write_line("result: the RPN evaluation, 35 for this program (the exit code)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.stack[0] as i32);
+        |console|::Console::write_line("result: the RPN evaluation, 35 for this program (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.stack[0] as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

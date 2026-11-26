@@ -19,7 +19,7 @@ fn member(root: &Path, path: &str, name: &str, source: &str) -> PathBuf {
     fs::create_dir_all(&member).unwrap();
     fs::write(
         member.join("build.omg"),
-        format!("machine build(b: @mutable Build) {{ Build::package(b, \"{name}\"); }}"),
+        format!(r#"machine build(b: @mutable BuildPlan) {{ b.product = BuildProduct::Package {{ name: "{name}" }}; }}"#),
     )
     .unwrap();
     fs::write(member.join("unused.omg"), source).unwrap();
@@ -34,11 +34,17 @@ fn workspace_checks_its_returned_members_and_named_checks_select_only_one() {
     let root = directory.path();
     fs::write(
         root.join("build.omg"),
-        r#"machine build(b: @mutable Build) { Build::member(b, "alpha"); roster(b, true); }
-machine roster(b: @mutable Build, enabled: bool) {
-    transition enabled { true -> listed(b), false -> decoy(b), }
-    machine listed(b: @mutable Build) { Build::member(b, "nested/beta"); }
-    machine decoy(b: @mutable Build) { Build::member(b, "undeclared"); }
+        r#"use {omega}/build/workspace.omg;
+machine build(plan: @mutable BuildPlan) {
+    let alpha: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, "alpha");
+    let members: WorkspaceMembers = roster(plan, alpha, true);
+    plan.product = BuildProduct::Workspace { members: members };
+}
+machine roster(plan: @mutable BuildPlan, members: WorkspaceMembers, enabled: bool) -> WorkspaceMembers {
+    match enabled {
+        true -> |workspace|::with_member(plan, members, "nested/beta"),
+        false -> |workspace|::with_member(plan, members, "undeclared")
+    }
 }"#,
     )
     .unwrap();
@@ -89,7 +95,7 @@ machine roster(b: @mutable Build, enabled: bool) {
     assert!(String::from_utf8_lossy(&scoped.stderr).contains("complete directory"));
     fs::write(
         beta.join("build.omg"),
-        "machine build(b: @mutable Build) { Build::package(b, \"first\"); }",
+        "machine build(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: \"first\" }; }",
     )
     .unwrap();
     let duplicate = check(root, &["build.omg"]);
@@ -99,7 +105,7 @@ machine roster(b: @mutable Build, enabled: bool) {
     );
     fs::write(
         beta.join("build.omg"),
-        "machine build(b: @mutable Build) { Build::package(b, \"second\"); }",
+        "machine build(b: @mutable BuildPlan) { b.product = BuildProduct::Package { name: \"second\" }; }",
     )
     .unwrap();
     fs::write(beta.join("unused.omg"), broken).unwrap();

@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "dynamic_selected_reach_parameter");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "dynamic_selected_reach_parameter" };
     Build::select_provider::<Journal, InlineJournal>(builder, linux_x86_64);
     Build::select_provider::<Journal, InlineJournal>(builder, linux_arm64);
     Build::select_provider::<Journal, InlineJournal>(builder, windows_x86_64);

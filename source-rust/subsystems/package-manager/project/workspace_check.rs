@@ -3,7 +3,6 @@ use super::{OpenPurpose, OpenedRoot, ProjectInput, ProjectProducts, open_product
 use crate::resolution::source::{AcquiredBuildSource, LocalWorkspaceMembers};
 use build_declarations::BuildDeclaration;
 use diagnostics::Diagnostic;
-use package_compilation::BuildSnapshotRequest;
 use package_compilation::build_execution::BuildSnapshotCapture;
 use source_acquisition::{ExternalSourceContext, LocalSourceLimits};
 use std::collections::BTreeMap;
@@ -50,9 +49,10 @@ pub fn open_check_subjects<'a>(
     offline: bool,
     timings: bool,
     directory: &'a Path,
-    snapshot: Option<BuildSnapshotRequest>,
+    inputs: super::RootBuildInputs,
 ) -> Result<impl Iterator<Item = CheckSubject> + 'a, Vec<Diagnostic>> {
-    let selected = snapshot
+    let selected = inputs
+        .snapshot
         .as_ref()
         .and_then(|request| match request.capture() {
             BuildSnapshotCapture::Scoped(selected) => Some(selected.clone()),
@@ -65,7 +65,7 @@ pub fn open_check_subjects<'a>(
         offline,
         timings,
         directory,
-        snapshot,
+        inputs,
         OpenPurpose::Check,
     )?;
     let (single, workspace) = match opened {
@@ -124,7 +124,7 @@ pub fn open_check_subjects<'a>(
                 offline,
                 timings,
                 directory,
-                None,
+                super::RootBuildInputs::default(),
                 OpenPurpose::Member(acquired, &members),
             )
             .and_then(|opened| match opened {

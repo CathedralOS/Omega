@@ -44,6 +44,7 @@ pub(crate) mod audit;
 pub(crate) mod compile;
 pub(crate) mod inspect;
 pub(crate) mod packages;
+mod programs;
 pub(crate) mod run;
 mod source;
 
@@ -335,6 +336,53 @@ fn take_text(arguments: &mut Arguments, flag: &str) -> Result<String, String> {
     take_value(arguments, flag)?
         .into_string()
         .map_err(|_| format!("{flag} requires a UTF-8 value"))
+}
+
+fn parse_directory(
+    arguments: &mut Arguments,
+    flag: &str,
+    directories: &mut platform_custody::directory_mappings::DirectoryMappings,
+) -> Result<(), String> {
+    use platform_custody::directory_mappings::DirectoryAccess;
+    let access = match flag {
+        "--build-directories-readonly" | "--run-directories-readonly" => DirectoryAccess::ReadOnly,
+        "--build-directories-readwrite" | "--run-directories-readwrite" => {
+            DirectoryAccess::ReadWrite
+        }
+        _ => return Err(format!("unknown directory mapping {flag}")),
+    };
+    let mapping = option_value(arguments)
+        .ok_or_else(|| format!("{flag} needs host-directory::/guest-directory"))?;
+    let separator = mapping
+        .as_encoded_bytes()
+        .windows(3)
+        .rposition(|part| part == b"::/")
+        .filter(|index| *index > 0)
+        .ok_or_else(|| format!("{flag} needs host-directory::/guest-directory"))?;
+    // The prefix comes from this OsStr and ends immediately before an ASCII colon,
+    // an encoding boundary on every supported host. Preserve native filename bytes.
+    let prefix = unsafe {
+        std::ffi::OsStr::from_encoded_bytes_unchecked(&mapping.as_encoded_bytes()[..separator])
+    };
+    let host = std::path::Path::new(prefix);
+    let guest = std::str::from_utf8(&mapping.as_encoded_bytes()[separator + 2..])
+        .map_err(|_| format!("{flag} guest directory is not UTF-8"))?;
+    directories
+        .grant(host, guest, access)
+        .map_err(|error| format!("{flag} {}::{guest}: {error}", host.display()))
+}
+
+pub(crate) fn build_snapshot(
+    capture: Option<package_compilation::BuildSourceCaptureRequest>,
+    directories: platform_custody::directory_mappings::DirectoryMappings,
+) -> Option<package_compilation::BuildSnapshotRequest> {
+    use package_compilation::BuildSnapshotRequest;
+    let snapshot = match capture {
+        Some(selection) => BuildSnapshotRequest::scoped(Vec::new(), selection),
+        None if directories.is_empty() => return None,
+        None => BuildSnapshotRequest::for_activation(false),
+    };
+    Some(snapshot.with_directories(directories))
 }
 
 fn parse_build_input(

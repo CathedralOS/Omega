@@ -1,32 +1,26 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/model/model.omg;
+use io/report/report.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0
 // Expected output contains: ecological_rarefaction
 // Input: S, S nonnegative counts, Q, Q depths; one bounded line and EOF.
-use system\ByteRead;
-use system\Console;
-use system\LineReadResult;
-use domain\model;
-use domain\model\Community;
-use domain\model\analyze;
-use io\report;
-use io\report\report;
 data Main {
     line: [u8; 256];
     tokens: [u64 in Wrapping; 30];
-    community: Community;
+    community: |model|::Community;
 }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let result: LineReadResult = block Console::read_line(@mutable main.line[..]);
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let result: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.line[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> block eof(main, count),
-        LineReadResult::EndOfInput { count } -> parse(main, count, 0, 0, 0, 0),
+        |console|::LineReadResult::LineComplete { count } -> block eof(main, count),
+        |console|::LineReadResult::EndOfInput { count } -> parse(main, count, 0, 0, 0, 0),
         _ -> invalid(main)
     }
     machine eof(main: @mutable Main, count: u64) {
-        let result: ByteRead = block Console::read_byte();
-        transition result { ByteRead::Eof -> parse(main, count, 0, 0, 0, 0), _ -> invalid(main) }
+        let result: |console|::ByteRead = block |console|::Console::read_byte();
+        transition result { |console|::ByteRead::Eof -> parse(main, count, 0, 0, 0, 0), _ -> invalid(main) }
     }
     machine parse(main: @mutable Main, count: u64, position: u64 in Wrapping,
                 token: u64 in Wrapping, value: u64 in Wrapping, digits: u64 in Wrapping) {
@@ -141,15 +135,15 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition value <= main.community.total { true -> depths(main, index+1), false -> invalid(main) }
     }
     machine calculate(main: @mutable Main) {
-        analyze(@mutable main.community);
-        report(@main.community);
-        ProcessExit::exit_process(0);
+        |model|::analyze(@mutable main.community);
+        |report|::report(@main.community);
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine invalid(main: @mutable Main) { Console::write_line("ERROR invalid_input"); ProcessExit::exit_process(64); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("ERROR invalid_input"); |process_exit|::ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

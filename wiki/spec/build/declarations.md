@@ -16,8 +16,8 @@ requires no such policy declaration.
 
 A Build runs as one checked Omega program. The invoker supplies the root's
 library bindings and the parent configures each child's bindings before that
-child starts. The compiler resolves local and external imports and checks the
-Build against those inputs before entry. See [fixed Build imports](scoped_execution.md#checked-build-stages).
+child starts. Before entry the compiler resolves the local and external imports
+it needs to check that Build. See [checked Build stages](scoped_execution.md#checked-build-stages).
 
 The running Build may conditionally register product libraries with
 `Build::dependency`. The registration fixes the description's source, alias
@@ -63,7 +63,7 @@ author API for manufacturing trusted plan rows.
 ## Project role
 
 A selected build file has one free entry. The invoker owns the plan and
-passes it by mutable borrow. The public API direction is:
+passes it by mutable borrow.
 
 ```omega
 machine build(plan: @mutable BuildPlan) {
@@ -71,8 +71,7 @@ machine build(plan: @mutable BuildPlan) {
 }
 ```
 
-The example uses the package already supplied to this invocation. The
-constructor and entry field illustrate the product shape. A helper edits the
+The example uses the package already supplied to this invocation. A helper edits the
 same plan. When the driver runs the selected successor, it supplies that
 activation with a fresh plan of its own.
 
@@ -85,20 +84,39 @@ fetch declares its network and filesystem effects and runs within its
 invocation's grants. A later consumer of the fetched package has its own grants.
 [Dependency-use ceilings](../packages/staged_inputs.md#dependency-reach)
 
-The current compiler spells the parameter type `Build` and records the product
-through the operations below. These spellings identify the migration points
-for `BuildPlan` and its `product` field.
+The invoker initializes `plan.product` to `BuildProduct::Unselected`. The Build
+or an ordinary helper assigns the product before returning.
 
-| Current operation | Product described |
+| Product | Meaning |
 | --- | --- |
-| `Build::package(builder, "name")` | Package |
-| `Build::application(builder, "name")` | Application |
-| One or more `Build::member(builder, "path")` calls | Workspace |
-| `Build::build_entry(build, "configure.omg")` | Interpret the named Build and use the plan it produces for this project |
+| `BuildProduct::Package { name: "kit" }` | Publish the named package. |
+| `BuildProduct::Application { name: "editor" }` | Build the named application. |
+| `BuildProduct::Workspace { members: paths }` | Declare the workspace's member paths. |
+| `BuildProduct::InterpretedBuild { entry: "configure.omg" }` | Run another Build in the selected package source. |
 
-Each activation chooses exactly one row. Mixed, missing, duplicate, and
-noncanonical results reject. A helper passed the current mutable Build edits
-this same plan. A successor receives a fresh Build. After the current entry
+The driver reads the value in the returned plan. A helper may assign the field
+again before return. The final value must describe one complete product.
+Name and entry views must live through that return. A helper can accept
+`plan: @mutable BuildPlan<'s>` and `name: @'s [u8]` to assign a name with
+the plan's storage lifetime. Borrowing an array local to the Build cannot
+establish that lifetime. [Stored views](../language/lifetimes.md)
+
+A Build can keep bytes it computes locally by explicitly copying them into its
+invocation's immutable storage. Import `use {omega}/build/storage.omg;` and
+call `|storage|::copy(plan, @bytes[..])`. Its result has the plan's storage
+lifetime and can initialize any shared byte view with that lifetime, including
+a Product name or successor entry. The source buffer can be reused immediately.
+The Build's evaluation storage allowance covers the copy.
+
+An authored Build that returns an unselected product, an invalid name or
+path, an empty workspace, or a repeated member rejects. The `with_member(plan, catalog, path)` operation in
+`{omega}/build/workspace.omg` returns a new `WorkspaceMembers` value with
+that pathname appended. The invocation owns the copied pathname bytes.
+`WorkspaceMembers {}` starts an empty catalog. Only the
+catalog stored in the returned Workspace contributes member paths.
+A query that requires a named Product uses the name
+and role in the plan at that call; the returned plan must preserve the identity
+that issued its description. A successor receives a fresh plan. After the current entry
 returns successfully and its dependency join completes, the driver freezes
 the selected source view, resolves the named file within it, and checks its
 free Build entry against the registered package
@@ -113,7 +131,8 @@ An ordinary same-spelled machine remains ordinary source.
 
 With no selected build file, the compiler supplies ordinary default Build
 source and runs it through the same one-entry checking, interpretation, join,
-and freeze route. No file need be written. A standalone loose root defaults to
+and freeze route. The default entry leaves the initial product field unselected
+and retains the invoker's supplied role. No file need be written. A standalone loose root defaults to
 application role; an already resolved package retains its supplied role and
 owner. Checking source does not require an executable entry. Executable output
 still needs ordinary target-slot selections and provider checks. When the
@@ -121,8 +140,7 @@ named root has no build entry, core supplies the product entry binding under
 [build-first entry selection](command_line.md#build-first-entry-selection).
 The target checks that binding under [entry admission](entry_roots.md).
 
-`package`, `application`, `member` and `dependency` operate on this
-activation's Build value. The invoker's bindings determine which libraries
+Product selection and dependency registration operate on this activation's Build plan. The invoker's bindings determine which libraries
 Build code can import. The executed plan determines which libraries Product
 code can import. Aliases are unique within each scope. A package used in both
 scopes needs a binding in each, including system. Package tooling may persist a
@@ -137,6 +155,77 @@ requires at least one completed required artifact and rejects executable
 root/provider selections. It is not a new role or target profile.
 [Staged products](scoped_execution.md#staged-products-and-failure) defines
 completion and whole-result publication.
+
+### Successor package and directories
+
+Named decision: `successor-package-and-directories`.
+
+An interpreted Build product has one package root and may supply additional
+runtime directory mappings to the immediate successor. When `package_root`
+is omitted, the successor uses the current captured package. The parent may
+instead supply a directory view it holds, such as a directory containing a
+generator’s output. The plan retains an owned view or a borrow valid through
+handoff. After the preparing Build returns and its dependencies join, the
+driver freezes that view once. It resolves `entry` and local imports within
+this snapshot. External imports use the ordinary registered package bindings.
+
+The successor sees that same frozen package read-only and receives fresh,
+private, bounded writable scratch. Omitting `directories` and supplying an
+empty list both select this default. An additional mapping supplies a guest
+path, a directory view held by the parent, and read-only or read-write access
+within the parent's authority. A mapped directory is available to runtime
+filesystem calls. It does not supply a second package root. The grant ends
+at this successor unless explicitly delegated onward.
+
+A parent selects its generated package with an issued path. An empty relative
+path selects the held directory itself.
+
+```omega
+let generated: BuildPath = BuildOutput::resolve(@plan.output, "");
+plan.package_root = BuildPackageRoot::Directory { path: generated };
+plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+```
+
+A Build can also return additional runtime mounts while keeping its original package.
+For example, a preparing Build that holds the `sdk/headers` source subtree and its
+private output can lend both to its successor.
+
+```omega
+let headers: BuildPath = BuildSource::resolve(@plan.source, "sdk/headers");
+let out: BuildPath = BuildOutput::resolve(@plan.output, "");
+plan.directories = Build::map_readonly(plan.directories, headers, "/sdk");
+plan.directories = Build::map_readwrite(plan.directories, out, "/results");
+plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+```
+
+Each call extends the supplied list. The returned plan selects the list the
+successor receives. Captured source and named inputs accept read-only mappings.
+A grant of private output retains its sponsor and is subject to the same limits
+on entries, bytes and file extent. Duplicate guest roots are rejected.
+
+A Build can forward an absolute pathname in the preparing Build's
+existing runtime mappings. For example, a Build receiving an SDK at
+`/sdk` can forward only its `headers` directory.
+
+```omega
+plan.directories = Build::forward_readonly(plan.directories, "/sdk/headers", "/include");
+```
+
+The selected subtree retains its more-specific mounts, including any that hide
+files in a broader grant. A read-only handoff makes every descendant read-only.
+A writable handoff requires a writable root and preserves each descendant's
+access mode. Looking up an ungranted path refuses the handoff.
+
+With the default `BuildPackageRoot::Current`, the entry belongs to the
+preparing Build's captured package. If the parent also maps an SDK at `/sdk`
+read-only, the successor can read SDK data while it runs. With an empty
+mapping list it can still import and read its generated `parser.omg`, while
+the parent's SDK and output directory stay private.
+
+The same rules apply to confined disk directories and views with other
+backing. They use ordinary filesystem provision and admission. A registered
+dependency's explicit override follows the separate
+[child filesystem contract](scoped_execution.md#supplying-a-filesystem-to-a-child-build).
 
 ## Names, lineage, and resolution
 
@@ -218,8 +307,9 @@ Named decision: `ordinary-library-packages`, settled 2026-11-12. `system` and
 `allocation`, wherever no compiler privilege is required, use ordinary package
 ownership, dependencies, validation and immutable version selection. They may
 be distributed beside the compiler, fetched from Git or supplied by another
-accepted source without acquiring a new semantic package kind. Bundling is
-optional distribution convenience, not a source of compiler custody.
+accepted source without acquiring a new semantic package kind. The
+[standard distribution](../packages/toolchain.md#selecting-a-bundled-package)
+ships them for explicit selection by package name.
 
 Keep four identities and obligations distinct: the distribution digest verifies
 the release contents; the package owner identifies declarations; exact sealed

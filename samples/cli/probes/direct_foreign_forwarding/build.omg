@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "direct_foreign_forwarding");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "direct_foreign_forwarding" };
     Build::select_provider::<ProcessProbe, ProcessProvider>(builder, linux_arm64);
     Build::select_provider::<ProcessProbe, ProcessProvider>(builder, linux_x86_64);
     Build::select_provider::<ProcessProbe, ProcessProvider>(builder, macos_arm64);

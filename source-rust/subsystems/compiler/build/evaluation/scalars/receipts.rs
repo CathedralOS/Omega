@@ -22,7 +22,7 @@ pub enum PureTerminalEvaluationOutcome {
 
 mod canonical_scalar {
     use super::{PURE_PSI_WORK_BUDGET, PureTerminalEvaluationOutcome};
-    use psi_provider_selections::{AssumedBindingSelection, ProviderInstallationSelection};
+    use psi_provider_selections::ProviderInstallationSelection;
     use record_storage::{Record, RecordError, RecordReader};
     use semantic_vocabulary::{ScalarApplicationId, ScalarType, ValueId};
     use std::sync::Arc;
@@ -52,7 +52,6 @@ mod canonical_scalar {
         // whichever deployment happens to host the reader.
         target: Option<String>,
         providers: Vec<ProviderInstallationSelection>,
-        assumptions: Vec<AssumedBindingSelection>,
         carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     }
 
@@ -93,19 +92,10 @@ mod canonical_scalar {
             if selections.len() != providers.providers().count() {
                 return Err("scalar accounting lost exact selected provider rows".into());
             }
-            let assumptions = providers
-                .assumed_bindings()
-                .iter()
-                .map(|binding| AssumedBindingSelection {
-                    required: binding.required,
-                    supplied_requirement: binding.supplied_requirement,
-                })
-                .collect();
             Ok(Arc::new(Self {
                 artifact: RecordedArtifact(Arc::clone(artifact)),
                 target: target.map(str::to_owned),
                 providers: selections,
-                assumptions,
                 carrier_layout,
             }))
         }

@@ -1,10 +1,10 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Complete current-main reproduction: a guarded successor borrows a local
 // fixed byte array. The same source is required to print the actual bytes.
-use system\Console;
 data Main { choice: i32; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let bytes: [u8; 4] = "TEST";
     transition main.choice {
         0 -> show(main, @bytes),
@@ -12,7 +12,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         _ -> show(main, @bytes)
     }
     machine show(main: @mutable Main, bytes: @[u8; 4]) {
-        Console::write_line(bytes);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line(bytes);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }

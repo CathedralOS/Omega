@@ -1,9 +1,7 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use domain\model;
-use domain\model\Community;
-use domain\model\choose;
-machine decimal(value: u64 in Wrapping) reaches StandardOutput {
+use domain/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
+machine decimal(value: u64 in Wrapping) reaches |process_authority|::StandardOutput {
     transition { _ -> scale(value, 1) }
     machine scale(value: u64 in Wrapping, divisor: u64 in Wrapping) {
         transition divisor <= value/10 {
@@ -16,38 +14,38 @@ machine decimal(value: u64 in Wrapping) reaches StandardOutput {
     }
     machine digit(value: u64 in Wrapping, divisor: u64 in Wrapping)
     requires divisor > 0 {
-        Console::write_byte((value/divisor%10+48) as i32);
+        |console|::Console::write_byte((value/divisor%10+48) as i32);
         transition { _ -> emit(value%divisor, divisor/10) }
     }
     machine done() {}
 }
-machine field(name: @[u8], value: u64 in Wrapping) reaches StandardOutput {
-    Console::write(name);
+machine field(name: @[u8], value: u64 in Wrapping) reaches |process_authority|::StandardOutput {
+    |console|::Console::write(name);
     decimal(value);
-    Console::write_line("");
+    |console|::Console::write_line("");
 }
-public machine report(community: @Community) reaches StandardOutput
-invokes Console
+public machine report(community: @|model|::Community) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write_line("ecological_rarefaction");
+    |console|::Console::write_line("ecological_rarefaction");
     field("species=", community.species);
     field("individuals=", community.total);
     transition { _ -> query(community, 0) }
-    machine query(community: @Community, index: u64 in Wrapping) {
+    machine query(community: @|model|::Community, index: u64 in Wrapping) {
         transition index < community.queries && index < 16 {
             true -> start(community, index),
             false -> done()
         }
     }
-    machine start(community: @Community, index: u64 in Wrapping)
+    machine start(community: @|model|::Community, index: u64 in Wrapping)
     requires index < 16 {
         let depth: u64 in Wrapping = community.depths[index];
-        let denominator: u64 in Wrapping = choose(community.total, depth);
+        let denominator: u64 in Wrapping = |model|::choose(community.total, depth);
         field("depth=", depth);
         field("denominator=", denominator);
         transition { _ -> bin(community, index, depth, denominator, 0, 0, 0) }
     }
-    machine bin(community: @Community,
+    machine bin(community: @|model|::Community,
                index: u64 in Wrapping, depth: u64 in Wrapping, denominator: u64 in Wrapping,
                richness: u64 in Wrapping, first: u64 in Wrapping, second: u64 in Wrapping) {
         transition richness <= community.species && richness < 13 && depth < 33 {
@@ -55,20 +53,20 @@ invokes Console
             false -> moments(community, index, denominator, first, second)
         }
     }
-    machine value(community: @Community,
+    machine value(community: @|model|::Community,
                  index: u64 in Wrapping, depth: u64 in Wrapping, denominator: u64 in Wrapping,
                  richness: u64 in Wrapping, first: u64 in Wrapping, second: u64 in Wrapping)
     requires richness < 13 && depth < 33 {
         let weight: u64 in Wrapping = community.weights[depth][richness];
-        Console::write("bin=");
+        |console|::Console::write("bin=");
         decimal(richness);
-        Console::write(" numerator=");
+        |console|::Console::write(" numerator=");
         decimal(weight);
-        Console::write_line("");
+        |console|::Console::write_line("");
         transition { _ -> bin(community, index, depth, denominator, richness+1,
                               first+richness*weight, second+richness*richness*weight) }
     }
-    machine moments(community: @Community,
+    machine moments(community: @|model|::Community,
                    index: u64 in Wrapping, denominator: u64 in Wrapping,
                    first: u64 in Wrapping, second: u64 in Wrapping) {
         transition denominator > 0 {
@@ -76,7 +74,7 @@ invokes Console
             false -> done()
         }
     }
-    machine centered(community: @Community,
+    machine centered(community: @|model|::Community,
                     index: u64 in Wrapping, denominator: u64 in Wrapping,
                     first: u64 in Wrapping, second: u64 in Wrapping)
     requires denominator > 0 {

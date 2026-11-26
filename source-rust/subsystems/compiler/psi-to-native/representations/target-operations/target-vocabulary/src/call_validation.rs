@@ -74,8 +74,8 @@ impl LegalizedScalarCall {
             .enumerate()
         {
             if argument.placement() != placement
-                || matches!(argument, crate::LegalizedScalarArgument::Scalar { .. })
-                    && !direct_scalar_placement(placement)
+                || matches!(argument, LegalizedScalarArgument::Scalar { source, .. }
+                    if !direct_scalar_placement(placement) || ValueShape::for_scalar(source.scalar_type) != Some(placement.shape))
             {
                 return Err(Error::ArgumentPlacement { argument: index });
             }
@@ -173,15 +173,10 @@ fn validate_call_source(
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
-            assumption,
             completion_claim_sources: claim_sources,
             completion_receipts: receipts,
         } => {
-            if assumption
-                .as_ref()
-                .map_or(provider.boundary != *boundary, |row| {
-                    !row.matches(*boundary, provider)
-                })
+            if provider.boundary != *boundary
                 || call.target.machine() != Some(provider.candidate)
             {
                 return Err(LegalizedCallSourceError::ProviderIdentityMismatch);

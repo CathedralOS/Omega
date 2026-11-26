@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Bank ledger with fixed-capacity transaction list.
 //
 // Stresses: [i32 in Saturating; 8] fixed-array with const-indexed reads/writes, running
@@ -24,7 +24,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 data Ledger [copy] {
     txns: [i32 in Saturating; 8];
@@ -37,8 +36,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("bank_ledger: 6 deposits/withdrawals into a fixed transaction list, then a const-indexed balance sum");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("bank_ledger: 6 deposits/withdrawals into a fixed transaction list, then a const-indexed balance sum");
     deposit(main, 500 as +Saturating);
     deposit(main, 200 as +Saturating);
     withdraw(main, 150 as +Saturating);
@@ -68,24 +67,24 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: final balance 70 from 6 transactions, count 6 (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: final balance 70 from 6 transactions, count 6 (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 
     machine bad_balance(main: @mutable Main) {
-        Console::write_line("FAIL: balance != 70 -- transaction sum wrong (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: balance != 70 -- transaction sum wrong (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 
     machine bad_count(main: @mutable Main) {
-        Console::write_line("FAIL: transaction count != 6 (exit 72)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(72);
+        |console|::Console::write_line("FAIL: transaction count != 6 (exit 72)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(72);
     }
 }
 
@@ -150,7 +149,7 @@ machine withdraw(main: @mutable Main, amount: i32 in Saturating) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

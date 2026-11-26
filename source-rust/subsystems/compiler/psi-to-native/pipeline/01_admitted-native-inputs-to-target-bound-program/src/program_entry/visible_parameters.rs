@@ -49,7 +49,7 @@ pub(super) fn from_terminal(
     }
     let schema = module.service_schema(contract.schema_declaration, contract.schema_application)?;
     let surface = &schema.surface;
-    let method = super::published::selected_method(surface, slot.semantic_arrival_requirement)?;
+    let method = surface.entry_requirement(slot.semantic_arrival_requirement)?;
     let ids = &module.identities;
     if service_surface::declared_type_signature(
         checked

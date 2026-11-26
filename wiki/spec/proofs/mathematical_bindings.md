@@ -11,7 +11,26 @@ proposition-returning machines remain optional, unaccepted naming proposals.
 
 Psi owns elaboration to the common calculus, with independently checked terms,
 contracts and assumption closure.
-The sealed core mathematical declaration `core\Identity::<T>(left, right)`
+
+## Importing the mathematical foundation
+
+The toolchain file `{omega}/language/core/foundation.omg` exposes `Level`, `Type`,
+`Strict`, `Squash`, and `Identity` as public declarations. Examples
+on this page use the following file-local import.
+
+```omega
+use {omega}/language/core/foundation.omg as proof;
+```
+
+Ordinary [file lookup](../language/modules.md#names-and-imports) resolves the
+alias and member. The proof kernel recognizes the exact declaration exposed
+by that toolchain file and applies its existing formation and elimination
+rules. Choosing a different alias preserves that identity. A local declaration
+or another package's declaration with the same name has its ordinary meaning.
+The five names are available to authors as identifiers. Only the explicit
+import exposes these core members to another file.
+
+The sealed core mathematical declaration `|proof|::Identity::<T>(left, right)`
 exposes proof-relevant identity, with its type/universe and exact subjects
 checked by the existing `Id` formation rules. It does not return an executable
 Boolean, assume its own proof or introduce arbitrary proposition-returning
@@ -24,20 +43,20 @@ Compiler-known core names expose the selected universe hierarchy without new
 reserved sort keywords:
 
 ```text
-u: core\Level                    universe-level binder
-A: core\Type<u>                  mathematical type
-P: A -> core\Strict<v>           predicate
-F: A -> core\Type<v>             dependent family of types
-f: (value: A) -> F(value)          dependent mathematical function
+u: |proof|::Level                    universe-level binder
+A: |proof|::Type<u>                  mathematical type
+P: A -> |proof|::Strict<v>           predicate
+F: A -> |proof|::Type<v>             dependent family of types
+f: (value: A) -> F(value)            dependent mathematical function
 ```
 
-`core\Level` denotes the checked universe-binder kind, not a runtime integer
+`|proof|::Level` denotes the checked universe-binder kind, not a runtime integer
 carrier or a type containing all universe levels as ordinary values. It is
 admitted in generic telescopes; level expressions use the selected calculus's
 level grammar and constraints. A level binder may use a builtin type spelling
 such as `u`. A reference to it resolves in the level role under the ordinary
 [builtin naming rules](../language/modules.md#builtin-type-names).
-`core\Type` and `core\Strict` resolve to fixed
+`|proof|::Type` and `|proof|::Strict` resolve to fixed
 compiler-known declarations, not ordinary structs, import-sensitive conventions
 or per-binding modifiers. Display aliases cannot change those identities.
 Sort formation, equality and elimination follow the foundation; `[erased]`,
@@ -46,7 +65,7 @@ multiplicity and runtime representation remain separate judgments.
 Arrow types are mathematical dependent Π-types. `A -> B` abbreviates a Π whose
 result does not depend on the argument. Arrows associate to the right; a named
 domain binder scopes over its codomain, never over earlier parameters. A type
-family `A -> core\Type<v>` does not itself require a dependent arrow; applying
+family `A -> |proof|::Type<v>` does not itself require a dependent arrow; applying
 that family in a function's result type does.
 
 Universe inference may omit routine written levels at definitions and calls.
@@ -64,11 +83,11 @@ body. The declaration may be package/module-scoped; dependencies are parameters
 or explicitly resolved declarations, not implicit captures of machine locals.
 
 ```omega
-let greater_than(limit: i32, value: i32): core\Strict<0> =
+let greater_than(limit: i32, value: i32): |proof|::Strict<0> =
     value > limit;
 
-let compose<u: core\Level, v: core\Level, w: core\Level,
-            A: core\Type<u>, B: core\Type<v>, C: core\Type<w>>(
+let compose<u: |proof|::Level, v: |proof|::Level, w: |proof|::Level,
+            A: |proof|::Type<u>, B: |proof|::Type<v>, C: |proof|::Type<w>>(
     f: B -> C, g: A -> B, value: A
 ): C = f(g(value));
 ```
@@ -104,9 +123,9 @@ shadowing local is not. Ordinary visibility and qualified-name resolution apply.
 The following descriptions are mathematical types, not successive runtime states:
 
 ```text
-greater_than        : i32 -> i32 -> core\Strict<0>
-greater_than(10)    : i32 -> core\Strict<0>
-greater_than(10,20) : core\Strict<0>
+greater_than        : i32 -> i32 -> |proof|::Strict<0>
+greater_than(10)    : i32 -> |proof|::Strict<0>
+greater_than(10,20) : |proof|::Strict<0>
 ```
 
 The last expression is a proposition, not its proof or an executable Boolean.
@@ -214,8 +233,8 @@ callback entry, effect acknowledgment or resource receipt.
 For a strict predicate, an ordinary constrained record supplies the source shape:
 
 ```omega
-data Witness<u: core\Level, v: core\Level,
-             A: core\Type<u>, P: A -> core\Strict<v>>
+data Witness<u: |proof|::Level, v: |proof|::Level,
+             A: |proof|::Type<u>, P: A -> |proof|::Strict<v>>
 requires
     P(value)
 {
@@ -229,7 +248,7 @@ checked predicate evidence (using the core's strict/relevant bridge where needed
 No authored proof field is needed for this strict constraint. That fact is not
 permission to drop derivation or assumption dependencies.
 
-`core\Squash<Witness<u,v,A,P>>` expresses witness-hidden existence. Ordinary
+`|proof|::Squash<Witness<u,v,A,P>>` expresses witness-hidden existence. Ordinary
 squash elimination may reason into an eligible strict conclusion; it does not
 extract an accessible witness. General dependent pairs remain in scope now:
 when evidence is relevant, a bundle carries that evidence explicitly, rather
@@ -242,20 +261,20 @@ the predicates named in the theorem header.
 
 ```omega
 data Implication<
-    u: core\Level, v: core\Level, w: core\Level,
-    A: core\Type<u>, P: A -> core\Strict<v>, Q: A -> core\Strict<w>
+    u: |proof|::Level, v: |proof|::Level, w: |proof|::Level,
+    A: |proof|::Type<u>, P: A -> |proof|::Strict<v>, Q: A -> |proof|::Strict<w>
 > = machine(value: A)
     requires P(value)
     ensures Q(value);
 
 machine existence_follows<
-    u: core\Level, v: core\Level, w: core\Level,
-    A: core\Type<u>, P: A -> core\Strict<v>, Q: A -> core\Strict<w>,
+    u: |proof|::Level, v: |proof|::Level, w: |proof|::Level,
+    A: |proof|::Type<u>, P: A -> |proof|::Strict<v>, Q: A -> |proof|::Strict<w>,
     Step: Implication<u,v,w,A,P,Q>
 >(
-    present: core\Squash<Witness<u,v,A,P>>
+    present: |proof|::Squash<Witness<u,v,A,P>>
 )
-ensures core\Squash::<Witness<u,w,A,Q>>
+ensures |proof|::Squash::<Witness<u,w,A,Q>>
 {
     // Open present, apply Step to the witness, then squash the resulting Q witness.
 }
@@ -274,8 +293,8 @@ may supply those terms but cannot replace them with a success assertion.
 explicitly classified as a mathematical assumption:
 
 ```omega
-boundary let choose<u: core\Level, A: core\Type<u>>(
-    inhabited: core\Squash<A>
+boundary let choose<u: |proof|::Level, A: |proof|::Type<u>>(
+    inhabited: |proof|::Squash<A>
 ): A;
 ```
 

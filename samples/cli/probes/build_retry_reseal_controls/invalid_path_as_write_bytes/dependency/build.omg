@@ -1,0 +1,7 @@
+// An issued path identifies the file. Writing it requires actual bytes.
+machine build(plan: @mutable BuildPlan) {
+    let file: BuildPath = BuildOutput::resolve(@plan.output, "generated.omg");
+    let writer: i32 = BuildOutput::create(@mutable plan.output, file, 0);
+    _ = BuildOutput::write(@mutable plan.output, writer, @file);
+    plan.product = BuildProduct::Package { name: "custody_ghost" };
+}

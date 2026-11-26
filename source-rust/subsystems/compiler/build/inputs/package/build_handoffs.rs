@@ -34,6 +34,7 @@ struct PackageBuildHandoffContents {
     provider_selections: Arc<[RetainedProviderSelection]>,
     selection_observation: Option<[u8; 32]>,
     native: super::native_bindings::NativeBuildOutputs,
+    enabled_unsafe_atoms: BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
 }
 
 impl PackageBuildHandoff {
@@ -79,8 +80,21 @@ impl PackageBuildHandoff {
                 provider_selections: Arc::from([]),
                 selection_observation: None,
                 native: Default::default(),
+                enabled_unsafe_atoms: BTreeSet::new(),
             }),
         }
+    }
+
+    pub fn enabled_unsafe_atoms(&self) -> &BTreeSet<language_core::core_vocabulary::UnsafeAtom> {
+        &self.contents.enabled_unsafe_atoms
+    }
+
+    pub fn with_enabled_unsafe_atoms(
+        mut self,
+        atoms: BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
+    ) -> Self {
+        Arc::make_mut(&mut self.contents).enabled_unsafe_atoms = atoms;
+        self
     }
 
     pub fn package(&self) -> PackageKeyIdentity {
@@ -245,6 +259,26 @@ impl PackageCompilationInputs {
         }
         instances.remove(&(self.source.root, DependencyPurpose::Product));
         instances
+    }
+
+    pub fn execution_reach_policy(
+        &self,
+        purpose: DependencyPurpose,
+    ) -> semantic_vocabulary::dependency_reach::ExecutionReachPolicy {
+        semantic_vocabulary::dependency_reach::ExecutionReachPolicy {
+            root: Some(self.root()),
+            edges: self.execution_service_edges(purpose),
+            enabled_unsafe: self
+                .dependency_build_handoff_instances()
+                .filter(|(scope, _)| *scope == purpose)
+                .map(|(_, handoff)| {
+                    (
+                        Some(handoff.package()),
+                        handoff.enabled_unsafe_atoms().clone(),
+                    )
+                })
+                .collect(),
+        }
     }
 
     pub fn required_dependency_source_instances(

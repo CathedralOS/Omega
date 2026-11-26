@@ -90,9 +90,8 @@ pub fn restricted_build_request_acceptance_text(
     target: target::TargetProfile,
     request: &build_consent::RestrictedBuildRequest,
 ) -> Result<String, PackageReviewEncodingError> {
-    let limits = PackagePolicyRowLimits::default();
     let request = crate::record::PackagePolicyRestrictedBuildRequest::from(request);
-    let frame = |encoder: &mut Encoder| -> Result<(), PackageReviewEncodingError> {
+    canonical_request_text(|encoder| {
         builder::frame_row(
             encoder,
             package,
@@ -103,9 +102,24 @@ pub fn restricted_build_request_acceptance_text(
             ),
             true,
             true,
-            &|encoder| baseline::restricted_build::request(encoder, &request),
+            &|encoder| baseline::request(encoder, &request),
         )
-    };
+    })
+}
+
+/// Early Build review precedes the declaration of a package identity. Use the
+/// same operation payload that the final package row will bind to that owner.
+pub fn restricted_build_request_payload(
+    request: &build_consent::RestrictedBuildRequest,
+) -> Result<String, PackageReviewEncodingError> {
+    let request = crate::record::PackagePolicyRestrictedBuildRequest::from(request);
+    canonical_request_text(|encoder| baseline::request(encoder, &request))
+}
+
+fn canonical_request_text(
+    frame: impl Fn(&mut Encoder) -> Result<(), PackageReviewEncodingError>,
+) -> Result<String, PackageReviewEncodingError> {
+    let limits = PackagePolicyRowLimits::default();
     let mut measure = Encoder::row_measure(
         limits.maximum_canonical_bytes,
         Some(limits.maximum_text_bytes),

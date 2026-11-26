@@ -72,7 +72,7 @@ impl ProductPolicyInputs<'_> {
 
 #[derive(Clone)]
 pub struct ProductSourceInputs<'a> {
-    pub dependency_edges: Arc<[semantic_vocabulary::dependency_reach::DependencyServiceEdge]>,
+    pub reach_policy: Arc<semantic_vocabulary::dependency_reach::ExecutionReachPolicy>,
     /// Costs of the Build that opened this Product, when it belongs to a project.
     pub build_accounting: Option<&'a crate::compile_time_invocations::SourceCompletionAccounting>,
     pub declaration_scope: Option<Arc<declaration_scope::PackageDeclarationScope>>,
@@ -90,7 +90,7 @@ pub struct ProductSourceInputs<'a> {
 }
 
 pub(crate) struct CompletedProductSource {
-    dependency_edges: Arc<[semantic_vocabulary::dependency_reach::DependencyServiceEdge]>,
+    reach_policy: Arc<semantic_vocabulary::dependency_reach::ExecutionReachPolicy>,
     pub program: Arc<crate::source_state::FrozenTypedTrees>,
     pub grants: Vec<symbols::root_grants::AuthoredRootGrant>,
     pub declarations: crate::compile_product::declarations::AdmittedProductDeclarations,
@@ -152,7 +152,20 @@ impl CompletedProductSource {
 
     /// A target-free result still rechecks all the deployments the Product requested.
     pub(crate) fn admit_dependency_uses(&self) -> Result<(), Vec<Diagnostic>> {
-        if self.dependency_edges.is_empty() {
+        if self.reach_policy.edges.is_empty()
+            && !self
+                .program
+                .service_reaches
+                .all_definitions()
+                .any(|(_, row)| {
+                    matches!(
+                        self.program.core_vocabulary(row.symbol),
+                        Some(language_core::core_vocabulary::CoreVocabulary::UnsafeAtom(
+                            _
+                        ))
+                    )
+                })
+        {
             return Ok(());
         }
         if self.deployments.is_empty() {
@@ -161,7 +174,7 @@ impl CompletedProductSource {
                 &self.explicit_providers,
                 &self.native_supplies,
                 self.review_package,
-                &self.dependency_edges,
+                &self.reach_policy,
             )?;
         } else {
             for target in &self.deployments {
@@ -193,7 +206,7 @@ impl CompletedProductSource {
             &self.explicit_providers,
             &self.native_supplies,
             self.review_package,
-            &self.dependency_edges,
+            &self.reach_policy,
         )
     }
 }
@@ -420,7 +433,7 @@ pub(crate) fn prepare_lower_and_check(
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
     }
     Ok(CompletedProductSource {
-        dependency_edges: pass.inputs.dependency_edges,
+        reach_policy: pass.inputs.reach_policy,
         review_package: matches!(pass.entry, ProductEntry::PackageReview),
         program: judged.program,
         terminal_publication: judged.publication,

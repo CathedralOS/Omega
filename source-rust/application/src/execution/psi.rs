@@ -9,6 +9,7 @@ pub(super) fn execute(
     report: &RunProduct,
     input: Option<Box<dyn std::io::Read + Send>>,
     psi_work_budget: u64,
+    directories: platform_custody::directory_mappings::DirectoryMappings,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     let target = report.target.target_name();
     let program = report
@@ -17,12 +18,14 @@ pub(super) fn execute(
             "run lost its produced Psi artifact before execution",
         ))?;
     let runtime = report.runtime();
-    retained_image_runtime::execute(
-        TerminalRuntimeRequest {
-            entry: None,
-            filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
-            native_services: terminal_runtime::TerminalNativeServiceDelegation::MatchingHost,
-            native_provider: Some(native_provider_sponsor::for_adapters(
+    use terminal_runtime::{
+        TerminalFilesystemDelegation as Filesystem, TerminalNativeServiceDelegation as Services,
+    };
+    let (filesystem, native_services, native_provider) = if directories.is_empty() {
+        (
+            Filesystem::HostNamespace,
+            Services::MatchingHost,
+            Some(native_provider_sponsor::for_adapters(
                 std::process::Command::new(std::env::current_exe().map_err(|error| {
                     TerminalRuntimeError::MissingProvision {
                         capability: "native-provider-sponsor",
@@ -33,6 +36,16 @@ pub(super) fn execute(
                     .into_iter()
                     .flat_map(|runtime| runtime.published_native_adapters()),
             )),
+        )
+    } else {
+        (Filesystem::Mapped(directories), Services::Unprovided, None)
+    };
+    retained_image_runtime::execute(
+        TerminalRuntimeRequest {
+            entry: None,
+            filesystem,
+            native_services,
+            native_provider,
             x86_flags: terminal_runtime::capture_host_x86_flags(target)?,
             memory_ordering:
                 terminal_runtime::TerminalMemoryOrderingEnvironment::private_sequential(target),

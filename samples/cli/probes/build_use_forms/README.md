@@ -1,10 +1,7 @@
 # build_use_forms
 
-`use` rows are idempotent: repeating `use kit::main` imports the same
-module twice without conflict.
+The package imports `{kit}/main.omg` under two aliases. Both select the same
+machine. The entry compares its results through the two aliases.
 
-Controls:
-
-- `invalid_use_wildcard`: `use kit::*` — there is no wildcard import;
-  the `*` rejects at parse ("expected identifier, found
-  punctuation"). Each imported module must be spelled out.
+The `invalid_use_wildcard` control requests a wildcard import. A file import
+requires an exact filename.

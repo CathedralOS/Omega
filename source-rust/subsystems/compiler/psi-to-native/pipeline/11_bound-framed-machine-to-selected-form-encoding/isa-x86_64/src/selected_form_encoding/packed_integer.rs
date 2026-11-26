@@ -1,765 +1,717 @@
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, RegisterViewId, SelectedInstructionKind,
+    MachineAlternativeFamily as Family, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedMemoryEffect as MemEff, MachineEncodedStackEffect,
+    MachineEncodedTrapBehavior as Trap, RegisterViewId, SelectedInstructionKind as Kind,
     ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
-    X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
+    X86_64SelectedFormEncodingError as Error, X86_64SelectedFormFootprint,
 };
-use selected_instructions::PackedShuffleFastPattern;
-use x86_64_encoding::packed_integer::Instruction;
+use selected_instructions::PackedShuffleFastPattern as Fast;
+use x86_64_encoding::packed_integer::Instruction as Insn;
 
 struct PackedSpec {
-    instructions: Vec<Instruction>,
-    register_reads: Vec<RegisterViewId>,
-    register_writes: Vec<RegisterViewId>,
-    external_operand_reads: Vec<u16>,
-    external_operand_writes: Vec<u16>,
-    clobbers: Vec<&'static str>,
-    memory: MachineEncodedMemoryEffect,
-    trap: MachineEncodedTrapBehavior,
+    instructions: Vec<Insn>,
+    reads: Vec<RegisterViewId>,
+    writes: Vec<RegisterViewId>,
+    ext_reads: Vec<u16>,
+    ext_writes: Vec<u16>,
+    clobbers: &'static [&'static str],
+    memory: MemEff,
+    trap: Trap,
 }
 
-fn check_canonical_alternative(
+fn check_alt(
     physical: &ValidatedPhysicalRegisterModel,
     alternative: MachineAlternativeKey,
-    family: MachineAlternativeFamily,
-) -> Result<(), X86_64SelectedFormEncodingError> {
+    family: Family,
+) -> Result<(), Error> {
     super::request_validation::guard_canonical(physical)?;
     if alternative != (MachineAlternativeKey { family, variant: 0 }) {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+        return Err(Error::EncodedFormMismatch);
     }
     Ok(())
 }
 
 fn resolve_gpr(
     physical: &ValidatedPhysicalRegisterModel,
-    view_id: RegisterViewId,
-) -> Result<u8, X86_64SelectedFormEncodingError> {
-    let registers = super::request_validation::resolve_registers(physical, &[view_id])?;
-    Ok(registers[0])
+    view: RegisterViewId,
+) -> Result<u8, Error> {
+    Ok(super::request_validation::resolve_registers(physical, &[view])?[0])
 }
 
 fn resolve_xmm(
     physical: &ValidatedPhysicalRegisterModel,
     view_id: RegisterViewId,
-) -> Result<u8, X86_64SelectedFormEncodingError> {
+) -> Result<u8, Error> {
     let view = physical
         .model()
         .view(view_id)
-        .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
+        .ok_or(Error::EncodedFormMismatch)?;
     if view.bits != 128 || !view.allocatable {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+        return Err(Error::EncodedFormMismatch);
     }
-    let Some(suffix) = view.name.strip_prefix("xmm") else {
-        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
-    };
-    let index = suffix
-        .parse::<u8>()
-        .ok()
+    view.name
+        .strip_prefix("xmm")
+        .and_then(|s| s.parse::<u8>().ok())
         .filter(|&i| i < 16)
-        .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-    Ok(index)
+        .ok_or(Error::EncodedFormMismatch)
 }
 
-fn validate_disp(byte_offset: u32) -> Result<i32, X86_64SelectedFormEncodingError> {
-    i32::try_from(byte_offset).map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)
+fn pure_spec(instructions: Vec<Insn>, operands: &[RegisterViewId], inputs: usize) -> PackedSpec {
+    PackedSpec {
+        instructions,
+        reads: operands[..inputs].to_vec(),
+        writes: operands[inputs..].to_vec(),
+        ext_reads: (0..inputs as u16).collect(),
+        ext_writes: (inputs as u16..operands.len() as u16).collect(),
+        clobbers: &[],
+        memory: MemEff::NoneV1,
+        trap: Trap::NeverV1,
+    }
 }
 
-fn pure_spec(
-    instructions: Vec<Instruction>,
+fn mem_spec(
+    instructions: Vec<Insn>,
     operands: &[RegisterViewId],
-    input_count: usize,
+    clobbers: &'static [&'static str],
+    memory: MemEff,
 ) -> PackedSpec {
     PackedSpec {
         instructions,
-        register_reads: operands[..input_count].to_vec(),
-        register_writes: operands[input_count..].to_vec(),
-        external_operand_reads: (0..input_count as u16).collect(),
-        external_operand_writes: (input_count as u16..operands.len() as u16).collect(),
-        clobbers: Vec::new(),
-        memory: MachineEncodedMemoryEffect::NoneV1,
-        trap: MachineEncodedTrapBehavior::NeverV1,
+        reads: operands.to_vec(),
+        writes: Vec::new(),
+        ext_reads: (0..operands.len() as u16).collect(),
+        ext_writes: Vec::new(),
+        clobbers,
+        memory,
+        trap: Trap::MayArchitecturalFaultV1,
+    }
+}
+
+fn fast_shuffle_mem(pattern: Fast) -> Vec<Insn> {
+    let (d, s) = (0, 1);
+    match pattern {
+        Fast::InterleaveLowWords => vec![Insn::UnpackLowWords {
+            destination_xmm: d,
+            source_xmm: s,
+        }],
+        Fast::InterleaveHighWords => vec![Insn::UnpackHighWords {
+            destination_xmm: d,
+            source_xmm: s,
+        }],
+        Fast::InterleaveLowDoublewords => vec![Insn::UnpackLowDoublewords {
+            destination_xmm: d,
+            source_xmm: s,
+        }],
+        Fast::InterleaveHighDoublewords => vec![Insn::UnpackHighDoublewords {
+            destination_xmm: d,
+            source_xmm: s,
+        }],
+        Fast::InterleaveLowQuadwords => vec![Insn::UnpackLowQuadwords {
+            destination_xmm: d,
+            source_xmm: s,
+        }],
+        Fast::InterleaveHighQuadwords => vec![Insn::UnpackHighQuadwords {
+            destination_xmm: d,
+            source_xmm: s,
+        }],
+        Fast::LowPairDuplicateLow => vec![
+            Insn::UnpackLowDoublewords {
+                destination_xmm: d,
+                source_xmm: s,
+            },
+            Insn::UnpackLowQuadwords {
+                destination_xmm: d,
+                source_xmm: d,
+            },
+        ],
+        Fast::LowPairDuplicateHigh => vec![
+            Insn::UnpackLowDoublewords {
+                destination_xmm: d,
+                source_xmm: s,
+            },
+            Insn::UnpackHighQuadwords {
+                destination_xmm: d,
+                source_xmm: d,
+            },
+        ],
+        Fast::HighPairDuplicateLow => vec![
+            Insn::UnpackHighDoublewords {
+                destination_xmm: d,
+                source_xmm: s,
+            },
+            Insn::UnpackLowQuadwords {
+                destination_xmm: d,
+                source_xmm: d,
+            },
+        ],
+        Fast::HighPairDuplicateHigh => vec![
+            Insn::UnpackHighDoublewords {
+                destination_xmm: d,
+                source_xmm: s,
+            },
+            Insn::UnpackHighQuadwords {
+                destination_xmm: d,
+                source_xmm: d,
+            },
+        ],
+    }
+}
+
+fn fast_shuffle_reg(pattern: Fast, d: u8, l: u8, r: u8) -> Vec<Insn> {
+    match pattern {
+        Fast::InterleaveLowWords => vec![Insn::Vpunpcklwd {
+            destination_xmm: d,
+            left_xmm: l,
+            right_xmm: r,
+        }],
+        Fast::InterleaveHighWords => vec![Insn::Vpunpckhwd {
+            destination_xmm: d,
+            left_xmm: l,
+            right_xmm: r,
+        }],
+        Fast::InterleaveLowDoublewords => vec![Insn::Vpunpckldq {
+            destination_xmm: d,
+            left_xmm: l,
+            right_xmm: r,
+        }],
+        Fast::InterleaveHighDoublewords => vec![Insn::Vpunpckhdq {
+            destination_xmm: d,
+            left_xmm: l,
+            right_xmm: r,
+        }],
+        Fast::InterleaveLowQuadwords => vec![Insn::Vpunpcklqdq {
+            destination_xmm: d,
+            left_xmm: l,
+            right_xmm: r,
+        }],
+        Fast::InterleaveHighQuadwords => vec![Insn::Vpunpckhqdq {
+            destination_xmm: d,
+            left_xmm: l,
+            right_xmm: r,
+        }],
+        Fast::LowPairDuplicateLow => vec![
+            Insn::Vpunpckldq {
+                destination_xmm: d,
+                left_xmm: l,
+                right_xmm: r,
+            },
+            Insn::Vpunpcklqdq {
+                destination_xmm: d,
+                left_xmm: d,
+                right_xmm: d,
+            },
+        ],
+        Fast::LowPairDuplicateHigh => vec![
+            Insn::Vpunpckldq {
+                destination_xmm: d,
+                left_xmm: l,
+                right_xmm: r,
+            },
+            Insn::Vpunpckhqdq {
+                destination_xmm: d,
+                left_xmm: d,
+                right_xmm: d,
+            },
+        ],
+        Fast::HighPairDuplicateLow => vec![
+            Insn::Vpunpckhdq {
+                destination_xmm: d,
+                left_xmm: l,
+                right_xmm: r,
+            },
+            Insn::Vpunpcklqdq {
+                destination_xmm: d,
+                left_xmm: d,
+                right_xmm: d,
+            },
+        ],
+        Fast::HighPairDuplicateHigh => vec![
+            Insn::Vpunpckhdq {
+                destination_xmm: d,
+                left_xmm: l,
+                right_xmm: r,
+            },
+            Insn::Vpunpckhqdq {
+                destination_xmm: d,
+                left_xmm: d,
+                right_xmm: d,
+            },
+        ],
     }
 }
 
 fn spec(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
-) -> Result<PackedSpec, X86_64SelectedFormEncodingError> {
+) -> Result<PackedSpec, Error> {
+    const BINARY_MEM: MemEff = MemEff::PackedBinary16BytesV1 {
+        left_pointer_operand: 0,
+        right_pointer_operand: 1,
+        destination_pointer_operand: 2,
+    };
+    const UNARY_16_16: MemEff = MemEff::PackedUnary16To16BytesV1 {
+        source_pointer_operand: 0,
+        destination_pointer_operand: 1,
+    };
+    const XMM0: &[&str] = &["xmm0"];
+    const XMM01: &[&str] = &["xmm0", "xmm1"];
+    use super::request_validation::byte_loop_registers as loop_regs;
+
     match kind {
-        SelectedInstructionKind::PackedAddI16x8
-        | SelectedInstructionKind::PackedSubI16x8
-        | SelectedInstructionKind::PackedAddU8x16
-        | SelectedInstructionKind::PackedMinI16x8
-        | SelectedInstructionKind::PackedCmpGtI16x8
-        | SelectedInstructionKind::PackedBitAndI16x8
-        | SelectedInstructionKind::PackedBitAndNotI16x8 => {
-            let family = match kind {
-                SelectedInstructionKind::PackedAddI16x8 => MachineAlternativeFamily::PackedAddI16x8,
-                SelectedInstructionKind::PackedSubI16x8 => MachineAlternativeFamily::PackedSubI16x8,
-                SelectedInstructionKind::PackedAddU8x16 => MachineAlternativeFamily::PackedAddU8x16,
-                SelectedInstructionKind::PackedMinI16x8 => MachineAlternativeFamily::PackedMinI16x8,
-                SelectedInstructionKind::PackedCmpGtI16x8 => {
-                    MachineAlternativeFamily::PackedCmpGtI16x8
-                }
-                SelectedInstructionKind::PackedBitAndI16x8 => {
-                    MachineAlternativeFamily::PackedBitAndI16x8
-                }
-                SelectedInstructionKind::PackedBitAndNotI16x8 => {
-                    MachineAlternativeFamily::PackedBitAndNotI16x8
-                }
-                _ => unreachable!(),
-            };
-            let [left, right, destination] = super::request_validation::byte_loop_registers(
-                physical,
-                alternative,
-                family,
-                operands,
-                3,
-            )?;
-            let op = match kind {
-                SelectedInstructionKind::PackedAddI16x8 => Instruction::AddWords {
-                    destination_xmm: 0,
-                    source_xmm: 1,
-                },
-                SelectedInstructionKind::PackedSubI16x8 => Instruction::SubWords {
-                    destination_xmm: 0,
-                    source_xmm: 1,
-                },
-                SelectedInstructionKind::PackedAddU8x16 => Instruction::AddBytes {
-                    destination_xmm: 0,
-                    source_xmm: 1,
-                },
-                SelectedInstructionKind::PackedMinI16x8 => Instruction::MinWordsSigned {
-                    destination_xmm: 0,
-                    source_xmm: 1,
-                },
-                SelectedInstructionKind::PackedCmpGtI16x8 => {
-                    Instruction::CompareGreaterWordsSigned {
+        Kind::PackedAddI16x8
+        | Kind::PackedSubI16x8
+        | Kind::PackedAddU8x16
+        | Kind::PackedMinI16x8
+        | Kind::PackedCmpGtI16x8
+        | Kind::PackedBitAndI16x8
+        | Kind::PackedBitAndNotI16x8 => {
+            let (family, op) = match kind {
+                Kind::PackedAddI16x8 => (
+                    Family::PackedAddI16x8,
+                    Insn::AddWords {
                         destination_xmm: 0,
                         source_xmm: 1,
-                    }
-                }
-                SelectedInstructionKind::PackedBitAndI16x8 => Instruction::BitwiseAndPacked {
-                    destination_xmm: 0,
-                    source_xmm: 1,
-                },
-                SelectedInstructionKind::PackedBitAndNotI16x8 => Instruction::BitwiseAndNotPacked {
-                    destination_xmm: 0,
-                    source_xmm: 1,
-                },
-                _ => unreachable!(),
+                    },
+                ),
+                Kind::PackedSubI16x8 => (
+                    Family::PackedSubI16x8,
+                    Insn::SubWords {
+                        destination_xmm: 0,
+                        source_xmm: 1,
+                    },
+                ),
+                Kind::PackedAddU8x16 => (
+                    Family::PackedAddU8x16,
+                    Insn::AddBytes {
+                        destination_xmm: 0,
+                        source_xmm: 1,
+                    },
+                ),
+                Kind::PackedMinI16x8 => (
+                    Family::PackedMinI16x8,
+                    Insn::MinWordsSigned {
+                        destination_xmm: 0,
+                        source_xmm: 1,
+                    },
+                ),
+                Kind::PackedCmpGtI16x8 => (
+                    Family::PackedCmpGtI16x8,
+                    Insn::CompareGreaterWordsSigned {
+                        destination_xmm: 0,
+                        source_xmm: 1,
+                    },
+                ),
+                Kind::PackedBitAndI16x8 => (
+                    Family::PackedBitAndI16x8,
+                    Insn::BitwiseAndPacked {
+                        destination_xmm: 0,
+                        source_xmm: 1,
+                    },
+                ),
+                _ => (
+                    Family::PackedBitAndNotI16x8,
+                    Insn::BitwiseAndNotPacked {
+                        destination_xmm: 0,
+                        source_xmm: 1,
+                    },
+                ),
             };
-            Ok(PackedSpec {
-                instructions: vec![
-                    Instruction::LoadUnaligned {
+            let [left, right, dst] = loop_regs::<3>(physical, alternative, family, operands, 3)?;
+            Ok(mem_spec(
+                vec![
+                    Insn::LoadUnaligned {
                         destination_xmm: 0,
                         base: left,
                     },
-                    Instruction::LoadUnaligned {
+                    Insn::LoadUnaligned {
                         destination_xmm: 1,
                         base: right,
                     },
                     op,
-                    Instruction::StoreUnaligned {
-                        base: destination,
+                    Insn::StoreUnaligned {
+                        base: dst,
                         source_xmm: 0,
                     },
                 ],
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                external_operand_reads: vec![0, 1, 2],
-                external_operand_writes: Vec::new(),
-                clobbers: vec!["xmm0", "xmm1"],
-                memory: MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
-                    left_pointer_operand: 0,
-                    right_pointer_operand: 1,
-                    destination_pointer_operand: 2,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            })
+                operands,
+                XMM01,
+                BINARY_MEM,
+            ))
         }
-        SelectedInstructionKind::PackedShuffleI16x8 { lanes } => {
-            let pattern = PackedShuffleFastPattern::from_lanes(lanes)
-                .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-            let [left, right, destination] = super::request_validation::byte_loop_registers(
+        Kind::PackedShuffleI16x8 { lanes } => {
+            let pattern = Fast::from_lanes(lanes).ok_or(Error::EncodedFormMismatch)?;
+            let [left, right, dst] = loop_regs::<3>(
                 physical,
                 alternative,
-                MachineAlternativeFamily::PackedShuffleI16x8,
+                Family::PackedShuffleI16x8,
                 operands,
                 3,
             )?;
-            let mut instructions = vec![
-                Instruction::LoadUnaligned {
+            let mut insns = vec![
+                Insn::LoadUnaligned {
                     destination_xmm: 0,
                     base: left,
                 },
-                Instruction::LoadUnaligned {
+                Insn::LoadUnaligned {
                     destination_xmm: 1,
                     base: right,
                 },
             ];
-            match pattern {
-                PackedShuffleFastPattern::InterleaveLowWords => {
-                    instructions.push(Instruction::UnpackLowWords {
-                        destination_xmm: 0,
-                        source_xmm: 1,
-                    });
-                }
-                PackedShuffleFastPattern::InterleaveHighWords => {
-                    instructions.push(Instruction::UnpackHighWords {
-                        destination_xmm: 0,
-                        source_xmm: 1,
-                    });
-                }
-                PackedShuffleFastPattern::InterleaveLowDoublewords => {
-                    instructions.push(Instruction::UnpackLowDoublewords {
-                        destination_xmm: 0,
-                        source_xmm: 1,
-                    });
-                }
-                PackedShuffleFastPattern::InterleaveHighDoublewords => {
-                    instructions.push(Instruction::UnpackHighDoublewords {
-                        destination_xmm: 0,
-                        source_xmm: 1,
-                    });
-                }
-                PackedShuffleFastPattern::InterleaveLowQuadwords => {
-                    instructions.push(Instruction::UnpackLowQuadwords {
-                        destination_xmm: 0,
-                        source_xmm: 1,
-                    });
-                }
-                PackedShuffleFastPattern::InterleaveHighQuadwords => {
-                    instructions.push(Instruction::UnpackHighQuadwords {
-                        destination_xmm: 0,
-                        source_xmm: 1,
-                    });
-                }
-                PackedShuffleFastPattern::LowPairDuplicateLow => {
-                    instructions.push(Instruction::UnpackLowDoublewords {
-                        destination_xmm: 0,
-                        source_xmm: 1,
-                    });
-                    instructions.push(Instruction::UnpackLowQuadwords {
-                        destination_xmm: 0,
-                        source_xmm: 0,
-                    });
-                }
-                PackedShuffleFastPattern::LowPairDuplicateHigh => {
-                    instructions.push(Instruction::UnpackLowDoublewords {
-                        destination_xmm: 0,
-                        source_xmm: 1,
-                    });
-                    instructions.push(Instruction::UnpackHighQuadwords {
-                        destination_xmm: 0,
-                        source_xmm: 0,
-                    });
-                }
-                PackedShuffleFastPattern::HighPairDuplicateLow => {
-                    instructions.push(Instruction::UnpackHighDoublewords {
-                        destination_xmm: 0,
-                        source_xmm: 1,
-                    });
-                    instructions.push(Instruction::UnpackLowQuadwords {
-                        destination_xmm: 0,
-                        source_xmm: 0,
-                    });
-                }
-                PackedShuffleFastPattern::HighPairDuplicateHigh => {
-                    instructions.push(Instruction::UnpackHighDoublewords {
-                        destination_xmm: 0,
-                        source_xmm: 1,
-                    });
-                    instructions.push(Instruction::UnpackHighQuadwords {
-                        destination_xmm: 0,
-                        source_xmm: 0,
-                    });
-                }
-            }
-            instructions.push(Instruction::StoreUnaligned {
-                base: destination,
+            insns.extend(fast_shuffle_mem(pattern));
+            insns.push(Insn::StoreUnaligned {
+                base: dst,
                 source_xmm: 0,
             });
-            Ok(PackedSpec {
-                instructions,
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                external_operand_reads: vec![0, 1, 2],
-                external_operand_writes: Vec::new(),
-                clobbers: vec!["xmm0", "xmm1"],
-                memory: MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
-                    left_pointer_operand: 0,
-                    right_pointer_operand: 1,
-                    destination_pointer_operand: 2,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            })
+            Ok(mem_spec(insns, operands, XMM01, BINARY_MEM))
         }
-        SelectedInstructionKind::PackedShuffleGeneralI16x8 { lanes } => {
+        Kind::PackedShuffleGeneralI16x8 { lanes } => {
             if lanes.iter().any(|&lane| lane >= 16) {
-                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+                return Err(Error::EncodedFormMismatch);
             }
-            let [left, right, destination, scratch] =
-                super::request_validation::byte_loop_registers(
-                    physical,
-                    alternative,
-                    MachineAlternativeFamily::PackedShuffleGeneralI16x8,
-                    operands,
-                    3,
-                )?;
-            let mut instructions = Vec::with_capacity(19);
-            instructions.push(Instruction::LoadUnaligned {
+            let [left, right, dst, scratch] = loop_regs::<4>(
+                physical,
+                alternative,
+                Family::PackedShuffleGeneralI16x8,
+                operands,
+                3,
+            )?;
+            let mut insns = Vec::with_capacity(19);
+            insns.push(Insn::LoadUnaligned {
                 destination_xmm: 0,
                 base: left,
             });
-            instructions.push(Instruction::LoadUnaligned {
+            insns.push(Insn::LoadUnaligned {
                 destination_xmm: 1,
                 base: right,
             });
             for (dst_lane, &src_lane) in lanes.iter().enumerate() {
-                instructions.push(Instruction::ExtractWord {
+                insns.push(Insn::ExtractWord {
                     destination_gpr: scratch,
                     source_xmm: u8::from(src_lane >= 8),
                     lane: src_lane & 7,
                 });
-                instructions.push(Instruction::InsertWord {
+                insns.push(Insn::InsertWord {
                     destination_xmm: 2,
                     source_gpr: scratch,
                     lane: dst_lane as u8,
                 });
             }
-            instructions.push(Instruction::StoreUnaligned {
-                base: destination,
+            insns.push(Insn::StoreUnaligned {
+                base: dst,
                 source_xmm: 2,
             });
             Ok(PackedSpec {
-                instructions,
-                register_reads: operands[..3].to_vec(),
-                register_writes: vec![operands[3]],
-                external_operand_reads: vec![0, 1, 2],
-                external_operand_writes: vec![3],
-                clobbers: vec!["xmm0", "xmm1", "xmm2"],
-                memory: MachineEncodedMemoryEffect::PackedBinary16BytesV1 {
-                    left_pointer_operand: 0,
-                    right_pointer_operand: 1,
-                    destination_pointer_operand: 2,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                instructions: insns,
+                reads: operands[..3].to_vec(),
+                writes: vec![operands[3]],
+                ext_reads: vec![0, 1, 2],
+                ext_writes: vec![3],
+                clobbers: &["xmm0", "xmm1", "xmm2"],
+                memory: BINARY_MEM,
+                trap: Trap::MayArchitecturalFaultV1,
             })
         }
-        SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { count } => {
+        Kind::PackedShiftRightArithmeticI16x8 { count } => {
             if count >= 16 {
-                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+                return Err(Error::EncodedFormMismatch);
             }
-            let [source, destination] = super::request_validation::byte_loop_registers(
+            let [src, dst] = loop_regs::<2>(
                 physical,
                 alternative,
-                MachineAlternativeFamily::PackedShiftRightArithmeticI16x8,
+                Family::PackedShiftRightArithmeticI16x8,
                 operands,
                 2,
             )?;
-            Ok(PackedSpec {
-                instructions: vec![
-                    Instruction::LoadUnaligned {
+            Ok(mem_spec(
+                vec![
+                    Insn::LoadUnaligned {
                         destination_xmm: 0,
-                        base: source,
+                        base: src,
                     },
-                    Instruction::ShiftRightArithmeticWords { xmm: 0, count },
-                    Instruction::StoreUnaligned {
-                        base: destination,
+                    Insn::ShiftRightArithmeticWords { xmm: 0, count },
+                    Insn::StoreUnaligned {
+                        base: dst,
                         source_xmm: 0,
                     },
                 ],
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: Vec::new(),
-                clobbers: vec!["xmm0"],
-                memory: MachineEncodedMemoryEffect::PackedUnary16To16BytesV1 {
-                    source_pointer_operand: 0,
-                    destination_pointer_operand: 1,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            })
-        }
-        SelectedInstructionKind::PackedAbsI16x8 => {
-            let [source, destination] = super::request_validation::byte_loop_registers(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedAbsI16x8,
                 operands,
-                2,
-            )?;
-            Ok(PackedSpec {
-                instructions: vec![
-                    Instruction::LoadUnaligned {
-                        destination_xmm: 0,
-                        base: source,
+                XMM0,
+                UNARY_16_16,
+            ))
+        }
+        Kind::PackedAbsI16x8
+        | Kind::PackedWidenU8x8ToI16x8
+        | Kind::PackedNarrowI16x8ToU8x8Saturating
+        | Kind::PackedLoadI16x4ZeroExtend
+        | Kind::PackedWidenU8x4ToI16x8
+        | Kind::PackedNarrowI16x8ToU8x4Saturating => {
+            let (family, clobbers, memory) = match kind {
+                Kind::PackedAbsI16x8 => (Family::PackedAbsI16x8, XMM0, UNARY_16_16),
+                Kind::PackedWidenU8x8ToI16x8 => (
+                    Family::PackedWidenU8x8ToI16x8,
+                    XMM01,
+                    MemEff::PackedUnary8To16BytesV1 {
+                        source_pointer_operand: 0,
+                        destination_pointer_operand: 1,
                     },
-                    Instruction::AbsWordsSigned {
+                ),
+                Kind::PackedNarrowI16x8ToU8x8Saturating => (
+                    Family::PackedNarrowI16x8ToU8x8Saturating,
+                    XMM0,
+                    MemEff::PackedUnary16To8BytesV1 {
+                        source_pointer_operand: 0,
+                        destination_pointer_operand: 1,
+                    },
+                ),
+                Kind::PackedLoadI16x4ZeroExtend => (
+                    Family::PackedLoadI16x4ZeroExtend,
+                    XMM0,
+                    MemEff::PackedUnary8To16BytesV1 {
+                        source_pointer_operand: 0,
+                        destination_pointer_operand: 1,
+                    },
+                ),
+                Kind::PackedWidenU8x4ToI16x8 => (
+                    Family::PackedWidenU8x4ToI16x8,
+                    XMM01,
+                    MemEff::PackedUnary4To16BytesV1 {
+                        source_pointer_operand: 0,
+                        destination_pointer_operand: 1,
+                    },
+                ),
+                _ => (
+                    Family::PackedNarrowI16x8ToU8x4Saturating,
+                    XMM0,
+                    MemEff::PackedUnary16To4BytesV1 {
+                        source_pointer_operand: 0,
+                        destination_pointer_operand: 1,
+                    },
+                ),
+            };
+            let [src, dst] = loop_regs::<2>(physical, alternative, family, operands, 2)?;
+            let insns = match kind {
+                Kind::PackedAbsI16x8 => vec![
+                    Insn::LoadUnaligned {
+                        destination_xmm: 0,
+                        base: src,
+                    },
+                    Insn::AbsWordsSigned {
                         destination_xmm: 0,
                         source_xmm: 0,
                     },
-                    Instruction::StoreUnaligned {
-                        base: destination,
+                    Insn::StoreUnaligned {
+                        base: dst,
                         source_xmm: 0,
                     },
                 ],
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: Vec::new(),
-                clobbers: vec!["xmm0"],
-                memory: MachineEncodedMemoryEffect::PackedUnary16To16BytesV1 {
-                    source_pointer_operand: 0,
-                    destination_pointer_operand: 1,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            })
-        }
-        SelectedInstructionKind::PackedWidenU8x8ToI16x8 => {
-            let [source, destination] = super::request_validation::byte_loop_registers(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedWidenU8x8ToI16x8,
-                operands,
-                2,
-            )?;
-            Ok(PackedSpec {
-                instructions: vec![
-                    Instruction::LoadQuad {
+                Kind::PackedWidenU8x8ToI16x8 => vec![
+                    Insn::LoadQuad {
                         destination_xmm: 0,
-                        base: source,
+                        base: src,
                     },
-                    Instruction::XorPacked {
+                    Insn::XorPacked {
                         destination_xmm: 1,
                         source_xmm: 1,
                     },
-                    Instruction::UnpackLowBytes {
+                    Insn::UnpackLowBytes {
                         destination_xmm: 0,
                         source_xmm: 1,
                     },
-                    Instruction::StoreUnaligned {
-                        base: destination,
+                    Insn::StoreUnaligned {
+                        base: dst,
                         source_xmm: 0,
                     },
                 ],
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: Vec::new(),
-                clobbers: vec!["xmm0", "xmm1"],
-                memory: MachineEncodedMemoryEffect::PackedUnary8To16BytesV1 {
-                    source_pointer_operand: 0,
-                    destination_pointer_operand: 1,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            })
-        }
-        SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating => {
-            let [source, destination] = super::request_validation::byte_loop_registers(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedNarrowI16x8ToU8x8Saturating,
-                operands,
-                2,
-            )?;
-            Ok(PackedSpec {
-                instructions: vec![
-                    Instruction::LoadUnaligned {
+                Kind::PackedWidenU8x4ToI16x8 => vec![
+                    Insn::LoadDword {
                         destination_xmm: 0,
-                        base: source,
+                        base: src,
                     },
-                    Instruction::PackUnsignedSaturatingWordsToBytes {
-                        destination_xmm: 0,
-                        source_xmm: 0,
-                    },
-                    Instruction::StoreQuad {
-                        base: destination,
-                        source_xmm: 0,
-                    },
-                ],
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: Vec::new(),
-                clobbers: vec!["xmm0"],
-                memory: MachineEncodedMemoryEffect::PackedUnary16To8BytesV1 {
-                    source_pointer_operand: 0,
-                    destination_pointer_operand: 1,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            })
-        }
-        SelectedInstructionKind::PackedLoadI16x4ZeroExtend => {
-            let [source, destination] = super::request_validation::byte_loop_registers(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedLoadI16x4ZeroExtend,
-                operands,
-                2,
-            )?;
-            Ok(PackedSpec {
-                instructions: vec![
-                    Instruction::LoadQuad {
-                        destination_xmm: 0,
-                        base: source,
-                    },
-                    Instruction::StoreUnaligned {
-                        base: destination,
-                        source_xmm: 0,
-                    },
-                ],
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: Vec::new(),
-                clobbers: vec!["xmm0"],
-                memory: MachineEncodedMemoryEffect::PackedUnary8To16BytesV1 {
-                    source_pointer_operand: 0,
-                    destination_pointer_operand: 1,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            })
-        }
-        SelectedInstructionKind::PackedWidenU8x4ToI16x8 => {
-            let [source, destination] = super::request_validation::byte_loop_registers(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedWidenU8x4ToI16x8,
-                operands,
-                2,
-            )?;
-            Ok(PackedSpec {
-                instructions: vec![
-                    Instruction::LoadDword {
-                        destination_xmm: 0,
-                        base: source,
-                    },
-                    Instruction::XorPacked {
+                    Insn::XorPacked {
                         destination_xmm: 1,
                         source_xmm: 1,
                     },
-                    Instruction::UnpackLowBytes {
+                    Insn::UnpackLowBytes {
                         destination_xmm: 0,
                         source_xmm: 1,
                     },
-                    Instruction::StoreUnaligned {
-                        base: destination,
+                    Insn::StoreUnaligned {
+                        base: dst,
                         source_xmm: 0,
                     },
                 ],
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: Vec::new(),
-                clobbers: vec!["xmm0", "xmm1"],
-                memory: MachineEncodedMemoryEffect::PackedUnary4To16BytesV1 {
-                    source_pointer_operand: 0,
-                    destination_pointer_operand: 1,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            })
-        }
-        SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating => {
-            let [source, destination] = super::request_validation::byte_loop_registers(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedNarrowI16x8ToU8x4Saturating,
-                operands,
-                2,
-            )?;
-            Ok(PackedSpec {
-                instructions: vec![
-                    Instruction::LoadUnaligned {
+                Kind::PackedNarrowI16x8ToU8x8Saturating => vec![
+                    Insn::LoadUnaligned {
                         destination_xmm: 0,
-                        base: source,
+                        base: src,
                     },
-                    Instruction::PackUnsignedSaturatingWordsToBytes {
+                    Insn::PackUnsignedSaturatingWordsToBytes {
                         destination_xmm: 0,
                         source_xmm: 0,
                     },
-                    Instruction::StoreDword {
-                        base: destination,
+                    Insn::StoreQuad {
+                        base: dst,
                         source_xmm: 0,
                     },
                 ],
-                register_reads: operands.to_vec(),
-                register_writes: Vec::new(),
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: Vec::new(),
-                clobbers: vec!["xmm0"],
-                memory: MachineEncodedMemoryEffect::PackedUnary16To4BytesV1 {
-                    source_pointer_operand: 0,
-                    destination_pointer_operand: 1,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            })
-        }
-        SelectedInstructionKind::PackedLoad128 { byte_offset }
-        | SelectedInstructionKind::PackedLoad64ZeroExtend { byte_offset }
-        | SelectedInstructionKind::PackedLoad32ZeroExtend { byte_offset } => {
-            let (family, byte_count) = match kind {
-                SelectedInstructionKind::PackedLoad128 { .. } => {
-                    (MachineAlternativeFamily::PackedLoad128, 16_u16)
-                }
-                SelectedInstructionKind::PackedLoad64ZeroExtend { .. } => {
-                    (MachineAlternativeFamily::PackedLoad64ZeroExtend, 8_u16)
-                }
-                _ => (MachineAlternativeFamily::PackedLoad32ZeroExtend, 4_u16),
+                Kind::PackedNarrowI16x8ToU8x4Saturating => vec![
+                    Insn::LoadUnaligned {
+                        destination_xmm: 0,
+                        base: src,
+                    },
+                    Insn::PackUnsignedSaturatingWordsToBytes {
+                        destination_xmm: 0,
+                        source_xmm: 0,
+                    },
+                    Insn::StoreDword {
+                        base: dst,
+                        source_xmm: 0,
+                    },
+                ],
+                _ => vec![
+                    Insn::LoadQuad {
+                        destination_xmm: 0,
+                        base: src,
+                    },
+                    Insn::StoreUnaligned {
+                        base: dst,
+                        source_xmm: 0,
+                    },
+                ],
             };
-            check_canonical_alternative(physical, alternative, family)?;
-            let &[base_id, dst_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
+            Ok(mem_spec(insns, operands, clobbers, memory))
+        }
+        Kind::PackedLoad128 { byte_offset }
+        | Kind::PackedLoad64ZeroExtend { byte_offset }
+        | Kind::PackedLoad32ZeroExtend { byte_offset }
+        | Kind::PackedStore128 { byte_offset }
+        | Kind::PackedStore64 { byte_offset }
+        | Kind::PackedStore32 { byte_offset } => {
+            let (family, byte_count, is_load) = match kind {
+                Kind::PackedLoad128 { .. } => (Family::PackedLoad128, 16_u16, true),
+                Kind::PackedLoad64ZeroExtend { .. } => {
+                    (Family::PackedLoad64ZeroExtend, 8_u16, true)
+                }
+                Kind::PackedLoad32ZeroExtend { .. } => {
+                    (Family::PackedLoad32ZeroExtend, 4_u16, true)
+                }
+                Kind::PackedStore128 { .. } => (Family::PackedStore128, 16_u16, false),
+                Kind::PackedStore64 { .. } => (Family::PackedStore64, 8_u16, false),
+                _ => (Family::PackedStore32, 4_u16, false),
+            };
+            check_alt(physical, alternative, family)?;
+            let &[base_id, vec_id] = operands else {
+                return Err(Error::OperandCountMismatch);
             };
             let base = resolve_gpr(physical, base_id)?;
-            let destination_xmm = resolve_xmm(physical, dst_id)?;
-            let disp = validate_disp(byte_offset)?;
-            let instruction = match byte_count {
-                16 => Instruction::VmovdquLoad {
-                    destination_xmm,
+            let xmm = resolve_xmm(physical, vec_id)?;
+            let disp = i32::try_from(byte_offset).map_err(|_| Error::EncodedFormMismatch)?;
+            let insn = match (is_load, byte_count) {
+                (true, 16) => Insn::VmovdquLoad {
+                    destination_xmm: xmm,
                     base,
                     disp,
                 },
-                8 => Instruction::VmovqLoad {
-                    destination_xmm,
+                (true, 8) => Insn::VmovqLoad {
+                    destination_xmm: xmm,
                     base,
                     disp,
                 },
-                4 => Instruction::VmovdLoad {
-                    destination_xmm,
+                (true, 4) => Insn::VmovdLoad {
+                    destination_xmm: xmm,
                     base,
                     disp,
                 },
-                _ => unreachable!(),
+                (false, 16) => Insn::VmovdquStore {
+                    base,
+                    disp,
+                    source_xmm: xmm,
+                },
+                (false, 8) => Insn::VmovqStore {
+                    base,
+                    disp,
+                    source_xmm: xmm,
+                },
+                _ => Insn::VmovdStore {
+                    base,
+                    disp,
+                    source_xmm: xmm,
+                },
             };
             Ok(PackedSpec {
-                instructions: vec![instruction],
-                register_reads: vec![base_id],
-                register_writes: vec![dst_id],
-                external_operand_reads: vec![0],
-                external_operand_writes: vec![1],
-                clobbers: Vec::new(),
-                memory: MachineEncodedMemoryEffect::PackedVectorLoadBytesV1 {
-                    pointer_operand: 0,
-                    byte_count,
+                instructions: vec![insn],
+                reads: if is_load {
+                    vec![base_id]
+                } else {
+                    vec![base_id, vec_id]
                 },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                writes: if is_load { vec![vec_id] } else { Vec::new() },
+                ext_reads: if is_load { vec![0] } else { vec![0, 1] },
+                ext_writes: if is_load { vec![1] } else { Vec::new() },
+                clobbers: &[],
+                memory: if is_load {
+                    MemEff::PackedVectorLoadBytesV1 {
+                        pointer_operand: 0,
+                        byte_count,
+                    }
+                } else {
+                    MemEff::PackedVectorStoreBytesV1 {
+                        pointer_operand: 0,
+                        byte_count,
+                    }
+                },
+                trap: Trap::MayArchitecturalFaultV1,
             })
         }
-        SelectedInstructionKind::PackedStore128 { byte_offset }
-        | SelectedInstructionKind::PackedStore64 { byte_offset }
-        | SelectedInstructionKind::PackedStore32 { byte_offset } => {
-            let (family, byte_count) = match kind {
-                SelectedInstructionKind::PackedStore128 { .. } => {
-                    (MachineAlternativeFamily::PackedStore128, 16_u16)
-                }
-                SelectedInstructionKind::PackedStore64 { .. } => {
-                    (MachineAlternativeFamily::PackedStore64, 8_u16)
-                }
-                _ => (MachineAlternativeFamily::PackedStore32, 4_u16),
-            };
-            check_canonical_alternative(physical, alternative, family)?;
-            let &[base_id, src_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
-            };
-            let base = resolve_gpr(physical, base_id)?;
-            let source_xmm = resolve_xmm(physical, src_id)?;
-            let disp = validate_disp(byte_offset)?;
-            let instruction = match byte_count {
-                16 => Instruction::VmovdquStore {
-                    base,
-                    disp,
-                    source_xmm,
-                },
-                8 => Instruction::VmovqStore {
-                    base,
-                    disp,
-                    source_xmm,
-                },
-                4 => Instruction::VmovdStore {
-                    base,
-                    disp,
-                    source_xmm,
-                },
-                _ => unreachable!(),
-            };
-            Ok(PackedSpec {
-                instructions: vec![instruction],
-                register_reads: vec![base_id, src_id],
-                register_writes: Vec::new(),
-                external_operand_reads: vec![0, 1],
-                external_operand_writes: Vec::new(),
-                clobbers: Vec::new(),
-                memory: MachineEncodedMemoryEffect::PackedVectorStoreBytesV1 {
-                    pointer_operand: 0,
-                    byte_count,
-                },
-                trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            })
-        }
-        SelectedInstructionKind::PackedMaterializeZero => {
-            check_canonical_alternative(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedMaterializeZero,
-            )?;
+        Kind::PackedMaterializeZero => {
+            check_alt(physical, alternative, Family::PackedMaterializeZero)?;
             let &[dst_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
+                return Err(Error::OperandCountMismatch);
             };
-            let dst = resolve_xmm(physical, dst_id)?;
+            let d = resolve_xmm(physical, dst_id)?;
             Ok(pure_spec(
-                vec![Instruction::Vpxor {
-                    destination_xmm: dst,
-                    left_xmm: dst,
-                    right_xmm: dst,
+                vec![Insn::Vpxor {
+                    destination_xmm: d,
+                    left_xmm: d,
+                    right_xmm: d,
                 }],
                 operands,
                 0,
             ))
         }
-        SelectedInstructionKind::PackedFromGpr64ZeroExtend => {
-            check_canonical_alternative(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedFromGpr64ZeroExtend,
-            )?;
+        Kind::PackedFromGpr64ZeroExtend => {
+            check_alt(physical, alternative, Family::PackedFromGpr64ZeroExtend)?;
             let &[src_id, dst_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
+                return Err(Error::OperandCountMismatch);
             };
-            let source_gpr = resolve_gpr(physical, src_id)?;
-            let destination_xmm = resolve_xmm(physical, dst_id)?;
             Ok(pure_spec(
-                vec![Instruction::VmovqFromGpr {
-                    destination_xmm,
-                    source_gpr,
+                vec![Insn::VmovqFromGpr {
+                    destination_xmm: resolve_xmm(physical, dst_id)?,
+                    source_gpr: resolve_gpr(physical, src_id)?,
                 }],
                 operands,
                 1,
             ))
         }
-        SelectedInstructionKind::PackedFromGpr64Pair => {
-            check_canonical_alternative(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedFromGpr64Pair,
-            )?;
+        Kind::PackedFromGpr64Pair => {
+            check_alt(physical, alternative, Family::PackedFromGpr64Pair)?;
             let &[lo_id, hi_id, dst_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
+                return Err(Error::OperandCountMismatch);
             };
-            let lo = resolve_gpr(physical, lo_id)?;
-            let hi = resolve_gpr(physical, hi_id)?;
-            let dst = resolve_xmm(physical, dst_id)?;
+            let (lo, hi, dst) = (
+                resolve_gpr(physical, lo_id)?,
+                resolve_gpr(physical, hi_id)?,
+                resolve_xmm(physical, dst_id)?,
+            );
             Ok(pure_spec(
                 vec![
-                    Instruction::VmovqFromGpr {
+                    Insn::VmovqFromGpr {
                         destination_xmm: dst,
                         source_gpr: lo,
                     },
-                    Instruction::Vpinsrq {
+                    Insn::Vpinsrq {
                         destination_xmm: dst,
                         source_xmm: dst,
                         source_gpr: hi,
@@ -770,330 +722,167 @@ fn spec(
                 2,
             ))
         }
-        SelectedInstructionKind::PackedAddI16x8Reg
-        | SelectedInstructionKind::PackedSubI16x8Reg
-        | SelectedInstructionKind::PackedAddU8x16Reg
-        | SelectedInstructionKind::PackedMinI16x8Reg
-        | SelectedInstructionKind::PackedCmpGtI16x8Reg
-        | SelectedInstructionKind::PackedBitAndI16x8Reg
-        | SelectedInstructionKind::PackedBitAndNotI16x8Reg => {
+        Kind::PackedAddI16x8Reg
+        | Kind::PackedSubI16x8Reg
+        | Kind::PackedAddU8x16Reg
+        | Kind::PackedMinI16x8Reg
+        | Kind::PackedCmpGtI16x8Reg
+        | Kind::PackedBitAndI16x8Reg
+        | Kind::PackedBitAndNotI16x8Reg => {
             let family = match kind {
-                SelectedInstructionKind::PackedAddI16x8Reg => {
-                    MachineAlternativeFamily::PackedAddI16x8Reg
-                }
-                SelectedInstructionKind::PackedSubI16x8Reg => {
-                    MachineAlternativeFamily::PackedSubI16x8Reg
-                }
-                SelectedInstructionKind::PackedAddU8x16Reg => {
-                    MachineAlternativeFamily::PackedAddU8x16Reg
-                }
-                SelectedInstructionKind::PackedMinI16x8Reg => {
-                    MachineAlternativeFamily::PackedMinI16x8Reg
-                }
-                SelectedInstructionKind::PackedCmpGtI16x8Reg => {
-                    MachineAlternativeFamily::PackedCmpGtI16x8Reg
-                }
-                SelectedInstructionKind::PackedBitAndI16x8Reg => {
-                    MachineAlternativeFamily::PackedBitAndI16x8Reg
-                }
-                SelectedInstructionKind::PackedBitAndNotI16x8Reg => {
-                    MachineAlternativeFamily::PackedBitAndNotI16x8Reg
-                }
-                _ => unreachable!(),
+                Kind::PackedAddI16x8Reg => Family::PackedAddI16x8Reg,
+                Kind::PackedSubI16x8Reg => Family::PackedSubI16x8Reg,
+                Kind::PackedAddU8x16Reg => Family::PackedAddU8x16Reg,
+                Kind::PackedMinI16x8Reg => Family::PackedMinI16x8Reg,
+                Kind::PackedCmpGtI16x8Reg => Family::PackedCmpGtI16x8Reg,
+                Kind::PackedBitAndI16x8Reg => Family::PackedBitAndI16x8Reg,
+                _ => Family::PackedBitAndNotI16x8Reg,
             };
-            check_canonical_alternative(physical, alternative, family)?;
+            check_alt(physical, alternative, family)?;
             let &[lhs_id, rhs_id, dst_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
+                return Err(Error::OperandCountMismatch);
             };
-            let left_xmm = resolve_xmm(physical, lhs_id)?;
-            let right_xmm = resolve_xmm(physical, rhs_id)?;
-            let destination_xmm = resolve_xmm(physical, dst_id)?;
-            let instruction = match kind {
-                SelectedInstructionKind::PackedAddI16x8Reg => Instruction::Vpaddw {
-                    destination_xmm,
-                    left_xmm,
-                    right_xmm,
+            let (l, r, d) = (
+                resolve_xmm(physical, lhs_id)?,
+                resolve_xmm(physical, rhs_id)?,
+                resolve_xmm(physical, dst_id)?,
+            );
+            let insn = match kind {
+                Kind::PackedAddI16x8Reg => Insn::Vpaddw {
+                    destination_xmm: d,
+                    left_xmm: l,
+                    right_xmm: r,
                 },
-                SelectedInstructionKind::PackedSubI16x8Reg => Instruction::Vpsubw {
-                    destination_xmm,
-                    left_xmm,
-                    right_xmm,
+                Kind::PackedSubI16x8Reg => Insn::Vpsubw {
+                    destination_xmm: d,
+                    left_xmm: l,
+                    right_xmm: r,
                 },
-                SelectedInstructionKind::PackedAddU8x16Reg => Instruction::Vpaddb {
-                    destination_xmm,
-                    left_xmm,
-                    right_xmm,
+                Kind::PackedAddU8x16Reg => Insn::Vpaddb {
+                    destination_xmm: d,
+                    left_xmm: l,
+                    right_xmm: r,
                 },
-                SelectedInstructionKind::PackedMinI16x8Reg => Instruction::Vpminsw {
-                    destination_xmm,
-                    left_xmm,
-                    right_xmm,
+                Kind::PackedMinI16x8Reg => Insn::Vpminsw {
+                    destination_xmm: d,
+                    left_xmm: l,
+                    right_xmm: r,
                 },
-                SelectedInstructionKind::PackedCmpGtI16x8Reg => Instruction::Vpcmpgtw {
-                    destination_xmm,
-                    left_xmm,
-                    right_xmm,
+                Kind::PackedCmpGtI16x8Reg => Insn::Vpcmpgtw {
+                    destination_xmm: d,
+                    left_xmm: l,
+                    right_xmm: r,
                 },
-                SelectedInstructionKind::PackedBitAndI16x8Reg => Instruction::Vpand {
-                    destination_xmm,
-                    left_xmm,
-                    right_xmm,
+                Kind::PackedBitAndI16x8Reg => Insn::Vpand {
+                    destination_xmm: d,
+                    left_xmm: l,
+                    right_xmm: r,
                 },
-                SelectedInstructionKind::PackedBitAndNotI16x8Reg => Instruction::Vpandn {
-                    destination_xmm,
-                    left_xmm,
-                    right_xmm,
+                _ => Insn::Vpandn {
+                    destination_xmm: d,
+                    left_xmm: l,
+                    right_xmm: r,
                 },
-                _ => unreachable!(),
             };
-            Ok(pure_spec(vec![instruction], operands, 2))
+            Ok(pure_spec(vec![insn], operands, 2))
         }
-        SelectedInstructionKind::PackedAbsI16x8Reg => {
-            check_canonical_alternative(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedAbsI16x8Reg,
-            )?;
-            let &[src_id, dst_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
+        Kind::PackedShuffleI16x8Reg { lanes } => {
+            let pattern = Fast::from_lanes(lanes).ok_or(Error::EncodedFormMismatch)?;
+            check_alt(physical, alternative, Family::PackedShuffleI16x8Reg)?;
+            let &[lhs_id, rhs_id, dst_id] = operands else {
+                return Err(Error::OperandCountMismatch);
             };
-            let source_xmm = resolve_xmm(physical, src_id)?;
-            let destination_xmm = resolve_xmm(physical, dst_id)?;
-            Ok(pure_spec(
-                vec![Instruction::Vpabsw {
-                    destination_xmm,
-                    source_xmm,
-                }],
-                operands,
-                1,
-            ))
+            let insns = fast_shuffle_reg(
+                pattern,
+                resolve_xmm(physical, dst_id)?,
+                resolve_xmm(physical, lhs_id)?,
+                resolve_xmm(physical, rhs_id)?,
+            );
+            Ok(pure_spec(insns, operands, 2))
         }
-        SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { count } => {
-            if count >= 16 {
-                return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+        Kind::PackedAbsI16x8Reg
+        | Kind::PackedShiftRightArithmeticI16x8Reg { .. }
+        | Kind::PackedWidenU8x8ToI16x8Reg
+        | Kind::PackedNarrowI16x8ToU8x8SaturatingReg => {
+            if let Kind::PackedShiftRightArithmeticI16x8Reg { count } = kind
+                && count >= 16
+            {
+                return Err(Error::EncodedFormMismatch);
             }
-            check_canonical_alternative(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedShiftRightArithmeticI16x8Reg,
-            )?;
-            let &[src_id, dst_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
+            let family = match kind {
+                Kind::PackedAbsI16x8Reg => Family::PackedAbsI16x8Reg,
+                Kind::PackedShiftRightArithmeticI16x8Reg { .. } => {
+                    Family::PackedShiftRightArithmeticI16x8Reg
+                }
+                Kind::PackedWidenU8x8ToI16x8Reg => Family::PackedWidenU8x8ToI16x8Reg,
+                _ => Family::PackedNarrowI16x8ToU8x8SaturatingReg,
             };
-            let source_xmm = resolve_xmm(physical, src_id)?;
-            let destination_xmm = resolve_xmm(physical, dst_id)?;
-            Ok(pure_spec(
-                vec![Instruction::VpsrawImm {
-                    destination_xmm,
-                    source_xmm,
+            check_alt(physical, alternative, family)?;
+            let &[src_id, dst_id] = operands else {
+                return Err(Error::OperandCountMismatch);
+            };
+            let (s, d) = (
+                resolve_xmm(physical, src_id)?,
+                resolve_xmm(physical, dst_id)?,
+            );
+            let insn = match kind {
+                Kind::PackedAbsI16x8Reg => Insn::Vpabsw {
+                    destination_xmm: d,
+                    source_xmm: s,
+                },
+                Kind::PackedShiftRightArithmeticI16x8Reg { count } => Insn::VpsrawImm {
+                    destination_xmm: d,
+                    source_xmm: s,
                     count,
-                }],
-                operands,
-                1,
-            ))
-        }
-        SelectedInstructionKind::PackedShuffleI16x8Reg { lanes } => {
-            let pattern = PackedShuffleFastPattern::from_lanes(lanes)
-                .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
-            check_canonical_alternative(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedShuffleI16x8Reg,
-            )?;
-            let &[lhs_id, rhs_id, dst_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
+                },
+                Kind::PackedWidenU8x8ToI16x8Reg => Insn::Vpmovzxbw {
+                    destination_xmm: d,
+                    source_xmm: s,
+                },
+                _ => Insn::Vpackuswb {
+                    destination_xmm: d,
+                    left_xmm: s,
+                    right_xmm: s,
+                },
             };
-            let left_xmm = resolve_xmm(physical, lhs_id)?;
-            let right_xmm = resolve_xmm(physical, rhs_id)?;
-            let destination_xmm = resolve_xmm(physical, dst_id)?;
-            let instructions = match pattern {
-                PackedShuffleFastPattern::InterleaveLowWords => vec![Instruction::Vpunpcklwd {
-                    destination_xmm,
-                    left_xmm,
-                    right_xmm,
-                }],
-                PackedShuffleFastPattern::InterleaveHighWords => vec![Instruction::Vpunpckhwd {
-                    destination_xmm,
-                    left_xmm,
-                    right_xmm,
-                }],
-                PackedShuffleFastPattern::InterleaveLowDoublewords => {
-                    vec![Instruction::Vpunpckldq {
-                        destination_xmm,
-                        left_xmm,
-                        right_xmm,
-                    }]
-                }
-                PackedShuffleFastPattern::InterleaveHighDoublewords => {
-                    vec![Instruction::Vpunpckhdq {
-                        destination_xmm,
-                        left_xmm,
-                        right_xmm,
-                    }]
-                }
-                PackedShuffleFastPattern::InterleaveLowQuadwords => {
-                    vec![Instruction::Vpunpcklqdq {
-                        destination_xmm,
-                        left_xmm,
-                        right_xmm,
-                    }]
-                }
-                PackedShuffleFastPattern::InterleaveHighQuadwords => {
-                    vec![Instruction::Vpunpckhqdq {
-                        destination_xmm,
-                        left_xmm,
-                        right_xmm,
-                    }]
-                }
-                PackedShuffleFastPattern::LowPairDuplicateLow => vec![
-                    Instruction::Vpunpckldq {
-                        destination_xmm,
-                        left_xmm,
-                        right_xmm,
-                    },
-                    Instruction::Vpunpcklqdq {
-                        destination_xmm,
-                        left_xmm: destination_xmm,
-                        right_xmm: destination_xmm,
-                    },
-                ],
-                PackedShuffleFastPattern::LowPairDuplicateHigh => vec![
-                    Instruction::Vpunpckldq {
-                        destination_xmm,
-                        left_xmm,
-                        right_xmm,
-                    },
-                    Instruction::Vpunpckhqdq {
-                        destination_xmm,
-                        left_xmm: destination_xmm,
-                        right_xmm: destination_xmm,
-                    },
-                ],
-                PackedShuffleFastPattern::HighPairDuplicateLow => vec![
-                    Instruction::Vpunpckhdq {
-                        destination_xmm,
-                        left_xmm,
-                        right_xmm,
-                    },
-                    Instruction::Vpunpcklqdq {
-                        destination_xmm,
-                        left_xmm: destination_xmm,
-                        right_xmm: destination_xmm,
-                    },
-                ],
-                PackedShuffleFastPattern::HighPairDuplicateHigh => vec![
-                    Instruction::Vpunpckhdq {
-                        destination_xmm,
-                        left_xmm,
-                        right_xmm,
-                    },
-                    Instruction::Vpunpckhqdq {
-                        destination_xmm,
-                        left_xmm: destination_xmm,
-                        right_xmm: destination_xmm,
-                    },
-                ],
-            };
-            Ok(pure_spec(instructions, operands, 2))
+            Ok(pure_spec(vec![insn], operands, 1))
         }
-        SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg => {
-            check_canonical_alternative(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedWidenU8x8ToI16x8Reg,
-            )?;
-            let &[src_id, dst_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
-            };
-            let source_xmm = resolve_xmm(physical, src_id)?;
-            let destination_xmm = resolve_xmm(physical, dst_id)?;
-            Ok(pure_spec(
-                vec![Instruction::Vpmovzxbw {
-                    destination_xmm,
-                    source_xmm,
-                }],
-                operands,
-                1,
-            ))
-        }
-        SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg => {
-            check_canonical_alternative(
-                physical,
-                alternative,
-                MachineAlternativeFamily::PackedNarrowI16x8ToU8x8SaturatingReg,
-            )?;
-            let &[src_id, dst_id] = operands else {
-                return Err(X86_64SelectedFormEncodingError::OperandCountMismatch);
-            };
-            let src = resolve_xmm(physical, src_id)?;
-            let dst = resolve_xmm(physical, dst_id)?;
-            Ok(pure_spec(
-                vec![Instruction::Vpackuswb {
-                    destination_xmm: dst,
-                    left_xmm: src,
-                    right_xmm: src,
-                }],
-                operands,
-                1,
-            ))
-        }
-        _ => Err(X86_64SelectedFormEncodingError::EncodedFormMismatch),
+        _ => Err(Error::EncodedFormMismatch),
     }
 }
 
-pub(super) fn encode(
-    physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
-    alternative: MachineAlternativeKey,
-    operands: &[RegisterViewId],
-) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
-    let spec = spec(physical, kind, alternative, operands)?;
+fn encode_spec(spec: &PackedSpec) -> Result<Vec<u8>, Error> {
     let mut bytes = Vec::with_capacity(spec.instructions.len() * 6);
     for instruction in &spec.instructions {
         instruction
             .encode(&mut bytes)
-            .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
+            .ok_or(Error::EncodedFormMismatch)?;
     }
-    validate(physical, kind, alternative, operands, &bytes)
+    Ok(bytes)
 }
 
-pub(super) fn validate(
+fn build_validated(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
-    alternative: MachineAlternativeKey,
-    operands: &[RegisterViewId],
-    bytes: &[u8],
-) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
-    let spec = spec(physical, kind, alternative, operands)?;
-    let mismatch = X86_64SelectedFormEncodingError::EncodedFormMismatch;
-    let mut remaining = bytes;
-    for expected in spec.instructions {
-        let (actual, tail) = Instruction::decode(remaining).ok_or(mismatch.clone())?;
-        if actual != expected {
-            return Err(mismatch);
-        }
-        remaining = tail;
-    }
-    if !remaining.is_empty() {
-        return Err(mismatch);
-    }
+    spec: PackedSpec,
+    bytes: Vec<u8>,
+) -> Result<ValidatedX86_64SelectedFormEncoding, Error> {
     let mut clobbers = Vec::new();
     for name in spec.clobbers {
         let view = physical
             .model()
             .view_named(name)
-            .ok_or(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel)?;
+            .ok_or(Error::NonCanonicalPhysicalModel)?;
         clobbers.extend_from_slice(&view.units);
     }
     Ok(ValidatedX86_64SelectedFormEncoding {
-        bytes: bytes.to_vec(),
+        bytes,
         footprint: X86_64SelectedFormFootprint {
-            register_reads: spec.register_reads,
-            register_writes: spec.register_writes,
+            register_reads: spec.reads,
+            register_writes: spec.writes,
             writes_rflags: false,
             encoded: MachineEncodedEffects {
-                external_operand_reads: spec.external_operand_reads,
-                external_operand_writes: spec.external_operand_writes,
+                external_operand_reads: spec.ext_reads,
+                external_operand_writes: spec.ext_writes,
                 implicit_unit_uses: Vec::new(),
                 implicit_unit_defs: Vec::new(),
                 implicit_unit_clobbers: register_model::sorted_units(clobbers),
@@ -1106,392 +895,146 @@ pub(super) fn validate(
     })
 }
 
+pub(super) fn encode(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: Kind,
+    alternative: MachineAlternativeKey,
+    operands: &[RegisterViewId],
+) -> Result<ValidatedX86_64SelectedFormEncoding, Error> {
+    let spec = spec(physical, kind, alternative, operands)?;
+    let bytes = encode_spec(&spec)?;
+    build_validated(physical, spec, bytes)
+}
+
+pub(super) fn validate(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: Kind,
+    alternative: MachineAlternativeKey,
+    operands: &[RegisterViewId],
+    bytes: &[u8],
+) -> Result<ValidatedX86_64SelectedFormEncoding, Error> {
+    let spec = spec(physical, kind, alternative, operands)?;
+    let expected = encode_spec(&spec)?;
+    if bytes != expected {
+        return Err(Error::EncodedFormMismatch);
+    }
+    build_validated(physical, spec, bytes.to_vec())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::selected_form_encoding::{
-        encode_x86_64_selected_form, validate_x86_64_selected_form_encoding,
+        assert_byte_fragility, assert_every_bit_flip_rejected, encode_x86_64_selected_form,
+        validate_x86_64_selected_form_encoding,
     };
-    use selected_instructions::{MachineSemanticKind, SelectedInstructionKind};
 
     #[test]
-    fn packed_add_validates_memory_addresses_vector_clobbers_and_all_bytes() {
+    fn packed_forms_match_golden_bytes_and_reject_corruptions() {
         let physical = register_model::validate_physical_register_model(
             crate::x86_64_physical_register_model(),
         )
         .unwrap();
-        let constraints = crate::validate_x86_64_register_constraint_catalog(
-            crate::x86_64_register_constraint_catalog(&physical),
-            &physical,
-        )
-        .unwrap();
-        let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::PackedAddI16x8,
-            variant: 0,
-        };
-        let operands =
-            ["rcx", "r12", "r13"].map(|name| physical.model().view_named(name).unwrap().id);
-        let kind = SelectedInstructionKind::PackedAddI16x8;
-        let encoding =
-            encode_x86_64_selected_form(&physical, kind, alternative, &operands).unwrap();
-        assert_eq!(
-            encoding.bytes(),
-            [
-                0xf3, 0x0f, 0x6f, 0x01, 0xf3, 0x41, 0x0f, 0x6f, 0x0c, 0x24, 0x66, 0x0f, 0xfd, 0xc1,
-                0xf3, 0x41, 0x0f, 0x7f, 0x45, 0x00,
-            ]
-        );
-        assert!(!encoding.footprint().writes_rflags);
-        for target in [
-            target::NativeTarget::linux_x64(),
-            target::NativeTarget::windows_x64(),
-        ] {
-            let catalog = crate::x86_64_machine_effect_catalog(target, &constraints).unwrap();
-            crate::validate_x86_64_machine_effect_catalog(target, &constraints, catalog.clone())
-                .unwrap();
-            let row = catalog
-                .declaration_by_semantic(MachineSemanticKind::PackedAddI16x8)
-                .unwrap();
-            assert_eq!(encoding.footprint().encoded, row.alternatives[0].encoded);
-        }
-        for bit in 0..encoding.bytes().len() * 8 {
-            let mut corrupted = encoding.bytes().to_vec();
-            corrupted[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                validate_x86_64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &corrupted
-                )
-                .is_err()
-            );
-        }
-    }
-
-    #[test]
-    fn all_six_packed_forms_encode_validate_and_match_catalog_effects() {
-        let physical = register_model::validate_physical_register_model(
-            crate::x86_64_physical_register_model(),
-        )
-        .unwrap();
-        let constraints = crate::validate_x86_64_register_constraint_catalog(
-            crate::x86_64_register_constraint_catalog(&physical),
-            &physical,
-        )
-        .unwrap();
-        let ops3 = ["rcx", "rdx", "r8"].map(|n| physical.model().view_named(n).unwrap().id);
-        let ops4 = ["rcx", "rdx", "r8", "r9"].map(|n| physical.model().view_named(n).unwrap().id);
-        let ops2 = ["rcx", "rdx"].map(|n| physical.model().view_named(n).unwrap().id);
-        let cases: Vec<(
-            SelectedInstructionKind,
-            MachineSemanticKind,
-            &[RegisterViewId],
-        )> = vec![
+        let v = |name| physical.model().view_named(name).unwrap().id;
+        let cases: &[(Kind, Family, &[&str], &[u8])] = &[
             (
-                SelectedInstructionKind::PackedSubI16x8,
-                MachineSemanticKind::PackedSubI16x8,
-                &ops3,
+                Kind::PackedAddI16x8,
+                Family::PackedAddI16x8,
+                &["rdi", "rsi", "rdx"],
+                &[
+                    0xf3, 0x0f, 0x6f, 0x07, 0xf3, 0x0f, 0x6f, 0x0e, 0x66, 0x0f, 0xfd, 0xc1, 0xf3,
+                    0x0f, 0x7f, 0x02,
+                ],
             ),
             (
-                SelectedInstructionKind::PackedAddU8x16,
-                MachineSemanticKind::PackedAddU8x16,
-                &ops3,
+                Kind::PackedSubI16x8,
+                Family::PackedSubI16x8,
+                &["rdi", "rsi", "rdx"],
+                &[
+                    0xf3, 0x0f, 0x6f, 0x07, 0xf3, 0x0f, 0x6f, 0x0e, 0x66, 0x0f, 0xf9, 0xc1, 0xf3,
+                    0x0f, 0x7f, 0x02,
+                ],
             ),
             (
-                SelectedInstructionKind::PackedMinI16x8,
-                MachineSemanticKind::PackedMinI16x8,
-                &ops3,
+                Kind::PackedShiftRightArithmeticI16x8 { count: 4 },
+                Family::PackedShiftRightArithmeticI16x8,
+                &["rdi", "rsi"],
+                &[
+                    0xf3, 0x0f, 0x6f, 0x07, 0x66, 0x0f, 0x71, 0xe0, 0x04, 0xf3, 0x0f, 0x7f, 0x06,
+                ],
             ),
             (
-                SelectedInstructionKind::PackedCmpGtI16x8,
-                MachineSemanticKind::PackedCmpGtI16x8,
-                &ops3,
+                Kind::PackedWidenU8x8ToI16x8,
+                Family::PackedWidenU8x8ToI16x8,
+                &["rdi", "rsi"],
+                &[
+                    0xf3, 0x0f, 0x7e, 0x07, 0x66, 0x0f, 0xef, 0xc9, 0x66, 0x0f, 0x60, 0xc1, 0xf3,
+                    0x0f, 0x7f, 0x06,
+                ],
             ),
             (
-                SelectedInstructionKind::PackedBitAndI16x8,
-                MachineSemanticKind::PackedBitAndI16x8,
-                &ops3,
+                Kind::PackedNarrowI16x8ToU8x8Saturating,
+                Family::PackedNarrowI16x8ToU8x8Saturating,
+                &["rdi", "rsi"],
+                &[
+                    0xf3, 0x0f, 0x6f, 0x07, 0x66, 0x0f, 0x67, 0xc0, 0x66, 0x0f, 0xd6, 0x06,
+                ],
             ),
             (
-                SelectedInstructionKind::PackedBitAndNotI16x8,
-                MachineSemanticKind::PackedBitAndNotI16x8,
-                &ops3,
+                Kind::PackedMaterializeZero,
+                Family::PackedMaterializeZero,
+                &["xmm0"],
+                &[0xc5, 0xf9, 0xef, 0xc0],
             ),
             (
-                SelectedInstructionKind::PackedAbsI16x8,
-                MachineSemanticKind::PackedAbsI16x8,
-                &ops2,
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8 {
-                    lanes: [0, 8, 1, 9, 2, 10, 3, 11],
-                },
-                MachineSemanticKind::PackedShuffleI16x8,
-                &ops3,
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8 {
-                    lanes: [0, 1, 8, 9, 0, 1, 8, 9],
-                },
-                MachineSemanticKind::PackedShuffleI16x8,
-                &ops3,
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8 {
-                    lanes: [2, 3, 10, 11, 2, 3, 10, 11],
-                },
-                MachineSemanticKind::PackedShuffleI16x8,
-                &ops3,
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8 {
-                    lanes: [4, 5, 12, 13, 4, 5, 12, 13],
-                },
-                MachineSemanticKind::PackedShuffleI16x8,
-                &ops3,
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8 {
-                    lanes: [6, 7, 14, 15, 6, 7, 14, 15],
-                },
-                MachineSemanticKind::PackedShuffleI16x8,
-                &ops3,
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleGeneralI16x8 {
-                    lanes: [15, 0, 14, 1, 13, 2, 12, 3],
-                },
-                MachineSemanticKind::PackedShuffleGeneralI16x8,
-                &ops4,
-            ),
-            (
-                SelectedInstructionKind::PackedShiftRightArithmeticI16x8 { count: 6 },
-                MachineSemanticKind::PackedShiftRightArithmeticI16x8,
-                &ops2,
-            ),
-            (
-                SelectedInstructionKind::PackedWidenU8x8ToI16x8,
-                MachineSemanticKind::PackedWidenU8x8ToI16x8,
-                &ops2,
-            ),
-            (
-                SelectedInstructionKind::PackedNarrowI16x8ToU8x8Saturating,
-                MachineSemanticKind::PackedNarrowI16x8ToU8x8Saturating,
-                &ops2,
-            ),
-            (
-                SelectedInstructionKind::PackedLoadI16x4ZeroExtend,
-                MachineSemanticKind::PackedLoadI16x4ZeroExtend,
-                &ops2,
-            ),
-            (
-                SelectedInstructionKind::PackedWidenU8x4ToI16x8,
-                MachineSemanticKind::PackedWidenU8x4ToI16x8,
-                &ops2,
-            ),
-            (
-                SelectedInstructionKind::PackedNarrowI16x8ToU8x4Saturating,
-                MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating,
-                &ops2,
+                Kind::PackedAddI16x8Reg,
+                Family::PackedAddI16x8Reg,
+                &["xmm1", "xmm2", "xmm0"],
+                &[0xc5, 0xf1, 0xfd, 0xc2],
             ),
         ];
-        let gpr_xmm = ["rcx", "xmm1"].map(|n| physical.model().view_named(n).unwrap().id);
-        let xmm1 = ["xmm1"].map(|n| physical.model().view_named(n).unwrap().id);
-        let gpr2_xmm = ["rcx", "r8", "xmm9"].map(|n| physical.model().view_named(n).unwrap().id);
-        let xmm2 = ["xmm3", "xmm11"].map(|n| physical.model().view_named(n).unwrap().id);
-        let xmm3 = ["xmm1", "xmm10", "xmm12"].map(|n| physical.model().view_named(n).unwrap().id);
-        let mut all_cases = cases;
-        all_cases.extend([
-            (
-                SelectedInstructionKind::PackedLoad128 { byte_offset: 32 },
-                MachineSemanticKind::PackedLoad128,
-                &gpr_xmm[..],
-            ),
-            (
-                SelectedInstructionKind::PackedStore128 { byte_offset: 16 },
-                MachineSemanticKind::PackedStore128,
-                &gpr_xmm[..],
-            ),
-            (
-                SelectedInstructionKind::PackedLoad64ZeroExtend { byte_offset: 8 },
-                MachineSemanticKind::PackedLoad64ZeroExtend,
-                &gpr_xmm[..],
-            ),
-            (
-                SelectedInstructionKind::PackedStore64 { byte_offset: 8 },
-                MachineSemanticKind::PackedStore64,
-                &gpr_xmm[..],
-            ),
-            (
-                SelectedInstructionKind::PackedLoad32ZeroExtend { byte_offset: 0 },
-                MachineSemanticKind::PackedLoad32ZeroExtend,
-                &gpr_xmm[..],
-            ),
-            (
-                SelectedInstructionKind::PackedStore32 { byte_offset: 4 },
-                MachineSemanticKind::PackedStore32,
-                &gpr_xmm[..],
-            ),
-            (
-                SelectedInstructionKind::PackedMaterializeZero,
-                MachineSemanticKind::PackedMaterializeZero,
-                &xmm1[..],
-            ),
-            (
-                SelectedInstructionKind::PackedFromGpr64ZeroExtend,
-                MachineSemanticKind::PackedFromGpr64ZeroExtend,
-                &gpr_xmm[..],
-            ),
-            (
-                SelectedInstructionKind::PackedFromGpr64Pair,
-                MachineSemanticKind::PackedFromGpr64Pair,
-                &gpr2_xmm[..],
-            ),
-            (
-                SelectedInstructionKind::PackedAddI16x8Reg,
-                MachineSemanticKind::PackedAddI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedSubI16x8Reg,
-                MachineSemanticKind::PackedSubI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { count: 6 },
-                MachineSemanticKind::PackedShiftRightArithmeticI16x8Reg,
-                &xmm2[..],
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8Reg {
-                    lanes: [0, 8, 1, 9, 2, 10, 3, 11],
-                },
-                MachineSemanticKind::PackedShuffleI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8Reg {
-                    lanes: [4, 12, 5, 13, 6, 14, 7, 15],
-                },
-                MachineSemanticKind::PackedShuffleI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8Reg {
-                    lanes: [0, 1, 8, 9, 2, 3, 10, 11],
-                },
-                MachineSemanticKind::PackedShuffleI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8Reg {
-                    lanes: [4, 5, 12, 13, 6, 7, 14, 15],
-                },
-                MachineSemanticKind::PackedShuffleI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8Reg {
-                    lanes: [0, 1, 2, 3, 8, 9, 10, 11],
-                },
-                MachineSemanticKind::PackedShuffleI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8Reg {
-                    lanes: [4, 5, 6, 7, 12, 13, 14, 15],
-                },
-                MachineSemanticKind::PackedShuffleI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedShuffleI16x8Reg {
-                    lanes: [0, 1, 8, 9, 0, 1, 8, 9],
-                },
-                MachineSemanticKind::PackedShuffleI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg,
-                MachineSemanticKind::PackedWidenU8x8ToI16x8Reg,
-                &xmm2[..],
-            ),
-            (
-                SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg,
-                MachineSemanticKind::PackedNarrowI16x8ToU8x8SaturatingReg,
-                &xmm2[..],
-            ),
-            (
-                SelectedInstructionKind::PackedAddU8x16Reg,
-                MachineSemanticKind::PackedAddU8x16Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedMinI16x8Reg,
-                MachineSemanticKind::PackedMinI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedCmpGtI16x8Reg,
-                MachineSemanticKind::PackedCmpGtI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedBitAndI16x8Reg,
-                MachineSemanticKind::PackedBitAndI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedBitAndNotI16x8Reg,
-                MachineSemanticKind::PackedBitAndNotI16x8Reg,
-                &xmm3[..],
-            ),
-            (
-                SelectedInstructionKind::PackedAbsI16x8Reg,
-                MachineSemanticKind::PackedAbsI16x8Reg,
-                &xmm2[..],
-            ),
-        ]);
-        for (kind, semantic, operands) in all_cases {
-            let alternative = MachineAlternativeKey {
-                family: semantic.into(),
-                variant: 0,
-            };
-            let encoding =
-                encode_x86_64_selected_form(&physical, kind, alternative, operands).unwrap();
-            assert!(!encoding.footprint().writes_rflags);
-            validate_x86_64_selected_form_encoding(
-                &physical,
-                kind,
-                alternative,
-                operands,
-                encoding.bytes(),
-            )
-            .unwrap();
-            for bit in 0..encoding.bytes().len() * 8 {
-                let mut corrupted = encoding.bytes().to_vec();
-                corrupted[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate_x86_64_selected_form_encoding(
-                        &physical,
-                        kind,
-                        alternative,
-                        operands,
-                        &corrupted
-                    )
-                    .is_err()
-                );
-            }
-            for target in [
-                target::NativeTarget::linux_x64(),
-                target::NativeTarget::windows_x64(),
-            ] {
-                let catalog = crate::x86_64_machine_effect_catalog(target, &constraints).unwrap();
-                let row = catalog.declaration_by_semantic(semantic).unwrap();
-                assert_eq!(encoding.footprint().encoded, row.alternatives[0].encoded);
-            }
+        for &(kind, family, names, expected) in cases {
+            let ops: Vec<_> = names.iter().map(|n| v(n)).collect();
+            let key = MachineAlternativeKey { family, variant: 0 };
+            let encoded = encode_x86_64_selected_form(&physical, kind, key, &ops).unwrap();
+            assert_eq!(encoded.bytes(), expected, "{kind:?}");
+            assert_eq!(
+                validate_x86_64_selected_form_encoding(&physical, kind, key, &ops, expected)
+                    .unwrap(),
+                encoded
+            );
+            assert_every_bit_flip_rejected(expected, |b| {
+                validate_x86_64_selected_form_encoding(&physical, kind, key, &ops, b).is_err()
+            });
+            assert_byte_fragility(expected, |b| {
+                validate_x86_64_selected_form_encoding(&physical, kind, key, &ops, b).is_err()
+            });
         }
+        assert!(
+            encode_x86_64_selected_form(
+                &physical,
+                Kind::PackedShiftRightArithmeticI16x8 { count: 16 },
+                MachineAlternativeKey {
+                    family: Family::PackedShiftRightArithmeticI16x8,
+                    variant: 0
+                },
+                &[v("rdi"), v("rsi")],
+            )
+            .is_err()
+        );
+        assert!(
+            encode_x86_64_selected_form(
+                &physical,
+                Kind::PackedShuffleGeneralI16x8 {
+                    lanes: [16, 0, 0, 0, 0, 0, 0, 0]
+                },
+                MachineAlternativeKey {
+                    family: Family::PackedShuffleGeneralI16x8,
+                    variant: 0
+                },
+                &[v("rdi"), v("rsi"), v("rdx"), v("r8")],
+            )
+            .is_err()
+        );
     }
 }

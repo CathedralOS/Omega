@@ -133,7 +133,7 @@ impl PlannedProduct {
             subject.dependency_closure().clone(),
             subject.source_consumption_commitment(),
             build.generated_sources.clone(),
-        );
+        ).with_enabled_unsafe_atoms(build.enabled_unsafe_atoms.clone());
         if build.declared_product_selections.is_empty()
             && build.product_selection_requests.is_empty()
             && build.native_formations.is_empty()
@@ -213,10 +213,20 @@ pub fn prepare(
                     "the requested entry differs from the preparing Build's selection".into(),
                 ));
             }
+            execution.prepared_unsafe_atoms = successor.enabled_unsafe_atoms;
             execution.interpreter_providers = successor.providers;
             successor_source = successor.capture;
             successor_owner = successor.source_owner;
             preparations = successor.preparations;
+            // Only the selected package and explicitly returned runtime mounts cross this handoff.
+            execution.snapshot = preparations
+                .package_capture
+                .take()
+                .map(package_compilation::BuildSnapshotRequest::new);
+            if !successor.directories.is_empty() {
+                let snapshot = execution.snapshot.take().unwrap_or_else(|| package_compilation::BuildSnapshotRequest::for_activation(false));
+                execution.snapshot = Some(snapshot.with_successor_directories(successor.directories));
+            }
             entry = CapturedBuildEntry::Successor {
                 path: request.root,
                 source_owner: successor_owner.as_ref(),
@@ -228,6 +238,10 @@ pub fn prepare(
     };
     let supplied_libraries: Arc<[_]> = supplied_libraries.into();
     let mut execution = execution.resolve_compilation_defaults(inputs, capture.is_some());
+    preparations.package_capture = execution
+        .snapshot
+        .as_ref()
+        .map(|request| request.capture().clone());
     let profile = execution.profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Build execution requires an explicit profile on an uncatalogued host",
@@ -283,7 +297,7 @@ pub fn prepare(
         };
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
-            preceding_entries: preparations.stages.iter().map(|(_, stage)| {
+            preceding_entries: preparations.stages[preparations.first_stage_in_package..].iter().map(|(_, stage)| {
                 stage.configuration.executed_entry.as_ref().map(|entry| &entry.declaration).ok_or_else(|| {
                     refusal("a preparing Build lost its entered declaration".to_owned())
                 })

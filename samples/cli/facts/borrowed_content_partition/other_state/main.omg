@@ -1,17 +1,17 @@
 // Expected exit: 0
 // A brief exclusive borrow returns detached owned content and restores its source.
 // Numeric custody only; this does not supply physical backing.
-use borrowed_partition_support\main;
+use {borrowed_partition_support}/main.omg as borrowed_partition_support;
 
 machine exercise(select: bool) -> bool {
-    let mutable strategy: Strategy = Strategy { tail: issue(), remaining: 48 };
-    let first: Region in Owned = carve(@mutable strategy, 48, 16);
+    let mutable strategy: |borrowed_partition_support|::Strategy = |borrowed_partition_support|::Strategy { tail: |borrowed_partition_support|::issue(), remaining: 48 };
+    let first: |borrowed_partition_support|::Region in |borrowed_partition_support|::Region::Owned = |borrowed_partition_support|::carve(@mutable strategy, 48, 16);
     transition { _ -> next(strategy, first) }
-    machine next(mutable strategy: Strategy, first: Region in Owned) -> bool
+    machine next(mutable strategy: |borrowed_partition_support|::Strategy, first: |borrowed_partition_support|::Region in |borrowed_partition_support|::Region::Owned) -> bool
     requires first.length == 16 && strategy.tail.length == 32 && strategy.remaining == 32
     {
-        let second: Region in Owned = carve(@mutable strategy, 32, 8);
-        finish(strategy, first, second)
+        let second: |borrowed_partition_support|::Region in |borrowed_partition_support|::Region::Owned = |borrowed_partition_support|::carve(@mutable strategy, 32, 8);
+        |borrowed_partition_support|::finish(strategy, first, second)
     }
 }
 

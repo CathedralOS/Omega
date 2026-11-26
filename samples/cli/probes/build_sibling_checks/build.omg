@@ -1,20 +1,20 @@
-// Three sibling packages are checked as one occurrence batch, and every
-// sibling's build consults the same shared package through a build edge.
-// The shared build must evaluate once across the sibling batch and across
-// every requested target. Each sibling publishes its own source bytes and
-// settles its own promised output.
-
 use {omega}/build/dependency.omg;
+use main.omg as app;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_sibling_checks");
-    let mutable a_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "sibling_a" });
-    |dependency|::with_alias(@mutable a_dependency, "a");
-    let a_registration: DependencyRegistration = Build::dependency(builder, a_dependency);
-    let mutable b_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "sibling_b" });
-    |dependency|::with_alias(@mutable b_dependency, "b");
-    let b_registration: DependencyRegistration = Build::dependency(builder, b_dependency);
-    let mutable c_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "sibling_c" });
-    |dependency|::with_alias(@mutable c_dependency, "c");
-    let c_registration: DependencyRegistration = Build::dependency(builder, c_dependency);
+machine build(plan: @mutable BuildPlan) {
+    let mutable a: DependencyDescription = |dependency|::from_source(Source::Path { location: "sibling_a" });
+    |dependency|::with_alias(@mutable a, "a");
+    _ = |dependency|::add(plan, a);
+    let mutable b: DependencyDescription = |dependency|::from_source(Source::Path { location: "sibling_b" });
+    |dependency|::with_alias(@mutable b, "b");
+    _ = |dependency|::add(plan, b);
+    let mutable c: DependencyDescription = |dependency|::from_source(Source::Path { location: "sibling_c" });
+    |dependency|::with_alias(@mutable c, "c");
+    _ = |dependency|::add(plan, c);
+    plan.product = BuildProduct::Application { name: "build_sibling_checks" };
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(plan, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(plan, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(plan, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(plan, windows_arm64::ProgramEntry, |app|::main);
 }

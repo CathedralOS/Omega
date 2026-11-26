@@ -1,5 +1,5 @@
 use {omega}/language/core/program_image.omg as image;
 
 public CatalogImage satisfies |image|::ProgramImage {
-    machine retained_suffix_start() -> addr { 128 }
+    machine retained_suffix_start() -> address { 128 }
 }

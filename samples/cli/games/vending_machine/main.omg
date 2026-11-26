@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 70.
 // A vending machine driven by a stream of case-payload events.
 //
@@ -10,7 +10,6 @@ use omega\language\core\ProcessExit;
 // calls. The exit code reports the final dispensed total so the run is
 // verifiable end to end (expected: 70).
 
-use system\Console;
 
 // A coin or a button press. `Insert` carries how many cents arrived; `Press`
 // carries which slot was chosen. Tag zero selects the first case, so a zeroed
@@ -34,8 +33,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("vending_machine: folds insert/insert/press events through a coin register");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("vending_machine: folds insert/insert/press events through a coin register");
     // Three events: insert 50c, insert 25c, press slot 1 (price 75c).
     apply(main, Event::Insert { cents: 50 as +Saturating });
     apply(main, Event::Insert { cents: 25 as +Saturating });
@@ -56,24 +55,24 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine good_verdict(main: @mutable Main) {
-        Console::write_line("PASS: balance spent and 75c dispensed (exit 70)");
+        |console|::Console::write_line("PASS: balance spent and 75c dispensed (exit 70)");
         transition { _ -> block report(main, 70 as +Saturating) }
     }
 
     machine bad_balance(main: @mutable Main) {
-        Console::write_line("FAIL: the balance was not fully spent (exit 71)");
+        |console|::Console::write_line("FAIL: the balance was not fully spent (exit 71)");
         transition { _ -> block report(main, 71 as +Saturating) }
     }
 
     machine bad_dispensed(main: @mutable Main) {
-        Console::write_line("FAIL: dispensed total was not 75 cents (exit 72)");
+        |console|::Console::write_line("FAIL: dispensed total was not 75 cents (exit 72)");
         transition { _ -> block report(main, 72 as +Saturating) }
     }
 
     machine report(main: @mutable Main, code: i32 in Saturating) {
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(code as i32);
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(code as i32);
     }
 }
 
@@ -128,7 +127,7 @@ machine price_of(slot: i32 in Saturating) -> i32 in Saturating {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

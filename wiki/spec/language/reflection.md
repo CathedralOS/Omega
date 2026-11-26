@@ -30,10 +30,10 @@ and provenance under [domains](domains.md) and [dependent values](dependent_valu
 Descriptions have no language-level 32-field or 4096-byte cutoff. Storage and
 evaluation sponsorship remain explicit ordinary limits: inability to produce a
 complete description reports exhaustion or unsupported production, not a
-truncated schema. Fixed capacities in an implementation of `core\layout\Schema` do not define
+truncated schema. Fixed capacities in an implementation of `|layout|::Schema` do not define
 the semantic reflection contract.
 
-`reflect\type_key::<T>()` provides a comparable descriptive key for a fully static
+`|reflect|::type_key::<T>()` provides a comparable descriptive key for a fully static
 type application under ordinary canonical type equality. It is not a source type,
 address, cast, or conformance. Runtime-dependent applications instead retain a
 schema recipe with explicit subject/parameter references. No guessed Boolean
@@ -128,7 +128,7 @@ exception; reflection does not publish their declarations as callable APIs.
 ### Formal-parameter selectors
 
 Under `native-table-field-binding` (2026-11-11),
-`reflect\parameter(Requirement::formal)` selects an exact declared formal of a
+`|reflect|::parameter(Requirement::formal)` selects an exact declared formal of a
 boundary machine requirement and returns `ParameterInfo`. This is descriptive
 core vocabulary, not a keyword or general access to a machine's locals. The
 qualified selector identifies the formal declaration, not a parameter value
@@ -152,7 +152,7 @@ the table nor trust in the function stored there.
 
 ## Schema and layout
 
-`reflect\TypeSchema` describes semantic structure. `layout\Schema` is the
+`|reflect|::TypeSchema` describes semantic structure. `|layout|::Schema` is the
 target-resolved input to a layout policy. A checked correspondence joins an exact
 semantic member to the applicable physical field key and validated plan; it
 rejects wrong owner, application, revision, relevance, or case mappings.
@@ -213,7 +213,7 @@ their respective access rules.
 
 ## Typed runtime visitation
 
-`reflect\visit_runtime_fields<T, Visitor>` specializes the selected callback for
+`|reflect|::visit_runtime_fields<T, Visitor>` specializes the selected callback for
 each immediate non-erased field of a record. It takes the actual borrowed value
 and the named callback's ordinary explicit context. Calls use existing exact
 requirement and generic-family matching; no anonymous expression or generated
@@ -397,7 +397,7 @@ inspection of the abstract referent. See [some packages](some_packages.md).
 
 ## Runtime descriptions and access views
 
-An explicit `reflect\metadata::<T>()` request materializes owned copy-eligible
+An explicit `|reflect|::metadata::<T>()` request materializes owned copy-eligible
 descriptive data under ordinary constant rules. It may be a library projection
 from TypeSchema rather than another primitive. Direct visitation does not retain
 a complete runtime table; names actually used by generated code still cost data.

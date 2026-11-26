@@ -2,33 +2,35 @@
 // Caller-controlled strings remain escaped bytes inside string literals so they cannot inject syntax, lines, comments, or review prose.
 // An unaliased row is one bound registration statement; an aliased row is the three-statement description journey, joined by `\n` so the inserter can indent its continuation lines.
 
-use crate::declarations::dependencies::read::{
-    DependencyPurpose, DependencySourceRequest, PackageSelection,
-};
+use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSelection};
 use crate::declarations::editable_build::{
-    DEPENDENCY_DESCRIPTION_TYPE_NAME, FROM_SOURCE_HELPER_NAME, WITH_ALIAS_HELPER_NAME,
+    DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_REGISTRATION_NAME, FROM_SOURCE_HELPER_NAME,
+    WITH_ALIAS_HELPER_NAME,
 };
 use build_declarations::BUILD_MODULE_NAME;
 
 // `build_source` is the build file the statement joins; the registration and
 // description locals take names it does not already use.
 pub(crate) fn canonical_dependency_statement(
-    purpose: DependencyPurpose,
     request: &DependencySourceRequest,
     build_source: &str,
     import: &str,
     receiver: &str,
 ) -> String {
-    let operation = purpose.operation().name();
     let base = match request.explicit_alias() {
         Some(alias) => alias.as_str().to_owned(),
         None => local_base(match request {
+            DependencySourceRequest::Bundled { name, .. } => name.as_str(),
             DependencySourceRequest::Path { location, .. } => location,
             DependencySourceRequest::Git { repository, .. } => repository,
         }),
     };
     let registration = fresh_local(build_source, &format!("{base}_registration"));
     let source = match request {
+        DependencySourceRequest::Bundled { name, .. } => format!(
+            "Source::Bundled {{ name: {} }}",
+            source_text::display_literal_bytes(name.as_str().as_bytes())
+        ),
         DependencySourceRequest::Path { location, .. } => format!(
             "Source::Path {{ location: {} }}",
             source_text::display_literal_bytes(location.as_bytes())
@@ -53,17 +55,21 @@ pub(crate) fn canonical_dependency_statement(
             )
         }
     };
-    let description = format!("|{import}|::{FROM_SOURCE_HELPER_NAME}({source})");
+    let description = if request.explicit_alias().is_none() {
+        source
+    } else {
+        format!("|{import}|::{FROM_SOURCE_HELPER_NAME}({source})")
+    };
     let Some(alias) = request.explicit_alias() else {
         return format!(
-            "let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_MODULE_NAME}::{operation}({receiver}, {description});"
+            "let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_MODULE_NAME}::{DEPENDENCY_REGISTRATION_NAME}({receiver}, {description});"
         );
     };
     let local = fresh_local(build_source, &format!("{base}_dependency"));
     format!(
         "let mutable {local}: {DEPENDENCY_DESCRIPTION_TYPE_NAME} = {description};\n\
          |{import}|::{WITH_ALIAS_HELPER_NAME}(@mutable {local}, {});\n\
-         let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_MODULE_NAME}::{operation}({receiver}, {local});",
+         let {registration}: {REGISTRATION_TYPE_NAME} = {BUILD_MODULE_NAME}::{DEPENDENCY_REGISTRATION_NAME}({receiver}, {local});",
         source_text::display_literal_bytes(alias.as_str().as_bytes())
     )
 }

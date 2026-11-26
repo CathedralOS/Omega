@@ -40,9 +40,7 @@ pub fn settle_rejoined_build_slice(
     }
     // A subject checked under a provisional owner still owes the check under
     // its real owner, even when it read no constants.
-    if constants.read.is_empty()
-        && subject_validation != BuildSubjectValidation::NeedsOwnerCheck
-    {
+    if constants.read.is_empty() && subject_validation != BuildSubjectValidation::NeedsOwnerCheck {
         return Ok(Default::default());
     }
     let refusals = constants.read.iter().filter(|read| read.declaration.is_none() || read.value.is_none()).map(|read| {
@@ -403,24 +401,29 @@ mod tests {
 
     fn prepare(
         typed: source_compiler::representations::source_state::TypedTrees,
-    ) -> Result<source_compiler::test_support::FrozenSource, source_compiler::SourcePreparationFailure> {
+    ) -> Result<
+        source_compiler::test_support::FrozenSource,
+        source_compiler::SourcePreparationFailure,
+    > {
         let entry = typed.realized_machine_named("build").unwrap().symbol;
-        source_compiler::test_support::prepare_source_for_test(source_compiler::test_support::SourcePreparationRequest {
-            program: typed,
-            accounting: Default::default(),
-            admission: Default::default(),
-            compilation: source_compiler::test_support::TerminalSourceCompilation {
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: &[],
-                purpose: source_provenance::DependencyScope::Build,
-                selected: &[],
-                bindings: &[],
-                calling: None,
-                providers: None,
-                supplies: &[],
+        source_compiler::test_support::prepare_source_for_test(
+            source_compiler::test_support::SourcePreparationRequest {
+                program: typed,
+                accounting: Default::default(),
+                admission: Default::default(),
+                compilation: source_compiler::test_support::TerminalSourceCompilation {
+                    declaration_metadata: &[],
+                    entries: &[entry],
+                    subjects: &[],
+                    purpose: source_provenance::DependencyScope::Build,
+                    selected: &[],
+                    bindings: &[],
+                    calling: None,
+                    providers: None,
+                    supplies: &[],
+                },
             },
-        })
+        )
     }
 
     #[test]
@@ -576,6 +579,11 @@ mod tests {
             None,
         );
         let failure = CompileFailure::BuildConsentRequired {
+            site: package_compilation::build_execution::RestrictedBuildSite {
+                subject: None,
+                entry: "build".into(),
+                program: [7; 32],
+            },
             requests: vec![request.clone()],
             accounting: prepared.accounting.clone(),
         }
@@ -583,6 +591,7 @@ mod tests {
         let CompileFailure::BuildConsentRequired {
             requests,
             accounting,
+            ..
         } = failure
         else {
             panic!("costs cannot replace the pending consent kind")

@@ -35,9 +35,9 @@ The source clause family separates a public promise from implementation evidence
 ```omega
 terminates
 terminates by remaining
-terminates by remaining -> Nat\Descending
+terminates by remaining -> |nat|::Nat::Descending
 terminates by items -> Slice::Length
-terminates by index -> Nat\IncreasingTo(limit) in 0..=limit
+terminates by index -> |nat|::Nat::IncreasingTo(limit) in 0..=limit
 ```
 
 These are alternative clause forms, not statements. Like every machine header
@@ -95,10 +95,10 @@ interface that closes from published evidence without inspecting private measure
 ## Ranking
 
 `terminates by subject -> View` selects a well-founded ranking theory. The view
-may be descending naturals, written `Nat\Descending`, an increasing value
-approaching a fixed bound, written `Nat\IncreasingTo(limit)`, a proper
+may be descending naturals, written `|nat|::Nat::Descending`, an increasing value
+approaching a fixed bound, written `|nat|::Nat::IncreasingTo(limit)`, a proper
 subtree, or a lexicographic product. `terminates by (cursor, limit) ->
-Nat\BoundedDistance` ranks by the unsigned distance from cursor to limit.
+|nat|::Nat::BoundedDistance` ranks by the unsigned distance from cursor to limit.
 The distance is zero when the cursor reaches or passes the limit. Each recursive
 transfer using `IncreasingTo` must preserve the value of its bound. An unbounded
 increasing view is not well-founded. The view owns normalization so authors

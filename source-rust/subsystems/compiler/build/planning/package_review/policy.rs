@@ -49,9 +49,6 @@ pub(super) fn project(
         choices,
     )?;
     let opaque_declarations = check_declaration_inventory(input, package, &providers.slots)?;
-    if !checked.plans().assumed_bindings().is_empty() {
-        return Err(unavailable("selected provider assumptions"));
-    }
     let source = declaration_policy(
         input,
         target,
@@ -112,7 +109,6 @@ pub(super) fn project(
             demands: Vec::new(),
             realizations: providers.applications,
         },
-        assumed_bindings: Vec::new(),
         service_audits: Vec::new(),
         restricted_build_requests: source.restricted_build_requests,
         component_assumptions,
@@ -148,9 +144,7 @@ fn declaration_policy(
         .typed()
         .opaque_representation_selections
         .is_empty()
-        || declarations.declarations.has_assumed_bindings()
         || !config.default_provider_selections.is_empty()
-        || !config.assumed_bindings.is_empty()
         || !config.opaque_representation_selections.is_empty()
         || !config.wire_compatibility_demands.is_empty()
         || !config.grants.is_empty()
@@ -206,7 +200,6 @@ fn declaration_policy(
     let callables = declarations.callables(package, services)?;
     let representation = representation_target(target)?;
     let restricted_build_requests = declarations
-        .evaluation
         .restricted_build_requests
         .iter()
         .map(PackagePolicyRestrictedBuildRequest::from)

@@ -1,8 +1,4 @@
-use omega\language\core\max_f32;
-use omega\language\core\min_f32;
-use omega\language\core\min_f64;
-use omega\language\core\sqrt_f32;
-use omega\language\core\sqrt_f64;
+use {omega}/language/core/math.omg;
 
 // Ordinary float extrema and roots imported from system math. Carrier-specific
 // declarations select f32 or f64, including for anonymous literal operands.
@@ -30,11 +26,11 @@ machine Main::main(main: @mutable Main) {
     main.right32 = 4.0f32;
     main.left64 = 9.0;
     main.right64 = 4.0;
-    let low32: f32 = min_f32(main.left32, main.right32);
-    let high32: f32 = max_f32(main.left32, main.right32);
-    let root32: f32 = sqrt_f32(low32);
-    let root64: f64 = sqrt_f64(min_f64(main.left64, main.right64));
-    let anon: f32 = min_f32(4.0, 9.0);
+    let low32: f32 = |math|::min_f32(main.left32, main.right32);
+    let high32: f32 = |math|::max_f32(main.left32, main.right32);
+    let root32: f32 = |math|::sqrt_f32(low32);
+    let root64: f64 = |math|::sqrt_f64(|math|::min_f64(main.left64, main.right64));
+    let anon: f32 = |math|::min_f32(4.0, 9.0);
     transition low32 == 4.0f32 && high32 == 9.0f32 && root32 == 2.0f32
         && root64 == 2.0 && anon == 4.0f32 {
         true -> pass(main),

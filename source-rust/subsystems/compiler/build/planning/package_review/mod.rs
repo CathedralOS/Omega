@@ -24,6 +24,7 @@ pub use preparations::ReviewedPreparation;
 use diagnostics::Diagnostic;
 use package_compilation::{
     BuildSourceCustody, CheckedSourceCustody, IndependentComponentDescription,
+    RestrictedBuildRequest,
 };
 use review_evidence::record::{PackagePolicyBaseline, SemanticBindingReviewCandidate};
 use target::TargetProfile;
@@ -35,9 +36,35 @@ pub struct CheckedPackagePolicy {
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
     pub selected_build_machine_identity: String,
     pub preparations: Vec<ReviewedPreparation>,
+    pub restricted_build_requests: Vec<RestrictedBuildRequest>,
     pub policy: PackagePolicyBaseline,
     pub semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     pub component_description: Option<IndependentComponentDescription>,
+}
+
+impl crate::PlannedProduct {
+    /// A single host Build can serve multiple deployments. Retain the request
+    /// under the deployment being reviewed while preserving the host that ran it.
+    pub fn reviewed_build_requests(
+        &self,
+        target: TargetProfile,
+    ) -> Result<Vec<RestrictedBuildRequest>, Vec<Diagnostic>> {
+        self.evaluated()
+            .restricted_build_requests
+            .iter()
+            .map(|request| {
+                if request
+                    .selected_target_profile()
+                    .is_some_and(|selected| selected != target)
+                {
+                    return Err(declarations::unavailable(
+                        "a restricted Build request for a different deployment",
+                    ));
+                }
+                Ok(request.clone().for_target(Some(target)))
+            })
+            .collect()
+    }
 }
 
 impl crate::ProductStage<'_> {
@@ -85,7 +112,7 @@ impl crate::ProductStage<'_> {
         }
         .seal(accepted.source(), Some(inputs))?;
         let input =
-            input::PolicySource::checked(&declarations, &sources, evaluation, inputs, profile)?;
+            input::PolicySource::checked(&declarations, &sources, product, inputs, profile)?;
         let package = inputs.root();
         let services = services::identities(
             input.typed(),
@@ -113,6 +140,7 @@ impl crate::ProductStage<'_> {
             })?;
         Ok(CheckedPackagePolicy {
             preparations: product.reviewed_preparations()?,
+            restricted_build_requests: input.restricted_build_requests,
             sources,
             policy,
             source_completion_accounting: std::mem::take(accounting),

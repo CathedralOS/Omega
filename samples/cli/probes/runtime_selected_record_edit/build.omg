@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
- Build::application(builder, "runtime_selected_record_edit");
+machine build(builder: @mutable BuildPlan) {
+ builder.product = BuildProduct::Application { name: "runtime_selected_record_edit" };
  Build::bind(builder, macos_x86_64::ProgramEntry, main);
  Build::bind(builder, macos_arm64::ProgramEntry, main);
  Build::bind(builder, linux_x86_64::ProgramEntry, main);

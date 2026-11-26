@@ -80,21 +80,12 @@ impl MappingGrant {
         }
     }
 
-    pub const fn identity(&self) -> MappingGrantId {
-        self.identity
-    }
-
-    pub const fn install_obligations(&self) -> &TranslationInstallObligations {
-        &self.map_obligations
-    }
-
-    pub const fn release_obligations(&self) -> &TranslationReleaseObligations {
-        &self.unmap_obligations
-    }
-
-    pub const fn peer_revocation_obligations(&self) -> &PeerWriteRevocationObligations {
-        &self.peer_revocation_obligations
-    }
+    get_fields!(copy &self; identity: MappingGrantId);
+    get_fields!(ref &self;
+        install_obligations(map_obligations): TranslationInstallObligations,
+        release_obligations(unmap_obligations): TranslationReleaseObligations,
+        peer_revocation_obligations: PeerWriteRevocationObligations,
+    );
 }
 
 #[derive(Debug)]
@@ -103,62 +94,28 @@ enum MappingSource<'source> {
     Borrowed(ExtentLoan<'source>),
 }
 
+macro_rules! delegate_mapping_source {
+    ($($name:ident: $ret:ty),* $(,)?) => {
+        $(fn $name(&self) -> $ret {
+            match self {
+                Self::Owned(extent) => extent.$name(),
+                Self::Borrowed(loan) => loan.$name(),
+            }
+        })*
+    };
+}
+
 impl MappingSource<'_> {
-    fn base(&self) -> u64 {
-        match self {
-            Self::Owned(extent) => extent.base(),
-            Self::Borrowed(loan) => loan.base(),
-        }
-    }
-
-    fn length(&self) -> u64 {
-        match self {
-            Self::Owned(extent) => extent.length(),
-            Self::Borrowed(loan) => loan.length(),
-        }
-    }
-
-    fn address_space(&self) -> AddressSpaceId {
-        match self {
-            Self::Owned(extent) => extent.address_space(),
-            Self::Borrowed(loan) => loan.address_space(),
-        }
-    }
-
-    fn rights(&self) -> &ExtentRights {
-        match self {
-            Self::Owned(extent) => extent.rights(),
-            Self::Borrowed(loan) => loan.rights(),
-        }
-    }
-
-    fn provenance(&self) -> ExtentProvenanceId {
-        match self {
-            Self::Owned(extent) => extent.provenance(),
-            Self::Borrowed(loan) => loan.provenance(),
-        }
-    }
-
-    fn era(&self) -> MappingEraId {
-        match self {
-            Self::Owned(extent) => extent.era(),
-            Self::Borrowed(loan) => loan.era(),
-        }
-    }
-
-    fn origin(&self) -> ExtentRootOrigin {
-        match self {
-            Self::Owned(extent) => extent.origin(),
-            Self::Borrowed(loan) => loan.origin(),
-        }
-    }
-
-    fn lineage_root(&self) -> ExtentLineageId {
-        match self {
-            Self::Owned(extent) => extent.lineage_root(),
-            Self::Borrowed(loan) => loan.lineage_root(),
-        }
-    }
+    delegate_mapping_source!(
+        base: u64,
+        length: u64,
+        address_space: AddressSpaceId,
+        rights: &ExtentRights,
+        provenance: ExtentProvenanceId,
+        era: MappingEraId,
+        origin: ExtentRootOrigin,
+        lineage_root: ExtentLineageId,
+    );
 
     fn mode(&self) -> MappingSourceMode {
         match self {
@@ -296,9 +253,7 @@ const RELEASE_WORDING: TransitionWording = TransitionWording {
 };
 
 pub type TranslationActivationReceipt = MappingTransitionReceipt<TranslationActivationFactId>;
-
 pub type PeerWriteRevocationReceipt = MappingTransitionReceipt<PeerWriteRevocationFactId>;
-
 pub type TranslationReleaseReceipt = MappingTransitionReceipt<TranslationCompletionFactId>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -329,69 +284,25 @@ pub struct PendingMap<'source> {
 }
 
 impl<'source> PendingMap<'source> {
-    pub const fn mapping(&self) -> MappingId {
-        self.mapping.identity()
-    }
-
-    pub const fn grant(&self) -> MappingGrantId {
-        self.mapping.grant()
-    }
-
-    pub fn receipt_context(&self) -> MappingReceiptContext {
-        MappingReceiptContext(self.mapping.evidence.clone())
-    }
-
-    pub const fn install_obligations(&self) -> &TranslationInstallObligations {
-        self.mapping.evidence.grant.install_obligations()
-    }
-
-    pub fn source_base(&self) -> u64 {
-        self.mapping.source.base()
-    }
-
-    pub fn source_length(&self) -> u64 {
-        self.mapping.source.length()
-    }
-
-    pub fn source_rights(&self) -> &ExtentRights {
-        self.mapping.source.rights()
-    }
-
-    pub fn source_provenance(&self) -> ExtentProvenanceId {
-        self.mapping.source.provenance()
-    }
-
-    pub fn source_era(&self) -> MappingEraId {
-        self.mapping.source.era()
-    }
-
-    pub fn source_origin(&self) -> ExtentRootOrigin {
-        self.mapping.source.origin()
-    }
-
-    pub fn source_mode(&self) -> MappingSourceMode {
-        self.mapping.source.mode()
-    }
-
-    pub fn destination_base(&self) -> u64 {
-        self.mapping.mapped.base()
-    }
-
-    pub fn mapped_rights(&self) -> &ExtentRights {
-        self.mapping.mapped.rights()
-    }
-
-    pub fn mapped_origin(&self) -> ExtentRootOrigin {
-        self.mapping.mapped.origin()
-    }
-
-    pub fn mapped_provenance(&self) -> ExtentProvenanceId {
-        self.mapping.mapped.provenance()
-    }
-
-    pub fn mapped_era(&self) -> MappingEraId {
-        self.mapping.mapped.era()
-    }
+    delegate_methods!(const pub mapping { mapping => identity: MappingId, grant: MappingGrantId });
+    delegate_methods!(const pub mapping.evidence.grant { install_obligations: &TranslationInstallObligations });
+    delegate_methods!(pub mapping { receipt_context: MappingReceiptContext });
+    delegate_methods!(pub mapping.source {
+        source_base => base: u64,
+        source_length => length: u64,
+        source_rights => rights: &ExtentRights,
+        source_provenance => provenance: ExtentProvenanceId,
+        source_era => era: MappingEraId,
+        source_origin => origin: ExtentRootOrigin,
+        source_mode => mode: MappingSourceMode,
+    });
+    delegate_methods!(pub mapping.mapped {
+        destination_base => base: u64,
+        mapped_rights => rights: &ExtentRights,
+        mapped_origin => origin: ExtentRootOrigin,
+        mapped_provenance => provenance: ExtentProvenanceId,
+        mapped_era => era: MappingEraId,
+    });
 
     pub fn complete(
         self,
@@ -413,63 +324,33 @@ impl<'source> PendingMap<'source> {
     }
 }
 
-#[derive(Debug)]
-pub struct MapActivationError<'source> {
-    pending: PendingMap<'source>,
-    receipt: TranslationActivationReceipt,
-    diagnostic: ExtentDiagnostic,
-}
-
-impl<'source> MapActivationError<'source> {
-    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (PendingMap<'source>, TranslationActivationReceipt) {
-        (self.pending, self.receipt)
-    }
-}
+conserved_error!(
+    #[derive(Debug)]
+    pub struct MapActivationError<'source> {
+        pending: PendingMap<'source>,
+        receipt: TranslationActivationReceipt,
+    } => into_parts
+);
 
 impl<'source> MappedExtent<'source> {
     pub const fn identity(&self) -> MappingId {
         self.evidence.identity
     }
 
-    pub const fn grant(&self) -> MappingGrantId {
-        self.evidence.grant.identity()
-    }
-
-    pub const fn base(&self) -> u64 {
-        self.mapped.base()
-    }
-
-    pub const fn length(&self) -> u64 {
-        self.mapped.length()
-    }
-
-    pub const fn rights(&self) -> &ExtentRights {
-        self.mapped.rights()
-    }
-
-    pub const fn address_space(&self) -> AddressSpaceId {
-        self.mapped.address_space()
-    }
-
-    pub const fn provenance(&self) -> ExtentProvenanceId {
-        self.mapped.provenance()
-    }
-
-    pub const fn era(&self) -> MappingEraId {
-        self.mapped.era()
-    }
-
-    pub const fn origin(&self) -> ExtentRootOrigin {
-        self.mapped.origin()
-    }
-
-    pub const fn lineage_root(&self) -> ExtentLineageId {
-        self.mapped.lineage_root()
-    }
+    delegate_methods!(const pub evidence.grant {
+        grant => identity: MappingGrantId,
+        release_obligations: &TranslationReleaseObligations,
+    });
+    delegate_methods!(const pub mapped {
+        base: u64,
+        length: u64,
+        rights: &ExtentRights,
+        address_space: AddressSpaceId,
+        provenance: ExtentProvenanceId,
+        era: MappingEraId,
+        origin: ExtentRootOrigin,
+        lineage_root: ExtentLineageId,
+    });
 
     pub fn receipt_context(&self) -> MappingReceiptContext {
         MappingReceiptContext(self.evidence.clone())
@@ -538,10 +419,6 @@ impl<'source> MappedExtent<'source> {
         self.mapped.loan(offset, length)
     }
 
-    pub const fn release_obligations(&self) -> &TranslationReleaseObligations {
-        self.evidence.grant.release_obligations()
-    }
-
     pub fn begin_peer_write_revocation(
         self,
     ) -> Result<PendingPeerWriteRevocation<'source>, Box<PeerWriteRevocationStartError<'source>>>
@@ -568,21 +445,11 @@ pub struct PendingPeerWriteRevocation<'source> {
 }
 
 impl<'source> PendingPeerWriteRevocation<'source> {
-    pub const fn mapping(&self) -> MappingId {
-        self.mapping.identity()
-    }
-
-    pub const fn grant(&self) -> MappingGrantId {
-        self.mapping.grant()
-    }
-
-    pub fn receipt_context(&self) -> MappingReceiptContext {
-        self.mapping.receipt_context()
-    }
-
-    pub const fn revocation_obligations(&self) -> &PeerWriteRevocationObligations {
-        self.mapping.evidence.grant.peer_revocation_obligations()
-    }
+    delegate_methods!(const pub mapping { mapping => identity: MappingId, grant: MappingGrantId });
+    delegate_methods!(pub mapping { receipt_context: MappingReceiptContext });
+    delegate_methods!(const pub mapping.evidence.grant {
+        revocation_obligations => peer_revocation_obligations: &PeerWriteRevocationObligations,
+    });
 
     pub fn complete(
         self,
@@ -605,43 +472,20 @@ impl<'source> PendingPeerWriteRevocation<'source> {
     }
 }
 
-#[derive(Debug)]
-pub struct PeerWriteRevocationStartError<'source> {
-    mapping: MappedExtent<'source>,
-    diagnostic: ExtentDiagnostic,
-}
+conserved_error!(
+    #[derive(Debug)]
+    pub struct PeerWriteRevocationStartError<'source> {
+        mapping: MappedExtent<'source>,
+    } => into_mapping
+);
 
-impl<'source> PeerWriteRevocationStartError<'source> {
-    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_mapping(self) -> MappedExtent<'source> {
-        self.mapping
-    }
-}
-
-#[derive(Debug)]
-pub struct PeerWriteRevocationError<'source> {
-    pending: PendingPeerWriteRevocation<'source>,
-    receipt: PeerWriteRevocationReceipt,
-    diagnostic: ExtentDiagnostic,
-}
-
-impl<'source> PeerWriteRevocationError<'source> {
-    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        PendingPeerWriteRevocation<'source>,
-        PeerWriteRevocationReceipt,
-    ) {
-        (self.pending, self.receipt)
-    }
-}
+conserved_error!(
+    #[derive(Debug)]
+    pub struct PeerWriteRevocationError<'source> {
+        pending: PendingPeerWriteRevocation<'source>,
+        receipt: PeerWriteRevocationReceipt,
+    } => into_parts
+);
 
 pub fn map_owned(
     source: Extent,
@@ -658,25 +502,21 @@ pub fn map_owned(
             ),
         }));
     }
-    let source = MappingSource::Owned(source);
-    match map_with_source(source, destination, identity, grant) {
-        Ok(mapping) => Ok(mapping),
-        Err(error) => {
-            let MappingStartError {
-                source,
-                destination,
-                diagnostic,
-            } = *error;
-            let MappingSource::Owned(source) = source else {
-                unreachable!("owned mapping preserves source mode")
-            };
-            Err(Box::new(OwnedMappingError {
-                source,
-                destination,
-                diagnostic,
-            }))
-        }
-    }
+    map_with_source(MappingSource::Owned(source), destination, identity, grant).map_err(|error| {
+        let MappingStartError {
+            source,
+            destination,
+            diagnostic,
+        } = *error;
+        let MappingSource::Owned(source) = source else {
+            unreachable!("owned mapping preserves source mode")
+        };
+        Box::new(OwnedMappingError {
+            source,
+            destination,
+            diagnostic,
+        })
+    })
 }
 
 pub fn map_borrowed<'source>(
@@ -685,25 +525,27 @@ pub fn map_borrowed<'source>(
     identity: MappingId,
     grant: &MappingGrant,
 ) -> Result<PendingMap<'source>, Box<BorrowedMappingError<'source>>> {
-    let source = MappingSource::Borrowed(source);
-    match map_with_source(source, destination, identity, grant) {
-        Ok(mapping) => Ok(mapping),
-        Err(error) => {
-            let MappingStartError {
-                source,
-                destination,
-                diagnostic,
-            } = *error;
-            let MappingSource::Borrowed(source) = source else {
-                unreachable!("borrowed mapping preserves source mode")
-            };
-            Err(Box::new(BorrowedMappingError {
-                source,
-                destination,
-                diagnostic,
-            }))
-        }
-    }
+    map_with_source(
+        MappingSource::Borrowed(source),
+        destination,
+        identity,
+        grant,
+    )
+    .map_err(|error| {
+        let MappingStartError {
+            source,
+            destination,
+            diagnostic,
+        } = *error;
+        let MappingSource::Borrowed(source) = source else {
+            unreachable!("borrowed mapping preserves source mode")
+        };
+        Box::new(BorrowedMappingError {
+            source,
+            destination,
+            diagnostic,
+        })
+    })
 }
 
 fn map_with_source<'source>(
@@ -712,24 +554,20 @@ fn map_with_source<'source>(
     identity: MappingId,
     grant: &MappingGrant,
 ) -> Result<PendingMap<'source>, Box<MappingStartError<'source>>> {
-    let mismatch = if source.mode() != grant.source_mode {
-        Some("source custody does not match mapping grant")
-    } else if source.address_space() != grant.source_space {
-        Some("source address space does not match mapping grant")
-    } else if destination.address_space() != grant.destination_space {
-        Some("destination address space does not match mapping grant")
-    } else if !source.rights().contains(&grant.required_source_rights) {
-        Some("source lacks rights required by mapping grant")
-    } else if !destination
-        .rights()
-        .contains(&grant.required_destination_rights)
-    {
-        Some("destination lacks rights required by mapping grant")
-    } else if source.length() != destination.length() {
-        Some("source and destination mapping ranges must have equal length")
-    } else {
-        None
-    };
+    let mismatch = first_mismatch!(
+        source.mode() != grant.source_mode
+            => "source custody does not match mapping grant",
+        source.address_space() != grant.source_space
+            => "source address space does not match mapping grant",
+        destination.address_space() != grant.destination_space
+            => "destination address space does not match mapping grant",
+        !source.rights().contains(&grant.required_source_rights)
+            => "source lacks rights required by mapping grant",
+        !destination.rights().contains(&grant.required_destination_rights)
+            => "destination lacks rights required by mapping grant",
+        source.length() != destination.length()
+            => "source and destination mapping ranges must have equal length",
+    );
 
     if let Some(message) = mismatch {
         return Err(Box::new(MappingStartError {
@@ -789,39 +627,18 @@ struct MappingStartError<'source> {
     diagnostic: ExtentDiagnostic,
 }
 
-#[derive(Debug)]
-pub struct OwnedMappingError {
-    source: Extent,
-    destination: Extent,
-    diagnostic: ExtentDiagnostic,
-}
+conserved_error!(
+    #[derive(Debug)]
+    pub struct OwnedMappingError { source: Extent, destination: Extent } => into_extents
+);
 
-impl OwnedMappingError {
-    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_extents(self) -> (Extent, Extent) {
-        (self.source, self.destination)
-    }
-}
-
-#[derive(Debug)]
-pub struct BorrowedMappingError<'source> {
-    source: ExtentLoan<'source>,
-    destination: Extent,
-    diagnostic: ExtentDiagnostic,
-}
-
-impl<'source> BorrowedMappingError<'source> {
-    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ExtentLoan<'source>, Extent) {
-        (self.source, self.destination)
-    }
-}
+conserved_error!(
+    #[derive(Debug)]
+    pub struct BorrowedMappingError<'source> {
+        source: ExtentLoan<'source>,
+        destination: Extent,
+    } => into_parts
+);
 
 #[derive(Debug)]
 pub struct PendingUnmap<'source> {
@@ -829,17 +646,11 @@ pub struct PendingUnmap<'source> {
 }
 
 impl<'source> PendingUnmap<'source> {
-    pub const fn mapping(&self) -> MappingId {
-        self.mapping.identity()
-    }
-
-    pub fn receipt_context(&self) -> MappingReceiptContext {
-        MappingReceiptContext(self.mapping.evidence.clone())
-    }
-
-    pub const fn release_obligations(&self) -> &TranslationReleaseObligations {
-        self.mapping.release_obligations()
-    }
+    delegate_methods!(const pub mapping {
+        mapping => identity: MappingId,
+        release_obligations: &TranslationReleaseObligations,
+    });
+    delegate_methods!(pub mapping { receipt_context: MappingReceiptContext });
 
     pub fn complete(
         self,
@@ -880,22 +691,13 @@ impl<'source> PendingUnmap<'source> {
     }
 }
 
-#[derive(Debug)]
-pub struct UnmapCompletionError<'source> {
-    pending: PendingUnmap<'source>,
-    receipt: TranslationReleaseReceipt,
-    diagnostic: ExtentDiagnostic,
-}
-
-impl<'source> UnmapCompletionError<'source> {
-    pub const fn diagnostic(&self) -> &ExtentDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (PendingUnmap<'source>, TranslationReleaseReceipt) {
-        (self.pending, self.receipt)
-    }
-}
+conserved_error!(
+    #[derive(Debug)]
+    pub struct UnmapCompletionError<'source> {
+        pending: PendingUnmap<'source>,
+        receipt: TranslationReleaseReceipt,
+    } => into_parts
+);
 
 #[derive(Debug)]
 pub struct UnmappedExtents {
@@ -1030,13 +832,79 @@ mod tests {
         )
     }
 
+    fn revocation_facts(ids: &[u64]) -> Vec<PeerWriteRevocationFactId> {
+        ids.iter()
+            .map(|&n| id(n, PeerWriteRevocationFactId::from_normalized_identity))
+            .collect()
+    }
+
+    fn revocation_receipt(
+        context: &super::MappingReceiptContext,
+        established: bool,
+        facts: &[u64],
+    ) -> PeerWriteRevocationReceipt {
+        PeerWriteRevocationReceipt::from_admitted_provider(
+            context,
+            established,
+            revocation_facts(facts),
+        )
+    }
+
+    fn revocation_obligations() -> PeerWriteRevocationObligations {
+        PeerWriteRevocationObligations::from_normalized_identities(revocation_facts(&[61, 62]))
+    }
+
+    fn activate_owned(
+        src: Extent,
+        dst: Extent,
+        id_num: u64,
+        grant: &MappingGrant,
+    ) -> super::MappedExtent<'static> {
+        let pending = map_owned(src, dst, mapping_id(id_num), grant).expect("pending mapping");
+        let receipt = activate(&pending);
+        pending.complete(receipt).expect("active mapping")
+    }
+
+    fn finish_unmap(mapping: super::MappedExtent<'_>) -> (Extent, Option<Extent>) {
+        let pending = mapping.begin_unmap();
+        let receipt = release(&pending);
+        pending
+            .complete(receipt)
+            .expect("translations released")
+            .into_parts()
+    }
+
+    fn activated_shared_mapping_with(
+        source_extent: &'static Extent,
+        mapping_identity: u64,
+        grant: &MappingGrant,
+    ) -> super::MappedExtent<'static> {
+        let source_loan = source_extent.loan(0, 0x1000).expect("shared source");
+        let pending = map_borrowed(
+            source_loan,
+            destination(),
+            mapping_id(mapping_identity),
+            grant,
+        )
+        .expect("borrowed map candidate");
+        let receipt = activate(&pending);
+        pending.complete(receipt).expect("translations installed")
+    }
+
+    fn activated_shared_mapping() -> super::MappedExtent<'static> {
+        activated_shared_mapping_with(
+            Box::leak(Box::new(source())),
+            60,
+            &mapping_grant(MappingSourceMode::BorrowedShared),
+        )
+    }
+
     #[test]
     fn owned_mapping_round_trips_both_authorities_after_translation_release() {
-        let mapping_identity = mapping_id(50);
-        let pending = map_owned(
+        let mut pending = map_owned(
             source(),
             destination(),
-            mapping_identity,
+            mapping_id(50),
             &mapping_grant(MappingSourceMode::Owned),
         )
         .expect("owned map candidate");
@@ -1048,49 +916,61 @@ mod tests {
             pending.mapped_origin(),
             ExtentRootOrigin::ProviderIssued(provider_issuance(2))
         );
-        let mut wrong_mapping = TranslationActivationReceipt::from_admitted_provider(
-            &pending.receipt_context(),
-            true,
-            [activation_fact(600)],
-        );
-        wrong_mapping.mapping.identity = mapping_id(999);
-        let error = pending
-            .complete(wrong_mapping)
-            .expect_err("receipt for another mapping");
-        assert!(error.diagnostic().0.contains("exact pending mapping"));
-        let (pending, _) = (*error).into_parts();
-        let mut wrong_issuance = TranslationActivationReceipt::from_admitted_provider(
-            &pending.receipt_context(),
-            true,
-            [activation_fact(600)],
-        );
-        wrong_issuance.mapping.source_origin =
-            ExtentRootOrigin::ProviderIssued(provider_issuance_for_invocation(1, 99));
-        let error = pending
-            .complete(wrong_issuance)
-            .expect_err("receipt cannot substitute provider issuance evidence");
-        assert!(error.diagnostic().0.contains("exact pending mapping"));
-        let (pending, _) = (*error).into_parts();
-        let inactive = TranslationActivationReceipt::from_admitted_provider(
-            &pending.receipt_context(),
-            false,
-            [activation_fact(600)],
-        );
-        let error = pending
-            .complete(inactive)
-            .expect_err("translations not installed");
-        assert!(error.diagnostic().0.contains("does not establish"));
-        let (pending, _) = (*error).into_parts();
-        let incomplete = TranslationActivationReceipt::from_admitted_provider(
-            &pending.receipt_context(),
-            true,
-            [],
-        );
-        let error = pending
-            .complete(incomplete)
-            .expect_err("installation fact missing");
-        assert!(error.diagnostic().0.contains("lacks"));
-        let (pending, _) = (*error).into_parts();
+
+        let rejected_activations: [(fn(&PendingMap<'_>) -> TranslationActivationReceipt, &str); 4] = [
+            (
+                |p| {
+                    let mut r = TranslationActivationReceipt::from_admitted_provider(
+                        &p.receipt_context(),
+                        true,
+                        [activation_fact(600)],
+                    );
+                    r.mapping.identity = mapping_id(999);
+                    r
+                },
+                "exact pending mapping",
+            ),
+            (
+                |p| {
+                    let mut r = TranslationActivationReceipt::from_admitted_provider(
+                        &p.receipt_context(),
+                        true,
+                        [activation_fact(600)],
+                    );
+                    r.mapping.source_origin =
+                        ExtentRootOrigin::ProviderIssued(provider_issuance_for_invocation(1, 99));
+                    r
+                },
+                "exact pending mapping",
+            ),
+            (
+                |p| {
+                    TranslationActivationReceipt::from_admitted_provider(
+                        &p.receipt_context(),
+                        false,
+                        [activation_fact(600)],
+                    )
+                },
+                "does not establish",
+            ),
+            (
+                |p| {
+                    TranslationActivationReceipt::from_admitted_provider(
+                        &p.receipt_context(),
+                        true,
+                        [],
+                    )
+                },
+                "lacks",
+            ),
+        ];
+        for (make_receipt, expected) in rejected_activations {
+            let receipt = make_receipt(&pending);
+            let error = pending.complete(receipt).expect_err(expected);
+            assert!(error.diagnostic().0.contains(expected));
+            pending = (*error).into_parts().0;
+        }
+
         let receipt = activate(&pending);
         let mapping = pending.complete(receipt).expect("translations installed");
         assert_eq!(mapping.rights(), &rights(&[300]));
@@ -1127,11 +1007,9 @@ mod tests {
 
     #[test]
     fn owned_mapping_round_trips_program_local_origins() {
-        let source = local_extent(1, 11, 0x1000, 10, 20, &[100]);
-        let destination = local_extent(2, 12, 0xffff_8000_0000_0000, 11, 22, &[200]);
         let pending = map_owned(
-            source,
-            destination,
+            local_extent(1, 11, 0x1000, 10, 20, &[100]),
+            local_extent(2, 12, 0xffff_8000_0000_0000, 11, 22, &[200]),
             mapping_id(52),
             &mapping_grant(MappingSourceMode::Owned),
         )
@@ -1147,12 +1025,7 @@ mod tests {
 
         let receipt = activate(&pending);
         let mapping = pending.complete(receipt).expect("translations installed");
-        let pending = mapping.begin_unmap();
-        let receipt = release(&pending);
-        let (destination, source) = pending
-            .complete(receipt)
-            .expect("translations released")
-            .into_parts();
+        let (destination, source) = finish_unmap(mapping);
         assert_eq!(
             destination.program_local_origin(),
             Some(program_local_origin(2))
@@ -1214,12 +1087,7 @@ mod tests {
         let mut mapping = pending.complete(receipt).expect("translations installed");
         assert!(mapping.loan(0, 16).is_ok());
         assert!(mapping.loan_mut(0, 16).is_err());
-        let pending = mapping.begin_unmap();
-        let receipt = release(&pending);
-        let (destination, owned_source) = pending
-            .complete(receipt)
-            .expect("translations released")
-            .into_parts();
+        let (destination, owned_source) = finish_unmap(mapping);
         assert!(owned_source.is_none());
         assert_eq!(destination.base(), 0xffff_8000_0000_0000);
     }
@@ -1227,17 +1095,13 @@ mod tests {
     #[test]
     fn mapped_range_receipt_context_binds_complete_mapping_evidence_and_exact_range() {
         let grant = mapping_grant(MappingSourceMode::Owned);
-        let first = map_owned(source(), destination(), mapping_id(54), &grant)
-            .expect("first pending mapping");
-        let receipt = activate(&first);
-        let first = first.complete(receipt).expect("first active mapping");
-
-        let drifted_source = extent(9, 0x1000, 0x1000, 10, 20, &[100]);
-        let drifted_destination = extent(10, 0xffff_8000_0000_0000, 0x1000, 11, 22, &[200]);
-        let drifted = map_owned(drifted_source, drifted_destination, mapping_id(54), &grant)
-            .expect("same compact IDs with different authority lineages");
-        let receipt = activate(&drifted);
-        let drifted = drifted.complete(receipt).expect("drifted active mapping");
+        let first = activate_owned(source(), destination(), 54, &grant);
+        let drifted = activate_owned(
+            extent(9, 0x1000, 0x1000, 10, 20, &[100]),
+            extent(10, 0xffff_8000_0000_0000, 0x1000, 11, 22, &[200]),
+            54,
+            &grant,
+        );
 
         let exact = first
             .range_receipt_context(0x100, 0x80)
@@ -1259,19 +1123,15 @@ mod tests {
 
     #[test]
     fn mapped_range_receipt_context_rejects_invalid_ranges() {
-        let pending = map_owned(
+        let mapping = activate_owned(
             source(),
             destination(),
-            mapping_id(55),
+            55,
             &mapping_grant(MappingSourceMode::Owned),
-        )
-        .expect("pending mapping");
-        let receipt = activate(&pending);
-        let mapping = pending.complete(receipt).expect("active mapping");
-
-        assert!(mapping.range_receipt_context(0, 0).is_err());
-        assert!(mapping.range_receipt_context(u64::MAX, 2).is_err());
-        assert!(mapping.range_receipt_context(0xff0, 0x20).is_err());
+        );
+        for (offset, length) in [(0, 0), (u64::MAX, 2), (0xff0, 0x20)] {
+            assert!(mapping.range_receipt_context(offset, length).is_err());
+        }
     }
 
     #[test]
@@ -1289,54 +1149,15 @@ mod tests {
         assert_eq!((source.length(), destination.length()), (0x1000, 0x800));
     }
 
-    fn revocation_obligations() -> PeerWriteRevocationObligations {
-        PeerWriteRevocationObligations::from_normalized_identities([
-            id(61, PeerWriteRevocationFactId::from_normalized_identity),
-            id(62, PeerWriteRevocationFactId::from_normalized_identity),
-        ])
-    }
-
-    fn activated_shared_mapping_with(
-        source_extent: &'static Extent,
-        mapping_identity: u64,
-    ) -> super::MappedExtent<'static> {
-        let source_loan = source_extent.loan(0, 0x1000).expect("shared source");
-        let pending = map_borrowed(
-            source_loan,
-            destination(),
-            mapping_id(mapping_identity),
-            &mapping_grant(MappingSourceMode::BorrowedShared),
-        )
-        .expect("borrowed map candidate");
-        let receipt = activate(&pending);
-        pending.complete(receipt).expect("translations installed")
-    }
-
-    fn activated_shared_mapping() -> super::MappedExtent<'static> {
-        activated_shared_mapping_with(Box::leak(Box::new(source())), 60)
-    }
-
-    fn activated_shared_mapping_with_grant(grant: &MappingGrant) -> super::MappedExtent<'static> {
-        let source_loan = Box::leak(Box::new(source()))
-            .loan(0, 0x1000)
-            .expect("shared source");
-        let pending = map_borrowed(source_loan, destination(), mapping_id(60), grant)
-            .expect("borrowed map candidate");
-        let receipt = activate(&pending);
-        pending.complete(receipt).expect("translations installed")
-    }
-
     #[test]
     fn peer_write_revocation_demands_the_admitted_grants_fact_set() {
         let grant = mapping_grant_with_revocation(
             MappingSourceMode::BorrowedShared,
-            PeerWriteRevocationObligations::from_normalized_identities([
-                id(61, PeerWriteRevocationFactId::from_normalized_identity),
-                id(62, PeerWriteRevocationFactId::from_normalized_identity),
-                id(63, PeerWriteRevocationFactId::from_normalized_identity),
-            ]),
+            PeerWriteRevocationObligations::from_normalized_identities(revocation_facts(&[
+                61, 62, 63,
+            ])),
         );
-        let mapping = activated_shared_mapping_with_grant(&grant);
+        let mapping = activated_shared_mapping_with(Box::leak(Box::new(source())), 60, &grant);
         let pending = mapping
             .begin_peer_write_revocation()
             .expect("shared custody may revoke the peer write");
@@ -1346,14 +1167,7 @@ mod tests {
             "the demanded set rides the admitted grant, not the caller"
         );
 
-        let short_receipt = PeerWriteRevocationReceipt::from_admitted_provider(
-            &pending.receipt_context(),
-            true,
-            [
-                id(61, PeerWriteRevocationFactId::from_normalized_identity),
-                id(62, PeerWriteRevocationFactId::from_normalized_identity),
-            ],
-        );
+        let short_receipt = revocation_receipt(&pending.receipt_context(), true, &[61, 62]);
         let error = pending
             .complete(short_receipt)
             .expect_err("the caller-side set cannot substitute for the grant's demand");
@@ -1379,7 +1193,7 @@ mod tests {
             .expect_err("hostile writable peer still live");
         assert!(error.0.contains("peer-write-revocation receipt"));
 
-        let pending = mapping
+        let mut pending = mapping
             .begin_peer_write_revocation()
             .expect("shared custody may revoke the peer write");
         assert_eq!(
@@ -1388,46 +1202,20 @@ mod tests {
             "pending carrier exposes the grant-demanded fact set"
         );
 
-        let short_receipt = PeerWriteRevocationReceipt::from_admitted_provider(
-            &pending.receipt_context(),
-            true,
-            [id(61, PeerWriteRevocationFactId::from_normalized_identity)],
-        );
-        let error = pending
-            .complete(short_receipt)
-            .expect_err("missing invalidation fact must reject");
-        assert!(error.diagnostic().0.contains("required invalidation facts"));
-        let (pending, _receipt) = error.into_parts();
+        for (established, facts, expected) in [
+            (true, &[61u64][..], "required invalidation facts"),
+            (false, &[61, 62][..], "revoked write permission"),
+        ] {
+            let receipt = revocation_receipt(&pending.receipt_context(), established, facts);
+            let error = pending.complete(receipt).expect_err(expected);
+            assert!(error.diagnostic().0.contains(expected));
+            pending = error.into_parts().0;
+        }
 
-        let unrevoked_receipt = PeerWriteRevocationReceipt::from_admitted_provider(
-            &pending.receipt_context(),
-            false,
-            [
-                id(61, PeerWriteRevocationFactId::from_normalized_identity),
-                id(62, PeerWriteRevocationFactId::from_normalized_identity),
-            ],
-        );
-        let error = pending
-            .complete(unrevoked_receipt)
-            .expect_err("asserting facts without revocation must reject");
-        assert!(error.diagnostic().0.contains("revoked write permission"));
-        let (pending, _receipt) = error.into_parts();
-
-        let receipt = PeerWriteRevocationReceipt::from_admitted_provider(
-            &pending.receipt_context(),
-            true,
-            [
-                id(61, PeerWriteRevocationFactId::from_normalized_identity),
-                id(62, PeerWriteRevocationFactId::from_normalized_identity),
-            ],
-        );
+        let receipt = revocation_receipt(&pending.receipt_context(), true, &[61, 62]);
         let mapping = pending.complete(receipt).expect("revocation completes");
         assert!(mapping.stable_loan(0, 16).is_ok());
-        let pending = mapping.begin_unmap();
-        let receipt = release(&pending);
-        pending
-            .complete(receipt)
-            .expect("revoked mapping still unmaps");
+        let _ = finish_unmap(mapping);
     }
 
     #[test]
@@ -1438,16 +1226,12 @@ mod tests {
             .expect("shared custody may revoke the peer write");
 
         let foreign_source = Box::leak(Box::new(extent(9, 0x1000, 0x1000, 10, 20, &[100])));
-        let other = activated_shared_mapping_with(foreign_source, 60);
-        let foreign_context = other.receipt_context();
-        let foreign_receipt = PeerWriteRevocationReceipt::from_admitted_provider(
-            &foreign_context,
-            true,
-            [
-                id(61, PeerWriteRevocationFactId::from_normalized_identity),
-                id(62, PeerWriteRevocationFactId::from_normalized_identity),
-            ],
+        let other = activated_shared_mapping_with(
+            foreign_source,
+            60,
+            &mapping_grant(MappingSourceMode::BorrowedShared),
         );
+        let foreign_receipt = revocation_receipt(&other.receipt_context(), true, &[61, 62]);
         let error = pending
             .complete(foreign_receipt)
             .expect_err("a receipt for a different mapping cannot claim this revocation");
@@ -1455,29 +1239,18 @@ mod tests {
         let (pending, _receipt) = error.into_parts();
         drop(other.begin_unmap());
 
-        let receipt = PeerWriteRevocationReceipt::from_admitted_provider(
-            &pending.receipt_context(),
-            true,
-            [
-                id(61, PeerWriteRevocationFactId::from_normalized_identity),
-                id(62, PeerWriteRevocationFactId::from_normalized_identity),
-            ],
-        );
+        let receipt = revocation_receipt(&pending.receipt_context(), true, &[61, 62]);
         pending.complete(receipt).expect("own receipt completes");
     }
 
     #[test]
     fn peer_write_revocation_refuses_non_shared_custody() {
-        let pending = map_owned(
+        let mapping = activate_owned(
             source(),
             destination(),
-            mapping_id(63),
+            63,
             &mapping_grant(MappingSourceMode::Owned),
-        )
-        .expect("owned map candidate");
-        let receipt = activate(&pending);
-        let mapping = pending.complete(receipt).expect("translations installed");
-
+        );
         let error = mapping
             .begin_peer_write_revocation()
             .expect_err("owned sources have no hostile writable peer");

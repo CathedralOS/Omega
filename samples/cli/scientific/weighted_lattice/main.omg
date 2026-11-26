@@ -1,30 +1,24 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use io/numbers/numbers.omg;
+use model/enumeration/enumeration.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Exact weighted finite binary lattice partition and occupancy moments.
 // Expected exit: 0.
-use system\ByteRead;
-use system\Console;
-use model\enumeration;
-use model\enumeration\Lattice;
-use model\enumeration\enumerate;
-use io\numbers;
-use io\numbers\decimal;
-use io\numbers\number_line;
-use omega\language\core\narrow_i32_to_u64_trapping;
 
-machine input_byte() -> i32 reaches StandardInput {
-    let observed: ByteRead = block Console::read_byte();
+machine input_byte() -> i32 reaches |process_authority|::StandardInput {
+    let observed: |console|::ByteRead = block |console|::Console::read_byte();
     transition observed {
-        ByteRead::Error -> -2,
-        ByteRead::Byte { value } -> present(value),
-        ByteRead::Eof -> absent()
+        |console|::ByteRead::Error -> -2,
+        |console|::ByteRead::Byte { value } -> present(value),
+        |console|::ByteRead::Eof -> absent()
     }
     machine present(value: i32) -> i32 { value }
     machine absent() -> i32 { -1 }
 }
 
-machine main() reaches ProcessExit + StandardInput + StandardOutput {
+machine main() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let sites: i32 = block input_byte();
     let activity: i32 = block input_byte();
     let bond: i32 = block input_byte();
@@ -50,35 +44,35 @@ machine main() reaches ProcessExit + StandardInput + StandardOutput {
         }
     }
     machine calculate(sites: i32, activity: i32, bond: i32, topology: i32) {
-        let mutable lattice: Lattice;
-        lattice.sites = narrow_i32_to_u64_trapping(sites - 48);
-        lattice.activity = narrow_i32_to_u64_trapping(activity - 48) as u64 +Trapping;
-        lattice.bond = narrow_i32_to_u64_trapping(bond - 48) as u64 +Trapping;
+        let mutable lattice: |enumeration|::Lattice;
+        lattice.sites = |numeric_conversion|::narrow_i32_to_u64_trapping(sites - 48);
+        lattice.activity = |numeric_conversion|::narrow_i32_to_u64_trapping(activity - 48) as u64 +Trapping;
+        lattice.bond = |numeric_conversion|::narrow_i32_to_u64_trapping(bond - 48) as u64 +Trapping;
         lattice.periodic = topology == 114;
-        enumerate(@mutable lattice);
-        Console::write_line("weighted_lattice v1");
-        number_line("sites=", lattice.sites);
-        number_line("configurations=", lattice.configurations as u64);
-        number_line("Z=", lattice.partition as u64);
-        number_line("K numerator=", lattice.first as u64);
-        number_line("K2 numerator=", lattice.second as u64);
-        number_line("moment denominator=", lattice.partition as u64);
-        Console::write_line("histogram: occupied weighted_count");
+        |enumeration|::enumerate(@mutable lattice);
+        |console|::Console::write_line("weighted_lattice v1");
+        |numbers|::number_line("sites=", lattice.sites);
+        |numbers|::number_line("configurations=", lattice.configurations as u64);
+        |numbers|::number_line("Z=", lattice.partition as u64);
+        |numbers|::number_line("K numerator=", lattice.first as u64);
+        |numbers|::number_line("K2 numerator=", lattice.second as u64);
+        |numbers|::number_line("moment denominator=", lattice.partition as u64);
+        |console|::Console::write_line("histogram: occupied weighted_count");
         transition { _ -> row(@lattice, 0) }
     }
-    machine row(lattice: @Lattice, occupied: u64) requires occupied < 9 {
-        decimal(occupied);
-        Console::write(" ");
-        decimal(lattice.histogram[occupied] as u64);
-        Console::write_line("");
+    machine row(lattice: @|enumeration|::Lattice, occupied: u64) requires occupied < 9 {
+        |numbers|::decimal(occupied);
+        |console|::Console::write(" ");
+        |numbers|::decimal(lattice.histogram[occupied] as u64);
+        |console|::Console::write_line("");
         transition occupied < lattice.sites && occupied + 1 < 9 {
             true -> row(lattice, occupied + 1),
             false -> done()
         }
     }
-    machine done() { ProcessExit::exit_process(0); }
+    machine done() { |process_exit|::ProcessExit::exit_process(0); }
     machine invalid() {
-        Console::write_line("invalid: expected NABT, N=1..8 A,B=1..3 T=o|r; ring N>=3; optional LF then EOF");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("invalid: expected NABT, N=1..8 A,B=1..3 T=o|r; ring N>=3; optional LF then EOF");
+        |process_exit|::ProcessExit::exit_process(64);
     }
 }

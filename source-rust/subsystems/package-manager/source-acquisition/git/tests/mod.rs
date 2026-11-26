@@ -2,14 +2,14 @@
 // fixture storage to the selected system Git executable for deterministic runs.
 
 use super::cache::identity::*;
-use super::executable::executor::test_system_git_executor;
+use super::executable::test_system_git_executor;
 use super::objects::{batch::*, tree::*, *};
 use super::request::*;
 use super::resolution::*;
 use super::snapshot::*;
-#[cfg(unix)]
-use super::snapshot_metadata::*;
 use super::workspace::*;
+#[cfg(unix)]
+use super::*;
 use crate::PrimaryGitChoices;
 use crate::SourceResolver;
 use crate::error::SourceResolveError;

@@ -1,4 +1,4 @@
-use chemistry\model;
+use chemistry/model/model.omg;
 
 machine minimum(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
     transition left < right { true -> left, false -> right }
@@ -8,7 +8,7 @@ machine minimum(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrappin
 // inventory is retained. Compute the entire proposal before committing, so a
 // refused overflow leaves all inventory untouched. Intermediate products are
 // <=8*INT32_MAX; elemental totals <=64*INT32_MAX, both safely within i64.
-machine process(reaction: @chemistry\model\Reaction, balance: @chemistry\model\Balance, batch: @mutable chemistry\model\Batch)
+machine process(reaction: @|model|::Reaction, balance: @|model|::Balance, batch: @mutable |model|::Batch)
 requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
     batch.inventory[0] = reaction.stock[0];
     batch.inventory[1] = reaction.stock[1];
@@ -22,25 +22,25 @@ requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
     let capacity: i64 in Wrapping = minimum(first, second);
     batch.extent = minimum(capacity, reaction.cap);
     transition first == capacity { true -> first_limit(reaction, balance, batch, second, capacity), false -> second_limit(reaction, balance, batch, second, capacity) }
-    machine first_limit(reaction: @chemistry\model\Reaction, balance: @chemistry\model\Balance, batch: @mutable chemistry\model\Batch, second: i64 in Wrapping, capacity: i64 in Wrapping) {
+    machine first_limit(reaction: @|model|::Reaction, balance: @|model|::Balance, batch: @mutable |model|::Batch, second: i64 in Wrapping, capacity: i64 in Wrapping) {
         batch.limiting = 1;
         transition { _ -> second_limit(reaction, balance, batch, second, capacity) }
     }
-    machine second_limit(reaction: @chemistry\model\Reaction, balance: @chemistry\model\Balance, batch: @mutable chemistry\model\Batch, second: i64 in Wrapping, capacity: i64 in Wrapping) {
+    machine second_limit(reaction: @|model|::Reaction, balance: @|model|::Balance, batch: @mutable |model|::Batch, second: i64 in Wrapping, capacity: i64 in Wrapping) {
         transition second == capacity { true -> add_second(reaction, balance, batch, capacity), false -> cap_limit(reaction, balance, batch, capacity) }
     }
-    machine add_second(reaction: @chemistry\model\Reaction, balance: @chemistry\model\Balance, batch: @mutable chemistry\model\Batch, capacity: i64 in Wrapping) {
+    machine add_second(reaction: @|model|::Reaction, balance: @|model|::Balance, batch: @mutable |model|::Batch, capacity: i64 in Wrapping) {
         batch.limiting = batch.limiting + 2;
         transition { _ -> cap_limit(reaction, balance, batch, capacity) }
     }
-    machine cap_limit(reaction: @chemistry\model\Reaction, balance: @chemistry\model\Balance, batch: @mutable chemistry\model\Batch, capacity: i64 in Wrapping) {
+    machine cap_limit(reaction: @|model|::Reaction, balance: @|model|::Balance, batch: @mutable |model|::Batch, capacity: i64 in Wrapping) {
         transition reaction.cap < capacity { true -> capped(reaction, balance, batch), false -> propose(reaction, balance, batch) }
     }
-    machine capped(reaction: @chemistry\model\Reaction, balance: @chemistry\model\Balance, batch: @mutable chemistry\model\Batch) {
+    machine capped(reaction: @|model|::Reaction, balance: @|model|::Balance, batch: @mutable |model|::Batch) {
         batch.cap_limited = 1;
         transition { _ -> propose(reaction, balance, batch) }
     }
-    machine propose(reaction: @chemistry\model\Reaction, balance: @chemistry\model\Balance, batch: @mutable chemistry\model\Batch) {
+    machine propose(reaction: @|model|::Reaction, balance: @|model|::Balance, batch: @mutable |model|::Batch) {
         let third: i64 in Wrapping = reaction.stock[2] + batch.extent * balance.coefficients[2];
         let fourth: i64 in Wrapping = reaction.stock[3] + batch.extent * balance.coefficients[3];
         transition third <= 2147483647 && fourth <= 2147483647 {
@@ -48,11 +48,11 @@ requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
             false -> overflow(batch)
         }
     }
-    machine commit(reaction: @chemistry\model\Reaction, balance: @chemistry\model\Balance, batch: @mutable chemistry\model\Batch, third: i64 in Wrapping, fourth: i64 in Wrapping) {
+    machine commit(reaction: @|model|::Reaction, balance: @|model|::Balance, batch: @mutable |model|::Batch, third: i64 in Wrapping, fourth: i64 in Wrapping) {
         batch.inventory[0] = reaction.stock[0] - batch.extent * balance.coefficients[0];
         batch.inventory[1] = reaction.stock[1] - batch.extent * balance.coefficients[1];
         batch.inventory[2] = third;
         batch.inventory[3] = fourth;
     }
-    machine overflow(batch: @mutable chemistry\model\Batch) { batch.overflow = true; }
+    machine overflow(batch: @mutable |model|::Batch) { batch.overflow = true; }
 }

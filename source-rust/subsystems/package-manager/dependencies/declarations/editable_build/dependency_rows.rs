@@ -10,16 +10,16 @@ registration journey from
 [scoped execution](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding):
 
 ```omega
-let math: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "math" }));
+let math: DependencyRegistration = Build::dependency(builder, Source::Path { location: "math" });
 
 let mutable host: DependencyDescription = |dependency|::from_source(Source::Path { location: "host" });
 |dependency|::with_alias(@mutable host, "host");
-let host_registration: DependencyRegistration = Build::build_dependency(builder, host);
+let host_registration: DependencyRegistration = Build::dependency(builder, host);
 ```
 
 A registration returns a `DependencyRegistration`; its statement binds it, as
-tooling writes, or discards it with `_ =`. An unaliased row is one
-registration of a fresh description. An
+tooling writes, or discards it with `_ =`. An unaliased product registration
+can pass its Source literal directly or wrap it in a fresh description. An
 aliased row is exactly three consecutive statements: a mutable description
 local, its one alias configuration, and its registration. Every other use of
 the dependency vocabulary (a conditional registration, a helper, a reused or
@@ -33,8 +33,8 @@ use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
 use super::BuildEntrySyntaxProjection;
+use super::DEPENDENCY_REGISTRATION_NAME;
 use super::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
-use build_declarations::{DependencyOperation, DependencyPurpose};
 
 pub const FROM_SOURCE_HELPER_NAME: &str = "from_source";
 /// `|dependency|::with_alias(@mutable description, alias)`.
@@ -44,28 +44,12 @@ pub const DEPENDENCY_DESCRIPTION_TYPE_NAME: &str = "DependencyDescription";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DependencyRow {
-    statements: Vec<StatementHandle>,
-    operation: DependencyOperation,
     alias: Option<ExpressionHandle>,
     source: ExpressionHandle,
     calls: Vec<ExpressionHandle>,
 }
 
 impl DependencyRow {
-    /// The row's statements in authored order; the registration is last.
-    pub fn statements(&self) -> &[StatementHandle] {
-        &self.statements
-    }
-
-    #[cfg(test)]
-    pub const fn operation(&self) -> DependencyOperation {
-        self.operation
-    }
-
-    pub const fn purpose(&self) -> DependencyPurpose {
-        self.operation.purpose()
-    }
-
     pub const fn alias(&self) -> Option<ExpressionHandle> {
         self.alias
     }
@@ -90,10 +74,10 @@ impl fmt::Display for DependencyRowError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::WrongReceiver => {
-                "dependency registration must call Build::dependency or Build::build_dependency with the root build machine's first parameter"
+                "dependency registration must call Build::dependency with the root build machine's first parameter"
             }
             Self::WrongArguments => {
-                "dependency registration takes the builder operand and one description, written `_ = Build::dependency(builder, |dependency|::from_source(source));` or, with an alias, a `let mutable name: DependencyDescription = |dependency|::from_source(source);` local, one `|dependency|::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, with no generic, evidence or operational modifiers"
+                "a directly editable product registration takes a literal Source, as in `_ = Build::dependency(builder, source);`, or a fresh dependency description or, with an alias, a `let mutable name: DependencyDescription = |dependency|::from_source(source);` local, one `|dependency|::with_alias(@mutable name, \"alias\");` and `_ = Build::dependency(builder, name);`, with no generic, evidence or operational modifiers"
             }
         })
     }
@@ -113,26 +97,37 @@ pub fn project_dependency_rows(
     while position < statements.len() {
         let handle = statements[position];
         if let Some(registration) = registration(syntax_trees, handle, receiver)? {
-            let source = fresh_description(syntax_trees, registration.description)
-                .ok_or(DependencyRowError::WrongArguments)?;
+            let mut calls = vec![registration.expression];
+            let source = if let Some(source) = fresh_description(syntax_trees, registration.operand)
+            {
+                calls.push(registration.operand);
+                source
+            } else if matches!(
+                    syntax_trees.expressions.expression(registration.operand),
+                    ExpressionNode::StructLiteral(_)
+                )
+            {
+                registration.operand
+            } else {
+                return Err(DependencyRowError::WrongArguments);
+            };
             rows.push(DependencyRow {
-                statements: vec![handle],
-                operation: registration.operation,
                 alias: None,
                 source,
-                calls: vec![registration.expression, registration.description],
+                calls,
             });
         } else if let StatementNode::LocalData(local) = syntax_trees.statements.statement(handle)
             && let Some(source) = fresh_description(syntax_trees, local.initial_value)
         {
+            let group = statements[position..].first_chunk::<3>().ok_or(DependencyRowError::WrongArguments)?;
             let row = aliased_row(
                 syntax_trees,
-                &statements[position..],
+                group,
                 local,
                 source,
                 receiver,
             )?;
-            position += row.statements.len();
+            position += group.len();
             rows.push(row);
             continue;
         }
@@ -142,8 +137,7 @@ pub fn project_dependency_rows(
 }
 
 struct Registration {
-    operation: DependencyOperation,
-    description: ExpressionHandle,
+    operand: ExpressionHandle,
     expression: ExpressionHandle,
 }
 
@@ -165,9 +159,9 @@ fn registration(
     let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression) else {
         return Ok(None);
     };
-    let Some(operation) = DependencyOperation::classify(call.target.as_str(syntax_trees)) else {
+    if call.target.as_str(syntax_trees) != DEPENDENCY_REGISTRATION_NAME {
         return Ok(None);
-    };
+    }
     let owner = expression_owner(syntax_trees, call.receiver);
     if owner != Some(build_declarations::BUILD_MODULE_NAME)
         && (owner.is_some() || discarded.is_none())
@@ -183,12 +177,11 @@ fn registration(
             DirectBuildCallError::WrongArguments => DependencyRowError::WrongArguments,
         }
     })?;
-    let [description] = operands else {
+    let [operand] = operands else {
         return Err(DependencyRowError::WrongArguments);
     };
     Ok(Some(Registration {
-        operation,
-        description: *description,
+        operand: *operand,
         expression,
     }))
 }
@@ -246,15 +239,13 @@ fn single_name(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> Opti
 
 fn aliased_row(
     syntax_trees: &SyntaxTrees,
-    statements: &[StatementHandle],
+    statements: &[StatementHandle; 3],
     local: &syntax_trees::statement::TableLocalData,
     source: ExpressionHandle,
     receiver: &str,
 ) -> Result<DependencyRow, DependencyRowError> {
     let name = local.name.as_str(syntax_trees);
-    let [declaration, configuration, registration, ..] = statements else {
-        return Err(DependencyRowError::WrongArguments);
-    };
+    let [_, configuration, registration] = statements;
     if !local.is_mutable {
         return Err(DependencyRowError::WrongArguments);
     }
@@ -288,12 +279,10 @@ fn aliased_row(
     let Some(register) = self::registration(syntax_trees, *registration, receiver)? else {
         return Err(DependencyRowError::WrongArguments);
     };
-    if single_name(syntax_trees, register.description) != Some(name) {
+    if single_name(syntax_trees, register.operand) != Some(name) {
         return Err(DependencyRowError::WrongArguments);
     }
     Ok(DependencyRow {
-        statements: vec![*declaration, *configuration, *registration],
-        operation: register.operation,
         alias: Some(*alias),
         source,
         calls: vec![
@@ -307,10 +296,7 @@ fn aliased_row(
 #[cfg(test)]
 mod tests {
     use super::super::project_build_entry_syntax;
-    use super::{
-        DependencyOperation, DependencyPurpose, DependencyRow, DependencyRowError,
-        project_dependency_rows,
-    };
+    use super::{DependencyRow, DependencyRowError, project_dependency_rows};
     use crate::declarations::dependencies::read::DependencyProjectionError;
     use syntax_trees::SyntaxTrees;
     use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -331,44 +317,32 @@ mod tests {
     }
 
     #[test]
-    fn rows_retain_their_purpose_alias_and_literal_occurrences() {
+    fn rows_retain_their_alias_and_literal_occurrences() {
         let (trees, rows) = rows(
             r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "probe");
-    _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "math" }));
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "probe" };
+    _ = Build::dependency(builder, Source::Path { location: "math" });
     let mutable other: DependencyDescription = |dependency|::from_source(Source::Path { location: "other" });
     |dependency|::with_alias(@mutable other, "other");
     let other_registration: DependencyRegistration = Build::dependency(builder, other);
-    let git: DependencyRegistration = Build::build_dependency(builder, |dependency|::from_source(Source::Git { repository: "r", revision: "v" }));
+    let git: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Git { repository: "r", revision: "v" }));
     let mutable host: DependencyDescription = |dependency|::from_source(Source::Path { location: "host" });
     |dependency|::with_alias(@mutable host, "host");
-    _ = Build::build_dependency(builder, host);
+    _ = Build::dependency(builder, host);
 }
 "#,
         )
         .expect("project rows");
 
-        assert_eq!(
-            rows.iter().map(DependencyRow::purpose).collect::<Vec<_>>(),
-            [
-                DependencyPurpose::Product,
-                DependencyPurpose::Product,
-                DependencyPurpose::Build,
-                DependencyPurpose::Build,
-            ]
-        );
-        assert_eq!(rows[1].operation(), DependencyOperation::Dependency);
-        assert_eq!(rows[3].operation(), DependencyOperation::BuildDependency);
+        assert_eq!(rows.len(), 4);
         assert_eq!(rows[0].alias(), None);
-        assert_eq!(rows[0].statements().len(), 1);
-        assert_eq!(rows[1].statements().len(), 3);
         assert_eq!(
             string_literal(&trees, rows[1].alias().expect("alias row")),
             "other"
         );
         assert_eq!(
-            string_literal(&trees, rows[3].alias().expect("build alias row")),
+            string_literal(&trees, rows[3].alias().expect("alias row")),
             "host"
         );
         for row in &rows {
@@ -387,7 +361,7 @@ machine build(builder: @mutable Build) {
         ];
         for statements in wrong_receiver {
             let source = format!(
-                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable Build) {{\n{statements}\n}}\n"
+                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable BuildPlan) {{\n{statements}\n}}\n"
             );
             assert_eq!(
                 rows(&source).map(|pair| pair.1),
@@ -399,8 +373,8 @@ machine build(builder: @mutable Build) {
             // The registration result is neither discarded nor bound.
             "Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"x\" }))",
             "_ = Build::dependency(builder)",
-            "_ = Build::build_dependency(builder, |dependency|::from_source(Source::Path { location: \"x\" }), 1)",
-            "_ = Build::dependency(builder, Source::Path { location: \"x\" })",
+            "_ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: \"x\" }), 1)",
+            "_ = Build::dependency(builder, Source::Path { location: \"x\" }, ProgramLaunch::Inherit::<Packer>())",
             // An alias configuration must follow its description directly.
             "let mutable x: DependencyDescription = |dependency|::from_source(Source::Path { location: \"x\" });\n    _ = Build::dependency(builder, x)",
             "let x: DependencyDescription = |dependency|::from_source(Source::Path { location: \"x\" });\n    |dependency|::with_alias(@mutable x, \"x\");\n    _ = Build::dependency(builder, x)",
@@ -408,26 +382,13 @@ machine build(builder: @mutable Build) {
         ];
         for statement in wrong_arguments {
             let source = format!(
-                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable Build) {{\n    Build::application(builder, \"probe\");\n    {statement};\n}}\n"
+                "use {{omega}}/build/dependency.omg;\nmachine build(builder: @mutable BuildPlan) {{\n    builder.product = BuildProduct::Application {{ name: \"probe\" }};\n    {statement};\n}}\n"
             );
             assert_eq!(
                 rows(&source).map(|pair| pair.1),
                 Err(DependencyRowError::WrongArguments),
                 "{source}"
             );
-        }
-    }
-
-    #[test]
-    fn dependency_operations_use_their_current_names() {
-        for operation in DependencyOperation::ALL {
-            assert_eq!(
-                DependencyOperation::classify(operation.name()),
-                Some(operation)
-            );
-        }
-        for retired in ["depend", "depend_as", "build_depend", "build_depend_as"] {
-            assert_eq!(DependencyOperation::classify(retired), None, "{retired}");
         }
     }
 

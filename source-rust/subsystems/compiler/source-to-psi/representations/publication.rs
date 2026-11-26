@@ -4,9 +4,9 @@ pub use checked_program_to_psi::{
     ProducedBuildProvider, ProducedTerminalProgram, ProviderSelectionOption,
     TerminalBuildBindingCall, TerminalBuildBindingOperand, TerminalBuildBindingOperation,
     TerminalBuildBindings, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
-    TerminalBuildProviderRequirement, TerminalBuildQueryCall, TerminalBuildQueryOperation,
-    TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
-    TerminalBuildSelectionRequest, TerminalBuildValueShape,
+    TerminalBuildNativeLocatorKind, TerminalBuildProviderRequirement, TerminalBuildQueryCall,
+    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    TerminalBuildRequests, TerminalBuildSelectionRequest, TerminalBuildValueShape,
 };
 pub use checked_program_to_psi::provider_supply::SourceProviderDemand;
 

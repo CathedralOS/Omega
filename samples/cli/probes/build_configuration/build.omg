@@ -1,7 +1,7 @@
 // This Build sets its subsystem, identifier, ELF interpreter, x86 deployment
 // features and optimization options.
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_configuration");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_configuration" };
     builder.subsystem = Subsystem::Gui;
     builder.subsystem = Subsystem::EfiApplication;
     builder.subsystem = Subsystem::Console;

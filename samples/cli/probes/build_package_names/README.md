@@ -1,6 +1,6 @@
 # build_package_names
 
-The package identity argument to `Build::application`/`Build::package`
+The name in a returned `BuildProduct::Application` or `BuildProduct::Package`
 is a snake_case name: it must start with a lowercase letter and use
 snake_case lowercase words. There is no length bound.
 

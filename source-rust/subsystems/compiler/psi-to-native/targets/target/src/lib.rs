@@ -90,6 +90,22 @@ pub struct NativeApplicationMetadata {
     pub elf_interpreter: Option<crate::NormalizedElfInterpreterPlan>, // Effective ELF loader of the realized target, or `None` for targets without `PT_INTERP`.
 }
 
+impl TargetProfile {
+    /// Image contract for a standalone Psi input with no source Build settings.
+    pub fn standalone_application_metadata(self) -> NativeApplicationMetadata {
+        let (intent, subsystem) = match self {
+            Self::UefiX64 => (None, 10), // IMAGE_SUBSYSTEM_EFI_APPLICATION
+            _ => (Some(HostedApplicationIntent::Console), 3),
+        };
+        NativeApplicationMetadata {
+            intent,
+            subsystem,
+            elf_interpreter: declared_elf_interpreter_default(self),
+            ..Default::default()
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ApplicationIdentifier(String);
 

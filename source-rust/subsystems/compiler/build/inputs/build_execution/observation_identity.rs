@@ -99,15 +99,18 @@ impl BuildObservationSummary {
         );
         for settlement in self.required_output_settlements() {
             digest.bytes(settlement.relative_path());
+            digest.bytes(&settlement.staged_file);
             digest.u64(settlement.sealed_attempt_ordinal());
         }
-        match self.staged_output_tree() {
-            None => digest.byte(0),
-            Some(tree) => {
-                digest.byte(1);
-                digest.raw(&tree.digest());
-                digest.u64(tree.entry_count());
-                digest.u64(tree.file_bytes());
+        for retained in [self.staged_output_tree(), self.product_source_tree()] {
+            match retained {
+                None => digest.byte(0),
+                Some(tree) => {
+                    digest.byte(1);
+                    digest.raw(&tree.digest());
+                    digest.u64(tree.entry_count());
+                    digest.u64(tree.file_bytes());
+                }
             }
         }
         digest.bytes(self.build_log());
@@ -219,6 +222,7 @@ const fn filesystem_root_tag(root: BuildFilesystemRoot) -> u8 {
         BuildFilesystemRoot::Source => 0,
         BuildFilesystemRoot::Output => 1,
         BuildFilesystemRoot::NamedInput(_) => 2,
+        BuildFilesystemRoot::MappedDirectories => 3,
     }
 }
 

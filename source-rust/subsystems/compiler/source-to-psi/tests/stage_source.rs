@@ -53,7 +53,7 @@ fn product<'a>(
             vec![],
         )?),
         product: ProductSourceInputs {
-            dependency_edges: Default::default(),
+            reach_policy: Default::default(),
             build_accounting: None,
             declaration_scope: None,
             build_host: ProductTarget::LinuxX86_64,
@@ -70,6 +70,57 @@ fn product<'a>(
 }
 
 #[test]
+fn importing_a_constrained_trait_only_needs_the_clients_dependency_edge() {
+    let client = PackageKeyIdentity::from_digest([0x66; 32]).unwrap();
+    let library = PackageKeyIdentity::from_digest([0x67; 32]).unwrap();
+    let (mut files, root) = captured(
+        client,
+        "
+        public boundary trait Leaf: |policy|::Planned<Simple> {
+            machine ping() reaches none crashes none;
+        }
+        public Simple satisfies |policy|::Policy { machine description() -> u32 { 0 } }",
+    );
+    let policy = capture_file(
+        &mut files,
+        "contracts",
+        library,
+        "policy.omg",
+        "
+        public trait Policy { machine description() -> u32; }
+        public trait Planned<P satisfies Policy> {}",
+    );
+    for direct in [true, false] {
+        let mut stage = product(files.clone(), root, client, &[]).unwrap();
+        stage.parsed.roots.push(policy);
+        stage
+            .parsed
+            .imports
+            .push(SourceScopedTopLevelBinding::file_import(
+                root, policy, "policy",
+            ));
+        stage.product.declaration_scope =
+            Some(Arc::new(ProductDeclarationScope::from_direct_dependencies(
+                &[client, library],
+                direct.then_some((client, library)),
+            )));
+        let result = compile(stage, None);
+        if direct {
+            result.expect("the client supplied its policy implementation");
+        } else {
+            let errors =
+                result.expect_err("selecting the library's declarations needs a direct edge");
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("direct dependency")),
+                "{errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn an_entryless_checked_product_publishes_reopenable_psi() {
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     let (files, root) = captured(
@@ -82,6 +133,238 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
     let bytes = program.to_bytes();
     let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
     assert_eq!(reopened.to_bytes(), bytes);
+}
+
+#[test]
+fn a_mutably_borrowed_generic_value_can_cross_an_unchanged_call() {
+    let package = PackageKeyIdentity::from_digest([0x74; 32]).unwrap();
+    let source = "data Item { field: i32; }
+        machine inner<T>(value: @mutable T) {}
+        public machine outer<T>(value: @mutable T) { inner::<T>(value); }
+        public machine observed() -> i32 {
+            let mutable item: Item = Item { field: 42 };
+            outer::<Item>(@mutable item);
+            item.field
+        }";
+    let (files, root) = captured(package, source);
+    let program = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = program.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(reopened.to_bytes(), bytes);
+}
+
+#[test]
+fn a_recursive_view_must_reborrow_its_last_live_carrier() {
+    let package = PackageKeyIdentity::from_digest([0x78; 32]).unwrap();
+    let narrowing = r#"
+        public machine fill(items: @mutable [i32])
+        terminates by items -> Slice::Length {
+            transition items.length > 0 {
+                true -> head(items),
+                _ -> done()
+            }
+            machine head(items: @mutable [i32]) requires items.length > 0 {
+                items[0] = 42;
+                fill(@mutable items[1..])
+            }
+            machine done() {}
+        }"#;
+    let (files, root) = captured(package, narrowing);
+    let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = artifact.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(reopened.to_bytes(), bytes);
+
+    let independent = r#"
+        public machine walk(source: @mutable [i32], prior: @mutable [i32]) {
+            transition source.length > 0 && prior.length > 0 {
+                true -> step(source, prior),
+                _ -> done()
+            }
+            machine step(source: @mutable [i32], prior: @mutable [i32])
+            requires source.length > 0 && prior.length > 0 {
+                let next: @mutable [i32] = @mutable source[..];
+                prior[0] = 7;
+                walk(source, next)
+            }
+            machine done() {}
+        }"#;
+    let (files, root) = captured(package, independent);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors.iter().any(|error| error.message.contains("reference formation overlaps another activation")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn a_nested_machine_inherits_its_enclosing_nominal_callback_contract() {
+    let package = PackageKeyIdentity::from_digest([0x79; 32]).unwrap();
+    let client = r#"
+        public trait Step<Element> {
+            machine apply(item: @mutable Element) terminates;
+        }
+        public machine visit<Element, const Run: Step<Element>::apply>(items: @mutable [Element]) {
+            transition items.length > 0 { true -> done(), _ -> done() }
+            machine done() {}
+        }
+        machine reset(item: @mutable i32) satisfies Step<i32>::apply {}
+        machine main() {
+            let mutable items: [i32; 1] = [1];
+            visit::<i32, reset>(@mutable items[..])
+        }"#;
+    let (files, root) = captured(package, client);
+    compile(product(files, root, package, &[]).unwrap(), None)
+        .expect("the nested state captures the original Element and Run declarations");
+
+    let mismatch = client.replace(
+        "reset(item: @mutable i32) satisfies Step<i32>",
+        "reset(item: @mutable u64) satisfies Step<u64>",
+    );
+    let (files, root) = captured(package, &mismatch);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None)
+        .expect_err("a different Step application cannot supply the callback");
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("must satisfy the exact requirement of `Run`")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn the_callback_contract_owns_its_dependency_on_an_unsubstituted_type() {
+    let client = PackageKeyIdentity::from_digest([0x7b; 32]).unwrap();
+    let library = PackageKeyIdentity::from_digest([0x7c; 32]).unwrap();
+    let types = PackageKeyIdentity::from_digest([0x7d; 32]).unwrap();
+    let (mut files, root) = captured(
+        client,
+        "public machine visit<T, const Run: |api|::Step<T>::apply>(items: @mutable [T]) {
+            transition items.length > 0 { true -> done(), _ -> done() }
+            machine done() {}
+        }
+        public machine main() {
+            let mutable items: [i32; 1] = [1];
+            visit::<i32, |api|::reset>(@mutable items[..])
+        }",
+    );
+    let api = capture_file(
+        &mut files,
+        "library",
+        library,
+        "callback.omg",
+        "public trait Step<T> {
+            machine apply(item: @mutable T, stamp: |types|::Token) terminates;
+        }
+        public machine reset(item: @mutable i32, stamp: |types|::Token)
+            satisfies Step<i32>::apply {}",
+    );
+    let token = capture_file(
+        &mut files,
+        "types",
+        types,
+        "types.omg",
+        "public data Token { value: i32; }",
+    );
+    let mut stage = product(files, root, client, &[]).unwrap();
+    stage.parsed.roots.extend([api, token]);
+    stage.parsed.imports.extend([
+        SourceScopedTopLevelBinding::file_import(root, api, "api"),
+        SourceScopedTopLevelBinding::file_import(api, token, "types"),
+    ]);
+    stage.product.declaration_scope =
+        Some(Arc::new(ProductDeclarationScope::from_direct_dependencies(
+            &[client, library, types],
+            [(client, library), (library, types)],
+        )));
+    compile(stage, None).expect("only the callback library names Token");
+}
+
+#[test]
+fn a_nested_generic_callback_can_update_a_plain_record() {
+    let package = PackageKeyIdentity::from_digest([0x76; 32]).unwrap();
+    let source = r#"
+        data Item { value: i32; }
+        trait Modify<T> { machine apply(value: @mutable T) terminates; }
+        machine mark(item: @mutable Item) satisfies Modify<Item>::apply { item.value = 42; }
+        machine invoke<T, const F: Modify<T>::apply>(item: @mutable T) terminates {
+            child(item)
+            machine child(item: @mutable T) { F(item); }
+        }
+        public machine run() -> i32 {
+            let mutable item: Item = Item { value: 1 };
+            invoke::<Item, mark>(@mutable item);
+            item.value
+        }"#;
+    let (files, root) = captured(package, source);
+    let program = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = program.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(reopened.to_bytes(), bytes);
+}
+
+#[test]
+fn a_static_callback_requirement_reads_the_type_supplied_by_its_generic_machine() {
+    let package = PackageKeyIdentity::from_digest([0x75; 32]).unwrap();
+    let source = "data Item { value: i32; }
+        trait Modify<T> { machine apply(value: @mutable T) terminates; }
+        machine mark(value: @mutable Item) satisfies Modify<Item>::apply { value.value = 42; }
+        machine modify<T, const F: Modify<T>::apply>(value: @mutable T) terminates { F(value); }
+        public machine run() -> i32 {
+            let mutable item: Item = Item { value: 1 };
+            modify::<Item, mark>(@mutable item);
+            item.value
+        }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+}
+
+#[test]
+fn a_nested_machine_uses_the_applied_callback_from_its_lexical_scope() {
+    let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
+    let source = r#"
+        data Item { value: i32; }
+        data OtherItem { value: i32; }
+        trait Get<T> { machine receive(value: i32) -> i32 terminates; }
+        machine get(value: i32) -> i32 satisfies Get<Item>::receive { value }
+        machine read<T, const F: Get<T>::receive>(value: i32) -> i32 terminates {
+            child(value)
+            machine child(value: i32) -> i32 { F(value) }
+        }
+        public machine run() -> i32 {
+            let item: Item = Item { value: 42 };
+            read::<Item, get>(item.value)
+        }"#;
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let different_application = source.replace("satisfies Get<Item>", "satisfies Get<OtherItem>");
+    let (files, root) = captured(package, &different_application);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("must satisfy the exact requirement")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn a_nested_callback_reads_its_argument_type_in_the_supplying_machine() {
+    let package = PackageKeyIdentity::from_digest([0x59; 32]).unwrap();
+    let source = "data Item { value: i32; }
+        trait Get<T> { machine receive(value: @T) -> i32 terminates; }
+        machine get(value: @Item) -> i32 satisfies Get<Item>::receive { value.value }
+        machine read<T, const F: Get<T>::receive>(value: @T) -> i32 terminates {
+            child(value)
+            machine child(value: @T) -> i32 { F(value) }
+        }
+        public machine run() -> i32 {
+            let item: Item = Item { value: 42 };
+            read::<Item, get>(@item)
+        }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
 }
 
 #[test]
@@ -292,6 +575,61 @@ fn a_generic_call_forwards_the_callers_const_service_argument() {
     );
     let (files, root) = captured(package, &wrong);
     assert!(compile(product(files, root, package, &[]).unwrap(), None).is_err());
+}
+
+#[test]
+fn recursion_substitutes_a_forwarded_callbacks_published_reach() {
+    let package = PackageKeyIdentity::from_digest([0x7a; 32]).unwrap();
+    let source = "boundary trait Feed { machine load() -> u32 reaches Feed crashes none terminates; }
+        trait Number { machine answer() -> u32 terminates; }
+        machine seven() -> u32 satisfies Number::answer reaches none { 7u32 }
+        machine repeat<const F: Number::answer>(count: u32) -> u32 {
+            transition count > 0u32 {
+                true -> repeat::<F>(count - 1u32),
+                false -> F()
+            }
+        }
+        public machine main() -> u32 reaches none { repeat::<seven>(3u32) }";
+    let (files, root) = captured(package, source);
+    let pure = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = pure.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(reopened.to_bytes(), bytes);
+
+    let effectful = source.replace("reaches none { 7u32 }", "reaches Feed { Feed::load() }");
+    let (files, root) = captured(package, &effectful);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors.iter().any(|error| {
+            error.message.contains("machine `main` reaches `none`")
+                && error.message.contains("call of `repeat`")
+                && error.message.contains("Feed")
+        }),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn a_forwarded_static_callback_keeps_its_declared_requirement() {
+    let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
+    let source = "trait Number { machine number() -> i32 terminates; }
+        trait Other { machine number() -> i32 terminates; }
+        machine answer() -> i32 satisfies Number::number { 42 }
+        machine inner<const G: Number::number>() -> i32 terminates { G() }
+        machine outer<const F: Number::number>() -> i32 terminates { inner::<F>() }
+        public machine run() -> i32 { outer::<answer>() }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let wrong = source.replace("G: Number::number", "G: Other::number");
+    let (files, root) = captured(package, &wrong);
+    let diagnostics = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|error| error.message.contains("another requirement binding")),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]

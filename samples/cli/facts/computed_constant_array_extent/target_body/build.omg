@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "computed_constant_array_extent");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "computed_constant_array_extent" };
     Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);

@@ -15,5 +15,5 @@ pub use build_declaration::{
     WorkspaceMemberPath,
 };
 pub use build_request::{BuildDependencySource, BuildEntryPath, BuildRequest};
-pub use dependencies::{DependencyOperation, DependencyPurpose};
+pub use dependencies::DependencyPurpose;
 pub use prelude::{BuildPrelude, build_prelude};

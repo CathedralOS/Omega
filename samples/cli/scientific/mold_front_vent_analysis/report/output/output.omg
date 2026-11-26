@@ -1,11 +1,8 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use model\fill;
-use model\fill\Cavity;
-use model\fill\air_closure;
-use model\fill\cell_count;
+use model/fill/fill.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
-machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches StandardOutput {
+machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition divisor > 0 {
         true -> digit(value, divisor, 0),
         _ -> done()
@@ -17,7 +14,7 @@ machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches Standa
         }
     }
     machine emit(remainder: i32 in Wrapping, divisor: i32 in Wrapping, count: i32 in Wrapping) {
-        Console::write_byte((count + 48) as i32);
+        |console|::Console::write_byte((count + 48) as i32);
         transition divisor {
             10000 -> decimal(remainder, 1000),
             1000 -> decimal(remainder, 100),
@@ -29,15 +26,15 @@ machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches Standa
     machine done() { }
 }
 
-machine map(cavity: @Cavity, phase: bool) reaches StandardOutput {
+machine map(cavity: @|fill|::Cavity, phase: bool) reaches |process_authority|::StandardOutput {
     transition { _ -> cell(cavity, phase, 0, 1) }
-    machine cell(cavity: @Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine cell(cavity: @|fill|::Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition index >= 0 && index < 16 {
             true -> symbol(cavity, phase, index, bit),
             _ -> done()
         }
     }
-    machine symbol(cavity: @Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine symbol(cavity: @|fill|::Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition {
             ((cavity.walls & bit) != 0) -> character(cavity, phase, index, bit, 35),
             phase -> phase_cell(cavity, phase, index, bit),
@@ -45,7 +42,7 @@ machine map(cavity: @Cavity, phase: bool) reaches StandardOutput {
             _ -> character(cavity, phase, index, bit, 46)
         }
     }
-    machine phase_cell(cavity: @Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine phase_cell(cavity: @|fill|::Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition {
             ((cavity.filled & bit) != 0) -> character(cavity, phase, index, bit, 82),
             ((cavity.trapped & bit) != 0) -> character(cavity, phase, index, bit, 84),
@@ -53,37 +50,37 @@ machine map(cavity: @Cavity, phase: bool) reaches StandardOutput {
         }
     }
     machine character(
-        cavity: @Cavity,
+        cavity: @|fill|::Cavity,
         phase: bool,
         index: i32 in Wrapping,
         bit: i32 in Wrapping,
         value: i32
     ) {
-        Console::write_byte(value);
+        |console|::Console::write_byte(value);
         transition { _ -> separator(cavity, phase, index, bit) }
     }
-    machine arrival(cavity: @Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine arrival(cavity: @|fill|::Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         decimal(cavity.arrival[index], 10);
         transition { _ -> separator(cavity, phase, index, bit) }
     }
-    machine separator(cavity: @Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+    machine separator(cavity: @|fill|::Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition (index & 3) == 3 {
             true -> newline(cavity, phase, index, bit),
             _ -> space(cavity, phase, index, bit)
         }
     }
-    machine newline(cavity: @Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
-        Console::write_byte(10);
+    machine newline(cavity: @|fill|::Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+        |console|::Console::write_byte(10);
         transition { _ -> cell(cavity, phase, index + 1, bit << 1) }
     }
-    machine space(cavity: @Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
-        Console::write_byte(32);
+    machine space(cavity: @|fill|::Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
+        |console|::Console::write_byte(32);
         transition { _ -> cell(cavity, phase, index + 1, bit << 1) }
     }
     machine done() { }
 }
 
-machine regions(trapped: i32 in Wrapping) reaches StandardOutput {
+machine regions(trapped: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition { _ -> scan(trapped, 0, 1) }
     machine scan(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition index < 16 && rest != 0 {
@@ -98,40 +95,40 @@ machine regions(trapped: i32 in Wrapping) reaches StandardOutput {
         }
     }
     machine region(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
-        let component: i32 in Wrapping = air_closure(rest, bit);
+        let component: i32 in Wrapping = |fill|::air_closure(rest, bit);
         decimal(component, 10000);
-        Console::write_byte(32);
-        decimal(cell_count(component), 10);
-        Console::write_byte(10);
+        |console|::Console::write_byte(32);
+        decimal(|fill|::cell_count(component), 10);
+        |console|::Console::write_byte(10);
         transition { _ -> scan(rest & ~component, index + 1, bit << 1) }
     }
     machine done() { }
 }
 
-public machine report(cavity: @Cavity) reaches StandardOutput
-invokes Console
+public machine report(cavity: @|fill|::Cavity) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    Console::write_line("MOLD_FRONT_VENT_V1");
-    Console::write_line("arrival ticks (# wall, . unfilled):");
+    |console|::Console::write_line("MOLD_FRONT_VENT_V1");
+    |console|::Console::write_line("arrival ticks (# wall, . unfilled):");
     map(cavity, false);
-    Console::write_line("phase (# wall, R resin, T trapped, A vented air):");
+    |console|::Console::write_line("phase (# wall, R resin, T trapped, A vented air):");
     map(cavity, true);
-    Console::write_line("trapped regions (mask, cells):");
+    |console|::Console::write_line("trapped regions (mask, cells):");
     regions(cavity.trapped);
-    Console::write_line("balance wall resin trapped vented budget unused rounds:");
-    decimal(cell_count(cavity.walls), 10);
-    Console::write_byte(32);
+    |console|::Console::write_line("balance wall resin trapped vented budget unused rounds:");
+    decimal(|fill|::cell_count(cavity.walls), 10);
+    |console|::Console::write_byte(32);
     decimal(cavity.used, 10);
-    Console::write_byte(32);
-    decimal(cell_count(cavity.trapped), 10);
-    Console::write_byte(32);
-    decimal(cell_count(cavity.vented), 10);
-    Console::write_byte(32);
+    |console|::Console::write_byte(32);
+    decimal(|fill|::cell_count(cavity.trapped), 10);
+    |console|::Console::write_byte(32);
+    decimal(|fill|::cell_count(cavity.vented), 10);
+    |console|::Console::write_byte(32);
     decimal(cavity.budget, 10);
-    Console::write_byte(32);
+    |console|::Console::write_byte(32);
     decimal(cavity.budget - cavity.used, 10);
-    Console::write_byte(32);
+    |console|::Console::write_byte(32);
     decimal(cavity.tick, 10);
-    Console::write_byte(10);
-    Console::write_line("OK");
+    |console|::Console::write_byte(10);
+    |console|::Console::write_line("OK");
 }

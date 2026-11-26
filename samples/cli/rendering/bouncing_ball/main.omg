@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Bouncing ball simulation: 1D integer physics, integer velocity, fixed box [0,9].
 //
 // Start: pos=0, vel=3
@@ -25,7 +25,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 data Sim [copy] {
     pos: i32 in Wrapping;
@@ -72,8 +71,8 @@ machine step(main: @mutable Main) {
     }
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("bouncing_ball: 1D integer physics -- 8 steps in a [0,9] box with wall reflection");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("bouncing_ball: 1D integer physics -- 8 steps in a [0,9] box with wall reflection");
     // Initialize: pos=0, vel=3.
     main.s.pos = 0 as +Wrapping;
     main.s.vel = 3 as +Wrapping;
@@ -98,22 +97,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: ball at pos 6 after 8 steps, 6 + 64 == 70 (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: ball at pos 6 after 8 steps, 6 + 64 == 70 (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: final position wrong -- expected pos 6 (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: final position wrong -- expected pos 6 (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

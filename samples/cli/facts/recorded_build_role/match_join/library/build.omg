@@ -2,6 +2,6 @@
 machine choose<'name>(name: @'name [u8], first: bool) -> @'name [u8] {
     match first { true -> name, false -> name }
 }
-machine build(builder: @mutable Build) {
-    Build::package(builder, choose("my_library", true));
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: choose("my_library", true) };
 }

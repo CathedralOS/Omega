@@ -1,1 +1,1 @@
-machine build(builder: @mutable Build) { Build::package(builder, "schema_foreign"); }
+machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "schema_foreign" }; }

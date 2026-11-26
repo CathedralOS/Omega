@@ -957,7 +957,7 @@ pub(super) fn judge_owing_with_activity(
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<RouteVerdict> {
     let mut further = Vec::new();
-    match examine(elaborated, &[], None, &[], activity, &mut further) {
+    match examine(elaborated, &[], &[], activity, &mut further) {
         Ok(examined) => conclude(examined, applied, true, &mut further),
         Err(decided) => decided,
     }
@@ -985,7 +985,6 @@ struct Examined {
 fn examine(
     elaborated: Checked<Elaboration>,
     carried: &[crate::Carried<'_>],
-    donors: Option<&crate::reuse::Donors<'_>>,
     laws: &[crate::laws::LawJudgment],
     activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
@@ -1055,7 +1054,6 @@ fn examine(
             domains: &elaboration.domains,
             sources: &elaboration.sources,
             requirements: &elaboration.requirements,
-            machines: &elaboration.machines,
             nominal_calls: &elaboration.nominal_calls,
             domain_sources: &elaboration.domain_sources,
         },
@@ -1063,7 +1061,6 @@ fn examine(
         prepared,
         carried,
         Some(&verified_borrow_ends),
-        donors,
         &summaries,
         activity,
     );
@@ -1761,17 +1758,9 @@ pub(crate) fn judge_compilation_with_activity(
                 &examined_witnesses,
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
-            let donors =
-                crate::reuse::Donors::new(examined_witnesses.iter().filter_map(|examined| {
-                    examined
-                        .as_ref()
-                        .ok()
-                        .map(|examined| (&examined.elaboration, &examined.discharged))
-                }));
             match examine(
                 Ok(closure),
                 &carried,
-                Some(&donors),
                 laws,
                 activity,
                 &mut further,
@@ -1852,8 +1841,8 @@ fn check_compilation_arrivals(
     }
 }
 
-/// Forms and witnesses can share the laws. Check witnesses in two waves so a
-/// later copy of a helper can reuse proofs from the first wave.
+/// Forms and modular witnesses share only immutable `laws`, so they run
+/// concurrently when workers are available and merge in deterministic order.
 fn examine_forms_and_witnesses(
     forms: Vec<terminal_check_tables::compilation::GenericForms>,
     witnesses: Vec<Checked<Elaboration>>,
@@ -1861,68 +1850,26 @@ fn examine_forms_and_witnesses(
     activity: &mut crate::ProofSearchActivity,
     further: &mut Vec<Refusal>,
 ) -> (Vec<GenericForm>, Vec<WitnessExamination>) {
-    // A selection borrows the same discharge that later decides its witness's
-    // verdict. Several selections may name one witness; none owns a second
-    // copy to prove independently.
-    //
-    // Witnesses repeat helper bodies: each holds every machine its
-    // implementation calls. They are checked in two waves so that a later
-    // copy of a helper can take the proofs an earlier copy found
-    // (`crate::reuse::Donors`). `crate::reuse::first_wave` picks the first
-    // wave from the witnesses' machines; the second wave borrows from it, and
-    // the closure then borrows from every witness. Which copy donates is
-    // fixed by witness order, never by which worker finished first.
-    let held: Vec<Vec<symbols::SymbolHandle>> = witnesses
-        .iter()
-        .map(|witness| match witness {
-            Ok(elaboration) => elaboration
-                .machines
-                .iter()
-                .map(|(_, symbol)| *symbol)
-                .collect(),
-            Err(_) => Vec::new(),
-        })
-        .collect();
-    let first_wave = crate::reuse::first_wave(&held);
-    let (first, second): (Vec<_>, Vec<_>) = witnesses
-        .into_iter()
-        .enumerate()
-        .partition(|(witness, _)| first_wave[*witness]);
-    // Generic check forms and the first wave of conformance witnesses share
-    // only immutable `laws`, so they run concurrently when workers are
-    // available and merge their refusals and activity in deterministic order.
-    let (forms, first) =
-        if worker_budget::current_workers() == 1 || forms.is_empty() || first.is_empty() {
+    let (forms, examined) =
+        if worker_budget::current_workers() == 1 || forms.is_empty() || witnesses.is_empty() {
             let forms = examine_generic_forms(forms, laws, activity, further);
-            let first = examine_witnesses(first, None, laws, activity);
-            (forms, first)
+            let examined = examine_witnesses(witnesses, laws, activity);
+            (forms, examined)
         } else {
             let mut forms_further = Vec::new();
             let mut forms_activity = crate::ProofSearchActivity::default();
-            let mut first_activity = crate::ProofSearchActivity::default();
-            let (forms, first) = rayon::join(
+            let mut witness_activity = crate::ProofSearchActivity::default();
+            let (forms, examined) = rayon::join(
                 || examine_generic_forms(forms, laws, &mut forms_activity, &mut forms_further),
-                || examine_witnesses(first, None, laws, &mut first_activity),
+                || examine_witnesses(witnesses, laws, &mut witness_activity),
             );
             further.extend(forms_further);
             activity.merge(forms_activity);
-            activity.merge(first_activity);
-            (forms, first)
+            activity.merge(witness_activity);
+            (forms, examined)
         };
-    let second = {
-        let donors = crate::reuse::Donors::new(first.iter().filter_map(|(_, examined, _)| {
-            examined
-                .as_ref()
-                .ok()
-                .map(|examined| (&examined.elaboration, &examined.discharged))
-        }));
-        examine_witnesses(second, Some(&donors), laws, activity)
-    };
-    // Back in witness order, for the verdicts and the refusals beside them.
-    let mut ordered: Vec<_> = first.into_iter().chain(second).collect();
-    ordered.sort_by_key(|(witness, _, _)| *witness);
-    let mut examined_witnesses = Vec::with_capacity(ordered.len());
-    for (_, examined, local_further) in ordered {
+    let mut examined_witnesses = Vec::with_capacity(examined.len());
+    for (examined, local_further) in examined {
         further.extend(local_further);
         examined_witnesses.push(examined);
     }
@@ -1956,7 +1903,7 @@ fn append_form_and_witness_verdicts(
         let verdict = match witness {
             Ok(examined) => conclude(
                 examined,
-                AppliedContracts::Undecided,
+                AppliedContracts::OwnCheckForms,
                 false,
                 &mut local_further,
             ),
@@ -2001,26 +1948,23 @@ fn append_form_and_witness_verdicts(
 
 type WitnessExamination = Result<Examined, Checked<RouteVerdict>>;
 
-/// One examined witness, by its position among the compilation's witnesses,
-/// with the refusals its examination put beside its verdict.
-type ExaminedWitness = (usize, WitnessExamination, Vec<Refusal>);
+/// One examined witness, with the refusals its examination put beside its verdict.
+type ExaminedWitness = (WitnessExamination, Vec<Refusal>);
 
-/// Examines `witnesses`, each with its position, on the workers when there
-/// are several; each may borrow proofs from `donors`. The result is in the
-/// order given.
+/// Examines `witnesses` on workers when there are several. The result is in
+/// the order given.
 fn examine_witnesses(
-    witnesses: Vec<(usize, Checked<Elaboration>)>,
-    donors: Option<&crate::reuse::Donors<'_>>,
+    witnesses: Vec<Checked<Elaboration>>,
     laws: &[crate::laws::LawJudgment],
     activity: &mut crate::ProofSearchActivity,
 ) -> Vec<ExaminedWitness> {
     if worker_budget::current_workers() == 1 || witnesses.len() < 2 {
         return witnesses
             .into_iter()
-            .map(|(position, witness)| {
+            .map(|witness| {
                 let mut further = Vec::new();
-                let examined = examine(witness, &[], donors, laws, activity, &mut further);
-                (position, examined, further)
+                let examined = examine(witness, &[], laws, activity, &mut further);
+                (examined, further)
             })
             .collect();
     }
@@ -2028,18 +1972,11 @@ fn examine_witnesses(
     let results: Vec<_> = witnesses
         .into_par_iter()
         .with_max_len(1)
-        .map(|(position, witness)| {
+        .map(|witness| {
             let mut local_activity = crate::ProofSearchActivity::default();
             let mut further = Vec::new();
-            let examined = examine(
-                witness,
-                &[],
-                donors,
-                laws,
-                &mut local_activity,
-                &mut further,
-            );
-            ((position, examined, further), local_activity)
+            let examined = examine(witness, &[], laws, &mut local_activity, &mut further);
+            ((examined, further), local_activity)
         })
         .collect();
     results
@@ -2308,7 +2245,7 @@ fn examine_generic_forms(
         }
         match form.forms {
             Ok(forms) => examined.extend(forms.into_iter().map(|form| {
-                match examine(Ok(form), &[], None, laws, activity, further) {
+                match examine(Ok(form), &[], laws, activity, further) {
                     Ok(examined) => GenericForm::Examined { template, examined },
                     Err(decided) => GenericForm::Decided(decided),
                 }

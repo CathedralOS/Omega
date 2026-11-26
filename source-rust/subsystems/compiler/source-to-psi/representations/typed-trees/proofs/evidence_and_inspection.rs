@@ -5697,10 +5697,10 @@ pub mod inspection {
                     "build_product_operand",
                     Some(format!("{operation:?}:{position}:{role:?}")),
                 ),
+                Intrinsic::BuildEnableUnsafe => ("build_enable_unsafe", None),
                 Intrinsic::BuildServiceDescription => ("build_service_description", None),
                 Intrinsic::BuildProviderReadiness => ("build_provider_readiness", None),
                 Intrinsic::BuildProviderSelection => ("build_provider_selection", None),
-                Intrinsic::BuildAssumedBindingContract => ("build_assumed_binding_contract", None),
                 Intrinsic::BuildRepresentationSelection => ("build_representation_selection", None),
                 Intrinsic::BuildServiceExclusion => ("build_service_exclusion", None),
                 Intrinsic::BuildServiceAudit => ("build_service_audit", None),
@@ -5716,7 +5716,6 @@ pub mod inspection {
                 Intrinsic::WireCompatibilityFact(fact) => {
                     ("wire_compatibility_fact", Some(format!("{fact:?}")))
                 }
-                Intrinsic::BuildIncludedSourceHandoff => ("build_included_source_handoff", None),
                 Intrinsic::BuildLogWriteLine => ("build_log_write_line", None),
                 Intrinsic::WireEncode => ("wire_encode", None),
                 Intrinsic::WireDecode => ("wire_decode", None),

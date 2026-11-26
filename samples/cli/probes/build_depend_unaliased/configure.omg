@@ -1,0 +1,22 @@
+use {omega}/build/dependency.omg;
+use {custody_kernel}/main.omg as kernel;
+use main.omg as app;
+
+machine build(plan: @mutable BuildPlan) crashes Trap {
+    transition |kernel|::seed() == 3 {
+        true -> application(plan),
+        false -> refused()
+    }
+
+    machine application(plan: @mutable BuildPlan) {
+        let kernel: PackageBinding = |dependency|::input(plan, "custody_kernel");
+        _ = |dependency|::add(plan, kernel);
+        plan.product = BuildProduct::Application { name: "build_depend_unaliased" };
+        Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+        Build::bind(plan, linux_arm64::ProgramEntry, |app|::main);
+        Build::bind(plan, macos_arm64::ProgramEntry, |app|::main);
+        Build::bind(plan, windows_x86_64::ProgramEntry, |app|::main);
+        Build::bind(plan, windows_arm64::ProgramEntry, |app|::main);
+    }
+    machine refused() crashes Trap { crash Trap; }
+}

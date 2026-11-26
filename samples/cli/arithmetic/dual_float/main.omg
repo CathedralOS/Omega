@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Dual float: f32 and f64 fields in the same data type.
 //
 // Exercises: a data struct with BOTH f32 and f64 fields, arithmetic on each,
@@ -25,7 +25,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 data Floats [copy] {
     low: f32;
@@ -40,8 +39,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("dual_float: f32 and f64 coexisting in one struct -- 3.5+3.5 (f32) and 6.5-3.0 (f64)");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("dual_float: f32 and f64 coexisting in one struct -- 3.5+3.5 (f32) and 6.5-3.0 (f64)");
     // Assign the mixed-width float fields.
     main.f.low = 3.5;
     main.f.high = 6.5;
@@ -59,10 +58,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_sum_low(main: @mutable Main) {
-        Console::write_line("FAIL: f32 sum <= 6.9 -- expected ~7.0 (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: f32 sum <= 6.9 -- expected ~7.0 (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 
     machine check_sum_upper(main: @mutable Main) {
@@ -72,10 +71,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine bad_sum_high(main: @mutable Main) {
-        Console::write_line("FAIL: f32 sum >= 7.1 -- expected ~7.0 (exit 72)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(72);
+        |console|::Console::write_line("FAIL: f32 sum >= 7.1 -- expected ~7.0 (exit 72)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(72);
     }
 
     // Check diff_f64 is ~3.5.
@@ -86,10 +85,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine bad_diff_low(main: @mutable Main) {
-        Console::write_line("FAIL: f64 diff <= 3.4 -- expected ~3.5 (exit 73)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(73);
+        |console|::Console::write_line("FAIL: f64 diff <= 3.4 -- expected ~3.5 (exit 73)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(73);
     }
 
     machine check_diff_high(main: @mutable Main) {
@@ -99,10 +98,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine bad_diff_high(main: @mutable Main) {
-        Console::write_line("FAIL: f64 diff >= 3.6 -- expected ~3.5 (exit 74)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(74);
+        |console|::Console::write_line("FAIL: f64 diff >= 3.6 -- expected ~3.5 (exit 74)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(74);
     }
 
     // All checks passed: encode exit 70.
@@ -115,22 +114,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: both float widths computed and compared correctly (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: both float widths computed and compared correctly (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 
     machine bad_result(main: @mutable Main) {
-        Console::write_line("FAIL: integer result field readback != 70 (exit 75)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(75);
+        |console|::Console::write_line("FAIL: integer result field readback != 70 (exit 75)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(75);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

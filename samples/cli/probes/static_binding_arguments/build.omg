@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "static_binding_arguments");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "static_binding_arguments" };
     Build::select_provider::<Character, CharacterImplementation>(builder, linux_arm64);
     Build::select_provider::<Character, CharacterImplementation>(builder, linux_x86_64);
     Build::select_provider::<Character, CharacterImplementation>(builder, macos_arm64);

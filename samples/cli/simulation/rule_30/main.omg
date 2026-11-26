@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Rule 30 elementary cellular automaton -- evolves a 31-cell row packed into
 // one 64-bit word for 16 generations from a single centre seed and streams
 // each generation as a '#'/space line through Console::write_byte. The whole
@@ -11,7 +11,6 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: #
 
-use system\Console;
 
 data Main
 requires self.g >= 0 && self.g <= 16,
@@ -24,8 +23,8 @@ requires self.g >= 0 && self.g <= 16,
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
     main.cells = 0x8000 as +Wrapping; // single live cell in the centre (bit 15)
     main.g = 0;
     transition { _ -> block gen_loop(main) }
@@ -48,11 +47,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     // Refine the standing owner bound to leave headroom for the increment.
     machine mark(main: @mutable Main) {
-        Console::write_byte(0x23);
+        |console|::Console::write_byte(0x23);
         transition main.i >= 0 && main.i < 31 { true -> block render_bump(main), _ -> block render_loop(main) }
     }
     machine blank(main: @mutable Main) {
-        Console::write_byte(0x20);
+        |console|::Console::write_byte(0x20);
         transition main.i >= 0 && main.i < 31 { true -> block render_bump(main), _ -> block render_loop(main) }
     }
     machine render_bump(main: @mutable Main) {
@@ -60,7 +59,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> block render_loop(main) }
     }
     machine emit(main: @mutable Main) {
-        Console::write_line("");
+        |console|::Console::write_line("");
         transition { _ -> block evolve(main) }
     }
 
@@ -80,14 +79,14 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine finish(main: @mutable Main) {
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

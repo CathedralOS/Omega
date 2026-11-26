@@ -19,47 +19,31 @@ pub(crate) mod artifact_manifest {
     const DEBUG_DOMAIN: &[u8] = b"psi-terminal-debug-section\0";
     const ARTIFACT_DOMAIN: &[u8] = b"psi-terminal-artifact-manifest\0";
 
-    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct SectionFingerprint([u8; 32]);
+    macro_rules! hex_digest_type {
+        ($($name:ident),* $(,)?) => {$(
+            #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+            pub struct $name([u8; 32]);
 
-    impl SectionFingerprint {
-        pub const fn as_bytes(&self) -> &[u8; 32] {
-            &self.0
-        }
+            impl $name {
+                pub const fn as_bytes(&self) -> &[u8; 32] {
+                    &self.0
+                }
+            }
+
+            impl std::fmt::Debug for $name {
+                fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    std::fmt::Display::fmt(self, formatter)
+                }
+            }
+
+            impl std::fmt::Display for $name {
+                fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    write_hex(formatter, &self.0)
+                }
+            }
+        )*};
     }
-
-    impl std::fmt::Debug for SectionFingerprint {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            std::fmt::Display::fmt(self, formatter)
-        }
-    }
-
-    impl std::fmt::Display for SectionFingerprint {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write_hex(formatter, &self.0)
-        }
-    }
-
-    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct TerminalArtifactIdentity([u8; 32]);
-
-    impl TerminalArtifactIdentity {
-        pub const fn as_bytes(&self) -> &[u8; 32] {
-            &self.0
-        }
-    }
-
-    impl std::fmt::Debug for TerminalArtifactIdentity {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            std::fmt::Display::fmt(self, formatter)
-        }
-    }
-
-    impl std::fmt::Display for TerminalArtifactIdentity {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write_hex(formatter, &self.0)
-        }
-    }
+    hex_digest_type!(SectionFingerprint, TerminalArtifactIdentity);
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct TerminalArtifactManifest {
@@ -75,21 +59,20 @@ pub(crate) mod artifact_manifest {
         pub const fn semantic(self) -> TerminalPsiIdentity {
             self.semantic
         }
-
         pub const fn optimization(self) -> PsiOptimizationExecutionIdentity {
             self.optimization
         }
-
         pub const fn installation(self) -> Option<SectionFingerprint> {
             self.installation
         }
-
         pub const fn debug(self) -> Option<SectionFingerprint> {
             self.debug
         }
-
         pub const fn publication(self) -> Option<SectionFingerprint> {
             self.publication
+        }
+        pub const fn identity(self) -> TerminalArtifactIdentity {
+            self.identity
         }
 
         /// Publication facts participate in host authorization even when executable code is identical.
@@ -111,10 +94,6 @@ pub(crate) mod artifact_manifest {
             subject[32..].copy_from_slice(fingerprint.as_bytes());
             self.identity = TerminalArtifactIdentity(hash(b"psi-published-artifact\0", &subject));
             self
-        }
-
-        pub const fn identity(self) -> TerminalArtifactIdentity {
-            self.identity
         }
     }
 
@@ -209,19 +188,16 @@ pub(crate) mod artifact_manifest {
         );
         bytes.extend_from_slice(semantic.program_fingerprint.as_bytes());
         bytes.extend_from_slice(optimization.as_bytes());
-        encode_optional_fingerprint(&mut bytes, installation);
-        encode_optional_fingerprint(&mut bytes, debug);
-        TerminalArtifactIdentity(hash(ARTIFACT_DOMAIN, &bytes))
-    }
-
-    fn encode_optional_fingerprint(bytes: &mut Vec<u8>, fingerprint: Option<SectionFingerprint>) {
-        match fingerprint {
-            None => bytes.push(0),
-            Some(fingerprint) => {
-                bytes.push(1);
-                bytes.extend_from_slice(fingerprint.as_bytes());
+        for fingerprint in [installation, debug] {
+            match fingerprint {
+                None => bytes.push(0),
+                Some(fp) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(fp.as_bytes());
+                }
             }
         }
+        TerminalArtifactIdentity(hash(ARTIFACT_DOMAIN, &bytes))
     }
 
     fn hash(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
@@ -255,19 +231,18 @@ pub(crate) mod artifact_manifest {
     impl std::error::Error for ArtifactManifestError {}
 }
 pub(crate) mod debug_map {
-
     use terminal_psi::{
         SemanticFingerprint, TerminalModule, TerminalPsiIdentity, VocabularyMarker,
     };
 
-    use crate::sections::semantic_module::wire::{
-        Reader, Writer, bounded_count, strictly_increasing,
-    };
-    use crate::{CodecError, terminal_psi_identity};
     pub use crate::debug_map_records::{
         DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,
         DebugSourceSpan, DebugSubject, TerminalDebugMap,
     };
+    use crate::sections::semantic_module::wire::{
+        Reader, Writer, bounded_count, strictly_increasing,
+    };
+    use crate::{CodecError, terminal_psi_identity};
 
     const MAGIC: &[u8; 8] = b"PSIDBG\0\0";
     const FORMAT_MARKER: u16 = 1;
@@ -312,26 +287,20 @@ pub(crate) mod debug_map {
         let file_count = bounded_count(&mut reader, 1).map_err(DebugMapError::from)?;
         let mut files = Vec::with_capacity(file_count);
         for _ in 0..file_count {
-            let raw_file = reader.u32()?;
-            let id = DebugFileId::new(raw_file).ok_or(DebugMapError::ZeroFileIdentity)?;
-            let origin = decode_source_origin(&mut reader)?;
-            let byte_len = reader.u64()?;
-            let digest = DebugSourceDigest::from_bytes(reader.array()?);
-            let path = reader.string("debug source path")? /* debug source path */;
+            let id = DebugFileId::new(reader.u32()?).ok_or(DebugMapError::ZeroFileIdentity)?;
             files.push(DebugSourceFile {
                 id,
-                origin,
-                byte_len,
-                digest,
-                path,
+                origin: decode_source_origin(&mut reader)?,
+                byte_len: reader.u64()?,
+                digest: DebugSourceDigest::from_bytes(reader.array()?),
+                path: reader.string("debug source path")?,
             });
         }
         let site_count = bounded_count(&mut reader, 1).map_err(DebugMapError::from)?;
         let mut sites = Vec::with_capacity(site_count);
         for _ in 0..site_count {
             let subject = decode_subject(&mut reader)?;
-            let raw_file = reader.u32()?;
-            let file = DebugFileId::new(raw_file).ok_or(DebugMapError::ZeroFileIdentity)?;
+            let file = DebugFileId::new(reader.u32()?).ok_or(DebugMapError::ZeroFileIdentity)?;
             sites.push(DebugSite {
                 subject,
                 span: DebugSourceSpan {
@@ -423,46 +392,41 @@ pub(crate) mod debug_map {
         Ok(writer.finish())
     }
 
-    fn encode_subject(writer: &mut Writer, subject: DebugSubject) {
-        match subject {
-            DebugSubject::Machine(id) => {
-                writer.u8(1);
-                writer.id(id);
+    macro_rules! debug_subject_codec {
+        ($($tag:literal => $variant:ident ($label:literal)),* $(,)?) => {
+            fn encode_subject(writer: &mut Writer, subject: DebugSubject) {
+                match subject {
+                    $(DebugSubject::$variant(id) => { writer.u8($tag); writer.id(id); })*
+                    DebugSubject::Claim { machine, claim } => {
+                        writer.u8(9);
+                        writer.id(machine);
+                        writer.id(claim);
+                    }
+                }
             }
-            DebugSubject::Block(id) => {
-                writer.u8(2);
-                writer.id(id);
+
+            pub(crate) fn decode_subject(reader: &mut Reader<'_>) -> Result<DebugSubject, DebugMapError> {
+                Ok(match reader.u8()? {
+                    $($tag => DebugSubject::$variant(reader.id($label)?),)*
+                    9 => DebugSubject::Claim {
+                        machine: reader.id("debug claim MachineId")?,
+                        claim: reader.id("debug ClaimId")?,
+                    },
+                    tag => return Err(DebugMapError::InvalidTag("DebugSubject", tag)),
+                })
             }
-            DebugSubject::Operation(id) => {
-                writer.u8(3);
-                writer.id(id);
-            }
-            DebugSubject::Edge(id) => {
-                writer.u8(4);
-                writer.id(id);
-            }
-            DebugSubject::Value(id) => {
-                writer.u8(5);
-                writer.id(id);
-            }
-            DebugSubject::Contract(id) => {
-                writer.u8(6);
-                writer.id(id);
-            }
-            DebugSubject::Obligation(id) => {
-                writer.u8(7);
-                writer.id(id);
-            }
-            DebugSubject::Place(id) => {
-                writer.u8(8);
-                writer.id(id);
-            }
-            DebugSubject::Claim { machine, claim } => {
-                writer.u8(9);
-                writer.id(machine);
-                writer.id(claim);
-            }
-        }
+        };
+    }
+
+    debug_subject_codec! {
+        1 => Machine("debug MachineId"),
+        2 => Block("debug BlockId"),
+        3 => Operation("debug OperationId"),
+        4 => Edge("debug EdgeId"),
+        5 => Value("debug ValueId"),
+        6 => Contract("debug ContractId"),
+        7 => Obligation("debug ObligationId"),
+        8 => Place("debug PlaceId"),
     }
 
     pub(crate) fn decode_source_origin(
@@ -472,24 +436,6 @@ pub(crate) mod debug_map {
             1 => DebugSourceOrigin::User,
             2 => DebugSourceOrigin::Toolchain,
             tag => return Err(DebugMapError::InvalidTag("DebugSourceOrigin", tag)),
-        })
-    }
-
-    pub(crate) fn decode_subject(reader: &mut Reader<'_>) -> Result<DebugSubject, DebugMapError> {
-        Ok(match reader.u8()? {
-            1 => DebugSubject::Machine(reader.id("debug MachineId")?),
-            2 => DebugSubject::Block(reader.id("debug BlockId")?),
-            3 => DebugSubject::Operation(reader.id("debug OperationId")?),
-            4 => DebugSubject::Edge(reader.id("debug EdgeId")?),
-            5 => DebugSubject::Value(reader.id("debug ValueId")?),
-            6 => DebugSubject::Contract(reader.id("debug ContractId")?),
-            7 => DebugSubject::Obligation(reader.id("debug ObligationId")?),
-            8 => DebugSubject::Place(reader.id("debug PlaceId")?),
-            9 => DebugSubject::Claim {
-                machine: reader.id("debug claim MachineId")?,
-                claim: reader.id("debug ClaimId")?,
-            },
-            tag => return Err(DebugMapError::InvalidTag("DebugSubject", tag)),
         })
     }
 

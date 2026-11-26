@@ -304,7 +304,7 @@ pub(crate) mod baseline {
         ReceiptMismatch,
     }
 
-    stage_error_display!(
+    failed_display!(
         OptimizedRegisterHomeCustodyError,
         "optimized register-home staging failed"
     );
@@ -355,7 +355,7 @@ pub(crate) mod baseline {
         ReceiptMismatch,
     }
 
-    stage_error_display!(
+    failed_display!(
         OptimizedPostCopyRegisterHomeCustodyError,
         "optimized post-copy register-home staging failed"
     );
@@ -2553,7 +2553,7 @@ pub(crate) mod runtime_spill {
         RecoveryNotRequired,
     }
 
-    stage_error_display!(
+    failed_display!(
         RuntimeSpillAllocationError,
         "runtime spill allocation failed"
     );

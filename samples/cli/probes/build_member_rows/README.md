@@ -1,14 +1,6 @@
-# build_member_rows
+# Workspace members
 
-The `Build::member` row family names workspace-member package
-directories — the shape the repository root build uses for the packages under
-`source/subsystems/compiler` and `source/application`, and `source/library/system`. A member row declares a *workspace*,
-and exactly one declaration kind is allowed per build:
+A Build returns `BuildProduct::Workspace` with the member catalog it constructed. The package check executes each returned member.
 
-- `invalid_mixed_kinds` combines `Build::application` and `Build::member`
-  in one activation. The refusal identifies the mixed roles.
-- `invalid_workspace_root` passes an explicit workspace to Product source
-  checking. A workspace declaration supplies no Product source owner.
-
-Member rows therefore grant no product imports on their own; the plain
-application root beside the controls is the passing coverage.
+- `invalid_repeated_member` includes the same member twice in its returned catalog.
+- `invalid_missing_workspace_member` returns a member directory that does not exist.

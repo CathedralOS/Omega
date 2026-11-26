@@ -7,12 +7,8 @@ use super::scalar_term_wire::{decode_scalar_terms, encode_scalar_terms};
 use super::scalar_wire::{
     decode_ieee_float_value, decode_integer_value, encode_ieee_float_value, encode_integer_value,
 };
-use super::structural_place_wire::{
-    decode_structural_arguments, decode_structural_path, encode_structural_arguments,
-    encode_structural_path,
-};
-use super::structural_signature_wire::{decode_structural_access, encode_structural_access};
-use super::wire::{Reader, Writer, decode_counted, decode_optional_id, encode_optional_id};
+use super::structural_place_wire::{decode_structural_arguments, encode_structural_arguments};
+use super::wire::{Reader, Writer};
 pub(crate) use psi_declaration_encoding::fields::*;
 pub(crate) use psi_declaration_encoding::wire;
 use semantic_vocabulary::{
@@ -27,23 +23,81 @@ use terminal_psi::{
     StructuralReferentIdentity, StructuralResultClaimBinding,
 };
 
-pub(crate) struct Argument;
-impl Field<StructuralArgument> for Argument {
-    fn write(writer: &mut Writer, value: &StructuralArgument) -> Result<(), CodecError> {
-        writer.id(value.place);
-        encode_structural_access(writer, value.access);
-        encode_structural_path(writer, "operation argument path", &value.path)
+wire_record! {
+    Argument: StructuralArgument { place: Id, access: Access, path: Path }
+    ResidentSource: ResidentReferenceSource { base: Id, length: Id, granted: Id, resident: Id }
+    ScalarCaseFieldRow: ScalarCaseField { field: Id, value: Id, range_obligation: OptionalId }
+    RecordFieldInitializerRow: RecordFieldInitializer { field: Id, value: RecordFieldValueRow }
+    ClaimTransferRow: ClaimTransfer { claim: Id, argument_index: U32, path: Path }
+    CompletionReceiptRow: CompletionReceipt { claim: Id, argument_index: U32, path: Path }
+    SelectedEvidenceRow: OutcomeSpecificCallEvidence {
+        guard: super::contract_wire::Guard,
+        position: U32,
+        callee_obligation: Id,
+        callee_term: Id,
+        output_field: Text,
+        callee_proposition: Id,
+        instantiated_proposition: Id,
+        output: Id,
+        result_substitution: Optional<ResultSubstitution>,
+        argument_substitutions: List<ArgumentSubstitution>,
+        validity: EvidenceValidity,
+        expected_use_count: U32,
+        uses: List<EvidenceUse>,
     }
-    fn read(reader: &mut Reader<'_>) -> Result<StructuralArgument, CodecError> {
-        Ok(StructuralArgument {
-            place: reader.id("PlaceId")?,
-            access: decode_structural_access(reader)?,
-            path: decode_structural_path(reader)?,
-        })
+    ResultSubstitution: OutcomeSpecificCallResultSubstitution {
+        argument_position: U32,
+        callee_result: Id,
+        caller_result: Id,
     }
+    EvidenceValidity: OutcomeSpecificCallEvidenceValidity {
+        result: Id,
+        proposition_dependencies: Ids,
+        evidence_interface: EvidenceInterface,
+        interface_dependencies: Ids,
+    }
+    EvidenceUse: OutcomeSpecificEvidenceUse {
+        target: Id,
+        input_position: U32,
+        target_requirement: Id,
+        target_term: Id,
+        source: Id,
+        instantiated_proposition: Id,
+        target_parameter: Id,
+        caller_result: Id,
+    }
+    Referent: StructuralReferentIdentity {
+        id: Id,
+        identity: Index,
+        foreign_descriptor: Flag,
+        abstract_opaque: Flag,
+    }
+    ClaimBinding: StructuralResultClaimBinding { claim: Id, path: Path }
 }
 
+pub(crate) type Resident = Optional<ResidentSource>;
+pub(crate) type ScalarCaseFields = List<ScalarCaseFieldRow>;
+pub(crate) type RecordFields = List<RecordFieldInitializerRow>;
+pub(crate) type ClaimTransfers = List<ClaimTransferRow>;
+pub(crate) type CompletionReceipts = List<CompletionReceiptRow>;
+pub(crate) type SelectedEvidence = List<SelectedEvidenceRow>;
+pub(crate) type EvidenceInterface = super::proof_declaration_wire::Interface;
+pub(crate) type CrashRoutes = List<super::contract_wire::Bucket>;
+
+pub(crate) use psi_callable_encoding::contracts::MachineDeclaration;
+pub(crate) use psi_callable_encoding::signatures::{ArgumentSubstitution, Commitment};
 pub(crate) use psi_declaration_encoding::structural_fields::FieldPath;
+
+pub(crate) struct I64;
+impl Field<i64> for I64 {
+    fn write(writer: &mut Writer, value: &i64) -> Result<(), CodecError> {
+        writer.bytes(&value.to_le_bytes());
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<i64, CodecError> {
+        Ok(i64::from_le_bytes(reader.array()?))
+    }
+}
 
 pub(crate) struct Integer;
 impl Field<IntegerValue> for Integer {
@@ -67,29 +121,71 @@ impl Field<IeeeFloatValue> for Float {
     }
 }
 
-macro_rules! byte_enums {
-    ($($marker:ident: $ty:ty, $name:literal { $($variant:ident = $byte:literal),* $(,)? })*) => {$(
-        pub(crate) struct $marker;
-        impl Field<$ty> for $marker {
-            fn write(writer: &mut Writer, value: &$ty) -> Result<(), CodecError> {
-                writer.u8(match value { $(<$ty>::$variant => $byte,)* });
-                Ok(())
-            }
-            fn read(reader: &mut Reader<'_>) -> Result<$ty, CodecError> {
-                match reader.u8()? {
-                    $($byte => Ok(<$ty>::$variant),)*
-                    tag => Err(CodecError::InvalidTag($name, tag)),
-                }
-            }
-        }
-    )*};
+pub(crate) struct IntegerTypeField;
+impl Field<semantic_vocabulary::IntegerType> for IntegerTypeField {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::IntegerType,
+    ) -> Result<(), CodecError> {
+        super::scalar_wire::encode_integer_type(writer, *value)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::IntegerType, CodecError> {
+        super::scalar_wire::decode_integer_type(reader)
+    }
 }
-byte_enums! {
+
+pub(crate) struct FloatFormatField;
+impl Field<semantic_vocabulary::IeeeFloatFormat> for FloatFormatField {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::IeeeFloatFormat,
+    ) -> Result<(), CodecError> {
+        super::structural_field_wire::encode_ieee_float_format(writer, *value);
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::IeeeFloatFormat, CodecError> {
+        super::structural_field_wire::decode_ieee_float_format(reader)
+    }
+}
+
+pub(crate) struct OptionalAccess;
+impl Field<Option<terminal_psi::StructuralAccess>> for OptionalAccess {
+    fn write(
+        writer: &mut Writer,
+        value: &Option<terminal_psi::StructuralAccess>,
+    ) -> Result<(), CodecError> {
+        match value {
+            Some(access) => {
+                super::structural_signature_wire::encode_structural_access(writer, *access)
+            }
+            None => writer.u8(0),
+        }
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<Option<terminal_psi::StructuralAccess>, CodecError> {
+        super::structural_signature_wire::decode_optional_structural_access(reader)
+    }
+}
+
+wire_enum! {
     FloatComparison: IeeeFloatComparisonOperation, "IeeeFloatComparisonOperation" {
-        Equal = 0, NotEqual = 1, Less = 2, LessOrEqual = 3, Greater = 4, GreaterOrEqual = 5,
+        0 => Equal, 1 => NotEqual, 2 => Less, 3 => LessOrEqual, 4 => Greater, 5 => GreaterOrEqual,
     }
     Predicate: ByteSequencePredicate, "ByteSequencePredicate" {
-        ValidUtf8 = 1, NoNul = 2, AsciiOnly = 4, NonEmpty = 8,
+        1 => ValidUtf8, 2 => NoNul, 4 => AsciiOnly, 8 => NonEmpty,
+    }
+    Region: ElementViewRegion, "element view region" {
+        0 => WholeCollection,
+        2 => WholeRepresentation { source_length: Id, obligation: Id },
+        1 => RepresentationBytes { start: Id, end: Id, obligation: Id },
+    }
+    ByteOperand: ByteSequenceOperand, "byte sequence operand" {
+        2 => Whole { source: Argument, length: Id },
+        1 => Field { source: Argument, field: Id, length: Id },
+    }
+    RecordFieldValueRow: RecordFieldValue, "RecordFieldValue" {
+        1 => Scalar { value: Id, range_obligation: OptionalId },
+        2 => Structural(argument: Argument),
     }
 }
 
@@ -123,7 +219,7 @@ impl Field<semantic_vocabulary::PackedIntegerBinaryOperation> for PackedIntegerB
             0 => WrappingAddI16x8,
             1 => WrappingSubI16x8,
             2 => {
-                let lanes = <[u8; 8]>::try_from(reader.take(8)?).expect("eight wire bytes");
+                let lanes = reader.array::<8>()?;
                 if lanes.iter().any(|&index| index >= 16) {
                     return Err(CodecError::MalformedStructuralFoundation(
                         "packed shuffle index exceeds both input arrays",
@@ -187,255 +283,19 @@ impl Field<semantic_vocabulary::PackedIntegerUnaryOperation> for PackedIntegerUn
     }
 }
 
-pub(crate) struct Resident;
-impl Field<Option<ResidentReferenceSource>> for Resident {
-    fn write(
-        writer: &mut Writer,
-        value: &Option<ResidentReferenceSource>,
-    ) -> Result<(), CodecError> {
-        writer.boolean(value.is_some());
-        if let Some(resident) = value {
-            writer.id(resident.base);
-            writer.id(resident.length);
-            writer.id(resident.granted);
-            writer.id(resident.resident);
-        }
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Option<ResidentReferenceSource>, CodecError> {
-        if !reader.boolean()? {
-            return Ok(None);
-        }
-        Ok(Some(ResidentReferenceSource {
-            base: reader.id("StructuralFieldId")?,
-            length: reader.id("StructuralFieldId")?,
-            granted: reader.id("StructuralDomainId")?,
-            resident: reader.id("StructuralDomainId")?,
-        }))
-    }
-}
-
-pub(crate) struct Region;
-impl Field<ElementViewRegion> for Region {
-    fn write(writer: &mut Writer, value: &ElementViewRegion) -> Result<(), CodecError> {
-        match value {
-            ElementViewRegion::WholeCollection => writer.u8(0),
-            ElementViewRegion::WholeRepresentation {
-                source_length,
-                obligation,
-            } => {
-                writer.u8(2);
-                writer.id(*source_length);
-                writer.id(*obligation);
-            }
-            ElementViewRegion::RepresentationBytes {
-                start,
-                end,
-                obligation,
-            } => {
-                writer.u8(1);
-                writer.id(*start);
-                writer.id(*end);
-                writer.id(*obligation);
-            }
-        }
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<ElementViewRegion, CodecError> {
-        match reader.u8()? {
-            0 => Ok(ElementViewRegion::WholeCollection),
-            2 => Ok(ElementViewRegion::WholeRepresentation {
-                source_length: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            }),
-            1 => Ok(ElementViewRegion::RepresentationBytes {
-                start: reader.id("ValueId")?,
-                end: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            }),
-            tag => Err(CodecError::InvalidTag("element view region", tag)),
-        }
-    }
-}
-
-pub(crate) struct ByteOperand;
-impl Field<ByteSequenceOperand> for ByteOperand {
-    fn write(writer: &mut Writer, value: &ByteSequenceOperand) -> Result<(), CodecError> {
-        match value {
-            ByteSequenceOperand::Whole { source, length } => {
-                writer.u8(2);
-                Argument::write(writer, source)?;
-                writer.id(*length);
-            }
-            ByteSequenceOperand::Field {
-                source,
-                field,
-                length,
-            } => {
-                writer.u8(1);
-                Argument::write(writer, source)?;
-                writer.id(*field);
-                writer.id(*length);
-            }
-        }
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<ByteSequenceOperand, CodecError> {
-        match reader.u8()? {
-            2 => Ok(ByteSequenceOperand::Whole {
-                source: Argument::read(reader)?,
-                length: reader.id("ValueId")?,
-            }),
-            1 => Ok(ByteSequenceOperand::Field {
-                source: Argument::read(reader)?,
-                field: reader.id("StructuralFieldId")?,
-                length: reader.id("ValueId")?,
-            }),
-            tag => Err(CodecError::InvalidTag("byte sequence operand", tag)),
-        }
-    }
-}
-
-pub(crate) struct ScalarCaseFields;
-impl Field<Vec<ScalarCaseField>> for ScalarCaseFields {
-    fn write(writer: &mut Writer, value: &Vec<ScalarCaseField>) -> Result<(), CodecError> {
-        writer.len("scalar case fields", value.len())?;
-        for field in value {
-            writer.id(field.field);
-            writer.id(field.value);
-            encode_optional_id(writer, field.range_obligation);
-        }
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Vec<ScalarCaseField>, CodecError> {
-        decode_counted(reader, |reader| {
-            Ok(ScalarCaseField {
-                field: reader.id("StructuralFieldId")?,
-                value: reader.id("ValueId")?,
-                range_obligation: decode_optional_id(reader, "ObligationId")?,
-            })
-        })
-    }
-}
-
-pub(crate) struct RecordFields;
-impl Field<Vec<RecordFieldInitializer>> for RecordFields {
-    fn write(writer: &mut Writer, value: &Vec<RecordFieldInitializer>) -> Result<(), CodecError> {
-        writer.len("record fields", value.len())?;
-        for field in value {
-            writer.id(field.field);
-            match &field.value {
-                RecordFieldValue::Scalar {
-                    value,
-                    range_obligation,
-                } => {
-                    writer.u8(1);
-                    writer.id(*value);
-                    encode_optional_id(writer, *range_obligation);
-                }
-                RecordFieldValue::Structural(argument) => {
-                    writer.u8(2);
-                    Argument::write(writer, argument)?;
-                }
-            }
-        }
-        Ok(())
-    }
-    fn read(reader: &mut Reader<'_>) -> Result<Vec<RecordFieldInitializer>, CodecError> {
-        decode_counted(reader, |reader| {
-            let field = reader.id("StructuralFieldId")?;
-            let value = match reader.u8()? {
-                1 => RecordFieldValue::Scalar {
-                    value: reader.id("ValueId")?,
-                    range_obligation: decode_optional_id(reader, "ObligationId")?,
-                },
-                2 => RecordFieldValue::Structural(Argument::read(reader)?),
-                tag => return Err(CodecError::InvalidTag("RecordFieldValue", tag)),
-            };
-            Ok(RecordFieldInitializer { field, value })
-        })
-    }
-}
-
 delegated_fields! {
     Arguments: Vec<StructuralArgument> => encode_structural_arguments, decode_structural_arguments;
+    ScalarTermField: ScalarTerm
+        => super::scalar_term_wire::encode_scalar_term, super::scalar_term_wire::decode_scalar_term;
     ScalarTerms: Vec<ScalarTerm> => encode_scalar_terms, decode_scalar_terms;
     ProofTerms: Vec<ProofTerm> => encode_proof_terms, decode_proof_terms;
+    StructuralType: terminal_psi::StructuralTypeDeclaration
+        => super::structural_type_wire::encode_structural_type,
+           super::structural_type_wire::decode_structural_type;
+    CleanupAction: terminal_psi::TerminalAffineCleanupAction
+        => super::structural_place_wire::encode_affine_cleanup_action,
+           super::structural_place_wire::decode_affine_cleanup_action;
 }
-
-macro_rules! argument_claims {
-    ($($marker:ident: $ty:ident, $label:literal;)*) => {$(
-        pub(crate) struct $marker;
-        impl Field<Vec<$ty>> for $marker {
-            fn write(writer: &mut Writer, value: &Vec<$ty>) -> Result<(), CodecError> {
-                writer.len($label, value.len())?;
-                for row in value {
-                    writer.id(row.claim);
-                    writer.u32(row.argument_index);
-                    encode_structural_path(writer, $label, &row.path)?;
-                }
-                Ok(())
-            }
-            fn read(reader: &mut Reader<'_>) -> Result<Vec<$ty>, CodecError> {
-                decode_counted(reader, |reader| {
-                    Ok($ty {
-                        claim: reader.id("ClaimId")?,
-                        argument_index: reader.u32()?,
-                        path: decode_structural_path(reader)?,
-                    })
-                })
-            }
-        }
-    )*};
-}
-argument_claims! {
-    ClaimTransfers: ClaimTransfer, "call claim transfers";
-    CompletionReceipts: CompletionReceipt, "boundary claim settlements";
-}
-
-wire_record! {
-    SelectedEvidenceRow: OutcomeSpecificCallEvidence {
-        guard: super::contract_wire::Guard,
-        position: U32,
-        callee_obligation: Id,
-        callee_term: Id,
-        output_field: Text,
-        callee_proposition: Id,
-        instantiated_proposition: Id,
-        output: Id,
-        result_substitution: Optional<ResultSubstitution>,
-        argument_substitutions: List<ArgumentSubstitution>,
-        validity: EvidenceValidity,
-        expected_use_count: U32,
-        uses: List<EvidenceUse>,
-    }
-    ResultSubstitution: OutcomeSpecificCallResultSubstitution {
-        argument_position: U32,
-        callee_result: Id,
-        caller_result: Id,
-    }
-    EvidenceValidity: OutcomeSpecificCallEvidenceValidity {
-        result: Id,
-        proposition_dependencies: Ids,
-        evidence_interface: EvidenceInterface,
-        interface_dependencies: Ids,
-    }
-    EvidenceUse: OutcomeSpecificEvidenceUse {
-        target: Id,
-        input_position: U32,
-        target_requirement: Id,
-        target_term: Id,
-        source: Id,
-        instantiated_proposition: Id,
-        target_parameter: Id,
-        caller_result: Id,
-    }
-}
-pub(crate) type SelectedEvidence = List<SelectedEvidenceRow>;
-
-pub(crate) type EvidenceInterface = super::proof_declaration_wire::Interface;
-
-pub(crate) use psi_callable_encoding::signatures::{ArgumentSubstitution, Commitment};
 
 pub(crate) struct ReachArgument;
 impl Field<terminal_psi::ClosedReachArgument> for ReachArgument {
@@ -449,30 +309,6 @@ impl Field<terminal_psi::ClosedReachArgument> for ReachArgument {
     fn read(reader: &mut Reader<'_>) -> Result<terminal_psi::ClosedReachArgument, CodecError> {
         super::reach_application_wire::decode_argument(reader)
     }
-}
-
-pub(crate) use psi_callable_encoding::contracts::MachineDeclaration;
-
-delegated_fields! {
-    StructuralType: terminal_psi::StructuralTypeDeclaration
-        => super::structural_type_wire::encode_structural_type,
-           super::structural_type_wire::decode_structural_type;
-}
-
-wire_record! {
-    Referent: StructuralReferentIdentity { id: Id, identity: Index, foreign_descriptor: Flag, abstract_opaque: Flag }
-}
-
-pub(crate) type CrashRoutes = List<super::contract_wire::Bucket>;
-
-delegated_fields! {
-    CleanupAction: terminal_psi::TerminalAffineCleanupAction
-        => super::structural_place_wire::encode_affine_cleanup_action,
-           super::structural_place_wire::decode_affine_cleanup_action;
-}
-
-wire_record! {
-    ClaimBinding: StructuralResultClaimBinding { claim: Id, path: Path }
 }
 
 macro_rules! optional_packages {

@@ -113,7 +113,7 @@ pub(crate) use loans::reference_graph_with_nominal_calls;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
 use std::collections::BTreeMap;
-use terminal_semantics::descriptor_results::DescriptorAnalysis;
+use terminal_semantics::descriptor_results::{DescriptorAnalysis, DescriptorCallOrigin};
 
 fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
@@ -827,8 +827,16 @@ enum Initialization {
     WholeArray,
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct ReachingKey {
+    point: (BlockId, usize),
+    place: Lineage,
+    query: QueryKind,
+    window: Option<Box<DescriptorCallOrigin>>,
+}
+
 pub(crate) struct Reaching {
-    keys: BTreeMap<(BlockId, usize, Lineage, QueryKind), usize>,
+    keys: BTreeMap<ReachingKey, usize>,
     equations: Vec<ReachingEquation>,
     fallbacks: Vec<EntryFallback>,
     boundary: BoundaryDepth,
@@ -1615,9 +1623,10 @@ impl<'a> Storage<'a> {
     ) -> Checked<Option<(ScalarTerm, ScalarType)>> {
         Ok(match reached {
             Reached::Value(value) => {
-                let scalar_type =
-                    terminal_check_tables::row(&tables.values, value, self.machine, concerns)?
-                        .scalar_type;
+                let scalar_type = tables
+                    .values
+                    .checked(value, self.machine, concerns)?
+                    .scalar_type;
                 Some((ScalarTerm::value(value, scalar_type), scalar_type))
             }
             Reached::ErasedTerm(index) => {
@@ -2912,13 +2921,10 @@ impl<'a> Storage<'a> {
             *terminal_check_tables::row(&tables.roots, place.root, self.machine, concerns)?;
         for segment in &place.segments {
             let row = terminal_check_tables::row(&tables.places, at, self.machine, concerns)?;
-            match row
-                .children
-                .binary_search_by_key(segment, |(segment, _)| *segment)
-            {
-                Ok(position) => at = row.children[position].1,
-                Err(_) => return Ok(None),
-            }
+            let Some(child) = row.child(&tables.places, *segment) else {
+                return Ok(None);
+            };
+            at = child;
         }
         Ok(Some(at))
     }
@@ -3454,7 +3460,7 @@ impl<'a> Storage<'a> {
                     weakened = true;
                     continue;
                 }
-                if watched.single_place().is_none() {
+                if watched.has_alternatives() {
                     // This row can supply one address without supplying the
                     // others. Let each address find its own last store.
                     let joined = budget.add_equation();
@@ -3681,8 +3687,7 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Option<(&'a Operation, usize, bool)>> {
         let producer = |value| {
-            let origin =
-                terminal_check_tables::row(&tables.values, value, self.machine, concerns)?.origin;
+            let origin = tables.values.checked(value, self.machine, concerns)?.origin;
             match origin {
                 ValueOrigin::Operation(id) => self.operation(id, concerns).map(Some),
                 _ => Ok(None),
@@ -4281,16 +4286,17 @@ impl<'a> Storage<'a> {
     ) -> Checked<Supply> {
         let original = asked.place();
         let asked = asked.at(&resolved.place);
-        let key = match asked {
-            Asked::Contents(_) => Some((block, up_to, resolved.place.clone(), QueryKind::Contents)),
-            Asked::Case(_, excluded) => Some((
-                block,
-                up_to,
-                resolved.place.clone(),
-                QueryKind::Case(excluded),
-            )),
+        let query = match asked {
+            Asked::Contents(_) => Some(QueryKind::Contents),
+            Asked::Case(_, excluded) => Some(QueryKind::Case(excluded)),
             Asked::Window { .. } => None,
         };
+        let key = query.map(|query| ReachingKey {
+            point: (block, up_to),
+            place: resolved.place.clone(),
+            query,
+            window: resolved.single_window().cloned().map(Box::new),
+        });
         let projection = if original == &resolved.place {
             usize::MAX
         } else {
@@ -5048,9 +5054,7 @@ impl<'a> Storage<'a> {
                     .map(|start| (leaf.clone(), start, depth))
             }),
             Reached::Value(held) => {
-                match terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
-                    .origin
-                {
+                match tables.values.checked(held, self.machine, concerns)?.origin {
                     ValueOrigin::StorageContent { place, after } => {
                         let arrived = lineage(self.machine, &tables.places, place)?;
                         let start = match after {
@@ -7471,10 +7475,12 @@ impl AtEntry<'_, '_> {
             .ok_or(crate::Unbound::Unproved(
                 "no operation names the field, so its entry content has no value identity",
             ))?;
-        let held_type =
-            terminal_check_tables::row(&self.tables.values, held, storage.machine, concerns)
-                .map_err(crate::Unbound::Refused)?
-                .scalar_type;
+        let held_type = self
+            .tables
+            .values
+            .checked(held, storage.machine, concerns)
+            .map_err(crate::Unbound::Refused)?
+            .scalar_type;
         if held_type != scalar_type {
             return Err(crate::Unbound::Unsupported(
                 "a formal's field holds a value of another type than its clause term",
@@ -7893,6 +7899,71 @@ impl<'a> CallObservations<'_, 'a> {
         held
     }
 
+    /// The input behind a shared borrow, where descriptor replay authenticates
+    /// one fixed address in an immutable machine parameter.
+    fn shared_input_origin(
+        &mut self,
+        actual: &Lineage,
+        formal: &terminal_psi::StructuralParameterDeclaration,
+    ) -> Option<Lineage> {
+        if formal.access != StructuralAccess::SharedBorrow {
+            return None;
+        }
+        let backing = self
+            .storage
+            .backing(
+                self.references,
+                actual,
+                self.block,
+                self.up_to,
+                self.concerns,
+            )
+            .ok()?;
+        let origin = backing.single_place()?;
+        let input = terminal_psi::StructuralParameterDeclaration::find_by_place(
+            &self.storage.lowered.structural_parameters,
+            origin.root,
+        )?;
+        (input.access == StructuralAccess::SharedBorrow
+            && origin
+                .segments
+                .iter()
+                .all(|segment| matches!(segment, Segment::Field(_) | Segment::FixedIndex(_)))
+            && self.storage.projection_type(origin, self.concerns)? == formal.structural_type)
+            .then(|| origin.clone())
+    }
+
+    /// An unnamed inline cell of a shared machine input has established
+    /// contents but no entry value identity. A runtime-index child names the
+    /// dynamic read, so it cannot supply a fixed index's entry identity.
+    fn named_shared_indices(
+        &self,
+        origin: &Lineage,
+        array: &[CanonicalStructuralPathSegment],
+    ) -> Option<impl Iterator<Item = u64> + '_> {
+        let array = extended(origin.clone(), array).ok()?;
+        let places = &self.tables.places;
+        let children = match self
+            .storage
+            .interned(self.tables, &array, self.concerns)
+            .ok()?
+        {
+            Some(owner) => places.get(owner)?.children.as_slice(),
+            None => &[],
+        };
+        Some(
+            children
+                .iter()
+                .filter_map(|child| match places.get(*child)?.origin {
+                    PlaceOrigin::Projection {
+                        segment: Segment::FixedIndex(index),
+                        ..
+                    } => Some(index),
+                    _ => None,
+                }),
+        )
+    }
+
     /// Callee names of the scalar fields and fixed array elements of each
     /// readable structural input, with the caller value each holds at this
     /// arrival.
@@ -7928,6 +7999,7 @@ impl<'a> CallObservations<'_, 'a> {
             let Ok(actual) = self.readable_actual(declaration).cloned() else {
                 continue;
             };
+            let shared = self.shared_input_origin(&actual, declaration);
             let mut pending = vec![(declaration.structural_type, Vec::new())];
             while let Some((structural_type, path)) = pending.pop() {
                 // Each scalar leaf directly below this storage, with its path.
@@ -7960,13 +8032,23 @@ impl<'a> CallObservations<'_, 'a> {
                         let Some(length) = length.literal() else {
                             continue;
                         };
-                        for position in 0..length {
-                            if crossings.len() + leaves.len() >= MAXIMUM_FIELD_CROSSINGS {
-                                break;
-                            }
+                        let scalar = leaf_type(*element);
+                        let end = if scalar.is_some() {
+                            length.min((MAXIMUM_FIELD_CROSSINGS - crossings.len()) as u64)
+                        } else {
+                            length
+                        };
+                        let named = shared
+                            .as_ref()
+                            .and_then(|origin| self.named_shared_indices(origin, &path));
+                        let positions: Box<dyn Iterator<Item = u64>> = match named {
+                            Some(named) => Box::new(named.take_while(|index| *index < end)),
+                            None => Box::new(0..end),
+                        };
+                        for position in positions {
                             let mut element_path = path.clone();
                             element_path.push(CanonicalStructuralPathSegment::FixedIndex(position));
-                            match leaf_type(*element) {
+                            match scalar {
                                 Some(scalar_type) => leaves.push((element_path, scalar_type)),
                                 None => pending.push((*element, element_path)),
                             }
@@ -8517,13 +8599,12 @@ impl crate::Bindings for AtJoin<'_, '_> {
             .iter()
             .find(|(from, _)| *from == value)
             .map_or(value, |(_, to)| *to);
-        let actual = terminal_check_tables::row(
-            &self.inputs.tables.values,
-            value,
-            self.inputs.storage.machine,
-            self.inputs.concerns,
-        )
-        .map_err(crate::Unbound::Refused)?;
+        let actual = self
+            .inputs
+            .tables
+            .values
+            .checked(value, self.inputs.storage.machine, self.inputs.concerns)
+            .map_err(crate::Unbound::Refused)?;
         if actual.scalar_type != scalar_type {
             return Err(crate::Unbound::Unsupported(
                 "join argument has another scalar carrier",
@@ -8571,13 +8652,12 @@ impl crate::Bindings for AtJoin<'_, '_> {
             .iter()
             .find(|(from, _)| *from == value)
             .map_or(value, |(_, to)| *to);
-        let actual = terminal_check_tables::row(
-            &self.inputs.tables.values,
-            value,
-            self.inputs.storage.machine,
-            self.inputs.concerns,
-        )
-        .map_err(crate::Unbound::Refused)?;
+        let actual = self
+            .inputs
+            .tables
+            .values
+            .checked(value, self.inputs.storage.machine, self.inputs.concerns)
+            .map_err(crate::Unbound::Refused)?;
         let ValueOrigin::StorageContent { place, after: None } = actual.origin else {
             return Err(crate::Unbound::Unproved(
                 "the join has no saved input observation",

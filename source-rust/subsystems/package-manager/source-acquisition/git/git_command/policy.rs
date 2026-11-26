@@ -11,7 +11,7 @@
 // bearing cache paths.
 
 use crate::SourceResolveError;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::git::request::GitExecutionTransport;
 use crate::tree::filesystem::IoResultAt;
 use resolver_execution::{ResolverExecutionPhase, ResolverPreparedExecution};

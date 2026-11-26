@@ -1,11 +1,11 @@
 // A sibling path dependency is resolved by its declared package name:
 // `Build::dependency(builder, |dependency|::from_source(Source::Path { location: "dependency" }))`
 // composes `query_dependency`; its machines import as
-// `use query_dependency\value`.
+// `use {query_dependency}/value.omg`.
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "sibling_dep_queries");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "sibling_dep_queries" };
     let dependency_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "dependency" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

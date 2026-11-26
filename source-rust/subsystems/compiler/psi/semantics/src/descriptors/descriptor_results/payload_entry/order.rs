@@ -45,7 +45,7 @@ pub(crate) fn derive(
         .ok()?;
     let mut relation = match &premise.conclusion {
         Proposition::IntegerMathLessOrEqual(..) => premise.clone(),
-        Proposition::LessOrEqual(..) => super::bridge(
+        Proposition::LessOrEqual(..) => proof_admission::restate_integer_relation(
             proof_admission::lift_fixed_integer_relation(&premise.conclusion)?,
             premise.clone(),
             assumptions,

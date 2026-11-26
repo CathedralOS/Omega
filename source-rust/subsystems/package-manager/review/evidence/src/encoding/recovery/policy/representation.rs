@@ -30,7 +30,7 @@ pub(in crate::encoding::recovery) fn policy(
 ) -> Result<PackagePolicyRepresentation, Error> {
     Ok(PackagePolicyRepresentation {
         package: package(reader)?,
-        target: calling_application::shapes::target(reader)?,
+        target: calling_application::target(reader)?,
         declarations: reader.sequence(41, nominal)?,
         producer_availability: reader.sequence(1, availability::availability)?,
         selected_availability: reader.sequence(1, selection)?,

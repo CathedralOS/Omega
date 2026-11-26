@@ -1,15 +1,13 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use omega\language\core\I64::from_f64;
-use omega\language\core\narrow_i32_to_u8_trapping;
-use omega\language\core\narrow_i64_to_i32_trapping;
-use domain\equilibrium;
-use domain\equilibrium\Equilibrium;
+use domain/equilibrium/equilibrium.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 
 // Scientific notation preserves tiny species; normalized mantissa fits i64.
 // Round magnitude half upward and retain the sign separately.
-machine mantissa(value: f64) reaches StandardOutput {
+machine mantissa(value: f64) reaches |process_authority|::StandardOutput {
     let mutable bytes: [u8; 18] = "+0.000000000000000";
     transition value < 0.0 {
         true -> negative(@mutable bytes, value),
@@ -17,11 +15,11 @@ machine mantissa(value: f64) reaches StandardOutput {
     }
     machine negative(bytes: @mutable [u8; 18], value: f64) {
         bytes[0] = 45;
-        let scaled: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000000000000.0 + 0.5);
+        let scaled: i64 in Saturating = |float_operations|::I64::from_f64((0.0 - value) * 1000000000000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as -Saturating +Wrapping, 17) }
     }
     machine positive(bytes: @mutable [u8; 18], value: f64) {
-        let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000000.0 + 0.5);
+        let scaled: i64 in Saturating = |float_operations|::I64::from_f64(value * 1000000000000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as -Saturating +Wrapping, 17) }
     }
     machine digits(bytes: @mutable [u8; 18],
@@ -40,13 +38,13 @@ machine mantissa(value: f64) reaches StandardOutput {
     }
     machine store(bytes: @mutable [u8; 18],
                 remaining: i64 in Wrapping, position: i32 in Wrapping) {
-        let digit: i32 = narrow_i64_to_i32_trapping((remaining % 10 + 48) as i64);
-        bytes[position] = narrow_i32_to_u8_trapping(digit);
+        let digit: i32 = |numeric_conversion|::narrow_i64_to_i32_trapping((remaining % 10 + 48) as i64);
+        bytes[position] = |numeric_conversion|::narrow_i32_to_u8_trapping(digit);
         transition { _ -> digits(bytes, remaining / 10, position - 1) }
     }
-    machine emit(bytes: @[u8; 18]) { Console::write(bytes); }
+    machine emit(bytes: @[u8; 18]) { |console|::Console::write(bytes); }
 }
-machine emit_number(value: f64) reaches StandardOutput {
+machine emit_number(value: f64) reaches |process_authority|::StandardOutput {
     transition value < 0.0 { true -> normalize(0.0 - value, -1.0, 0), _ -> normalize(value, 1.0, 0) }
     machine normalize(value: f64, sign: f64, exponent: i32 in Wrapping) {
         transition value > 0.0 && value < 1.0 && exponent > -60 {
@@ -62,30 +60,30 @@ machine emit_number(value: f64) reaches StandardOutput {
     }
     machine emit(value: f64, sign: f64, exponent: i32 in Wrapping) {
         mantissa(value * sign);
-        Console::write("e");
+        |console|::Console::write("e");
         transition exponent < 0 { true -> minus(0 - exponent), _ -> plus(exponent) }
     }
-    machine minus(exponent: i32 in Wrapping) { Console::write("-"); transition { _ -> exponent_digits(exponent) } }
-    machine plus(exponent: i32 in Wrapping) { Console::write("+"); transition { _ -> exponent_digits(exponent) } }
+    machine minus(exponent: i32 in Wrapping) { |console|::Console::write("-"); transition { _ -> exponent_digits(exponent) } }
+    machine plus(exponent: i32 in Wrapping) { |console|::Console::write("+"); transition { _ -> exponent_digits(exponent) } }
     machine exponent_digits(exponent: i32 in Wrapping) {
-        Console::write_byte((exponent / 10 + 48) as i32);
-        Console::write_byte((exponent % 10 + 48) as i32);
-        Console::write_line("");
+        |console|::Console::write_byte((exponent / 10 + 48) as i32);
+        |console|::Console::write_byte((exponent % 10 + 48) as i32);
+        |console|::Console::write_line("");
     }
 }
-public machine report(volume: f64, result: @Equilibrium) reaches StandardOutput
-invokes Console
+public machine report(volume: f64, result: @|equilibrium|::Equilibrium) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 crashes Trap
 {
-    Console::write("volume="); emit_number(volume);
-    Console::write("pH="); emit_number(result.ph);
-    Console::write("H="); emit_number(result.hydrogen);
-    Console::write("OH="); emit_number(result.hydroxide);
-    Console::write("H2A="); emit_number(result.species[0]);
-    Console::write("HA="); emit_number(result.species[1]);
-    Console::write("A="); emit_number(result.species[2]);
-    Console::write("total_acid="); emit_number(result.total);
-    Console::write("counterion="); emit_number(result.counterion);
-    Console::write("mass_closure="); emit_number(result.closure);
-    Console::write("charge_residual="); emit_number(result.charge);
+    |console|::Console::write("volume="); emit_number(volume);
+    |console|::Console::write("pH="); emit_number(result.ph);
+    |console|::Console::write("H="); emit_number(result.hydrogen);
+    |console|::Console::write("OH="); emit_number(result.hydroxide);
+    |console|::Console::write("H2A="); emit_number(result.species[0]);
+    |console|::Console::write("HA="); emit_number(result.species[1]);
+    |console|::Console::write("A="); emit_number(result.species[2]);
+    |console|::Console::write("total_acid="); emit_number(result.total);
+    |console|::Console::write("counterion="); emit_number(result.counterion);
+    |console|::Console::write("mass_closure="); emit_number(result.closure);
+    |console|::Console::write("charge_residual="); emit_number(result.charge);
 }

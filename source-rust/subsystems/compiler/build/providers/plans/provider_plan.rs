@@ -21,7 +21,8 @@ pub use evaluated_bindings::{
     BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
-    EvaluatedForeignSyscall, EvaluatedNativeBinding, evaluated_syscall_identity_digest,
+    EvaluatedForeignSyscall, EvaluatedFunctionField, EvaluatedNativeBinding,
+    evaluated_syscall_identity_digest,
 };
 pub use service_schemas::{BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise};
 pub use service_schemas::{
@@ -38,6 +39,9 @@ use crate::digest_encoder::ProviderPlanDigestEncoder;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderBinding {
+    FunctionField {
+        evaluated: EvaluatedFunctionField,
+    },
     Import {
         evaluated: EvaluatedForeignImport,
     },
@@ -316,15 +320,7 @@ impl ProviderPlan {
             "schema-package",
             self.schema.declaration.trait_package_identity,
         );
-        rendered.push_str("\npackage:");
-        match self.origin_package_identity {
-            Some(identity) => {
-                for byte in identity.digest() {
-                    rendered.push_str(&format!("{byte:02x}"));
-                }
-            }
-            None => rendered.push_str("<unbound>"),
-        }
+        push_package_identity(&mut rendered, "package", self.origin_package_identity);
         let mut methods: Vec<&ServiceMethod> = self.schema.declaration.methods.iter().collect();
         methods.sort_by(|left, right| {
             left.name
@@ -904,6 +900,12 @@ impl ProviderPlan {
                 ));
             }
             match &row.binding {
+                ProviderBinding::FunctionField { evaluated } => {
+                    if self.target != evaluated.target().target_name()
+                        || evaluated.selector().table.requirement_application != self.identities.text(row.requirement_identity).as_bytes() {
+                        errors.push(format!("plan `{}` row `{}` has a function field for another target or requirement", self.name, row.method));
+                    }
+                }
                 ProviderBinding::Import { evaluated } => {
                     let locator = evaluated.locator();
                     if self.target != locator.target().target_name() {

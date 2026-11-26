@@ -19,7 +19,6 @@ pub struct PublishedTargetProgram {
 pub struct RuntimePermissionDeclarations {
     pub(crate) source: Arc<source_state::FrozenTypedTrees>,
     pub(crate) root_grants: Arc<[symbols::root_grants::AuthoredRootGrant]>,
-    pub(crate) has_assumed_bindings: bool,
 }
 
 impl RuntimePermissionDeclarations {
@@ -87,15 +86,8 @@ impl PublishedTargetProgram {
         self.subject
     }
 
-    pub fn runtime_permission_declarations(
-        &self,
-    ) -> Result<RuntimePermissionDeclarations, Vec<Diagnostic>> {
-        if self.runtime_declarations.has_assumed_bindings {
-            return Err(vec![Diagnostic::error(
-                "the checked Build's assumed binding lacks its canonical review request",
-            )]);
-        }
-        Ok(self.runtime_declarations.clone())
+    pub fn runtime_permission_declarations(&self) -> &RuntimePermissionDeclarations {
+        &self.runtime_declarations
     }
 
     pub fn into_parts(

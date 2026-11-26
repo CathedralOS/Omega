@@ -13,17 +13,16 @@ pub(crate) mod call_foundations {
         validate_structural_path, validate_structural_qualifications,
     };
     use crate::codec_error::{CodecError, malformed};
-    use semantic_vocabulary::{IntegerValue, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId};
+    use semantic_vocabulary::{IntegerValue, ScalarTerm, ScalarType, ValueId};
     use std::collections::BTreeSet;
     use terminal_psi::{
         Block, BoundaryDeclarationRole, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
         ClaimTransfer, ModuleInvocationInputs, Operation, OperationKind, OperationResult,
         RegisterCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
         StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-        StructuralPlaceDeclaration, StructuralResultClaimBinding, TerminalDynamicClaimPath,
-        TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-        call_structural_pair_pattern, find_boundary_machine,
-        structural_type_has_borrowed_storage_by,
+        StructuralResultClaimBinding, TerminalDynamicClaimPath, TerminalMachine,
+        TerminalMachineResult, TerminalModule, Terminator, call_structural_pair_pattern,
+        find_boundary_machine, structural_type_has_borrowed_storage_by,
     };
 
     fn validate_call_tail(
@@ -77,21 +76,8 @@ pub(crate) mod call_foundations {
             return malformed("module invocation has the wrong entry or obligation arity");
         }
         for (actual, formal) in invocation.arguments.iter().zip(&callee.parameters) {
-            let mut declarations = machine
-                .parameters
-                .iter()
-                .copied()
-                .chain(machine.block_parameters().copied())
-                .chain(
-                    machine
-                        .operations()
-                        .filter_map(|operation| operation.result.scalar()),
-                )
-                .filter(|declaration| declaration.id == *actual);
-            if declarations
-                .next()
+            if super::unique_scalar_decl(machine, *actual)
                 .is_none_or(|declaration| declaration.scalar_type != formal.scalar_type)
-                || declarations.next().is_some()
             {
                 return malformed("module invocation argument has no exact scalar declaration");
             }
@@ -294,26 +280,7 @@ pub(crate) mod call_foundations {
                 "machine call names an absent callable contract",
             ),
         )?;
-        let declaration = |value| {
-            let mut declarations = machine
-                .parameters
-                .iter()
-                .copied()
-                .chain(machine.block_parameters().copied())
-                .chain(
-                    machine
-                        .operations()
-                        .filter_map(|operation| operation.result.scalar()),
-                )
-                .filter(|declaration| declaration.id == value);
-            let declaration = declarations.next();
-            if declarations.next().is_some() {
-                None
-            } else {
-                declaration
-            }
-        };
-        if declaration(*callee).map(|value| value.scalar_type)
+        if super::unique_scalar_decl(machine, *callee).map(|value| value.scalar_type)
             != Some(semantic_vocabulary::ScalarType::Callable(contract.id))
         {
             return malformed("machine call operand has no exact callable carrier declaration");
@@ -328,7 +295,9 @@ pub(crate) mod call_foundations {
             return malformed("machine call disagrees with its retained contract shape");
         }
         for (actual, formal) in arguments.iter().zip(&contract.scalar_parameters) {
-            if declaration(*actual).map(|value| value.scalar_type) != Some(formal.scalar_type) {
+            if super::unique_scalar_decl(machine, *actual).map(|value| value.scalar_type)
+                != Some(formal.scalar_type)
+            {
                 return malformed("machine call argument has no exact scalar carrier declaration");
             }
         }
@@ -387,7 +356,8 @@ pub(crate) mod call_foundations {
             unreachable!("dispatched validate_call_dynamic")
         };
         let Some(interface_slots) = module
-            .execution.dynamic_dispatch
+            .execution
+            .dynamic_dispatch
             .interface(*interface)
             .map(|interface| interface.slots.as_slice())
         else {
@@ -494,7 +464,8 @@ pub(crate) mod call_foundations {
             }
         }
         for row in module
-            .execution.dynamic_dispatch
+            .execution
+            .dynamic_dispatch
             .tables
             .iter()
             .filter(|table| table.interface == *interface)
@@ -637,33 +608,33 @@ pub(crate) mod call_foundations {
         let Some(actual_result) = operation.result.structural() else {
             return malformed("structural call has no structural operation result");
         };
-        let exact_payloadless = callee.structural_parameters.iter().all(|parameter| {
-            parameter.access == StructuralAccess::Owned
-                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
-                && !structural_type_has_borrowed_storage_by(
-                    |id| module.structural_type(id),
-                    parameter.structural_type,
-                )
-        }) && callee.entry_claims.is_empty()
-            && callee.content_entry_claims.is_empty()
-            && callee.contract.requires.is_empty()
-            && callee.contract.ensures.is_empty()
-            && callee.contract.crash_routes.is_empty()
-            && module
-                .proofs.evidence_contract_lanes
-                .iter()
-                .all(|lane| lane.owner != terminal_psi::EvidenceCallableOwner::Machine(callee.id))
-            && claim_transfers.is_empty()
-            && requirement_obligations.is_empty()
-            && crash_continuations.is_empty()
-            && actual_result.multiplicity == StructuralMultiplicity::Unrestricted
-            && expected_result.multiplicity == StructuralMultiplicity::Unrestricted
-            && actual_result.qualifications.is_empty()
-            && expected_result.qualifications.is_empty()
-            && actual_result.claims.is_empty()
-            && callee_exact_payloadless_return(callee);
+        let exact_payloadless =
+            callee.structural_parameters.iter().all(|parameter| {
+                parameter.access == StructuralAccess::Owned
+                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+                    && !structural_type_has_borrowed_storage_by(
+                        |id| module.structural_type(id),
+                        parameter.structural_type,
+                    )
+            }) && callee.entry_claims.is_empty()
+                && callee.content_entry_claims.is_empty()
+                && callee.contract.requires.is_empty()
+                && callee.contract.ensures.is_empty()
+                && callee.contract.crash_routes.is_empty()
+                && module.proofs.evidence_contract_lanes.iter().all(|lane| {
+                    lane.owner != terminal_psi::EvidenceCallableOwner::Machine(callee.id)
+                })
+                && claim_transfers.is_empty()
+                && requirement_obligations.is_empty()
+                && crash_continuations.is_empty()
+                && actual_result.multiplicity == StructuralMultiplicity::Unrestricted
+                && expected_result.multiplicity == StructuralMultiplicity::Unrestricted
+                && actual_result.qualifications.is_empty()
+                && expected_result.qualifications.is_empty()
+                && actual_result.claims.is_empty()
+                && callee_exact_payloadless_return(callee);
         if arguments.len() != callee.parameters.len()
             || structural_arguments.len() != callee.structural_parameters.len()
             || (!selected_evidence.is_empty() && !exact_payloadless)
@@ -755,18 +726,7 @@ pub(crate) mod call_foundations {
         operation: &Operation,
         actual_result: &StructuralOperationResult,
     ) -> Result<(), CodecError> {
-        let Some(StructuralPlaceDeclaration {
-            kind:
-                StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                },
-            ..
-        }) = machine.structural_place(actual_result.place)
-        else {
-            return malformed("structural call result has no operation-result place declaration");
-        };
-        if *producer != operation.id || *structural_type != actual_result.structural_type {
+        if !super::is_op_result_place(machine, operation, actual_result) {
             return malformed("structural call result place disagrees with its producer");
         }
         if !has_structural_type(module, actual_result.structural_type) {
@@ -777,8 +737,7 @@ pub(crate) mod call_foundations {
             actual_result.structural_type,
             &actual_result.qualifications,
             &actual_result.projected_qualifications,
-        )?;
-        Ok(())
+        )
     }
 
     fn validate_result_claim_shape<'returns>(
@@ -855,7 +814,9 @@ pub(crate) mod call_foundations {
         else {
             return Ok(());
         };
-        let Some(declaration) = find_boundary_machine(&module.interfaces.boundary_machines, *boundary) else {
+        let Some(declaration) =
+            find_boundary_machine(&module.interfaces.boundary_machines, *boundary)
+        else {
             return malformed("external completion references an unknown boundary");
         };
         if declaration.role != BoundaryDeclarationRole::Callable
@@ -938,7 +899,8 @@ pub(crate) mod call_foundations {
         else {
             unreachable!("dispatched validate_boundary_call")
         };
-        let Some(boundary) = find_boundary_machine(&module.interfaces.boundary_machines, *boundary) else {
+        let Some(boundary) = find_boundary_machine(&module.interfaces.boundary_machines, *boundary)
+        else {
             return malformed("boundary call references an unknown boundary");
         };
         if boundary.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn {
@@ -974,7 +936,8 @@ pub(crate) mod call_foundations {
                 .map(|row| row.path.clone())
                 .collect::<Vec<_>>();
             for candidate in module
-                .interfaces.provider_candidates
+                .interfaces
+                .provider_candidates
                 .iter()
                 .filter(|candidate| candidate.boundary == boundary.id)
             {
@@ -1102,7 +1065,8 @@ pub(crate) mod call_foundations {
                 return malformed("guarded evidence subjects require a nominal proposition");
             };
             let Some(application) = module
-                .proofs.proposition_applications
+                .proofs
+                .proposition_applications
                 .iter()
                 .find(|application| application.id == proposition)
             else {
@@ -1155,11 +1119,12 @@ pub(crate) mod call_foundations {
         use super::*;
         use semantic_vocabulary::{
             ContractId, EdgeId, MachineId, ObligationId, OperationId, Proposition,
+            StructuralPlaceKind,
         };
         use terminal_psi::{
-            BoundaryParameterKind, ContractClause, MachineContract, StructuralRecordStorage,
-            StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-            TerminalIdentityIndex, ValueDeclaration,
+            BoundaryParameterKind, ContractClause, MachineContract, StructuralPlaceDeclaration,
+            StructuralRecordStorage, StructuralResultDeclaration, StructuralTypeDeclaration,
+            StructuralTypeShape, TerminalIdentityIndex, ValueDeclaration,
         };
         use terminal_semantics::inhabitation::{Inhabitation, TerminalContracts};
 
@@ -1335,7 +1300,9 @@ pub(crate) mod call_foundations {
                 boolean_term(7),
                 ScalarTerm::Boolean(false),
             ));
-            module.execution.declaration_contracts[0].parameters.push(boolean(7));
+            module.execution.declaration_contracts[0]
+                .parameters
+                .push(boolean(7));
             let Terminator::InvokeNoNormal { arguments, .. } = &mut caller.blocks[0].terminator
             else {
                 unreachable!()
@@ -1443,23 +1410,26 @@ pub(crate) mod call_foundations {
 
             let mut module = TerminalModule::declarations();
             let structural_type = StructuralTypeId::new(1).unwrap();
-            module.types.structural_types.push(StructuralTypeDeclaration {
-                declaration_identity: Default::default(),
-                id: structural_type,
-                identity: TerminalIdentityIndex::ABSENT,
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                no_code_affine_cleanup: false,
-                descriptor_cleanup: false,
-                nominal_cleanup: None,
-                shape: StructuralTypeShape::Record {
-                    fields: Vec::new(),
-                    storage: StructuralRecordStorage::Packed,
-                },
-                scalar_restriction: None,
-                requires: vec![Proposition::Falsehood],
-            });
+            module
+                .types
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    id: structural_type,
+                    identity: TerminalIdentityIndex::ABSENT,
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    no_code_affine_cleanup: false,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    shape: StructuralTypeShape::Record {
+                        fields: Vec::new(),
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                    scalar_restriction: None,
+                    requires: vec![Proposition::Falsehood],
+                });
             let parameter = StructuralParameterDeclaration {
                 place: PlaceId::new(1).unwrap(),
                 position: 0,
@@ -1524,16 +1494,18 @@ pub(crate) mod call_foundations {
                 terminal_semantics::control_graph::normal_completion_possible(&module, callee_id)
                     .unwrap()
             );
-            let query =
-                Inhabitation::prepare(&TerminalContracts::new(module.types.structural_types.iter()))
-                    .unwrap();
+            let query = Inhabitation::prepare(&TerminalContracts::new(
+                module.types.structural_types.iter(),
+            ))
+            .unwrap();
             // This tests the raw type/physical-graph admission boundary. No
             // source acceptance or proof receipt is manufactured for the call.
             validate_caller(&module, &caller, &query).unwrap();
             module.types.structural_types[0].requires[0] = Proposition::Truth;
-            let query =
-                Inhabitation::prepare(&TerminalContracts::new(module.types.structural_types.iter()))
-                    .unwrap();
+            let query = Inhabitation::prepare(&TerminalContracts::new(
+                module.types.structural_types.iter(),
+            ))
+            .unwrap();
             assert_eq!(
                 validate_caller(&module, &caller, &query),
                 malformed("no-normal invocation callee has a normal return")
@@ -1567,7 +1539,11 @@ pub(crate) mod declaration_foundations {
         pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             validate_census(module)?;
             super::super::super::wire::require_increasing(
-                module.interfaces.calling_signatures.iter().map(|row| row.boundary),
+                module
+                    .interfaces
+                    .calling_signatures
+                    .iter()
+                    .map(|row| row.boundary),
                 "calling signatures by boundary declaration",
             )?;
             for binding in &module.interfaces.calling_signatures {
@@ -1646,7 +1622,11 @@ pub(crate) mod declaration_foundations {
 
         fn validate_census(module: &TerminalModule) -> Result<(), CodecError> {
             super::super::super::wire::require_increasing(
-                module.interfaces.calling_abi_signatures.iter().map(|row| row.id),
+                module
+                    .interfaces
+                    .calling_abi_signatures
+                    .iter()
+                    .map(|row| row.id),
                 "declaration ABI applications",
             )?;
             for row in &module.interfaces.calling_abi_signatures {
@@ -1733,7 +1713,8 @@ pub(crate) mod declaration_foundations {
                         None if parameter.access != StructuralAccess::Owned
                             && module.structural_type(backing).is_none()
                             && module
-                                .types.structural_referents
+                                .types
+                                .structural_referents
                                 .iter()
                                 .any(|row| row.id == backing && row.abstract_opaque) => {}
                         _ => {
@@ -1866,14 +1847,16 @@ pub(crate) mod declaration_foundations {
                     match &instance.policy_declaration {
                         Ok(declaration)
                             if module
-                                .scalars.scalar_applications
+                                .scalars
+                                .scalar_applications
                                 .proof_scope
                                 .declaration(*declaration)
                                 .is_some() =>
                         {
                             if let Ok(callable) = instance.policy
                                 && module
-                                    .scalars.scalar_applications
+                                    .scalars
+                                    .scalar_applications
                                     .proof_scope
                                     .callable_declaration(callable)
                                     != Some(*declaration)
@@ -2012,49 +1995,55 @@ pub(crate) mod declaration_foundations {
                 let identity = identities.intern("Carrier");
                 module.identities = identities.build();
                 for raw in [1, 2] {
-                    module.types.structural_types.push(StructuralTypeDeclaration {
-                        declaration_identity: Default::default(),
-                        id: StructuralTypeId::new(raw).unwrap(),
-                        identity,
-                        quotient_carrier: None,
-                        owns_linear_claim: false,
-                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                        no_code_affine_cleanup: true,
-                        descriptor_cleanup: true,
-                        nominal_cleanup: None,
-                        shape: StructuralTypeShape::Record {
-                            fields: Vec::new(),
-                            storage: StructuralRecordStorage::Packed,
-                        },
-                        scalar_restriction: None,
-                        requires: Vec::new(),
-                    });
+                    module
+                        .types
+                        .structural_types
+                        .push(StructuralTypeDeclaration {
+                            declaration_identity: Default::default(),
+                            id: StructuralTypeId::new(raw).unwrap(),
+                            identity,
+                            quotient_carrier: None,
+                            owns_linear_claim: false,
+                            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                            no_code_affine_cleanup: true,
+                            descriptor_cleanup: true,
+                            nominal_cleanup: None,
+                            shape: StructuralTypeShape::Record {
+                                fields: Vec::new(),
+                                storage: StructuralRecordStorage::Packed,
+                            },
+                            scalar_restriction: None,
+                            requires: Vec::new(),
+                        });
                 }
-                module.interfaces.calling_abi_signatures.push(CallingAbiDeclaration {
-                    id: key.id(),
-                    requirement_identity,
-                    declaring_application,
-                    operands: Vec::new(),
-                    formals: Vec::new(),
-                    default_eligible: true,
-                    physical_owner: Ok(CallingDeclarationOwner::BoundaryTrait),
-                    storage: Ok(CallingAbiStorage {
-                        parameters: vec![CallingAbiParameter {
-                            structural_type: StructuralTypeId::new(1).unwrap(),
-                            callback_backing: Some(StructuralTypeId::new(1).unwrap()),
-                            access: StructuralAccess::Owned,
-                        }],
-                        result: None,
-                        telescope: CallingSignatureTelescope {
-                            parameters: vec![CallingRuntimeFormal {
-                                identity: NativeParameterId::new(1).unwrap(),
-                                native_ordinal: 0,
+                module
+                    .interfaces
+                    .calling_abi_signatures
+                    .push(CallingAbiDeclaration {
+                        id: key.id(),
+                        requirement_identity,
+                        declaring_application,
+                        operands: Vec::new(),
+                        formals: Vec::new(),
+                        default_eligible: true,
+                        physical_owner: Ok(CallingDeclarationOwner::BoundaryTrait),
+                        storage: Ok(CallingAbiStorage {
+                            parameters: vec![CallingAbiParameter {
+                                structural_type: StructuralTypeId::new(1).unwrap(),
+                                callback_backing: Some(StructuralTypeId::new(1).unwrap()),
+                                access: StructuralAccess::Owned,
                             }],
-                            binders: Vec::new(),
-                            direct_callbacks: Vec::new(),
-                        },
-                    }),
-                });
+                            result: None,
+                            telescope: CallingSignatureTelescope {
+                                parameters: vec![CallingRuntimeFormal {
+                                    identity: NativeParameterId::new(1).unwrap(),
+                                    native_ordinal: 0,
+                                }],
+                                binders: Vec::new(),
+                                direct_callbacks: Vec::new(),
+                            },
+                        }),
+                    });
                 module
             }
 
@@ -2091,7 +2080,8 @@ pub(crate) mod declaration_foundations {
                 let mut module = fixture();
                 let referent = StructuralTypeId::new(3).unwrap();
                 module
-                    .types.structural_referents
+                    .types
+                    .structural_referents
                     .push(StructuralReferentIdentity {
                         id: referent,
                         identity: module.types.structural_types[0].identity,
@@ -2131,7 +2121,11 @@ pub(crate) mod declaration_foundations {
 
         pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             super::super::super::wire::require_increasing(
-                module.types.opaque_representations.iter().map(|row| row.opaque),
+                module
+                    .types
+                    .opaque_representations
+                    .iter()
+                    .map(|row| row.opaque),
                 "opaque representation storage applications",
             )?;
             for relation in &module.types.opaque_representations {
@@ -2177,22 +2171,26 @@ pub(crate) mod declaration_foundations {
                     );
                 }
                 let opaque_native = module
-                    .layouts.native_layouts
+                    .layouts
+                    .native_layouts
                     .records()
                     .find(|row| row.record == opaque.id);
                 let carrier_native = module
-                    .layouts.native_layouts
+                    .layouts
+                    .native_layouts
                     .records()
                     .find(|row| row.record == carrier.id);
                 match (opaque_native, carrier_native) {
                     (None, None) => {}
                     (Some(left), Some(right)) => {
                         let left_fields = module
-                            .layouts.native_layouts
+                            .layouts
+                            .native_layouts
                             .fields(left)
                             .map_err(CodecError::NativeLayout)?;
                         let right_fields = module
-                            .layouts.native_layouts
+                            .layouts
+                            .native_layouts
                             .fields(right)
                             .map_err(CodecError::NativeLayout)?;
                         if left.data_identity != right.data_identity
@@ -2203,11 +2201,13 @@ pub(crate) mod declaration_foundations {
                                 left.declaration_identity != right.declaration_identity
                             })
                             || module
-                                .layouts.native_layouts
+                                .layouts
+                                .native_layouts
                                 .realizations(left)
                                 .map_err(CodecError::NativeLayout)?
                                 != module
-                                    .layouts.native_layouts
+                                    .layouts
+                                    .native_layouts
                                     .realizations(right)
                                     .map_err(CodecError::NativeLayout)?
                         {
@@ -2238,7 +2238,8 @@ pub(crate) mod declaration_foundations {
                 OpaqueRepresentationCopyDisposition::CheckedSemanticCopy,
             ] {
                 let mut roots = module
-                    .types.opaque_representations
+                    .types
+                    .opaque_representations
                     .iter()
                     .filter(|row| row.application.copy_disposition == disposition)
                     .map(|row| row.carrier)
@@ -2266,7 +2267,8 @@ pub(crate) mod declaration_foundations {
                                 )
                         )
                         && module
-                            .types.opaque_representations
+                            .types
+                            .opaque_representations
                             .binary_search_by_key(&declaration.id, |row| row.opaque)
                             .is_err()
                 };
@@ -2370,7 +2372,8 @@ pub(crate) mod declaration_foundations {
                 return left == right;
             };
             let Some(mut normalized) = module
-                .layouts.target_layout_applications
+                .layouts
+                .target_layout_applications
                 .iter()
                 .find(|row| row.id == left)
                 .cloned()
@@ -2378,7 +2381,8 @@ pub(crate) mod declaration_foundations {
                 return false;
             };
             let Some(expected) = module
-                .layouts.target_layout_applications
+                .layouts
+                .target_layout_applications
                 .iter()
                 .find(|row| row.id == right)
             else {
@@ -2510,7 +2514,8 @@ pub(crate) mod declaration_foundations {
                 };
                 assert!(matches(&module));
                 let original = module.clone();
-                let placements = &mut module.layouts.target_layout_applications[1].realizations[0].fields;
+                let placements =
+                    &mut module.layouts.target_layout_applications[1].realizations[0].fields;
                 placements[0].storage = AuthoredFieldStorage::Direct { byte_offset: 8 };
                 placements[1].storage = AuthoredFieldStorage::Direct { byte_offset: 0 };
                 assert!(
@@ -2531,7 +2536,8 @@ pub(crate) mod declaration_foundations {
                     "sum-tag geometry belongs to the exact representation"
                 );
                 let mut module = original.clone();
-                module.layouts.target_layout_applications[1].target_inputs[0].case_tag_alignment = 8;
+                module.layouts.target_layout_applications[1].target_inputs[0].case_tag_alignment =
+                    8;
                 assert!(
                     !matches(&module),
                     "issuer tag alignment cannot change behind equal storage"
@@ -2616,13 +2622,18 @@ pub(crate) mod declaration_foundations {
         }
         validate_service_parent_graph(module)?;
         require_known_services(module, &module.interfaces.root_service_reach.concrete)?;
-        for dependency in &module.interfaces.root_service_reach.installation_dependencies {
+        for dependency in &module
+            .interfaces
+            .root_service_reach
+            .installation_dependencies
+        {
             if dependency.requirement_identity.is_absent() {
                 return malformed("installation reach requirement identity must be nonempty");
             }
             require_known_services(module, &dependency.upper_bound)?;
             let mut boundaries = module
-                .interfaces.boundary_machines
+                .interfaces
+                .boundary_machines
                 .iter()
                 .filter(|boundary| boundary.identity == dependency.requirement_identity);
             let Some(boundary) = boundaries.next().filter(|_| boundaries.next().is_none()) else {
@@ -2650,8 +2661,11 @@ pub(crate) mod declaration_foundations {
         module: &TerminalModule,
         boundary: &BoundaryMachineDeclaration,
     ) -> Result<(), CodecError> {
-        terminal_psi::validate_numeric_intrinsic_signature(boundary, &module.types.structural_types)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
+        terminal_psi::validate_numeric_intrinsic_signature(
+            boundary,
+            &module.types.structural_types,
+        )
+        .map_err(CodecError::MalformedStructuralFoundation)?;
         terminal_semantics::closed_conformances::validate_boundary_callable(module, boundary)
             .map_err(CodecError::MalformedStructuralFoundation)?;
         if module
@@ -3046,7 +3060,8 @@ pub(crate) mod installed_interrupts {
         }
         let mut previous = None;
         let mut callback_ids = module
-            .interfaces.callback_applications
+            .interfaces
+            .callback_applications
             .iter()
             .map(|row| row.application_index)
             .collect::<std::collections::BTreeSet<_>>();
@@ -3149,7 +3164,8 @@ pub(crate) mod installed_interrupts {
         let required = language_core::static_interrupts::StaticInterruptOperation::Install
             .required_service_identity();
         let identity = module
-            .interfaces.services
+            .interfaces
+            .services
             .iter()
             .find(|service| service.id == selected)
             .and_then(|service| module.identities.text(service.identity));
@@ -3194,14 +3210,17 @@ mod empty_elimination_foundations {
         // borrowed storage is vacant is judged by its callee in this module.
         let summaries = terminal_semantics::plain_affine::AffineSummaries::new(module);
         for machine in machines {
-            let availability =
-                terminal_semantics::plain_affine::MachineAffine::new(module, machine.id, Some(&summaries))
-                    .and_then(|walk| walk.verify())
-                    .map_err(|_| {
-                        CodecError::MalformedStructuralFoundation(
-                            "empty elimination has no complete value-availability judgment",
-                        )
-                    })?;
+            let availability = terminal_semantics::plain_affine::MachineAffine::new(
+                module,
+                machine.id,
+                Some(&summaries),
+            )
+            .and_then(|walk| walk.verify())
+            .map_err(|_| {
+                CodecError::MalformedStructuralFoundation(
+                    "empty elimination has no complete value-availability judgment",
+                )
+            })?;
             if !availability.unavailable.is_empty() {
                 return malformed("empty elimination observes unavailable storage");
             }
@@ -3279,23 +3298,26 @@ mod empty_elimination_foundations {
         fn module() -> TerminalModule {
             let mut module = TerminalModule::declarations();
             let ty = StructuralTypeId::new(1).unwrap();
-            module.types.structural_types.push(StructuralTypeDeclaration {
-                declaration_identity: Default::default(),
-                id: ty,
-                identity: TerminalIdentityIndex::ABSENT,
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                no_code_affine_cleanup: true,
-                descriptor_cleanup: true,
-                nominal_cleanup: None,
-                shape: StructuralTypeShape::Record {
-                    fields: Vec::new(),
-                    storage: StructuralRecordStorage::Packed,
-                },
-                scalar_restriction: None,
-                requires: vec![Proposition::Falsehood],
-            });
+            module
+                .types
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    id: ty,
+                    identity: TerminalIdentityIndex::ABSENT,
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: true,
+                    nominal_cleanup: None,
+                    shape: StructuralTypeShape::Record {
+                        fields: Vec::new(),
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                    scalar_restriction: None,
+                    requires: vec![Proposition::Falsehood],
+                });
             let mut machine =
                 crate::semantic_module::entry_tests::unit_machine(MachineId::new(1).unwrap());
             let place = PlaceId::new(1).unwrap();
@@ -3551,7 +3573,6 @@ pub(crate) mod machine_foundations {
     pub(crate) fn validate_machine(
         module: &TerminalModule,
         machine: &TerminalMachine,
-        transfers: &mut super::storage_foundations::StructuralTransferInputs<'_>,
         inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     ) -> Result<(), CodecError> {
         if let Err(reason) = machine.validate_parameter_order() {
@@ -3598,17 +3619,12 @@ pub(crate) mod machine_foundations {
         for block in &machine.blocks {
             let mut previous = None;
             for operation in &block.operations {
-                validate_operation_foundation(
-                    module,
-                    machine,
-                    operation,
-                    transfers,
-                    previous,
-                    &scalar_index,
-                )
-                .map_err(|error| {
-                    super::operation_foundation_error(module, machine, block.id, operation, error)
-                })?;
+                validate_operation_foundation(module, machine, operation, previous, &scalar_index)
+                    .map_err(|error| {
+                        super::operation_foundation_error(
+                            module, machine, block.id, operation, error,
+                        )
+                    })?;
                 previous = Some(operation);
             }
         }
@@ -4122,14 +4138,16 @@ pub(crate) mod native_layouts {
     pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         let fail = |reason: &str| CodecError::NativeLayout(reason.to_owned());
         let expected = module
-            .types.structural_types
+            .types
+            .structural_types
             .iter()
             .filter_map(|row| {
                 matches!(row.shape, StructuralTypeShape::Record { .. }).then_some(row.id)
             })
             .collect::<Vec<_>>();
         let observed = module
-            .layouts.native_layouts
+            .layouts
+            .native_layouts
             .records()
             .map(|row| row.record)
             .collect::<Vec<_>>();
@@ -4155,7 +4173,8 @@ pub(crate) mod native_layouts {
                 }
             }
             let nominal_fields = module
-                .layouts.native_layouts
+                .layouts
+                .native_layouts
                 .fields(native)
                 .map_err(CodecError::NativeLayout)?;
             if nominal_fields.len() != fields.len()
@@ -4172,7 +4191,8 @@ pub(crate) mod native_layouts {
                 ));
             }
             let realizations = module
-                .layouts.native_layouts
+                .layouts
+                .native_layouts
                 .realizations(native)
                 .map_err(CodecError::NativeLayout)?;
             if native.policy_identity.is_absent() {
@@ -4188,7 +4208,8 @@ pub(crate) mod native_layouts {
             let semantic = match storage {
                 StructuralRecordStorage::TargetLayout(id) => Some(
                     module
-                        .layouts.target_layout_applications
+                        .layouts
+                        .target_layout_applications
                         .iter()
                         .find(|application| {
                             application.id == *id && application.record == native.record
@@ -4835,7 +4856,10 @@ pub(crate) mod scalar_applications {
     };
 
     pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
-        super::proof_scope::validate(&module.scalars.scalar_applications.proof_scope, &module.identities)?;
+        super::proof_scope::validate(
+            &module.scalars.scalar_applications.proof_scope,
+            &module.identities,
+        )?;
         let scope = &module.scalars.scalar_applications.proof_scope;
         for (_, row) in scope.callables.iter() {
             let terminal_psi::ProofCallableAssociation::Callable {
@@ -4884,7 +4908,8 @@ pub(crate) mod scalar_applications {
             } = declaration.shape
             {
                 let scalar_type = module
-                    .scalars.scalar_applications
+                    .scalars
+                    .scalar_applications
                     .declaration(application)
                     .and_then(|declaration| declaration.scalar_type());
                 if !matches!(scalar_type, Some(ScalarType::Integer(_))) {
@@ -5015,12 +5040,8 @@ pub(crate) mod scalar_applications {
                 .ok_or(CodecError::MalformedStructuralFoundation(
                     "target arithmetic has repeated scalar values",
                 ))?;
-                for expected in terminal_semantics::target_scalar_ranges(
-                    module,
-                    machine,
-                    &types,
-                )
-                .map_err(CodecError::MalformedStructuralFoundation)?
+                for expected in terminal_semantics::target_scalar_ranges(module, machine, &types)
+                    .map_err(CodecError::MalformedStructuralFoundation)?
                 {
                     if !pending.contains(&expected.owner)
                         || !conditions
@@ -5043,7 +5064,8 @@ pub(crate) mod scalar_applications {
                 ScalarRangeObservation::Literal(_) => {}
                 ScalarRangeObservation::Application(application) => {
                     if !module
-                        .scalars.scalar_applications
+                        .scalars
+                        .scalar_applications
                         .declaration(*application)
                         .and_then(|application| application.scalar_type())
                         .is_some_and(|scalar_type| scalar_type.as_integer().is_some())
@@ -5105,7 +5127,8 @@ pub(crate) mod scalar_applications {
                 continue;
             }
             if let Some(demand) = module
-                .interfaces.boundary_application_demands
+                .interfaces
+                .boundary_application_demands
                 .iter()
                 .find(|demand| demand.terminal_operation() == operation.id)
                 && demand.requirement() != requirement
@@ -5123,12 +5146,14 @@ pub(crate) mod scalar_applications {
         let has_subject = match subject {
             ScalarConditionSubject::Module => true,
             ScalarConditionSubject::Declaration(declaration) => module
-                .scalars.scalar_applications
+                .scalars
+                .scalar_applications
                 .proof_scope
                 .declaration(*declaration)
                 .is_some(),
             ScalarConditionSubject::Application(application) => module
-                .scalars.scalar_applications
+                .scalars
+                .scalar_applications
                 .declaration(*application)
                 .is_some(),
         };
@@ -5169,16 +5194,20 @@ pub(crate) mod scalar_applications {
                 declaration.callable = TerminalIdentityIndex(4);
                 declaration.result_type = TerminalIdentityIndex(5);
                 module
-                    .scalars.scalar_applications
+                    .scalars
+                    .scalar_applications
                     .proof_scope
                     .declarations
                     .insert(ProofScopeDeclaration::Callable(declaration.clone()));
-                module.scalars.scalar_applications.proof_scope.callables.insert(
-                    ProofCallableAssociation::Callable {
+                module
+                    .scalars
+                    .scalar_applications
+                    .proof_scope
+                    .callables
+                    .insert(ProofCallableAssociation::Callable {
                         declaration: ProofDeclarationId(position),
                         callable: TargetMachineCallable::Machine(id),
-                    },
-                );
+                    });
                 module.machines.push(body);
             }
             let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
@@ -5191,7 +5220,8 @@ pub(crate) mod scalar_applications {
             });
             module.machines.push(body);
             let application = module
-                .scalars.scalar_applications
+                .scalars
+                .scalar_applications
                 .insert(ScalarApplication::Evaluate {
                     entry: TargetMachineCallable::Machine(evaluator),
                     scalar_type,
@@ -5239,12 +5269,14 @@ pub(crate) mod scalar_applications {
                     .try_into()
                     .unwrap();
             module
-                .scalars.scalar_applications
+                .scalars
+                .scalar_applications
                 .conditions
                 .insert_predicate(condition);
             refusal(&module);
             module
-                .scalars.scalar_applications
+                .scalars
+                .scalar_applications
                 .proof_scope
                 .pending_evaluation_conditions
                 .insert(ProofDeclarationId(1));
@@ -5288,7 +5320,8 @@ pub(crate) mod scalar_applications {
             let mut evaluation = unit_machine(evaluator);
             evaluation.contract.result = terminal_psi::TerminalMachineResult::Scalar(value(1));
             let application = module
-                .scalars.scalar_applications
+                .scalars
+                .scalar_applications
                 .insert(ScalarApplication::Evaluate {
                     entry: TargetMachineCallable::Machine(evaluator),
                     scalar_type,
@@ -5342,7 +5375,8 @@ pub(crate) mod scalar_applications {
                 .unwrap();
             refusal(&module);
             module
-                .scalars.scalar_applications
+                .scalars
+                .scalar_applications
                 .proof_scope
                 .pending_evaluation_conditions
                 .insert(owner);
@@ -5374,21 +5408,26 @@ pub(crate) mod scalar_applications {
                     capture: None,
                 });
                 module
-                    .scalars.scalar_applications
+                    .scalars
+                    .scalar_applications
                     .proof_scope
                     .declarations
                     .insert(ProofScopeDeclaration::Callable(declaration.clone()));
-                module.scalars.scalar_applications.proof_scope.callables.insert(
-                    ProofCallableAssociation::Callable {
+                module
+                    .scalars
+                    .scalar_applications
+                    .proof_scope
+                    .callables
+                    .insert(ProofCallableAssociation::Callable {
                         declaration: ProofDeclarationId(position),
                         callable: TargetMachineCallable::Machine(machine),
-                    },
-                );
+                    });
                 module.machines.push(body);
             }
             validate(&module).unwrap();
             module
-                .scalars.scalar_applications
+                .scalars
+                .scalar_applications
                 .proof_scope
                 .callables
                 .for_each_mut(|_, row| {
@@ -5465,12 +5504,15 @@ pub(crate) mod scalar_applications {
             }
             let association = scope.callables.insert(ProofCallableAssociation::Callable {
                 declaration: ProofDeclarationId(1),
-                callable: TargetMachineCallable::Boundary(module.interfaces.boundary_machines[0].id),
+                callable: TargetMachineCallable::Boundary(
+                    module.interfaces.boundary_machines[0].id,
+                ),
             });
             validate(&module).unwrap();
             for owner in 2..=4 {
                 let ProofCallableAssociation::Callable { declaration, .. } = module
-                    .scalars.scalar_applications
+                    .scalars
+                    .scalar_applications
                     .proof_scope
                     .callables
                     .get_mut(association)
@@ -5503,12 +5545,14 @@ pub(crate) mod scalar_boundary_contracts {
 
     pub(crate) fn validate_declarations(module: &TerminalModule) -> Result<(), CodecError> {
         for result in module
-            .interfaces.boundary_machines
+            .interfaces
+            .boundary_machines
             .iter()
             .map(|boundary| &boundary.result)
             .chain(
                 module
-                    .execution.dynamic_dispatch
+                    .execution
+                    .dynamic_dispatch
                     .interfaces
                     .iter()
                     .flat_map(|interface| interface.slots.iter().map(|slot| &slot.result)),
@@ -5516,9 +5560,15 @@ pub(crate) mod scalar_boundary_contracts {
         {
             if let terminal_psi::BoundaryMachineResult::Scalar(result) = result {
                 for membership in domains(module, result.qualifications)? {
-                    if !module.types.scalar_qualifications.domains.iter().any(|domain| {
-                        domain.id == *membership && domain.carrier == result.scalar_type
-                    }) {
+                    if !module
+                        .types
+                        .scalar_qualifications
+                        .domains
+                        .iter()
+                        .any(|domain| {
+                            domain.id == *membership && domain.carrier == result.scalar_type
+                        })
+                    {
                         return malformed(
                             "boundary scalar result qualification changes its carrier",
                         );
@@ -5600,19 +5650,11 @@ pub(crate) mod scalar_fields {
         OperationKind, RecordFieldValue, StructuralFieldDeclaration, StructuralTypeShape,
     };
     fn fields(module: &TerminalModule) -> impl Iterator<Item = &StructuralFieldDeclaration> {
-        module.types.structural_types.iter().flat_map(|owner| {
-            let (fields, cases) = match &owner.shape {
-                StructuralTypeShape::Record { fields, .. } => (fields.as_slice(), &[][..]),
-                StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
-                StructuralTypeShape::Mixed { fields, cases } => {
-                    (fields.as_slice(), cases.as_slice())
-                }
-                _ => (&[][..], &[][..]),
-            };
-            fields
-                .iter()
-                .chain(cases.iter().flat_map(|case| &case.fields))
-        })
+        module
+            .types
+            .structural_types
+            .iter()
+            .flat_map(|owner| owner.shape.fields())
     }
 
     fn domains(
@@ -5629,7 +5671,8 @@ pub(crate) mod scalar_fields {
         field: StructuralFieldId,
     ) -> Result<&[ScalarDomainId], CodecError> {
         module
-            .types.scalar_qualifications
+            .types
+            .scalar_qualifications
             .fields
             .iter()
             .find(|row| row.field == field)
@@ -5689,14 +5732,12 @@ pub(crate) mod scalar_fields {
                 "scalar storage reference lost its declaration",
             ),
         )?;
-        Ok(
-            terminal_semantics::runtime_structural_field(
-                module.types.structural_types.iter(),
-                root,
-                path,
-            )
-            .map(|field| field.id),
+        Ok(terminal_semantics::runtime_structural_field(
+            module.types.structural_types.iter(),
+            root,
+            path,
         )
+        .map(|field| field.id))
     }
 
     pub(crate) fn validate_storage_interpretation(
@@ -5711,8 +5752,11 @@ pub(crate) mod scalar_fields {
             return malformed("scalar field storage interpretation lost its reference type");
         };
         let read_only = access == terminal_psi::StructuralAccess::SharedBorrow
-            && terminal_semantics::shared_mutation(module.types.structural_types.iter(), *referent, &[])
-                == terminal_semantics::SharedMutation::None;
+            && terminal_semantics::shared_mutation(
+                module.types.structural_types.iter(),
+                *referent,
+                &[],
+            ) == terminal_semantics::SharedMutation::None;
         if contains_membership(module, *referent)?
             || !read_only && contains_membership(module, source)?
         {
@@ -5899,7 +5943,8 @@ pub(crate) mod scalar_observations {
             )
             .chain(
                 module
-                    .proofs.scalar_block_invariants
+                    .proofs
+                    .scalar_block_invariants
                     .iter()
                     .filter(|row| row.machine == machine.id)
                     .map(|row| &row.predicate),
@@ -6089,21 +6134,27 @@ pub(crate) mod scalar_observations {
                 Proposition::DeclarationIdentity(clause) => {
                     use semantic_vocabulary::{ClauseCarrier, ClauseOperand};
                     if !clause.is_portable() || clause.validate().is_err() {
-                        return malformed("unpublished declaration Identity in a portable proposition");
+                        return malformed(
+                            "unpublished declaration Identity in a portable proposition",
+                        );
                     }
                     scalars.extend(clause.float_sources().map(|source| (source, false)));
                     for value in &clause.values {
                         match (value.carrier, &value.operand) {
                             (ClauseCarrier::Structural(carrier), ClauseOperand::Input(subject)) => {
                                 let Some(root) = root_type(subject.root()) else {
-                                    return malformed("Identity input has no readable declared root");
+                                    return malformed(
+                                        "Identity input has no readable declared root",
+                                    );
                                 };
                                 let Some(endpoint) = canonical_structural_path_tip(
                                     module.types.structural_types.iter(),
                                     root,
                                     subject.path(),
                                 ) else {
-                                    return malformed("Identity input has no exact declared endpoint");
+                                    return malformed(
+                                        "Identity input has no exact declared endpoint",
+                                    );
                                 };
                                 if endpoint.id != carrier
                                     || !matches!(
@@ -6123,7 +6174,11 @@ pub(crate) mod scalar_observations {
                             // Its rows passed their catalog checks when the
                             // Identity validated; its sources are checked below.
                             (ClauseCarrier::FloatMeaning(_), ClauseOperand::FloatMeaning(_)) => {}
-                            _ => return malformed("unpublished declaration Identity in a portable proposition"),
+                            _ => {
+                                return malformed(
+                                    "unpublished declaration Identity in a portable proposition",
+                                );
+                            }
                         }
                     }
                 }
@@ -6172,7 +6227,8 @@ pub(crate) mod scalar_observations {
                 scalar_type,
             } = term
                 && module
-                    .scalars.scalar_applications
+                    .scalars
+                    .scalar_applications
                     .declaration(*application)
                     .and_then(|declaration| declaration.scalar_type())
                     != Some(*scalar_type)
@@ -6284,13 +6340,13 @@ pub(crate) mod storage_foundations {
     use super::{declared_scalar_type, structural_place_type, validate_structural_path};
     use crate::codec_error::{CodecError, malformed};
     use semantic_vocabulary::{
-        BlockId, IntegerSign, IntegerType, PlaceId, ScalarType, StructuralFieldId,
-        StructuralPlaceKind, StructuralTypeId,
+        IntegerSign, IntegerType, PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind,
+        StructuralTypeId,
     };
 
     pub(crate) mod byte_sequences {
         use super::*;
-        use semantic_vocabulary::{IntegerSign, IntegerType};
+        use semantic_vocabulary::IntegerSign;
         use terminal_psi::StructuralAccess;
         use terminal_psi::{
             ByteSequenceCarrier, StructuralArgument, StructuralTypeShape,
@@ -6411,14 +6467,8 @@ pub(crate) mod storage_foundations {
                 (parameter.structural_type, path.as_slice())
             };
             if !is_static_structural_scalar_store_path(carrier_path)
-                || machine
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == *destination || claim.input == *source)
-                || machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == *destination || claim.input.root == *source)
+                || super::super::has_entry_claims(machine, *destination)
+                || super::super::has_entry_claims(machine, *source)
             {
                 return malformed("byte field store has invalid destination custody");
             }
@@ -6519,40 +6569,6 @@ pub(crate) mod storage_foundations {
             Ok(())
         }
 
-        pub(crate) fn validate_structural_byte_sequence_field_length(
-            operation: &Operation,
-        ) -> Result<(), CodecError> {
-            let OperationKind::StructuralByteSequenceFieldLength { .. } = &operation.kind else {
-                unreachable!("dispatched validate_structural_byte_sequence_field_length")
-            };
-            if operation.result.scalar().is_none_or(|result| {
-                !matches!(result.scalar_type, ScalarType::Integer(integer)
-                    if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(64))
-            }) {
-                return malformed("byte field length requires an unsigned 64-bit scalar result");
-            }
-            Ok(())
-        }
-
-        pub(crate) fn validate_structural_byte_sequence_field_read(
-            operation: &Operation,
-        ) -> Result<(), CodecError> {
-            let OperationKind::StructuralByteSequenceFieldRead { .. } = &operation.kind else {
-                unreachable!("dispatched validate_structural_byte_sequence_field_read")
-            };
-            let expected = ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"),
-            );
-            if operation
-                .result
-                .scalar()
-                .is_none_or(|result| result.scalar_type != expected)
-            {
-                return malformed("byte field read requires an unsigned 8-bit scalar result");
-            }
-            Ok(())
-        }
-
         pub(crate) fn validate_byte_sequence_subslice(
             module: &TerminalModule,
             machine: &TerminalMachine,
@@ -6572,17 +6588,19 @@ pub(crate) mod storage_foundations {
                     row.id == result.structural_type
                         && matches!(
                             row.shape,
-                            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+                            StructuralTypeShape::ByteSequence(
+                                ByteSequenceCarrier::BorrowedView { .. }
+                            )
                         )
-                }) || !machine.structural_places.iter().any(|row| {
-                row.id == result.place
-                    && matches!(row.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
-                        if producer == operation.id && structural_type == result.structural_type)
-            }) {
-                return malformed("byte-sequence subslice requires its exact borrowed result place");
+                })
+                || !super::super::is_op_result_place(machine, operation, result)
+            {
+                return malformed(
+                    "byte-sequence subslice requires its exact borrowed result place",
+                );
             }
             validate_byte_descriptor_source(module, machine, source, true)?;
-            let root = place_structural_type(machine, source.place).expect("source checked above");
+            let root = structural_place_type(machine, source.place).expect("source checked above");
             let selected = validate_structural_path(module, root, &source.path)?;
             let source_occurrence_access = if source.path.is_empty() {
                 arrival_parameter(machine, source.place)
@@ -6649,23 +6667,6 @@ pub(crate) mod storage_foundations {
             Ok(())
         }
 
-        pub(crate) fn validate_byte_sequence_read(operation: &Operation) -> Result<(), CodecError> {
-            let OperationKind::ByteSequenceRead { .. } = &operation.kind else {
-                unreachable!("dispatched validate_byte_sequence_read")
-            };
-            let expected = ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"),
-            );
-            if operation
-                .result
-                .scalar()
-                .is_none_or(|result| result.scalar_type != expected)
-            {
-                return malformed("byte-sequence read requires an unsigned 8-bit scalar result");
-            }
-            Ok(())
-        }
-
         pub(crate) fn validate_byte_sequence_length(
             module: &TerminalModule,
             machine: &TerminalMachine,
@@ -6674,12 +6675,12 @@ pub(crate) mod storage_foundations {
             let OperationKind::ByteSequenceLength { source } = &operation.kind else {
                 unreachable!("dispatched validate_byte_sequence_length")
             };
-            super::validate_u64_length_result(
+            super::validate_unsigned_result(
                 operation,
+                64,
                 "byte-sequence length requires an unsigned 64-bit scalar result",
             )?;
-            validate_byte_descriptor_source(module, machine, source, false)?;
-            Ok(())
+            validate_byte_descriptor_source(module, machine, source, false)
         }
 
         fn validate_byte_descriptor_source(
@@ -6691,7 +6692,7 @@ pub(crate) mod storage_foundations {
             if source.access == StructuralAccess::WriteOnlyBorrow {
                 return malformed("byte descriptor requires readable access");
             }
-            let Some(root) = place_structural_type(machine, source.place) else {
+            let Some(root) = structural_place_type(machine, source.place) else {
                 return malformed("byte descriptor has no source declaration");
             };
             let selected = validate_structural_path(module, root, &source.path)?;
@@ -6700,8 +6701,11 @@ pub(crate) mod storage_foundations {
                     || (!borrowed_only
                         && (declaration.shape.is_bounded_owned_byte_sequence()
                             || matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
-                                && fixed_byte_extent(module.types.structural_types.iter(), selected)
-                                    .is_some()))
+                                && fixed_byte_extent(
+                                    module.types.structural_types.iter(),
+                                    selected,
+                                )
+                                .is_some()))
             }) {
                 return malformed("byte operation requires its exact selected byte descriptor");
             }
@@ -6748,11 +6752,8 @@ pub(crate) mod storage_foundations {
                             || row.shape.is_borrowed_byte_view()
                             || (row.shape.is_borrowed_byte_carrier()
                                 && fixed_descriptor_establishment(module, machine, operation, &row.shape)))
-                }) && machine.structural_places.iter().any(|row| {
-                row.id == result.place
-                    && matches!(row.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
-                            if producer == operation.id && structural_type == result.structural_type)
-            })
+                })
+                && super::super::is_op_result_place(machine, operation, result)
         }
 
         fn fixed_descriptor_establishment(
@@ -6776,7 +6777,7 @@ pub(crate) mod storage_foundations {
                 } => (source, *element, *region),
                 _ => return false,
             };
-            let extent = place_structural_type(machine, source.place)
+            let extent = structural_place_type(machine, source.place)
                 .and_then(|root| validate_structural_path(module, root, &source.path).ok())
                 .and_then(|collection| {
                     collection_backing(module.types.structural_types.iter(), collection, element)
@@ -6788,7 +6789,8 @@ pub(crate) mod storage_foundations {
                 region,
                 &source.path,
                 module
-                    .types.structural_types
+                    .types
+                    .structural_types
                     .iter()
                     .find(|declaration| declaration.id == element),
             )
@@ -6894,7 +6896,7 @@ pub(crate) mod storage_foundations {
             if source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
                 return malformed("element subslice requires readable descriptor access");
             }
-            let Some(root) = place_structural_type(machine, source.place) else {
+            let Some(root) = structural_place_type(machine, source.place) else {
                 return malformed("element subslice has no source declaration");
             };
             let selected = validate_structural_path(module, root, &source.path)?;
@@ -6938,7 +6940,7 @@ pub(crate) mod storage_foundations {
             if source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
                 return malformed("element-view length requires readable descriptor access");
             }
-            let Some(root) = place_structural_type(machine, source.place) else {
+            let Some(root) = structural_place_type(machine, source.place) else {
                 return malformed("element-view length has no source declaration");
             };
             let selected = validate_structural_path(module, root, &source.path)?;
@@ -6949,8 +6951,9 @@ pub(crate) mod storage_foundations {
                     "element-view length requires the exact selected element descriptor",
                 );
             }
-            super::validate_u64_length_result(
+            super::validate_unsigned_result(
                 operation,
+                64,
                 "element-view length requires an unsigned 64-bit scalar result",
             )
         }
@@ -6973,7 +6976,7 @@ pub(crate) mod storage_foundations {
             if source.access != terminal_psi::StructuralAccess::SharedBorrow {
                 return malformed("element-view read requires shared observation access");
             }
-            let Some(root) = place_structural_type(machine, source.place) else {
+            let Some(root) = structural_place_type(machine, source.place) else {
                 return malformed("element-view read has an undeclared source place");
             };
             let source_type = validate_structural_path(module, root, &source.path)?;
@@ -6988,7 +6991,8 @@ pub(crate) mod storage_foundations {
             }) else {
                 return malformed("element-view read requires an element-view source");
             };
-            let Some(expected) = element_view_read_scalar(&module.types.structural_types, element, path)
+            let Some(expected) =
+                element_view_read_scalar(&module.types.structural_types, element, path)
             else {
                 return malformed(
                     "element-view read requires a static scalar leaf of a copyable element",
@@ -7161,14 +7165,7 @@ pub(crate) mod storage_foundations {
                     if !writable
                         || !multiplicity
                         || !declaration_matches
-                        || machine
-                            .entry_claims
-                            .iter()
-                            .any(|claim| claim.input == *destination)
-                        || machine
-                            .content_entry_claims
-                            .iter()
-                            .any(|claim| claim.input.root == *destination)
+                        || super::super::has_entry_claims(machine, *destination)
                     {
                         return malformed(
                             "write-only primitive store has invalid destination custody",
@@ -7203,15 +7200,7 @@ pub(crate) mod storage_foundations {
                             "primitive store destination is neither a parameter nor an initialized local",
                         );
                     };
-                    if machine
-                        .entry_claims
-                        .iter()
-                        .any(|claim| claim.input == *destination)
-                        || machine
-                            .content_entry_claims
-                            .iter()
-                            .any(|claim| claim.input.root == *destination)
-                    {
+                    if super::super::has_entry_claims(machine, *destination) {
                         return malformed("primitive local store cannot carry entry claims");
                     }
                     (
@@ -7221,9 +7210,11 @@ pub(crate) mod storage_foundations {
                         result.additional_input_qualifications.as_slice(),
                     )
                 };
-            let Some(expected) =
-                primitive_projection_type(module.types.structural_types.iter(), destination_type, path)
-            else {
+            let Some(expected) = primitive_projection_type(
+                module.types.structural_types.iter(),
+                destination_type,
+                path,
+            ) else {
                 return malformed("write-only primitive store requires a primitive-scalar root");
             };
             let Some(restriction) = primitive_store_restriction(
@@ -7242,16 +7233,7 @@ pub(crate) mod storage_foundations {
                     "primitive store receiving obligation does not match its declaration",
                 );
             }
-            let Some(source) = machine
-                .parameters
-                .iter()
-                .chain(machine.block_parameters())
-                .chain(
-                    machine
-                        .operations()
-                        .filter_map(|operation| operation.result.scalar_ref()),
-                )
-                .find(|source| source.id == *value)
+            let Some(source) = super::super::values(machine).find(|source| source.id == *value)
             else {
                 return malformed("primitive store lost its completed SSA source");
             };
@@ -7270,8 +7252,7 @@ pub(crate) mod storage_foundations {
                     "primitive store value lacks its exact receiving domain provenance",
                 );
             }
-            let actual = declared_scalar_type(machine, *value);
-            if actual != Some(expected) {
+            if declared_scalar_type(machine, *value) != Some(expected) {
                 return malformed("write-only primitive store value type does not match referent");
             }
             Ok(())
@@ -7326,8 +7307,7 @@ pub(crate) mod storage_foundations {
                     "structural scalar field store does not select a relevant scalar field",
                 );
             };
-            let actual = declared_scalar_type(machine, *value);
-            if actual != Some(expected) {
+            if declared_scalar_type(machine, *value) != Some(expected) {
                 return malformed("structural scalar field store value type does not match field");
             }
             Ok(())
@@ -7359,19 +7339,8 @@ pub(crate) mod storage_foundations {
             ) else {
                 return malformed("structural field move requires a mutable-borrowed parameter");
             };
-            let field_type = window_field_type(module, root_type, path, *field)?;
-            if result.structural_type != field_type {
+            if result.structural_type != window_field_type(module, root_type, path, *field)? {
                 return malformed("structural field move result type does not match field");
-            }
-            let (qualifications, projected) =
-                window_memberships(module, machine, *source, root_type, path, *field)?;
-            if result.qualifications != qualifications
-                || result.projected_qualifications != projected
-                || !result.qualification_establishments.is_empty()
-            {
-                return malformed(
-                    "structural field move does not retain the selected source memberships",
-                );
             }
             Ok(())
         }
@@ -7514,7 +7483,8 @@ pub(crate) mod storage_foundations {
                     None,
                 )?;
                 module
-                    .types.structural_types
+                    .types
+                    .structural_types
                     .iter()
                     .any(|declaration| {
                         declaration.id == carrier.structural_type
@@ -7574,14 +7544,7 @@ pub(crate) mod storage_foundations {
                             parameter.multiplicity,
                             nonlinear_multiplicity_pair_pattern!()
                         )
-                        && !machine
-                            .entry_claims
-                            .iter()
-                            .any(|claim| claim.input == place)
-                        && !machine
-                            .content_entry_claims
-                            .iter()
-                            .any(|claim| claim.input.root == place)
+                        && !super::super::has_entry_claims(machine, place)
                 })
                 .map(|parameter| parameter.structural_type)
         }
@@ -7646,15 +7609,16 @@ pub(crate) mod storage_foundations {
             path: &[StructuralPathSegment],
             field: Option<StructuralFieldId>,
         ) -> Result<StructuralTypeId, CodecError> {
-            let Some(projection) = structural_window_projection(
+            structural_window_projection(
                 module.types.structural_types.iter(),
                 root_type,
                 path,
                 field,
-            ) else {
-                return malformed("structural field move does not select a structural field");
-            };
-            Ok(projection.structural_type)
+            )
+            .map(|projection| projection.structural_type)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "structural field move does not select a structural field",
+            ))
         }
 
         fn owns_observed_storage(
@@ -7664,7 +7628,7 @@ pub(crate) mod storage_foundations {
         ) -> bool {
             access == StructuralAccess::Owned
                 && module.types.structural_types.iter().any(|declaration| {
-                    declaration.id == structural_type && (declaration.shape).is_composite_shape()
+                    declaration.id == structural_type && declaration.shape.is_composite_shape()
                 })
         }
 
@@ -7701,14 +7665,15 @@ pub(crate) mod storage_foundations {
             ) {
                 return malformed("scalar structural field has an invalid result type");
             }
-            if let Some((producer, local)) = machine
-                .operations()
-                .filter_map(|producer| producer.result.structural().map(|local| (producer, local)))
-                .find(|(_, local)| local.place == *source)
+            let (observed_root, access, custody_ok, err_msg) = if let Some((producer, local)) =
+                machine
+                    .operations()
+                    .filter_map(|p| p.result.structural().map(|l| (p, l)))
+                    .find(|(_, local)| local.place == *source)
             {
-                let (observed_root, access) = match module
+                let (root, access) = match module
                     .structural_type(local.structural_type)
-                    .map(|declaration| &declaration.shape)
+                    .map(|d| &d.shape)
                 {
                     Some(StructuralTypeShape::Reference { referent, access }) => {
                         (*referent, *access)
@@ -7723,84 +7688,66 @@ pub(crate) mod storage_foundations {
                         },
                     ),
                 };
-                let matching = observed_field_declaration(
-                    module.types.structural_types.iter(),
-                    observed_root,
-                    path,
-                    *field,
+                let ok = owns_observed_storage(module, local.structural_type, access)
+                    || (local.multiplicity != StructuralMultiplicity::Linear
+                        && local.claims.is_empty());
+                (
+                    root,
+                    access,
+                    ok,
+                    "scalar record field has invalid local result custody",
                 )
-                .is_some_and(|candidate| {
-                    candidate.field_type.scalar_type() == Some(result.scalar_type)
-                        && scalar_observation_authorized(
-                            module,
-                            observed_root,
-                            path,
-                            &candidate.field_type,
-                            access,
-                        )
-                });
-                if !matching
-                    || (!owns_observed_storage(module, local.structural_type, access)
-                        && (local.multiplicity == StructuralMultiplicity::Linear
-                            || !local.claims.is_empty()))
-                {
-                    return malformed("scalar record field has invalid local result custody");
-                }
-                return Ok(());
-            }
-            let Some(parameter) = machine.signature_structural_parameter(*source).or_else(|| {
-                let declaration = machine.structural_place(*source)?;
-                let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind
-                else {
-                    return None;
-                };
-                machine
-                    .block(&block)?
-                    .structural_parameters
-                    .get(position as usize)
-                    .filter(|parameter| {
-                        parameter.place == *source && parameter.position == position
-                    })
-            }) else {
+            } else if let Some(parameter) =
+                machine.signature_structural_parameter(*source).or_else(|| {
+                    let StructuralPlaceKind::BlockParameter { block, position } =
+                        machine.structural_place(*source)?.kind
+                    else {
+                        return None;
+                    };
+                    machine
+                        .block(&block)?
+                        .structural_parameters
+                        .get(position as usize)
+                        .filter(|p| p.place == *source && p.position == position)
+                })
+            {
+                let owned =
+                    owns_observed_storage(module, parameter.structural_type, parameter.access);
+                let ok = (owned || parameter.multiplicity != StructuralMultiplicity::Linear)
+                    && matches!(
+                        parameter.access,
+                        StructuralAccess::Owned
+                            | StructuralAccess::SharedBorrow
+                            | StructuralAccess::MutableBorrow
+                    )
+                    && (owned || !super::super::has_entry_claims(machine, *source));
+                (
+                    parameter.structural_type,
+                    parameter.access,
+                    ok,
+                    "scalar structural field has invalid source custody",
+                )
+            } else {
                 return malformed("scalar structural field source is not a parameter");
             };
             let matching = observed_field_declaration(
                 module.types.structural_types.iter(),
-                parameter.structural_type,
+                observed_root,
                 path,
                 *field,
             )
-            .filter(|candidate| {
+            .is_some_and(|candidate| {
                 candidate.field_type.scalar_type() == Some(result.scalar_type)
                     && scalar_observation_authorized(
                         module,
-                        parameter.structural_type,
+                        observed_root,
                         path,
                         &candidate.field_type,
-                        parameter.access,
+                        access,
                     )
             });
-            let owned_observation =
-                owns_observed_storage(module, parameter.structural_type, parameter.access);
-            if (!owned_observation && parameter.multiplicity == StructuralMultiplicity::Linear)
-                || !matches!(
-                    parameter.access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
-                )
-                || (!owned_observation
-                    && (machine
-                        .entry_claims
-                        .iter()
-                        .any(|claim| claim.input == *source)
-                        || machine
-                            .content_entry_claims
-                            .iter()
-                            .any(|claim| claim.input.root == *source)))
-                || matching.is_none()
-            {
-                return malformed("scalar structural field has invalid source custody");
+            if !custody_ok || !matching {
+                return malformed(err_msg);
             }
             Ok(())
         }
@@ -7812,9 +7759,12 @@ pub(crate) mod storage_foundations {
             field: &StructuralFieldType,
             access: StructuralAccess,
         ) -> bool {
-            let Some(access) =
-                observed_field_backing_access(module.types.structural_types.iter(), root, path, access)
-            else {
+            let Some(access) = observed_field_backing_access(
+                module.types.structural_types.iter(),
+                root,
+                path,
+                access,
+            ) else {
                 return false;
             };
             access != StructuralAccess::WriteOnlyBorrow
@@ -7825,49 +7775,15 @@ pub(crate) mod storage_foundations {
         }
     }
     pub(crate) mod structural_transfers {
-
         use super::*;
-        use terminal_semantics::descriptor_results::{
-            DescriptorAnalysis, DescriptorMachine, current_payload_contract,
-            current_selected_payload_contract, descriptor_contents_query, payload_memberships,
-            terminal_graph_from, terminal_payload_contract,
-        };
+        use terminal_semantics::descriptor_results::terminal_payload_contract;
         use terminal_semantics::{canonical_static_projection, is_copyable_carrier};
 
-        pub(crate) struct StructuralTransferInputs<'a> {
-            module: &'a TerminalModule,
-            descriptors: Option<(semantic_vocabulary::MachineId, Vec<DescriptorMachine>)>,
-        }
-
-        impl<'a> StructuralTransferInputs<'a> {
-            pub(crate) fn new(module: &'a TerminalModule) -> Self {
-                Self {
-                    module,
-                    descriptors: None,
-                }
-            }
-
-            fn descriptors(
-                &mut self,
-                machine: semantic_vocabulary::MachineId,
-            ) -> &[DescriptorMachine] {
-                if self
-                    .descriptors
-                    .as_ref()
-                    .is_none_or(|(owner, _)| *owner != machine)
-                {
-                    self.descriptors = Some((machine, terminal_graph_from(self.module, [machine])));
-                }
-                &self.descriptors.as_ref().expect("prepared body closure").1
-            }
-        }
-
         pub(crate) fn validate_move_structural_value(
-            inputs: &mut StructuralTransferInputs<'_>,
+            module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
         ) -> Result<(), CodecError> {
-            let module = inputs.module;
             let OperationKind::MoveStructuralValue { source } = &operation.kind else {
                 return malformed("owned value transfer dispatch differs");
             };
@@ -7894,9 +7810,7 @@ pub(crate) mod storage_foundations {
                 || (source.path.is_empty() && whole_multiplicity != Some(result.multiplicity))
                 || machine
                     .structural_parameter(source.place)
-                    .is_some_and(|parameter| {
-                        parameter.access != terminal_psi::StructuralAccess::Owned
-                    })
+                    .is_some_and(|p| p.access != terminal_psi::StructuralAccess::Owned)
             {
                 return malformed(
                     "owned value transfer requires owned custody and cannot issue authority",
@@ -7905,104 +7819,27 @@ pub(crate) mod storage_foundations {
             let root = structural_place_type(machine, source.place).ok_or(
                 CodecError::MalformedStructuralFoundation("owned transfer source is absent"),
             )?;
-            let selected =
-                canonical_static_projection(module.types.structural_types.iter(), root, &source.path)
-                    .map(|(_, selected)| selected)
-                    .ok_or(CodecError::MalformedStructuralFoundation(
-                        "owned transfer requires a finite owned path",
-                    ))?;
+            let selected = canonical_static_projection(
+                module.types.structural_types.iter(),
+                root,
+                &source.path,
+            )
+            .map(|(_, selected)| selected)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "owned transfer requires a finite owned path",
+            ))?;
             if selected.id != result.structural_type {
                 return malformed("owned value transfer changes its carrier");
             }
-            if !matches!(machine.structural_place(result.place).map(|place| place.kind),
-                Some(StructuralPlaceKind::OperationResult { producer, structural_type })
-                    if producer == operation.id && structural_type == result.structural_type)
-            {
+            if !super::super::is_op_result_place(machine, operation, result) {
                 return malformed("owned value transfer result is not a fresh occurrence");
             }
-            let position = machine
-                .blocks
-                .iter()
-                .find_map(|block| {
-                    block
-                        .operations
-                        .iter()
-                        .position(|candidate| candidate.id == operation.id)
-                        .and_then(|ordinal| {
-                            u32::try_from(ordinal)
-                                .ok()
-                                .map(|ordinal| (block.id, ordinal))
-                        })
-                })
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "owned transfer position is absent",
-                ))?;
-            let graph = inputs.descriptors(machine.id);
-            let contract = current_selected_payload_contract(
-                &module.types.structural_types,
-                &module.types.structural_domains,
-                graph,
-                machine.id,
-                position,
-                source.place,
-                &source.path,
-                &|place| terminal_payload_contract(machine, place),
-            )
-            .map_err(CodecError::MalformedStructuralFoundation)?;
-            if contract.carrier != result.structural_type
-                || !terminal_payload_contract(machine, source.place).is_some_and(|declared| {
-                    declared.move_preserves_qualifications(&source.path, result)
-                })
-            {
+            if !terminal_payload_contract(machine, source.place).is_some_and(|declared| {
+                declared.move_preserves_qualifications(&source.path, result)
+            }) {
                 return malformed("owned value transfer loses source memberships");
             }
-            validate_transfer_domain_additions(
-                module,
-                &contract.qualifications,
-                &contract.projected_qualifications,
-                result,
-            )?;
             validate_byte_transfer_qualifications(module, machine, operation)
-        }
-
-        fn validate_transfer_domain_additions(
-            module: &TerminalModule,
-            source: &[semantic_vocabulary::StructuralDomainId],
-            projected: &[terminal_psi::StructuralPathQualification],
-            result: &terminal_psi::StructuralOperationResult,
-        ) -> Result<(), CodecError> {
-            let additions = result
-                .qualifications
-                .iter()
-                .map(|domain| (&[][..], domain))
-                .chain(
-                    result
-                        .projected_qualifications
-                        .iter()
-                        .map(|row| (row.path.as_slice(), &row.domain)),
-                );
-            for (path, domain) in additions {
-                let declaration = module
-                    .types.structural_domains
-                    .iter()
-                    .find(|row| row.id == *domain)
-                    .ok_or(CodecError::MalformedStructuralFoundation(
-                        "value transfer domain is absent",
-                    ))?;
-                let (supplied, _) =
-                    terminal_psi::StructuralPathQualification::select(source, projected, path);
-                let missing = declaration
-                    .missing_membership_requirements(&module.types.structural_domains, &supplied)
-                    .ok_or(CodecError::MalformedStructuralFoundation(
-                        "value transfer has unknown prerequisites",
-                    ))?;
-                if missing.iter().any(|row| row.establishment_routes.is_some()) {
-                    return malformed(
-                        "value transfer cannot establish unsupplied routed prerequisites",
-                    );
-                }
-            }
-            Ok(())
         }
 
         fn validate_byte_transfer_qualifications(
@@ -8019,184 +7856,33 @@ pub(crate) mod storage_foundations {
         }
 
         pub(crate) fn validate_structural_leaf_copy(
-            inputs: &mut StructuralTransferInputs<'_>,
+            module: &TerminalModule,
             machine: &TerminalMachine,
             operation: &Operation,
         ) -> Result<(), CodecError> {
-            let module = inputs.module;
             let (terminal_psi::structural_leaf_copy_pair_pattern!()) = &operation.kind else {
                 unreachable!("dispatched validate_structural_leaf_copy")
             };
-            if operation.result.structural().is_none_or(|result| {
-                (result.multiplicity != StructuralMultiplicity::Unrestricted
-                    && !(result.multiplicity == StructuralMultiplicity::Affine
-                        && is_copyable_carrier(
-                            module.types.structural_types.iter(),
-                            result.structural_type,
-                        )))
-                    || !result.qualification_establishments.is_empty()
-                    || !result.claims.is_empty()
-            }) {
+            let Some(result) = operation.result.structural() else {
+                return malformed("leaf copy has invalid multiplicity or qualification custody");
+            };
+            if (result.multiplicity != StructuralMultiplicity::Unrestricted
+                && !(result.multiplicity == StructuralMultiplicity::Affine
+                    && is_copyable_carrier(
+                        module.types.structural_types.iter(),
+                        result.structural_type,
+                    )))
+                || !result.qualification_establishments.is_empty()
+                || !result.claims.is_empty()
+            {
                 return malformed("leaf copy has invalid multiplicity or qualification custody");
             }
-            let result = operation
-                .result
-                .structural()
-                .expect("checked structural copy result");
-            if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty() {
-                let OperationKind::StructuralLeafCopy { source, path } = &operation.kind else {
-                    return malformed("case leaf copy does not authenticate memberships");
-                };
-                let descriptors = inputs.descriptors(machine.id);
-                let mut analysis = DescriptorAnalysis::new(&module.types.structural_types, descriptors);
-                let mut history_failures = Vec::new();
-                let mut query_phase = "root";
-                let memberships = (|| {
-                    let root = terminal_payload_contract(machine, *source)?;
-                    query_phase = "query";
-                    let query = descriptor_contents_query(
-                        &module.types.structural_types,
-                        *source,
-                        root.carrier,
-                        path,
-                        None,
-                    )?;
-                    query_phase = "position";
-                    let position = machine.blocks.iter().find_map(|block| {
-                        block
-                            .operations
-                            .iter()
-                            .position(|candidate| candidate.id == operation.id)
-                            .and_then(|ordinal| {
-                                u32::try_from(ordinal)
-                                    .ok()
-                                    .map(|ordinal| (block.id, ordinal))
-                            })
-                    })?;
-                    query_phase = "targets";
-                    let targets = analysis.payload_targets(machine.id, position, &query)?;
-                    query_phase = "memberships";
-                    payload_memberships(
-                        &module.types.structural_types,
-                        &module.types.structural_domains,
-                        targets,
-                        |place| {
-                            current_payload_contract(
-                                &module.types.structural_types,
-                                &module.types.structural_domains,
-                                descriptors,
-                                machine.id,
-                                position,
-                                place,
-                                &|source| terminal_payload_contract(machine, source),
-                            )
-                            .map_err(|reason| history_failures.push((place, reason)))
-                            .ok()
-                        },
-                    )
-                })()
-                .and_then(|contract| {
-                    query_phase = "presentation";
-                    contract.presented(
-                        &module.types.structural_types,
-                        &module.types.structural_domains,
-                        result.structural_type,
-                    )
-                });
-                let Some(contract) = memberships
-                    .as_ref()
-                    .filter(|contract| contract.carrier == result.structural_type)
-                else {
-                    return Err(CodecError::MalformedStructuralOperation {
-                        machine: machine
-                            .declaration
-                            .as_ref()
-                            .and_then(|declaration| module.identities.text(declaration.callable))
-                            .map(str::to_owned)
-                            .unwrap_or_else(|| format!("{:?}", machine.id)),
-                        operation: operation.id,
-                        reason: format!(
-                            "leaf copy memberships do not follow from every current payload source: source={source:?}, path={path:?}, requested={:?}/{:?}/{:?}, current={memberships:?}, history={history_failures:?}, phase={query_phase}, machine_present={}",
-                            result.structural_type,
-                            result.qualifications,
-                            result.projected_qualifications,
-                            descriptors.iter().any(|row| row.id == machine.id),
-                        ),
-                    });
-                };
-                validate_transfer_domain_additions(
-                    module,
-                    &contract.qualifications,
-                    &contract.projected_qualifications,
-                    result,
-                )
-                .inspect_err(|_| {
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                        eprintln!(
-                            "CHECKSITE structural-leaf-transfer machine={:?} operation={:?} source={:?} path={:?} requested={:?}/{:?}/{:?} current={:?}",
-                            machine.id,
-                            operation.id,
-                            source,
-                            path,
-                            result.structural_type,
-                            result.qualifications,
-                            result.projected_qualifications,
-                            contract,
-                        );
-                        trace_payload_producer_chain(machine, operation);
-                    }
-                })?;
+            if (!result.qualifications.is_empty() || !result.projected_qualifications.is_empty())
+                && !matches!(operation.kind, OperationKind::StructuralLeafCopy { .. })
+            {
+                return malformed("case leaf copy does not authenticate memberships");
             }
             validate_byte_transfer_qualifications(module, machine, operation)
-        }
-
-        fn trace_payload_producer_chain(machine: &TerminalMachine, failing: &Operation) {
-            const MAX_BLOCKS: usize = 64;
-            const MAX_OPERATIONS: usize = 256;
-            const MAX_DETAIL_CHARACTERS: usize = 4096;
-            eprintln!(
-                "CHECKSITE payload-chain-inputs machine={:?} failing={:?} entry={:?} structural={:?} requires={:?}",
-                machine.id,
-                failing.id,
-                machine.entry,
-                machine.structural_parameters,
-                machine.contract.requires,
-            );
-            let mut remaining = MAX_OPERATIONS;
-            for block in machine.blocks.iter().take(MAX_BLOCKS) {
-                let edge = format!("{:?}", block.terminator);
-                let edge_cut = edge.chars().count() > MAX_DETAIL_CHARACTERS;
-                let edge: String = edge.chars().take(MAX_DETAIL_CHARACTERS).collect();
-                eprintln!(
-                    "CHECKSITE payload-chain-block machine={:?} block={:?} structural={:?} terminator={} terminator_cut={}",
-                    machine.id, block.id, block.structural_parameters, edge, edge_cut,
-                );
-                for (ordinal, operation) in block.operations.iter().enumerate().take(remaining) {
-                    let detail = format!("{:?}", operation.kind);
-                    let detail_cut = detail.chars().count() > MAX_DETAIL_CHARACTERS;
-                    let detail: String = detail.chars().take(MAX_DETAIL_CHARACTERS).collect();
-                    eprintln!(
-                        "CHECKSITE payload-chain-operation machine={:?} block={:?} ordinal={} operation={:?} failing={} result={:?} kind={} kind_cut={}",
-                        machine.id,
-                        block.id,
-                        ordinal,
-                        operation.id,
-                        operation.id == failing.id,
-                        operation.result,
-                        detail,
-                        detail_cut,
-                    );
-                }
-                remaining = remaining.saturating_sub(block.operations.len());
-            }
-            eprintln!(
-                "CHECKSITE payload-chain-end machine={:?} blocks={} operations={} blocks_cut={} operations_cut={}",
-                machine.id,
-                machine.blocks.len().min(MAX_BLOCKS),
-                MAX_OPERATIONS - remaining,
-                machine.blocks.len() > MAX_BLOCKS,
-                machine.operations().count() > MAX_OPERATIONS,
-            );
         }
     }
     use self::structural_fields::declared_memberships;
@@ -8209,19 +7895,18 @@ pub(crate) mod storage_foundations {
     pub(crate) use structural_transfers::*;
     use terminal_psi::{
         ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
-        StructuralFieldType, StructuralMultiplicity, StructuralPathQualification,
-        StructuralPathSegment, StructuralTypeShape, TerminalMachine, TerminalModule,
-        is_static_structural_scalar_store_path, is_structural_scalar_store_path,
+        StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
+        TerminalMachine, TerminalModule, is_static_structural_scalar_store_path,
+        is_structural_scalar_store_path,
     };
     use terminal_semantics::{
         access_reference_correspondence, arrival_parameter,
         borrowed_primitive_projection_declaration, projected_field_declaration,
-        reference_byte_field_compatible, reference_carrier_memberships,
         reference_preserves_ancestor_qualifications, reference_source_projection_accessible,
         reference_source_projection_compatible, reference_source_storage_path,
         resident_reference_plan, runtime_structural_field, scalar_field_store_preserves_content,
-        scalar_field_store_preserves_domain_content, scalar_projection_entails_membership,
-        store_preserves_content, structural_memberships_disjoint_from_write,
+        scalar_field_store_preserves_domain_content, store_preserves_content,
+        structural_memberships_disjoint_from_write,
     };
 
     fn reference_store_carrier<'path>(
@@ -8290,7 +7975,8 @@ pub(crate) mod storage_foundations {
             return None;
         };
         module
-            .types.structural_types
+            .types
+            .structural_types
             .iter()
             .any(|declaration| declaration.id == referent)
             .then_some((referent, suffix))
@@ -8342,12 +8028,14 @@ pub(crate) mod storage_foundations {
         .then_some(structural_type)
     }
 
-    pub(crate) fn validate_u64_length_result(
+    pub(crate) fn validate_unsigned_result(
         operation: &Operation,
+        bits: u16,
         malformed_label: &'static str,
     ) -> Result<(), CodecError> {
-        let expected =
-            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+        let expected = ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, bits).expect("valid width"),
+        );
         if operation
             .result
             .scalar()
@@ -8570,211 +8258,6 @@ pub(crate) mod storage_foundations {
         Ok(())
     }
 
-    pub(crate) fn validate_reference_memberships(
-        module: &TerminalModule,
-    ) -> Result<(), CodecError> {
-        let querying_machines = module
-            .machines
-            .iter()
-            .filter(|machine| {
-                machine.operations().any(|operation| {
-                    matches!(&operation.kind, OperationKind::EstablishReference { .. })
-                })
-            })
-            .collect::<Vec<_>>();
-        if querying_machines.is_empty() {
-            return Ok(());
-        }
-        let graph = terminal_semantics::descriptor_results::terminal_graph_from(
-            module,
-            querying_machines.iter().map(|machine| machine.id),
-        );
-        let mut analysis = terminal_semantics::descriptor_results::DescriptorAnalysis::new(
-            &module.types.structural_types,
-            &graph,
-        );
-        for machine in querying_machines {
-            for block in &machine.blocks {
-                for (ordinal, operation) in block.operations.iter().enumerate() {
-                    if !matches!(&operation.kind, OperationKind::EstablishReference { .. }) {
-                        continue;
-                    }
-                    let ordinal = u32::try_from(ordinal).map_err(|_| {
-                        super::operation_foundation_error(
-                            module,
-                            machine,
-                            block.id,
-                            operation,
-                            CodecError::MalformedStructuralFoundation(
-                                "operation ordinal exceeds u32",
-                            ),
-                        )
-                    })?;
-                    validate_reference_membership(
-                        module,
-                        machine,
-                        operation,
-                        (block.id, ordinal),
-                        &graph,
-                        &mut analysis,
-                    )
-                    .map_err(|error| {
-                        super::operation_foundation_error(
-                            module, machine, block.id, operation, error,
-                        )
-                    })?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn validate_reference_membership(
-        module: &TerminalModule,
-        machine: &TerminalMachine,
-        operation: &Operation,
-        position: (BlockId, u32),
-        reference_graph: &[terminal_semantics::descriptor_results::DescriptorMachine],
-        reference_analysis: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'_>,
-    ) -> Result<(), CodecError> {
-        let OperationKind::EstablishReference { source, storage } = &operation.kind else {
-            return malformed("reference membership admission has no reference operation");
-        };
-        let Some(result) = operation.result.structural() else {
-            return malformed("reference membership admission has no structural result");
-        };
-        let Some(StructuralTypeShape::Reference { access, .. }) = module
-            .structural_type(result.structural_type)
-            .map(|row| &row.shape)
-        else {
-            return malformed("reference membership admission has no reference carrier");
-        };
-        let Some(source_type) = structural_place_type(machine, source.place) else {
-            return malformed("reference membership admission has no source declaration");
-        };
-        let source_path = reference_source_storage_path(
-            module.types.structural_types.iter(),
-            source_type,
-            &source.path,
-        );
-        let inline_owner = storage.is_none()
-            && runtime_structural_field(module.types.structural_types.iter(), source_type, source_path)
-                .is_some_and(|field| {
-                    matches!(
-                        field.field_type.byte_sequence_carrier(),
-                        Some(ByteSequenceCarrier::BoundedOwned { .. })
-                    )
-                });
-        let field_compatible = inline_owner
-            && reference_byte_field_compatible(
-                module.types.structural_types.iter(),
-                module.types.structural_domains.iter(),
-                source_type,
-                source_path,
-                result.structural_type,
-                &result.projected_qualifications,
-            );
-        let memberships_match = if inline_owner {
-            field_compatible
-        } else {
-            declared_memberships(machine, source.place).is_some_and(|(whole, projected)| {
-                let Ok(mut captured) = reference_carrier_memberships(
-                    module.types.structural_types.iter(),
-                    source_type,
-                    whole,
-                    projected,
-                    source_path,
-                    *access,
-                    result.structural_type,
-                    storage.as_ref(),
-                ) else {
-                    return false;
-                };
-                if let Ok(backing) =
-                    terminal_semantics::descriptor_results::reference_backing_memberships(
-                        &module.types.structural_types,
-                        &module.types.structural_domains,
-                        &module.identities,
-                        reference_analysis,
-                        machine.id,
-                        position,
-                        source,
-                        storage.as_ref(),
-                        result,
-                        |place| {
-                            terminal_semantics::descriptor_results::terminal_payload_contract(
-                                machine, place,
-                            )
-                        },
-                    )
-                {
-                    captured.extend(backing);
-                }
-                if *access == StructuralAccess::SharedBorrow
-                    && result
-                        .projected_qualifications
-                        .iter()
-                        .any(|row| !captured.contains(row))
-                {
-                    let Ok(current) =
-                        terminal_semantics::descriptor_results::current_selected_payload_contract(
-                            &module.types.structural_types,
-                            &module.types.structural_domains,
-                            reference_graph,
-                            machine.id,
-                            position,
-                            source.place,
-                            source_path,
-                            &|place| {
-                                terminal_semantics::descriptor_results::terminal_payload_contract(
-                                    machine, place,
-                                )
-                            },
-                        )
-                    else {
-                        return false;
-                    };
-                    StructuralPathQualification::append_under(
-                        &current.qualifications,
-                        &current.projected_qualifications,
-                        &[StructuralPathSegment::Referent],
-                        &mut captured,
-                    );
-                }
-                result.projected_qualifications.iter().all(|row| {
-                    captured.contains(row)
-                        || row
-                            .path
-                            .strip_prefix(&[StructuralPathSegment::Referent])
-                            .is_some_and(|relative| {
-                                let mut path = source_path.to_vec();
-                                path.extend_from_slice(relative);
-                                scalar_projection_entails_membership(
-                                    module.types.structural_types.iter(),
-                                    module.types.structural_domains.iter(),
-                                    source_type,
-                                    &path,
-                                    row.domain,
-                                )
-                            })
-                }) && (*access == StructuralAccess::SharedBorrow
-                    || captured
-                        .iter()
-                        .all(|row| result.projected_qualifications.contains(row)))
-            })
-        };
-        if (inline_owner
-            || !result.projected_qualifications.is_empty()
-            || *access != StructuralAccess::SharedBorrow)
-            && !memberships_match
-        {
-            return malformed(
-                "reference establishment cannot retain source membership obligations",
-            );
-        }
-        Ok(())
-    }
-
     pub(crate) fn validate_release_reference(
         module: &TerminalModule,
         machine: &TerminalMachine,
@@ -8883,35 +8366,6 @@ pub(crate) mod storage_foundations {
             return malformed("structural field store has invalid destination custody");
         }
         Ok((destination_type, carrier_path))
-    }
-
-    fn place_structural_type(
-        machine: &TerminalMachine,
-        place: PlaceId,
-    ) -> Option<StructuralTypeId> {
-        if let Some(parameter) = machine.signature_structural_parameter(place) {
-            return Some(parameter.structural_type);
-        }
-        if let Some(parameter) = machine
-            .block_structural_parameters()
-            .find(|parameter| parameter.place == place)
-        {
-            return Some(parameter.structural_type);
-        }
-        machine.structural_places.iter().find_map(|row| {
-            if row.id != place {
-                return None;
-            }
-            match row.kind {
-                StructuralPlaceKind::OperationResult {
-                    structural_type, ..
-                }
-                | StructuralPlaceKind::ByteSequenceLiteral {
-                    structural_type, ..
-                } => Some(structural_type),
-                _ => None,
-            }
-        })
     }
 
     pub(crate) fn validate_global_descriptor_table(
@@ -9198,20 +8652,23 @@ pub(crate) mod storage_foundations {
                 },
             ];
             for (index, shape) in shapes.into_iter().enumerate() {
-                module.types.structural_types.push(StructuralTypeDeclaration {
-                    declaration_identity: Default::default(),
-                    id: ty(index as u64 + 1),
-                    identity: TerminalIdentityIndex(index as u32 + 1),
-                    shape,
-                    quotient_carrier: None,
-                    owns_linear_claim: false,
-                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                    no_code_affine_cleanup: true,
-                    descriptor_cleanup: false,
-                    nominal_cleanup: None,
-                    scalar_restriction: None,
-                    requires: Vec::new(),
-                });
+                module
+                    .types
+                    .structural_types
+                    .push(StructuralTypeDeclaration {
+                        declaration_identity: Default::default(),
+                        id: ty(index as u64 + 1),
+                        identity: TerminalIdentityIndex(index as u32 + 1),
+                        shape,
+                        quotient_carrier: None,
+                        owns_linear_claim: false,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        no_code_affine_cleanup: true,
+                        descriptor_cleanup: false,
+                        nominal_cleanup: None,
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                    });
             }
             let source = PlaceId::new(1).unwrap();
             let offset = ValueId::new(1).unwrap();
@@ -9588,42 +9045,13 @@ pub(crate) mod structural_type_foundations {
                         }
                         _ => {}
                     }
-                    match &field.field_type {
-                        StructuralFieldType::Atomic(_)
-                        | StructuralFieldType::AtomicBoundedInteger(_)
-                            if field.field_type.atomic_scalar_type().is_none() =>
-                        {
-                            return malformed(
-                                "atomic field requires a fixed integer or Boolean cell",
-                            );
-                        }
-                        StructuralFieldType::Structural(field_type)
-                            if !has_structural_type(module, *field_type) =>
-                        {
-                            return malformed(
-                                "structural field references an unknown structural type",
-                            );
-                        }
-                        StructuralFieldType::Erased { type_identity, .. }
-                            if type_identity.is_absent() =>
-                        {
-                            return malformed(
-                                "opaque structural field type must have a nonempty type identity",
-                            );
-                        }
-                        StructuralFieldType::Erased { .. }
-                            if !field.relevance.is_erased()
-                                && attachment_storage.binary_search(&declaration.id).is_err() =>
-                        {
-                            return malformed(
-                                "provider-backed attachment specialization is incomplete",
-                            );
-                        }
-                        _ => check_field_identity_relevance(
-                            field,
-                            "erased structural field must use its opaque semantic type identity",
-                        )?,
-                    }
+                    validate_field_decl(
+                        module,
+                        field,
+                        attachment_storage.binary_search(&declaration.id).is_ok(),
+                        "structural field references an unknown structural type",
+                        "erased structural field must use its opaque semantic type identity",
+                    )?;
                 }
                 validate_authored_destination_intervals(destinations)?;
             }
@@ -9654,34 +9082,13 @@ pub(crate) mod structural_type_foundations {
                         "structural case payload field identity",
                     )?;
                     for field in &case.fields {
-                        match &field.field_type {
-                            StructuralFieldType::Atomic(_)
-                            | StructuralFieldType::AtomicBoundedInteger(_)
-                                if field.field_type.atomic_scalar_type().is_none() =>
-                            {
-                                return malformed(
-                                    "atomic field requires a fixed integer or Boolean cell",
-                                );
-                            }
-                            StructuralFieldType::Structural(field_type)
-                                if !has_structural_type(module, *field_type) =>
-                            {
-                                return malformed(
-                                    "structural case payload references an unknown structural type",
-                                );
-                            }
-                            StructuralFieldType::Erased { type_identity, .. }
-                                if !field.relevance.is_erased() || type_identity.is_absent() =>
-                            {
-                                return malformed(
-                                    "opaque structural case payload must have erased relevance and a nonempty type identity",
-                                );
-                            }
-                            _ => check_field_identity_relevance(
-                                field,
-                                "erased structural case payload must use its opaque semantic type identity",
-                            )?,
-                        }
+                        validate_field_decl(
+                            module,
+                            field,
+                            false,
+                            "structural case payload references an unknown structural type",
+                            "erased structural case payload must use its opaque semantic type identity",
+                        )?;
                     }
                 }
             }
@@ -9707,38 +9114,47 @@ pub(crate) mod structural_type_foundations {
                     .iter()
                     .chain(cases.iter().flat_map(|case| &case.fields))
                 {
-                    match &field.field_type {
-                        StructuralFieldType::Atomic(_)
-                        | StructuralFieldType::AtomicBoundedInteger(_)
-                            if field.field_type.atomic_scalar_type().is_none() =>
-                        {
-                            return malformed(
-                                "atomic field requires a fixed integer or Boolean cell",
-                            );
-                        }
-                        StructuralFieldType::Structural(field_type)
-                            if !has_structural_type(module, *field_type) =>
-                        {
-                            return malformed(
-                                "mixed structural field references an unknown structural type",
-                            );
-                        }
-                        StructuralFieldType::Erased { type_identity, .. }
-                            if !field.relevance.is_erased() || type_identity.is_absent() =>
-                        {
-                            return malformed(
-                                "opaque mixed structural field must have erased relevance and a nonempty type identity",
-                            );
-                        }
-                        _ => check_field_identity_relevance(
-                            field,
-                            "erased mixed structural field must use its opaque semantic type identity",
-                        )?,
-                    }
+                    validate_field_decl(
+                        module,
+                        field,
+                        false,
+                        "mixed structural field references an unknown structural type",
+                        "erased mixed structural field must use its opaque semantic type identity",
+                    )?;
                 }
             }
         }
         Ok(())
+    }
+
+    fn validate_field_decl(
+        module: &StructuralCatalog<'_>,
+        field: &terminal_psi::StructuralFieldDeclaration,
+        allow_attachment_erased: bool,
+        unknown_msg: &'static str,
+        erased_msg: &'static str,
+    ) -> Result<(), CodecError> {
+        match &field.field_type {
+            StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+                if field.field_type.atomic_scalar_type().is_none() =>
+            {
+                malformed("atomic field requires a fixed integer or Boolean cell")
+            }
+            StructuralFieldType::Structural(field_type)
+                if !has_structural_type(module, *field_type) =>
+            {
+                malformed(unknown_msg)
+            }
+            StructuralFieldType::Erased { type_identity, .. } if type_identity.is_absent() => {
+                malformed("opaque structural field type must have a nonempty type identity")
+            }
+            StructuralFieldType::Erased { .. }
+                if !field.relevance.is_erased() && !allow_attachment_erased =>
+            {
+                malformed("provider-backed attachment specialization is incomplete")
+            }
+            _ => check_field_identity_relevance(field, erased_msg),
+        }
     }
 
     fn validate_authored_field_extent(
@@ -9874,20 +9290,23 @@ pub(crate) mod structural_type_foundations {
             let integer = ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 64).expect("signed integer"),
             );
-            module.types.structural_types.push(StructuralTypeDeclaration {
-                declaration_identity: Default::default(),
-                requires: Vec::new(),
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-                descriptor_cleanup: false,
-                nominal_cleanup: None,
-                scalar_restriction: None,
-                id: scalar_type,
-                identity: TerminalIdentityIndex(77),
-                shape: StructuralTypeShape::PrimitiveScalar(integer),
-            });
+            module
+                .types
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    id: scalar_type,
+                    identity: TerminalIdentityIndex(77),
+                    shape: StructuralTypeShape::PrimitiveScalar(integer),
+                });
             let field = StructuralFieldDeclaration {
                 declaration_identity: Default::default(),
                 inline_carrier: None,
@@ -9927,39 +9346,45 @@ pub(crate) mod structural_type_foundations {
             let mut module = TerminalModule::for_entry(MachineId::new(1).expect("entry"));
             let element = StructuralTypeId::new(1).expect("element");
             let array = StructuralTypeId::new(2).expect("array");
-            module.types.structural_types.push(StructuralTypeDeclaration {
-                declaration_identity: Default::default(),
-                requires: Vec::new(),
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-                descriptor_cleanup: false,
-                nominal_cleanup: None,
-                scalar_restriction: None,
-                id: element,
-                identity: TerminalIdentityIndex(599),
-                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Signed, 64).expect("signed integer"),
-                )),
-            });
-            module.types.structural_types.push(StructuralTypeDeclaration {
-                declaration_identity: Default::default(),
-                requires: Vec::new(),
-                quotient_carrier: None,
-                owns_linear_claim: false,
-                no_code_affine_cleanup: false,
-                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-                descriptor_cleanup: false,
-                nominal_cleanup: None,
-                scalar_restriction: None,
-                id: array,
-                identity: TerminalIdentityIndex(941),
-                shape: StructuralTypeShape::FixedArray {
-                    element,
-                    length: ArrayExtent::Literal(2),
-                },
-            });
+            module
+                .types
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    id: element,
+                    identity: TerminalIdentityIndex(599),
+                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Signed, 64).expect("signed integer"),
+                    )),
+                });
+            module
+                .types
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    id: array,
+                    identity: TerminalIdentityIndex(941),
+                    shape: StructuralTypeShape::FixedArray {
+                        element,
+                        length: ArrayExtent::Literal(2),
+                    },
+                });
             let field = StructuralFieldDeclaration {
                 declaration_identity: Default::default(),
                 inline_carrier: None,
@@ -10025,7 +9450,8 @@ pub(crate) mod target_layouts {
     ) -> Result<(), CodecError> {
         if !strictly_increasing(
             module
-                .layouts.target_layout_applications
+                .layouts
+                .target_layout_applications
                 .iter()
                 .map(|application| application.id),
         ) {
@@ -10277,7 +9703,8 @@ pub(crate) mod target_layouts {
                 ..
             } = declaration.shape
                 && !module
-                    .layouts.target_layout_applications
+                    .layouts
+                    .target_layout_applications
                     .iter()
                     .any(|row| row.id == application && row.record == declaration.id)
             {
@@ -10371,7 +9798,8 @@ pub(crate) mod target_layouts {
         target: &terminal_psi::TargetLayoutRealization,
     ) -> Option<&'module terminal_psi::TargetLayoutRealization> {
         module
-            .layouts.target_layout_applications
+            .layouts
+            .target_layout_applications
             .iter()
             .find(|application| application.id == id && application.record == record)?
             .realizations
@@ -10613,7 +10041,11 @@ pub(crate) mod unoptimized_behavior {
 
     pub(crate) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         super::super::wire::require_increasing(
-            module.execution.unoptimized_behavior.iter().map(|body| body.machine),
+            module
+                .execution
+                .unoptimized_behavior
+                .iter()
+                .map(|body| body.machine),
             "unoptimized semantic bodies",
         )?;
         for body in &module.execution.unoptimized_behavior {
@@ -10755,9 +10187,7 @@ pub(crate) mod value_foundations {
                 terminal_semantics::PackedArrayRole::Result,
             )
             .is_none()
-            || !matches!(machine.structural_place(result.place),
-                Some(StructuralPlaceDeclaration { kind: StructuralPlaceKind::OperationResult { producer, structural_type }, .. })
-                    if *producer == operation.id && *structural_type == result.structural_type)
+            || !super::is_op_result_place(machine, operation, result)
         {
             return malformed("packed integer operation requires a plain fixed-array result");
         }
@@ -10822,19 +10252,17 @@ pub(crate) mod value_foundations {
                 elements,
                 |element| scalar_index.constant_value(element),
             )
-            || !matches!(
-                machine.structural_place(result.place),
-                Some(StructuralPlaceDeclaration {
-                    kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
-                }) if *producer == operation.id && *structural_type == result.structural_type
-            )
+            || !super::is_op_result_place(machine, operation, result)
             || scalar_array_leaf_shape(module.types.structural_types.iter(), result.structural_type)
                 .is_none_or(|(_, count)| u64::try_from(elements.len()).ok() != Some(count))
         {
             return malformed("scalar array establishment has an invalid result shape");
         }
-        if scalar_array_leaf_declaration(module.types.structural_types.iter(), result.structural_type)
-            .is_some_and(|(leaf, count)| count != 0 && leaf.scalar_restriction.is_some())
+        if scalar_array_leaf_declaration(
+            module.types.structural_types.iter(),
+            result.structural_type,
+        )
+        .is_some_and(|(leaf, count)| count != 0 && leaf.scalar_restriction.is_some())
         {
             return malformed("scalar array initializer lacks receiving restriction obligations");
         }
@@ -10862,13 +10290,7 @@ pub(crate) mod value_foundations {
         {
             return malformed("scalar case establishment has an invalid result surface");
         }
-        if !matches!(
-            machine.structural_place(result.place),
-            Some(StructuralPlaceDeclaration {
-                kind: StructuralPlaceKind::OperationResult { producer, structural_type },
-                ..
-            }) if *producer == operation.id && *structural_type == result.structural_type
-        ) {
+        if !super::is_op_result_place(machine, operation, result) {
             return malformed("scalar case establishment has no matching result place");
         }
         let Some(declaration) = module.structural_type(result.structural_type) else {
@@ -10912,13 +10334,7 @@ pub(crate) mod value_foundations {
             return malformed("structural case establishment has no structural result");
         };
         validate_constructor_claims(module, result)?;
-        if !matches!(
-            machine.structural_place(result.place),
-            Some(StructuralPlaceDeclaration {
-                kind: StructuralPlaceKind::OperationResult { producer, structural_type },
-                ..
-            }) if *producer == operation.id && *structural_type == result.structural_type
-        ) {
+        if !super::is_op_result_place(machine, operation, result) {
             return malformed("structural case establishment has no matching result place");
         }
         let Some(declaration) = module.structural_type(result.structural_type) else {
@@ -11010,13 +10426,11 @@ pub(crate) mod value_foundations {
             )
             || !result.claims.is_empty()
             || !result.qualification_establishments.is_empty()
-            || !matches!(
-                machine.structural_place(result.place),
-                Some(StructuralPlaceDeclaration {
-                    kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
-                }) if *producer == operation.id && *structural_type == result.structural_type
+            || !super::is_op_result_place(machine, operation, result)
+            || !zeroed_structural_shape(
+                module.types.structural_types.iter(),
+                result.structural_type,
             )
-            || !zeroed_structural_shape(module.types.structural_types.iter(), result.structural_type)
         {
             return malformed("zeroed structural establishment has an invalid result shape");
         }
@@ -11039,12 +10453,7 @@ pub(crate) mod value_foundations {
             result,
         )
         .map_err(CodecError::MalformedStructuralFoundation)?;
-        if !matches!(
-            machine.structural_place(result.place),
-            Some(StructuralPlaceDeclaration {
-                kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
-            }) if *producer == operation.id && *structural_type == result.structural_type
-        ) {
+        if !super::is_op_result_place(machine, operation, result) {
             return malformed("structural local establishment has an invalid result shape");
         }
         Ok(())
@@ -11098,7 +10507,7 @@ pub(crate) mod value_foundations {
             return malformed("record has no structural result");
         };
         validate_constructor_claims(module, result)?;
-        if !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
+        if !super::is_op_result_place(machine, operation, result) {
             return malformed("record result custody is noncanonical");
         }
         let Some(declaration) = module.structural_type(result.structural_type) else {
@@ -11216,15 +10625,7 @@ pub(crate) mod value_foundations {
         let Some(result) = operation.result.structural() else {
             return malformed("primitive local has no structural result");
         };
-        let source = machine
-            .parameters
-            .iter()
-            .chain(machine.block_parameters())
-            .chain(
-                machine
-                    .operations()
-                    .filter_map(|operation| operation.result.scalar_ref()),
-            )
+        let source = super::values(machine)
             .find(|declaration| declaration.id == *value)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "primitive initializer lost its exact SSA declaration",
@@ -11244,12 +10645,7 @@ pub(crate) mod value_foundations {
             || !result.projected_qualifications.is_empty()
             || !result.qualification_establishments.is_empty()
             || result.qualifications != qualifications
-            || !machine.structural_places.iter().any(|place| {
-                place.id == result.place
-                    && matches!(place.kind,
-                    StructuralPlaceKind::OperationResult { producer, structural_type }
-                        if producer == operation.id && structural_type == result.structural_type)
-            })
+            || !super::is_op_result_place(machine, operation, result)
             || !module.types.structural_types.iter().any(|declaration| {
                 declaration.id == result.structural_type
                     && declaration.scalar_restriction.is_some() == range_obligation.is_some()
@@ -11270,9 +10666,7 @@ pub(crate) mod value_foundations {
         let Some(result) = operation.result.structural() else {
             return malformed("byte concatenation requires an owned structural result");
         };
-        if !matches!(machine.structural_place(result.place).map(|row| row.kind),
-            Some(StructuralPlaceKind::OperationResult { producer, structural_type })
-                if producer == operation.id && structural_type == result.structural_type)
+        if !super::is_op_result_place(machine, operation, result)
             || !module.types.structural_types.iter().any(|row| {
                 row.id == result.structural_type && row.shape.is_bounded_owned_byte_sequence()
             })
@@ -11323,7 +10717,8 @@ pub(crate) mod value_foundations {
         };
         validate_constructor_claims(module, result)?;
         if !result.qualifications.is_empty()
-            || !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
+            || !super::is_op_result_place(machine, operation, result)
+        {
             return malformed("array result custody is noncanonical");
         }
         let shape = &module
@@ -11406,7 +10801,9 @@ pub(crate) mod value_foundations {
                 "native code layout has unavailable executable entry or noncanonical custody",
             );
         }
-        if !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) { return malformed("native code layout result has no exact producer home"); }
+        if !super::is_op_result_place(machine, operation, result) {
+            return malformed("native code layout result has no exact producer home");
+        }
         let Some(declaration) = module.structural_type(result.structural_type) else {
             return malformed("native code layout result type is absent");
         };
@@ -11442,7 +10839,7 @@ pub(crate) mod value_foundations {
             || !address(&regions[0])
             || !matches!(regions[1].field_type, StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(ty)) if !ty.is_address() && ty.sign() == semantic_vocabulary::IntegerSign::Unsigned && ty.bits() == Some(64))
         {
-            return malformed("native code layout region needs base addr and length u64");
+            return malformed("native code layout region needs base address and length u64");
         }
         Ok(())
     }
@@ -11637,19 +11034,54 @@ pub(crate) fn declared_scalar_type(
     machine: &TerminalMachine,
     value: ValueId,
 ) -> Option<ScalarType> {
-    machine
-        .parameters
-        .iter()
+    values(machine)
         .chain(machine.result.scalar_ref())
-        .chain(machine.block_parameters())
-        .chain(machine.blocks.iter().flat_map(|block| {
-            block
-                .operations
-                .iter()
-                .filter_map(|candidate| candidate.result.scalar_ref())
-        }))
         .find(|declaration| declaration.id == value)
         .map(|declaration| declaration.scalar_type)
+}
+
+pub(crate) fn unique_scalar_decl(
+    machine: &TerminalMachine,
+    value: ValueId,
+) -> Option<&ValueDeclaration> {
+    let mut matches = values(machine).filter(|declaration| declaration.id == value);
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first)
+}
+
+pub(crate) fn is_op_result_place(
+    machine: &TerminalMachine,
+    operation: &Operation,
+    result: &terminal_psi::StructuralOperationResult,
+) -> bool {
+    matches!(
+        machine.structural_place(result.place).map(|place| place.kind),
+        Some(StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        }) if producer == operation.id && structural_type == result.structural_type
+    )
+}
+
+pub(crate) fn has_entry_claims(machine: &TerminalMachine, place: PlaceId) -> bool {
+    machine
+        .entry_claims
+        .iter()
+        .any(|claim| claim.input == place)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == place)
+}
+
+pub(crate) fn is_fixed_u64(scalar: Option<ScalarType>) -> bool {
+    matches!(
+        scalar,
+        Some(ScalarType::Integer(integer))
+            if integer.bits() == Some(64)
+                && integer.sign() == IntegerSign::Unsigned
+                && integer.carrier() == IntegerCarrier::Fixed
+    )
 }
 
 pub(crate) fn qualification_domains(
@@ -11660,7 +11092,8 @@ pub(crate) fn qualification_domains(
         return Some(&[]);
     }
     module
-        .types.scalar_qualifications
+        .types
+        .scalar_qualifications
         .sets
         .iter()
         .find(|row| row.id == set)
@@ -11672,7 +11105,8 @@ pub(crate) fn scalar_domain(
     id: ScalarDomainId,
 ) -> Option<&ScalarDomainDeclaration> {
     module
-        .types.scalar_qualifications
+        .types
+        .scalar_qualifications
         .domains
         .iter()
         .find(|domain| domain.id == id)
@@ -11707,7 +11141,8 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
     use terminal_psi::{BoundaryMachineResult, StructuralTypeShape};
     let check = |scalar| {
         module
-            .execution.callables
+            .execution
+            .callables
             .validate_scalar_type(scalar)
             .map_err(CodecError::MalformedStructuralFoundation)
     };
@@ -11742,27 +11177,12 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
         {
             check(scalar)?;
         }
-        match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(scalar) => check(*scalar)?,
-            StructuralTypeShape::Record { fields, .. } => {
-                for value in fields {
-                    field(value)?;
-                }
+        if let StructuralTypeShape::PrimitiveScalar(scalar) = &declaration.shape {
+            check(*scalar)?;
+        } else {
+            for value in declaration.shape.fields() {
+                field(value)?;
             }
-            StructuralTypeShape::Sum { cases } => {
-                for value in cases.iter().flat_map(|case| &case.fields) {
-                    field(value)?;
-                }
-            }
-            StructuralTypeShape::Mixed { fields, cases } => {
-                for value in fields
-                    .iter()
-                    .chain(cases.iter().flat_map(|case| &case.fields))
-                {
-                    field(value)?;
-                }
-            }
-            _ => {}
         }
     }
     for machine in &module.machines {
@@ -11787,7 +11207,8 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
         boundary_result(&boundary.result)?;
     }
     for slot in module
-        .execution.dynamic_dispatch
+        .execution
+        .dynamic_dispatch
         .interfaces
         .iter()
         .flat_map(|interface| &interface.slots)
@@ -11818,7 +11239,13 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
         }
         boundary_result(&contract.result)?;
     }
-    for (ordinal, row) in module.execution.callables.machine_envelopes.iter().enumerate() {
+    for (ordinal, row) in module
+        .execution
+        .callables
+        .machine_envelopes
+        .iter()
+        .enumerate()
+    {
         if let Some(row) = row
             && (usize::try_from(row.machine.get() - 1).ok() != Some(ordinal)
                 || module
@@ -11829,11 +11256,18 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
         }
     }
     let boundaries: std::collections::BTreeMap<_, _> = module
-        .interfaces.boundary_machines
+        .interfaces
+        .boundary_machines
         .iter()
         .map(|boundary| (boundary.id, boundary))
         .collect();
-    for (ordinal, row) in module.execution.callables.boundary_envelopes.iter().enumerate() {
+    for (ordinal, row) in module
+        .execution
+        .callables
+        .boundary_envelopes
+        .iter()
+        .enumerate()
+    {
         let Some(row) = row else {
             continue;
         };
@@ -11870,7 +11304,11 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
     }
     for boundary in boundaries.values() {
         if boundary.declaration.is_some()
-            && module.execution.callables.boundary_envelope(boundary.id).is_none()
+            && module
+                .execution
+                .callables
+                .boundary_envelope(boundary.id)
+                .is_none()
         {
             return malformed("checked boundary declaration has no complete callable envelope");
         }
@@ -12063,7 +11501,8 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
         return malformed("a physical body contract carries an invocation-specific selection");
     }
     for contract in module
-        .execution.declaration_contracts
+        .execution
+        .declaration_contracts
         .iter()
         .chain(module.machines.iter().map(|machine| &machine.contract))
     {
@@ -12145,20 +11584,6 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
             return malformed("public contract source signature has another formal roster");
         }
         validate_structural_parameters(module, &contract.structural_parameters)?;
-        require_known_services(
-            module,
-            contract
-                .declared_service_reach
-                .as_deref()
-                .unwrap_or_default(),
-        )?;
-        require_known_services(
-            module,
-            contract
-                .declared_synchronous_entries
-                .as_deref()
-                .unwrap_or_default(),
-        )?;
         require_known_services(module, &contract.published_service_ceiling)?;
         require_known_services(module, &contract.published_synchronous_entries)?;
         for formal in contract
@@ -12178,12 +11603,14 @@ fn validate_callable_contracts(module: &TerminalModule) -> Result<(), CodecError
 pub(crate) fn validate_storage_foundation(module: &TerminalModule) -> Result<(), CodecError> {
     require_unique_nonempty_identities(
         module
-            .types.structural_types
+            .types
+            .structural_types
             .iter()
             .map(|declaration| declaration.identity)
             .chain(
                 module
-                    .types.structural_referents
+                    .types
+                    .structural_referents
                     .iter()
                     .map(|referent| referent.identity),
             ),
@@ -12214,12 +11641,14 @@ pub(crate) fn validate_storage_foundation(module: &TerminalModule) -> Result<(),
     }
     let mut type_ids = BTreeSet::new();
     for id in module
-        .types.structural_types
+        .types
+        .structural_types
         .iter()
         .map(|declaration| declaration.id)
         .chain(
             module
-                .types.structural_referents
+                .types
+                .structural_referents
                 .iter()
                 .map(|referent| referent.id),
         )
@@ -12239,9 +11668,10 @@ pub(crate) fn validate_storage_foundation(module: &TerminalModule) -> Result<(),
         }
     }
     declaration_foundations::opaque_representations::validate(module)?;
-    let storage_graph =
-        terminal_semantics::storage::type_graph::StorageTypeGraph::new(&module.types.structural_types)
-            .map_err(storage_graph_error)?;
+    let storage_graph = terminal_semantics::storage::type_graph::StorageTypeGraph::new(
+        &module.types.structural_types,
+    )
+    .map_err(storage_graph_error)?;
     declaration_foundations::opaque_representations::validate_lifecycle(module, &storage_graph)?;
     let attachment_storage = storage_graph
         .storage_reachable_from(
@@ -12259,8 +11689,10 @@ pub(crate) fn validate_storage_foundation(module: &TerminalModule) -> Result<(),
     storage_graph
         .validate_acyclic()
         .map_err(storage_graph_error)?;
-    terminal_semantics::owned_structure::validate_intrinsic_claim_roots(&module.types.structural_types)
-        .map_err(CodecError::MalformedStructuralFoundation)?;
+    terminal_semantics::owned_structure::validate_intrinsic_claim_roots(
+        &module.types.structural_types,
+    )
+    .map_err(CodecError::MalformedStructuralFoundation)?;
     Ok(())
 }
 
@@ -12317,7 +11749,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     scalar_applications::validate(module)?;
     task_activation::validate(module)?;
     module
-        .scalars.folded_constants
+        .scalars
+        .folded_constants
         .validate(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     scalar_qualifications::validate(module)?;
@@ -12345,21 +11778,24 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     }
     require_unique_nonempty_identities(
         module
-            .types.structural_domains
+            .types
+            .structural_domains
             .iter()
             .map(|declaration| declaration.identity),
         "structural domain identity",
     )?;
     require_unique_nonempty_identities(
         module
-            .interfaces.services
+            .interfaces
+            .services
             .iter()
             .map(|declaration| declaration.identity),
         "service identity",
     )?;
     require_unique_nonempty_identities(
         module
-            .interfaces.boundary_machines
+            .interfaces
+            .boundary_machines
             .iter()
             .map(|declaration| declaration.identity),
         "boundary machine identity",
@@ -12381,7 +11817,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             .validate(&module.identities)
             .map_err(CodecError::MalformedStructuralFoundation)?;
         for boundary in module
-            .interfaces.boundary_machines
+            .interfaces
+            .boundary_machines
             .iter()
             .filter(|boundary| boundary.identity == candidate.requirement_identity)
         {
@@ -12473,29 +11910,33 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             }
         }
     }
-    let mut transfers = storage_foundations::StructuralTransferInputs::new(module);
-    let contracts =
-        terminal_semantics::inhabitation::TerminalContracts::new(module.types.structural_types.iter());
+    let contracts = terminal_semantics::inhabitation::TerminalContracts::new(
+        module.types.structural_types.iter(),
+    );
     let inhabitation = terminal_semantics::inhabitation::Inhabitation::prepare(&contracts)
         .map_err(|_| {
             CodecError::MalformedStructuralFoundation(
                 "no-normal validation has incomplete declared type contracts",
             )
         })?;
-    let has_boundary_content = terminal_semantics::content_transformations::boundary_calls::has_declared_conservation(module);
+    let has_boundary_content =
+        terminal_semantics::content_transformations::boundary_calls::has_declared_conservation(
+            module,
+        );
     for machine in &module.machines {
-        machine_foundations::validate_machine(module, machine, &mut transfers, &inhabitation)?;
+        machine_foundations::validate_machine(module, machine, &inhabitation)?;
         terminal_semantics::content_transformations::forwarding::checked_returns(module, machine)
             .map_err(CodecError::MalformedStructuralFoundation)?;
         if has_boundary_content || !machine.content_partition_compositions.is_empty() {
-            terminal_semantics::content_transformations::boundary_calls::verify_machine(module, machine)
-                .map_err(CodecError::MalformedStructuralFoundation)?;
+            terminal_semantics::content_transformations::boundary_calls::verify_machine(
+                module, machine,
+            )
+            .map_err(CodecError::MalformedStructuralFoundation)?;
         }
     }
     empty_elimination_foundations::validate(module, &contracts, &inhabitation)?;
     terminal_semantics::activation_storage::validate_module(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
-    storage_foundations::validate_reference_memberships(module)?;
     validate_runtime_evidence_inputs(module).map_err(CodecError::MalformedStructuralFoundation)?;
     Ok(())
 }
@@ -12524,11 +11965,13 @@ fn validate_boundary_application_operations(module: &TerminalModule) -> Result<(
 
 fn validate_callback_registrars(module: &TerminalModule) -> Result<(), CodecError> {
     let mut registrars = module
-        .interfaces.callback_applications
+        .interfaces
+        .callback_applications
         .iter()
         .chain(
             module
-                .interfaces.installed_interrupt_registrations
+                .interfaces
+                .installed_interrupt_registrations
                 .iter()
                 .flat_map(|registration| &registration.callbacks),
         )
@@ -12614,9 +12057,11 @@ fn validate_reference_origin_path(
     {
         return Ok(endpoint.id);
     }
-    if let Some(endpoint) =
-        primitive_projection_declaration(module.types.structural_types.iter(), structural_type, path)
-    {
+    if let Some(endpoint) = primitive_projection_declaration(
+        module.types.structural_types.iter(),
+        structural_type,
+        path,
+    ) {
         return Ok(endpoint);
     }
     let mut payload_fields = None;
@@ -12666,7 +12111,8 @@ fn validate_reference_origin_path(
                 }
                 if let Some(scalar) = stored_scalar {
                     module
-                        .execution.callables
+                        .execution
+                        .callables
                         .validate_scalar_type(*scalar)
                         .map_err(CodecError::MalformedStructuralFoundation)?;
                 }
@@ -12718,10 +12164,9 @@ fn validate_reference_origin_path(
                 match &field.field_type {
                     StructuralFieldType::Structural(next) => *next,
                     leaf => {
-                        let Some(declaration) = leaf
-                            .canonical_leaf_type()
-                            .and_then(|leaf| leaf.leaf_declaration(module.types.structural_types.iter()))
-                        else {
+                        let Some(declaration) = leaf.canonical_leaf_type().and_then(|leaf| {
+                            leaf.leaf_declaration(module.types.structural_types.iter())
+                        }) else {
                             return malformed("structural path must retain structural custody");
                         };
                         declaration.id
@@ -12841,7 +12286,6 @@ fn validate_operation_foundation(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
-    transfers: &mut storage_foundations::StructuralTransferInputs<'_>,
     previous: Option<&Operation>,
     scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
 ) -> Result<(), CodecError> {
@@ -12853,7 +12297,11 @@ fn validate_operation_foundation(
         )?;
         if operation.result.scalar().map(|result| result.scalar_type)
             != Some(semantic_vocabulary::ScalarType::Callable(selected.contract))
-            || module.execution.callables.contract(selected.contract).is_none()
+            || module
+                .execution
+                .callables
+                .contract(selected.contract)
+                .is_none()
             || module.machine(selected.machine).is_none()
         {
             return malformed(
@@ -12866,9 +12314,10 @@ fn validate_operation_foundation(
             "public requirement contract is attached to an operation that is not a module call",
         );
     }
-    if let Err(reason) =
-        terminal_semantics::scalar_application_read_equation(&module.scalars.scalar_applications, operation)
-    {
+    if let Err(reason) = terminal_semantics::scalar_application_read_equation(
+        &module.scalars.scalar_applications,
+        operation,
+    ) {
         return malformed(reason);
     }
     if operation
@@ -12905,9 +12354,12 @@ fn validate_operation_foundation(
         OperationKind::ReleaseReference { .. } => {
             storage_foundations::validate_release_reference(module, machine, operation)?
         }
-        OperationKind::ByteSequenceStore { .. } => {
+        OperationKind::ByteSequenceStore { .. }
+        | OperationKind::StructuralByteSequenceFieldByteStore { .. }
+        | OperationKind::ByteSequenceWrite { .. }
+        | OperationKind::AtomicFence { .. } => {
             if operation.result != OperationResult::Unit {
-                return malformed("whole byte store requires Unit");
+                return malformed("storage or fence operation requires Unit");
             }
         }
         OperationKind::StructuralByteSequenceFieldStore { .. } => {
@@ -12921,16 +12373,18 @@ fn validate_operation_foundation(
             )?
         }
         OperationKind::StructuralByteSequenceFieldLength { .. } => {
-            storage_foundations::validate_structural_byte_sequence_field_length(operation)?
+            storage_foundations::validate_unsigned_result(
+                operation,
+                64,
+                "byte field length requires an unsigned 64-bit scalar result",
+            )?
         }
-        OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
-            if operation.result != OperationResult::Unit {
-                return malformed("byte field byte store requires Unit");
-            }
-        }
-        OperationKind::StructuralByteSequenceFieldRead { .. } => {
-            storage_foundations::validate_structural_byte_sequence_field_read(operation)?
-        }
+        OperationKind::StructuralByteSequenceFieldRead { .. }
+        | OperationKind::ByteSequenceRead { .. } => storage_foundations::validate_unsigned_result(
+            operation,
+            8,
+            "byte-sequence read requires an unsigned 8-bit scalar result",
+        )?,
         OperationKind::ByteSequenceSubslice { .. } => {
             storage_foundations::validate_byte_sequence_subslice(module, machine, operation)?
         }
@@ -12938,10 +12392,7 @@ fn validate_operation_foundation(
             storage_foundations::validate_establish_element_view(module, machine, operation)?
         }
         OperationKind::EstablishActivationClaim { committed, .. } => {
-            if !matches!(declared_scalar_type(machine, *committed), Some(ScalarType::Integer(integer))
-                if integer.bits() == Some(64) && integer.sign() == IntegerSign::Unsigned
-                    && integer.carrier() == IntegerCarrier::Fixed)
-            {
+            if !is_fixed_u64(declared_scalar_type(machine, *committed)) {
                 return malformed(
                     "activation committed extent must be an unsigned fixed 64-bit value",
                 );
@@ -12964,9 +12415,7 @@ fn validate_operation_foundation(
         } => {
             if operation.result.structural().is_none()
                 || source.access != StructuralAccess::Owned
-                || !matches!(declared_scalar_type(machine, *committed_at), Some(ScalarType::Integer(integer))
-                    if integer.bits() == Some(64) && integer.sign() == IntegerSign::Unsigned
-                        && integer.carrier() == IntegerCarrier::Fixed)
+                || !is_fixed_u64(declared_scalar_type(machine, *committed_at))
             {
                 return malformed(
                     "activation split requires one owned claim and an unsigned fixed 64-bit cut",
@@ -12996,11 +12445,6 @@ fn validate_operation_foundation(
             storage_foundations::validate_element_view_subslice(
                 module, machine, operation, previous,
             )?
-        }
-        OperationKind::ByteSequenceWrite { .. } => {
-            if operation.result != OperationResult::Unit {
-                return malformed("byte-sequence write requires a Unit result");
-            }
         }
         OperationKind::ElementViewWrite {
             destination,
@@ -13035,7 +12479,7 @@ fn validate_operation_foundation(
             storage_foundations::validate_structural_case_membership(operation)?
         }
         structural_leaf_copy_pair_pattern!() => {
-            storage_foundations::validate_structural_leaf_copy(transfers, machine, operation)?
+            storage_foundations::validate_structural_leaf_copy(module, machine, operation)?
         }
         OperationKind::DecomposeStructuralValue { subject } => {
             if operation.result != OperationResult::Unit
@@ -13050,14 +12494,11 @@ fn validate_operation_foundation(
                 .map_err(CodecError::MalformedStructuralFoundation)?;
         }
         OperationKind::MoveStructuralValue { .. } => {
-            storage_foundations::validate_move_structural_value(transfers, machine, operation)?
+            storage_foundations::validate_move_structural_value(module, machine, operation)?
         }
         OperationKind::TransformContent { .. } => {
             terminal_semantics::content_transformations::validate_shape(module, machine, operation)
                 .map_err(CodecError::MalformedStructuralFoundation)?;
-        }
-        OperationKind::ByteSequenceRead { .. } => {
-            storage_foundations::validate_byte_sequence_read(operation)?
         }
         OperationKind::ByteSequenceLength { .. } => {
             storage_foundations::validate_byte_sequence_length(module, machine, operation)?
@@ -13150,11 +12591,6 @@ fn validate_operation_foundation(
                 return malformed("scalar call declares a Unit result");
             }
         }
-        OperationKind::AtomicFence { .. } => {
-            if operation.result != OperationResult::Unit {
-                return malformed("atomic fence must define no value");
-            }
-        }
         OperationKind::AtomicAccess {
             place,
             path,
@@ -13167,13 +12603,14 @@ fn validate_operation_foundation(
             let root = structural_place_type(machine, *place).ok_or({
                 CodecError::MalformedStructuralFoundation("atomic location has no declared root")
             })?;
-            let cell =
-                terminal_semantics::atomic_cell_type(module.types.structural_types.iter(), root, path)
-                    .ok_or({
-                        CodecError::MalformedStructuralFoundation(
-                            "atomic location is not an atomic cell",
-                        )
-                    })?;
+            let cell = terminal_semantics::atomic_cell_type(
+                module.types.structural_types.iter(),
+                root,
+                path,
+            )
+            .ok_or({
+                CodecError::MalformedStructuralFoundation("atomic location is not an atomic cell")
+            })?;
             let resident = cell.scalar_type();
             let bounded = cell.bounds().is_some();
             if resident_obligation.is_some() != (bounded && event.modifies_resident()) {
@@ -13410,14 +12847,7 @@ fn validate_structural_arguments(
                     &expected.qualifications,
                     &expected.projected_qualifications,
                 )
-                || machine
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == argument.place)
-                || machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == argument.place)
+                || has_entry_claims(machine, argument.place)
             {
                 return malformed(
                     "primitive-array argument requires owned element selection or loan custody",
@@ -13430,51 +12860,30 @@ fn validate_structural_arguments(
             expected.position,
         );
         let backing = source.as_deref();
-        if backing.is_some_and(|actual| {
-            (fixed_byte_array_loan(
-                module.types.structural_types.iter(),
-                module.types.structural_domains.iter(),
-                actual,
-                argument,
-                expected,
-            )
-            .is_some()
-                || fixed_element_array_extent(
+        let no_result_claims = !result.is_some_and(|result| {
+            !result.claims.is_empty() || !result.qualification_establishments.is_empty()
+        }) && !has_entry_claims(machine, argument.place);
+        if no_result_claims
+            && backing.is_some_and(|actual| {
+                fixed_byte_array_loan(
                     module.types.structural_types.iter(),
+                    module.types.structural_domains.iter(),
                     actual,
                     argument,
                     expected,
                 )
-                .is_some())
-                && !result.is_some_and(|result| {
-                    !result.claims.is_empty() || !result.qualification_establishments.is_empty()
-                })
-                && !machine
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == argument.place)
-                && !machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == argument.place)
-        }) {
-            continue;
-        }
-        if matches!(presentation, StructuralArgumentPresentation::Ordinary)
-            && backing.is_some_and(|actual| {
-                bounded_byte_owner_capacity(module, actual, argument, expected).is_some()
+                .is_some()
+                    || fixed_element_array_extent(
+                        module.types.structural_types.iter(),
+                        actual,
+                        argument,
+                        expected,
+                    )
+                    .is_some()
+                    || (matches!(presentation, StructuralArgumentPresentation::Ordinary)
+                        && bounded_byte_owner_capacity(module, actual, argument, expected)
+                            .is_some())
             })
-            && !result.is_some_and(|result| {
-                !result.claims.is_empty() || !result.qualification_establishments.is_empty()
-            })
-            && !machine
-                .entry_claims
-                .iter()
-                .any(|claim| claim.input == argument.place)
-            && !machine
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == argument.place)
         {
             continue;
         }
@@ -13570,14 +12979,7 @@ fn owned_byte_view_presentation(
         || expected.access != StructuralAccess::SharedBorrow
         || expected.multiplicity != StructuralMultiplicity::Unrestricted
         || !expected.projected_qualifications.is_empty()
-        || machine
-            .entry_claims
-            .iter()
-            .any(|claim| claim.input == argument.place)
-        || machine
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == argument.place)
+        || has_entry_claims(machine, argument.place)
         || byte_owned_result_predicates(module, machine, argument.place).is_none()
         || !module.types.structural_types.iter().any(|declaration| {
             declaration.id == expected.structural_type
@@ -13708,15 +13110,10 @@ fn validate_claim_actions(
                     .any(|binding| binding.claim == claim)
             })
             || machine.operations().any(|operation| {
-                let Some(result) = operation.result.structural() else {
-                    return false;
-                };
-                machine.structural_places.iter().any(|declaration| {
-                    declaration.id == result.place
-                        && matches!(declaration.kind,
-                        StructuralPlaceKind::OperationResult { producer, structural_type }
-                        if producer == operation.id && structural_type == result.structural_type)
-                }) && result.claims.iter().any(|binding| binding.claim == claim)
+                operation.result.structural().is_some_and(|result| {
+                    is_op_result_place(machine, operation, result)
+                        && result.claims.iter().any(|binding| binding.claim == claim)
+                })
             });
         if !declared {
             return malformed("claim action has an undeclared structural claim identity");
@@ -13828,7 +13225,8 @@ fn validate_service_parent_graph(module: &TerminalModule) -> Result<(), CodecErr
 
 fn has_service(module: &TerminalModule, id: ServiceId) -> bool {
     module
-        .interfaces.services
+        .interfaces
+        .services
         .iter()
         .any(|declaration| declaration.id == id)
 }
@@ -13890,7 +13288,8 @@ mod callback_registrar_owner_tests {
             OperationKind::BooleanConstant { value: true },
         ));
         module
-            .interfaces.callback_applications
+            .interfaces
+            .callback_applications
             .push(TerminalCallbackApplication {
                 application_index: 0,
                 registrar_machine: owner,
@@ -13978,48 +13377,50 @@ mod installed_interrupt_owner_tests {
         source.result_type = requirement;
         source.machine = nominal.clone();
         source.state = nominal.clone();
-        module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
-            id: boundary,
-            declaration: Some(CheckedBoundaryCallable {
-                service_declaration: [1; 32],
-                source: source.clone(),
-                execution: CheckedBoundaryExecution::StaticInterruptInstall,
-                method_arguments: Vec::new(),
-            }),
-            numeric_intrinsic: None,
-            role: BoundaryDeclarationRole::Callable,
-            kind: BoundaryRequirementKind::Machine,
-            completion: BoundaryCompletion::NormalReturn,
-            unconditional_termination: false,
-            identity: requirement,
-            owner: nominal.clone(),
-            attachment: None,
-            parameter_order: Vec::new(),
-            scalar_parameters: Vec::new(),
-            crash_routes: Vec::new(),
-            structural_parameters: Vec::new(),
-            result: BoundaryMachineResult::Unit,
-            result_reference_regions: Vec::new(),
-            result_lifetimes: None,
-            requires: Vec::new(),
-            membership_ensures: Vec::new(),
-            normal_qualifications: Vec::new(),
-            scalar_domain_requirements: Vec::new(),
-            scalar_requires: Vec::new(),
-            scalar_ensures: Vec::new(),
-            reference_outputs: Vec::new(),
-            program_local_root_introductions: Vec::new(),
-            content_guarantees: Vec::new(),
-            fixed_service_reach: Vec::new(),
-            service_reach_is_installation_bound: false,
-            owning_service: None,
-            published_service_ceiling: vec![service],
-            published_synchronous_entries: Vec::new(),
-        });
-        let slot_encoding = vec![1];
         module
-            .interfaces.installed_interrupt_registrations
-            .push(TerminalInstalledInterruptRegistration {
+            .interfaces
+            .boundary_machines
+            .push(BoundaryMachineDeclaration {
+                id: boundary,
+                declaration: Some(CheckedBoundaryCallable {
+                    service_declaration: [1; 32],
+                    source: source.clone(),
+                    execution: CheckedBoundaryExecution::StaticInterruptInstall,
+                    method_arguments: Vec::new(),
+                }),
+                numeric_intrinsic: None,
+                role: BoundaryDeclarationRole::Callable,
+                kind: BoundaryRequirementKind::Machine,
+                completion: BoundaryCompletion::NormalReturn,
+                unconditional_termination: false,
+                identity: requirement,
+                owner: nominal.clone(),
+                attachment: None,
+                parameter_order: Vec::new(),
+                scalar_parameters: Vec::new(),
+                crash_routes: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: BoundaryMachineResult::Unit,
+                result_reference_regions: Vec::new(),
+                result_lifetimes: None,
+                requires: Vec::new(),
+                membership_ensures: Vec::new(),
+                normal_qualifications: Vec::new(),
+                scalar_domain_requirements: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                reference_outputs: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
+                owning_service: None,
+                published_service_ceiling: vec![service],
+                published_synchronous_entries: Vec::new(),
+            });
+        let slot_encoding = vec![1];
+        module.interfaces.installed_interrupt_registrations.push(
+            TerminalInstalledInterruptRegistration {
                 machine: owner,
                 operation,
                 installer: boundary,
@@ -14051,7 +13452,8 @@ mod installed_interrupt_owner_tests {
                     entry_admitted: true,
                     body: source,
                 }],
-            });
+            },
+        );
         module.machines.extend([installer, unrelated]);
         module
     }
@@ -14063,8 +13465,14 @@ mod installed_interrupt_owner_tests {
         let other = module.machines[1].id;
 
         let mut wrong_installation_owner = module.clone();
-        wrong_installation_owner.interfaces.installed_interrupt_registrations[0].machine = other;
-        wrong_installation_owner.interfaces.installed_interrupt_registrations[0].callbacks[0]
+        wrong_installation_owner
+            .interfaces
+            .installed_interrupt_registrations[0]
+            .machine = other;
+        wrong_installation_owner
+            .interfaces
+            .installed_interrupt_registrations[0]
+            .callbacks[0]
             .registrar_machine = other;
         assert_eq!(
             validate(&wrong_installation_owner),
@@ -14075,8 +13483,11 @@ mod installed_interrupt_owner_tests {
         );
 
         let mut wrong_callback_owner = module.clone();
-        wrong_callback_owner.interfaces.installed_interrupt_registrations[0].callbacks[0].registrar_machine =
-            other;
+        wrong_callback_owner
+            .interfaces
+            .installed_interrupt_registrations[0]
+            .callbacks[0]
+            .registrar_machine = other;
         assert_eq!(
             validate(&wrong_callback_owner),
             Err(CodecError::MalformedStructuralFoundation(
@@ -14094,11 +13505,15 @@ mod installed_interrupt_owner_tests {
         second.callbacks[0].registrar_machine = other;
         second.callbacks[0].application_index = 1;
         two_installers
-            .interfaces.installed_interrupt_registrations
+            .interfaces
+            .installed_interrupt_registrations
             .push(second);
         validate(&two_installers).expect("distinct machine owners may reuse a local operation id");
 
-        two_installers.interfaces.installed_interrupt_registrations.pop();
+        two_installers
+            .interfaces
+            .installed_interrupt_registrations
+            .pop();
         assert_eq!(
             validate(&two_installers),
             Err(CodecError::MalformedStructuralFoundation(

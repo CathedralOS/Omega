@@ -4,7 +4,7 @@ use crate::{SelectedProviderAdapter, SelectedProviderAdapters, TargetBoundReach}
 use diagnostics::Diagnostic;
 use native_execution_reach::ExecutionReach;
 use selected_provider_plans::SelectedProviderPlanFacts;
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use semantic_vocabulary::MachineId;
 use std::sync::Arc;
 use terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity, TerminalArtifactView};
 
@@ -166,12 +166,6 @@ impl<'a> NativeScopeBinding<'a> {
 
     pub fn artifact(&self) -> TerminalArtifactView<'a> {
         self.artifact
-    }
-
-    pub fn assumed_bindings(&self) -> Result<Vec<(BoundaryMachineId, BoundaryMachineId)>, String> {
-        self.source
-            .selection
-            .assumed_binding_coordinates(self.artifact.module())
     }
 
     pub fn callbacks(

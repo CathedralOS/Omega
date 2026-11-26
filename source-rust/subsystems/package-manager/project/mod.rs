@@ -76,12 +76,13 @@ pub fn resolve_build_sources(
     session: &mut PackageBuildSession,
     acquired: AcquiredBuildSource,
     acquisitions: &mut BuildSourceAcquisitions<'_>,
-    snapshot: Option<BuildSnapshotRequest>,
+    inputs: RootBuildInputs,
 ) -> Result<ResolvedPackageProject, PackageCommandError> {
     let profile = TargetProfile::host_if_supported()
         .ok_or_else(|| "package Build execution requires a supported host".to_owned())?;
     let acquired = acquisitions.retain_root(acquired)?;
     let mut host = SourceHost {
+        root_programs: inputs.programs,
         session,
         acquisitions,
         profile,
@@ -90,7 +91,7 @@ pub fn resolve_build_sources(
         active: Vec::new(),
         settled: Vec::new(),
     };
-    let result = host.resolve(&acquired.entry_path(), acquired, snapshot);
+    let result = host.resolve(&acquired.entry_path(), acquired, inputs.snapshot);
     if let Err(error) = &result {
         host.session
             .record_source_completion(error.source_completion_accounting().clone());
@@ -124,6 +125,7 @@ pub fn resolve_build_sources(
 }
 
 struct SettledSource {
+    required_programs: Vec<package_compilation::DelegatedProgram>,
     source: AcquiredBuildSource,
     declaration: DeclaredBuildSource,
     build: project_build::SettledDependency,
@@ -136,6 +138,7 @@ struct PreparedRequest {
 }
 
 struct ExecutedBuild {
+    receiving: AcquiredBuildSource,
     preparations: Vec<(
         build_declarations::BuildEntryPath,
         Vec<successor_inputs::PreparedInput>,
@@ -210,14 +213,13 @@ impl ExecutedBuild {
 
     fn observe(
         &mut self,
-        source: &AcquiredBuildSource,
         settled: &[SettledSource],
     ) -> Result<WorkspaceMemberObservation, PackageCommandError> {
         let inputs = self.catalog_inputs(settled)?;
         let declaration = self.stage.observe_source_declaration()?;
         let result = self.stage.source_result()?;
         Ok(WorkspaceMemberObservation::new(
-            source,
+            &self.receiving,
             declaration,
             &result,
             inputs,
@@ -226,6 +228,7 @@ impl ExecutedBuild {
 }
 
 struct SourceHost<'session, 'policy> {
+    root_programs: package_compilation::build_execution::BuildProgramInvocation,
     session: &'session mut PackageBuildSession,
     acquisitions: &'session mut BuildSourceAcquisitions<'policy>,
     profile: TargetProfile,
@@ -237,13 +240,26 @@ struct SourceHost<'session, 'policy> {
     settled: Vec<SettledSource>,
 }
 
+fn require_programs(
+    used: &[package_compilation::DelegatedProgram],
+    granted: &[package_compilation::DelegatedProgram],
+) -> Result<(), String> {
+    if let Some(missing) = used.iter().find(|used| !used.is_supplied_by(granted)) {
+        return Err(format!(
+            "this dependency registration lacks the reviewed ProgramLaunch binding for `{}`",
+            missing.meaning.declaration
+        ));
+    }
+    Ok(())
+}
+
 impl SourceHost<'_, '_> {
     fn execute(
         &mut self,
         entry: &Path,
         acquired: &AcquiredBuildSource,
         snapshot: Option<BuildSnapshotRequest>,
-        dependency: bool,
+        dependency: Option<(DependencyPurpose, &[package_compilation::DelegatedProgram])>,
         libraries: &[BuildLibraryRequest],
     ) -> Result<ExecutedBuild, PackageCommandError> {
         self.acquisitions
@@ -261,8 +277,8 @@ impl SourceHost<'_, '_> {
         acquired: AcquiredBuildSource,
         snapshot: Option<BuildSnapshotRequest>,
     ) -> Result<ResolvedProject, PackageCommandError> {
-        let root = self.execute(entry, &acquired, snapshot, false, &[])?;
-        self.join(acquired, root.stage)
+        let root = self.execute(entry, &acquired, snapshot, None, &[])?;
+        self.join(root.receiving, root.stage)
     }
 
     fn join(
@@ -276,13 +292,14 @@ impl SourceHost<'_, '_> {
             AcquiredBuildSource,
             DeclaredBuildSource,
             ReturnedPlanningStage,
+            Vec<package_compilation::DelegatedProgram>,
         )>::new();
         let mut reused = Vec::<usize>::new();
         let mut next = declaration.clone().resolve()?;
         loop {
             let pending = match next {
                 ExecutedSourceResolution::Complete(graph) => {
-                    for (acquired, declaration, mut stage) in returns {
+                    for (acquired, declaration, mut stage, required_programs) in returns {
                         let inputs = graph.join_source_result(
                             declaration.identity(),
                             &mut stage.source_result()?,
@@ -293,6 +310,7 @@ impl SourceHost<'_, '_> {
                         );
                         self.settled.push(SettledSource {
                             source: acquired,
+                            required_programs,
                             declaration,
                             build: settled,
                             graph: graph.clone(),
@@ -318,14 +336,17 @@ impl SourceHost<'_, '_> {
                 ExecutedSourceResolution::Request(pending) => pending,
             };
             let requester = std::iter::once(&declaration)
-                .chain(returns.iter().map(|(_, declared, _)| declared))
+                .chain(returns.iter().map(|(_, declared, _, _)| declared))
                 .chain(self.settled.iter().map(|settled| &settled.declaration))
                 .find(|declared| declared.identity() == pending.requester())
                 .ok_or_else(|| {
                     "source resolution lost the requesting Build declaration".to_owned()
                 })?;
-            let frozen = pending
-                .frozen_binding(requester)
+            let purpose = pending.purpose();
+            let backing = pending.backing(requester).cloned().unwrap_or_default();
+            let frozen = backing
+                .frozen
+                .as_ref()
                 .map(|binding| {
                     self.frozen_library(binding.library())
                         .map(|index| self.settled[index].source.clone())
@@ -334,7 +355,25 @@ impl SourceHost<'_, '_> {
             let mut acquisition = self.acquisitions.acquire_or_reuse(pending, frozen)?;
             next = loop {
                 match acquisition {
-                    BuildSourceAcquisition::Reused(next) => break next,
+                    BuildSourceAcquisition::Reused(source, next) => {
+                        let required = self
+                            .settled
+                            .iter()
+                            .find(|settled| settled.source.same_source(&source))
+                            .map(|settled| settled.required_programs.as_slice())
+                            .or_else(|| {
+                                returns
+                                    .iter()
+                                    .find(|(acquired, _, _, _)| acquired.same_source(&source))
+                                    .map(|(_, _, _, used)| used.as_slice())
+                            })
+                            .ok_or_else(|| {
+                                "source resolution lost the checked backing of a reused dependency"
+                                    .to_owned()
+                            })?;
+                        require_programs(required, &backing.programs)?;
+                        break next;
+                    }
                     BuildSourceAcquisition::Workspace { pending, workspace } => {
                         let selected = self.select_workspace(workspace)?;
                         acquisition = pending.select(selected)?;
@@ -349,14 +388,21 @@ impl SourceHost<'_, '_> {
                             let settled = &self.settled[i];
                             acquired.verify_reused_capture(&settled.source)?;
                             let (_, next) = dependency.complete_declared(&settled.declaration)?;
+                            require_programs(
+                                &self.settled[i].required_programs,
+                                &backing.programs,
+                            )?;
                             reused.push(i);
                             break next;
                         }
                         let acquired = acquired.clone();
-                        let stage = self.member_or_execute(&acquired)?.stage;
+                        let executed = self.member_or_execute(&acquired, purpose, &backing.programs)?;
+                        let acquired = executed.receiving;
+                        let stage = executed.stage;
+                        let required_programs = stage.used_programs();
                         let declaration = acquired.declare_build(stage.returned())?;
                         let (_, next) = dependency.complete_declared(&declaration)?;
-                        returns.push((acquired, declaration, stage));
+                        returns.push((acquired, declaration, stage, required_programs));
                         break next;
                     }
                 }
@@ -367,17 +413,26 @@ impl SourceHost<'_, '_> {
     fn member_or_execute(
         &mut self,
         acquired: &AcquiredBuildSource,
+        purpose: DependencyPurpose,
+        programs: &[package_compilation::DelegatedProgram],
     ) -> Result<ExecutedBuild, PackageCommandError> {
-        if let Some(i) = self
-            .observed
-            .iter()
-            .position(|(source, _)| source.same_source(acquired))
+        if programs.is_empty()
+            && let Some(i) = self
+                .observed
+                .iter()
+                .position(|(source, _)| source.same_source(acquired))
         {
             let (source, stage) = self.observed.swap_remove(i);
             acquired.verify_reused_capture(&source)?;
             Ok(stage)
         } else {
-            self.execute(&acquired.entry_path(), acquired, None, true, &[])
+            self.execute(
+                &acquired.entry_path(),
+                acquired,
+                None,
+                Some((purpose, programs)),
+                &[],
+            )
         }
     }
 
@@ -389,7 +444,7 @@ impl SourceHost<'_, '_> {
             &workspace.entry_path(),
             workspace.acquired_source(),
             None,
-            true,
+            Some((DependencyPurpose::Build, &[])),
             &[],
         )?;
         let inputs = root.catalog_inputs(&self.settled)?;
@@ -399,8 +454,8 @@ impl SourceHost<'_, '_> {
             .workspace_members(workspace, declaration, inputs)?;
         let mut observations = Vec::new();
         for source in members.sources() {
-            let mut member = self.member_or_execute(source)?;
-            observations.push(member.observe(source, &self.settled)?);
+            let mut member = self.member_or_execute(source, DependencyPurpose::Build, &[])?;
+            observations.push(member.observe(&self.settled)?);
             self.observed.push((source.clone(), member));
         }
         Ok(self
@@ -532,6 +587,8 @@ fn planning_timings(enabled: bool) -> CompileTimings {
 /// The root invoker's selection. The package manager resolves the source before entering the receiving Build.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BuildLibraryRequest {
+    /// The invoker supplies this edge independently of any filesystem mapping.
+    pub max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
     pub alias: build_declarations::ProjectName,
     pub source: build_declarations::BuildDependencySource,
 }
@@ -567,13 +624,24 @@ pub fn open_product(
         offline,
         false,
         build_directory,
-        snapshot,
+        RootBuildInputs {
+            snapshot,
+            ..Default::default()
+        },
     )?
     .0
     .into_iter()
     .next()
     .expect("one deployment was requested")
     .1
+}
+
+/// The caller's activation-specific resources. Only the root Build receives
+/// these program selectors; registering a dependency does not grant it one.
+#[derive(Default)]
+pub struct RootBuildInputs {
+    pub snapshot: Option<BuildSnapshotRequest>,
+    pub programs: package_compilation::build_execution::BuildProgramInvocation,
 }
 
 /// Resolve and execute the authored Build once for the entire deployment set.
@@ -585,7 +653,7 @@ pub fn open_products(
     offline: bool,
     timings: bool,
     build_directory: &Path,
-    snapshot: Option<BuildSnapshotRequest>,
+    root_inputs: RootBuildInputs,
 ) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
     open_products_with(
         input,
@@ -593,7 +661,7 @@ pub fn open_products(
         offline,
         timings,
         build_directory,
-        snapshot,
+        root_inputs,
         OpenPurpose::Product,
     )?
     .into_product()
@@ -642,9 +710,10 @@ fn open_products_with(
     offline: bool,
     timings: bool,
     build_directory: &Path,
-    snapshot: Option<BuildSnapshotRequest>,
+    root_inputs: RootBuildInputs,
     purpose: OpenPurpose<'_>,
 ) -> Result<OpenedRoot, Vec<diagnostics::Diagnostic>> {
+    let snapshot = root_inputs.snapshot;
     let alongside = !matches!(purpose, OpenPurpose::Product);
     use crate::operations::begin_local_project_preparation;
     use package_compilation::build_execution::BuildSnapshotCapture;
@@ -704,6 +773,7 @@ fn open_products_with(
             open_timings.add_completed(OPEN_ACQUIRE_ROOT, started.elapsed().as_micros());
         }
         let mut host = SourceHost {
+            root_programs: root_inputs.programs,
             session: &mut session,
             acquisitions: &mut acquisitions,
             profile,
@@ -723,11 +793,11 @@ fn open_products_with(
             ProjectInput::WithBuildLibraries { libraries, .. } => libraries,
             _ => &[],
         };
-        let returned = open_timings
-            .record_result(OPEN_EXECUTE_BUILD, || {
-                host.execute(&entry, &acquired, snapshot, false, libraries)
-            })?
-            .stage;
+        let executed = open_timings.record_result(OPEN_EXECUTE_BUILD, || {
+            host.execute(&entry, &acquired, snapshot, None, libraries)
+        })?;
+        let acquired = executed.receiving;
+        let returned = executed.stage;
         let name = match returned.returned().declaration() {
             Some(build_declarations::BuildDeclaration::Workspace(_)) => match purpose {
                 OpenPurpose::Check => {

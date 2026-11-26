@@ -1,7 +1,4 @@
-use crate::{
-    StructuralAccess, StructuralArgument, StructuralPathSegment,
-    TerminalIdentityTable,
-};
+use crate::{StructuralAccess, StructuralArgument, StructuralPathSegment, TerminalIdentityTable};
 use arena::{Arena, Handle, HandleSpan};
 use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, IeeeFloatFormat, IntegerCarrier, IntegerSign, MachineId,
@@ -216,12 +213,7 @@ pub fn suspension_frontier_commitment(
             }
             TerminalSuspensionPlace::Structural(argument) => {
                 hash.byte(2);
-                hash.raw(&argument.place.get().to_le_bytes());
-                hash_access(&mut hash, argument.access);
-                hash.u64(argument.path.len() as u64);
-                for segment in &argument.path {
-                    hash_loan_path_segment(identities, &mut hash, segment);
-                }
+                hash_argument(identities, &mut hash, argument);
             }
         }
         match live.value_type {
@@ -408,10 +400,7 @@ fn hash_loans(
     }
 }
 
-fn hash_access(
-    hash: &mut crate::digest_encoder::DomainDigestEncoder,
-    access: StructuralAccess,
-) {
+fn hash_access(hash: &mut crate::digest_encoder::DomainDigestEncoder, access: StructuralAccess) {
     hash.byte(match access {
         StructuralAccess::Owned => 1,
         StructuralAccess::SharedBorrow => 2,

@@ -114,15 +114,13 @@ pub use boundary::effects::storage_inputs::{
     TerminalBoundaryStorageBuffer, TerminalBoundaryStructuralBuffer,
 };
 pub use boundary::effects::{
-    AdmittedAssumedBinding, AdmittedTargetLayouts, AssumedBindingSelection,
-    ProviderInstallationSelection, TerminalCallStorageRequirements, TerminalEffect,
-    TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
+    AdmittedTargetLayouts, ProviderInstallationSelection, TerminalCallStorageRequirements,
+    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
     TerminalRuntimeSupplyRequest, TerminalTargetContext, TerminalX86FlagsEnvironment,
     admit_target_layouts, terminal_target_context,
 };
 pub use boundary::errors::{
-    AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
-    TerminalInterpretError,
+    ProviderInstallationError, TerminalArtifactInterpretError, TerminalInterpretError,
 };
 pub use boundary::native_code_layouts::{
     TerminalNativeCodeLayout, TerminalNativeCodeLayoutEnvironment, TerminalNativeCodeRegion,
@@ -149,7 +147,7 @@ pub use embedding::adapters::{
 };
 pub use embedding::instance::{
     TerminalBindingRejection, TerminalComponentBinding, TerminalEntryCall, TerminalEntryCalls,
-    TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
+    TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError, TerminalObservationRoot,
     TerminalProcessExitAdmission, TerminalReturnedLoan, TerminalReturnedLoanError,
     TerminalStorageObservationError, TerminalStorageObservationValue,
 };
@@ -165,7 +163,6 @@ pub use engine::scalar_operations::float_result_policy;
 pub use psi_provider_selections::{
     AdmittedProviderSelections, admit_provider_installation,
     admit_provider_installation_from_artifact,
-    admit_provider_installation_with_assumed_bindings_from_artifact,
 };
 pub use storage::byte_sequences::read::TerminalByteRead;
 pub use storage::provider_storage::{

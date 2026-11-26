@@ -1,4 +1,4 @@
-use domain\model\Stage;
+use domain/model/model.omg;
 
 // A bounded declared-stage inventory selected by one runtime ASCII digit.
 public machine count(selection: i32) -> u32 {
@@ -10,7 +10,7 @@ public machine count(selection: i32) -> u32 {
     machine single() -> u32 { 1 }
 }
 
-public machine load(selection: i32, index: u32, stage: @mutable Stage) {
+public machine load(selection: i32, index: u32, stage: @mutable |model|::Stage) {
     stage.volume = 1.0;
     stage.pressure = 4.0;
     stage.end_volume = 2.0;
@@ -30,7 +30,7 @@ public machine load(selection: i32, index: u32, stage: @mutable Stage) {
         8 -> stationary(stage),
         _ -> reverse_square(stage)
     }
-    machine reverse(index: u32, stage: @mutable Stage) {
+    machine reverse(index: u32, stage: @mutable |model|::Stage) {
         transition index {
             0 -> reverse_hold(stage),
             1 -> low_expand(stage),
@@ -38,57 +38,57 @@ public machine load(selection: i32, index: u32, stage: @mutable Stage) {
             _ -> high_compress(stage)
         }
     }
-    machine reverse_hold(stage: @mutable Stage) {
+    machine reverse_hold(stage: @mutable |model|::Stage) {
         stage.end_volume = 1.0; stage.end_pressure = 1.0;
         stage.isochoric = true;
     }
-    machine low_expand(stage: @mutable Stage) { stage.pressure = 1.0; }
-    machine reverse_low_hold(stage: @mutable Stage) {
+    machine low_expand(stage: @mutable |model|::Stage) { stage.pressure = 1.0; }
+    machine reverse_low_hold(stage: @mutable |model|::Stage) {
         stage.volume = 2.0; stage.pressure = 1.0;
         stage.isochoric = true;
     }
-    machine high_compress(stage: @mutable Stage) {
+    machine high_compress(stage: @mutable |model|::Stage) {
         stage.volume = 2.0; stage.end_volume = 1.0;
     }
-    machine square(stage: @mutable Stage) {
+    machine square(stage: @mutable |model|::Stage) {
         stage.pressure = 12.0; stage.end_volume = 3.0; stage.exponent = 2;
     }
-    machine cube(stage: @mutable Stage) { stage.pressure = 8.0; stage.exponent = 3; }
-    machine rising(stage: @mutable Stage) {
+    machine cube(stage: @mutable |model|::Stage) { stage.pressure = 8.0; stage.exponent = 3; }
+    machine rising(stage: @mutable |model|::Stage) {
         stage.pressure = 2.0; stage.end_volume = 3.0; stage.exponent = -1;
     }
-    machine zero(stage: @mutable Stage) { stage.end_volume = 0.0; }
-    machine ordinary(index: u32, stage: @mutable Stage) { forward(index, stage); }
-    machine broken(index: u32, stage: @mutable Stage) {
+    machine zero(stage: @mutable |model|::Stage) { stage.end_volume = 0.0; }
+    machine ordinary(index: u32, stage: @mutable |model|::Stage) { forward(index, stage); }
+    machine broken(index: u32, stage: @mutable |model|::Stage) {
         forward(index, stage);
         transition index == 2 { true -> gap(stage), _ -> done() }
     }
-    machine gap(stage: @mutable Stage) { stage.pressure = 2.0; }
-    machine unsupported(stage: @mutable Stage) { stage.exponent = 1; }
-    machine stationary(stage: @mutable Stage) { stage.end_volume = 1.0; stage.exponent = 2; }
-    machine reverse_square(stage: @mutable Stage) {
+    machine gap(stage: @mutable |model|::Stage) { stage.pressure = 2.0; }
+    machine unsupported(stage: @mutable |model|::Stage) { stage.exponent = 1; }
+    machine stationary(stage: @mutable |model|::Stage) { stage.end_volume = 1.0; stage.exponent = 2; }
+    machine reverse_square(stage: @mutable |model|::Stage) {
         stage.volume = 3.0; stage.pressure = 4.0 / 3.0;
         stage.end_volume = 1.0; stage.exponent = 2;
     }
     machine done() {}
 }
 
-machine forward(index: u32, stage: @mutable Stage) {
+machine forward(index: u32, stage: @mutable |model|::Stage) {
         transition index {
             0 -> done(),
             1 -> high_hold(stage),
             2 -> low_compress(stage),
             _ -> low_hold(stage)
         }
-    machine high_hold(stage: @mutable Stage) {
+    machine high_hold(stage: @mutable |model|::Stage) {
         stage.volume = 2.0; stage.end_volume = 2.0;
         stage.end_pressure = 1.0; stage.isochoric = true;
     }
-    machine low_compress(stage: @mutable Stage) {
+    machine low_compress(stage: @mutable |model|::Stage) {
         stage.volume = 2.0; stage.pressure = 1.0;
         stage.end_volume = 1.0;
     }
-    machine low_hold(stage: @mutable Stage) {
+    machine low_hold(stage: @mutable |model|::Stage) {
         stage.pressure = 1.0; stage.end_volume = 1.0;
         stage.isochoric = true;
     }

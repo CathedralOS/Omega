@@ -57,7 +57,7 @@ pub(super) fn scalar_argument_mut(
     let LegalizedScalarArgument::Scalar { source, placement } = argument else {
         panic!("scalar argument fixture");
     };
-    (source, placement)
+    (&mut source.value, placement)
 }
 
 pub(super) fn structural_argument_mut(
@@ -395,7 +395,6 @@ pub(super) fn installed_provider_plan() -> LegalizedOperationPlan {
     call.source = NativeCallOrigin::InstalledProvider {
         boundary,
         provider,
-        assumption: None,
         completion_claim_sources,
         completion_receipts,
     };
@@ -462,7 +461,10 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
                 .into_iter()
                 .zip(&call_plan.parameters)
                 .map(|(source, placement)| LegalizedScalarArgument::Scalar {
-                    source,
+                    source: operation_operands::values::AbstractResult {
+                        value: source,
+                        scalar_type: ScalarType::Integer(scalar_type.as_checking()),
+                    },
                     placement: placement.clone(),
                 })
                 .collect(),
@@ -596,7 +598,10 @@ fn installed_call_origin_retains_projected_operands_and_structural_receipt_ordin
     call.arguments.insert(
         0,
         LegalizedScalarArgument::Scalar {
-            source: id(7),
+            source: operation_operands::values::AbstractResult {
+                value: id(7),
+                scalar_type: ScalarType::Boolean,
+            },
             placement,
         },
     );
@@ -825,7 +830,12 @@ fn register_call_shape_admits_actual_arity_and_rejects_roster_corruption() {
             .iter()
             .map(|placement| LegalizedScalarArgument::Scalar {
                 placement: placement.clone(),
-                source: argument.scalar_source().unwrap(),
+                source: operation_operands::values::AbstractResult {
+                    value: argument.scalar_source().unwrap(),
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    ),
+                },
             })
             .collect();
         assert_eq!(call.validate_shape(), Ok(()));
@@ -863,7 +873,12 @@ fn fixed_scalar_argument_widths_require_exact_register_geometry() {
             .unwrap();
             call.result_placement = None;
             call.arguments = vec![LegalizedScalarArgument::Scalar {
-                source,
+                source: operation_operands::values::AbstractResult {
+                    value: source,
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, (width * 8) as u16).unwrap(),
+                    ),
+                },
                 placement: call.call_plan.parameters[0].clone(),
             }];
             assert_eq!(call.validate_shape(), Ok(()));
@@ -933,7 +948,12 @@ fn narrow_scalar_stack_arguments_require_exact_payload_geometry() {
                 .parameters
                 .iter()
                 .map(|placement| LegalizedScalarArgument::Scalar {
-                    source,
+                    source: operation_operands::values::AbstractResult {
+                        value: source,
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, (width * 8) as u16).unwrap(),
+                        ),
+                    },
                     placement: placement.clone(),
                 })
                 .collect();
@@ -1001,7 +1021,10 @@ fn boolean_argument_shape_preserves_width_and_unit_result_absence() {
         .unwrap();
         call.result_placement = None;
         call.arguments = vec![LegalizedScalarArgument::Scalar {
-            source,
+            source: operation_operands::values::AbstractResult {
+                value: source,
+                scalar_type: ScalarType::Boolean,
+            },
             placement: call.call_plan.parameters[0].clone(),
         }];
         assert_eq!(call.validate_shape(), Ok(()));

@@ -136,10 +136,10 @@ public domain Reservation::Issued
     access ReservationAccess;
 
 ReservationAccess satisfies AccessPolicy {
-    machine plan(schema: reflect\TypeSchema) -> AccessPlan {
-        access\new_plan(
+    machine plan(schema: |reflect|::TypeSchema) -> AccessPlan {
+        |access|::new_plan(
             @schema,
-            Issuance::Only { routes: [reflect\callable(Issues::issue)] }
+            Issuance::Only { routes: [|reflect|::callable(Issues::issue)] }
         )
     }
 }
@@ -922,7 +922,7 @@ needs an exact combined declaration or a written cast. An exact combined
 declaration must prove its own result contract; neither constituent's
 operators or predicates supply automatic preservation.
 
-`Wrapping`, `Saturating` and `Trapping` are the `omega\core` contributions to
+`Wrapping`, `Saturating` and `Trapping` are the core package contributions to
 the arithmetic-policy role. Their unsuffixed integer operators are defined by
 the [policy operators](numeric_values.md#policy-domains): the domain selects
 which suffixed operation `+` means for its operands. A policy operator written

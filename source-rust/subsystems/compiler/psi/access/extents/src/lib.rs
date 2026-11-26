@@ -118,7 +118,7 @@ fn nonzero_identity(identity: u64, name: &str) -> Result<(), ExtentDiagnostic> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LoanPolarity {
     Shared,
     Exclusive,

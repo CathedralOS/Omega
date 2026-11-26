@@ -2359,13 +2359,7 @@ fn validate_successor(
             .ok_or(Error::malformed(
                 "structural successor argument has no actual source declaration",
             ))?;
-        if crate::borrowed_projection_type(
-            types.iter(),
-            source,
-            &argument.path,
-            Some(parameter.structural_type),
-        ) != Some(parameter.structural_type)
-        {
+        if !crate::successor_argument_carrier_matches(types, source, argument, parameter) {
             return Err(Error::malformed(
                 "structural successor argument differs from its parameter type",
             ));

@@ -9,85 +9,11 @@ use mathematical_kernel::{
 
 const BENCH_BUDGET: u32 = 20_000_000;
 
-fn pi(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
-    arena.insert(Term::Pi { domain, codomain })
-}
-
-fn pi_many(arena: &mut TermArena, domains: &[TermHandle], mut codomain: TermHandle) -> TermHandle {
-    for &d in domains.iter().rev() {
-        codomain = pi(arena, d, codomain);
-    }
-    codomain
-}
-
-fn lam(arena: &mut TermArena, domain: TermHandle, body: TermHandle) -> TermHandle {
-    arena.insert(Term::Lambda { domain, body })
-}
-
-fn lam_many(arena: &mut TermArena, domains: &[TermHandle], mut body: TermHandle) -> TermHandle {
-    for &d in domains.iter().rev() {
-        body = lam(arena, d, body);
-    }
-    body
-}
-
-fn sigma(arena: &mut TermArena, domain: TermHandle, codomain: TermHandle) -> TermHandle {
-    arena.insert(Term::Sigma { domain, codomain })
-}
-
-fn prod(arena: &mut TermArena, left: TermHandle, right: TermHandle) -> TermHandle {
-    let shifted_right = shift(arena, right, 0, 1);
-    sigma(arena, left, shifted_right)
-}
-
-fn pair(arena: &mut TermArena, first: TermHandle, second: TermHandle) -> TermHandle {
-    arena.insert(Term::Pair { first, second })
-}
-
-fn fst(arena: &mut TermArena, p: TermHandle) -> TermHandle {
-    arena.insert(Term::Fst { pair: p })
-}
-
-fn snd(arena: &mut TermArena, p: TermHandle) -> TermHandle {
-    arena.insert(Term::Snd { pair: p })
-}
-
-fn var(arena: &mut TermArena, index: u32) -> TermHandle {
-    arena.insert(Term::Variable(index))
-}
-
-fn c0(arena: &mut TermArena, declaration: u32) -> TermHandle {
-    arena.insert(Term::Constant {
-        declaration,
-        levels: Vec::new(),
-    })
-}
-
-fn c_levels(arena: &mut TermArena, declaration: u32, levels: Vec<Level>) -> TermHandle {
-    arena.insert(Term::Constant {
-        declaration,
-        levels,
-    })
-}
-
-fn type_n(arena: &mut TermArena, n: u32) -> TermHandle {
-    arena.insert(Term::Sort(Sort::Type(Level::Constant(n))))
-}
+mod support;
+use support::*;
 
 fn strict_n(arena: &mut TermArena, n: u32) -> TermHandle {
     arena.insert(Term::Sort(Sort::Strict(Level::Constant(n))))
-}
-
-fn apps(arena: &mut TermArena, head: TermHandle, args: &[TermHandle]) -> TermHandle {
-    arena.apply_arguments(head, args)
-}
-
-fn id_ty(arena: &mut TermArena, ty: TermHandle, left: TermHandle, right: TermHandle) -> TermHandle {
-    arena.insert(Term::Id { ty, left, right })
-}
-
-fn refl(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
-    arena.insert(Term::Refl { ty, value })
 }
 
 fn cong_unary(
@@ -631,25 +557,6 @@ fn benchmark_suite_1_plain_recursive_data() {
 // ============================================================================
 // 3. Benchmark Suite 2 — Payloaded ASTs + `bounds_mono`
 // ============================================================================
-
-fn scalar_theory(arena: &mut TermArena) -> Vec<Declaration> {
-    let t0 = type_n(arena, 0);
-    let scalar = c0(arena, 0);
-    let le = c0(arena, 1);
-    let le_ty = pi_many(arena, &[scalar, scalar], t0);
-    let v1 = var(arena, 1);
-    let v2 = var(arena, 2);
-    let v4 = var(arena, 4);
-    let le_ab = apps(arena, le, &[v2, v1]);
-    let le_bc = apps(arena, le, &[v2, v1]);
-    let le_ac = apps(arena, le, &[v4, v2]);
-    let le_trans_ty = pi_many(arena, &[scalar, scalar, scalar, le_ab, le_bc], le_ac);
-    vec![
-        Declaration::assumption(0, t0),
-        Declaration::assumption(0, le_ty),
-        Declaration::assumption(0, le_trans_ty),
-    ]
-}
 
 fn payloaded_ast_family(
     arena: &mut TermArena,

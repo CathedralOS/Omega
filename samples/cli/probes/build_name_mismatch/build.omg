@@ -5,12 +5,12 @@
 // import name; the directory is on-disk reality — none needs to match.
 
 use {omega}/build/dependency.omg;
-use depkit;
+use {depkit}/main.omg as depkit;
 
-machine build(builder: @mutable Build)
+machine build(builder: @mutable BuildPlan)
 suspends
 {
-    Build::application(builder, "app_declared");
+    builder.product = BuildProduct::Application { name: "app_declared" };
     let mutable depkit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "depdir" });
     |dependency|::with_alias(@mutable depkit_dependency, "depkit");
     let depkit_registration: DependencyRegistration = Build::build_dependency(builder, depkit_dependency);
@@ -18,7 +18,7 @@ suspends
     |dependency|::with_alias(@mutable depkit_dependency_2, "depkit");
     let depkit_registration_2: DependencyRegistration = Build::dependency(builder, depkit_dependency_2);
     suspend Build::prepare_dependency(builder, depkit_registration);
-    let observed: i32 = depkit\value();
+    let observed: i32 = |depkit|::value();
     transition observed == 9 {
         true -> done(),
         _ -> wrong()

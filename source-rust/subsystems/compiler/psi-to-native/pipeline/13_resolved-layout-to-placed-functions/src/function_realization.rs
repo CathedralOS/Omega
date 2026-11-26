@@ -3,7 +3,6 @@
 
 use std::sync::Arc;
 
-use ::wire::cursor::Cursor;
 use machine_code::OptimizedMachineLayout;
 use machine_code::{
     ResolvedMachineLayout, ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity,
@@ -11,15 +10,15 @@ use machine_code::{
     WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity,
 };
 use optimization_core::{
-    FunctionRelativeOptimizationRealizationManifestIdentity, Optimization,
-    OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationSelections,
+    FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationExecutionPhase,
+    OptimizationSelectionIdentity, OptimizationSelections,
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
     SelectedLoweringOptimizationCompletionIdentity,
 };
 use post_allocation_machine::PostAllocationMachineOptimizationCustody;
 use register_homes::{AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirements};
 use selected_instructions::SelectedInstructionPlanIdentity;
-use target::{NativeTarget, TargetWireIdentityError};
+use target::NativeTarget;
 
 use crate::exit_contract::{
     StagedWholeFunctionExitContract, WholeFunctionExitContractError,
@@ -29,9 +28,6 @@ use frame_admission::frame_layout::{
     NonAuthoritativeCalleeSaveStorageIdentity, TargetFrameLayoutPolicy, ValidatedTargetFrameLayout,
     validate_non_authoritative_callee_save_storage, validate_target_frame_demands,
 };
-
-const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
-const MANIFEST_VERSION: u32 = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {
@@ -137,26 +133,8 @@ impl StagedFixedFrameFunctionRelativeRealization {
         &self.layout_optimization
     }
 
-    pub fn relaxation(&self) -> Option<machine_code::X86BranchRelaxationRoots> {
-        self.layout_optimization.current().relaxation
-    }
-    pub fn layout(&self) -> &ResolvedMachineLayout {
-        self.layout_optimization.current().layout()
-    }
     pub fn program(&self) -> &machine_code::ResolvedMachineProgram {
         &self.layout_optimization.current().program
-    }
-    pub fn requirements(&self) -> &AllocatedCalleeSavedRequirements {
-        &self.program().context.preservation
-    }
-    pub fn storage(&self) -> &machine_code::NonAuthoritativeCalleeSaveStoragePlan {
-        &self.program().storage
-    }
-    pub fn frame(&self) -> &machine_code::TargetFrameLayoutPlan {
-        &self.program().frame
-    }
-    pub fn protocol(&self) -> &machine_code::TargetFrameProtocolEncodingPlan {
-        &self.program().protocol
     }
 }
 
@@ -203,42 +181,6 @@ diagnostics::failed_display!(
 );
 
 impl std::error::Error for FunctionRelativeOptimizationRealizationError {}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FunctionRelativeOptimizationRealizationManifestDecodeError {
-    Truncated,
-    WrongMagic,
-    UnsupportedVersion(u32),
-    UnknownStage(u8),
-    UnknownSelectedLoweringCompletionStatus(u8),
-    UnknownX86BranchRelaxationStatus(u8),
-    UnknownPostAllocationMachineOptimizationStatus(u8),
-    UnknownPostAllocationMachineOptimization(u8),
-    ActionCountOverflow,
-    ConflictingPhysicalTransformations,
-    UnknownArchitecture(u8),
-    UnknownObjectFormat(u8),
-    TargetLayoutOverflow,
-    UnknownLayoutPolicy(u8),
-    UnknownScope(u8),
-    UnknownFrameDisposition(u8),
-    UnknownUnavailableStatus(u8),
-    IdentityMismatch,
-    TrailingBytes,
-}
-
-::wire::truncated_from_adapter!(FunctionRelativeOptimizationRealizationManifestDecodeError);
-
-impl std::fmt::Display for FunctionRelativeOptimizationRealizationManifestDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid function-relative realization manifest: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for FunctionRelativeOptimizationRealizationManifestDecodeError {}
 
 fn validate_frame_geometry(
     program: &machine_code::ResolvedMachineProgram,
@@ -541,52 +483,6 @@ impl FunctionRelativeOptimizationRealizationManifest {
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
     }
-
-    pub fn encode(&self) -> Vec<u8> {
-        let content = encode_manifest_content(self);
-        let mut encoded = Vec::with_capacity(44 + content.len());
-        encoded.extend_from_slice(MANIFEST_MAGIC);
-        crate::codec_bytes::push_encoded(&mut encoded, MANIFEST_VERSION.to_le_bytes());
-        encoded.extend_from_slice(&self.identity.bytes());
-        encoded.extend_from_slice(&content);
-        encoded
-    }
-
-    pub fn decode(
-        encoded: &[u8],
-    ) -> Result<Self, FunctionRelativeOptimizationRealizationManifestDecodeError> {
-        let mut cursor = Cursor::new(encoded);
-        if cursor.take(MANIFEST_MAGIC.len())? != &MANIFEST_MAGIC[..] {
-            return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic);
-        }
-        let version = cursor.u32()?;
-        if version != MANIFEST_VERSION {
-            return Err(
-                FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
-                    version,
-                ),
-            );
-        }
-        let identity =
-            FunctionRelativeOptimizationRealizationManifestIdentity::from_bytes(cursor.array()?);
-        let manifest = decode_manifest_content(&mut cursor, identity)?;
-        if cursor.remaining() != 0 {
-            return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::TrailingBytes);
-        }
-        if manifest.x86_branch_relaxation.is_some()
-            && manifest.post_allocation_machine_optimization.is_some()
-        {
-            return Err(
-                FunctionRelativeOptimizationRealizationManifestDecodeError::ConflictingPhysicalTransformations,
-            );
-        }
-        if manifest.identity != manifest.recomputed_identity() {
-            return Err(
-                FunctionRelativeOptimizationRealizationManifestDecodeError::IdentityMismatch,
-            );
-        }
-        Ok(manifest)
-    }
 }
 
 fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationManifest) -> Vec<u8> {
@@ -675,142 +571,6 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
     canonical
 }
 
-fn decode_manifest_content(
-    cursor: &mut Cursor<'_>,
-    identity: FunctionRelativeOptimizationRealizationManifestIdentity,
-) -> Result<
-    FunctionRelativeOptimizationRealizationManifest,
-    FunctionRelativeOptimizationRealizationManifestDecodeError,
-> {
-    use FunctionRelativeOptimizationRealizationManifestDecodeError as Error;
-    let stage = match cursor.byte()? {
-        1 => FunctionRelativeOptimizationRealizationStage::ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1,
-        tag => return Err(Error::UnknownStage(tag)),
-    };
-    let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-    let selected_lowering_selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-    let selected_lowering_completion = match cursor.byte()? {
-        0 => None,
-        1 => Some(SelectedLoweringOptimizationCompletionIdentity::from_bytes(
-            cursor.array()?,
-        )),
-        tag => return Err(Error::UnknownSelectedLoweringCompletionStatus(tag)),
-    };
-    let allocation_recovery_selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-    let post_allocation_machine_selections =
-        OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-    let function_relative_layout_selections =
-        OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-    let pre_physical_manifest =
-        PrePhysicalOptimizationManifestIdentity::from_bytes(cursor.array()?);
-    let post_allocation_manifest =
-        PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
-    let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
-    let pre_allocation_machine_effects =
-        selected_instructions::PreAllocationMachineEffectIdentity::from_bytes(cursor.array()?);
-    let post_allocation_machine =
-        post_allocation_machine::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
-    let baseline_pre_layout = SelectedFormEncodingIdentity::from_bytes(cursor.array()?);
-    let pre_layout = SelectedFormEncodingIdentity::from_bytes(cursor.array()?);
-    let baseline_resolved_layout = ResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);
-    let resolved_layout = ResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);
-    let x86_branch_relaxation = match cursor.byte()? {
-        0 => None,
-        1 => Some(X86BranchRelaxationIdentity::from_bytes(cursor.array()?)),
-        tag => return Err(Error::UnknownX86BranchRelaxationStatus(tag)),
-    };
-    let post_allocation_machine_optimization = decode_optional_custody(cursor)?;
-    let whole_function_exit_contract =
-        WholeFunctionExitContractIdentity::from_bytes(cursor.array()?);
-    let target = decode_target(cursor)?;
-    let layout_policy = match cursor.byte()? {
-        1 => SelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1,
-        2 => SelectedFunctionLayoutPolicy::SingleEntryBlockV1,
-        4 => SelectedFunctionLayoutPolicy::EntryThenNotLessFallthroughThenLessV1,
-        5 => SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
-        tag => return Err(Error::UnknownLayoutPolicy(tag)),
-    };
-    let scope = match cursor.byte()? {
-        1 => FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
-        tag => return Err(Error::UnknownScope(tag)),
-    };
-    let statistics = FunctionRelativeOptimizationRealizationStatistics {
-        functions: cursor.u64()?,
-        blocks: cursor.u64()?,
-        instructions: cursor.u64()?,
-        bytes: cursor.u64()?,
-        resolved_conditional_branches: cursor.u64()?,
-        unresolved_internal_machine_fixups: cursor.u64()?,
-    };
-    let frame = match cursor.byte()? {
-        1 => FunctionRelativeFrameDisposition::Unavailable,
-        2 => FunctionRelativeFrameDisposition::CanonicalFixedFrameV1 {
-            layout: TargetFrameLayoutIdentity::from_bytes(cursor.array()?),
-            protocol: TargetFrameProtocolEncodingIdentity::from_bytes(cursor.array()?),
-        },
-        tag => return Err(Error::UnknownFrameDisposition(tag)),
-    };
-    let unavailable = [
-        decode_unavailable(cursor)?,
-        decode_unavailable(cursor)?,
-        decode_unavailable(cursor)?,
-        decode_unavailable(cursor)?,
-        decode_unavailable(cursor)?,
-        decode_unavailable(cursor)?,
-        decode_unavailable(cursor)?,
-    ];
-    Ok(FunctionRelativeOptimizationRealizationManifest {
-        identity,
-        stage,
-        selections,
-        selected_lowering_selections,
-        selected_lowering_completion,
-        allocation_recovery_selections,
-        post_allocation_machine_selections,
-        function_relative_layout_selections,
-        pre_physical_manifest,
-        post_allocation_manifest,
-        selected,
-        pre_allocation_machine_effects,
-        post_allocation_machine,
-        baseline_pre_layout,
-        pre_layout,
-        baseline_resolved_layout,
-        resolved_layout,
-        x86_branch_relaxation,
-        post_allocation_machine_optimization,
-        whole_function_exit_contract,
-        target,
-        layout_policy,
-        scope,
-        statistics,
-        frame,
-        machine_emission: unavailable[0],
-        section_placement: unavailable[1],
-        symbols: unavailable[2],
-        object_relocations: unavailable[3],
-        executable_image: unavailable[4],
-        installation: unavailable[5],
-        publication: unavailable[6],
-    })
-}
-
-fn decode_unavailable(
-    cursor: &mut Cursor<'_>,
-) -> Result<
-    FunctionRelativeOptimizationUnavailableData,
-    FunctionRelativeOptimizationRealizationManifestDecodeError,
-> {
-    match cursor.byte()? {
-        1 => Ok(FunctionRelativeOptimizationUnavailableData::Unavailable),
-        tag => Err(
-            FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownUnavailableStatus(
-                tag,
-            ),
-        ),
-    }
-}
-
 fn encode_optional_custody(
     bytes: &mut Vec<u8>,
     custody: Option<PostAllocationMachineOptimizationCustody>,
@@ -831,80 +591,6 @@ fn encode_optional_custody(
     }
 }
 
-fn decode_optional_custody(
-    cursor: &mut Cursor<'_>,
-) -> Result<
-    Option<PostAllocationMachineOptimizationCustody>,
-    FunctionRelativeOptimizationRealizationManifestDecodeError,
-> {
-    use FunctionRelativeOptimizationRealizationManifestDecodeError as Error;
-    match cursor.byte()? {
-        0 => Ok(None),
-        1 => {
-            let optimization = decode_optimization(cursor.byte()?)?;
-            let artifact_identity = cursor.array()?;
-            let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-            let post_allocation_machine_selections =
-                OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-            let source =
-                post_allocation_machine::PostAllocationMachineIdentity::from_bytes(cursor.array()?);
-            let action_count =
-                usize::try_from(cursor.u64()?).map_err(|_| Error::ActionCountOverflow)?;
-            let baseline_bytes = cursor.u64()?;
-            let selected_bytes = cursor.u64()?;
-            Ok(Some(PostAllocationMachineOptimizationCustody::from_parts(
-                optimization,
-                artifact_identity,
-                selections,
-                post_allocation_machine_selections,
-                source,
-                action_count,
-                baseline_bytes,
-                selected_bytes,
-            )))
-        }
-        tag => Err(Error::UnknownPostAllocationMachineOptimizationStatus(tag)),
-    }
-}
-
-fn decode_optimization(
-    tag: u8,
-) -> Result<Optimization, FunctionRelativeOptimizationRealizationManifestDecodeError> {
-    match tag {
-        10 => Ok(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1),
-        13 => Ok(Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1),
-        14 => Ok(Optimization::X86SelectXorZeroI64MaterializationV1),
-        15 => Ok(Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1),
-        16 => Ok(Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1),
-        17 => Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeReturnV1),
-        18 => Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareZeroV1),
-        19 => Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1),
-        20 => Ok(Optimization::Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1),
-        value => Err(
-            FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownPostAllocationMachineOptimization(
-                value,
-            ),
-        ),
-    }
-}
-
 fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
     bytes.extend_from_slice(&target.wire_identity_bytes());
-}
-
-fn decode_target(
-    cursor: &mut Cursor<'_>,
-) -> Result<NativeTarget, FunctionRelativeOptimizationRealizationManifestDecodeError> {
-    let encoded = cursor.array::<18>()?;
-    NativeTarget::from_wire_identity_bytes(&encoded).map_err(|error| match error {
-        TargetWireIdentityError::UnknownArchitecture(tag) => {
-            FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownArchitecture(tag)
-        }
-        TargetWireIdentityError::UnknownObjectFormat(tag) => {
-            FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownObjectFormat(tag)
-        }
-        TargetWireIdentityError::LayoutOverflow => {
-            FunctionRelativeOptimizationRealizationManifestDecodeError::TargetLayoutOverflow
-        }
-    })
 }

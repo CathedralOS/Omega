@@ -42,7 +42,7 @@ pub struct LegalizedScalarCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarArgument {
     Scalar {
-        source: ValueId,
+        source: operation_operands::values::AbstractResult,
         placement: ValuePlacement,
     },
     Structural {
@@ -78,10 +78,22 @@ impl LegalizedRuntimeIndexOperand {
     }
 }
 
+impl From<&crate::TargetUnitScalarCallArgument> for LegalizedScalarArgument {
+    fn from(argument: &crate::TargetUnitScalarCallArgument) -> Self {
+        Self::Scalar {
+            source: operation_operands::values::AbstractResult {
+                value: argument.source_value(),
+                scalar_type: argument.scalar_type(),
+            },
+            placement: argument.placement.clone(),
+        }
+    }
+}
+
 impl LegalizedScalarArgument {
     pub fn scalar_source(&self) -> Option<ValueId> {
         match self {
-            Self::Scalar { source, .. } => Some(*source),
+            Self::Scalar { source, .. } => Some(source.value),
             Self::Structural { .. } => None,
         }
     }

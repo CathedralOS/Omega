@@ -646,7 +646,7 @@ fn check_callback_publication(retain_body_source: bool) {
             .first()
             .unwrap()
             .symbol;
-        redirected.record_set.records.get_mut(field).symbol_handle = registrar;
+        redirected.records.get_mut(field).symbol_handle = registrar;
         assert!(matches!(inspect(&redirected), Err(object_file::body_object::Error::Mismatch(
             "fragment import callback relocation differs"
         ))));

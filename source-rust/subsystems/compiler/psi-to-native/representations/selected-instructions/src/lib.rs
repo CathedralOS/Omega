@@ -44,8 +44,6 @@
 */
 
 pub(crate) mod codec_bytes {
-    #[cfg(test)]
-    pub(crate) use ::wire::codec_bytes::patch_encoded;
     pub(crate) use ::wire::codec_bytes::push_encoded;
 
     pub(crate) fn encode_len(bytes: &mut Vec<u8>, length: usize) {
@@ -119,13 +117,12 @@ pub use effects::{
     MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     MachineIdentityBytes, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior, PreAllocationMachineEffectDecodeError,
-    PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
-    PreparedMachineEffectCatalog, alternative_family_tag, canonical_machine_effect_catalog,
-    encode_machine_alternative_identity, encode_machine_alternative_key_identity,
-    encode_machine_encoded_effects_identity, machine_effect_catalog_identity,
-    pre_allocation_machine_effect_identity, saturating_family_tag, trapping_family_tag,
-    validate_isa_machine_effect_catalog, validate_machine_effect_catalog,
+    MachineSizeKnowledge, MachineTrapBehavior, PreAllocationMachineEffectIdentity,
+    PreAllocationMachineEffectPlan, PreparedMachineEffectCatalog, alternative_family_tag,
+    canonical_machine_effect_catalog, encode_machine_alternative_identity,
+    encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
+    machine_effect_catalog_identity, pre_allocation_machine_effect_identity, saturating_family_tag,
+    trapping_family_tag, validate_isa_machine_effect_catalog, validate_machine_effect_catalog,
 };
 pub use functions::{AppendOnlyRows, SelectedFunctions};
 pub use identity::{

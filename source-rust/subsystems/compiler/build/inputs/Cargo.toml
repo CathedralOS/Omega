@@ -11,6 +11,7 @@ path = "inputs.rs"
 retained-product-selections = { path = "../../source-to-psi/representations/retained-product-selections" }
 source-declarations = { path = "../../source-to-psi/representations/symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "../../source-to-psi/representations/symbol-resolved-trees/symbol-table" }
+build-program-launch = { path = "../evaluation/authority/program" }
 build-consent = { path = "../evaluation/authority/consent" }
 normalized-build-settings = { path = "../settings/normalized" }
 provider-acceptance = { path = "../providers/acceptance" }

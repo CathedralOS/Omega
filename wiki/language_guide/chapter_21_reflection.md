@@ -7,6 +7,8 @@ and produces ordinary typed code.
 ## Visit a record's fields
 
 ```omega
+use {omega}/language/core/reflect/reflect.omg;
+
 data Player {
     health: u32;
     speed: f32;
@@ -14,7 +16,7 @@ data Player {
 
 machine show_player_field<Value>(
     output: @mutable InspectorOutput,
-    field: FieldInfo,
+    field: |reflect|::FieldInfo,
     value: @Value
 )
 requires Value == u32 || Value == f32
@@ -26,7 +28,7 @@ requires Value == u32 || Value == f32
 }
 
 machine inspect_player(player: @Player, output: @mutable InspectorOutput) {
-    reflect\visit_runtime_fields::<Player, show_player_field>(player, output);
+    |reflect|::visit_runtime_fields::<Player, show_player_field>(player, output);
 }
 ```
 
@@ -40,16 +42,16 @@ nested records yourself.
 ## Describe a type
 
 ```omega
-reflect\schema::<Player>()            // fields, cases, names and types
-reflect\field(Player::health)       // one field
-reflect\callable(inspect_player)    // one machine
+|reflect|::schema::<Player>()            // fields, cases, names and types
+|reflect|::field(Player::health)       // one field
+|reflect|::callable(inspect_player)    // one machine
 ```
 
 These describe declarations. To read a player's health you still write
 `player.health`, and to find its byte offset you ask its
 [layout](chapter_20_memory_layout_abi.md).
 
-`reflect\parameter(Requirement::formal)` describes one declared formal of a
+`|reflect|::parameter(Requirement::formal)` describes one declared formal of a
 boundary requirement. For example, a Build-owned function-table binding uses
 this descriptor to identify which argument supplies its table. It does not
 read that argument at compile time. Parameter, field and callable descriptions

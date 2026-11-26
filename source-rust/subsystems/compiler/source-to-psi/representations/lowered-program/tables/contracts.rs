@@ -277,6 +277,8 @@ pub fn formal_value_ids(
 #[derive(Debug, Clone)]
 pub struct StaticRequirementInstance {
     pub machine: MachineId,
+    /// A nominal callable parameter promises this trait member independently of its shape.
+    pub nominal_requirement: Option<SymbolHandle>,
     pub member: terminal_psi::TerminalIdentityIndex,
     pub header: CallableHeader,
 }
@@ -361,6 +363,9 @@ pub struct StaticRecordRequirementInstance {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StaticImplementation {
     Machine(MachineId),
+    /// The caller provides the contract of this open parameter. Its eventual
+    /// concrete machine is bound when that caller is itself applied.
+    Parameter(terminal_psi::static_reach::StaticReachParameter),
     Native {
         source: SymbolHandle,
         candidate: usize,

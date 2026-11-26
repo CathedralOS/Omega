@@ -1,48 +1,45 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/grid/grid.omg;
+use domain/solver/solver.omg;
+use platform/decimal/decimal.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0 with input.txt (one byte 0). Empty stdin exits 64.
 // Expected output contains: CONVERGED
 // A transition dispatch covers its subject. The converged residual takes the
 // true arm; the false arm continues to the iteration limit. The next statement
 // is not a fallback.
 // SCI04: bounded 2D finite-volume diffusion/Poisson with explicit CSR and CG.
-use system\ByteRead;
-use system\Console;
-use omega\language\core\I64::from_f64;
-use domain\grid;
-use domain\solver;
-use platform\decimal;
-use platform\decimal\number;
 
-machine field(value:f64) reaches ProcessExit + StandardOutput invokes Console {
+machine field(value:f64) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
  let scaled:f64=value*1000000000000.0;
  transition scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
   true -> emit(scaled), false -> failure()
  }
  machine emit(scaled:f64) requires scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
-  let integer:i64=I64::from_f64(scaled);
-  number(integer as +Wrapping);
+  let integer:i64=|float_operations|::I64::from_f64(scaled);
+  |decimal|::number(integer as +Wrapping);
  }
- machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
+ machine failure() { |console|::Console::write_line("REJECT numeric output"); |process_exit|::ProcessExit::exit_process(70); }
 }
-machine count(value:u64 in Saturating) reaches ProcessExit + StandardOutput invokes Console {
+machine count(value:u64 in Saturating) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
  transition value <= 1000 { true -> bounded(value), false -> failure() }
- machine bounded(value:u64 in Saturating) requires value <= 1000 { number(value as i64 +Wrapping); }
- machine failure() { Console::write_line("REJECT report count"); ProcessExit::exit_process(70); }
+ machine bounded(value:u64 in Saturating) requires value <= 1000 { |decimal|::number(value as i64 +Wrapping); }
+ machine failure() { |console|::Console::write_line("REJECT report count"); |process_exit|::ProcessExit::exit_process(70); }
 }
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput invokes Console {
- let request:ByteRead=block Console::read_byte();
- transition request { ByteRead::Byte { value } -> block ending(value), _ -> input_error() }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput invokes |console|::Console {
+ let request:|console|::ByteRead=block |console|::Console::read_byte();
+ transition request { |console|::ByteRead::Byte { value } -> block ending(value), _ -> input_error() }
  machine ending(value:i32) {
-  let tail:ByteRead=block Console::read_byte();
-  transition tail { ByteRead::Eof -> setup(value), _ -> input_error() }
+  let tail:|console|::ByteRead=block |console|::Console::read_byte();
+  transition tail { |console|::ByteRead::Eof -> setup(value), _ -> input_error() }
  }
  machine setup(value:i32) {
   let zero:f64=0.0;
   let one:f64=1.0;
-  let mutable grid:domain\grid\Grid;
+  let mutable grid:|grid|::Grid;
   grid.n=4;
   grid.diffusion=1.0;
   grid.reaction=0.0;
@@ -71,42 +68,42 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
    _ -> input_error()
   }
  }
- machine eight(grid:@mutable domain\grid\Grid) { grid.n=8; transition { _ -> check(grid) } }
- machine twelve(grid:@mutable domain\grid\Grid) { grid.n=12; transition { _ -> check(grid) } }
- machine mixed(grid:@mutable domain\grid\Grid) { grid.n=8; grid.linear=true; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(grid) } }
- machine reaction(grid:@mutable domain\grid\Grid) { grid.n=8; grid.diffusion=2.0; grid.reaction=3.0; transition { _ -> check(grid) } }
- machine coefficient(grid:@mutable domain\grid\Grid,value:f64) { grid.diffusion=value; transition { _ -> check(grid) } }
- machine malformed(grid:@mutable domain\grid\Grid) { grid.kind[2]=9; transition { _ -> check(grid) } }
- machine singular(grid:@mutable domain\grid\Grid) { grid.kind[0]=1; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(grid) } }
- machine limited(grid:@mutable domain\grid\Grid,maximum:u64 in Saturating) { grid.maximum=maximum; transition { _ -> check(grid) } }
- machine negative_reaction(grid:@mutable domain\grid\Grid) { grid.reaction=-1.0; transition { _ -> check(grid) } }
- machine missing(grid:@mutable domain\grid\Grid) { grid.boundary_count=3; transition { _ -> check(grid) } }
- machine bad_tolerance(grid:@mutable domain\grid\Grid) { grid.tolerance=0.0; transition { _ -> check(grid) } }
- machine check(grid:@mutable domain\grid\Grid) {
-  transition domain\grid\valid(grid) { true -> execute(grid), false -> invalid() }
+ machine eight(grid:@mutable |grid|::Grid) { grid.n=8; transition { _ -> check(grid) } }
+ machine twelve(grid:@mutable |grid|::Grid) { grid.n=12; transition { _ -> check(grid) } }
+ machine mixed(grid:@mutable |grid|::Grid) { grid.n=8; grid.linear=true; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(grid) } }
+ machine reaction(grid:@mutable |grid|::Grid) { grid.n=8; grid.diffusion=2.0; grid.reaction=3.0; transition { _ -> check(grid) } }
+ machine coefficient(grid:@mutable |grid|::Grid,value:f64) { grid.diffusion=value; transition { _ -> check(grid) } }
+ machine malformed(grid:@mutable |grid|::Grid) { grid.kind[2]=9; transition { _ -> check(grid) } }
+ machine singular(grid:@mutable |grid|::Grid) { grid.kind[0]=1; grid.kind[1]=1; grid.kind[2]=1; grid.kind[3]=1; transition { _ -> check(grid) } }
+ machine limited(grid:@mutable |grid|::Grid,maximum:u64 in Saturating) { grid.maximum=maximum; transition { _ -> check(grid) } }
+ machine negative_reaction(grid:@mutable |grid|::Grid) { grid.reaction=-1.0; transition { _ -> check(grid) } }
+ machine missing(grid:@mutable |grid|::Grid) { grid.boundary_count=3; transition { _ -> check(grid) } }
+ machine bad_tolerance(grid:@mutable |grid|::Grid) { grid.tolerance=0.0; transition { _ -> check(grid) } }
+ machine check(grid:@mutable |grid|::Grid) {
+  transition |grid|::valid(grid) { true -> execute(grid), false -> invalid() }
  }
- machine execute(grid:@mutable domain\grid\Grid) {
-  let status:i32=domain\solver\solve(grid);
-  Console::write("GRID "); count(grid.n); count(grid.count); count(grid.nonzeros); Console::write_line("");
-  Console::write("CG "); number(status as i64 +Wrapping); count(grid.iterations); field(grid.norm); field(grid.threshold); field(grid.error); Console::write_line("");
+ machine execute(grid:@mutable |grid|::Grid) {
+  let status:i32=|solver|::solve(grid);
+  |console|::Console::write("GRID "); count(grid.n); count(grid.count); count(grid.nonzeros); |console|::Console::write_line("");
+  |console|::Console::write("CG "); |decimal|::number(status as i64 +Wrapping); count(grid.iterations); field(grid.norm); field(grid.threshold); field(grid.error); |console|::Console::write_line("");
   transition { _ -> report(grid,status,0) }
  }
- machine report(grid:@domain\grid\Grid,status:i32,index:u64 in Saturating) {
+ machine report(grid:@|grid|::Grid,status:i32,index:u64 in Saturating) {
   transition index < grid.count { true -> cell(grid,status,index), false -> finish(status) }
  }
- machine cell(grid:@domain\grid\Grid,status:i32,index:u64 in Saturating) {
-  Console::write("CELL "); count(index); field(grid.solution[index%144]); Console::write_line("");
+ machine cell(grid:@|grid|::Grid,status:i32,index:u64 in Saturating) {
+  |console|::Console::write("CELL "); count(index); field(grid.solution[index%144]); |console|::Console::write_line("");
   transition { _ -> report(grid,status,index+1) }
  }
  machine finish(status:i32) { transition status { 0 -> success(), _ -> nonconvergence() } }
- machine success() { Console::write_line("CONVERGED"); ProcessExit::exit_process(0); }
- machine nonconvergence() { Console::write_line("NOT_CONVERGED"); ProcessExit::exit_process(2); }
- machine invalid() { Console::write_line("REJECT grid: positive finite diffusion, nonnegative reaction, four valid anchored boundaries, bounded mesh and controls required"); ProcessExit::exit_process(65); }
- machine input_error() { Console::write_line("REJECT input: expected exactly one byte 0..9 or a..f"); ProcessExit::exit_process(64); }
+ machine success() { |console|::Console::write_line("CONVERGED"); |process_exit|::ProcessExit::exit_process(0); }
+ machine nonconvergence() { |console|::Console::write_line("NOT_CONVERGED"); |process_exit|::ProcessExit::exit_process(2); }
+ machine invalid() { |console|::Console::write_line("REJECT grid: positive finite diffusion, nonnegative reaction, four valid anchored boundaries, bounded mesh and controls required"); |process_exit|::ProcessExit::exit_process(65); }
+ machine input_error() { |console|::Console::write_line("REJECT input: expected exactly one byte 0..9 or a..f"); |process_exit|::ProcessExit::exit_process(64); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput invokes Console {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput invokes |console|::Console {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

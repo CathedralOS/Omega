@@ -172,3 +172,26 @@ fn zeroed_case_table_reuses_paths_for_different_roots() {
         }
     }
 }
+
+/// One leaf stands for a whole array of empty arrays, so its length does not
+/// count against the walk's bound. The choice beside it still starts in its
+/// first case. Its twin repeats the choice itself past the bound, and the
+/// walk refuses it.
+#[test]
+fn an_array_of_empty_arrays_is_one_zeroed_leaf() {
+    const EMPTY: u64 = 7;
+    const EMPTIES: u64 = 8;
+    const BESIDE: u64 = 9;
+    const TOO_MANY: u64 = 10;
+    let mut types = types();
+    types.push(array(EMPTY, SCALAR, 0));
+    types.push(array(EMPTIES, EMPTY, 200_000));
+    types.push(record(BESIDE, &[EMPTIES, CHOICE]));
+    types.push(array(TOO_MANY, HOLDER, 200_000));
+    let root = PlaceId::new(7).unwrap();
+    let beside = zeroed_case_predicates(&types, root, id(BESIDE));
+    assert_eq!(beside.len(), 1);
+    assert_eq!(beside, walked(&types, root, id(BESIDE)));
+    assert!(walked(&types, root, id(TOO_MANY)).is_empty());
+    assert!(zeroed_case_predicates(&types, root, id(TOO_MANY)).is_empty());
+}

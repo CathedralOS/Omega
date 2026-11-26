@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Self-field mutation interleaved with value-returning calls that read
 // from main.
 //
@@ -47,7 +47,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 data State [copy] {
     // Wrapping so the value-return arithmetic below (`n * multiplier`,
@@ -78,8 +77,8 @@ machine Main::offset_add(main: @mutable Main, n: i32 in Wrapping) -> i32 {
     }
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("self_mutation_between_calls: value calls must see freshly mutated main fields");
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("self_mutation_between_calls: value calls must see freshly mutated main fields");
     // Interleave main mutations with value-call reads.
     main.st.multiplier = 3;
     let r1: i32 = Main::scale(main, 5);      // = 5 * 3 = 15
@@ -100,10 +99,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_r1(main: @mutable Main) {
-        Console::write_line("FAIL: scale(5) with multiplier 3 did not return 15 (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: scale(5) with multiplier 3 did not return 15 (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 
     machine check_r2(main: @mutable Main, r2: i32, r3: i32, r4: i32, r1: i32) {
@@ -114,10 +113,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_r2(main: @mutable Main) {
-        Console::write_line("FAIL: scale(4) with multiplier 7 did not return 28 (exit 72)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(72);
+        |console|::Console::write_line("FAIL: scale(4) with multiplier 7 did not return 28 (exit 72)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(72);
     }
 
     machine check_r3(main: @mutable Main, r3: i32, r4: i32, r1: i32, r2: i32) {
@@ -128,10 +127,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_r3(main: @mutable Main) {
-        Console::write_line("FAIL: offset_add(10) with addend 2 did not return 12 (exit 73)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(73);
+        |console|::Console::write_line("FAIL: offset_add(10) with addend 2 did not return 12 (exit 73)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(73);
     }
 
     machine check_r4(main: @mutable Main, r4: i32, r1: i32, r2: i32, r3: i32) {
@@ -142,10 +141,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_r4(main: @mutable Main) {
-        Console::write_line("FAIL: offset_add(0) with addend 15 did not return 15 (exit 74)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(74);
+        |console|::Console::write_line("FAIL: offset_add(0) with addend 15 did not return 15 (exit 74)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(74);
     }
 
     machine compute_total(main: @mutable Main, r1: i32, r2: i32, r3: i32, r4: i32) {
@@ -158,22 +157,22 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
     }
 
     machine bad_total(main: @mutable Main) {
-        Console::write_line("FAIL: results did not total 70 (exit 75)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(75);
+        |console|::Console::write_line("FAIL: results did not total 70 (exit 75)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(75);
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: every call observed the freshly mutated main state (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: every call observed the freshly mutated main state (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

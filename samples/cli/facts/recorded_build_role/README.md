@@ -26,8 +26,8 @@ the original Build activation and rejects a shared receiver. This row transports
 the declared package name and consumes the resulting source identity; its twins
 reject a missing requester-local package alias. `build_target_provider` instead
 consumes target-keyed provider selection and a public numerical contract.
-The constant place copies an ordinary named byte-array constant into storage
-before borrowing its view. The match joins two routes forwarding the same
+The constant supplies the first byte of a local name buffer. The dependency
+copies its computed bytes to invocation-owned storage before returning its plan. The match joins two routes forwarding the same
 incoming view. The selected implementation place binds an ordinary named product
 entry whose body consumes the imported package value. It makes no claim of
 target-dependent role names.

@@ -121,12 +121,7 @@ pub fn admit_compiler_evaluation_with_source_consent<'code, 'target>(
     let invocation = compiler_invocation_scope(
         scope,
         target,
-        providers.providers().chain(
-            providers
-                .assumed_bindings()
-                .iter()
-                .map(|binding| (binding.required, binding.implementation)),
-        ),
+        providers.providers(),
         root,
     )?;
     let CompilerInvocationScope {
@@ -134,18 +129,6 @@ pub fn admit_compiler_evaluation_with_source_consent<'code, 'target>(
         closure,
         dependencies,
     } = invocation;
-    for binding in providers.assumed_bindings() {
-        for requirement in
-            std::iter::once(binding.required).chain(binding.supply_path.iter().copied())
-        {
-            let declaration = scope
-                .callable_declaration(TargetMachineCallable::Boundary(requirement))
-                .ok_or("compiler-evaluation assumed requirement lost its declaration")?;
-            if closure.calls.contains(&declaration) || closure.machines.contains(&declaration) {
-                return Err("assumed binding contracts are runtime-only and cannot supply compiler evaluation".into());
-            }
-        }
-    }
     for (_, owner) in scope.pending_evaluation_conditions.iter() {
         if owner.0 == 0 || dependencies.contains(owner) {
             return Err("constant invocation retains a pending target proof condition in its demanded closure; it cannot establish its own pending target condition".into());
@@ -261,12 +244,7 @@ pub fn admit_declaration_selections(
     let invocation = compiler_invocation_scope(
         scope,
         target,
-        providers.providers().chain(
-            providers
-                .assumed_bindings()
-                .iter()
-                .map(|binding| (binding.required, binding.implementation)),
-        ),
+        providers.providers(),
         root,
     )?;
     let requester = match package {

@@ -276,11 +276,6 @@ pub mod reflection {
             scope: DescriptionAuthor<'_>,
         ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
             let author = scope.machine;
-            use crate::source_state::expression::StaticMachineArgument;
-            use crate::source_state::reflection::SchemaNode;
-            use crate::source_state::type_identity::{
-                IndexIdentityArgument, portable_applied_index_identity,
-            };
             let symbols = typed.symbols.symbols().nodes();
             if !symbols.is_valid(author) {
                 return Err(String::from("a field query lost its lexical owner"));
@@ -358,7 +353,23 @@ pub mod reflection {
                     "a field query has an unjoined supplying type reference",
                 ));
             }
-            let parent = typed.symbols.get(selected.symbol).parent;
+            selected_field_description(typed, selected.symbol, declaring_type, scope)
+        }
+
+        fn selected_field_description(
+            typed: &TypedTrees,
+            selected: SymbolHandle,
+            declaring_type: Option<TypeReferenceHandle>,
+            scope: DescriptionAuthor<'_>,
+        ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+            use crate::source_state::expression::StaticMachineArgument;
+            use crate::source_state::reflection::SchemaNode;
+            use crate::source_state::type_identity::{
+                IndexIdentityArgument, portable_applied_index_identity,
+            };
+            let symbols = typed.symbols.symbols().nodes();
+            let author = scope.machine;
+            let parent = typed.symbols.get(selected).parent;
             if !symbols.is_valid(parent) {
                 return Err(String::from("a field query lost its declaring owner"));
             }
@@ -373,7 +384,7 @@ pub mod reflection {
             let data = match declaring_type {
                 Some(reference) => {
                     if typed
-                        .closed_data_constructor_field(reference, owner, selected.symbol)
+                        .closed_data_constructor_field(reference, owner, selected)
                         .is_none()
                     {
                         return Err(String::from(
@@ -392,7 +403,7 @@ pub mod reflection {
             for member in typed.data_members(data) {
                 match member {
                     crate::source_state::data::DataMember::Field(field)
-                        if parent == owner && field.symbol == selected.symbol =>
+                        if parent == owner && field.symbol == selected =>
                     {
                         occurrences += 1
                     }
@@ -402,7 +413,7 @@ pub mod reflection {
                         occurrences += typed
                             .data_payload_fields(case)
                             .iter()
-                            .filter(|field| field.symbol == selected.symbol)
+                            .filter(|field| field.symbol == selected)
                             .count();
                     }
                     _ => {}
@@ -421,7 +432,7 @@ pub mod reflection {
                     "a field query requires its complete owner application",
                 ));
             }
-            scope.authorize(typed, selected.symbol, data.is_public)?;
+            scope.authorize(typed, selected, data.is_public)?;
             let authority = scope.authority(typed, owner)?;
             let graph = match declaring_type {
                 Some(reference) => {
@@ -429,7 +440,7 @@ pub mod reflection {
                 }
                 None => construct_semantic_schema_graph(typed, owner, authority),
             }?;
-            let member = exact_symbol_identity(typed, selected.symbol)?.0;
+            let member = exact_symbol_identity(typed, selected)?.0;
             let mut described = graph.nodes().iter().filter_map(|node| match node {
                 SchemaNode::Field(field) if field.member_identity == member => Some(field),
                 _ => None,
@@ -478,6 +489,30 @@ pub mod reflection {
                 stable_number: field.stable_number.unwrap_or(0),
                 source_revision: revision,
             })
+        }
+
+        /// Describe an already resolved field of a closed table application.
+        /// The caller must retain the lexical requester for visibility checks.
+        pub fn field_description_for_application(
+            typed: &TypedTrees,
+            field: SymbolHandle,
+            owner: TypeReferenceHandle,
+            author: SymbolHandle,
+        ) -> Result<semantic_vocabulary::FieldInfoDescription, String> {
+            let data = typed.closed_data_definition(owner)
+                .ok_or("function field has no closed owner declaration")?;
+            let application = (data.generic_instance.is_some()
+                || !typed.data_type_parameters(data).is_empty()
+                || !data.lifetime_parameters.is_empty()).then_some(owner);
+            selected_field_description(
+                typed,
+                field,
+                application,
+                DescriptionAuthor {
+                    machine: author,
+                    product: None,
+                },
+            )
         }
 
         pub fn parameter_description_identity(

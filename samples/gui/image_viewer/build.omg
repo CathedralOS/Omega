@@ -2,11 +2,11 @@
 // from attaching a console box (PE Subsystem 2).
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "image_viewer");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "image_viewer" };
     builder.identifier = "com.omega.image-viewer";
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
-        location: "../../../source/library/system"
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled {
+        name: "system"
     }));
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);

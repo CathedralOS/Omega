@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "censored_survival_analysis");
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../source/library/system" }));
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "censored_survival_analysis" };
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled { name: "system" }));
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

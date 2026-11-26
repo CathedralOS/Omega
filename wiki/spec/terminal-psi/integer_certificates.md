@@ -61,8 +61,8 @@ Conjunction/disjunction ordering below is canonical.
 | Exact shift count | `0 <= count < value_width`. |
 | Exact cast/add/subtract/multiply/left-shift representability | The operation's mathematical expression lies in the destination/result carrier. |
 
-Exact subtraction also admits `addr - u64 -> addr` and same-model
-`addr - addr -> u64`. Each operand retains its carrier; equal widths do not
+Exact subtraction also admits `address - u64 -> address` and same-model
+`address - address -> u64`. Each operand retains its carrier; equal widths do not
 permit a count/address conversion. The canonical mathematical difference must
 be nonnegative and fit the result carrier. Address distances retain the upper
 count bound because address width need not equal count width. A nonliteral

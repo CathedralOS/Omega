@@ -34,6 +34,7 @@ pub(super) struct FilesystemContext {
     /// Whether the host namespace is delegated at all.
     supplied: bool,
     standard_streams_only: bool,
+    mapped: bool,
     /// Whether that namespace is rooted at a directory. The Linux kernel
     /// adapter resolves `AT_FDCWD` against its own root descriptor; calls the
     /// native sponsor makes (libc, Windows) resolve against the sponsor's
@@ -193,6 +194,7 @@ impl FilesystemContext {
             delegation,
             TerminalFilesystemDelegation::StandardStreamsOnly
         );
+        let mapped = matches!(delegation, TerminalFilesystemDelegation::Mapped(_));
         let mut private = None;
         let (supplied, rooted, linux) = match delegation {
             TerminalFilesystemDelegation::Unprovided
@@ -215,6 +217,16 @@ impl FilesystemContext {
                 }));
                 (true, false, Default::default())
             }
+            TerminalFilesystemDelegation::Mapped(mappings) => (
+                true,
+                false,
+                native_provider_runtime::LinuxFilesystem::mapped(mappings).map_err(|error| {
+                    TerminalRuntimeError::MissingProvision {
+                        capability: "live filesystem directory mappings",
+                        reason: error.to_string(),
+                    }
+                })?,
+            ),
             TerminalFilesystemDelegation::HostNamespace => (true, false, Default::default()),
             TerminalFilesystemDelegation::HostDirectory(root) => {
                 match native_provider_runtime::LinuxFilesystem::rooted(&root) {
@@ -226,6 +238,7 @@ impl FilesystemContext {
         Ok(Self {
             supplied,
             standard_streams_only,
+            mapped,
             rooted,
             windows: Rc::new(RefCell::new(windows::Handles::default())),
             descriptors: Rc::new(RefCell::new(BTreeMap::new())),
@@ -275,7 +288,7 @@ impl FilesystemContext {
     ) -> Result<Option<FilesystemCall>, TerminalRuntimeError> {
         // A private namespace answers only kernel calls; no libc or Windows
         // filesystem import may reach the host in its place.
-        if self.private.is_some() {
+        if self.private.is_some() || self.mapped {
             return Ok(None);
         }
         if let Some(call) = windows::admit(self, program, declaration, binding, layouts)? {
@@ -569,29 +582,9 @@ impl FilesystemContext {
         services: impl IntoIterator<Item = semantic_vocabulary::ServiceId>,
     ) -> Result<(), &'static str> {
         for service in services {
-            let supplied = module
-                .interfaces
-                .services
-                .iter()
-                .find(|row| row.id == service)
-                .and_then(|row| module.identities.text(row.identity))
-                .is_some_and(|identity| {
-                    matches!(
-                        identity,
-                        "toolchain::FilesystemContentRead"
-                            | "toolchain::FilesystemContentWrite"
-                            | "toolchain::FilesystemMetadataQuery"
-                            | "toolchain::FilesystemMetadataMutation"
-                            | "toolchain::DirectoryEnumeration"
-                            | "toolchain::FilesystemNamespaceMutation"
-                    )
-                });
-            // Keep only the existing exact legacy labels. Canonical service
-            // applications owe the retained schema and receiver-bundled owner;
-            // a familiar path inside another identity cannot supply authority.
-            if !supplied && module.core_filesystem_service(service).is_err() {
-                return Err("filesystem supply does not provide this exact additional service");
-            }
+            module
+                .core_filesystem_service(service)
+                .map_err(|_| "filesystem supply does not provide this exact additional service")?;
         }
         Ok(())
     }
@@ -1017,7 +1010,7 @@ mod tests {
     }
 
     #[test]
-    fn malformed_canonical_filesystem_labels_do_not_use_legacy_name_matching() {
+    fn filesystem_supply_rejects_an_inconsistent_core_schema() {
         let original = canonical_filesystem_module();
         let service = original.interfaces.services[2].id;
         let exact = original
@@ -1050,7 +1043,7 @@ mod tests {
     }
 
     #[test]
-    fn filesystem_supply_preserves_only_its_exact_legacy_labels() {
+    fn a_filesystem_name_without_its_core_schema_supplies_no_authority() {
         let mut module = terminal_psi::TerminalModule::declarations();
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         for (index, label) in [
@@ -1075,10 +1068,12 @@ mod tests {
         }
         module.identities = identities.build();
         let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace).unwrap();
-        assert_eq!(
-            context.admit_service_ids(&module, module.interfaces.services.iter().map(|row| row.id)),
-            Ok(())
-        );
+        for service in &module.interfaces.services {
+            assert_eq!(
+                context.admit_service_ids(&module, [service.id]),
+                Err("filesystem supply does not provide this exact additional service")
+            );
+        }
     }
 
     #[test]
@@ -1267,7 +1262,8 @@ mod tests {
                 .unwrap()
                 .plan()
                 .clone(),
-                mechanism: target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
+                mechanism: target_vocabulary::NormalizedForeignCallMechanism::BuildImport {
+                    stack: target_vocabulary::NativeBindingStack::Hosted,
                     locator,
                     receipt: [1; 32],
                     requirement_identity: "positioned filesystem test".into(),

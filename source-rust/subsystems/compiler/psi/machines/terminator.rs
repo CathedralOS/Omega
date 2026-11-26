@@ -398,87 +398,32 @@ impl Terminator {
             Self::ReturnUnit { .. } | Self::ReturnStructural { .. } | Self::Crash { .. } => {}
         }
     }
-    pub fn successor_block_arguments(&self) -> Vec<&[StructuralArgument]> {
-        match self {
-            Self::Jump {
-                structural_arguments,
-                ..
-            } => vec![structural_arguments.as_slice()],
-            Self::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => vec![
-                when_true.structural_arguments.as_slice(),
-                when_false.structural_arguments.as_slice(),
-            ],
-            Self::StructuralCase { cases, .. } => cases
-                .iter()
-                .map(|case| case.structural_arguments.as_slice())
-                .collect(),
-            _ => Vec::new(),
-        }
-    }
-
-    /// Jump and conditional edges that bind scalar or structural values at
-    /// their destination. Dispatch edges bind from the selected payload.
-    pub fn successors_with_runtime_arguments(&self) -> impl Iterator<Item = (EdgeId, BlockId)> {
-        let with_arguments =
-            |edge, target, arguments: &[ValueId], structural: &[StructuralArgument]| {
-                (!arguments.is_empty() || !structural.is_empty()).then_some((edge, target))
-            };
-        match self {
+    /// Every successor edge in edge order. Jump and conditional edges bind
+    /// their own operands; a dispatch edge binds from the selected payload.
+    fn successors(&self) -> impl Iterator<Item = Successor<'_>> {
+        let (jump, branches, cases) = match self {
             Self::Jump {
                 edge,
                 target,
                 arguments,
                 structural_arguments,
                 ..
-            } => [
-                with_arguments(*edge, *target, arguments, structural_arguments),
-                None,
-            ],
+            } => {
+                let jump = Successor {
+                    edge: *edge,
+                    target: *target,
+                    arguments,
+                    structural_arguments,
+                    dispatch: false,
+                };
+                (Some(jump), None, &[][..])
+            }
             Self::Conditional {
                 when_true,
                 when_false,
                 ..
-            } => [when_true, when_false].map(|successor| {
-                with_arguments(
-                    successor.edge,
-                    successor.target,
-                    &successor.arguments,
-                    &successor.structural_arguments,
-                )
-            }),
-            Self::StructuralCase { .. }
-            | Self::EliminateEmpty { .. }
-            | Self::Return { .. }
-            | Self::ReturnUnit { .. }
-            | Self::ReturnStructural { .. }
-            | Self::Crash { .. }
-            | Self::ExternalCompletion { .. }
-            | Self::PendingNormalCompletion { .. }
-            | Self::InvokeNoNormal { .. } => [None; 2],
-        }
-        .into_iter()
-        .flatten()
-    }
-
-    pub fn successor_edges(&self) -> Vec<(EdgeId, BlockId)> {
-        match self {
-            Self::Jump { edge, target, .. } => vec![(*edge, *target)],
-            Self::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => vec![
-                (when_true.edge, when_true.target),
-                (when_false.edge, when_false.target),
-            ],
-            Self::StructuralCase { cases, .. } => cases
-                .iter()
-                .map(|successor| (successor.edge, successor.target))
-                .collect(),
+            } => (None, Some([when_true, when_false]), &[][..]),
+            Self::StructuralCase { cases, .. } => (None, None, cases.as_slice()),
             Self::EliminateEmpty { .. }
             | Self::Return { .. }
             | Self::ReturnUnit { .. }
@@ -486,8 +431,47 @@ impl Terminator {
             | Self::Crash { .. }
             | Self::ExternalCompletion { .. }
             | Self::PendingNormalCompletion { .. }
-            | Self::InvokeNoNormal { .. } => Vec::new(),
-        }
+            | Self::InvokeNoNormal { .. } => (None, None, &[][..]),
+        };
+        let branches = branches.into_iter().flatten().map(|branch| Successor {
+            edge: branch.edge,
+            target: branch.target,
+            arguments: &branch.arguments,
+            structural_arguments: &branch.structural_arguments,
+            dispatch: false,
+        });
+        let cases = cases.iter().map(|case| Successor {
+            edge: case.edge,
+            target: case.target,
+            arguments: &[],
+            structural_arguments: &case.structural_arguments,
+            dispatch: true,
+        });
+        jump.into_iter().chain(branches).chain(cases)
+    }
+
+    pub fn successor_block_arguments(&self) -> Vec<&[StructuralArgument]> {
+        self.successors()
+            .map(|successor| successor.structural_arguments)
+            .collect()
+    }
+
+    /// Jump and conditional edges that bind scalar or structural values at
+    /// their destination. Dispatch edges bind from the selected payload.
+    pub fn successors_with_runtime_arguments(&self) -> impl Iterator<Item = (EdgeId, BlockId)> {
+        self.successors()
+            .filter(|successor| {
+                !successor.dispatch
+                    && (!successor.arguments.is_empty()
+                        || !successor.structural_arguments.is_empty())
+            })
+            .map(|successor| (successor.edge, successor.target))
+    }
+
+    pub fn successor_edges(&self) -> Vec<(EdgeId, BlockId)> {
+        self.successors()
+            .map(|successor| (successor.edge, successor.target))
+            .collect()
     }
 
     pub fn successor_targets(&self) -> Vec<BlockId> {
@@ -496,6 +480,14 @@ impl Terminator {
             .map(|(_, target)| target)
             .collect()
     }
+}
+
+struct Successor<'a> {
+    edge: EdgeId,
+    target: BlockId,
+    arguments: &'a [ValueId],
+    structural_arguments: &'a [StructuralArgument],
+    dispatch: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

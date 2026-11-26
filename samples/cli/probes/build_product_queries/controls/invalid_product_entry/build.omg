@@ -1,9 +1,9 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_product_entry");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_product_entry" };
     let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../dependency" });
     |dependency|::with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
-    let entry: ProductEntryRef = BuildProduct::entry(@builder.product, "custody_kernel", "value");
+    let entry: ProductEntryRef = BuildDeclarations::entry(@builder.declarations, "custody_kernel", "value");
 }

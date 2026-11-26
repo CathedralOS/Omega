@@ -1137,37 +1137,10 @@ pub(crate) mod capabilities {
             boundary: BoundaryMachineId,
         ) -> terminal_psi::BoundaryMachineDeclaration {
             terminal_psi::BoundaryMachineDeclaration {
-                numeric_intrinsic: None,
-                membership_ensures: Vec::new(),
-                normal_qualifications: Vec::new(),
-                scalar_domain_requirements: Vec::new(),
-                declaration: None,
-                role: terminal_psi::BoundaryDeclarationRole::Callable,
                 id: boundary,
-                kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
-                completion: BoundaryCompletion::NormalReturn,
-                unconditional_termination: false,
                 identity: intern_identity(catalogs, "graph boundary"),
                 owner: NominalDeclarationIdentity::new(intern_identity(catalogs, "graph schema")),
-                attachment: None,
-                parameter_order: Vec::new(),
-                scalar_parameters: Vec::new(),
-                crash_routes: Vec::new(),
-                structural_parameters: Vec::new(),
-                result: terminal_psi::BoundaryMachineResult::Unit,
-                requires: Vec::new(),
-                scalar_requires: Vec::new(),
-                scalar_ensures: Vec::new(),
-                program_local_root_introductions: Vec::new(),
-                content_guarantees: Vec::new(),
-                result_reference_regions: Vec::new(),
-                result_lifetimes: None,
-                reference_outputs: Vec::new(),
-                fixed_service_reach: Vec::new(),
-                service_reach_is_installation_bound: false,
-                owning_service: None,
-                published_synchronous_entries: Vec::new(),
-                published_service_ceiling: Vec::new(),
+                ..crate::boundary::effects::boundary_predicates::tests::idle_boundary()
             }
         }
 
@@ -1434,7 +1407,6 @@ pub(crate) mod capabilities {
                     boundary,
                     AdmittedBoundarySupply::CheckedProvider(selected),
                 )]),
-                assumed_bindings: Vec::new(),
                 folded_constant_target: None,
                 target_machines: None,
                 target_layouts: None,
@@ -1775,7 +1747,6 @@ pub(crate) mod capabilities {
                     boundary,
                     AdmittedBoundarySupply::CheckedProvider(provider),
                 )]),
-                assumed_bindings: Vec::new(),
                 folded_constant_target: None,
                 target_machines: None,
                 target_layouts: None,
@@ -2128,7 +2099,6 @@ pub(crate) mod capabilities {
                     boundary,
                     AdmittedBoundarySupply::CheckedProvider(target),
                 )]),
-                assumed_bindings: Vec::new(),
                 folded_constant_target: None,
                 target_machines: None,
                 target_layouts: None,
@@ -2186,7 +2156,6 @@ pub(crate) mod capabilities {
                         provided,
                         AdmittedBoundarySupply::CheckedProvider(MachineId::new(2).unwrap()),
                     )]),
-                    assumed_bindings: Vec::new(),
                     folded_constant_target: None,
                     target_machines: None,
                     target_layouts: None,
@@ -2462,7 +2431,7 @@ pub(crate) mod content_transformations {
 pub(crate) mod execution {
     use crate::boundary::effects::original_storage::{OriginalByteCell, OriginalStorageAllocation};
     use crate::boundary::effects::{
-        AdmittedAssumedBinding, TerminalEffect, TerminalEffectHandler, TerminalRuntimeSupplies,
+        TerminalEffect, TerminalEffectHandler, TerminalRuntimeSupplies,
     };
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::results::meter_status;
@@ -2542,7 +2511,6 @@ pub(crate) mod execution {
             BTreeMap<BoundaryMachineId, crate::boundary::effects::AdmittedBoundarySupply>,
         pub(crate) native_code_layouts:
             Option<std::sync::Arc<crate::TerminalNativeCodeLayoutEnvironment>>,
-        pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
         pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
         pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
         pub(crate) linear_homes: RuntimeRows<PlaceId, TerminalStructuralValue>,
@@ -3016,9 +2984,6 @@ pub(crate) mod execution {
                     .unwrap_or_default(),
                 native_code_layouts: installation
                     .and_then(|supplies| supplies.native_code_layouts.clone()),
-                assumed_bindings: installation
-                    .map(|installation| installation.assumed_bindings.clone())
-                    .unwrap_or_default(),
                 values,
                 borrowed_entry_storage,
                 structural_values,
@@ -3188,12 +3153,23 @@ pub(crate) mod execution {
             if path
                 .iter()
                 .any(|step| !matches!(step, StructuralPathSegment::Field(_)))
-                || !terminal_semantics::projection_stays_in_inline_storage(
-                    self.structural_types().values(),
-                    root.structural_type,
-                    path,
-                )
             {
+                return Err(malformed());
+            }
+            self.inline_empty_host_value(root, path)
+        }
+
+        /// The caller establishes every active case before reading a projected host value.
+        pub(crate) fn inline_empty_host_value(
+            &self,
+            root: &TerminalStructuralValue,
+            path: &[StructuralPathSegment],
+        ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+            if !terminal_semantics::projection_stays_in_inline_storage(
+                self.structural_types().values(),
+                root.structural_type,
+                path,
+            ) {
                 return Err(malformed());
             }
             let structural_type = crate::engine::custody::resolve_structural_path_type(
@@ -3414,9 +3390,6 @@ pub(crate) mod execution {
             self.result.as_ref()
         }
 
-        pub fn assumed_bindings(&self) -> &[AdmittedAssumedBinding] {
-            &self.assumed_bindings
-        }
 
         pub(crate) fn scalar_value(
             &self,

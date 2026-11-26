@@ -1,25 +1,25 @@
 // Expected: reject an unconsumed linear sibling
 // A linear closed Inert opaque moves exactly once through independent consuming calls, preserving libc host numbers 66051 and 513 and replacement 1027 while retaining each disjoint sibling until its own consumption.
-use producer\main;
-public data AddressBox { value: InternetAddress; }
-public data AddressPair { first: InternetAddress; second: InternetAddress; }
+use {producer}/main.omg as producer;
+public data AddressBox { value: |producer|::InternetAddress; }
+public data AddressPair { first: |producer|::InternetAddress; second: |producer|::InternetAddress; }
 
-machine consume(first: InternetAddress, second: InternetAddress) -> bool reaches AddressParts, AddressBridge {
+machine consume(first: |producer|::InternetAddress, second: |producer|::InternetAddress) -> bool reaches |producer|::AddressParts, |producer|::AddressBridge {
     let mutable pair: AddressPair = AddressPair { first: first, second: second };
-    let old_host: u32 = AddressBridge::host(pair.first);
-    pair.first = AddressBridge::make(10, 1027);
+    let old_host: u32 = |producer|::AddressBridge::host(pair.first);
+    pair.first = |producer|::AddressBridge::make(10, 1027);
     let sibling_host: u32 = 513;
-    let replacement_host: u32 = AddressBridge::host(pair.first);
+    let replacement_host: u32 = |producer|::AddressBridge::host(pair.first);
     old_host == 66051 && sibling_host == 513 && replacement_host == 1027
 }
-machine select(first: bool) -> InternetAddress reaches AddressParts, AddressBridge {
- match first { true -> AddressBridge::make(10, 66051), _ -> AddressBridge::make(10, 66051) }
+machine select(first: bool) -> |producer|::InternetAddress reaches |producer|::AddressParts, |producer|::AddressBridge {
+ match first { true -> |producer|::AddressBridge::make(10, 66051), _ -> |producer|::AddressBridge::make(10, 66051) }
 }
-machine observe() -> bool reaches AddressParts, AddressBridge {
- consume(select(true), AddressBridge::make(44048, 513)) && consume(select(false), AddressBridge::make(44048, 513))
+machine observe() -> bool reaches |producer|::AddressParts, |producer|::AddressBridge {
+ consume(select(true), |producer|::AddressBridge::make(44048, 513)) && consume(select(false), |producer|::AddressBridge::make(44048, 513))
 }
 
-machine main() reaches AddressParts, AddressBridge crashes Trap {
+machine main() reaches |producer|::AddressParts, |producer|::AddressBridge crashes Trap {
  transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }

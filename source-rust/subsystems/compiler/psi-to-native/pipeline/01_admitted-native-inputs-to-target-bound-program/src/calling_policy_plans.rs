@@ -12,6 +12,8 @@ mod opaque_representations;
 mod plan_computation;
 mod policy_signature;
 mod selected_application;
+mod selected_policies;
+pub(crate) use selected_policies::SelectedPolicies;
 mod terminal_signature;
 mod values;
 

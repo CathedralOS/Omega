@@ -46,6 +46,7 @@ fn check(source: &str) -> Result<(), Vec<Diagnostic>> {
     std::fs::write(product.join("main.omg"), "public data Item {}").unwrap();
 
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("images").unwrap(),
         source: BuildDependencySource::Path("vendor".into()),
     }];
@@ -59,7 +60,7 @@ fn check(source: &str) -> Result<(), Vec<Diagnostic>> {
         true,
         false,
         &temp.path().join("out"),
-        None,
+        Default::default(),
     )?;
     products
         .select(target)?
@@ -98,14 +99,14 @@ fn a_backing_that_is_private_or_absent_is_refused() {
 
 #[test]
 fn the_installed_provider_survives_a_product_dependency_wait() {
-    let read = "    let observed: addr = |image|::ProgramImage::retained_suffix_start();";
+    let read = "    let observed: address = |image|::ProgramImage::retained_suffix_start();";
     let wait = r#"    let request: DependencyDescription = |dependency|::from_source(Source::Path { location: "product" });
     let registration: DependencyRegistration = Build::dependency(builder, request);
     suspend Build::prepare_dependency(builder, registration);"#;
     for read_first in [false, true] {
         let (prior, guard) = if read_first {
             (
-                "    let prior: addr = |image|::ProgramImage::retained_suffix_start();\n",
+                "    let prior: address = |image|::ProgramImage::retained_suffix_start();\n",
                 "prior == observed && observed == expected_offset()",
             )
         } else {
@@ -117,7 +118,7 @@ fn the_installed_provider_survives_a_product_dependency_wait() {
             let build = build
                 .replace(read, &format!("{prior}{wait}\n{read}"))
                 .replace("observed == 64", guard);
-            format!("use {{omega}}/build/dependency.omg;\n{build}\nmachine expected_offset() -> addr {{ 64 }}\n")
+            format!("use {{omega}}/build/dependency.omg;\n{build}\nmachine expected_offset() -> address {{ 64 }}\n")
         };
         check(&source("TestImage")).unwrap();
         assert_refused(&source("OtherImage"), "project role");

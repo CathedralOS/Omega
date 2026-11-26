@@ -1,7 +1,6 @@
-use domain\array;
-use domain\array\Geometry;
+use domain/array/array.omg;
 public data Fixtures { }
-public machine fixtures_load(geometry: @mutable Geometry, selection: i32) {
+public machine fixtures_load(geometry: @mutable |array|::Geometry, selection: i32) {
     geometry.positions[0] = 0.0;
     geometry.positions[1] = 0.5;
     geometry.positions[2] = 1.0;
@@ -20,16 +19,16 @@ public machine fixtures_load(geometry: @mutable Geometry, selection: i32) {
         6 -> invalid_weight(geometry),
         _ -> done()
     }
-    machine steer(geometry: @mutable Geometry) { geometry.steering = 0.5; }
-    machine zero(geometry: @mutable Geometry) {
+    machine steer(geometry: @mutable |array|::Geometry) { geometry.steering = 0.5; }
+    machine zero(geometry: @mutable |array|::Geometry) {
         geometry.weights[0] = 0.0; geometry.weights[1] = 0.0;
         geometry.weights[2] = 0.0; geometry.weights[3] = 0.0;
     }
-    machine duplicate(geometry: @mutable Geometry) {
+    machine duplicate(geometry: @mutable |array|::Geometry) {
         geometry.positions[1] = 0.0; geometry.positions[2] = 0.5; geometry.positions[3] = 0.5;
     }
-    machine taper(geometry: @mutable Geometry) { geometry.weights[1] = 2.0; geometry.weights[2] = 2.0; }
-    machine invalid_position(geometry: @mutable Geometry) { geometry.positions[3] = 5.0; }
-    machine invalid_weight(geometry: @mutable Geometry) { geometry.weights[0] = 4.0; }
+    machine taper(geometry: @mutable |array|::Geometry) { geometry.weights[1] = 2.0; geometry.weights[2] = 2.0; }
+    machine invalid_position(geometry: @mutable |array|::Geometry) { geometry.positions[3] = 5.0; }
+    machine invalid_weight(geometry: @mutable |array|::Geometry) { geometry.weights[0] = 4.0; }
     machine done() { }
 }

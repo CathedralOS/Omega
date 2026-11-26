@@ -617,96 +617,57 @@ pub(crate) mod copied_call_operand {
                 && encoded.control == MachineEncodedControlEffect::DirectRelativeCallV1
         }
     }
-    pub(crate) mod rewrite {
-        use optimization_core::OptimizationWorkBudget;
-        use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::{PreparedMachineEffectCatalog, SelectedInstructionId};
-
-        use super::{CopiedCallOperandError, ValidatedCopiedCallOperand, admission};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-        pub(crate) fn fold_selected_copied_call_operand(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            producer: SelectedInstructionId,
-            call: SelectedInstructionId,
-            environment: &ValidatedTargetRegisterEnvironment,
-            effect_catalog: &PreparedMachineEffectCatalog,
-            budget: OptimizationWorkBudget,
-        ) -> Result<ValidatedCopiedCallOperand, CopiedCallOperandError> {
-            let admitted = admission::admit(
-                source,
-                function_index,
-                producer,
-                call,
-                environment,
-                effect_catalog,
-                budget,
-            )?;
-            let mut transformed = source.selected_plan().clone();
-            transformed.functions[function_index].blocks[admitted.block_index].instructions
-                [admitted.position] = admission::rewritten(&admitted);
-            super::validation::seal_copied_call_operand_fold(
-                source,
-                function_index,
-                producer,
-                call,
-                transformed,
-            )
-        }
-    }
-    pub(crate) mod validation {
-        use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
-
-        use super::{CopiedCallOperandError, CopiedCallOperandReceipt, ValidatedCopiedCallOperand};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-        use crate::selected_rewrites::rewrites::sealed;
-
-        pub(crate) fn copied_call_operand_measured_steps(
-            plan: &SelectedInstructionPlan,
-            function: &selected_instructions::SelectedFunction,
-            block: &selected_instructions::SelectedBlock,
-        ) -> Result<u64, CopiedCallOperandError> {
-            let steps = crate::selected_rewrites::rewrites::rewrite_scan(plan, function)
-                .and_then(|total| {
-                    total
-                        .checked_add(block.instructions.len())?
-                        .checked_add(block.instructions.len())
-                })
-                .ok_or(CopiedCallOperandError::IdentityOverflow)?;
-            u64::try_from(steps).map_err(|_| CopiedCallOperandError::IdentityOverflow)
-        }
-
-        pub(crate) fn seal_copied_call_operand_fold(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            producer: SelectedInstructionId,
-            call: SelectedInstructionId,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedCopiedCallOperand, CopiedCallOperandError> {
-            Ok(sealed!(
-                ValidatedCopiedCallOperand,
-                CopiedCallOperandReceipt,
-                source,
-                proposed,
-                function_index: function_index,
-                producer: producer,
-                call: call
-            ))
-        }
+    pub(crate) fn fold_selected_copied_call_operand(
+        source: &impl ValidatedSelectedAnalysis,
+        function_index: usize,
+        producer: SelectedInstructionId,
+        call: SelectedInstructionId,
+        environment: &ValidatedTargetRegisterEnvironment,
+        effect_catalog: &PreparedMachineEffectCatalog,
+        budget: OptimizationWorkBudget,
+    ) -> Result<ValidatedCopiedCallOperand, CopiedCallOperandError> {
+        let admitted = admission::admit(
+            source,
+            function_index,
+            producer,
+            call,
+            environment,
+            effect_catalog,
+            budget,
+        )?;
+        let mut transformed = source.selected_plan().clone();
+        transformed.functions[function_index].blocks[admitted.block_index].instructions
+            [admitted.position] = admission::rewritten(&admitted);
+        Ok(
+            sealed!(ValidatedCopiedCallOperand, CopiedCallOperandReceipt, source, transformed, function_index: function_index, producer: producer, call: call),
+        )
     }
 
-    use std::sync::Arc;
+    pub(crate) fn copied_call_operand_measured_steps(
+        plan: &SelectedInstructionPlan,
+        function: &selected_instructions::SelectedFunction,
+        block: &selected_instructions::SelectedBlock,
+    ) -> Result<u64, CopiedCallOperandError> {
+        let steps = crate::selected_rewrites::rewrites::rewrite_scan(plan, function)
+            .and_then(|total| {
+                total
+                    .checked_add(block.instructions.len())?
+                    .checked_add(block.instructions.len())
+            })
+            .ok_or(CopiedCallOperandError::IdentityOverflow)?;
+        u64::try_from(steps).map_err(|_| CopiedCallOperandError::IdentityOverflow)
+    }
 
-    use optimization_core::OptimizationUnitIdentity;
+    use crate::selected_rewrites::ValidatedSelectedAnalysis;
+    use crate::selected_rewrites::rewrites::sealed;
+    use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+    use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
-        CopiedCallOperandIdentity, SelectedInstructionId, SelectedInstructionPlan,
-        SelectedInstructionPlanIdentity,
+        CopiedCallOperandIdentity, PreparedMachineEffectCatalog, SelectedInstructionId,
+        SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
-
-    pub(crate) use rewrite::fold_selected_copied_call_operand;
-    pub(crate) use validation::copied_call_operand_measured_steps;
+    use std::sync::Arc;
 
     rewrite_receipt_identity!(
         copied_call_operand_identity,
@@ -1254,68 +1215,39 @@ pub(crate) mod copy_removal {
             }))
         }
     }
-    pub(crate) mod rewrite {
-        use optimization_core::OptimizationWorkBudget;
-        use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::SelectedInstructionId;
-
-        use super::{CopyRemovalError, ValidatedCopyRemoval, admission};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-        pub(crate) fn remove_selected_copy(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            copy: SelectedInstructionId,
-            environment: &ValidatedTargetRegisterEnvironment,
-            budget: OptimizationWorkBudget,
-        ) -> Result<ValidatedCopyRemoval, CopyRemovalError> {
-            let admitted = admission::admit(source, function_index, copy, environment, budget)?;
-            let mut transformed = source.selected_plan().clone();
-            admission::apply(&admitted, &mut transformed.functions[function_index])?;
-            super::validation::seal_copy_removal(source, function_index, copy, transformed)
-        }
-    }
-    pub(crate) mod validation {
-        use selected_instructions::{
-            SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-        };
-
-        use super::{CopyRemovalError, CopyRemovalReceipt, ValidatedCopyRemoval};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-        use crate::selected_rewrites::rewrites::sealed;
-
-        pub(crate) fn measured_steps(
-            plan: &SelectedInstructionPlan,
-            function: &SelectedFunction,
-        ) -> Result<u64, CopyRemovalError> {
-            let steps =
-                super::copy_scan(plan, function).ok_or(CopyRemovalError::IdentityOverflow)?;
-            u64::try_from(steps).map_err(|_| CopyRemovalError::IdentityOverflow)
-        }
-
-        pub(crate) fn seal_copy_removal(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            copy: SelectedInstructionId,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedCopyRemoval, CopyRemovalError> {
-            Ok(
-                sealed!(ValidatedCopyRemoval, CopyRemovalReceipt, source, proposed, function_index: function_index, copy: copy),
-            )
-        }
+    pub(crate) fn remove_selected_copy(
+        source: &impl ValidatedSelectedAnalysis,
+        function_index: usize,
+        copy: SelectedInstructionId,
+        environment: &ValidatedTargetRegisterEnvironment,
+        budget: OptimizationWorkBudget,
+    ) -> Result<ValidatedCopyRemoval, CopyRemovalError> {
+        let admitted = admission::admit(source, function_index, copy, environment, budget)?;
+        let mut transformed = source.selected_plan().clone();
+        admission::apply(&admitted, &mut transformed.functions[function_index])?;
+        Ok(
+            sealed!(ValidatedCopyRemoval, CopyRemovalReceipt, source, transformed, function_index: function_index, copy: copy),
+        )
     }
 
-    use std::sync::Arc;
+    pub(crate) fn measured_steps(
+        plan: &SelectedInstructionPlan,
+        function: &SelectedFunction,
+    ) -> Result<u64, CopyRemovalError> {
+        let steps = copy_scan(plan, function).ok_or(CopyRemovalError::IdentityOverflow)?;
+        u64::try_from(steps).map_err(|_| CopyRemovalError::IdentityOverflow)
+    }
 
-    use optimization_core::OptimizationUnitIdentity;
+    use crate::selected_rewrites::ValidatedSelectedAnalysis;
+    use crate::selected_rewrites::rewrites::sealed;
+    use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+    use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
         CopyRemovalIdentity, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
         SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
-
-    pub(crate) use rewrite::remove_selected_copy;
-    pub(crate) use validation::measured_steps;
+    use std::sync::Arc;
 
     validated_transformed_receipt!(ValidatedCopyRemoval, CopyRemovalReceipt);
 
@@ -1635,83 +1567,47 @@ pub(crate) mod redundant_extension {
             )
         }
     }
-    pub(crate) mod rewrite {
-        use optimization_core::OptimizationWorkBudget;
-        use register_environment::ValidatedTargetRegisterEnvironment;
-        use selected_instructions::SelectedInstructionId;
-
-        use super::{RedundantExtensionError, ValidatedRedundantExtension, admission};
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-
-        pub(crate) fn remove_selected_redundant_extension(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            extension: SelectedInstructionId,
-            environment: &ValidatedTargetRegisterEnvironment,
-            budget: OptimizationWorkBudget,
-        ) -> Result<ValidatedRedundantExtension, RedundantExtensionError> {
-            let admitted =
-                admission::admit(source, function_index, extension, environment, budget)?;
-            let mut transformed = source.selected_plan().clone();
-            let function = &mut transformed.functions[function_index];
-            function.blocks[admitted.block_index].instructions[admitted.extension_index] =
-                admission::rewritten(&admitted);
-            super::validation::seal_redundant_extension_removal(
-                source,
-                function_index,
-                extension,
-                transformed,
-            )
-        }
+    pub(crate) fn remove_selected_redundant_extension(
+        source: &impl ValidatedSelectedAnalysis,
+        function_index: usize,
+        extension: SelectedInstructionId,
+        environment: &ValidatedTargetRegisterEnvironment,
+        budget: OptimizationWorkBudget,
+    ) -> Result<ValidatedRedundantExtension, RedundantExtensionError> {
+        let admitted = admission::admit(source, function_index, extension, environment, budget)?;
+        let mut transformed = source.selected_plan().clone();
+        let function = &mut transformed.functions[function_index];
+        function.blocks[admitted.block_index].instructions[admitted.extension_index] =
+            admission::rewritten(&admitted);
+        Ok(
+            sealed!(ValidatedRedundantExtension, RedundantExtensionReceipt, source, transformed, function_index: function_index, extension: extension),
+        )
     }
-    pub(crate) mod validation {
-        use selected_instructions::{
-            SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-        };
 
-        use super::{
-            RedundantExtensionError, RedundantExtensionReceipt, ValidatedRedundantExtension,
-        };
-        use crate::selected_rewrites::ValidatedSelectedAnalysis;
-        use crate::selected_rewrites::rewrites::sealed;
-
-        pub(crate) fn measured_steps(
-            plan: &SelectedInstructionPlan,
-            function: &SelectedFunction,
-        ) -> Result<u64, RedundantExtensionError> {
-            let steps = crate::selected_rewrites::rewrites::rewrite_scan(plan, function)
-                .and_then(|total| {
-                    function.blocks.iter().try_fold(total, |total, block| {
-                        total.checked_add(block.instructions.len())
-                    })
+    pub(crate) fn measured_steps(
+        plan: &SelectedInstructionPlan,
+        function: &SelectedFunction,
+    ) -> Result<u64, RedundantExtensionError> {
+        let steps = crate::selected_rewrites::rewrites::rewrite_scan(plan, function)
+            .and_then(|total| {
+                function.blocks.iter().try_fold(total, |total, block| {
+                    total.checked_add(block.instructions.len())
                 })
-                .ok_or(RedundantExtensionError::IdentityOverflow)?;
-            u64::try_from(steps).map_err(|_| RedundantExtensionError::IdentityOverflow)
-        }
-
-        pub(crate) fn seal_redundant_extension_removal(
-            source: &impl ValidatedSelectedAnalysis,
-            function_index: usize,
-            extension: SelectedInstructionId,
-            proposed: SelectedInstructionPlan,
-        ) -> Result<ValidatedRedundantExtension, RedundantExtensionError> {
-            Ok(
-                sealed!(ValidatedRedundantExtension, RedundantExtensionReceipt, source, proposed, function_index: function_index, extension: extension),
-            )
-        }
+            })
+            .ok_or(RedundantExtensionError::IdentityOverflow)?;
+        u64::try_from(steps).map_err(|_| RedundantExtensionError::IdentityOverflow)
     }
 
-    use std::sync::Arc;
-
-    use optimization_core::OptimizationUnitIdentity;
+    use crate::selected_rewrites::ValidatedSelectedAnalysis;
+    use crate::selected_rewrites::rewrites::sealed;
+    use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
+    use register_environment::ValidatedTargetRegisterEnvironment;
     use selected_instructions::{
-        RedundantExtensionIdentity, SelectedInstructionId, SelectedInstructionPlan,
-        SelectedInstructionPlanIdentity,
+        RedundantExtensionIdentity, SelectedFunction, SelectedInstructionId,
+        SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     };
     use semantic_vocabulary::WorkScheduleIdentity;
-
-    pub(crate) use rewrite::remove_selected_redundant_extension;
-    pub(crate) use validation::measured_steps;
+    use std::sync::Arc;
 
     validated_transformed_receipt!(ValidatedRedundantExtension, RedundantExtensionReceipt);
 

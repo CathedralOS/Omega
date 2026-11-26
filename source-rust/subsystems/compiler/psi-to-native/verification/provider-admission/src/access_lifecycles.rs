@@ -564,7 +564,6 @@ mod tests {
                 signature: ProviderSignature::empty(),
                 refinement: ProviderRefinement::empty(),
             },
-            assumption: None,
             result: OperationResult::Unit,
             scalar_arguments: vec![],
             structural_arguments: vec![],

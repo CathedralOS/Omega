@@ -16,11 +16,10 @@ crate, so a form that names only these encoders cannot reach the sealed module.
 Why enforce a single canonical byte encoding and run structural-foundation validation inside the
 decoder rather than trusting deserialized tables? In Omega's separate-compilation
 architecture, a `SemanticFingerprint` must identify the exact semantic
-program across hosts, caches, and package boundaries. Re-encoding every decoded module and
-rejecting any byte stream that deviates from canonical table order, violates structural-foundation
-closure, or carries trailing bytes gives a single byte representation of portable
-semantics. The digest commits to those bytes; it does not establish their truth
-or authorize execution.
+program across hosts, build stores, and package boundaries. Enforcing bijective decoders,
+canonical table order, structural-foundation closure, and zero trailing bytes in a single pass
+gives a single byte representation of portable semantics without re-encoding every decoded module.
+The digest commits to those bytes; it does not establish their truth or authorize execution.
 */
 
 /*

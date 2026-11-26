@@ -5,14 +5,14 @@ use {omega}/build/dependency.omg;
 use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "popcount");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "popcount" };
     let allowed: [BoundaryServiceReference; 3] = [
         Build::service::<|process_authority|::StandardInput>(builder),
         Build::service::<|process_authority|::StandardOutput>(builder),
         Build::service::<|process_exit|::ProcessExit>(builder)
     ];
-    let adapter: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../../../source/library/system" });
+    let adapter: DependencyDescription = |dependency|::from_source(Source::Bundled { name: "system" });
     _ = |dependency|::add(builder, adapter, @allowed[..]);
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);

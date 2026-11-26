@@ -51,12 +51,15 @@ pub struct BuildSourceAcquisitions<'operation> {
     pub(super) options: GitResolutionOptions<'operation>,
     root_request: PackageRootSourceRequest,
     locked_source: Option<&'operation CanonicalSourceClosureSubject>,
+    pub(crate) phase_grants: Option<crate::transaction::restricted_build::BuildPhaseGrants>,
+    pub(crate) root_policies: Vec<&'operation crate::lock::PackageLockTarget>,
     // Compilation also holds every Build activation, the root's included, to
     // the lock's exact source content. Inspection leaves the root mutable.
     locked_activations: bool,
     pub(crate) local_members: Option<Arc<LocalWorkspaceMembers>>,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
-    sources: Vec<AcquiredBuildSource>,
+    pub(super) sources: Vec<AcquiredBuildSource>,
+    pub(super) bundled: Option<super::bundled::BundledPackages>,
     pub(super) workspaces: Vec<super::workspace_acquisition::ExecutedWorkspace>,
 }
 
@@ -88,12 +91,39 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             options,
             root_request,
             locked_source: None,
+            root_policies: Vec::new(),
+            phase_grants: None,
             locked_activations: false,
             local_members: None,
             git_sources: Vec::new(),
             sources: Vec::new(),
+            bundled: None,
             workspaces: Vec::new(),
         }
+    }
+
+    /// A shared Build can use an old portable grant during review only when
+    /// every selected deployment has matching compiler and library custody.
+    pub(crate) fn select_reviewed_root(
+        &mut self,
+        lock: Option<&'operation crate::lock::PackageLock>,
+        targets: &[target::TargetProfile],
+    ) -> Result<(), String> {
+        let Some(lock) = lock else { return Ok(()) };
+        let current = crate::dependencies::compiler_input_identity()?;
+        self.root_policies = targets
+            .iter()
+            .map(|&target| {
+                let section = lock.target(target)?;
+                crate::dependencies::accepted_compilation_identity::require_current_compiler(
+                    section, current,
+                )
+                .ok()?;
+                Some(section)
+            })
+            .collect::<Option<Vec<_>>>()
+            .unwrap_or_default();
+        Ok(())
     }
 
     pub(crate) fn require_locked_graph(
@@ -218,8 +248,9 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
         if result
-            .frozen_dependencies()
-            .contains_key(&(purpose, ordinal))
+            .dependency_backings()
+            .get(&(purpose, ordinal))
+            .is_some_and(|backing| backing.frozen.is_some())
         {
             return Err("a frozen binding requires its already settled source".into());
         }
@@ -281,6 +312,19 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         request: &DependencySourceRequest,
     ) -> Result<AcquiredSourceSelection, String> {
         let acquired = match request {
+            DependencySourceRequest::Bundled { name, .. } => {
+                self.acquire_bundled(name, requester.limits)?
+            }
+            DependencySourceRequest::Path { location, .. }
+                if let SourceLineage::Bundled { library, directory } = requester.lineage =>
+            {
+                let catalog = self
+                    .bundled
+                    .as_ref()
+                    .ok_or("bundled source has no installed package catalog")?;
+                let name = catalog.relative_name(library, directory, location)?;
+                self.acquire_bundled(&name, requester.limits)?
+            }
             DependencySourceRequest::Path { location, .. } => {
                 if let SourceLineage::ExternalLocal(lineage) = requester.lineage {
                     let root = super::external_local_dependency_root(
@@ -447,6 +491,7 @@ pub(crate) struct SourceAcquisitionOrigin<'source> {
 #[derive(Clone)]
 pub struct AcquiredBuildSource {
     pub(super) capture: CapturedLocalSource,
+    pub(super) successor_capture: Option<CapturedLocalSource>,
     pub(super) lineage: SourceLineage,
     pub(super) limits: LocalSourceLimits,
     pub(super) resolution: ImmutableSourceResolution,
@@ -540,10 +585,12 @@ impl AcquiredBuildSource {
     }
 
     pub fn entry_path(&self) -> std::path::PathBuf {
-        super::package_entry(
-            self.capture.canonical_live_root(),
-            Some(self.capture.tree()),
-        )
+        let filename = if self.capture.tree().is_file(Path::new("build.omg")) {
+            "build.omg"
+        } else {
+            "main.omg"
+        };
+        self.capture.canonical_live_root().join(filename)
     }
 
     pub fn capture_local(
@@ -597,6 +644,7 @@ impl AcquiredBuildSource {
             source_context: context,
         };
         Ok(Self {
+            successor_capture: None,
             capture,
             lineage,
             limits,
@@ -636,6 +684,7 @@ impl AcquiredBuildSource {
         )
         .map_err(|error| error.to_string())?;
         Ok(Self {
+            successor_capture: None,
             capture,
             lineage: source.lineage().clone(),
             limits: source.source_limits(),
@@ -647,7 +696,16 @@ impl AcquiredBuildSource {
     }
 
     pub fn source_capture(&self) -> &CapturedLocalSource {
-        &self.capture
+        self.successor_capture.as_ref().unwrap_or(&self.capture)
+    }
+
+    pub(crate) fn follow_successor(
+        &mut self,
+        successor: &project_build::PreparedSuccessor,
+    ) -> Result<(), String> {
+        let next = successor.capture_for(self.source_capture())?;
+        self.successor_capture = (next != &self.capture).then(|| next.clone());
+        Ok(())
     }
 
     pub fn bind_returned_build(
@@ -684,7 +742,7 @@ impl AcquiredBuildSource {
         let entries = returned.require_source_acquisition(self.source_capture())?;
         let mut source =
             self.declare_requests(returned.declaration(), returned.source_requests())?;
-        source.frozen = returned.frozen_dependencies();
+        source.backings = returned.dependency_backings();
         source.custody.build_entries = entries.clone();
         Ok(source)
     }
@@ -695,7 +753,7 @@ impl AcquiredBuildSource {
     ) -> Result<DeclaredBuildSource, String> {
         let entries = result.require_source_acquisition(self.source_capture())?;
         let mut source = self.declare_requests(result.declaration(), result.source_requests())?;
-        source.frozen = result.frozen_dependencies();
+        source.backings = result.dependency_backings();
         source.custody.build_entries = entries.clone();
         Ok(source)
     }
@@ -713,6 +771,18 @@ impl AcquiredBuildSource {
                 return Err("a workspace declaration does not name a Product source owner".into());
             }
         };
+        if let PackageRootSourceRequest::Bundled { name: requested } = &self.root_request
+            && (!matches!(
+                declaration,
+                build_declarations::BuildDeclaration::Package(_)
+            ) || name.as_str() != requested.as_str())
+        {
+            return Err(format!(
+                "bundled package requested as {} must return a Package with that name; its Build declared {}",
+                requested.as_str(),
+                name.as_str()
+            ));
+        }
         if let super::PackageSourceSelectionEvidence::GitWorkspace(evidence) = &self.selection
             && name != evidence.plan().selected_member().package_name()
         {
@@ -723,16 +793,21 @@ impl AcquiredBuildSource {
             PackageKey::new(name.clone().into(), self.lineage.clone()),
             declaration.kind(),
             self.resolution.clone(),
-            super::PackageSourceMaterialization::from_local(self.capture.normalized()),
-            self.capture.canonical_live_root().to_path_buf(),
+            super::PackageSourceMaterialization::from_local(self.source_capture().normalized()),
+            self.source_capture().canonical_live_root().to_path_buf(),
             self.navigation.clone(),
             self.selection.clone(),
             self.limits,
             requests,
         )
-        .with_captured_source(std::sync::Arc::clone(self.capture.tree()));
+        .with_captured_source(std::sync::Arc::clone(self.source_capture().tree()))
+        .with_preparing_source(
+            self.successor_capture
+                .as_ref()
+                .map(|_| self.capture.clone()),
+        );
         Ok(DeclaredBuildSource {
-            frozen: Default::default(),
+            backings: Default::default(),
             custody,
             root_request: self.root_request.clone(),
         })

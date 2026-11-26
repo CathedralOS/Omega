@@ -162,7 +162,7 @@ fn unscoped(artifact: &CanonicalTerminalArtifact) -> ScalarScopeEvaluation {
     ScalarScopeEvaluation {
         application_roots: None,
         targets: None,
-        providers: admit_provider_installation(artifact.view(), &[], &[]).unwrap(),
+        providers: admit_provider_installation(artifact.view(), &[]).unwrap(),
         address_model: Ok(None),
         carrier_layout: None,
         layout_target: None,

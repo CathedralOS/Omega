@@ -1318,6 +1318,11 @@ pub trait TypedReferences: Extend<SymbolHandle> {
         visit_machine_value_dependencies(program, &mut CodeSelectionReferences(self), value);
     }
     fn callable_signature(&mut self, _: &crate::source_state::signature::StateSignature) {}
+    /// A nominal binder selects a requirement and supplies its trait arguments.
+    /// Some visitors also walk the materialized signature at that selection.
+    fn expands_nominal_callback_binders(&self) -> bool {
+        true
+    }
     /// Whether to visit this exact source view, before reporting or walking it.
     fn callable_signature_contents(
         &mut self,
@@ -1460,6 +1465,9 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     }
     fn callable_signature(&mut self, signature: &crate::source_state::signature::StateSignature) {
         self.0.callable_signature(signature);
+    }
+    fn expands_nominal_callback_binders(&self) -> bool {
+        self.0.expands_nominal_callback_binders()
     }
     fn callable_signature_contents(
         &mut self,
@@ -4395,12 +4403,13 @@ fn visit_type_parameters(
             }
             TypeParameterKind::Proof { contract } => visit_signature(program, retained, contract),
             TypeParameterKind::Machine { contract } => {
-                let signature = match contract {
+                match contract {
                     crate::source_state::data::MachineParameterContract::Structural(signature) => {
-                        Some(signature)
+                        visit_signature(program, retained, signature);
                     }
                     crate::source_state::data::MachineParameterContract::Nominal {
                         receiving_trait,
+                        requirement,
                         receiving_arguments,
                         trait_definition,
                         trait_arguments,
@@ -4409,17 +4418,17 @@ fn visit_type_parameters(
                     } => {
                         visit_symbol(retained, *receiving_trait);
                         visit_symbol(retained, *trait_definition);
+                        visit_symbol(retained, *requirement);
                         for argument in receiving_arguments.iter().chain(trait_arguments) {
                             visit_type_reference(program, retained, *argument);
                         }
-                        instantiated.as_deref()
+                        if retained.expands_nominal_callback_binders()
+                            && let Some(signature) = instantiated
+                        {
+                            visit_signature(program, retained, signature);
+                        }
                     }
-                    crate::source_state::data::MachineParameterContract::RequirementIdentity => {
-                        None
-                    }
-                };
-                if let Some(signature) = signature {
-                    visit_signature(program, retained, signature);
+                    crate::source_state::data::MachineParameterContract::RequirementIdentity => {}
                 }
             }
             TypeParameterKind::Proposition { contract } => {

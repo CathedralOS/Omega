@@ -59,7 +59,7 @@ omega --check samples/cli/facts/aggregate_storage_address_identity/invalid_local
   place and reference crossings in `StorageAddress`. Terminal execution resolves
   original backing without reading fields or constructing a Pair copy.
 - Realization and ABI: ordinary aggregate argument/result and shared-reference
-  calling plans retain the storage home independently of the addr result.
+  calling plans retain the storage home independently of the address result.
 - Instructions and frames: the existing native address operation uses the
   retained reference geometry and original home, including across `expose`.
 - Encoding and emission: native execution and Terminal execution must both exit
