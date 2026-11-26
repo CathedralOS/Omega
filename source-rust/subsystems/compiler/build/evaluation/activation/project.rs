@@ -1,9 +1,11 @@
-//! A Build produces either a project declaration or the next interpreted Build entry.
-
+//! Interpret the product in the plan lent to the currently executing Build.
 use build_declarations::{
     ApplicationDeclaration, BuildDeclaration, BuildEntryPath, BuildRequest, PackageDeclaration,
-    WorkspaceDeclaration,
+    ProjectName, WorkspaceDeclaration, WorkspaceMemberPath,
 };
+use build_time_values::BuildTimeValue;
+use package_compilation::build_execution::SelectedBuildMachine;
+use terminal_interpreter::{TerminalInstance, TerminalObservationRoot};
 
 use crate::host::requests::IssuedBuildRequest;
 
@@ -21,74 +23,113 @@ impl Destination {
     }
 }
 
-pub(super) fn destination(requests: &[IssuedBuildRequest]) -> Result<Destination, String> {
-    use BuildDeclaration::{Application, Package, Workspace};
-    use Destination::{Project, Successor};
-
-    let mut destination = None;
-    let mut artifact_only = false;
-    for issued in requests {
-        let next = match issued.request() {
-            BuildRequest::Package(name) => {
-                Project(Package(PackageDeclaration { name: name.clone() }))
-            }
-            BuildRequest::Application(name) => Project(Application(ApplicationDeclaration {
-                name: name.clone(),
+pub(super) fn destination(
+    instance: &TerminalInstance<'_, '_>,
+    machine: &SelectedBuildMachine,
+    root: TerminalObservationRoot,
+    requests: &[IssuedBuildRequest],
+) -> Result<Destination, String> {
+    let program = instance.program();
+    let receiver = machine.receiver_for(program.module())?;
+    let plan = program
+        .structural_type(receiver.structural_type)
+        .ok_or("BuildPlan receiver has no structural declaration")?;
+    let mut fields = plan
+        .shape
+        .fields()
+        .filter(|field| program.module().identities.text(field.identity) == Some("product"));
+    let (Some(field), None) = (fields.next(), fields.next()) else {
+        return Err("BuildPlan must contain exactly one product field".into());
+    };
+    let selected = build_value_projection::field_value(instance, root, field)?;
+    let BuildTimeValue::Case { variant, payload } = selected else {
+        return Err("BuildPlan.product did not produce a BuildProduct".into());
+    };
+    let mut product = match variant.rsplit("::").next().unwrap_or(&variant) {
+        "Unselected" if payload.is_empty() => return Err("Build returned no project role".into()),
+        "Package" => Destination::Project(BuildDeclaration::Package(PackageDeclaration {
+            name: ProjectName::parse(text(field_value(payload, "name")?)?)?,
+        })),
+        "Application" => {
+            Destination::Project(BuildDeclaration::Application(ApplicationDeclaration {
+                name: ProjectName::parse(text(field_value(payload, "name")?)?)?,
                 artifact_only: false,
-            })),
-            BuildRequest::BuildEntry(path) => Successor(path.clone()),
-            BuildRequest::Member(path) => {
-                if let Some(Project(Workspace(workspace))) = &mut destination {
-                    if workspace.members.contains(path) {
-                        return Err(format!(
-                            "Build repeated workspace member `{}`",
-                            path.as_str()
-                        ));
-                    }
-                    workspace.members.push(path.clone());
-                    continue;
-                }
-                Project(Workspace(WorkspaceDeclaration {
-                    members: vec![path.clone()],
-                }))
-            }
-            BuildRequest::ArtifactOnly => {
-                if artifact_only {
-                    return Err("Build requested artifact-only output more than once".into());
-                }
-                artifact_only = true;
-                continue;
-            }
-            BuildRequest::Dependency { .. } => continue,
-        };
-        if let Some(previous) = destination {
-            return Err(match (previous, next) {
-                (Project(Package(previous)), Project(Package(next))) => format!(
-                    "Build declared the package project role more than once (`{}` and `{}`)",
-                    previous.name.as_str(),
-                    next.name.as_str()
-                ),
-                (Project(Application(previous)), Project(Application(next))) => format!(
-                    "Build declared the application project role more than once (`{}` and `{}`)",
-                    previous.name.as_str(),
-                    next.name.as_str()
-                ),
-                (Successor(previous), Successor(next)) => format!(
-                    "Build selected a successor more than once (`{}` and `{}`)",
-                    previous.as_str(),
-                    next.as_str()
-                ),
-                _ => "Build returned mixed project roles".into(),
-            });
+            }))
         }
-        destination = Some(next);
+        "InterpretedBuild" => Destination::Successor(BuildEntryPath::parse(text(field_value(
+            payload, "entry",
+        )?)?)?),
+        "Workspace" => {
+            let BuildTimeValue::Array(rows) = field_value(payload, "members")? else {
+                return Err("BuildProduct::Workspace requires a sequence of members".into());
+            };
+            if rows.is_empty() {
+                return Err("Build workspace requires at least one member".into());
+            }
+            let mut members = Vec::with_capacity(rows.len());
+            let mut unique = std::collections::BTreeSet::new();
+            for row in rows {
+                let BuildTimeValue::Struct { fields, .. } = row else {
+                    return Err("invalid workspace member record".into());
+                };
+                let path = WorkspaceMemberPath::parse(text(field_value(fields, "path")?)?)
+                    .map_err(|error| error.to_string())?;
+                if !unique.insert(path.clone()) {
+                    return Err(format!(
+                        "Build repeated workspace member `{}`",
+                        path.as_str()
+                    ));
+                }
+                members.push(path);
+            }
+            Destination::Project(BuildDeclaration::Workspace(WorkspaceDeclaration {
+                members,
+            }))
+        }
+        _ => return Err(format!("unknown Build product case `{variant}`")),
+    };
+    for request in requests {
+        if matches!(request.request(), BuildRequest::ArtifactOnly) {
+            let Destination::Project(BuildDeclaration::Application(application)) = &mut product
+            else {
+                return Err("artifact-only output requires an application role".into());
+            };
+            if application.artifact_only {
+                return Err("Build requested artifact-only output more than once".into());
+            }
+            application.artifact_only = true;
+        }
     }
-    let mut destination = destination.ok_or("Build returned no project role")?;
-    if artifact_only {
-        let Project(Application(application)) = &mut destination else {
-            return Err("artifact-only output requires an application role".into());
-        };
-        application.artifact_only = true;
+    Ok(product)
+}
+
+fn field_value(
+    fields: Vec<(String, BuildTimeValue)>,
+    expected: &str,
+) -> Result<BuildTimeValue, String> {
+    let mut fields = fields.into_iter();
+    match (fields.next(), fields.next()) {
+        (Some((name, value)), None) if name == expected => Ok(value),
+        _ => Err(format!(
+            "Build product requires exactly one `{expected}` field"
+        )),
     }
-    Ok(destination)
+}
+
+fn text(value: BuildTimeValue) -> Result<String, String> {
+    let BuildTimeValue::Text(bytes) = value else {
+        return Err("Build product name or path must be a byte view".into());
+    };
+    String::from_utf8(bytes).map_err(|_| "Build product name or path must be UTF-8".into())
+}
+
+pub(super) fn named_identity(
+    declaration: &BuildDeclaration,
+) -> Option<(build_declarations::BuildDeclarationKind, ProjectName)> {
+    let name = match declaration {
+        BuildDeclaration::Application(application) => &application.name,
+        BuildDeclaration::Package(package) => &package.name,
+        BuildDeclaration::Workspace(_) => return None,
+    };
+    Some((declaration.kind(), name.clone()))
 }

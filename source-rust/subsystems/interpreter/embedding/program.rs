@@ -893,6 +893,14 @@ pub(crate) mod instance {
         use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, PlaceId};
         use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
+        /// The interpreter establishes when each source of observable storage is available.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum TerminalObservationRoot {
+            Result,
+            ReturnedArgument(u32),
+            ArgumentAtHostCall(u32),
+        }
+
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum TerminalStorageObservationValue<'storage> {
             Storage(crate::TerminalStorageContents),
@@ -903,9 +911,9 @@ pub(crate) mod instance {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
-        pub enum TerminalStorageObservationError {
-            Closed,
+        pub enum TerminalStorageObservationError {            Closed,
             NormalReturnRequired,
+            PendingHostComputationRequired,
             NotBorrowedEntryArgument { argument_index: u32 },
             NotStructuralResult,
             UnknownPath,
@@ -953,9 +961,9 @@ pub(crate) mod instance {
                 }
             }
 
-            pub fn observe_borrowed_entry(
+            pub fn observe_storage(
                 &self,
-                argument_index: u32,
+                root: TerminalObservationRoot,
                 path: &[Path],
             ) -> Result<TerminalStorageObservationValue<'_>, TerminalStorageObservationError>
             {
@@ -963,71 +971,9 @@ pub(crate) mod instance {
                     .execution
                     .as_ref()
                     .ok_or(TerminalStorageObservationError::Closed)?;
-                if execution.result.is_none() {
-                    return Err(TerminalStorageObservationError::NormalReturnRequired);
+                if let Some((place, value)) = borrowed_argument(execution, root)? {
+                    return observe_leaf(execution, place, value, path);
                 }
-                let (_, place, value) = execution
-                    .borrowed_entry_storage
-                    .iter()
-                    .find(|(index, _, _)| *index == argument_index)
-                    .ok_or(TerminalStorageObservationError::NotBorrowedEntryArgument {
-                        argument_index,
-                    })?;
-                observe_leaf(execution, *place, value, path)
-            }
-
-            /// Read the live length of a typed sequence in this completed
-            /// result. Element observations still use observe_result with
-            /// exact indices into that same authenticated backing.
-            pub fn observe_result_sequence_length(
-                &self,
-                path: &[Path],
-            ) -> Result<u64, TerminalStorageObservationError> {
-                let execution = self
-                    .execution
-                    .as_ref()
-                    .ok_or(TerminalStorageObservationError::Closed)?;
-                let result = execution
-                    .result
-                    .as_ref()
-                    .ok_or(TerminalStorageObservationError::NormalReturnRequired)?;
-                let crate::TerminalExecutionResult::Structural(returned) = result else {
-                    return Err(TerminalStorageObservationError::NotStructuralResult);
-                };
-                let (_, leaf) = selected_leaf(execution, &returned.observation_value(), path)?;
-                let StorageLeafKind::Opaque {
-                    destination,
-                    declaration,
-                } = leaf.kind
-                else {
-                    return Err(TerminalStorageObservationError::UnknownPath);
-                };
-                if !matches!(
-                    execution.structural_declaration(declaration)?.shape,
-                    StructuralTypeShape::ElementView { .. }
-                ) {
-                    return Err(TerminalStorageObservationError::UnknownPath);
-                }
-                let descriptor = TerminalStructuralValue {
-                    opaque_identity: destination.opaque_identity,
-                    structural_type: declaration,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    path: destination.path,
-                };
-                let view = execution.element_view_at_resolved_home(&descriptor)?;
-                u64::try_from(view.len()).map_err(|_| malformed().into())
-            }
-
-            pub fn observe_result(
-                &self,
-                path: &[Path],
-            ) -> Result<TerminalStorageObservationValue<'_>, TerminalStorageObservationError>
-            {
-                let execution = self
-                    .execution
-                    .as_ref()
-                    .ok_or(TerminalStorageObservationError::Closed)?;
                 let result = execution
                     .result
                     .as_ref()
@@ -1055,6 +1001,83 @@ pub(crate) mod instance {
                     }
                 }
             }
+            /// Read the extent selected by the same rooted path used to observe its elements.
+            pub fn observe_sequence_length(
+                &self,
+                root: TerminalObservationRoot,
+                path: &[Path],
+            ) -> Result<u64, TerminalStorageObservationError> {
+                let execution = self
+                    .execution
+                    .as_ref()
+                    .ok_or(TerminalStorageObservationError::Closed)?;
+                let returned_value;
+                let value = if let Some((_, value)) = borrowed_argument(execution, root)? {
+                    value
+                } else {
+                    let result = execution
+                        .result
+                        .as_ref()
+                        .ok_or(TerminalStorageObservationError::NormalReturnRequired)?;
+                    let crate::TerminalExecutionResult::Structural(returned) = result else {
+                        return Err(TerminalStorageObservationError::NotStructuralResult);
+                    };
+                    returned_value = returned.observation_value();
+                    &returned_value
+                };
+                let (_, leaf) = selected_leaf(execution, value, path)?;
+                let StorageLeafKind::Opaque {
+                    destination,
+                    declaration,
+                } = leaf.kind
+                else {
+                    return Err(TerminalStorageObservationError::UnknownPath);
+                };
+                if !matches!(
+                    execution.structural_declaration(declaration)?.shape,
+                    StructuralTypeShape::ElementView { .. }
+                ) {
+                    return Err(TerminalStorageObservationError::UnknownPath);
+                }
+                let descriptor = TerminalStructuralValue {
+                    opaque_identity: destination.opaque_identity,
+                    structural_type: declaration,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    path: destination.path,
+                };
+                let view = execution.element_view_at_resolved_home(&descriptor)?;
+                u64::try_from(view.len()).map_err(|_| malformed().into())
+            }
+        }
+
+        fn borrowed_argument<'a>(
+            execution: &'a TerminalExecution<'_>,
+            root: TerminalObservationRoot,
+        ) -> Result<Option<(PlaceId, &'a TerminalStructuralValue)>, TerminalStorageObservationError>
+        {
+            let argument_index = match root {
+                TerminalObservationRoot::Result => return Ok(None),
+                TerminalObservationRoot::ReturnedArgument(_) if execution.result.is_none() => {
+                    return Err(TerminalStorageObservationError::NormalReturnRequired);
+                }
+                TerminalObservationRoot::ArgumentAtHostCall(_)
+                    if !execution
+                        .awaiting_effect
+                        .as_ref()
+                        .is_some_and(|call| !call.awaiting_provider_readiness) =>
+                {
+                    return Err(TerminalStorageObservationError::PendingHostComputationRequired);
+                }
+                TerminalObservationRoot::ReturnedArgument(index)
+                | TerminalObservationRoot::ArgumentAtHostCall(index) => index,
+            };
+            execution
+                .borrowed_entry_storage
+                .iter()
+                .find(|(index, _, _)| *index == argument_index)
+                .map(|(_, place, value)| Some((*place, value)))
+                .ok_or(TerminalStorageObservationError::NotBorrowedEntryArgument { argument_index })
         }
 
         fn selected_leaf(
@@ -1348,7 +1371,7 @@ pub(crate) mod instance {
         mod tests;
     }
     pub use storage_observation::{
-        TerminalStorageObservationError, TerminalStorageObservationValue,
+        TerminalObservationRoot, TerminalStorageObservationError, TerminalStorageObservationValue,
     };
     pub(crate) mod returned_loans {
         use crate::boundary::values::TerminalStructuralValue;

@@ -22,6 +22,10 @@ pub(super) fn initial_value(
     // Source cannot construct the issued seal in the Build borrowed from the host.
     let mut build_fields = vec![
         (
+            "product".to_owned(),
+            BuildTimeValue::Case { variant: "Unselected".into(), payload: Vec::new() },
+        ),
+        (
             "seal".to_owned(),
             BuildTimeValue::Struct {
                 type_name: "$OmegaBuildSeal".to_owned(),
@@ -120,7 +124,7 @@ pub(super) fn initial_value(
         build_fields.push(("inputs".to_owned(), filesystem_scope.named_input_facet()));
     }
     BuildTimeValue::Struct {
-        type_name: "Build".to_owned(),
+        type_name: "BuildPlan".to_owned(),
         fields: build_fields,
     }
 }

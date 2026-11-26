@@ -106,7 +106,7 @@ pub(super) fn append_build_prelude(
             source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(
                 build_source,
                 admitted.source_id,
-                "Build",
+                "BuildPlan",
             )
         })
         .into_iter()

@@ -371,6 +371,7 @@ impl TerminalBuildHost {
             ready_providers,
             work,
             state: ActivationState::Running,
+            described_product: None,
             requests: Vec::new(),
             demanded_sources: Vec::new(),
             helper_accounting: Default::default(),
@@ -483,6 +484,10 @@ pub struct TerminalBuildActivation {
     )>,
     work: EvaluationWorkMeter,
     state: ActivationState,
+    described_product: Option<(
+        build_declarations::BuildDeclarationKind,
+        build_declarations::ProjectName,
+    )>,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
     helper_accounting: source_compiler::compile_time_invocations::SourceCompletionAccounting,
@@ -542,17 +547,34 @@ impl TerminalBuildActivation {
                 return Err("Product query dependency has no issued Product request".into());
             }
         }
+        if request.operation.requires_named_source() {
+            let current = self.project_declaration()?;
+            let key = project::named_identity(&current)
+                .ok_or("Product query requires a named product")?;
+            if self
+                .described_product
+                .as_ref()
+                .is_some_and(|issued| issued != &key)
+            {
+                return Err(
+                    "Build changed the product that issued an earlier declaration description"
+                        .into(),
+                );
+            }
+            self.described_product = Some(key);
+        }
         self.host.bindings.answer_query(request, answer)?;
         self.demanded_sources.extend_from_slice(dependencies);
         self.state = ActivationState::Running;
         Ok(())
     }
 
-    /// A named query uses only the role already issued by this activation.
-    /// This validates the current ledger; it does not complete the Build or
-    /// promise that a later request will preserve the same declaration.
+    /// A paused declaration query reads the product currently stored in this activation's plan.
     pub fn project_declaration(&self) -> Result<build_declarations::BuildDeclaration, String> {
-        let current = project::destination(&self.requests).map_err(|reason| format!(
+        let current = project::destination(
+            &self.instance, &self.host.machine,
+            terminal_interpreter::TerminalObservationRoot::ArgumentAtHostCall(0), &self.requests,
+        ).map_err(|reason| format!(
             "Product declaration query requires an already-issued named package or application: {reason}"
         ))?;
         current
@@ -778,16 +800,26 @@ impl TerminalBuildActivation {
         }
         let (settings, optimization_report) =
             build_settings::extract(&self.instance, &self.host.machine)?;
-        self.instance.close().map_err(describe)?;
-        drop(self.instance);
         let destination = if self.host.default_source {
             if !self.requests.is_empty() {
                 return Err("default Build unexpectedly issued project requests".into());
             }
             None
         } else {
-            Some(project::destination(&self.requests)?)
+            Some(project::destination(&self.instance, &self.host.machine,
+                terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0), &self.requests)?)
         };
+        if let Some(issued) = &self.described_product {
+            let returned = destination
+                .as_ref()
+                .and_then(project::Destination::project)
+                .and_then(project::named_identity);
+            if returned.as_ref() != Some(issued) {
+                return Err("returned Build product differs from the product that issued a declaration description".into());
+            }
+        }
+        self.instance.close().map_err(describe)?;
+        drop(self.instance);
         let mut root_bindings = Vec::new();
         let mut product_selections = Vec::new();
         let mut exclusions = Vec::new();

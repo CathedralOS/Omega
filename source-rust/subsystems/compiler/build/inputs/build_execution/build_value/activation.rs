@@ -35,7 +35,7 @@ pub(super) fn admit_toolchain_build_activation(
 ) -> Result<&DataDefinition, Vec<Diagnostic>> {
     let refused = |message: String| vec![Diagnostic::error(message)];
     let mut builds = typed.data_definitions().iter().filter(|definition| {
-        is_exact_toolchain_build_prelude_data(typed, definition.symbol, "Build")
+        is_exact_toolchain_build_prelude_data(typed, definition.symbol, "BuildPlan")
     });
     let Some(build) = builds.next() else {
         return Err(refused(
@@ -54,6 +54,7 @@ pub(super) fn admit_toolchain_build_activation(
         "X86DeploymentFeatures",
     )?;
     require_toolchain_field(typed, build, "optimizations", "Optimizations")?;
+    require_toolchain_field(typed, build, "product", "BuildProduct")?;
     let mut seals = typed
         .data_members(build)
         .iter()
@@ -151,7 +152,9 @@ public trait AccessPolicy { machine plan() -> u64; }
 public data BuildSeal { }
 BuildSealAccess satisfies AccessPolicy { machine plan() -> u64 { 0u64 } }
 public domain BuildSeal::Issued access BuildSealAccess;
-public data Build<'storage> {
+public data BuildProduct<'storage> { case Unselected; case Package(name: @'storage [u8]); }
+public data BuildPlan<'storage> {
+    product: BuildProduct<'storage>;
     seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
     optimizations: Optimizations;
@@ -231,15 +234,15 @@ public data Build<'storage> {
                 .unwrap()
                 .name
                 .as_str(),
-            "Build"
+            "BuildPlan"
         );
     }
 
     #[test]
     fn a_source_owned_build_cannot_receive_the_host_value() {
         for source in [
-            "data Build { marker: u64; }",
-            "data Optimizations { human_report: u8; } data Build { optimizations: Optimizations; }",
+            "data BuildPlan { marker: u64; }",
+            "data Optimizations { human_report: u8; } data BuildPlan { optimizations: Optimizations; }",
         ] {
             let own = typed(&format!("{source}\nmachine build_entry() {{ }}"), None);
             assert_eq!(
@@ -272,7 +275,7 @@ public data Build<'storage> {
     fn a_toolchain_build_without_the_decoded_vocabulary_is_refused_as_that() {
         let missing = typed(
             "machine build_entry() { }",
-            Some("public data Build { marker: u64; }"),
+            Some("public data BuildPlan { marker: u64; }"),
         );
         assert_eq!(
             refusal(&missing),

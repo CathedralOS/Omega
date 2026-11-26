@@ -119,7 +119,7 @@ pub(super) fn discover_build_layout(
         .checked_sub(1)
         .and_then(|position| semantic.get(position))
         .is_some_and(|index| tokens.spelling(&tokens[*index]) == "machine");
-    let expected_after = ["(", receiver, ":", "@", "mutable", "Build", ")", "{"];
+    let expected_after = ["(", receiver, ":", "@", "mutable", "BuildPlan", ")", "{"];
     if !expected_before
         || expected_after.iter().enumerate().any(|(offset, expected)| {
             semantic

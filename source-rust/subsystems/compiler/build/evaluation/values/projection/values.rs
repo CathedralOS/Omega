@@ -7,8 +7,9 @@ use semantic_vocabulary::{
     StructuralTypeId,
 };
 use terminal_interpreter::{
-    TerminalBoundaryStorageValue, TerminalInstance, TerminalProgram, TerminalScalarValue,
-    TerminalStorageContents, TerminalStorageObservationValue, TerminalStructuralContents,
+    TerminalBoundaryStorageValue, TerminalInstance, TerminalObservationRoot, TerminalProgram,
+    TerminalScalarValue, TerminalStorageContents, TerminalStorageObservationValue,
+    TerminalStructuralContents,
 };
 use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape};
 
@@ -328,11 +329,37 @@ pub fn result_value(
     }) {
         return Err("opaque result bindings are not in unique input identity order".into());
     }
-    read_structural(instance, structural_type, &mut Vec::new(), opaque_inputs)
+    read_structural(
+        instance,
+        TerminalObservationRoot::Result,
+        structural_type,
+        &mut Vec::new(),
+        opaque_inputs,
+    )
+}
+
+/// Read a field from a typed borrowed argument at the interpreter state its caller requires.
+pub fn field_value(
+    instance: &TerminalInstance<'_, '_>,
+    root: TerminalObservationRoot,
+    field: &StructuralFieldDeclaration,
+) -> Result<BuildTimeValue, String> {
+    closed_types(instance.program())?;
+    if field.relevance.is_erased() {
+        return Err("cannot project an erased field".to_owned());
+    }
+    let mut path = vec![Path::Field(field.id)];
+    match field.field_type {
+        StructuralFieldType::Structural(child) => {
+            read_structural(instance, root, child, &mut path, &[])
+        }
+        _ => read_leaf(instance, root, &path),
+    }
 }
 
 fn read_structural(
     instance: &TerminalInstance<'_, '_>,
+    root: TerminalObservationRoot,
     structural_type: StructuralTypeId,
     path: &mut Vec<Path>,
     opaque_inputs: &[(
@@ -350,7 +377,7 @@ fn read_structural(
         }
         StructuralTypeShape::Opaque => {
             let observed = instance
-                .observe_result(path)
+                .observe_storage(root, path)
                 .map_err(|error| format!("Terminal opaque result: {error:?}"))?;
             let TerminalStorageObservationValue::Opaque(observed) = observed else {
                 return Err("opaque result has no supplying host value".into());
@@ -369,11 +396,11 @@ fn read_structural(
         }
         StructuralTypeShape::Record { fields, .. } => Ok(BuildTimeValue::Struct {
             type_name: label(program, declaration.identity)?.to_owned(),
-            fields: read_fields(instance, fields, path, opaque_inputs)?,
+            fields: read_fields(instance, root, fields, path, opaque_inputs)?,
         }),
         StructuralTypeShape::Sum { cases } => {
             let observed = instance
-                .observe_result(path)
+                .observe_storage(root, path)
                 .map_err(|error| format!("Terminal result tag: {error:?}"))?;
             let TerminalStorageObservationValue::Storage(TerminalStorageContents::Case(selected)) =
                 observed
@@ -385,7 +412,7 @@ fn read_structural(
                 .find(|case| case.id == selected)
                 .ok_or("Terminal result case is outside its declaration")?;
             path.push(Path::Case(selected));
-            let payload = read_fields(instance, &case.fields, path, opaque_inputs);
+            let payload = read_fields(instance, root, &case.fields, path, opaque_inputs);
             path.pop();
             Ok(BuildTimeValue::Case {
                 variant: label(program, case.identity)?.to_owned(),
@@ -394,7 +421,7 @@ fn read_structural(
         }
         StructuralTypeShape::ElementView { element, .. } => {
             let length = instance
-                .observe_result_sequence_length(path)
+                .observe_sequence_length(root, path)
                 .map_err(|error| format!("Terminal result sequence backing: {error:?}"))?;
             let count = usize::try_from(length)
                 .map_err(|_| "Terminal result sequence extent exceeds usize")?;
@@ -404,7 +431,7 @@ fn read_structural(
                 .map_err(|reason| format!("Terminal result sequence snapshot: {reason}"))?;
             for ordinal in 0..length {
                 path.push(Path::FixedIndex(ordinal));
-                let result = read_structural(instance, *element, path, opaque_inputs);
+                let result = read_structural(instance, root, *element, path, opaque_inputs);
                 path.pop();
                 elements
                     .push(result.map_err(|reason| {
@@ -420,7 +447,7 @@ fn read_structural(
             let mut elements = Vec::new();
             for ordinal in 0..length {
                 path.push(Path::FixedIndex(ordinal));
-                let result = read_structural(instance, *element, path, opaque_inputs);
+                let result = read_structural(instance, root, *element, path, opaque_inputs);
                 path.pop();
                 elements
                     .push(result.map_err(|reason| {
@@ -430,7 +457,7 @@ fn read_structural(
             Ok(BuildTimeValue::Array(elements))
         }
         StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {
-            read_leaf(instance, path)
+            read_leaf(instance, root, path)
         }
         _ => Err("Terminal result has no plain vocabulary representation".into()),
     }
@@ -438,6 +465,7 @@ fn read_structural(
 
 fn read_fields(
     instance: &TerminalInstance<'_, '_>,
+    root: TerminalObservationRoot,
     fields: &[StructuralFieldDeclaration],
     path: &mut Vec<Path>,
     opaque_inputs: &[(
@@ -453,9 +481,9 @@ fn read_fields(
         path.push(Path::Field(field.id));
         let value = match field.field_type {
             StructuralFieldType::Structural(child) => {
-                read_structural(instance, child, path, opaque_inputs)
+                read_structural(instance, root, child, path, opaque_inputs)
             }
-            _ => read_leaf(instance, path),
+            _ => read_leaf(instance, root, path),
         };
         path.pop();
         let name = label(instance.program(), field.identity)?.to_owned();
@@ -465,10 +493,14 @@ fn read_fields(
     Ok(values)
 }
 
-fn read_leaf(instance: &TerminalInstance<'_, '_>, path: &[Path]) -> Result<BuildTimeValue, String> {
+fn read_leaf(
+    instance: &TerminalInstance<'_, '_>,
+    root: TerminalObservationRoot,
+    path: &[Path],
+) -> Result<BuildTimeValue, String> {
     closed_types(instance.program())?;
     match instance
-        .observe_result(path)
+        .observe_storage(root, path)
         .map_err(|error| format!("Terminal result contents: {error:?}"))?
     {
         TerminalStorageObservationValue::Bytes(bytes) => {

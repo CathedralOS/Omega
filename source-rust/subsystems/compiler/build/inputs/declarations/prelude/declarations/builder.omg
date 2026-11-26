@@ -39,14 +39,14 @@ public data TestInvocationInputs {
     // Each engine and each test starts with its own empty filesystem.
     private_filesystem: bool;
 }
-// What makes `Build` a value only the toolchain issues. The seal holds no
+// What makes `BuildPlan` a value only the toolchain issues. The seal holds no
 // settings; it is here for its type. `BuildSeal` is not `[copy]`, and
 // `Issued` is governed by an access policy that names no source issuer
 // (wiki/spec/resources/access.md: a zeroed plan admits nobody), so source can
-// neither make a seal nor take the one in the `Build` it was lent, and a
+// neither make a seal nor take the one in the `BuildPlan` it was lent, and a
 // record with a field it cannot supply cannot be constructed or
 // zero-established. The toolchain establishes the seal when it hands the
-// Build entry its `Build`.
+// Build entry its `BuildPlan`.
 public data BuildSeal {
 }
 BuildSealAccess satisfies AccessPolicy {
@@ -58,7 +58,20 @@ public domain BuildSeal::Issued
     access BuildSealAccess;
 // Stored views share an explicit backing lifetime. Opaque mutable boundaries
 // must promise output safety; an unnamed relation cannot imply preservation.
-public data Build<'storage> {
+public data BuildWorkspaceMember<'storage> {
+    path: @'storage [u8];
+}
+
+public data BuildProduct<'storage> {
+    case Unselected;
+    case Package(name: @'storage [u8]);
+    case Application(name: @'storage [u8]);
+    case Workspace(members: @'storage [BuildWorkspaceMember<'storage>]);
+    case InterpretedBuild(entry: @'storage [u8]);
+}
+
+public data BuildPlan<'storage> {
+    product: BuildProduct<'storage>;
     seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
     subsystem: Subsystem;

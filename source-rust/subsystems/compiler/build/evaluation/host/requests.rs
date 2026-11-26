@@ -14,10 +14,7 @@ carries its own storage lease, and `BuildLog` retains its line leases until
 normal-return settlement charges result custody and publishes the log bytes.
 */
 
-use build_declarations::{
-    BuildDependencySource, BuildEntryPath, BuildRequest, DependencyPurpose, ProjectName,
-    WorkspaceMemberPath,
-};
+use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName};
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 mod input_bindings;
 mod output;
@@ -484,10 +481,6 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         };
         let (scalar_count, structural_count) = match call.action {
             Operation::ArtifactOnly => (0, 1),
-            Operation::Package
-            | Operation::Application
-            | Operation::Member
-            | Operation::BuildEntry => (0, 2),
             Operation::InputBinding => (0, 2),
             Operation::AddBinding => (0, 3),
             Operation::ExtendReach => (0, 3),
@@ -569,11 +562,6 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
         };
         match call.action {
-            Operation::Package | Operation::Application => name(text(1)?)?,
-            Operation::BuildEntry => BuildEntryPath::validate(text(1)?).map_err(refuse)?,
-            Operation::Member if !WorkspaceMemberPath::is_valid(text(1)?) => {
-                return Err(refuse("Build workspace member path is not canonical"));
-            }
             Operation::PathDependency | Operation::GitDependency => {
                 flag(0)?;
                 if flag(1)? {
@@ -653,15 +641,6 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             | Operation::PrepareDependency
             | Operation::PublishSource => {
                 return Err(refuse("Build request did not complete its host request"));
-            }
-            Operation::Package => BuildRequest::Package(project_name(text(1)?)?),
-            Operation::Application => BuildRequest::Application(project_name(text(1)?)?),
-            Operation::Member => BuildRequest::Member(
-                WorkspaceMemberPath::parse(copy(text(1)?)?)
-                    .map_err(|error| TerminalEffectRejection::new(error.to_string()))?,
-            ),
-            Operation::BuildEntry => {
-                BuildRequest::BuildEntry(BuildEntryPath::parse(copy(text(1)?)?).map_err(refuse)?)
             }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
             Operation::InputBinding | Operation::ExtendReach => {

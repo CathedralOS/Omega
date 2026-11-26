@@ -653,7 +653,7 @@ use checked_program_to_psi::{TerminalBuildQueryCall, TerminalBuildRequestCall};
     let original = program.build_requests().calls_for(view).unwrap()[0].clone();
     let binding = &program.build_bindings().calls_for(view).unwrap()[0];
     let mut different_action = original.clone();
-    different_action.action = TerminalBuildRequestOperation::Application;
+    different_action.action = TerminalBuildRequestOperation::LogLine;
     let mut different_family = original.clone();
     different_family.site = binding.site;
     for request in [original, different_action, different_family] {
