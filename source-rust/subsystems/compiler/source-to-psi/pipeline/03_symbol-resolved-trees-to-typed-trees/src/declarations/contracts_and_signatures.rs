@@ -1608,11 +1608,11 @@ pub(crate) mod signatures {
                 resolved::data::TypeParameterKind::Proposition { contract } => {
                     // The kernel reads every relation family as a family of
                     // types at the lowest universe, so its written result
-                    // must be exactly `core\Type`.
+                    // must select the foundation Type declaration.
                     let resolved::types::TypeReference::Named { symbol, .. } = &contract.result
                     else {
                         return Err(Diagnostic::error(format!(
-                            "relation family `{}` must end in `core\\Type`, with its universe level elided",
+                            "relation family `{}` must end in the foundation type `Type`, with its universe level elided",
                             contract.name.as_str()
                         )));
                     };
@@ -1623,7 +1623,7 @@ pub(crate) mod signatures {
                         != Some(symbols::FixedCoreDeclaration::Type)
                     {
                         return Err(Diagnostic::error(format!(
-                            "relation family `{}` must end in `core\\Type`, a family of types",
+                            "relation family `{}` must end in the foundation type `Type`, a family of types",
                             contract.name.as_str()
                         )));
                     }

@@ -21,9 +21,9 @@ fn fixture(imports: &[&str], modules: bool) -> Fixture {
 
 fn fixture_importing_into(importer: usize, imports: &[&str], modules: bool) -> Fixture {
     let mut sources = crate::source_inputs::SourceMap::default();
-    for ordinal in 0..3 {
+    for name in ["consumer", "one", "two"] {
         sources.add_with_metadata(
-            format!("app/{ordinal}.omg").into(),
+            format!("app/{name}.omg").into(),
             "name".to_owned(),
             "app".into(),
             None,
@@ -63,7 +63,12 @@ fn fixture_importing_into(importer: usize, imports: &[&str], modules: bool) -> F
             .unwrap();
     }
     for import in imports {
-        symbols.register_source_import(SourceId(importer), import);
+        symbols.register_source_file_import(
+            SourceId(importer),
+            None,
+            &format!("{import}.omg"),
+            import,
+        );
     }
     let source = crate::source_resolved::SymbolResolvedTrees {
         symbols: symbols.clone(),
@@ -85,33 +90,48 @@ fn fixture_importing_into(importer: usize, imports: &[&str], modules: bool) -> F
 }
 
 #[test]
-fn domain_exposure_typed_pool_preserves_broad_import_ambiguity() {
+fn domain_exposure_typed_pool_selects_only_the_qualified_file() {
     let (source, typed, symbols) = fixture(&["one", "two"], true);
-    let candidates = select_domain_candidates_where(
-        &source,
-        &typed,
-        "u64::Mark",
-        Some(reference(0)),
-        SymbolHandle::invalid(),
-        |_| true,
+    for (name, expected) in [
+        ("|one|::u64::Mark", symbols[0]),
+        ("|two|::u64::Mark", symbols[1]),
+    ] {
+        let candidates = select_domain_candidates_where(
+            &source,
+            &typed,
+            name,
+            Some(reference(0)),
+            SymbolHandle::invalid(),
+            |_| true,
+        );
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|domain| domain.symbol)
+                .collect::<Vec<_>>(),
+            [expected]
+        );
+        let filtered = select_domain_candidates_where(
+            &source,
+            &typed,
+            name,
+            Some(reference(0)),
+            SymbolHandle::invalid(),
+            |domain| domain.symbol != expected,
+        );
+        assert!(filtered.is_empty());
+    }
+    assert!(
+        select_domain_candidates_where(
+            &source,
+            &typed,
+            "u64::Mark",
+            Some(reference(0)),
+            SymbolHandle::invalid(),
+            |_| true,
+        )
+        .is_empty()
     );
-    assert_eq!(
-        candidates
-            .iter()
-            .map(|domain| domain.symbol)
-            .collect::<Vec<_>>(),
-        symbols
-    );
-    let candidates = select_domain_candidates_where(
-        &source,
-        &typed,
-        "u64::Mark",
-        Some(reference(0)),
-        SymbolHandle::invalid(),
-        |domain| domain.symbol == symbols[1],
-    );
-    assert_eq!(candidates.len(), 1);
-    assert_eq!(candidates[0].symbol, symbols[1]);
 }
 
 #[test]
@@ -155,32 +175,26 @@ fn domain_exposure_typed_pool_does_not_expose_loaded_modules() {
     );
 }
 
-/*
-    Module `one` declares `u64::Mark` and imports `two`, which declares one
-    too. The referencing module's own declaration does not outrank the
-    imported one: both stay candidates and the spelling is ambiguous
-    (`wiki/spec/language/modules.md#resolution`). Without the import, the
-    module's own domain is the only one visible.
-*/
 #[test]
-fn domain_exposure_typed_pool_keeps_the_local_domain_competing_with_an_import() {
-    let candidates = |imports: &[&str]| {
-        let (source, typed, _) = fixture_importing_into(1, imports, true);
-        select_domain_candidates_where(
+fn domain_exposure_typed_pool_keeps_local_and_imported_domains_distinct() {
+    let (source, typed, symbols) = fixture_importing_into(1, &["two"], true);
+    for (name, expected) in [("u64::Mark", symbols[0]), ("|two|::u64::Mark", symbols[1])] {
+        let candidates = select_domain_candidates_where(
             &source,
             &typed,
-            "u64::Mark",
+            name,
             Some(reference(1)),
             SymbolHandle::invalid(),
             |_| true,
-        )
-        .iter()
-        .map(|domain| domain.symbol)
-        .collect::<Vec<_>>()
-    };
-    let (_, _, symbols) = fixture(&[], true);
-    assert_eq!(candidates(&["two"]), symbols);
-    assert_eq!(candidates(&[]), symbols[..1]);
+        );
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|domain| domain.symbol)
+                .collect::<Vec<_>>(),
+            [expected]
+        );
+    }
 }
 
 #[test]
