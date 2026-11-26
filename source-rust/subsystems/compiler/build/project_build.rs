@@ -139,33 +139,35 @@ pub struct ReturnedPlanningStage {
 /// The stages of one package that returned another Build entry. Their chosen files
 /// and observations stay with the eventual Product, separate from its own settings.
 #[derive(Default)]
-pub struct BuildPreparations {
+struct BuildPreparations {
     stages: Vec<(build_declarations::BuildEntryPath, EvaluatedBuild)>,
     files: Vec<std::path::PathBuf>,
+    entries: Vec<(
+        std::path::PathBuf,
+        Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
+    )>,
 }
 
-impl BuildPreparations {
-    pub fn build_files(&self) -> &[std::path::PathBuf] {
-        &self.files
-    }
+/// Only the Build that returned this entry can issue its source view and incoming bindings.
+pub struct PreparedSuccessor {
+    capture: package_compilation::CapturedLocalSource,
+    path: std::path::PathBuf,
+    libraries: Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
+    preparations: BuildPreparations,
+}
 
-    pub fn is_empty(&self) -> bool {
-        self.stages.is_empty()
+impl PreparedSuccessor {
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
     }
 }
 
 impl ReturnedPlanningStage {
-    pub fn with_preparations(mut self, preparations: BuildPreparations) -> Self {
-        self.preparations = preparations;
-        self
-    }
-
     pub fn finish_successor(
         self,
-        preparations: &mut BuildPreparations,
         capture: &package_compilation::CapturedLocalSource,
-        libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
-    ) -> Result<(), CompileFailure> {
+        libraries: Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
+    ) -> Result<PreparedSuccessor, CompileFailure> {
         self.returned
             .require_source_acquisition(capture)
             .map_err(refusal)?;
@@ -174,13 +176,31 @@ impl ReturnedPlanningStage {
             .successor_entry()
             .cloned()
             .ok_or_else(|| refusal("only a preparing Build can supply a successor".into()))?;
+        let path = capture.canonical_live_root().join(entry.as_str());
+        let mut preparations = self.preparations;
+        if preparations
+            .entries
+            .iter()
+            .any(|(file, inputs)| file == &path && inputs == &libraries)
+        {
+            return Err(refusal(format!(
+                "Build successor repeats the same inputs for {}",
+                path.display()
+            )));
+        }
         let evaluated = self
             .evaluation
-            .complete_successor(self.returned, libraries)?;
+            .complete_successor(self.returned, &libraries)?;
         self.source
             .retain_build_files(capture.canonical_live_root(), &mut preparations.files);
         preparations.stages.push((entry, evaluated));
-        Ok(())
+        preparations.entries.push((path.clone(), libraries.clone()));
+        Ok(PreparedSuccessor {
+            capture: capture.clone(),
+            path,
+            preparations,
+            libraries,
+        })
     }
 
     pub fn source_completion_accounting(
@@ -309,6 +329,7 @@ pub fn interpret(
     services: &mut impl PlanningServices,
 ) -> Result<ReturnedPlanningStage, CompileFailure> {
     let PreparedPlanningStage {
+        preparations,
         mut evaluation,
         mut source,
     } = stage;
@@ -334,7 +355,7 @@ pub fn interpret(
     })?;
     evaluation.record_return(&returned)?;
     Ok(ReturnedPlanningStage {
-        preparations: BuildPreparations::default(),
+        preparations,
         evaluation,
         returned,
         source,
