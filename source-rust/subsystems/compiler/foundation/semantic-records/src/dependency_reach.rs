@@ -38,6 +38,22 @@ pub struct DependencyServiceEdge {
     pub max_reach: DependencyReach,
 }
 
+pub use language_core::core_vocabulary::UnsafeAtom;
+
+/// Execution policy of the actual Product or Build being admitted. Each package
+/// supplies its own opt-ins, independently of its requester's edge ceiling.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ExecutionReachPolicy {
+    pub root: Option<crate::PackageKeyIdentity>,
+    pub edges: Vec<DependencyServiceEdge>,
+    pub enabled_unsafe: std::collections::BTreeMap<
+        Option<crate::PackageKeyIdentity>,
+        std::collections::BTreeSet<UnsafeAtom>,
+    >,
+}
+
+pub type UnsafeServices = arena::IdTable<crate::ServiceId, Option<UnsafeAtom>>;
+
 /// The dependency selected at an emitted direct-call site. Package imports are
 /// requester-local; the callable's canonical declaration alone cannot name this edge.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

@@ -48,6 +48,8 @@ impl ExecutedBuildEntry {
 
 #[derive(Clone)]
 pub struct ComputedBuildConfig {
+    pub enabled_unsafe_atoms:
+        std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     /// Published programs in execution order. Review can read their checked
     /// contracts without keeping the compiler's source trees alive.
     pub accepted_builds: Vec<terminal_codec::RetainedTerminalCode>,
@@ -79,6 +81,7 @@ pub struct ComputedBuildConfig {
 impl PartialEq for ComputedBuildConfig {
     fn eq(&self, other: &Self) -> bool {
         let Self {
+            enabled_unsafe_atoms,
             accepted_builds: _,
             dependency_preparations,
             config,
@@ -95,7 +98,8 @@ impl PartialEq for ComputedBuildConfig {
             executed_entry,
             generated_sources,
         } = self;
-        dependency_preparations == &other.dependency_preparations
+        enabled_unsafe_atoms == &other.enabled_unsafe_atoms
+            && dependency_preparations == &other.dependency_preparations
             && config == &other.config
             && root_binding_requests == &other.root_binding_requests
             && declared_product_selections == &other.declared_product_selections
@@ -120,6 +124,7 @@ impl std::fmt::Debug for ComputedBuildConfig {
         // in the retained source judgment.
         formatter
             .debug_struct("ComputedBuildConfig")
+            .field("enabled_unsafe_atoms", &self.enabled_unsafe_atoms)
             .field("accepted_builds", &self.accepted_builds.len())
             .field("dependency_preparations", &self.dependency_preparations)
             .field("config", &self.config)

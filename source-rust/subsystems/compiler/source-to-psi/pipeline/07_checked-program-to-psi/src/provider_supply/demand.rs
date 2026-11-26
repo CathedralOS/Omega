@@ -98,11 +98,12 @@ impl SourcePublication {
         selections: &[ProviderSelection],
         native_supplies: &[NativeBuildSupply],
         review_package: bool,
-        dependency_edges: &[semantic_vocabulary::dependency_reach::DependencyServiceEdge],
+        reach_policy: &semantic_vocabulary::dependency_reach::ExecutionReachPolicy,
     ) -> Result<SourceProviderFacts<SourceProviderDemand>, Vec<Diagnostic>> {
         let accepted = self.accepted_owner()?;
         let module = accepted.module();
-        let imported_calls = if dependency_edges.is_empty() {
+        let unsafe_services = accepted.unsafe_services()?;
+        let imported_calls = if reach_policy.edges.is_empty() {
             Default::default()
         } else {
             accepted.dependency_calls()
@@ -159,7 +160,8 @@ impl SourcePublication {
                     semantic_vocabulary::TargetMachineCallable::Machine(root),
                     &[],
                     None,
-                    dependency_edges,
+                    reach_policy,
+                    &unsafe_services,
                     &imported_calls,
                 )?;
             }
@@ -188,7 +190,8 @@ impl SourcePublication {
                 semantic_vocabulary::TargetMachineCallable::Machine(root),
                 closed.bindings(),
                 Some(deployment),
-                dependency_edges,
+                reach_policy,
+                    &unsafe_services,
                 &imported_calls,
             )?;
         }

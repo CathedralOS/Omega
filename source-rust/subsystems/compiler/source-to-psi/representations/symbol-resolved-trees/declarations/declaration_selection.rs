@@ -80,10 +80,17 @@ mod product {
         CompositionMode, NativeBindingProducer, ProductTarget,
     };
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub enum BuildServiceOperation {
+        Describe,
+        EnableUnsafe(language_core::core_vocabulary::UnsafeAtom),
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub enum BuildSelectionRequest<Requirement> {
         ProviderReadiness(ProviderReadinessRequest<Requirement>),
         Service {
+            operation: BuildServiceOperation,
             source_span: source_text::SourceSpan,
             requirement: Requirement,
         },
@@ -175,9 +182,11 @@ mod product {
                     })
                 }
                 Self::Service {
+                    operation,
                     source_span,
                     requirement,
                 } => BuildSelectionRequest::Service {
+                    operation,
                     source_span,
                     requirement: map(requirement)?,
                 },
@@ -325,6 +334,7 @@ mod product {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum ExecutedBuildSelection {
+        EnableUnsafe(language_core::core_vocabulary::UnsafeAtom),
         Entry(ProductEntryBinding),
         Declaration(ExecutedProductSelection),
         Exclusion(ExecutedEnumExclusion),
@@ -920,12 +930,13 @@ pub mod product_operands {
 }
 
 pub use product::{
-    BuildSelectionRequest, DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
-    EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection, ExecutedEnumExclusion,
-    ExecutedNativeBinding, ExecutedProductSelection, ProductDeclarationOperand,
-    ProductDeclarationRequest, ProductEntryBinding, ProviderReadinessRequest, RootBindingOperand,
-    RootBindingRequest, RootBindingSelection, TestExpectations, TestFileExpectation,
-    TestGroupConfiguration, TestInvocationInputs, TestEnginePolicy, TestEngineSelection, TestTargetEngines,
+    BuildSelectionRequest, BuildServiceOperation, DescribedProductEntry, DescribedProductProvider,
+    DescribedProductSchema, EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection,
+    ExecutedEnumExclusion, ExecutedNativeBinding, ExecutedProductSelection,
+    ProductDeclarationOperand, ProductDeclarationRequest, ProductEntryBinding,
+    ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
+    TestEnginePolicy, TestEngineSelection, TestExpectations, TestFileExpectation,
+    TestGroupConfiguration, TestInvocationInputs, TestTargetEngines,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]
@@ -1053,6 +1064,7 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
             }
             BuildOperation::FieldDescription => Self::BuildFieldDescription,
             BuildOperation::ServiceDescription => Self::BuildServiceDescription,
+            BuildOperation::EnableUnsafe => Self::BuildEnableUnsafe,
             BuildOperation::NativeBinding => Self::BuildNativeBinding,
             BuildOperation::ProviderReadiness => {
                 Self::BuildProviderReadiness
@@ -1089,10 +1101,10 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-pub enum AuthoredDeclarationSelectionIntrinsic {
-    BuildNativeBinding,
+pub enum AuthoredDeclarationSelectionIntrinsic {    BuildNativeBinding,
     BuildProviderReadiness,
     BuildServiceDescription,
+    BuildEnableUnsafe,
     BuiltinOperator,
     CollectionLength,
     CollectionCapacity,

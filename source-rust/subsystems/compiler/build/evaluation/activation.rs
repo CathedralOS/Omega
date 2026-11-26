@@ -99,6 +99,8 @@ pub struct ReturnedBuild {
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
     pub(crate) settings: EvaluatedBuildSettings,
     pub(crate) optimization_report: optimization_requests::OptimizationReportRequest,
+    pub(crate) enabled_unsafe_atoms:
+        std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     pub(crate) root_bindings: Vec<ProductEntryBinding>,
     pub(crate) product_selections: Vec<ExecutedProductSelection>,
     pub(crate) native_formations: Vec<NativeBindingFormation>,
@@ -880,10 +882,14 @@ impl TerminalBuildActivation {
         drop(self.instance);
         let mut root_bindings = Vec::new();
         let mut product_selections = Vec::new();
+        let mut enabled_unsafe_atoms = std::collections::BTreeSet::new();
         let mut exclusions = Vec::new();
         let mut native_bindings = Vec::new();
         for selection in self.host.bindings.take_executed()? {
             match selection {
+                ExecutedBuildSelection::EnableUnsafe(atom) => {
+                    enabled_unsafe_atoms.insert(atom);
+                }
                 ExecutedBuildSelection::Entry(binding) => root_bindings.push(binding),
                 ExecutedBuildSelection::Exclusion(selection) => exclusions.push(selection),
                 ExecutedBuildSelection::Native(selection) => native_bindings.push(selection),
@@ -912,6 +918,7 @@ impl TerminalBuildActivation {
             native_bindings,
             native_formations: self.host.bindings.native_formations(),
             exclusions,
+            enabled_unsafe_atoms,
             declared_product_selections,
             output: self.host.requests.take_output()?,
             filesystem: self.host.filesystem.take_effects()?,

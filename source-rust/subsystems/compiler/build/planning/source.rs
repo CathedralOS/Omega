@@ -133,7 +133,7 @@ impl PlannedProduct {
             subject.dependency_closure().clone(),
             subject.source_consumption_commitment(),
             build.generated_sources.clone(),
-        );
+        ).with_enabled_unsafe_atoms(build.enabled_unsafe_atoms.clone());
         if build.declared_product_selections.is_empty()
             && build.product_selection_requests.is_empty()
             && build.native_formations.is_empty()
@@ -213,6 +213,7 @@ pub fn prepare(
                     "the requested entry differs from the preparing Build's selection".into(),
                 ));
             }
+            execution.prepared_unsafe_atoms = successor.enabled_unsafe_atoms;
             execution.interpreter_providers = successor.providers;
             successor_source = successor.capture;
             successor_owner = successor.source_owner;

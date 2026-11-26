@@ -323,3 +323,55 @@ fn dependency_imports_respect_the_build_files_the_child_entered() {
         }
     }
 }
+
+#[test]
+fn only_executed_core_unsafe_opt_ins_admit_the_returned_product() {
+    let Some(target) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let name = target.target_name();
+    let build = format!(
+        r#"use {{omega}}/language/core/unsafe.omg as native;
+        boundary trait RawMemoryRead {{}}
+        machine build(plan: @mutable BuildPlan) {{
+            plan.product = BuildProduct::Application {{ name: "reader" }};
+            OPT_IN
+            Build::bind(plan, {name}::ProgramEntry, main);
+        }}"#
+    );
+    let program = r#"use {omega}/language/core/unsafe.omg as native;
+        machine main() reaches |native|::RawMemoryRead crashes none { inspect(); }
+        machine inspect() reaches |native|::RawMemoryRead crashes none {}
+        machine unused_writer() reaches |native|::RawMemoryWrite crashes none {}"#;
+    let read = "Build::enable_unsafe::<|native|::RawMemoryRead>(plan);";
+    let cases = [
+        (read.to_owned(), None),
+        (
+            format!("let selected: u32 = match false {{ true -> {{ {read} 1u32 }}, false -> 0u32 }};"),
+            Some("did not enable Unsafe + RawMemoryRead"),
+        ),
+        (
+            read.replace("RawMemoryRead", "RawMemoryWrite"),
+            Some("did not enable Unsafe + RawMemoryRead"),
+        ),
+        (
+            read.replace("RawMemoryRead", "Unsafe"),
+            Some("requires a specific Unsafe atom declared by core"),
+        ),
+        (
+            read.replace("|native|::RawMemoryRead", "RawMemoryRead"),
+            Some("requires a specific Unsafe atom declared by core"),
+        ),
+    ];
+    for (opt_in, refusal) in cases {
+        let source = build.replace("OPT_IN", &opt_in);
+        let (status, report) = invoke(
+            &[("build.omg", &source), ("main.omg", program)],
+            &["--check", "--target", name],
+        );
+        match refusal {
+            Some(reason) => assert!(!status.success() && report.contains(reason), "{report}"),
+            None => assert!(status.success(), "{report}"),
+        }
+    }
+}

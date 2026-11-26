@@ -9,7 +9,7 @@ pub(crate) struct BuildProviderScope {
     owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     packages: Option<package_compilation::PackageCompilationInputs>,
     supplied_scope: Option<declaration_scope::PackageDeclarationScope>,
-    dependency_edges: Vec<semantic_vocabulary::dependency_reach::DependencyServiceEdge>,
+    reach_policy: semantic_vocabulary::dependency_reach::ExecutionReachPolicy,
 }
 
 pub(crate) struct BuildProviderInstallation {
@@ -26,12 +26,13 @@ impl BuildProviderScope {
         owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> Self {
         use build_declarations::DependencyPurpose;
-        let mut dependency_edges = packages
-            .map(|inputs| inputs.execution_service_edges(DependencyPurpose::Build))
+        let mut reach_policy = packages
+            .map(|inputs| inputs.execution_reach_policy(DependencyPurpose::Build))
             .unwrap_or_default();
+        reach_policy.root = owner;
         for library in libraries {
             let dependency = library.dependency();
-            dependency_edges.push(
+            reach_policy.edges.push(
                 semantic_vocabulary::dependency_reach::DependencyServiceEdge {
                     requester: owner,
                     package: dependency.inputs.root(),
@@ -39,21 +40,29 @@ impl BuildProviderScope {
                     max_reach: library.max_reach().clone(),
                 },
             );
-            dependency_edges.extend(
-                dependency
-                    .inputs
-                    .execution_service_edges(DependencyPurpose::Product),
-            );
+            let child = dependency.inputs.execution_reach_policy(DependencyPurpose::Product);
+            reach_policy.edges.extend(child.edges);
+            reach_policy.enabled_unsafe.extend(child.enabled_unsafe);
+            if let Some(handoff) = &dependency.generated {
+                reach_policy.enabled_unsafe.insert(Some(handoff.package()), handoff.enabled_unsafe_atoms().clone());
+            }
         }
         Self {
             owner,
             packages: packages.cloned(),
-            dependency_edges,
+            reach_policy,
             supplied_scope:
                 package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
                     libraries, owner,
                 ),
         }
+    }
+
+    pub(crate) fn admit_prepared_unsafe_atoms(
+        &mut self,
+        atoms: std::collections::BTreeSet<semantic_vocabulary::dependency_reach::UnsafeAtom>,
+    ) {
+        self.reach_policy.enabled_unsafe.insert(self.owner, atoms);
     }
 
     pub(crate) fn selection_scope(
@@ -69,6 +78,7 @@ impl BuildProviderScope {
     pub(crate) fn admit(
         &self,
         program: &source_compiler::publication::ProducedTerminalProgram,
+        prepared: &source_compiler::publication::AcceptedTerminalSource,
         diagnostic_output_bytes: Option<u64>,
         filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
     ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
@@ -98,7 +108,8 @@ impl BuildProviderScope {
             entry,
             &implementations,
             None,
-            &self.dependency_edges,
+            &self.reach_policy,
+            &prepared.unsafe_services()?,
             &selections.dependency_calls,
         )?;
         let authority = self.selection_scope(build_declarations::DependencyPurpose::Build);

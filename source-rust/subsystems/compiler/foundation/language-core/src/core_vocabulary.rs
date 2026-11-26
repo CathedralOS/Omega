@@ -95,12 +95,23 @@ pub enum CoreVocabulary {
 }
 
 /// Specific Product opt-ins admitted by the memberless core Unsafe parent.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub enum UnsafeAtom {
     RawMemoryRead,
     RawMemoryWrite,
     BorrowMutabilityUpgrade,
     ForeignCodeExecution,
+}
+
+impl UnsafeAtom {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::RawMemoryRead => "RawMemoryRead",
+            Self::RawMemoryWrite => "RawMemoryWrite",
+            Self::BorrowMutabilityUpgrade => "BorrowMutabilityUpgrade",
+            Self::ForeignCodeExecution => "ForeignCodeExecution",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -300,25 +311,25 @@ const ROWS: &[CoreVocabularyRow] = &[
     ),
     row(
         "unsafe.omg",
-        "RawMemoryRead",
+        UnsafeAtom::RawMemoryRead.name(),
         BundledFile::CoreUnsafe,
         CoreVocabulary::UnsafeAtom(UnsafeAtom::RawMemoryRead),
     ),
     row(
         "unsafe.omg",
-        "RawMemoryWrite",
+        UnsafeAtom::RawMemoryWrite.name(),
         BundledFile::CoreUnsafe,
         CoreVocabulary::UnsafeAtom(UnsafeAtom::RawMemoryWrite),
     ),
     row(
         "unsafe.omg",
-        "BorrowMutabilityUpgrade",
+        UnsafeAtom::BorrowMutabilityUpgrade.name(),
         BundledFile::CoreUnsafe,
         CoreVocabulary::UnsafeAtom(UnsafeAtom::BorrowMutabilityUpgrade),
     ),
     row(
         "unsafe.omg",
-        "ForeignCodeExecution",
+        UnsafeAtom::ForeignCodeExecution.name(),
         BundledFile::CoreUnsafe,
         CoreVocabulary::UnsafeAtom(UnsafeAtom::ForeignCodeExecution),
     ),

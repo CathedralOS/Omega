@@ -170,11 +170,13 @@ struct BuildPreparations {
         std::path::PathBuf,
         Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
         source_compiler::InterpretedProviderSelections,
+        std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     )>,
 }
 
 /// Only the Build that returned this entry can issue its source view and incoming bindings.
 pub struct PreparedSuccessor {
+    enabled_unsafe_atoms: std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     source_owner: Option<package_compilation::CompletedAnonymousSource>,
     providers: source_compiler::InterpretedProviderSelections,
     capture: package_compilation::CapturedLocalSource,
@@ -208,8 +210,15 @@ impl ReturnedPlanningStage {
         let mut source = self.source;
         let (providers, source_owner) =
             source.successor_provider_selections(&entry, &libraries, &evaluated)?;
-        if preparations.entries.iter().any(|(file, inputs, choices)| {
-            file == &path && inputs == &libraries && choices == &providers
+        let enabled_unsafe_atoms = evaluated.configuration.enabled_unsafe_atoms.clone();
+        if preparations
+            .entries
+            .iter()
+            .any(|(file, inputs, choices, atoms)| {
+                file == &path
+                    && inputs == &libraries
+                    && choices == &providers
+                    && atoms == &enabled_unsafe_atoms
         }) {
             return Err(refusal(format!(
                 "Build successor repeats the same inputs for {}",
@@ -220,8 +229,9 @@ impl ReturnedPlanningStage {
         preparations.stages.push((entry, evaluated));
         preparations
             .entries
-            .push((path.clone(), libraries.clone(), providers.clone()));
+            .push((path.clone(), libraries.clone(), providers.clone(), enabled_unsafe_atoms.clone()));
         Ok(PreparedSuccessor {
+            enabled_unsafe_atoms,
             source_owner,
             providers,
             capture,
