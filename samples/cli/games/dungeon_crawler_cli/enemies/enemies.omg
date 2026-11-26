@@ -1,4 +1,4 @@
-use text\EnemyName;
+use text/buffer.omg;
 
 data EnemyKind [copy] {
     case Bat;
@@ -20,7 +20,7 @@ data EnemyTier [copy] {
 
 data Enemy [copy] {
     kind: EnemyKind;
-    name: EnemyName;
+    name: |buffer|::EnemyName;
     max_health: i32 in Wrapping;
     health: i32 in Wrapping;
     attack: i32 in Wrapping;

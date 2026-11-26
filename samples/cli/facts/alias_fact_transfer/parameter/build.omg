@@ -1,7 +1,8 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "alias_fact_transfer_parameter" };
-    Build::bind(builder, linux_x86_64::ProgramEntry, entry);
-    Build::bind(builder, linux_arm64::ProgramEntry, entry);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry);
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry);
 }

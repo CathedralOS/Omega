@@ -34,6 +34,14 @@ impl ProductQueryInputs {
         self
     }
 
+    /// File aliases that an executed Product query selected, in its issuing source.
+    pub fn queried_file_aliases(&self) -> impl Iterator<Item = (&SourceFile, &str)> {
+        self.declarations.iter().filter_map(|lookup| {
+            let alias = lookup.file_alias()?;
+            Some((&lookup.author, alias))
+        })
+    }
+
     pub(crate) fn declaration_sources(
         &self,
         storage: &mut SourceStorage,
@@ -58,6 +66,10 @@ impl ProductQueryInputs {
 }
 
 impl DeclarationLookup {
+    fn file_alias(&self) -> Option<&str> {
+        self.alias.as_deref()?.strip_prefix('|')?.strip_suffix('|')
+    }
+
     fn sources(
         &self,
         inputs: &ProductQueryInputs,
@@ -81,10 +93,7 @@ impl DeclarationLookup {
         let Some(qualifier) = &self.alias else {
             return Ok(local_entry());
         };
-        if let Some(alias) = qualifier
-            .strip_prefix('|')
-            .and_then(|name| name.strip_suffix('|'))
-        {
+        if let Some(alias) = self.file_alias() {
             return super::super::files::product_file_sources(
                 storage,
                 SourceSpan::new(author, self.span),

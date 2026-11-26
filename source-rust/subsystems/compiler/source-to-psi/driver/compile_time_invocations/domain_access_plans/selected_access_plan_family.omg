@@ -1,13 +1,10 @@
-use omega\language\core\AccessPolicy;
-use omega\language\core\AccessPlan;
-use omega\language\core\reflect;
-use omega\language\core\reflect\TypeSchema;
-use omega\language\core\Issuance;
-use omega\language\core\access;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/reflect/reflect.omg;
+use {omega}/language/core/access/access.omg;
 
-StampAccess satisfies AccessPolicy {
-    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access\new_plan(@schema, Issuance::Only { routes: [reflect\callable(stamp)] })
+StampAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Only { routes: [|reflect|::callable(stamp)] })
     }
 }
 
@@ -23,8 +20,8 @@ machine main() crashes Trap {
     transition observed == 4 { true -> complete(), _ -> fail() }
 }
 
-machine describe_ticket() -> TypeSchema { reflect\schema::<Ticket>() }
+machine describe_ticket() -> |reflect|::TypeSchema { |reflect|::schema::<Ticket>() }
 
-machine construct_direct_plan(schema: TypeSchema) -> AccessPlan {
-    access\new_plan(@schema, Issuance::Only { routes: [reflect\callable(stamp)] })
+machine construct_direct_plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan {
+    |access|::new_plan(@schema, |layout|::Issuance::Only { routes: [|reflect|::callable(stamp)] })
 }

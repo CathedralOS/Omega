@@ -2,10 +2,11 @@
 // standard-library package, so no ProcessExit authority; compile-checked
 // only (same posture as cli/basics/standalone).
 
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "deferred_init_gated" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, deferred_init_gated);
-    Build::bind(builder, linux_x86_64::ProgramEntry, deferred_init_gated);
-    Build::bind(builder, linux_arm64::ProgramEntry, deferred_init_gated);
-    Build::bind(builder, macos_arm64::ProgramEntry, deferred_init_gated);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::deferred_init_gated);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::deferred_init_gated);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::deferred_init_gated);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::deferred_init_gated);
 }

@@ -1,0 +1,108 @@
+// Operand contracts for the checked x86-64 packed-integer instructions. Library
+// code spells these instructions in `asm { ... }`; the assembly desugar is the
+// only importer of this file, under an alias source code cannot name. Each
+// declaration is named by its mnemonic and states the typed places the
+// instruction reads and the fresh array it writes. Each input names its own
+// shared loan.
+
+// 16-bit lanes wrap independently.
+public machine vpaddw<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine vpsubw<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+// 8-bit lanes wrap independently.
+public machine vpaddb<'left, 'right>(left: @'left [u8; 16], right: @'right [u8; 16]) -> [u8; 16]
+reaches none
+crashes none
+terminates;
+
+public machine vpminsw<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+// A result lane is -1 when the left lane is greater and 0 otherwise.
+public machine vpcmpgtw<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine vpand<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+// The result is `!mask & value` across all 128 bits.
+public machine vpandn<'left, 'right>(mask: @'left [i16; 8], value: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+// Negating -32768 wraps to -32768.
+public machine vpabsw<'input>(source: @'input [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine vpsraw<'input, const Count: u64>(source: @'input [i16; 8]) -> [i16; 8]
+reaches none
+requires Count < 16u64
+crashes none
+terminates;
+
+// Interleave lanes of the two inputs. Lanes 0 to 7 name the left input and
+// 8 to 15 the right input: vpunpcklwd produces 0, 8, 1, 9, 2, 10, 3, 11.
+public machine vpunpcklwd<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine vpunpckhwd<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine vpunpckldq<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine vpunpckhdq<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine vpunpcklqdq<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine vpunpckhqdq<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+// Zero-extend eight bytes to eight 16-bit lanes.
+public machine vpmovzxbw<'input>(source: @'input [u8; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+// Pack eight 16-bit lanes to bytes with unsigned saturation. The destination
+// receives the low quadword of the packed register.
+public machine vpackuswb<'input>(source: @'input [i16; 8]) -> [u8; 8]
+reaches none
+crashes none
+terminates;
+
+// Load four 16-bit lanes and clear the upper four lanes.
+public machine vmovq<'input>(source: @'input [i16; 4]) -> [i16; 8]
+reaches none
+crashes none
+terminates;

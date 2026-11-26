@@ -20,6 +20,7 @@ pub use source::{
     OwedBuildRecheck, PendingProduct, PlannedProduct, PlanningRequest, PlanningSources,
     PreparedPlanningStage, prepare, rechecks_outlive_caller, with_build_rechecks,
 };
+pub use source_compiler::SourcePreparation;
 
 use build_declarations::BuildRequest;
 use build_execution::host::bindings::BuildProductQuery;
@@ -140,6 +141,18 @@ impl SettledDependency {
         self.source.clone().open_pending(evaluated, Some(&inputs))
     }
 
+    /// Open only the entry, operand, and imported files needed to form a
+    /// dependency Build handoff without seeding unimported package files.
+    pub fn open_pending_for_handoff(
+        &self,
+        inputs: PackageCompilationInputs,
+    ) -> Result<PendingProduct, CompileFailure> {
+        self.require_own_graph(&inputs)?;
+        self.source
+            .clone()
+            .open_pending_for_handoff(self.evaluated.clone(), Some(&inputs))
+    }
+
     fn require_own_graph(&self, inputs: &PackageCompilationInputs) -> Result<(), CompileFailure> {
         if inputs.source_inputs() != self.inputs.source_inputs() {
             return Err(refusal(
@@ -162,6 +175,7 @@ pub struct ReturnedPlanningStage {
 /// and observations stay with the eventual Product, separate from its own settings.
 #[derive(Default)]
 struct BuildPreparations {
+    file_imports: source_compiler::FileImportAdvisories,
     package_capture: Option<package_compilation::BuildSnapshotCapture>,
     first_stage_in_package: usize,
     demanded_programs: Vec<package_compilation::DelegatedProgram>,
@@ -188,6 +202,8 @@ pub struct PreparedSuccessor {
     libraries: Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
     preparations: BuildPreparations,
 }
+
+pub use source_compiler::FileImportAdvisories;
 
 impl PreparedSuccessor {
     /// Only the acquisition that issued this preparation may adopt its successor's source.
@@ -224,6 +240,7 @@ impl ReturnedPlanningStage {
             .evaluation
             .complete_successor(self.returned, &libraries)?;
         let mut source = self.source;
+        preparations.file_imports = std::mem::take(&mut source.file_imports);
         let issuer = capture.clone();
         let capture = match directory {
             Some(directory) => {

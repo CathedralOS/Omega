@@ -1,0 +1,133 @@
+// Expected exit: 0
+use pipeline/source_files_to_tokens/lexer.omg;
+use pipeline/tokens_to_syntax_trees/parser.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolver.omg;
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg as resolved;
+use representations/syntax_trees/syntax_trees.omg as syntax;
+
+machine append_input(scanner: @mutable |lexer|::Lexer, text: @[u8]) crashes Trap {
+    transition { _ -> scan(scanner, text, 0 as +Trapping) }
+    machine scan(scanner: @mutable |lexer|::Lexer, text: @[u8], index: u64 in Trapping) {
+        transition index < text.length {
+            true -> append(scanner, text, index),
+            _ -> done()
+        }
+    }
+    machine append(scanner: @mutable |lexer|::Lexer, text: @[u8], index: u64 in Trapping)
+    requires index < text.length
+    {
+        |lexer|::append_source_byte(scanner, text[index as -Trapping]);
+        transition { _ -> scan(scanner, text, index + 1) }
+    }
+    machine done() {}
+}
+
+machine filename(path: @mutable |source|::ModulePath, text: @[u8]) crashes Trap {
+    |source|::module_path_clear(path);
+    transition { _ -> next(path, text, 0 as +Trapping) }
+    machine next(path: @mutable |source|::ModulePath, text: @[u8], index: u64 in Trapping) {
+        transition index < text.length { true -> append(path, text, index), false -> done() }
+    }
+    machine append(path: @mutable |source|::ModulePath, text: @[u8], index: u64 in Trapping)
+    requires index < text.length
+    {
+        let retained: bool = |source|::module_path_append(path, text[index as -Trapping]);
+        transition retained { true -> next(path, text, index + 1), false -> wrong() }
+    }
+    machine wrong() { crash Trap; }
+    machine done() {}
+}
+
+machine add_unit(parser: @mutable |parser|::Parser, files: @mutable |source|::SourceSet, package: u64 in Trapping, path: @[u8], text: @[u8]) crashes Trap {
+    let id: u32 in Trapping = (files.unit_count as u32) as +Trapping;
+    let mutable scanner: |lexer|::Lexer;
+    let mutable name: |source|::ModulePath;
+    filename(@mutable name, path);
+    |lexer|::lexer_initialize(@mutable scanner, id);
+    append_input(@mutable scanner, text);
+    |lexer|::tokenize(@mutable scanner);
+    let added: bool = |source|::source_set_add(files, @scanner.source, package, @name);
+    transition added {
+        true -> parse(parser, @scanner, id),
+        false -> wrong()
+    }
+    machine parse(parser: @mutable |parser|::Parser, scanner: @|lexer|::Lexer, id: u32 in Trapping) {
+        |parser|::parse(parser, |source|::SourceId { value: id }, scanner.source.length as +Trapping, @scanner.output);
+    }
+    machine wrong() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    let mutable parser: |parser|::Parser;
+    let mutable files: |source|::SourceSet;
+    let mutable resolution: |resolution_state|::Resolver;
+    let mutable name: |source|::ModulePath;
+    |parser|::parser_initialize(@mutable parser);
+    |source|::source_set_clear(@mutable files);
+    filename(@mutable name, "root");
+    let root: bool = |source|::add_package(@mutable files, @name, false);
+    filename(@mutable name, "supplier");
+    let supplier: bool = |source|::add_package(@mutable files, @name, false);
+    filename(@mutable name, "dep");
+    let edge: bool = |source|::add_dependency(@mutable files, 0 as +Trapping, |source|::DependencyScope::Product, @name, 1 as +Trapping);
+    transition root && supplier && edge {
+        true -> positive(@mutable parser, @mutable files, @mutable resolution),
+        false -> wrong()
+    }
+    machine positive(parser: @mutable |parser|::Parser, files: @mutable |source|::SourceSet, resolution: @mutable |resolution_state|::Resolver) {
+        add_unit(parser, files, 0 as +Trapping, "child/value-cell.omg", "data Cell { value: u8; } machine read(x: Cell) -> u8 { x.value }");
+        add_unit(parser, files, 0 as +Trapping, "child/other.omg", "data Cell { other: u8; } machine read(x: Cell) -> u8 { x.other }");
+        add_unit(parser, files, 1 as +Trapping, "child/value-cell.omg", "public machine value() -> u8 { 9 } machine private() -> u8 { 8 }");
+        add_unit(parser, files, 0 as +Trapping, "app/main.omg", "use child/value-cell.omg as cell; use {dep}/child/value-cell.omg as foreign; use absent.omg; machine run(x: |cell|::Cell) -> u8 { |cell|::read(x) + |foreign|::value() }");
+        transition parser.output.accepted && parser.output.file_selector_count == 3 {
+            true -> resolve(parser, files, resolution),
+            false -> wrong()
+        }
+    }
+    machine resolve(parser: @mutable |parser|::Parser, files: @mutable |source|::SourceSet, resolution: @mutable |resolution_state|::Resolver) {
+        |resolver|::resolve(resolution, files, @parser.output);
+        transition resolution.output.accepted {
+            true -> negative(parser, files, resolution),
+            false -> wrong()
+        }
+    }
+    machine negative(parser: @mutable |parser|::Parser, files: @mutable |source|::SourceSet, resolution: @mutable |resolution_state|::Resolver) {
+        add_unit(parser, files, 0 as +Trapping, "bare.omg", "use child/value-cell.omg as cell; machine missing(x: Cell) -> u8 { 0 }");
+        |resolver|::resolve(resolution, files, @parser.output);
+        let diagnostic: |resolved|::ResolveDiagnostic = resolution.output.diagnostic;
+        transition parser.output.accepted && !resolution.output.accepted
+            && diagnostic.code == |resolved|::ResolveDiagnosticCode::UnknownDataType
+            && diagnostic.source_span.source.value == 4 && |source|::span_spells(files, diagnostic.source_span, "Cell") {
+            true -> directory(parser, files),
+            false -> wrong()
+        }
+    }
+    machine directory(parser: @mutable |parser|::Parser, files: @mutable |source|::SourceSet) {
+        |parser|::parser_initialize(parser);
+        add_unit(parser, files, 0 as +Trapping, "old.omg", "use child;");
+        transition !parser.output.accepted {
+            true -> duplicate(parser, files),
+            false -> wrong()
+        }
+    }
+    machine duplicate(parser: @mutable |parser|::Parser, files: @mutable |source|::SourceSet) {
+        |parser|::parser_initialize(parser);
+        add_unit(parser, files, 0 as +Trapping, "duplicate.omg", "use a/value.omg; use b/value.omg;");
+        transition !parser.output.accepted && parser.output.diagnostic.code == |syntax|::ParseDiagnosticCode::DuplicateFileAlias {
+            true -> builtin(parser, files),
+            false -> wrong()
+        }
+    }
+    machine builtin(parser: @mutable |parser|::Parser, files: @mutable |source|::SourceSet) {
+        |parser|::parser_initialize(parser);
+        add_unit(parser, files, 0 as +Trapping, "builtin.omg", "use a/value.omg as address;");
+        transition !parser.output.accepted && parser.output.diagnostic.code == |syntax|::ParseDiagnosticCode::BuiltinFileAlias {
+            true -> done(),
+            false -> wrong()
+        }
+    }
+    machine wrong() { crash Trap; }
+    machine done() {}
+}

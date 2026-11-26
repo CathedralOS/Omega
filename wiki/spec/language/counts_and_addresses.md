@@ -25,8 +25,10 @@ The compiler-known core query `address_of` exposes an ordinary storage
 reference's referent or one selected executable machine application:
 
 ```omega
+use transform.omg;
+
 let storage_address: address = address_of(@myVar);
-let machine_address: address = address_of::<Something::SomeFunc<u32>>();
+let machine_address: address = address_of::<|transform|::identity<u32>>();
 ```
 
 The storage operand identifies the referent, not the temporary reference
@@ -40,8 +42,8 @@ The static machine argument selects a declaration and its required arguments,
 including selected conformances and machine arguments, not merely a signature.
 Overloaded or unresolved application families reject. No ordinary arguments are
 supplied or evaluated, no body is invoked, and no context is captured. A
-carrier-qualified machine retains its ordinary explicit parameter contract;
-qualification supplies no context argument or storage. A static machine binder
+file-qualified machine retains its ordinary explicit parameter contract.
+Selecting it through a file alias supplies no context argument or storage. A static machine binder
 may supply the selected application under the same rule.
 
 This is a representation query, not a value conversion or size-compatible

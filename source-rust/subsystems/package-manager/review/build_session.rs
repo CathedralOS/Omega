@@ -66,22 +66,10 @@ impl std::fmt::Debug for PackageBuildSession {
 
 impl PackageBuildSession {
     pub fn create(build_workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
-        fs::create_dir_all(build_workspace).map_err(|error| {
-            CompileResolvedPackageReviewsError::new(
-                crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
-                    path: build_workspace.to_path_buf(),
-                    error,
-                },
-            )
-        })?;
-        let canonical_workspace = fs::canonicalize(build_workspace).map_err(|error| {
-            CompileResolvedPackageReviewsError::new(
-                crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
-                    path: build_workspace.to_path_buf(),
-                    error,
-                },
-            )
-        })?;
+        fs::create_dir_all(build_workspace)
+            .map_err(|error| staging_create(build_workspace.to_path_buf(), error))?;
+        let canonical_workspace = fs::canonicalize(build_workspace)
+            .map_err(|error| staging_create(build_workspace.to_path_buf(), error))?;
 
         for _ in 0..128 {
             let sequence = PACKAGE_BUILD_SESSION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
@@ -92,14 +80,9 @@ impl PackageBuildSession {
                 filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
             ) {
                 Ok(filesystem_sponsor) => {
-                    let canonical_root = filesystem_sponsor.session_root().map_err(|error| {
-                        CompileResolvedPackageReviewsError::new(
-                            crate::review::CompileResolvedPackageReviewCause::BuildStagingSponsor {
-                                path: root.clone(),
-                                error,
-                            },
-                        )
-                    })?;
+                    let canonical_root = filesystem_sponsor
+                        .session_root()
+                        .map_err(|error| staging_sponsor(root.clone(), error))?;
                     let evaluation_limits = BuildEvaluationSponsorLimits::new(
                         PACKAGE_BUILD_WORK_CEILING,
                         PACKAGE_BUILD_LOG_CEILING,
@@ -118,14 +101,7 @@ impl PackageBuildSession {
                             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
                         },
                     )
-                    .map_err(|error| {
-                        CompileResolvedPackageReviewsError::new(
-                            crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
-                                path: root.clone(),
-                                error: io::Error::other(error),
-                            },
-                        )
-                    })?;
+                    .map_err(|error| staging_create(root.clone(), io::Error::other(error)))?;
                     return Ok(Self {
                         root: canonical_root,
                         filesystem_sponsor,
@@ -137,24 +113,17 @@ impl PackageBuildSession {
                 }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => {
-                    return Err(CompileResolvedPackageReviewsError::new(
-                        crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
-                            path: root,
-                            error,
-                        },
-                    ));
+                    return Err(staging_create(root, error));
                 }
             }
         }
 
-        Err(CompileResolvedPackageReviewsError::new(
-            crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
-                path: canonical_workspace,
-                error: io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    "could not reserve a unique package build session after 128 attempts",
-                ),
-            },
+        Err(staging_create(
+            canonical_workspace,
+            io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "could not reserve a unique package build session after 128 attempts",
+            ),
         ))
     }
 
@@ -187,22 +156,13 @@ impl PackageBuildSession {
         self.require_open()?;
         let sequence = self.next_occurrence;
         self.next_occurrence = sequence.checked_add(1).ok_or_else(|| {
-            CompileResolvedPackageReviewsError::new(
-                crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
-                    path: self.root.clone(),
-                    error: io::Error::other("package build occurrence sequence exhausted"),
-                },
+            staging_create(
+                self.root.clone(),
+                io::Error::other("package build occurrence sequence exhausted"),
             )
         })?;
         let directory = base.with_extension(sequence.to_string());
-        let sponsor_error = |error| {
-            CompileResolvedPackageReviewsError::new(
-                crate::review::CompileResolvedPackageReviewCause::BuildStagingSponsor {
-                    path: directory.clone(),
-                    error,
-                },
-            )
-        };
+        let sponsor_error = |error| staging_sponsor(directory.clone(), error);
         let path = self
             .filesystem_sponsor
             .bind_path(&directory)
@@ -213,12 +173,7 @@ impl PackageBuildSession {
             .map_err(sponsor_error)?;
         if let Err(error) = fs::create_dir(&directory) {
             prepared.abort();
-            return Err(CompileResolvedPackageReviewsError::new(
-                crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
-                    path: directory,
-                    error,
-                },
-            ));
+            return Err(staging_create(directory, error));
         }
         prepared.commit().map_err(sponsor_error)?;
         Ok(directory)
@@ -228,16 +183,10 @@ impl PackageBuildSession {
         if self.active {
             return Ok(());
         }
-        Err(CompileResolvedPackageReviewsError::new(
-            crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
-                path: self.root.clone(),
-                error: io::Error::other("package build invocation is already closed"),
-            },
+        Err(staging_create(
+            self.root.clone(),
+            io::Error::other("package build invocation is already closed"),
         ))
-    }
-
-    pub fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
-        &self.evaluation_sponsor
     }
 
     /// Retain actual occurrences before a coordinator drops its source/result.
@@ -289,4 +238,19 @@ impl Drop for PackageBuildSession {
             let _ = self.filesystem_sponsor.dispose_private_staging();
         }
     }
+}
+
+fn staging_create(path: PathBuf, error: io::Error) -> CompileResolvedPackageReviewsError {
+    CompileResolvedPackageReviewsError::new(
+        crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate { path, error },
+    )
+}
+
+fn staging_sponsor(
+    path: PathBuf,
+    error: filesystem_authority::FilesystemSponsorError,
+) -> CompileResolvedPackageReviewsError {
+    CompileResolvedPackageReviewsError::new(
+        crate::review::CompileResolvedPackageReviewCause::BuildStagingSponsor { path, error },
+    )
 }

@@ -25,6 +25,7 @@ fn forked_history(branches: &[u64]) -> (DescriptorMachine, PayloadMembershipCont
         successors: targets
             .iter()
             .map(|target| DescriptorFlowEdge {
+                borrowed_header_ends: Box::default(),
                 edge: None,
                 effects: Vec::new(),
                 definitions: Vec::new(),
@@ -895,6 +896,7 @@ fn facts_after_an_element_store(
     .unwrap();
     binding.source_access = StructuralAccess::MutableBorrow;
     let edge = |target, parameters, bindings| DescriptorFlowEdge {
+        borrowed_header_ends: Box::default(),
         edge: None,
         effects: Vec::new(),
         definitions: Vec::new(),

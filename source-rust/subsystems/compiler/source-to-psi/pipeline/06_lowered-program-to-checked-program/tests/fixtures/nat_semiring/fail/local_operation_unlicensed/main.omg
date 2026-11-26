@@ -2,6 +2,7 @@
 // `plus_local` computes exactly as the library's `add` does, but no
 // conformance declares laws for it, so nothing licenses reordering its
 // operands. `mul` is still the library's.
+use {omega}/language/core/foundation.omg as proof;
 use {omega}/language/core/nat.omg;
 
 machine plus_local(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
@@ -14,7 +15,7 @@ terminates by a
 }
 
 machine relies_on_nothing(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat)
-ensures core\Identity::<|nat|::Nat>(
+ensures |proof|::Identity::<|nat|::Nat>(
     plus_local(|nat|::mul(a, b), plus_local(c, a)),
     plus_local(a, plus_local(c, |nat|::mul(b, a)))
 )

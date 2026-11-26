@@ -87,6 +87,7 @@ pub fn resolve_build_sources(
         acquisitions,
         profile,
         timings: false,
+        preparation: Default::default(),
         observed: Vec::new(),
         active: Vec::new(),
         settled: Vec::new(),
@@ -233,6 +234,7 @@ struct SourceHost<'session, 'policy> {
     acquisitions: &'session mut BuildSourceAcquisitions<'policy>,
     profile: TargetProfile,
     timings: bool,
+    preparation: project_build::SourcePreparation,
     // Workspace members are executed to read their names. Retain their actual returns
     // so selection can settle those same invocations without charging for a second run.
     observed: Vec<(AcquiredBuildSource, ExecutedBuild)>,
@@ -778,6 +780,7 @@ fn open_products_with(
             acquisitions: &mut acquisitions,
             profile,
             timings,
+            preparation: Default::default(),
             observed: Vec::new(),
             active: Vec::new(),
             settled: Vec::new(),

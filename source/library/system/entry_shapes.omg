@@ -4,7 +4,7 @@ use calling.omg as abi;
 // A calling policy tells the entry bridge where the OS puts each value.
 // These helpers check value shapes and describe placement. To see what the application
 // receives, start at samples/cli/arithmetic/bit_shift/build.omg. It binds
-// macos_arm64\ProgramEntry to entry_start. dyld supplies argc and argv to
+// macos_arm64::ProgramEntry to entry_start. dyld supplies argc and argv to
 // the physical entry in targets/macos_arm64/entry.omg, yet entry_start()
 // in the sample takes zero arguments. Build selects that machine. The
 // installed entry contract determines what the bridge must supply to it.

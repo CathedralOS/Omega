@@ -1,13 +1,14 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "checked_asm_arm_load_local" };
-    Build::select_provider::<PlaceLoad, X86PlaceLoad>(builder, linux_x86_64);
-    Build::select_provider::<PlaceLoad, X86PlaceLoad>(builder, windows_x86_64);
-    Build::select_provider::<PlaceLoad, X86PlaceLoad>(builder, macos_x86_64);
-    Build::select_provider::<PlaceLoad, ArmPlaceLoad>(builder, linux_arm64);
-    Build::select_provider::<PlaceLoad, ArmPlaceLoad>(builder, macos_arm64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::select_provider::<|app|::PlaceLoad, |app|::X86PlaceLoad>(builder, linux_x86_64);
+    Build::select_provider::<|app|::PlaceLoad, |app|::X86PlaceLoad>(builder, windows_x86_64);
+    Build::select_provider::<|app|::PlaceLoad, |app|::X86PlaceLoad>(builder, macos_x86_64);
+    Build::select_provider::<|app|::PlaceLoad, |app|::ArmPlaceLoad>(builder, linux_arm64);
+    Build::select_provider::<|app|::PlaceLoad, |app|::ArmPlaceLoad>(builder, macos_arm64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
 }

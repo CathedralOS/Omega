@@ -350,7 +350,7 @@ pub(crate) mod countdown_invariant_constants {
     };
 
     use super::{
-        AnalysisRoot, AnalysisRootError, CountedLoopAnalysisError, UnsignedCountdownLoopSummary,
+        AnalysisRoot, AnalysisRootError, UnsignedCountdownLoopSummary,
         ValidatedCountedLoopAnalysis, by_key, validate_analysis_root,
     };
 
@@ -688,7 +688,6 @@ pub(crate) mod countdown_invariant_constants {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum CountdownInvariantConstantAnalysisError {
-        CountedLoop(CountedLoopAnalysisError),
         Root(AnalysisRootError),
         ComponentRosterMismatch,
         UnsupportedInvariantConstant {
@@ -896,9 +895,8 @@ pub(crate) mod countdown_invariant_constant_placement {
     use semantic_vocabulary::{BlockId, MachineId, OperationId, ScalarType, ValueId};
 
     use super::{
-        AnalysisRoot, AnalysisRootError, CountdownInvariantConstantAnalysisError,
-        CountdownInvariantConstantRole, CountdownInvariantIntegerConstant,
-        CountedLoopAnalysisError, UnsignedCountdownLoopSummary,
+        AnalysisRoot, AnalysisRootError, CountdownInvariantConstantRole,
+        CountdownInvariantIntegerConstant, UnsignedCountdownLoopSummary,
         ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis, by_key,
         expected_constant, invariant_constant_row, sole_provenance_node, validate_analysis_root,
         validate_moved_constant_locations,
@@ -1513,8 +1511,6 @@ pub(crate) mod countdown_invariant_constant_placement {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum CountdownInvariantConstantPlacementAnalysisError {
-        CountedLoop(CountedLoopAnalysisError),
-        InvariantConstant(CountdownInvariantConstantAnalysisError),
         Root(AnalysisRootError),
         ComponentRosterMismatch,
         UnsupportedPlacement {

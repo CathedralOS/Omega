@@ -177,10 +177,11 @@ fn a_domain_only_a_selected_dependency_provider_uses_has_its_plan_run() {
         "windows_x86_64",
     ];
     let mut kit_build = String::from(
-        "machine build(builder: @mutable Build) {\n    Build::package(builder, \"stamp_kit\");\n",
+        "use main/stamps.omg;\nmachine build(builder: @mutable Build) {\n    Build::package(builder, \"stamp_kit\");\n",
     );
     let mut consumer_build = String::from(
-        r#"use {omega}/build/dependency.omg;
+        r#"use main.omg as app;
+use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "stamp_consumer");
     let kit: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "kit" }));
@@ -188,22 +189,22 @@ machine build(builder: @mutable Build) {
     );
     for target in targets {
         kit_build.push_str(&format!(
-            "    Build::select_provider::<Probe, StampedProbe>(builder, {target});\n"
+            "    Build::select_provider::<|stamps|::Probe, |stamps|::StampedProbe>(builder, {target});\n"
         ));
         consumer_build.push_str(&format!(
-            "    Build::bind(builder, {target}::ProgramEntry, main);\n"
+            "    Build::bind(builder, {target}::ProgramEntry, |app|::main);\n"
         ));
     }
     kit_build.push_str("}\n");
     consumer_build.push_str("}\n");
     std::fs::write(kit.join("build.omg"), kit_build).unwrap();
-    std::fs::write(kit.join("main.omg"), "use main;\n").unwrap();
+    std::fs::write(kit.join("main.omg"), "use main/stamps.omg;\n").unwrap();
     std::fs::write(project.path().join("build.omg"), consumer_build).unwrap();
     std::fs::write(
         project.path().join("main.omg"),
-        r#"use stamp_kit\main\Probe;
+        r#"use {stamp_kit}/main/stamps.omg as stamp_kit;
 machine main() crashes Trap {
-    let value: i64 = Probe::probe();
+    let value: i64 = |stamp_kit|::Probe::probe();
     transition value == 4i64 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }

@@ -1,13 +1,14 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "indexed_crash_guard" };
-    Build::bind(builder, macos_x86_64::ProgramEntry, main);
-    Build::select_provider::<SelectedForward, X86Forward>(builder, macos_x86_64);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::select_provider::<SelectedForward, ArmForward>(builder, macos_arm64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::select_provider::<SelectedForward, X86Forward>(builder, linux_x86_64);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::select_provider::<SelectedForward, ArmForward>(builder, linux_arm64);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::select_provider::<SelectedForward, X86Forward>(builder, windows_x86_64);
+    Build::bind(builder, macos_x86_64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::SelectedForward, |app|::X86Forward>(builder, macos_x86_64);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::SelectedForward, |app|::ArmForward>(builder, macos_arm64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::SelectedForward, |app|::X86Forward>(builder, linux_x86_64);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::SelectedForward, |app|::ArmForward>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::SelectedForward, |app|::X86Forward>(builder, windows_x86_64);
 }

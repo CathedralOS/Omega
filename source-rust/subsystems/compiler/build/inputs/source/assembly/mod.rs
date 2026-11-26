@@ -433,7 +433,7 @@ impl ImmutableSourceParseCheckpoint {
             catalogue,
         )?;
         source_scoped_top_level_bindings
-            .extend(crate::source::source_imports::retain_import_bindings(&source_storage)?);
+            .extend(crate::source::source_imports::retain_import_bindings(&source_storage, None)?);
         let pending_build_imports =
             crate::source::source_imports::pending_build_imports(&source_storage);
         let root_sources = source_storage.root_sources();

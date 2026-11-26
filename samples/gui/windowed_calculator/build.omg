@@ -1,4 +1,5 @@
 // windowed_calculator is a real GUI subsystem app: no attached console box.
+use main.omg as app;
 use {omega}/build/dependency.omg;
 use {omega}/language/core/external_binding.omg as native;
 
@@ -8,14 +9,14 @@ machine build(builder: @mutable BuildPlan) {
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled {
         name: "system"
     }));
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-    Build::select_provider::<Gui, CalcGuiProvider>(builder, macos_arm64);
-    Build::select_provider::<Gui, CalcGuiProvider>(builder, windows_x86_64);
-    Build::select_provider::<Input, CalcInputProvider>(builder, macos_arm64);
-    Build::select_provider::<Input, CalcInputProvider>(builder, windows_x86_64);
-    Build::select_provider::<Clock, CalcClockProvider>(builder, macos_arm64);
-    Build::bind_native::<Clock::sleep>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::entry_start);
+    Build::select_provider::<|app|::Gui, |app|::CalcGuiProvider>(builder, macos_arm64);
+    Build::select_provider::<|app|::Gui, |app|::CalcGuiProvider>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Input, |app|::CalcInputProvider>(builder, macos_arm64);
+    Build::select_provider::<|app|::Input, |app|::CalcInputProvider>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Clock, |app|::CalcClockProvider>(builder, macos_arm64);
+    Build::bind_native::<|app|::Clock::sleep>(builder, windows_x86_64, |native|::ForeignBinding::DllImport {
         import: |native|::DllImport::PeByName { library: "kernel32.dll", export: "Sleep" }
     });
     builder.subsystem = Subsystem::Gui;

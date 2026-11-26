@@ -1,17 +1,18 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "applied_type_index_forwarding" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::accept_boundary::<Identity>(builder);
-    Build::select_provider::<Identity<Word>, Provider>(builder, linux_arm64);
-    Build::select_provider::<Identity<Word>, Provider>(builder, linux_x86_64);
-    Build::select_provider::<Identity<Word>, Provider>(builder, macos_arm64);
-    Build::select_provider::<Identity<Word>, Provider>(builder, macos_x86_64);
-    Build::select_provider::<Identity<Word>, Provider>(builder, windows_x86_64);
-    Build::select_provider::<Identity<Word>, Provider>(builder, uefi_x86_64);
-    Build::select_provider::<Identity<Word>, Provider>(builder, cross_platform_cli);
-    Build::select_provider::<Identity<Word>, Provider>(builder, local_unchecked);
-    Build::select_provider::<Identity<Word>, Provider>(builder, alpha_bootstrap);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::accept_boundary::<|app|::Identity>(builder);
+    Build::select_provider::<|app|::Identity<|app|::Word>, |app|::Provider>(builder, linux_arm64);
+    Build::select_provider::<|app|::Identity<|app|::Word>, |app|::Provider>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Identity<|app|::Word>, |app|::Provider>(builder, macos_arm64);
+    Build::select_provider::<|app|::Identity<|app|::Word>, |app|::Provider>(builder, macos_x86_64);
+    Build::select_provider::<|app|::Identity<|app|::Word>, |app|::Provider>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Identity<|app|::Word>, |app|::Provider>(builder, uefi_x86_64);
+    Build::select_provider::<|app|::Identity<|app|::Word>, |app|::Provider>(builder, cross_platform_cli);
+    Build::select_provider::<|app|::Identity<|app|::Word>, |app|::Provider>(builder, local_unchecked);
+    Build::select_provider::<|app|::Identity<|app|::Word>, |app|::Provider>(builder, alpha_bootstrap);
 }

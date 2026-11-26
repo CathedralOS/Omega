@@ -2,7 +2,8 @@
 // innermost case, where `a`, `b` and `c` are all successors. The goal
 // there is about `monus(Succ(pa), Succ(pc))`, and nothing left says it
 // equals `monus(pa, pc)`, which the law at the predecessors is about.
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
 
 data Peano {
     case Zero;
@@ -28,7 +29,7 @@ terminates by b
 machine monus_zero_left(b: Peano)
 terminates by b
 ensures
-    core\Identity::<Peano>(monus(Peano::Zero, b), Peano::Zero)
+    |proof|::Identity::<Peano>(monus(Peano::Zero, b), Peano::Zero)
 {
     transition b {
         Peano::Zero -> base(),
@@ -44,7 +45,7 @@ ensures
 machine succ_monus_succ(a: Peano, b: Peano)
 terminates by b
 ensures
-    core\Identity::<Peano>(
+    |proof|::Identity::<Peano>(
         monus(Peano::Succ { pred: a }, Peano::Succ { pred: b }),
         monus(a, b)
     )
@@ -63,10 +64,10 @@ ensures
 machine order_is_transitive(a: Peano, b: Peano, c: Peano)
 terminates by a
 requires
-    core\Identity::<Peano>(monus(a, b), Peano::Zero),
-    core\Identity::<Peano>(monus(b, c), Peano::Zero)
+    |proof|::Identity::<Peano>(monus(a, b), Peano::Zero),
+    |proof|::Identity::<Peano>(monus(b, c), Peano::Zero)
 ensures
-    core\Identity::<Peano>(monus(a, c), Peano::Zero)
+    |proof|::Identity::<Peano>(monus(a, c), Peano::Zero)
 {
     transition a {
         Peano::Zero -> least(c),
@@ -102,12 +103,12 @@ ensures
 }
 
 data Main { }
-machine exit_with_status(main: @mutable Main) reaches ProcessExit {
-    ProcessExit::exit_process(0);
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     block exit_with_status(@mutable entry_storage);
 }

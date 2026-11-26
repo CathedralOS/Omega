@@ -1,165 +1,168 @@
+use {omega}/language/core/foundation.omg as proof;
+use nat.omg;
+
 // Absolute difference and order lemmas over core Nat. This is the metric
 // substrate used by Rat's denominator-scaled triangle proof: all order facts
 // retain Nat's settled monus spelling (`a <= b` iff `saturating_sub(a, b) == Zero`).
 
-machine nat_gap(a: Nat, b: Nat) -> Nat {
-    let forward: Nat = saturating_sub(a, b);
-    let backward: Nat = saturating_sub(b, a);
-    let gap: Nat = add(forward, backward);
+machine nat_gap(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+    let forward: |nat|::Nat = |nat|::saturating_sub(a, b);
+    let backward: |nat|::Nat = |nat|::saturating_sub(b, a);
+    let gap: |nat|::Nat = |nat|::add(forward, backward);
     transition { _ -> (gap) }
 }
 
-machine nat_gap_reflexive(a: Nat)
+machine nat_gap_reflexive(a: |nat|::Nat)
 ensures
-    core\Identity::<Nat>(nat_gap(a, a), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(nat_gap(a, a), |nat|::Nat::Zero)
 {
-    _ = sub_self(a);
-    _ = add_zero_left(Nat::Zero);
+    _ = |nat|::sub_self(a);
+    _ = |nat|::add_zero_left(|nat|::Nat::Zero);
 }
 
-machine nat_gap_symmetric(a: Nat, b: Nat)
+machine nat_gap_symmetric(a: |nat|::Nat, b: |nat|::Nat)
 ensures
-    core\Identity::<Nat>(nat_gap(a, b), nat_gap(b, a))
+    |proof|::Identity::<|nat|::Nat>(nat_gap(a, b), nat_gap(b, a))
 {
-    add_comm(saturating_sub(a, b), saturating_sub(b, a));
+    |nat|::add_comm(|nat|::saturating_sub(a, b), |nat|::saturating_sub(b, a));
 }
 
-machine nat_gap_zero_left(b: Nat)
+machine nat_gap_zero_left(b: |nat|::Nat)
 ensures
-    core\Identity::<Nat>(nat_gap(Nat::Zero, b), b)
+    |proof|::Identity::<|nat|::Nat>(nat_gap(|nat|::Nat::Zero, b), b)
 {
-    _ = sub_zero_left(b);
-    _ = sub_zero_right(b);
-    _ = add_zero_left(b);
+    _ = |nat|::sub_zero_left(b);
+    _ = |nat|::sub_zero_right(b);
+    _ = |nat|::add_zero_left(b);
 }
 
-machine nat_gap_zero_right(a: Nat)
+machine nat_gap_zero_right(a: |nat|::Nat)
 ensures
-    core\Identity::<Nat>(nat_gap(a, Nat::Zero), a)
+    |proof|::Identity::<|nat|::Nat>(nat_gap(a, |nat|::Nat::Zero), a)
 {
-    _ = sub_zero_right(a);
-    _ = sub_zero_left(a);
-    add_zero_right(a);
+    _ = |nat|::sub_zero_right(a);
+    _ = |nat|::sub_zero_left(a);
+    |nat|::add_zero_right(a);
 }
 
-machine nat_gap_succ(a: Nat, b: Nat)
+machine nat_gap_succ(a: |nat|::Nat, b: |nat|::Nat)
 ensures
-    core\Identity::<Nat>(nat_gap(Nat::Succ { prev: a }, Nat::Succ { prev: b }), nat_gap(a, b))
+    |proof|::Identity::<|nat|::Nat>(nat_gap(|nat|::Nat::Succ { prev: a }, |nat|::Nat::Succ { prev: b }), nat_gap(a, b))
 {
-    _ = succ_sub_succ(a, b);
-    _ = succ_sub_succ(b, a);
+    _ = |nat|::succ_sub_succ(a, b);
+    _ = |nat|::succ_sub_succ(b, a);
 }
 
-machine add_le_add_right(a: Nat, b: Nat, c: Nat) -> Nat
+machine add_le_add_right(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat
 terminates by c
 requires
-    core\Identity::<Nat>(saturating_sub(a, b), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(a, b), |nat|::Nat::Zero)
 ensures
-    core\Identity::<Nat>(saturating_sub(add(a, c), add(b, c)), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::add(a, c), |nat|::add(b, c)), |nat|::Nat::Zero)
 {
     transition c {
-        Nat::Zero -> alar_zero(a, b),
-        Nat::Succ { prev } -> alar_succ(a, b, prev)
+        |nat|::Nat::Zero -> alar_zero(a, b),
+        |nat|::Nat::Succ { prev } -> alar_succ(a, b, prev)
     }
 
-    machine alar_zero(a: Nat, b: Nat) -> Nat {
-        add_zero_right(a);
-        add_zero_right(b);
-        transition { _ -> Nat::Zero }
+    machine alar_zero(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        |nat|::add_zero_right(a);
+        |nat|::add_zero_right(b);
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine alar_succ(a: Nat, b: Nat, prev: Nat) -> Nat {
-        _ = add_succ_law(a, prev);
-        _ = add_succ_law(b, prev);
-        _ = succ_sub_succ(add(a, prev), add(b, prev));
+    machine alar_succ(a: |nat|::Nat, b: |nat|::Nat, prev: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::add_succ_law(a, prev);
+        _ = |nat|::add_succ_law(b, prev);
+        _ = |nat|::succ_sub_succ(|nat|::add(a, prev), |nat|::add(b, prev));
         transition { _ -> (add_le_add_right(a, b, prev)) }
     }
 }
 
-machine le_trans(a: Nat, b: Nat, c: Nat) -> Nat
+machine le_trans(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat
 terminates by a
 requires
-    core\Identity::<Nat>(saturating_sub(a, b), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(b, c), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(a, b), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(b, c), |nat|::Nat::Zero)
 ensures
-    core\Identity::<Nat>(saturating_sub(a, c), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(a, c), |nat|::Nat::Zero)
 {
     transition a {
-        Nat::Zero -> le_trans_zero(c),
-        Nat::Succ { prev as pa } -> le_trans_a_succ(pa, b, c)
+        |nat|::Nat::Zero -> le_trans_zero(c),
+        |nat|::Nat::Succ { prev as pa } -> le_trans_a_succ(pa, b, c)
     }
 
-    machine le_trans_zero(c: Nat) -> Nat {
-        _ = sub_zero_left(c);
-        transition { _ -> Nat::Zero }
+    machine le_trans_zero(c: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_zero_left(c);
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine le_trans_a_succ(pa: Nat, b: Nat, c: Nat) -> Nat {
+    machine le_trans_a_succ(pa: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat {
         transition b {
-            Nat::Zero -> le_trans_vacuous(),
-            Nat::Succ { prev as pb } -> le_trans_b_succ(pa, pb, c)
+            |nat|::Nat::Zero -> le_trans_vacuous(),
+            |nat|::Nat::Succ { prev as pb } -> le_trans_b_succ(pa, pb, c)
         }
     }
 
-    machine le_trans_b_succ(pa: Nat, pb: Nat, c: Nat) -> Nat {
+    machine le_trans_b_succ(pa: |nat|::Nat, pb: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat {
         transition c {
-            Nat::Zero -> le_trans_vacuous(),
-            Nat::Succ { prev as pc } -> le_trans_step(pa, pb, pc)
+            |nat|::Nat::Zero -> le_trans_vacuous(),
+            |nat|::Nat::Succ { prev as pc } -> le_trans_step(pa, pb, pc)
         }
     }
 
-    machine le_trans_step(pa: Nat, pb: Nat, pc: Nat) -> Nat {
-        _ = succ_sub_succ(pa, pb);
-        _ = succ_sub_succ(pb, pc);
-        _ = succ_sub_succ(pa, pc);
+    machine le_trans_step(pa: |nat|::Nat, pb: |nat|::Nat, pc: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::succ_sub_succ(pa, pb);
+        _ = |nat|::succ_sub_succ(pb, pc);
+        _ = |nat|::succ_sub_succ(pa, pc);
         transition { _ -> (le_trans(pa, pb, pc)) }
     }
 
-    machine le_trans_vacuous() -> Nat {
-        transition { _ -> Nat::Zero }
+    machine le_trans_vacuous() -> |nat|::Nat {
+        transition { _ -> |nat|::Nat::Zero }
     }
 }
 
-machine add_le_add(a: Nat, b: Nat, c: Nat, d: Nat)
+machine add_le_add(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat, d: |nat|::Nat)
 requires
-    core\Identity::<Nat>(saturating_sub(a, b), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(c, d), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(a, b), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(c, d), |nat|::Nat::Zero)
 ensures
-    core\Identity::<Nat>(saturating_sub(add(a, c), add(b, d)), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::add(a, c), |nat|::add(b, d)), |nat|::Nat::Zero)
 {
     _ = add_le_add_right(a, b, c);
-    add_comm(c, b);
-    add_comm(d, b);
+    |nat|::add_comm(c, b);
+    |nat|::add_comm(d, b);
     _ = add_le_add_right(c, d, b);
-    _ = le_trans(add(a, c), add(b, c), add(b, d));
+    _ = le_trans(|nat|::add(a, c), |nat|::add(b, c), |nat|::add(b, d));
 }
 
 // Multiplication preserves monus order on the right.  The successor step
 // combines the standing a <= b premise with the conditional induction
 // hypothesis at the smaller multiplier, then transports both through add.
-machine mul_le_mul_right(a: Nat, b: Nat, factor: Nat) -> Nat
+machine mul_le_mul_right(a: |nat|::Nat, b: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat
 terminates by factor
 requires
-    core\Identity::<Nat>(saturating_sub(a, b), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(a, b), |nat|::Nat::Zero)
 ensures
-    core\Identity::<Nat>(saturating_sub(mul(a, factor), mul(b, factor)), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::mul(a, factor), |nat|::mul(b, factor)), |nat|::Nat::Zero)
 {
     transition factor {
-        Nat::Zero -> mlmr_zero(a, b),
-        Nat::Succ { prev } -> mlmr_step(a, b, prev)
+        |nat|::Nat::Zero -> mlmr_zero(a, b),
+        |nat|::Nat::Succ { prev } -> mlmr_step(a, b, prev)
     }
 
-    machine mlmr_zero(a: Nat, b: Nat) -> Nat {
-        _ = mul_zero_right(a);
-        _ = mul_zero_right(b);
-        _ = sub_self(Nat::Zero);
-        transition { _ -> Nat::Zero }
+    machine mlmr_zero(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::mul_zero_right(a);
+        _ = |nat|::mul_zero_right(b);
+        _ = |nat|::sub_self(|nat|::Nat::Zero);
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine mlmr_step(a: Nat, b: Nat, prev: Nat) -> Nat {
-        _ = mul_succ_right(a, prev);
-        _ = mul_succ_right(b, prev);
-        add_le_add(a, b, mul(a, prev), mul(b, prev));
+    machine mlmr_step(a: |nat|::Nat, b: |nat|::Nat, prev: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::mul_succ_right(a, prev);
+        _ = |nat|::mul_succ_right(b, prev);
+        add_le_add(a, b, |nat|::mul(a, prev), |nat|::mul(b, prev));
         transition { _ -> (mul_le_mul_right(a, b, prev)) }
     }
 }
@@ -167,146 +170,146 @@ ensures
 // A positive common right factor reflects monus order.  The double-successor
 // branch cancels the common additive prefix exposed by mul's recursion and
 // applies the conditional induction hypothesis to the predecessor pair.
-machine mul_le_cancel_right(a: Nat, b: Nat, factor: Nat) -> Nat
+machine mul_le_cancel_right(a: |nat|::Nat, b: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat
 terminates by a
 requires
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, factor), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(mul(a, factor), mul(b, factor)), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, factor), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::mul(a, factor), |nat|::mul(b, factor)), |nat|::Nat::Zero)
 ensures
-    core\Identity::<Nat>(saturating_sub(a, b), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(a, b), |nat|::Nat::Zero)
 {
     transition a {
-        Nat::Zero -> mlcr_a_zero(b, factor),
-        Nat::Succ { prev as pa } -> mlcr_a_succ(pa, b, factor)
+        |nat|::Nat::Zero -> mlcr_a_zero(b, factor),
+        |nat|::Nat::Succ { prev as pa } -> mlcr_a_succ(pa, b, factor)
     }
 
-    machine mlcr_a_zero(b: Nat, factor: Nat) -> Nat {
-        _ = sub_zero_left(b);
-        transition { _ -> Nat::Zero }
+    machine mlcr_a_zero(b: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_zero_left(b);
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine mlcr_a_succ(pa: Nat, b: Nat, factor: Nat) -> Nat {
+    machine mlcr_a_succ(pa: |nat|::Nat, b: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat {
         transition b {
-            Nat::Zero -> mlcr_b_zero(pa, factor),
-            Nat::Succ { prev as pb } -> mlcr_step(pa, pb, factor)
+            |nat|::Nat::Zero -> mlcr_b_zero(pa, factor),
+            |nat|::Nat::Succ { prev as pb } -> mlcr_step(pa, pb, factor)
         }
     }
 
-    machine mlcr_b_zero(pa: Nat, factor: Nat) -> Nat {
+    machine mlcr_b_zero(pa: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat {
         transition factor {
-            Nat::Zero -> mlcr_vacuous(),
-            Nat::Succ { prev } -> mlcr_vacuous()
+            |nat|::Nat::Zero -> mlcr_vacuous(),
+            |nat|::Nat::Succ { prev } -> mlcr_vacuous()
         }
     }
 
-    machine mlcr_step(pa: Nat, pb: Nat, factor: Nat) -> Nat {
-        _ = sub_add_cancel_left(factor, mul(pa, factor), mul(pb, factor));
-        _ = succ_sub_succ(pa, pb);
+    machine mlcr_step(pa: |nat|::Nat, pb: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat {
+        _ = sub_add_cancel_left(factor, |nat|::mul(pa, factor), |nat|::mul(pb, factor));
+        _ = |nat|::succ_sub_succ(pa, pb);
         transition { _ -> (mul_le_cancel_right(pa, pb, factor)) }
     }
 
-    machine mlcr_vacuous() -> Nat {
-        transition { _ -> Nat::Zero }
+    machine mlcr_vacuous() -> |nat|::Nat {
+        transition { _ -> |nat|::Nat::Zero }
     }
 }
 
 // Every b lies below a plus their absolute gap.
-machine le_add_gap(a: Nat, b: Nat) -> Nat
+machine le_add_gap(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
 terminates by a
 ensures
-    core\Identity::<Nat>(saturating_sub(b, add(a, nat_gap(a, b))), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(b, |nat|::add(a, nat_gap(a, b))), |nat|::Nat::Zero)
 {
     transition a {
-        Nat::Zero -> lag_zero(b),
-        Nat::Succ { prev as pa } -> lag_a_succ(pa, b)
+        |nat|::Nat::Zero -> lag_zero(b),
+        |nat|::Nat::Succ { prev as pa } -> lag_a_succ(pa, b)
     }
 
-    machine lag_zero(b: Nat) -> Nat {
+    machine lag_zero(b: |nat|::Nat) -> |nat|::Nat {
         nat_gap_zero_left(b);
-        _ = sub_self(b);
-        transition { _ -> Nat::Zero }
+        _ = |nat|::sub_self(b);
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine lag_a_succ(pa: Nat, b: Nat) -> Nat {
+    machine lag_a_succ(pa: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
         transition b {
-            Nat::Zero -> lag_b_zero(pa),
-            Nat::Succ { prev as pb } -> lag_step(pa, pb)
+            |nat|::Nat::Zero -> lag_b_zero(pa),
+            |nat|::Nat::Succ { prev as pb } -> lag_step(pa, pb)
         }
     }
 
-    machine lag_b_zero(pa: Nat) -> Nat {
-        _ = sub_zero_left(add(Nat::Succ { prev: pa }, nat_gap(Nat::Succ { prev: pa }, Nat::Zero)));
-        transition { _ -> Nat::Zero }
+    machine lag_b_zero(pa: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_zero_left(|nat|::add(|nat|::Nat::Succ { prev: pa }, nat_gap(|nat|::Nat::Succ { prev: pa }, |nat|::Nat::Zero)));
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine lag_step(pa: Nat, pb: Nat) -> Nat {
+    machine lag_step(pa: |nat|::Nat, pb: |nat|::Nat) -> |nat|::Nat {
         nat_gap_succ(pa, pb);
-        _ = succ_sub_succ(pb, add(pa, nat_gap(pa, pb)));
+        _ = |nat|::succ_sub_succ(pb, |nat|::add(pa, nat_gap(pa, pb)));
         transition { _ -> (le_add_gap(pa, pb)) }
     }
 }
 
 // Absolute difference never exceeds the sum of its endpoints.
-machine nat_gap_le_add(a: Nat, b: Nat)
+machine nat_gap_le_add(a: |nat|::Nat, b: |nat|::Nat)
 ensures
-    core\Identity::<Nat>(saturating_sub(nat_gap(a, b), add(a, b)), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(nat_gap(a, b), |nat|::add(a, b)), |nat|::Nat::Zero)
 {
-    _ = sub_le(a, b);
-    _ = sub_le(b, a);
-    add_le_add(saturating_sub(a, b), a, saturating_sub(b, a), b);
+    _ = |nat|::sub_le(a, b);
+    _ = |nat|::sub_le(b, a);
+    add_le_add(|nat|::saturating_sub(a, b), a, |nat|::saturating_sub(b, a), b);
 }
 
-machine nat_gap_triangle(a: Nat, b: Nat, c: Nat) -> Nat
+machine nat_gap_triangle(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat
 terminates by a
 ensures
-    core\Identity::<Nat>(saturating_sub(nat_gap(a, c), add(nat_gap(a, b), nat_gap(b, c))), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(nat_gap(a, c), |nat|::add(nat_gap(a, b), nat_gap(b, c))), |nat|::Nat::Zero)
 {
     transition a {
-        Nat::Zero -> ngt_a_zero(b, c),
-        Nat::Succ { prev as pa } -> ngt_a_succ(pa, b, c)
+        |nat|::Nat::Zero -> ngt_a_zero(b, c),
+        |nat|::Nat::Succ { prev as pa } -> ngt_a_succ(pa, b, c)
     }
 
-    machine ngt_a_zero(b: Nat, c: Nat) -> Nat {
+    machine ngt_a_zero(b: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat {
         nat_gap_zero_left(c);
         nat_gap_zero_left(b);
         _ = le_add_gap(b, c);
-        transition { _ -> Nat::Zero }
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine ngt_a_succ(pa: Nat, b: Nat, c: Nat) -> Nat {
+    machine ngt_a_succ(pa: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat {
         transition b {
-            Nat::Zero -> ngt_b_zero(pa, c),
-            Nat::Succ { prev as pb } -> ngt_b_succ(pa, pb, c)
+            |nat|::Nat::Zero -> ngt_b_zero(pa, c),
+            |nat|::Nat::Succ { prev as pb } -> ngt_b_succ(pa, pb, c)
         }
     }
 
-    machine ngt_b_zero(pa: Nat, c: Nat) -> Nat {
-        nat_gap_zero_right(Nat::Succ { prev: pa });
+    machine ngt_b_zero(pa: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat {
+        nat_gap_zero_right(|nat|::Nat::Succ { prev: pa });
         nat_gap_zero_left(c);
-        nat_gap_le_add(Nat::Succ { prev: pa }, c);
-        transition { _ -> Nat::Zero }
+        nat_gap_le_add(|nat|::Nat::Succ { prev: pa }, c);
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine ngt_b_succ(pa: Nat, pb: Nat, c: Nat) -> Nat {
+    machine ngt_b_succ(pa: |nat|::Nat, pb: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat {
         transition c {
-            Nat::Zero -> ngt_c_zero(pa, pb),
-            Nat::Succ { prev as pc } -> ngt_step(pa, pb, pc)
+            |nat|::Nat::Zero -> ngt_c_zero(pa, pb),
+            |nat|::Nat::Succ { prev as pc } -> ngt_step(pa, pb, pc)
         }
     }
 
-    machine ngt_c_zero(pa: Nat, pb: Nat) -> Nat {
-        nat_gap_zero_right(Nat::Succ { prev: pa });
-        nat_gap_zero_right(Nat::Succ { prev: pb });
-        nat_gap_symmetric(Nat::Succ { prev: pa }, Nat::Succ { prev: pb });
-        _ = le_add_gap(Nat::Succ { prev: pb }, Nat::Succ { prev: pa });
-        add_comm(
-            Nat::Succ { prev: pb },
-            nat_gap(Nat::Succ { prev: pb }, Nat::Succ { prev: pa })
+    machine ngt_c_zero(pa: |nat|::Nat, pb: |nat|::Nat) -> |nat|::Nat {
+        nat_gap_zero_right(|nat|::Nat::Succ { prev: pa });
+        nat_gap_zero_right(|nat|::Nat::Succ { prev: pb });
+        nat_gap_symmetric(|nat|::Nat::Succ { prev: pa }, |nat|::Nat::Succ { prev: pb });
+        _ = le_add_gap(|nat|::Nat::Succ { prev: pb }, |nat|::Nat::Succ { prev: pa });
+        |nat|::add_comm(
+            |nat|::Nat::Succ { prev: pb },
+            nat_gap(|nat|::Nat::Succ { prev: pb }, |nat|::Nat::Succ { prev: pa })
         );
-        transition { _ -> Nat::Zero }
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine ngt_step(pa: Nat, pb: Nat, pc: Nat) -> Nat {
+    machine ngt_step(pa: |nat|::Nat, pb: |nat|::Nat, pc: |nat|::Nat) -> |nat|::Nat {
         nat_gap_succ(pa, pc);
         nat_gap_succ(pa, pb);
         nat_gap_succ(pb, pc);
@@ -316,71 +319,71 @@ ensures
 
 // Adding the same prefix to both operands does not change monus. This is the
 // cancellation step needed to scale absolute differences by multiplication.
-machine sub_add_cancel_left(prefix: Nat, a: Nat, b: Nat) -> Nat
+machine sub_add_cancel_left(prefix: |nat|::Nat, a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
 terminates by prefix
 ensures
-    core\Identity::<Nat>(saturating_sub(add(prefix, a), add(prefix, b)), saturating_sub(a, b))
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::add(prefix, a), |nat|::add(prefix, b)), |nat|::saturating_sub(a, b))
 {
     transition prefix {
-        Nat::Zero -> sacl_zero(a, b),
-        Nat::Succ { prev } -> sacl_step(prev, a, b)
+        |nat|::Nat::Zero -> sacl_zero(a, b),
+        |nat|::Nat::Succ { prev } -> sacl_step(prev, a, b)
     }
 
-    machine sacl_zero(a: Nat, b: Nat) -> Nat {
-        transition { _ -> Nat::Zero }
+    machine sacl_zero(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine sacl_step(prev: Nat, a: Nat, b: Nat) -> Nat {
-        _ = succ_sub_succ(add(prev, a), add(prev, b));
+    machine sacl_step(prev: |nat|::Nat, a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::succ_sub_succ(|nat|::add(prev, a), |nat|::add(prev, b));
         transition { _ -> (sub_add_cancel_left(prev, a, b)) }
     }
 }
 
 // Translating both endpoints by the same Nat preserves their absolute gap.
 // This bridges IntPair's nonnegative coordinates to Rat's public Nat metric.
-machine nat_gap_add_common(prefix: Nat, a: Nat, b: Nat)
+machine nat_gap_add_common(prefix: |nat|::Nat, a: |nat|::Nat, b: |nat|::Nat)
 ensures
-    core\Identity::<Nat>(nat_gap(add(prefix, a), add(prefix, b)), nat_gap(a, b))
+    |proof|::Identity::<|nat|::Nat>(nat_gap(|nat|::add(prefix, a), |nat|::add(prefix, b)), nat_gap(a, b))
 {
     _ = sub_add_cancel_left(prefix, a, b);
     _ = sub_add_cancel_left(prefix, b, a);
 }
 
 // Absolute difference is homogeneous under a shared Nat factor.
-machine nat_gap_mul_right(a: Nat, b: Nat, factor: Nat) -> Nat
+machine nat_gap_mul_right(a: |nat|::Nat, b: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat
 terminates by a
 ensures
-    core\Identity::<Nat>(nat_gap(mul(a, factor), mul(b, factor)), mul(nat_gap(a, b), factor))
+    |proof|::Identity::<|nat|::Nat>(nat_gap(|nat|::mul(a, factor), |nat|::mul(b, factor)), |nat|::mul(nat_gap(a, b), factor))
 {
     transition a {
-        Nat::Zero -> ngmr_a_zero(b, factor),
-        Nat::Succ { prev as pa } -> ngmr_a_succ(pa, b, factor)
+        |nat|::Nat::Zero -> ngmr_a_zero(b, factor),
+        |nat|::Nat::Succ { prev as pa } -> ngmr_a_succ(pa, b, factor)
     }
 
-    machine ngmr_a_zero(b: Nat, factor: Nat) -> Nat {
-        _ = mul_zero_left(factor);
-        nat_gap_zero_left(mul(b, factor));
+    machine ngmr_a_zero(b: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::mul_zero_left(factor);
+        nat_gap_zero_left(|nat|::mul(b, factor));
         nat_gap_zero_left(b);
-        transition { _ -> Nat::Zero }
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine ngmr_a_succ(pa: Nat, b: Nat, factor: Nat) -> Nat {
+    machine ngmr_a_succ(pa: |nat|::Nat, b: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat {
         transition b {
-            Nat::Zero -> ngmr_b_zero(pa, factor),
-            Nat::Succ { prev as pb } -> ngmr_step(pa, pb, factor)
+            |nat|::Nat::Zero -> ngmr_b_zero(pa, factor),
+            |nat|::Nat::Succ { prev as pb } -> ngmr_step(pa, pb, factor)
         }
     }
 
-    machine ngmr_b_zero(pa: Nat, factor: Nat) -> Nat {
-        _ = mul_zero_left(factor);
-        nat_gap_zero_right(mul(Nat::Succ { prev: pa }, factor));
-        nat_gap_zero_right(Nat::Succ { prev: pa });
-        transition { _ -> Nat::Zero }
+    machine ngmr_b_zero(pa: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::mul_zero_left(factor);
+        nat_gap_zero_right(|nat|::mul(|nat|::Nat::Succ { prev: pa }, factor));
+        nat_gap_zero_right(|nat|::Nat::Succ { prev: pa });
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine ngmr_step(pa: Nat, pb: Nat, factor: Nat) -> Nat {
-        _ = sub_add_cancel_left(factor, mul(pa, factor), mul(pb, factor));
-        _ = sub_add_cancel_left(factor, mul(pb, factor), mul(pa, factor));
+    machine ngmr_step(pa: |nat|::Nat, pb: |nat|::Nat, factor: |nat|::Nat) -> |nat|::Nat {
+        _ = sub_add_cancel_left(factor, |nat|::mul(pa, factor), |nat|::mul(pb, factor));
+        _ = sub_add_cancel_left(factor, |nat|::mul(pb, factor), |nat|::mul(pa, factor));
         nat_gap_succ(pa, pb);
         transition { _ -> (nat_gap_mul_right(pa, pb, factor)) }
     }
@@ -388,9 +391,9 @@ ensures
 
 // A three-factor commutative-semiring rearrangement used to align rational
 // cross-products at one common denominator.
-machine mul_swap_trailing(a: Nat, b: Nat, c: Nat)
+machine mul_swap_trailing(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat)
 ensures
-    core\Identity::<Nat>(mul(mul(a, b), c), mul(mul(a, c), b))
+    |proof|::Identity::<|nat|::Nat>(|nat|::mul(|nat|::mul(a, b), c), |nat|::mul(|nat|::mul(a, c), b))
 {
 }
 
@@ -400,83 +403,83 @@ ensures
 // `nat_gap`. The Cauchy quotient's composed modulus is
 // `nat_max(M1(2e), M2(2e))`, where two convergence witnesses each cover half the
 // doubled precision.
-machine nat_max(a: Nat, b: Nat) -> Nat {
-    let residual: Nat = saturating_sub(b, a);
-    transition { _ -> (add(a, residual)) }
+machine nat_max(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
+    let residual: |nat|::Nat = |nat|::saturating_sub(b, a);
+    transition { _ -> (|nat|::add(a, residual)) }
 }
 
 // `a <= a + b`, premise-free -- induction on `b`. The Zero arm computes
 // through add's right identity and self-annihilation; the Succ arm rewrites
 // `add(a, Succ pb)` to `Succ(add(a, pb))` so the goal unfolds through
 // saturating_sub's Succ arm to `pred` of the inductive hypothesis.
-machine le_add_right_self(a: Nat, b: Nat) -> Nat
+machine le_add_right_self(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
 terminates by b
 ensures
-    core\Identity::<Nat>(saturating_sub(a, (add(a, b))), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(a, (|nat|::add(a, b))), |nat|::Nat::Zero)
 {
     transition b {
-        Nat::Zero -> lars_zero(a),
-        Nat::Succ { prev as pb } -> lars_step(a, pb)
+        |nat|::Nat::Zero -> lars_zero(a),
+        |nat|::Nat::Succ { prev as pb } -> lars_step(a, pb)
     }
 
-    machine lars_zero(a: Nat) -> Nat {
-        add_zero_right(a);
-        _ = sub_self(a);
-        transition { _ -> Nat::Zero }
+    machine lars_zero(a: |nat|::Nat) -> |nat|::Nat {
+        |nat|::add_zero_right(a);
+        _ = |nat|::sub_self(a);
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine lars_step(a: Nat, pb: Nat) -> Nat {
-        _ = add_succ_law(a, pb);
+    machine lars_step(a: |nat|::Nat, pb: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::add_succ_law(a, pb);
         transition { _ -> (le_add_right_self(a, pb)) }
     }
 }
 
 // Left argument bound: `a <= nat_max(a, b)` -- the unfolding makes this
 // le_add_right_self at the residual.
-machine le_max_left(a: Nat, b: Nat) -> Nat
+machine le_max_left(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
 ensures
-    core\Identity::<Nat>(saturating_sub(a, (nat_max(a, b))), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(a, (nat_max(a, b))), |nat|::Nat::Zero)
 {
-    _ = le_add_right_self(a, (saturating_sub(b, a)));
-    transition { _ -> Nat::Zero }
+    _ = le_add_right_self(a, (|nat|::saturating_sub(b, a)));
+    transition { _ -> |nat|::Nat::Zero }
 }
 
 // Right argument bound: `b <= nat_max(a, b)` -- induction on `a` with `b` free.
 // The Zero arm computes through sub_zero_right/add_zero_left; the Succ arms
 // case-split `b`, where the Succ x Succ arm strips both pairs and hands the
 // inductive hypothesis `b' <= nat_max(a', b')` back.
-machine le_max_right(a: Nat, b: Nat) -> Nat
+machine le_max_right(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
 terminates by a
 ensures
-    core\Identity::<Nat>(saturating_sub(b, (nat_max(a, b))), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(b, (nat_max(a, b))), |nat|::Nat::Zero)
 {
     transition a {
-        Nat::Zero -> lmr_zero(b),
-        Nat::Succ { prev as pa } -> lmr_succ(pa, b)
+        |nat|::Nat::Zero -> lmr_zero(b),
+        |nat|::Nat::Succ { prev as pa } -> lmr_succ(pa, b)
     }
 
-    machine lmr_zero(b: Nat) -> Nat {
-        _ = sub_zero_right(b);
-        _ = add_zero_left(b);
-        _ = sub_self(b);
-        transition { _ -> Nat::Zero }
+    machine lmr_zero(b: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_zero_right(b);
+        _ = |nat|::add_zero_left(b);
+        _ = |nat|::sub_self(b);
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine lmr_succ(pa: Nat, b: Nat) -> Nat {
+    machine lmr_succ(pa: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
         transition b {
-            Nat::Zero -> lmr_succ_zero(pa),
-            Nat::Succ { prev as pb } -> lmr_succ_succ(pa, pb)
+            |nat|::Nat::Zero -> lmr_succ_zero(pa),
+            |nat|::Nat::Succ { prev as pb } -> lmr_succ_succ(pa, pb)
         }
     }
 
-    machine lmr_succ_zero(pa: Nat) -> Nat {
-        _ = sub_zero_left((add(Nat::Succ { prev: pa }, (saturating_sub(Nat::Zero, (Nat::Succ { prev: pa }))))));
-        transition { _ -> Nat::Zero }
+    machine lmr_succ_zero(pa: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_zero_left((|nat|::add(|nat|::Nat::Succ { prev: pa }, (|nat|::saturating_sub(|nat|::Nat::Zero, (|nat|::Nat::Succ { prev: pa }))))));
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine lmr_succ_succ(pa: Nat, pb: Nat) -> Nat {
-        _ = succ_sub_succ(pb, pa);
-        _ = succ_sub_succ(pb, (add(pa, (saturating_sub(pb, pa)))));
+    machine lmr_succ_succ(pa: |nat|::Nat, pb: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::succ_sub_succ(pb, pa);
+        _ = |nat|::succ_sub_succ(pb, (|nat|::add(pa, (|nat|::saturating_sub(pb, pa)))));
         transition { _ -> (le_max_right(pa, pb)) }
     }
 }
@@ -488,54 +491,54 @@ ensures
 // clash) and the Succ x Succ x Succ arm strips all three pairs and recurses.
 // This is the discharge step callers of `doubled_nat_max_modulus` use to turn
 // per-modulus thresholds into the composed threshold.
-machine nat_max_le(a: Nat, b: Nat, c: Nat) -> Nat
+machine nat_max_le(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat
 terminates by a
 requires
-    core\Identity::<Nat>(saturating_sub(a, c), Nat::Zero),
-    core\Identity::<Nat>(saturating_sub(b, c), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(a, c), |nat|::Nat::Zero),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(b, c), |nat|::Nat::Zero)
 ensures
-    core\Identity::<Nat>(saturating_sub((nat_max(a, b)), c), Nat::Zero)
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub((nat_max(a, b)), c), |nat|::Nat::Zero)
 {
     transition a {
-        Nat::Zero -> ml_zero(b, c),
-        Nat::Succ { prev as pa } -> ml_succ(pa, b, c)
+        |nat|::Nat::Zero -> ml_zero(b, c),
+        |nat|::Nat::Succ { prev as pa } -> ml_succ(pa, b, c)
     }
 
-    machine ml_zero(b: Nat, c: Nat) -> Nat {
-        _ = sub_zero_right(b);
-        _ = add_zero_left(b);
-        transition { _ -> Nat::Zero }
+    machine ml_zero(b: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_zero_right(b);
+        _ = |nat|::add_zero_left(b);
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine ml_succ(pa: Nat, b: Nat, c: Nat) -> Nat {
+    machine ml_succ(pa: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat {
         transition b {
-            Nat::Zero -> ml_succ_zero(pa, c),
-            Nat::Succ { prev as pb } -> ml_succ_succ(pa, pb, c)
+            |nat|::Nat::Zero -> ml_succ_zero(pa, c),
+            |nat|::Nat::Succ { prev as pb } -> ml_succ_succ(pa, pb, c)
         }
     }
 
-    machine ml_succ_zero(pa: Nat, c: Nat) -> Nat {
-        _ = sub_zero_left((Nat::Succ { prev: pa }));
-        add_zero_right((Nat::Succ { prev: pa }));
-        transition { _ -> Nat::Zero }
+    machine ml_succ_zero(pa: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::sub_zero_left((|nat|::Nat::Succ { prev: pa }));
+        |nat|::add_zero_right((|nat|::Nat::Succ { prev: pa }));
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine ml_succ_succ(pa: Nat, pb: Nat, c: Nat) -> Nat {
+    machine ml_succ_succ(pa: |nat|::Nat, pb: |nat|::Nat, c: |nat|::Nat) -> |nat|::Nat {
         transition c {
-            Nat::Zero -> ml_ss_zero(pa, pb),
-            Nat::Succ { prev as pc } -> ml_ss_step(pa, pb, pc)
+            |nat|::Nat::Zero -> ml_ss_zero(pa, pb),
+            |nat|::Nat::Succ { prev as pc } -> ml_ss_step(pa, pb, pc)
         }
     }
 
-    machine ml_ss_zero(pa: Nat, pb: Nat) -> Nat {
-        transition { _ -> Nat::Zero }
+    machine ml_ss_zero(pa: |nat|::Nat, pb: |nat|::Nat) -> |nat|::Nat {
+        transition { _ -> |nat|::Nat::Zero }
     }
 
-    machine ml_ss_step(pa: Nat, pb: Nat, pc: Nat) -> Nat {
-        _ = succ_sub_succ(pa, pc);
-        _ = succ_sub_succ(pb, pc);
-        _ = succ_sub_succ(pb, pa);
-        _ = succ_sub_succ((add(pa, (saturating_sub(pb, pa)))), pc);
+    machine ml_ss_step(pa: |nat|::Nat, pb: |nat|::Nat, pc: |nat|::Nat) -> |nat|::Nat {
+        _ = |nat|::succ_sub_succ(pa, pc);
+        _ = |nat|::succ_sub_succ(pb, pc);
+        _ = |nat|::succ_sub_succ(pb, pa);
+        _ = |nat|::succ_sub_succ((|nat|::add(pa, (|nat|::saturating_sub(pb, pa)))), pc);
         transition { _ -> (nat_max_le(pa, pb, pc)) }
     }
 }
@@ -543,11 +546,11 @@ ensures
 // `nat_max(a, a) == a` -- the residual is self-annihilating. Callers instantiating
 // a composed modulus against a single witness use this to align the equality
 // premise.
-machine nat_max_self(a: Nat) -> Nat
+machine nat_max_self(a: |nat|::Nat) -> |nat|::Nat
 ensures
-    core\Identity::<Nat>(nat_max(a, a), a)
+    |proof|::Identity::<|nat|::Nat>(nat_max(a, a), a)
 {
-    _ = sub_self(a);
-    add_zero_right(a);
-    transition { _ -> Nat::Zero }
+    _ = |nat|::sub_self(a);
+    |nat|::add_zero_right(a);
+    transition { _ -> |nat|::Nat::Zero }
 }

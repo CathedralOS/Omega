@@ -43,7 +43,7 @@ data Main {
 }
 
 machine run(main: @mutable Main)
-reaches |process_exit|::ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + |filesystem_authority|::FilesystemMetadataQuery + FilesystemNamespaceMutation
+reaches |process_exit|::ProcessExit + |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemMetadataQuery + |filesystem_authority|::FilesystemNamespaceMutation
 blocks {
     main.unit_result = block |filesystem|::Filesystem::write_all("omega_wcanon_probe.txt" as + |filesystem_host|::Path, "canon");
     transition main.unit_result { |filesystem|::UnitResult::Ok -> block resolve(main), _ -> bad(main, 71) }
@@ -94,7 +94,7 @@ machine canonical_prefix_is_valid(windows: bool, byte: u8) -> bool {
 }
 
 machine windows_entry()
-reaches |process_exit|::ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + |filesystem_authority|::FilesystemMetadataQuery + FilesystemNamespaceMutation
+reaches |process_exit|::ProcessExit + |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemMetadataQuery + |filesystem_authority|::FilesystemNamespaceMutation
 blocks {
     let mutable storage: Main;
     storage.windows = true;
@@ -102,7 +102,7 @@ blocks {
 }
 
 machine posix_entry()
-reaches |process_exit|::ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + |filesystem_authority|::FilesystemMetadataQuery + FilesystemNamespaceMutation
+reaches |process_exit|::ProcessExit + |filesystem_authority|::FilesystemContentRead + |filesystem_authority|::FilesystemContentWrite + |filesystem_authority|::FilesystemMetadataMutation + |filesystem_authority|::FilesystemMetadataQuery + |filesystem_authority|::FilesystemNamespaceMutation
 blocks {
     let mutable storage: Main;
     storage.windows = false;

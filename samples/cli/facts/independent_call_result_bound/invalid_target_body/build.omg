@@ -1,15 +1,16 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "independent_call_result_bound" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::select_provider::<IndependentSource, WindowsSource>(builder, windows_x86_64);
-    Build::select_provider::<IndependentSource, LinuxSource>(builder, linux_x86_64);
-    Build::select_provider::<IndependentSource, MacosSource>(builder, macos_arm64);
-    Build::select_provider::<IndependentSource, LinuxArmSource>(builder, linux_arm64);
-    Build::select_provider::<Evaluation, WindowsEvaluation>(builder, windows_x86_64);
-    Build::select_provider::<Evaluation, LinuxEvaluation>(builder, linux_x86_64);
-    Build::select_provider::<Evaluation, MacosEvaluation>(builder, macos_arm64);
-    Build::select_provider::<Evaluation, LinuxArmEvaluation>(builder, linux_arm64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::select_provider::<|app|::IndependentSource, |app|::WindowsSource>(builder, windows_x86_64);
+    Build::select_provider::<|app|::IndependentSource, |app|::LinuxSource>(builder, linux_x86_64);
+    Build::select_provider::<|app|::IndependentSource, |app|::MacosSource>(builder, macos_arm64);
+    Build::select_provider::<|app|::IndependentSource, |app|::LinuxArmSource>(builder, linux_arm64);
+    Build::select_provider::<|app|::Evaluation, |app|::WindowsEvaluation>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Evaluation, |app|::LinuxEvaluation>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Evaluation, |app|::MacosEvaluation>(builder, macos_arm64);
+    Build::select_provider::<|app|::Evaluation, |app|::LinuxArmEvaluation>(builder, linux_arm64);
 }

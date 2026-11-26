@@ -1,3 +1,4 @@
+use {omega}/language/core/equality.omg;
 // Expected exit: 0. Equality observes both values once, in source order.
 data Signal [copy] {
     case Ready;
@@ -7,7 +8,7 @@ data Signal [copy] {
 }
 data Context [copy] { signal: Signal; calls: u32; }
 data Message [copy] { case Empty; case Number(value: i32); }
-MessageEquality satisfies Equatable<Message> {
+MessageEquality satisfies |equality|::Equatable<Message> {
     machine equals(left: @Message, right: @Message) -> bool { false }
 }
 data Key [copy] { case A; case B; }

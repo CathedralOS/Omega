@@ -84,18 +84,23 @@ pub enum CompilerPrimitive {
     Collection(CollectionPrimitive),
 }
 
-/// Source declarations that accept shared fixed arrays and produce an owned array.
+/// The checked packed-integer instructions. Each one is the contract of one
+/// `asm` mnemonic in core `assembly_packed_integer.omg`: shared fixed arrays in,
+/// one owned array out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PackedIntegerPrimitive {
     WrappingAddI16x8,
     WrappingSubI16x8,
-    ShuffleI16x8,
+    UnpackLowWords,
+    UnpackHighWords,
+    UnpackLowDoublewords,
+    UnpackHighDoublewords,
+    UnpackLowQuadwords,
+    UnpackHighQuadwords,
     ShiftRightI16x8,
     WidenU8x8ToI16x8,
     NarrowI16x8ToU8x8Saturating,
     LoadI16x4ZeroExtend,
-    WidenU8x4ToI16x8,
-    NarrowI16x8ToU8x4Saturating,
     WrappingAddU8x16,
     MinI16x8,
     CmpGtI16x8,
@@ -105,11 +110,68 @@ pub enum PackedIntegerPrimitive {
 }
 
 impl PackedIntegerPrimitive {
+    pub const ALL: [Self; 18] = [
+        Self::WrappingAddI16x8,
+        Self::WrappingSubI16x8,
+        Self::UnpackLowWords,
+        Self::UnpackHighWords,
+        Self::UnpackLowDoublewords,
+        Self::UnpackHighDoublewords,
+        Self::UnpackLowQuadwords,
+        Self::UnpackHighQuadwords,
+        Self::ShiftRightI16x8,
+        Self::WidenU8x8ToI16x8,
+        Self::NarrowI16x8ToU8x8Saturating,
+        Self::LoadI16x4ZeroExtend,
+        Self::WrappingAddU8x16,
+        Self::MinI16x8,
+        Self::CmpGtI16x8,
+        Self::BitAndI16x8,
+        Self::BitAndNotI16x8,
+        Self::AbsI16x8,
+    ];
+
+    /// The x86-64 mnemonic that spells this instruction in `asm`; it is also
+    /// the name of its contract declaration.
+    pub const fn mnemonic(self) -> &'static str {
+        match self {
+            Self::WrappingAddI16x8 => "vpaddw",
+            Self::WrappingSubI16x8 => "vpsubw",
+            Self::UnpackLowWords => "vpunpcklwd",
+            Self::UnpackHighWords => "vpunpckhwd",
+            Self::UnpackLowDoublewords => "vpunpckldq",
+            Self::UnpackHighDoublewords => "vpunpckhdq",
+            Self::UnpackLowQuadwords => "vpunpcklqdq",
+            Self::UnpackHighQuadwords => "vpunpckhqdq",
+            Self::ShiftRightI16x8 => "vpsraw",
+            Self::WidenU8x8ToI16x8 => "vpmovzxbw",
+            Self::NarrowI16x8ToU8x8Saturating => "vpackuswb",
+            Self::LoadI16x4ZeroExtend => "vmovq",
+            Self::WrappingAddU8x16 => "vpaddb",
+            Self::MinI16x8 => "vpminsw",
+            Self::CmpGtI16x8 => "vpcmpgtw",
+            Self::BitAndI16x8 => "vpand",
+            Self::BitAndNotI16x8 => "vpandn",
+            Self::AbsI16x8 => "vpabsw",
+        }
+    }
+
+    pub fn from_mnemonic(mnemonic: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|primitive| primitive.mnemonic() == mnemonic)
+    }
+
     pub fn inputs(self) -> usize {
         match self {
             Self::WrappingAddI16x8
             | Self::WrappingSubI16x8
-            | Self::ShuffleI16x8
+            | Self::UnpackLowWords
+            | Self::UnpackHighWords
+            | Self::UnpackLowDoublewords
+            | Self::UnpackHighDoublewords
+            | Self::UnpackLowQuadwords
+            | Self::UnpackHighQuadwords
             | Self::WrappingAddU8x16
             | Self::MinI16x8
             | Self::CmpGtI16x8
@@ -119,30 +181,30 @@ impl PackedIntegerPrimitive {
             | Self::WidenU8x8ToI16x8
             | Self::NarrowI16x8ToU8x8Saturating
             | Self::LoadI16x4ZeroExtend
-            | Self::WidenU8x4ToI16x8
-            | Self::NarrowI16x8ToU8x4Saturating
             | Self::AbsI16x8 => 1,
         }
     }
 
+    /// Constant operands after the arrays, such as the shift count.
     pub fn immediates(self) -> usize {
         match self {
-            Self::ShuffleI16x8 => 8,
             Self::ShiftRightI16x8 => 1,
-            Self::WrappingAddI16x8
-            | Self::WrappingSubI16x8
-            | Self::WidenU8x8ToI16x8
-            | Self::NarrowI16x8ToU8x8Saturating
-            | Self::LoadI16x4ZeroExtend
-            | Self::WidenU8x4ToI16x8
-            | Self::NarrowI16x8ToU8x4Saturating
-            | Self::WrappingAddU8x16
-            | Self::MinI16x8
-            | Self::CmpGtI16x8
-            | Self::BitAndI16x8
-            | Self::BitAndNotI16x8
-            | Self::AbsI16x8 => 0,
+            _ => 0,
         }
+    }
+
+    /// The fixed lane selection an interleave realizes. Lanes 0 to 7 name the
+    /// left input and 8 to 15 the right input.
+    pub const fn interleaved_lanes(self) -> Option<[u8; 8]> {
+        Some(match self {
+            Self::UnpackLowWords => [0, 8, 1, 9, 2, 10, 3, 11],
+            Self::UnpackHighWords => [4, 12, 5, 13, 6, 14, 7, 15],
+            Self::UnpackLowDoublewords => [0, 1, 8, 9, 2, 3, 10, 11],
+            Self::UnpackHighDoublewords => [4, 5, 12, 13, 6, 7, 14, 15],
+            Self::UnpackLowQuadwords => [0, 1, 2, 3, 8, 9, 10, 11],
+            Self::UnpackHighQuadwords => [4, 5, 6, 7, 12, 13, 14, 15],
+            _ => return None,
+        })
     }
 }
 
@@ -299,121 +361,145 @@ const ROWS: &[SealedIntrinsicRow] = &[
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "wrapping_add_i16x8",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpaddw",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::WrappingAddI16x8,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "wrapping_sub_i16x8",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpsubw",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::WrappingSubI16x8,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "shuffle_i16x8",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpunpcklwd",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
-            PackedIntegerPrimitive::ShuffleI16x8,
+            PackedIntegerPrimitive::UnpackLowWords,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "shift_right_i16x8",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpunpckhwd",
+        BundledFile::CoreAssemblyPackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::UnpackHighWords,
+        )),
+    ),
+    row(
+        "assembly_packed_integer.omg",
+        "vpunpckldq",
+        BundledFile::CoreAssemblyPackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::UnpackLowDoublewords,
+        )),
+    ),
+    row(
+        "assembly_packed_integer.omg",
+        "vpunpckhdq",
+        BundledFile::CoreAssemblyPackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::UnpackHighDoublewords,
+        )),
+    ),
+    row(
+        "assembly_packed_integer.omg",
+        "vpunpcklqdq",
+        BundledFile::CoreAssemblyPackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::UnpackLowQuadwords,
+        )),
+    ),
+    row(
+        "assembly_packed_integer.omg",
+        "vpunpckhqdq",
+        BundledFile::CoreAssemblyPackedInteger,
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
+            PackedIntegerPrimitive::UnpackHighQuadwords,
+        )),
+    ),
+    row(
+        "assembly_packed_integer.omg",
+        "vpsraw",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::ShiftRightI16x8,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "widen_u8x8_to_i16x8",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpmovzxbw",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::WidenU8x8ToI16x8,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "narrow_i16x8_to_u8x8_saturating",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpackuswb",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::NarrowI16x8ToU8x8Saturating,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "load_i16x4_zero_extend",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vmovq",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::LoadI16x4ZeroExtend,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "widen_u8x4_to_i16x8",
-        BundledFile::CorePackedInteger,
-        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
-            PackedIntegerPrimitive::WidenU8x4ToI16x8,
-        )),
-    ),
-    row(
-        "packed_integer/packed_integer.omg",
-        "narrow_i16x8_to_u8x4_saturating",
-        BundledFile::CorePackedInteger,
-        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
-            PackedIntegerPrimitive::NarrowI16x8ToU8x4Saturating,
-        )),
-    ),
-    row(
-        "packed_integer/packed_integer.omg",
-        "wrapping_add_u8x16",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpaddb",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::WrappingAddU8x16,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "min_i16x8",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpminsw",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::MinI16x8,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "cmpgt_i16x8",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpcmpgtw",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::CmpGtI16x8,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "bit_and_i16x8",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpand",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::BitAndI16x8,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "bit_andnot_i16x8",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpandn",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::BitAndNotI16x8,
         )),
     ),
     row(
-        "packed_integer/packed_integer.omg",
-        "abs_i16x8",
-        BundledFile::CorePackedInteger,
+        "assembly_packed_integer.omg",
+        "vpabsw",
+        BundledFile::CoreAssemblyPackedInteger,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::PackedInteger(
             PackedIntegerPrimitive::AbsI16x8,
         )),

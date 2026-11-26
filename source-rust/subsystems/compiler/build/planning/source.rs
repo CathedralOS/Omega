@@ -57,6 +57,7 @@ pub struct PreparedPlanningStage {
 
 #[derive(Clone)]
 pub(super) struct PlanningSource {
+    pub(super) file_imports: source_compiler::FileImportAdvisories,
     query_authors: Option<Arc<SourceMap>>,
     query_declarations: Option<(ProductQueryInputs, ProductDeclarations)>,
     pub(super) deferred: DeferredProductSources,
@@ -69,6 +70,7 @@ pub(super) struct PlanningSource {
 
 /// The opened Product and the exact Build and package graph that admitted it.
 pub struct PlannedProduct {
+    file_imports: source_compiler::FileImportAdvisories,
     pub(super) supplied_build_libraries: Arc<[SuppliedBuildLibrary]>,
     pub(crate) evaluated: EvaluatedBuild,
     pub(crate) build_profile: TargetProfile,
@@ -170,6 +172,14 @@ impl PlannedProduct {
             &self.source.parsed.files,
             self.package_inputs(),
         );
+    }
+
+    /// Fold all prepared dependencies into the same invocation's import warnings.
+    pub fn collect_file_imports(&self, uses: &mut source_compiler::FileImportAdvisories) {
+        uses.extend(&self.file_imports);
+        for supplier in self.suppliers.values() {
+            supplier.collect_file_imports(uses);
+        }
     }
 
     pub fn preparation(&self) -> &SourcePreparation {
@@ -286,15 +296,23 @@ pub fn prepare(
         profile,
         inputs,
         &supplied_libraries,
+        execution.dependency_activation,
     )?;
     // A dependency Build checks only what its entry reaches, so typing its
     // file under a check-only owner would produce a subject nothing judges.
-    let check_only_subject =
-        if execution.checks_whole_subject_first(inputs, assembled.anonymous_owner.as_ref()) {
-            check_only_subject(&assembled, &preparation, profile, &supplied_libraries)?
-        } else {
-            None
-        };
+    // Likewise, a root Build with no boundary traits, no implementations, and no
+    // non-entry machines has nothing beyond the entry machine already checked.
+    let check_only_subject = if execution
+        .checks_whole_subject_first(inputs, assembled.anonymous_owner.as_ref())
+        && requires_provisional_subject_check(
+            &interval.program,
+            &assembled.build_scope_sources,
+            assembled.build_source,
+        ) {
+        check_only_subject(&assembled, &preparation, profile, &supplied_libraries)?
+    } else {
+        None
+    };
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
             preceding_entries: preparations.stages[preparations.first_stage_in_package..].iter().map(|(_, stage)| {
@@ -318,10 +336,13 @@ pub fn prepare(
         &mut timings,
     )
     .map_err(|failure| locate_failure(failure, &assembled.parsed.files, inputs))?;
+    let mut file_imports = std::mem::take(&mut preparations.file_imports);
+    file_imports.observe(&assembled.parsed, source_provenance::DependencyScope::Build);
     Ok(PreparedPlanningStage {
         preparations,
         evaluation,
         source: PlanningSource {
+            file_imports,
             supplied_libraries,
             query_authors: interval.program.symbols.source_map(),
             query_declarations: None,
@@ -359,28 +380,73 @@ fn check_only_subject(
         .map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, None))
 }
 
+fn requires_provisional_subject_check(
+    typed: &source_compiler::representations::source_state::TypedTrees,
+    build_sources: &std::collections::HashSet<source_text::SourceId>,
+    build_source: Option<package_compilation::source_assembly::BuildSourceSelection>,
+) -> bool {
+    let Some(sources) = typed.symbols.source_map() else {
+        return true;
+    };
+    let is_user_build = |span: source_text::SourceSpan| {
+        build_sources.contains(&span.source_id)
+            && sources
+                .get(span.source_id)
+                .is_some_and(|file| file.origin == source_admission::SourceOrigin::User)
+    };
+    if typed.traits().iter().any(|trait_def| {
+        trait_def.is_boundary
+            && typed
+                .symbols
+                .symbol_source_span(trait_def.symbol)
+                .is_some_and(is_user_build)
+    }) {
+        return true;
+    }
+    if typed.conformances().iter().any(|conformance| {
+        typed
+            .symbols
+            .symbol_source_span(conformance.symbol)
+            .is_some_and(is_user_build)
+    }) {
+        return true;
+    }
+    let entry_span =
+        build_source.map(package_compilation::source_assembly::BuildSourceSelection::entry);
+    typed.machines().iter().any(|machine| {
+        let parent = typed.symbols.get(machine.symbol).parent;
+        let is_top_level = !parent.is_valid()
+            || !matches!(
+                typed.symbols.get(parent).kind,
+                symbols::SymbolKind::Machine | symbols::SymbolKind::State
+            );
+        is_top_level
+            && typed
+                .symbols
+                .symbol_source_span(machine.symbol)
+                .is_some_and(|span| is_user_build(span) && Some(span) != entry_span)
+    })
+}
+
 fn resolve(
     assembled: &AssembledSyntax,
     preparation: &SourcePreparation,
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
     libraries: &[SuppliedBuildLibrary],
+    entry_only: bool,
 ) -> Result<TypedBuildInterval, CompileFailure> {
-    assembled
-        .build_stage_source()?
-        .prepare(
-            preparation,
-            profile.target_name(),
-            inputs
-                .map(|inputs| {
-                    inputs.declaration_scope(build_declarations::DependencyPurpose::Build)
-                })
-                .or_else(|| {
-                    SuppliedBuildLibrary::declaration_scope(libraries, assembled.build_owner())
-                })
-                .map(Arc::new),
-        )
-        .map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, inputs))
+    let scope = inputs
+        .map(|inputs| inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
+        .or_else(|| SuppliedBuildLibrary::declaration_scope(libraries, assembled.build_owner()))
+        .map(Arc::new);
+    let stage = assembled.build_stage_source()?;
+    let prepared = if entry_only {
+        stage.prepare_entry_only(preparation, profile.target_name(), scope)
+    } else {
+        stage.prepare(preparation, profile.target_name(), scope)
+    };
+    prepared.map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, inputs))
 }
 
 fn locate_failure(
@@ -500,7 +566,7 @@ impl PlanningSource {
         evaluated: EvaluatedBuild,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<PlannedProduct, CompileFailure> {
-        let product = self.open_unchecked(evaluated, inputs)?;
+        let product = self.open_unchecked(evaluated, inputs, false)?;
         match BuildRecheck::owed_by(&product) {
             None => Ok(product),
             Some((recheck, owed)) => {
@@ -518,7 +584,27 @@ impl PlanningSource {
         evaluated: EvaluatedBuild,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<PendingProduct, CompileFailure> {
-        let product = self.open_unchecked(evaluated, inputs)?;
+        self.open_pending_scoped(evaluated, inputs, false)
+    }
+
+    /// Open only the entry, operand, and imported files needed to form a
+    /// dependency Build handoff without seeding every unimported module of the
+    /// dependency package.
+    pub(super) fn open_pending_for_handoff(
+        self,
+        evaluated: EvaluatedBuild,
+        inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<PendingProduct, CompileFailure> {
+        self.open_pending_scoped(evaluated, inputs, true)
+    }
+
+    fn open_pending_scoped(
+        self,
+        evaluated: EvaluatedBuild,
+        inputs: Option<&PackageCompilationInputs>,
+        exclude_product_subject: bool,
+    ) -> Result<PendingProduct, CompileFailure> {
+        let product = self.open_unchecked(evaluated, inputs, exclude_product_subject)?;
         let owed = BuildRecheck::owed_by(&product).map(|(recheck, owed)| (owed, recheck.start()));
         Ok(PendingProduct::new(product, owed))
     }
@@ -527,6 +613,7 @@ impl PlanningSource {
         mut self,
         evaluated: EvaluatedBuild,
         inputs: Option<&PackageCompilationInputs>,
+        exclude_product_subject: bool,
     ) -> Result<PlannedProduct, CompileFailure> {
         for library in self.supplied_libraries.iter() {
             let joined = inputs.ok_or_else(|| {
@@ -545,6 +632,7 @@ impl PlanningSource {
                         .product_selection_requests
                         .iter()
                         .any(|event| event.test_group.is_some()),
+                    exclude_product_subject,
                 },
                 &evaluated.configuration.generated_sources,
                 &evaluated.configuration.declared_product_selections,
@@ -559,7 +647,10 @@ impl PlanningSource {
                 )
             })?
             .1;
+        self.file_imports
+            .observe(&source.parsed, source_provenance::DependencyScope::Product);
         Ok(PlannedProduct {
+            file_imports: self.file_imports,
             supplied_build_libraries: self.supplied_libraries,
             evaluated,
             build_profile: self.profile,

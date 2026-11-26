@@ -1,4 +1,4 @@
-use audit_driver\drive;
+use {audit_driver}/main.omg as audit_driver;
 
 public boundary trait FilesystemContentWrite {}
 

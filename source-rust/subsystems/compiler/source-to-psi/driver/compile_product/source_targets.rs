@@ -34,7 +34,7 @@ pub struct SourceEntryContract {
 }
 
 impl SourceEntryContract {
-    pub(super) fn owns(&self, file: &source_admission::SourceFile) -> bool {
+    pub(crate) fn owns(&self, file: &source_admission::SourceFile) -> bool {
         file.package_identity == self.package_owner
             && file.package_root == self.installed_root
             && file.path.strip_prefix(&file.package_root).ok()

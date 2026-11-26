@@ -109,12 +109,12 @@ impl TypedTrees {
         let callable_application =
             self.expression_table
                 .retain_static_machine_application(declaration, name, &arguments);
-        bind(self, callable_application, &operands);
         let binding = self
             .expression_table
             .static_machine_application_mut(callable_application);
         binding.lexical_owner = owner;
         binding.binding_declaration = declaration;
+        bind(self, callable_application, &operands)?;
         let record = ClosedConformanceApplication {
             declaration,
             trait_scope: scope,

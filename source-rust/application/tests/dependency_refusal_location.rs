@@ -29,7 +29,7 @@ fn a_refusal_inside_a_dependency_names_its_machine_and_file_position() {
     std::fs::create_dir_all(root.join("dep")).expect("staging directory");
     std::fs::write(
         root.join("main.omg"),
-        "use kit;\n\nmachine entry() -> i32 {\n    kit\\value()\n}\n",
+        "use {kit}/main.omg as kit;\n\nmachine entry() -> i32 {\n    |kit|::value()\n}\n",
     )
     .expect("staged program");
     std::fs::write(

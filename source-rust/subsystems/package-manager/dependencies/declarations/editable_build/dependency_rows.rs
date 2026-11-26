@@ -33,8 +33,8 @@ use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
 use super::BuildEntrySyntaxProjection;
-use super::DEPENDENCY_REGISTRATION_NAME;
 use super::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
+use super::{DEPENDENCY_REGISTRATION_NAME, expression_owner};
 
 pub const FROM_SOURCE_HELPER_NAME: &str = "from_source";
 /// `|dependency|::with_alias(@mutable description, alias)`.
@@ -103,10 +103,9 @@ pub fn project_dependency_rows(
                 calls.push(registration.operand);
                 source
             } else if matches!(
-                    syntax_trees.expressions.expression(registration.operand),
-                    ExpressionNode::StructLiteral(_)
-                )
-            {
+                syntax_trees.expressions.expression(registration.operand),
+                ExpressionNode::StructLiteral(_)
+            ) {
                 registration.operand
             } else {
                 return Err(DependencyRowError::WrongArguments);
@@ -119,14 +118,10 @@ pub fn project_dependency_rows(
         } else if let StatementNode::LocalData(local) = syntax_trees.statements.statement(handle)
             && let Some(source) = fresh_description(syntax_trees, local.initial_value)
         {
-            let group = statements[position..].first_chunk::<3>().ok_or(DependencyRowError::WrongArguments)?;
-            let row = aliased_row(
-                syntax_trees,
-                group,
-                local,
-                source,
-                receiver,
-            )?;
+            let group = statements[position..]
+                .first_chunk::<3>()
+                .ok_or(DependencyRowError::WrongArguments)?;
+            let row = aliased_row(syntax_trees, group, local, source, receiver)?;
             position += group.len();
             rows.push(row);
             continue;
@@ -171,12 +166,11 @@ fn registration(
     if discarded == Some(false) || (discarded.is_none() && !call.target_is_static) {
         return Err(DependencyRowError::WrongArguments);
     }
-    let operands = direct_build_call_operands(syntax_trees, call, receiver).map_err(|error| {
-        match error {
+    let operands =
+        direct_build_call_operands(syntax_trees, call, receiver).map_err(|error| match error {
             DirectBuildCallError::WrongReceiver => DependencyRowError::WrongReceiver,
             DirectBuildCallError::WrongArguments => DependencyRowError::WrongArguments,
-        }
-    })?;
+        })?;
     let [operand] = operands else {
         return Err(DependencyRowError::WrongArguments);
     };
@@ -208,33 +202,6 @@ fn fresh_description(
         [source] => Some(*source),
         _ => None,
     }
-}
-
-fn expression_owner(syntax_trees: &SyntaxTrees, receiver: ExpressionHandle) -> Option<&str> {
-    if !receiver.is_valid() {
-        return None;
-    }
-    let ExpressionNode::Name {
-        members: path,
-        application: path_application,
-    } = syntax_trees.expressions.expression(receiver)
-    else {
-        return None;
-    };
-    if path_application.is_some() {
-        return None;
-    }
-    match syntax_trees
-        .expressions
-        .identifier_path_members(path.to_owned())
-    {
-        [owner] => Some(owner.as_str(syntax_trees)),
-        _ => None,
-    }
-}
-
-fn single_name(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> Option<&str> {
-    expression_owner(syntax_trees, expression)
 }
 
 fn aliased_row(
@@ -273,13 +240,14 @@ fn aliased_row(
     let ExpressionNode::Borrow(borrow) = syntax_trees.expressions.expression(*borrowed) else {
         return Err(DependencyRowError::WrongArguments);
     };
-    if !borrow.access.is_exclusive() || single_name(syntax_trees, borrow.target) != Some(name) {
+    if !borrow.access.is_exclusive() || expression_owner(syntax_trees, borrow.target) != Some(name)
+    {
         return Err(DependencyRowError::WrongArguments);
     }
     let Some(register) = self::registration(syntax_trees, *registration, receiver)? else {
         return Err(DependencyRowError::WrongArguments);
     };
-    if single_name(syntax_trees, register.operand) != Some(name) {
+    if expression_owner(syntax_trees, register.operand) != Some(name) {
         return Err(DependencyRowError::WrongArguments);
     }
     Ok(DependencyRow {

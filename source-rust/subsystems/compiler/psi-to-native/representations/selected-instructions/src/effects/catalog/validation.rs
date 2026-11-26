@@ -2575,6 +2575,13 @@ pub(super) fn validate_declaration(
         )
         .map_err(|()| MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic))?;
         match alternative.size {
+            // Only a register copy may encode to nothing: when allocation
+            // gives its source and destination the same register, the value
+            // is already in place.
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 0,
+                maximum_bytes: Some(_),
+            } if semantic == MachineSemanticKind::CopyI64 => {}
             MachineSizeKnowledge::ExactBytes(0)
             | MachineSizeKnowledge::EncoderResolved {
                 minimum_bytes: 0, ..

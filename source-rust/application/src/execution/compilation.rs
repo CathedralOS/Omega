@@ -152,6 +152,9 @@ pub(super) fn compile(
         };
         let plan =
             stage.plan_registered_tests(profile, &[], project_build::TestExecution::Available)?;
+        let mut file_imports = project_build::FileImportAdvisories::default();
+        planned.collect_file_imports(&mut file_imports);
+        crate::commands::report_unused_imports(&file_imports);
         (product, profile, Some(plan))
     };
     Ok(CompiledRun {

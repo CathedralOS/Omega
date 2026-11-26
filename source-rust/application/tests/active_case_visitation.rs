@@ -98,8 +98,8 @@ fn an_empty_sum_still_requires_the_published_callback_interfaces() {
         );
     for (declaration, invalid) in [
         (
-            r"selected: @reflect\CaseInfo) {",
-            r"selected: @reflect\CaseInfo) requires calls == 0u64 {",
+            r"selected: @|reflect|::CaseInfo) {",
+            r"selected: @|reflect|::CaseInfo) requires calls == 0u64 {",
         ),
         ("requires Kind == u64", "requires calls == 0u64"),
     ] {

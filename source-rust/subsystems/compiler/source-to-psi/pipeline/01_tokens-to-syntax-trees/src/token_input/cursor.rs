@@ -461,20 +461,11 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(crate) fn at_path_member(&self) -> bool {
-        self.at_punctuation(PunctuationKind::Backslash)
-            || (self.at_punctuation(PunctuationKind::ColonColon) && !self.at_expression_arguments())
+        self.at_punctuation(PunctuationKind::ColonColon) && !self.at_expression_arguments()
     }
 
     pub(crate) fn take_path_separator(self) -> Result<Self, ParseError> {
-        if self.at_punctuation(PunctuationKind::Backslash) {
-            self.take_punctuation(PunctuationKind::Backslash, "\\")
-        } else if self.peek_semantic(2).and_then(Token::punctuation)
-            == Some(PunctuationKind::Backslash)
-        {
-            Err(self.error_here("module selection must precede static member selection"))
-        } else {
-            self.take_punctuation(PunctuationKind::ColonColon, "::")
-        }
+        self.take_punctuation(PunctuationKind::ColonColon, "::")
     }
 
     pub(crate) fn at_contextual(&self, name: &str) -> bool {

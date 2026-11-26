@@ -86,6 +86,8 @@ fn expand(
         .collect();
     let mut flags = flags::HardwareFlags::default();
     let mut realized_clobbers = std::collections::BTreeSet::new();
+    // Whether every instruction only moves or computes typed Omega places.
+    let mut place_forms_only = true;
 
     for (index, authored) in contract.blocks.iter().enumerate() {
         let mut requires = Vec::new();
@@ -149,6 +151,12 @@ fn expand(
             let mut instruction = instruction.clone();
             syntax_trees.copy_assembly_operands_from(source, &mut instruction.operands);
             let instruction = prepare_instruction(syntax_trees, &instruction)?;
+            place_forms_only &= matches!(
+                instruction.contract.shape,
+                AsmInstructionShape::RegisterMove
+                    | AsmInstructionShape::MemoryTransfer(_)
+                    | AsmInstructionShape::PackedInteger(_)
+            ) && instruction.arithmetic.is_none();
             target_requirement = target_requirement
                 .intersect(instruction.contract.target)
                 .ok_or_else(|| error(site, "assembly body mixes incompatible catalog targets"))?;
@@ -297,6 +305,27 @@ fn expand(
             .map(|clobber| clobber.as_str(syntax_trees).to_owned())
             .collect();
         validate_asm_clobber_contract(&declared, &realized_clobbers, span)?;
+    }
+    // A straight-line region of place instructions has the exact meaning of
+    // its desugared statements: each one reads and writes ordinary typed
+    // places, with no register, flag or block state between them. The
+    // region therefore runs as those statements and the checker judges them
+    // under the ordinary rules. Regions with labels, contracts, flags or
+    // scratch registers keep their assembly control flow.
+    if place_forms_only
+        && !uses_scratch
+        && primitives.is_empty()
+        && !flags.observes()
+        && !flags.restores
+        && body_requires.is_empty()
+        && let [block] = blocks.as_slice()
+        && contract.blocks.len() == 1
+        && contract.blocks[0].label.is_none()
+        && matches!(block.exit, AssemblyExit::Fallthrough)
+        && block.requires.is_empty()
+        && block.ensures.is_empty()
+    {
+        return Ok(block.instructions.clone());
     }
     flags.materialize(syntax_trees, &mut blocks, body_requires, &mut primitives);
     let (scratch, bindings) = generated_statements::bind(syntax_trees, scope);

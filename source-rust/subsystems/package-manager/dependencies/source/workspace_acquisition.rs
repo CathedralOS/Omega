@@ -5,7 +5,7 @@
 // their `Build` invocations execute so repository-relative selection has the
 // complete catalog.
 
-use super::acquisition::{AcquiredSourceSelection, SourceAcquisitionOrigin};
+use super::acquisition::{AcquiredSourceSelection, SourceAcquisitionOrigin, git_resolution};
 use super::workspace_path::source_relative_path;
 use super::{
     AcquiredBuildSource, BuildSourceAcquisitions, GitPackageSourceRequest, PackageSourceNavigation,
@@ -17,7 +17,7 @@ use build_declarations::{BuildDeclaration, WorkspaceMemberPath};
 use build_execution::SourceBuildDeclaration;
 use package_compilation::CapturedLocalSource;
 use source_acquisition::git::resolution::{GitWorkspaceCatalog, GitWorkspaceSession};
-use source_acquisition::{GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSourceLimits};
+use source_acquisition::{ImmutableSourceResolution, LocalSourceLimits};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -271,11 +271,7 @@ impl BuildSourceAcquisitions<'_> {
             capture,
             lineage: request.acquisition().lineage().clone(),
             limits,
-            resolution: ImmutableSourceResolution::git(
-                GitCommitId::parse_hex(source.commit()).map_err(|error| error.to_string())?,
-                GitTreeId::parse_hex(source.tree()).map_err(|error| error.to_string())?,
-            )
-            .map_err(|error| error.to_string())?,
+            resolution: git_resolution(source.commit(), source.tree())?,
             root_request: PackageRootSourceRequest::Git(request.clone()),
             navigation: PackageSourceNavigation::Root,
             selection: PackageSourceSelectionEvidence::Root,
@@ -320,13 +316,8 @@ impl BuildSourceAcquisitions<'_> {
             return Err("workspace acquisition lost its selected package name".into());
         };
         let selected = selected.clone();
-        let resolution = ImmutableSourceResolution::git(
-            GitCommitId::parse_hex(acquired.source.session().commit())
-                .map_err(|error| error.to_string())?,
-            GitTreeId::parse_hex(acquired.source.session().tree())
-                .map_err(|error| error.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
+        let session = acquired.source.session();
+        let resolution = git_resolution(session.commit(), session.tree())?;
         let workspace = ExecutedWorkspace {
             source: acquired.source,
             root: acquired.root,

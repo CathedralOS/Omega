@@ -1,3 +1,4 @@
+use {omega}/language/core/nat.omg;
 // Reject: a write, call, or alias invalidates the entry-relative ranking.
 data View<'storage> [copy] { bytes: @'storage [u8]; sibling: @'storage [u8]; }
 data Counted<'storage, Count: u64> [copy]
@@ -12,7 +13,7 @@ ensures result == true && $value == 2
 { $value = 2; true }
 machine retain_counted<'storage, Count: u64>(selected: Counted<'storage, Count>, mutable remaining: u64) -> Counted<'storage, Count>
 requires remaining <= 2
-terminates by remaining -> Nat::Descending in 0..=2
+terminates by remaining -> |nat|::Nat::Descending in 0..=2
 {
     transition ready(@mutable remaining) {
         true -> retain_counted::<Count>(selected, previous(remaining)),

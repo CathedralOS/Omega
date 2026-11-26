@@ -198,6 +198,29 @@ fn a_recursive_view_must_reborrow_its_last_live_carrier() {
 }
 
 #[test]
+fn an_indexed_generic_borrow_can_end_before_the_next_suffix() {
+    let package = PackageKeyIdentity::from_digest([0x78; 32]).unwrap();
+    let (files, root) = captured(
+        package,
+        "machine observe<T>(item: @mutable T) terminates {}
+        machine walk<T>(items: @mutable [T]) terminates terminates by items -> Slice::Length {
+            transition items.length > 0 { true -> head(items), _ -> done() }
+            machine head(items: @mutable [T]) requires items.length > 0 {
+                observe::<T>(@mutable items[0]);
+                walk::<T>(@mutable items[1..])
+            }
+            machine done() {}
+        }
+        machine main() {
+            let mutable items: [i32; 2] = [4, 7];
+            walk::<i32>(@mutable items[..])
+        }",
+    );
+    compile(product(files, root, package, &[]).unwrap(), None)
+        .expect("the empty call finishes using the selected element before the next reborrow");
+}
+
+#[test]
 fn a_nested_machine_inherits_its_enclosing_nominal_callback_contract() {
     let package = PackageKeyIdentity::from_digest([0x79; 32]).unwrap();
     let client = r#"

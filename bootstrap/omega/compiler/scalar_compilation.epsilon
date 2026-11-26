@@ -146,9 +146,6 @@ data OmegaScalarCompiler {
     byte_ranges: [OmegaByteRange; 16384];
     byte_subranges: [OmegaByteSubrange; 16384];
     construction: OmegaConstructionDirectory;
-    import_bindings: [OmegaImportBinding; 4096];
-    query_path: OmegaNamePath;
-    address_path: OmegaNamePath;
     entry_unit: i32;
     exit_service: i32;
     exit_result: i32;
@@ -3923,7 +3920,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state pooled_imports() {
-        transition self.validate_imports(source) {
+        transition self.validate_imports(source, -1) {
             1 -> terminal_suppliers()
             _ -> return
         }
@@ -4134,7 +4131,7 @@ machine OmegaScalarCompiler::compile_closed_units(&mut self, source: &[u8], entr
         }
     }
     state unit_import_check(unit: i32) {
-        transition self.validate_imports(source) {
+        transition self.validate_imports(source, -1) {
             1 -> unit_imports(unit + 1)
             _ -> return
         }
