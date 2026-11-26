@@ -16,7 +16,7 @@
 | `proofs` | [Theorems, evidence, proof outputs and operation obligations](proofs/declarations.rs) |
 | `layouts` | [Target layout applications and native layouts](layouts/declarations.rs) |
 
-[Source publication](../source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs) produces a program after source checking. [Psi artifacts](artifact/) define its canonical encoding, publication metadata and receiving trust decision. The [shared semantics](semantics/) give operations their meaning. The [execution inputs](execution-inputs/) bind the program's declarations to a particular target and supplied resources.
+[Source publication](../source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs) produces a program after source checking. [Psi artifacts](artifact/) define its canonical encoding, publication metadata and receiving trust decision. The [shared semantics](semantics/) give operations their meaning. The [execution inputs](execution-inputs/) bind the program's declarations to a particular target and supplied resources.
 
 ## Changes to Psi
 

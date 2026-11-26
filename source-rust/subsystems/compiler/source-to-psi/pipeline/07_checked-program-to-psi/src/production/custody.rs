@@ -1,10 +1,10 @@
 //! Source-issued Build operations and application judgments travel with the checked code.
 //! Portable publication seals the declaration owners and evidence into the artifact.
 
-use crate::declaration_selection::NativeBindingFormation;
-use crate::declaration_selection::ProductDeclarationRequest;
 use crate::ProducedTerminalApplication;
 use crate::TerminalBuildFilesystemCall;
+use crate::declaration_selection::NativeBindingFormation;
+use crate::declaration_selection::ProductDeclarationRequest;
 use crate::{TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildRequests};
 use diagnostics::Diagnostic;
 use psi_authorization::selection_questions::ProductSchemaCustody;
@@ -24,9 +24,11 @@ mod schema_tests {
             record_storage::encode(&b"PSITERM\0".to_vec(), Default::default()).unwrap(),
             record_storage::encode(&u64::from_le_bytes(*b"OMGBLD02"), Default::default()).unwrap(),
         ] {
-            let error =
-                record_storage::decode::<super::ProducedTerminalProgram>(&bytes, Default::default())
-                    .unwrap_err();
+            let error = record_storage::decode::<super::ProducedTerminalProgram>(
+                &bytes,
+                Default::default(),
+            )
+            .unwrap_err();
             assert!(
                 error
                     .to_string()
@@ -167,7 +169,7 @@ impl record_storage::Record for ProducedTerminalProgram {
                 }
             }
             let view = artifact.view().into();
-            crate::build_bindings::validate_companions(
+            crate::build::bindings::validate_companions(
                 view,
                 &calls,
                 &queries,
@@ -228,7 +230,7 @@ impl ProducedTerminalProgram {
                     "source declaration custody belongs to another program or invocation".to_owned()
                 })
         });
-        let entry_metadata = super::published_entry::issue(
+        let entry_metadata = crate::source::entry::issue(
             &artifact,
             owners.as_ref(),
             self.provenance,

@@ -1,6 +1,6 @@
 //! Issue per-declaration outcomes while Psi owns the authenticated source selections.
 
-pub(super) fn issue(
+pub(crate) fn issue(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     owners: Option<&Result<psi_authorization::selection_questions::ProductSchemaCustody, String>>,
     provenance: psi_publication_records::TerminalMachineProvenance,
@@ -25,7 +25,8 @@ pub(super) fn issue(
     }
 
     let mut calling: Vec<_> = module
-        .interfaces.calling_policy_requests
+        .interfaces
+        .calling_policy_requests
         .iter()
         .filter_map(|request| request.declaration.as_ref().ok().copied())
         .collect();

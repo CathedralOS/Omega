@@ -976,7 +976,7 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
             "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/package_review.rs",
         ],
         &[(
-            "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+            "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
             "pub(crate) fn publish_package_review_numeric_requirements(",
         )],
         "package numeric review demand can only be issued when publishing the accepted provider request",

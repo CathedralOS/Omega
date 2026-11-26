@@ -10,6 +10,8 @@ use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::BuildSelectionRequest;
 use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
+use crate::source_state::TypedTrees;
+use crate::source_symbols::is_build_protocol;
 use crate::{
     AcceptedTerminalSource, BuildCallSite, ProviderSelectionOption, TerminalBuildBindingCall,
     TerminalBuildBindingOperand, TerminalBuildBindingOperation, TerminalBuildFilesystemCall,
@@ -17,8 +19,6 @@ use crate::{
     TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
     TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
 };
-use crate::source_state::TypedTrees;
-use crate::source_symbols::is_build_protocol;
 use diagnostics::Diagnostic;
 use language_core::build_protocol::SELECTION_PROTOCOL;
 use language_core::build_protocol::SelectionProtocolOperation;
@@ -408,14 +408,16 @@ fn binding(
             .ok_or_else(|| refused("Build provider readiness lost its requirement declaration"))?;
         let application = elaboration
             .module
-            .interfaces.services
+            .interfaces
+            .services
             .iter()
             .find(|row| row.id == service)
             .map(|row| row.identity)
             .ok_or_else(|| refused("Build provider readiness names an unpublished service"))?;
         let mut boundaries = elaboration
             .module
-            .interfaces.boundary_machines
+            .interfaces
+            .boundary_machines
             .iter()
             .filter(|boundary| boundary.owning_service == Some(service))
             .map(|boundary| boundary.id)
@@ -789,7 +791,8 @@ struct NativeLocatorShapes {
 impl NativeLocatorShapes {
     fn new(module: &TerminalModule) -> Result<Self, Diagnostic> {
         let mut rows = module
-            .types.structural_types
+            .types
+            .structural_types
             .iter()
             .map(|row| (row.id, LocatorShapeState::Unread))
             .collect::<Vec<_>>();

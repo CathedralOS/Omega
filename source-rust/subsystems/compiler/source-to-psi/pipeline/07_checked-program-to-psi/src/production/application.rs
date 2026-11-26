@@ -1,11 +1,11 @@
 //! Observe the entry-receipt check when publishing an application from source.
-use super::{TerminalAdmissionRoot, TerminalApplicationCustody};
+use crate::{TerminalAdmissionRoot, TerminalApplicationCustody};
 use artifacts::compile_timings::{CompileTimings, source as stages};
 use diagnostics::Diagnostic;
+use psi_publication_records::{CheckedProgramEntryTerminalReceipt, TerminalMachineProvenance};
 use terminal_codec::{
     CanonicalTerminalArtifact, CanonicalTerminalArtifactError, TerminalExecutionView,
 };
-use psi_publication_records::{CheckedProgramEntryTerminalReceipt, TerminalMachineProvenance};
 
 #[derive(Debug, PartialEq, Eq, record_storage::Record)]
 pub struct ProducedTerminalApplication {
@@ -23,9 +23,7 @@ pub(super) fn attach(
     let attached = application.attach(view, artifact, provenance)?;
     let receipt = attached
         .entry_receipt
-        .map(|request| {
-            timings.record_result(stages::ENTRY_RECEIPT, || request.check())
-        })
+        .map(|request| timings.record_result(stages::ENTRY_RECEIPT, || request.check()))
         .transpose();
     Ok(ProducedTerminalApplication {
         receipt,
