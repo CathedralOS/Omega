@@ -82,8 +82,12 @@ fn generated_files_can_import_the_checked_base_and_one_another() {
             .parsed
             .files
             .selected_files()
-            .all(|file| file.logical_filename().unwrap() != "entry.omg")
+            .any(|file| file.path == root.join("build.omg"))
     );
+    assert!(build.parsed.files.selected_files().all(|file| {
+        file.resolution_stratum
+            != source_admission::SourceResolutionStratum::CurrentActivationExtension
+    }));
     let deferred = build.product_sources.unwrap();
     let generated = |path: &str, text: &str| {
         PackageGeneratedSource::from_retained_parts(
