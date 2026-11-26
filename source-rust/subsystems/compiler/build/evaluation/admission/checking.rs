@@ -576,6 +576,10 @@ mod tests {
             None,
         );
         let failure = CompileFailure::BuildConsentRequired {
+            site: package_compilation::build_execution::RestrictedBuildSite {
+                entry: "build".into(),
+                program: [7; 32],
+            },
             requests: vec![request.clone()],
             accounting: prepared.accounting.clone(),
         }
@@ -583,6 +587,7 @@ mod tests {
         let CompileFailure::BuildConsentRequired {
             requests,
             accounting,
+            ..
         } = failure
         else {
             panic!("costs cannot replace the pending consent kind")

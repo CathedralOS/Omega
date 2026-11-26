@@ -16,11 +16,7 @@ use build_consent::{
 };
 use target::TargetProfile;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackagePolicyRestrictedBuildOperation {
-    ScopedFilesystemExecution,
-    UnscopedFilesystemExecution,
-}
+pub(crate) type PackagePolicyRestrictedBuildOperation = RestrictedBuildOperation;
 
 pub(crate) type PackagePolicyRestrictedBuildGrantRoot = build_consent::RestrictedBuildGrantRoot;
 
@@ -72,14 +68,7 @@ impl From<&RestrictedBuildRequest> for PackagePolicyRestrictedBuildRequest {
     fn from(request: &RestrictedBuildRequest) -> Self {
         let bounds = request.bounds();
         Self {
-            operation: match request.operation() {
-                RestrictedBuildOperation::ScopedFilesystemExecution => {
-                    PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution
-                }
-                RestrictedBuildOperation::UnscopedFilesystemExecution => {
-                    PackagePolicyRestrictedBuildOperation::UnscopedFilesystemExecution
-                }
-            },
+            operation: request.operation().clone(),
             read_grants: request.read_grants().iter().map(Into::into).collect(),
             write_grants: request.write_grants().iter().map(Into::into).collect(),
             bounds: bounds.into(),

@@ -1,6 +1,9 @@
 //! An admitted Build retains its filesystem observations and published source separately.
 //! Completing the activation settles its output files and transfers the immutable source bytes.
 
+mod programs;
+pub use programs::{BuildProgramBinding, BuildProgramInvocation};
+
 mod build_admission;
 pub mod build_value;
 mod completed_outputs;
@@ -25,8 +28,9 @@ pub use filesystem_scope::{
 pub use observation_identity::BuildObservationIdentity;
 pub use observations::*;
 pub use restricted_requests::{
-    RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildGrants,
-    RestrictedBuildOperation, RestrictedBuildRequest,
+    ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
+    RestrictedBuildGrants, RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite,
+    RestrictedProgramLaunch,
 };
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 pub use source_publications::BuildSourcePublications;

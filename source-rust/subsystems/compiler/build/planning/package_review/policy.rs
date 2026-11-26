@@ -206,7 +206,6 @@ fn declaration_policy(
     let callables = declarations.callables(package, services)?;
     let representation = representation_target(target)?;
     let restricted_build_requests = declarations
-        .evaluation
         .restricted_build_requests
         .iter()
         .map(PackagePolicyRestrictedBuildRequest::from)

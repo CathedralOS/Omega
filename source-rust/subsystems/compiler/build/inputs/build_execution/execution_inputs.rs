@@ -21,6 +21,7 @@ pub struct BuildExecutionContract {
 pub struct BuildExecutionInputs {
     /// The caller may designate this activation's retained diagnostics as a bounded StandardOutput.
     pub diagnostic_output_bytes: Option<u64>,
+    pub programs: super::BuildProgramInvocation,
     pub interpreter_providers: crate::InterpretedProviderSelections,
     pub profile: Option<TargetProfile>, // Compilation requests default to the host, independently of Product target.
     pub directory: Option<PathBuf>, // Writable staging, separate from immutable source snapshots.

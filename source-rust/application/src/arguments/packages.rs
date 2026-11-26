@@ -44,10 +44,10 @@ Run `omega build build.omg` on the candidate. Use `omega packages audit` to insp
 pub(super) fn usage(kind: &PackageCommandKind) -> &'static str {
     match kind {
         PackageCommandKind::Install => {
-            "usage: omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega packages install --resume [--project <dir>] [--offline]\n       omega packages install --discard-review [--project <dir>] [--offline]\n       omega packages install --help\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
+            "usage: omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega packages install --resume [--project <dir>] [--offline]\n       omega packages install --discard-review [--project <dir>] [--offline]\n       omega packages install --help\n--allow ProgramLaunch --program <identity> <executable> binds a program for this invocation, including --resume. Its optional --program-read, --program-write and --program-timeout limits follow the binding.\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
         }
         PackageCommandKind::Update => {
-            "usage: omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega packages update --resume [--project <dir>] [--offline]\n       omega packages update --discard-review [--project <dir>] [--offline]\n       omega packages update --help\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
+            "usage: omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega packages update --resume [--project <dir>] [--offline]\n       omega packages update --discard-review [--project <dir>] [--offline]\n       omega packages update --help\n--allow ProgramLaunch --program <identity> <executable> binds a program for this invocation, including --resume. Its optional --program-read, --program-write and --program-timeout limits follow the binding.\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
         }
     }
 }
@@ -68,7 +68,11 @@ pub(super) fn parse_arguments(
     let mut help = false;
     let mut offline = false;
     let mut build_inputs = Vec::new();
+    let mut programs = package_compilation::build_execution::BuildProgramInvocation::default();
     while let Some(argument) = arguments.next_argument() {
+        if super::programs::take(&argument, arguments, &mut programs)? {
+            continue;
+        }
         let argument = argument
             .into_string()
             .map_err(|_| "package arguments must be UTF-8 (except --project paths)".to_owned())?;
@@ -135,6 +139,10 @@ pub(super) fn parse_arguments(
             }
         }
     }
+    super::programs::finish(&mut programs)?;
+    if discard_review && programs.allow {
+        return Err("--discard-review cannot accept Build grants".into());
+    }
     if resume && discard_review {
         return Err("--resume and --discard-review cannot be combined".to_owned());
     }
@@ -183,6 +191,7 @@ pub(super) fn parse_arguments(
     Ok(Some((
         command,
         PackageCommandOptions {
+            programs,
             project_root: project_root.unwrap_or_else(|| PathBuf::from(".")),
             targets,
             offline,
