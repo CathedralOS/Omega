@@ -781,14 +781,14 @@ fn generic_operator_shapes_match_complete_qualifications_in_both_orders() {
             "u32 in |units|::Distance & |units|::Other",
             "u32",
             unqualified_only(
-                "-Distance -Other",
+                "-|units|::Distance -|units|::Other",
                 "u32 in |units|::Distance & |units|::Other",
             ),
         ),
         (
             "u32 in |units|::Distance",
             "u64",
-            unqualified_only("-Distance", "u32 in |units|::Distance"),
+            unqualified_only("-|units|::Distance", "u32 in |units|::Distance"),
         ),
         ("u32", "u32", Ok(None)),
     ] {
