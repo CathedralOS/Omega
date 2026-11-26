@@ -28,6 +28,11 @@ impl<'source> FileQualifiers<'source> {
         if self.packed_instruction.get().is_none() {
             self.packed_instruction.set(Some(site));
         }
+        // The desugared instruction names its contract through this alias.
+        self.record(
+            site.span.start,
+            language_core::inline_assembly::PACKED_INTEGER_CONTRACTS_ALIAS,
+        );
     }
 
     pub(crate) fn packed_instruction(&self) -> Option<source_text::SourceSpan> {

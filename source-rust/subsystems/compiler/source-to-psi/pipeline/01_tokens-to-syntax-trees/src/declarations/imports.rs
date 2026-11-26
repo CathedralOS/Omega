@@ -183,7 +183,7 @@ pub(crate) fn import_packed_contracts(
         root: Some(Identifier::new(PACKED_INTEGER_CONTRACTS_ROOT, site)),
         components,
         alias: Identifier::new(PACKED_INTEGER_CONTRACTS_ALIAS, site),
-        only_product_operands: false,
+        qualifiers: Vec::new(),
         span: site,
     });
     let handle = trees.push_root_item(item);
