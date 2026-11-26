@@ -1,5 +1,5 @@
 //! Check the complete inventory of each dependency the Build explicitly selected.
-use super::services::{DependencyProducts, HandoffSources};
+use super::services::HandoffSources;
 use build_execution::CompileFailure;
 use diagnostics::Diagnostic;
 use project_build::SettledDependency;
@@ -10,7 +10,6 @@ impl HandoffSources<'_> {
         &self,
         settled: &SettledDependency,
         target: TargetProfile,
-        products: &mut DependencyProducts,
     ) -> Result<(), CompileFailure> {
         for subject in &settled.evaluated().dependency_validation {
             let supplier = self
@@ -32,12 +31,17 @@ impl HandoffSources<'_> {
             } else {
                 self.profile
             };
-            let inputs =
-                self.dependency_inputs(&supplier.build, subject.purpose, deployment, products)?;
-            let validated = supplier
-                .build
-                .open_pending(inputs, project_build::DependencyCheck::FullPackage)?
-                .settle()?;
+            let mut dependencies = self.deployment_products(&supplier.build, deployment);
+            let (validated, rechecks) = self.dependency_product(
+                &supplier.build,
+                subject.purpose,
+                deployment,
+                &mut dependencies,
+                project_build::DependencyCheck::FullPackage,
+                false,
+            )?;
+            rechecks.settle()?;
+            let validated = validated.with_component_suppliers(dependencies.into_suppliers());
             let mut timings = artifacts::compile_timings::CompileTimings::default();
             let result = validated
                 .product_stage(&[deployment])?

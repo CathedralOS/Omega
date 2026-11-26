@@ -501,16 +501,14 @@ impl HandoffSources<'_> {
         purpose: DependencyPurpose,
         target: target::TargetProfile,
         products: &mut DependencyProducts,
+        scope: project_build::DependencyCheck,
         alongside: bool,
     ) -> Result<(project_build::PlannedProduct, DependencyRechecks), CompileFailure> {
-        self.validate_dependencies(settled, target, products)?;
         let alongside = alongside && project_build::rechecks_outlive_caller();
         project_build::with_build_rechecks(|| {
             let opened = self
                 .dependency_inputs(settled, purpose, target, products)
-                .and_then(|inputs| {
-                    settled.open_pending(inputs, project_build::DependencyCheck::DemandedClosure)
-                });
+                .and_then(|inputs| settled.open_pending(inputs, scope));
             if alongside
                 && opened.is_ok()
                 && products
@@ -564,7 +562,7 @@ impl HandoffSources<'_> {
 
     /// Recursively form each package/purpose/target handoff once from that dependency's
     /// original Build return and the handoffs of its own dependencies.
-    pub(super) fn dependency_inputs(
+    fn dependency_inputs(
         &self,
         settled: &project_build::SettledDependency,
         purpose: DependencyPurpose,

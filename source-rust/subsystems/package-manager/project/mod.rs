@@ -781,12 +781,16 @@ fn open_products_with(
                         .map(|policy| policy.root_permissions())
                         .transpose()
                         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    sources
+                        .validate_dependencies(&root, target)
+                        .map_err(|failure| error(failure.into()))?;
                     let (planned, rechecks) = sources
                         .dependency_product(
                             &root,
                             build_declarations::DependencyPurpose::Product,
                             target,
                             &mut dependencies,
+                            project_build::DependencyCheck::DemandedClosure,
                             alongside,
                         )
                         .map_err(|failure| error(failure.into()))?;
