@@ -325,7 +325,7 @@ pub(super) fn append_overlapping_source_roots(
                     let relative = root
                         .strip_prefix(ancestor_root)
                         .expect("ancestor is a component prefix");
-                    if captured_subtree_matches(parent, relative, child) {
+                    if compatible_nested_capture(parent, relative, child) {
                         continue;
                     }
                 }
@@ -348,15 +348,26 @@ pub(super) fn append_overlapping_source_roots(
     );
 }
 
-fn captured_subtree_matches(
+fn compatible_nested_capture(
     parent: &source_capture::CapturedSourceTree,
     relative: &Path,
     child: &source_capture::CapturedSourceTree,
 ) -> bool {
-    if !parent.entries().any(|(path, node)| {
-        path == relative && matches!(node, source_capture::CapturedSourceNode::Directory)
-    }) {
-        return false;
+    // A scoped parent can omit the child's directory entirely. Its inventory then
+    // owns no part of the child's capture. A file or symlink on the way to the
+    // mount still conflicts, even if the full child path is absent.
+    let mut has_child_directory = false;
+    for (ancestor, node) in parent
+        .entries()
+        .filter(|(path, _)| relative.starts_with(path))
+    {
+        if !matches!(node, source_capture::CapturedSourceNode::Directory) {
+            return false;
+        }
+        has_child_directory |= ancestor == relative;
+    }
+    if !has_child_directory {
+        return true;
     }
     let mut child_entries = child.entries();
     for (path, node) in parent.entries().filter_map(|(path, node)| {
@@ -406,6 +417,52 @@ pub(super) fn is_snake_case(value: &str) -> bool {
 mod tests {
     use super::*;
     use platform_custody::temporary_directory::TemporaryDirectory;
+
+    #[test]
+    fn nested_captures_accept_disjoint_inventories_and_require_matching_shared_contents() {
+        use source_capture::{CapturedSourceNode, CapturedSourceTree};
+
+        let capture = |rows: &[(&str, CapturedSourceNode)]| {
+            CapturedSourceTree::new(
+                rows.iter()
+                    .map(|(path, node)| (PathBuf::from(path), node.clone())),
+            )
+            .unwrap()
+        };
+        let directory = CapturedSourceNode::Directory;
+        let file = CapturedSourceNode::File {
+            bytes: Arc::from(&b"source"[..]),
+            executable: false,
+        };
+        let link = CapturedSourceNode::Symlink {
+            target: "elsewhere".into(),
+        };
+        let root = Path::new("members/dep");
+        let child = capture(&[("api.omg", file.clone())]);
+        let permits = |rows: &[(&str, CapturedSourceNode)]| {
+            compatible_nested_capture(&capture(rows), root, &child)
+        };
+
+        assert!(permits(&[("main.omg", file.clone())]));
+        assert!(permits(&[
+            ("members", directory.clone()),
+            ("members/other.omg", file.clone())
+        ]));
+        assert!(!permits(&[("members", link)]));
+        assert!(!permits(&[
+            ("members", directory.clone()),
+            ("members/dep", file.clone())
+        ]));
+        assert!(!permits(&[
+            ("members", directory.clone()),
+            ("members/dep", directory.clone())
+        ]));
+        assert!(permits(&[
+            ("members", directory.clone()),
+            ("members/dep", directory),
+            ("members/dep/api.omg", file)
+        ]));
+    }
 
     #[test]
     fn compilation_requires_a_resolved_and_disjoint_toolchain_root() {
