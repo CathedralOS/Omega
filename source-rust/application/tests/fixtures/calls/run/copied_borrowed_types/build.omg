@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "copied_borrowed_type");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "copied_borrowed_type" };
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
