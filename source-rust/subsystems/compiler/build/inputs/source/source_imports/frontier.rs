@@ -165,8 +165,12 @@ impl SourceStorage {
         self.sources
             .selected_files()
             .filter(|file| {
-                file.package_root == self.default_package_root
-                    && file.package_identity == self.default_package_identity
+                let owner = if file.dependency_scope == source_provenance::DependencyScope::Build {
+                    self.build_owner.or(self.default_package_identity)
+                } else {
+                    self.default_package_identity
+                };
+                file.package_root == self.default_package_root && file.package_identity == owner
             })
             .map(|file| file.source_id)
             .collect()
