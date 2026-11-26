@@ -213,11 +213,10 @@ pub(in crate::encoding::encode) fn domain_shape(
             Ok(())
         })
     })?;
-    encoder.field("establishment_routes", |encoder| {
-        encoder.sequence(
-            &shape.establishment_routes,
-            encode_domain_establishment_route,
-        )
+    encoder.field("issuance", |encoder| {
+        encoder.option(shape.issuance.as_deref(), |encoder, routes| {
+            encoder.sequence(routes, encode_domain_establishment_route)
+        })
     })
 }
 

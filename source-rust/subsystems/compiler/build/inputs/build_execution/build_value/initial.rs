@@ -1,9 +1,9 @@
-// Initial `Build` value construction under its admitted vocabulary and filesystem scope.
+// Initial `BuildPlan` value construction under its admitted vocabulary and filesystem scope.
 //
-// Populates the interpreter's starting `Build` struct with baseline defaults
+// Populates the interpreter's starting `BuildPlan` struct with baseline defaults
 // (`x86_deployment_features = Baseline`, `subsystem = Console`),
 // optional `identifier` bytes, zeroed `optimizations` counters, compiler-issued
-// private facet markers (`$OmegaBuildLogFacet`, `$OmegaBuildProductFacet`),
+// private facet markers (`$OmegaBuildLogFacet`, `$OmegaBuildDeclarationsFacet`),
 // an enabled `tests` facet, empty `elf_interpreter` rows for each ELF target
 // profile, and filesystem grant roots (`$OmegaBuildSourceRoot`,
 // `$OmegaBuildOutputRoot`, `$OmegaBuildInputSlots`).
@@ -21,6 +21,13 @@ pub(super) fn initial_value(
 ) -> BuildTimeValue {
     // Source cannot construct the issued seal in the Build borrowed from the host.
     let mut build_fields = vec![
+        (
+            "product".to_owned(),
+            BuildTimeValue::Case {
+                variant: "Unselected".into(),
+                payload: Vec::new(),
+            },
+        ),
         (
             "seal".to_owned(),
             BuildTimeValue::Struct {
@@ -59,11 +66,11 @@ pub(super) fn initial_value(
             },
         ));
     }
-    if admission.product {
+    if admission.declarations {
         build_fields.push((
-            "product".to_owned(),
+            "declarations".to_owned(),
             BuildTimeValue::Struct {
-                type_name: "$OmegaBuildProductFacet".to_owned(),
+                type_name: "$OmegaBuildDeclarationsFacet".to_owned(),
                 fields: Vec::new(),
             },
         ));
@@ -120,7 +127,7 @@ pub(super) fn initial_value(
         build_fields.push(("inputs".to_owned(), filesystem_scope.named_input_facet()));
     }
     BuildTimeValue::Struct {
-        type_name: "Build".to_owned(),
+        type_name: build_declarations::BUILD_TYPE_NAME.to_owned(),
         fields: build_fields,
     }
 }

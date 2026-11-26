@@ -1,4 +1,4 @@
-// BuildProduct marker queries: entry/schema/provider answer by lexical
+// BuildDeclarations marker queries: entry/schema/provider answer by lexical
 // lookup under the call occurrence's package and issue opaque markers.
 // Every query on a row this package never declares must reject — the
 // three unrequested-row rejections are pinned under controls/.

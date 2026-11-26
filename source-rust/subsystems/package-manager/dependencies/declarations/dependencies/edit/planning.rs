@@ -236,8 +236,8 @@ mod tests {
     use std::path::PathBuf;
 
     const ROOT: &str = r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "probe");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "probe" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../library/system" }));
     let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "kit" });
     |dependency|::with_alias(@mutable kit_dependency, "kit");
@@ -261,8 +261,8 @@ machine build(builder: @mutable Build) {
 
     #[test]
     fn dependency_edits_preserve_the_helper_which_selects_the_product() {
-        let source = "machine build(plan: @mutable Build) {\n    choose(plan);\n}\n";
-        let helper = "machine choose(plan: @mutable Build) { Build::package(plan, \"kit\"); }\n";
+        let source = "machine build(plan: @mutable BuildPlan) {\n    choose(plan);\n}\n";
+        let helper = "machine choose(plan: @mutable BuildPlan) { plan.product = BuildProduct::Package { name: \"kit\" }; }\n";
         let proposed = path(Some("tools"), "../tools");
         let edit = plan_dependency_addition_from_source(
             PathBuf::from("build.omg"),
@@ -281,8 +281,7 @@ machine build(builder: @mutable Build) {
 
     #[test]
     fn add_and_replace_use_the_parameter_bound_by_the_entry() {
-        let initial =
-            "machine build(plan: @mutable Build) {\n    Build::package(plan, \"client\");\n}\n";
+        let initial = "machine build(plan: @mutable BuildPlan) {\n    plan.product = BuildProduct::Package { name: \"client\" };\n}\n";
         let first = path(Some("selected"), "../first");
         let second = path(Some("selected"), "../second");
         let file = PathBuf::from("build.omg");
@@ -315,7 +314,7 @@ machine build(builder: @mutable Build) {
 
     #[test]
     fn adds_the_installed_file_once_and_reuses_its_actual_alias() {
-        let plain = "machine build(builder: @mutable Build) {\n    Build::application(builder, \"probe\");\n}\n";
+        let plain = "machine build(builder: @mutable BuildPlan) {\n    builder.product = BuildProduct::Application { name: \"probe\" };\n}\n";
         for (imports, expected, inserted) in [
             ("", "dependency", true),
             ("use {vendor}/build/dependency.omg;\n", "dependency_2", true),

@@ -161,8 +161,9 @@ pub(super) fn domain(value: &PackagePolicyDomainShape) -> Result {
         }
     }
     ordered(&value.semantic_roles)?;
-    ordered(&value.establishment_routes)?;
-    for route in &value.establishment_routes {
+    let routes = value.issuance.as_deref().unwrap_or_default();
+    ordered(routes)?;
+    for route in routes {
         match route {
             PackageReviewDomainEstablishmentRoute::CheckedRequirement {
                 trait_identity,

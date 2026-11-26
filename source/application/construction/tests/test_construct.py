@@ -15,8 +15,8 @@ import construct
 
 class BuildSourceTests(unittest.TestCase):
     packages = [('app', 0), ('core', 1), ('library', 0)]
-    sources = [(0, 'build.omg', b'// app\r\nmachine build(builder: @mutable Build) {}'),
-               (1, 'defaults/build.omg', b'machine build(builder: @mutable Build) {}')]
+    sources = [(0, 'build.omg', b'// app\r\nmachine build(builder: @mutable BuildPlan) {}'),
+               (1, 'defaults/build.omg', b'machine build(builder: @mutable BuildPlan) {}')]
     entries = [(0, 0), (1, 1), (2, 1)]
 
     def frame(self, packages=None, sources=None, entries=None):
@@ -83,14 +83,14 @@ class BuildSourceTests(unittest.TestCase):
             for _, package, _ in construct.PACKAGES:
                 root = Path(temp) / package
                 root.mkdir(parents=True)
-                (root / 'build.omg').write_text('machine build(builder: @mutable Build) {}')
+                (root / 'build.omg').write_text('machine build(builder: @mutable BuildPlan) {}')
                 (root / 'main.omg').write_text('machine entry_start() {}')
             psi = Path(temp) / 'source/subsystems/compiler/source_to_psi'
             before = [construct.compiler_input(scoped)[0] for scoped in (False, True)]
             for directory in ('tests/fixtures/example', 'build', '.git', 'tools/.git'):
                 excluded = psi / directory
                 excluded.mkdir(parents=True)
-                (excluded / 'build.omg').write_text('machine build(builder: @mutable Build) {}')
+                (excluded / 'build.omg').write_text('machine build(builder: @mutable BuildPlan) {}')
                 (excluded / 'main.omg').write_text('machine main() -> u8 { 42 }')
             nested = psi / 'tools/build/reader.omg'
             nested.parent.mkdir(parents=True)

@@ -630,12 +630,12 @@ fn a_rejoined_case_carries_its_original_scalar_payload_at_the_new_field() {
         .invoke(&mut terminal_work::WorkMeter::with_budget(100))
         .unwrap();
     assert_eq!(
-        instance.observe_borrowed_entry(0, &[]).unwrap(),
+        instance.observe_storage(crate::TerminalObservationRoot::ReturnedArgument(0), &[]).unwrap(),
         TerminalStorageObservationValue::Storage(Contents::Case(new_case))
     );
     assert_eq!(
         instance
-            .observe_borrowed_entry(0, &[Path::Case(new_case), Path::Field(new_field)])
+            .observe_storage(crate::TerminalObservationRoot::ReturnedArgument(0), &[Path::Case(new_case), Path::Field(new_field)])
             .unwrap(),
         TerminalStorageObservationValue::Storage(scalar(true))
     );
@@ -1615,12 +1615,14 @@ fn projected_host_tokens_are_reserved_before_local_allocation() {
 fn entry_and_result_observe_typed_storage_and_reject_unknown_coordinates() {
     for value in [false, true] {
         let mut instance = instance(TerminalScalarValue::Boolean(value)).unwrap();
+        assert_eq!(instance.observe_storage(crate::TerminalObservationRoot::ArgumentAtHostCall(0), &[]).unwrap_err(),
+            TerminalStorageObservationError::PendingHostComputationRequired);
         assert_eq!(
-            instance.observe_borrowed_entry(0, &[]).unwrap_err(),
+            instance.observe_storage(crate::TerminalObservationRoot::ReturnedArgument(0), &[]).unwrap_err(),
             TerminalStorageObservationError::NormalReturnRequired
         );
         assert_eq!(
-            instance.observe_result(&[]).unwrap_err(),
+            instance.observe_storage(crate::TerminalObservationRoot::Result, &[]).unwrap_err(),
             TerminalStorageObservationError::NormalReturnRequired
         );
         assert!(matches!(
@@ -1634,19 +1636,19 @@ fn entry_and_result_observe_typed_storage_and_reject_unknown_coordinates() {
                 value: TerminalScalarValue::Boolean(value),
                 stored_scalar: ScalarType::Boolean,
             });
-        assert_eq!(instance.observe_borrowed_entry(0, &[]).unwrap(), expected);
-        assert_eq!(instance.observe_result(&[]).unwrap(), expected);
+        assert_eq!(instance.observe_storage(crate::TerminalObservationRoot::ReturnedArgument(0), &[]).unwrap(), expected);
+        assert_eq!(instance.observe_storage(crate::TerminalObservationRoot::Result, &[]).unwrap(), expected);
         let unknown = [Path::Field(StructuralFieldId::new(99).unwrap())];
         assert_eq!(
-            instance.observe_borrowed_entry(0, &unknown).unwrap_err(),
+            instance.observe_storage(crate::TerminalObservationRoot::ReturnedArgument(0), &unknown).unwrap_err(),
             TerminalStorageObservationError::UnknownPath
         );
         assert_eq!(
-            instance.observe_result(&unknown).unwrap_err(),
+            instance.observe_storage(crate::TerminalObservationRoot::Result, &unknown).unwrap_err(),
             TerminalStorageObservationError::UnknownPath
         );
         assert_eq!(
-            instance.observe_borrowed_entry(1, &[]).unwrap_err(),
+            instance.observe_storage(crate::TerminalObservationRoot::ReturnedArgument(1), &[]).unwrap_err(),
             TerminalStorageObservationError::NotBorrowedEntryArgument { argument_index: 1 }
         );
     }

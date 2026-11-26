@@ -12,7 +12,7 @@ pub const BUILD_FILE_NAME: &str = "build.omg";
 
 pub const BUILD_MODULE_NAME: &str = "Build";
 
-pub const BUILD_TYPE_NAME: &str = "Build";
+pub const BUILD_TYPE_NAME: &str = "BuildPlan";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub struct ProjectName(String);
