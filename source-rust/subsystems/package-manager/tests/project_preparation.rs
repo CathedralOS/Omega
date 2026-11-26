@@ -397,9 +397,13 @@ machine build(builder: @mutable Build) {{
             let Err(error) = result else {
                 panic!("the reachable charged export exceeded its empty ceiling")
             };
-            let message = error.to_string();
             for expected in ["checking", "charged", "AuditEffect"] {
-                assert!(message.contains(expected), "{message}");
+                assert!(
+                    error
+                        .iter()
+                        .any(|diagnostic| diagnostic.message.contains(expected)),
+                    "{error:#?}"
+                );
             }
         }
     }
@@ -493,7 +497,10 @@ machine build(builder: @mutable Build) {{ Build::package(builder, "project"); {o
         let Err(error) = result else {
             panic!("invalid binding accepted")
         };
-        assert!(error.to_string().contains(diagnostic), "{error}");
+        assert!(
+            error.iter().any(|row| row.message.contains(diagnostic)),
+            "{error:#?}"
+        );
     }
 }
 
@@ -586,8 +593,10 @@ machine build(builder: @mutable Build) {
         panic!("a forwarded package widened its incoming ceiling")
     };
     assert!(
-        error.to_string().contains("exceeds its incoming max_reach"),
-        "{error}"
+        error
+            .iter()
+            .any(|row| row.message.contains("exceeds its incoming max_reach")),
+        "{error:#?}"
     );
 }
 
