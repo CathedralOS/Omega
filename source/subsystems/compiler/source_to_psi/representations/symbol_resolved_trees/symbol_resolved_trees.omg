@@ -207,9 +207,7 @@ public data MachineOwner [copy] {
 public data ResolveDiagnosticCode [copy] {
     case None;
     case UnresolvedImport;
-    // A `use` whose first member spells another package's name, or one of
-    // its requester's build-scope aliases, without a product dependency
-    // alias of the requester selecting it.
+    // A required rooted import has no matching product dependency or toolchain mount.
     case UndeclaredDependency;
     // A data, trait or conformance name spells a builtin type, or a domain
     // name a compiler-known domain.

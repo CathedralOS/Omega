@@ -10,7 +10,18 @@ public data IdentifierSpan [copy] {
     source_span: |source|::SourceSpan;
 }
 
+// Keep the qualifier's alias and declaration as parsed tokens. Ordinary
+// identifier spans retain the entire head, so local lookup cannot mistake
+// an explicitly selected name for a lexical binding.
+public data FileSelector [copy] {
+    alias: IdentifierSpan;
+    declaration: IdentifierSpan;
+    start: u64 in Trapping;
+}
+
 public data UseItem [copy] {
+    rooted: bool;
+    alias: IdentifierSpan;
     first_member: u64 in Trapping;
     member_count: u64 in Trapping;
     source_span: |source|::SourceSpan;
@@ -966,6 +977,10 @@ public data ParseDiagnosticCode [copy] {
     case InvalidCarrierCastEntry;
     case ExpectedCastDomain;
     case UnsupportedCastEntries;
+    case ExpectedFileAlias;
+    case FileSelectorCapacityExceeded;
+    case DuplicateFileAlias;
+    case BuiltinFileAlias;
 }
 
 public data ParseDiagnostic [copy] {
@@ -976,7 +991,8 @@ public data ParseDiagnostic [copy] {
 public data SyntaxTrees
 requires
     root_count <= 4096,
-    use_count <= 1024,
+    use_count <= 4096,
+    file_selector_count <= 65536,
     member_count <= 32000,
     data_count <= 256,
     generic_parameter_count <= 256,
@@ -1012,8 +1028,10 @@ requires
 {
     roots: [RootItem; 4096];
     root_count: u64;
-    uses: [UseItem; 1024];
+    uses: [UseItem; 4096];
     use_count: u64;
+    file_selectors: [FileSelector; 65536];
+    file_selector_count: u64;
     members: [IdentifierSpan; 32000];
     member_count: u64;
     data_items: [DataItem; 256];
@@ -1086,6 +1104,7 @@ requires
 public machine syntax_trees_clear(syntax_trees: @mutable SyntaxTrees, source: |source|::SourceId) {
     syntax_trees.root_count = 0;
     syntax_trees.use_count = 0;
+    syntax_trees.file_selector_count = 0;
     syntax_trees.member_count = 0;
     syntax_trees.data_count = 0;
     syntax_trees.generic_parameter_count = 0;
@@ -1858,5 +1877,45 @@ crashes Trap
 
     machine invalid() -> IdentifierSpan {
         crash Trap;
+    }
+}
+
+// Read a retained selector after checking the physical table bound. The
+// search midpoint may be computed by a different machine.
+public machine file_selector(trees: @SyntaxTrees, index: u64 in Trapping) -> FileSelector
+crashes Trap
+{
+    transition index < trees.file_selector_count && index < 65536 {
+        true -> read(trees, index),
+        false -> invalid()
+    }
+    machine read(trees: @SyntaxTrees, index: u64 in Trapping) -> FileSelector
+    requires index < 65536
+    {
+        trees.file_selectors[index as -Trapping]
+    }
+    machine invalid() -> FileSelector { crash Trap; }
+}
+
+// Parser visits units and tokens in source order. Return the selector's
+// one-based handle for a path head beginning at this source coordinate.
+public machine file_selector_at(trees: @SyntaxTrees, head: |source|::SourceSpan) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> search(trees, head, 0 as +Trapping, trees.file_selector_count as +Trapping) }
+    machine search(trees: @SyntaxTrees, head: |source|::SourceSpan, first: u64 in Trapping, end: u64 in Trapping) -> u64 in Trapping {
+        transition first < end && end <= 65536 {
+            true -> candidate(trees, head, first, end, first + (end - first) / 2),
+            false -> 0 as +Trapping
+        }
+    }
+    machine candidate(trees: @SyntaxTrees, head: |source|::SourceSpan, first: u64 in Trapping, end: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+        let row: FileSelector = file_selector(trees, index);
+        let unit: u32 in Trapping = row.alias.source_span.source.value;
+        transition {
+            unit == head.source.value && row.start == head.span.start -> (index + 1),
+            unit < head.source.value || (unit == head.source.value && row.start < head.span.start) -> search(trees, head, index + 1, end),
+            _ -> search(trees, head, first, index)
+        }
     }
 }
