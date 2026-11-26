@@ -48,6 +48,7 @@ pub use selection::PackageSourceSelectionEvidenceError;
 pub use workspace_acquisition::{
     AcquiredWorkspaceBuild, AcquiredWorkspaceMembers, WorkspaceMemberObservation,
 };
+pub(crate) use workspace_acquisition::{CatalogInput, CatalogPreparation};
 
 use source_acquisition::{
     ResolvedLocalSource, SourceContentDigest, SourceRelativePath, SourceResolveError,

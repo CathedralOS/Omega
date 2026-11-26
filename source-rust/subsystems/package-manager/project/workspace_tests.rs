@@ -62,16 +62,33 @@ fn check_catalog(directory: &Path, fixture: &Path) {
         .collect();
     packages.sort_unstable();
     assert_eq!(packages, ["client", "workspace_selected"]);
-    let [dependency] = review.catalog_dependencies() else {
-        panic!("expected only the provider used to name the catalog member")
+    let [candidate, dependency] = review.catalog_dependencies() else {
+        panic!("expected the two exact inputs installed for the catalog naming Build")
     };
+    assert_eq!(
+        candidate.provider.root().selected().key().name().as_str(),
+        "candidate"
+    );
+    assert_eq!(candidate.ordinal, 0);
+    let preparing = dependency
+        .preparation
+        .as_ref()
+        .expect("the package was supplied before naming began");
+    assert_eq!(
+        (preparing.ordinal, preparing.successor.as_str()),
+        (0, "name.omg")
+    );
+    assert_eq!(candidate.preparation.as_ref(), Some(preparing));
+    let text = review.canonical_text(Default::default()).unwrap();
+    let recovered = CanonicalSourceClosureSubject::recover_text(&text, Default::default()).unwrap();
+    assert_eq!(review, recovered);
     assert_eq!(
         dependency.observer.key().name().as_str(),
         "workspace_unselected"
     );
     assert_eq!(
         (dependency.purpose, dependency.ordinal),
-        (DependencyPurpose::Build, 1)
+        (DependencyPurpose::Product, 1)
     );
     assert_eq!(
         dependency.request.explicit_alias().unwrap().as_str(),
@@ -91,8 +108,8 @@ fn check_catalog(directory: &Path, fixture: &Path) {
     assert_eq!(requested_revision, "executed-build-fixture-v1");
     assert_eq!(
         source_build_execution_count() - before,
-        6,
-        "client, catalog, both members, alias candidate and shared naming helper each execute once"
+        7,
+        "the catalog member runs its two entries and the shared helper builds once"
     );
 
     let product = super::open_product(
@@ -113,8 +130,47 @@ fn check_catalog(directory: &Path, fixture: &Path) {
         [(Some("workspace_selected"), DependencyPurpose::Product)]
     );
 
-    // The other provider result makes the observer declare the selected member's name.
+    // The provider keeps returning 64, so the selected package and every Product
+    // declaration stay the same. Its newly fetched Git commit must still change
+    // which source the catalog trusted while choosing its name.
     let helper = directory.join("catalog-helper");
+    git(
+        &helper,
+        &[
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "-m",
+            "Same naming result from a new Git commit",
+        ],
+    );
+    git(&helper, &["branch", "-f", "also-helper", "HEAD"]);
+    let next_graph = resolve().unwrap().sources;
+    let next_review = CanonicalSourceClosureSubject::from_resolved(
+        &next_graph.closure.for_exact_target(host),
+        Default::default(),
+    )
+    .unwrap();
+    assert_eq!(review.packages(), next_review.packages());
+    assert_eq!(
+        review.dependency_requests(),
+        next_review.dependency_requests()
+    );
+    assert_ne!(
+        review.catalog_dependencies()[1]
+            .provider
+            .root()
+            .selected()
+            .resolution(),
+        next_review.catalog_dependencies()[1]
+            .provider
+            .root()
+            .selected()
+            .resolution()
+    );
+    assert!(!review.same_source_graph(&next_review));
+    assert_ne!(review.fingerprint(), next_review.fingerprint());
+    // The other provider result makes the observer declare the selected member's name.
     fs::copy(
         fixture.join("catalog-helper/wrong_result.omg"),
         helper.join("main.omg"),
@@ -170,7 +226,7 @@ fn write_catalog(directory: &Path, fixture: &Path) {
         repository: "ssh://git@candidate-fixture.invalid/candidate.git", revision: "executed-build-fixture-v1",
         selection: PackageSelection::Root
     });
-    let candidate_registration: DependencyRegistration = Build::build_dependency(builder, candidate);
+    _ = |dependency|::add(builder, candidate);
     let mutable naming_dependency:"#);
     fs::write(
         observer.join("build.omg"),

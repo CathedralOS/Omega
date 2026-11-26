@@ -7,8 +7,8 @@ mod workspace_tests;
 
 use crate::resolution::source::{
     AcquiredBuildSource, AcquiredWorkspaceBuild, BuildSourceAcquisition, BuildSourceAcquisitions,
-    DeclaredBuildSource, ExecutedSourceResolution, ResolvedBuildSources,
-    WorkspaceMemberObservation,
+    CatalogInput, CatalogPreparation, DeclaredBuildSource, ExecutedSourceResolution,
+    ResolvedBuildSources, WorkspaceMemberObservation,
 };
 use crate::{PackageBuildSession, PackageCommandError};
 use artifacts::compile_timings::{CompileTimings, StageMeta};
@@ -131,6 +131,10 @@ struct PreparedRequest {
 }
 
 struct ExecutedBuild {
+    preparations: Vec<(
+        build_declarations::BuildEntryPath,
+        Vec<successor_inputs::PreparedInput>,
+    )>,
     stage: ReturnedPlanningStage,
     /// Each issued request uses a purpose-local ordinal. Alias lookup can inspect
     /// several candidates before the Build actually selects one.
@@ -143,6 +147,26 @@ impl ExecutedBuild {
         source: &AcquiredBuildSource,
         settled: &[SettledSource],
     ) -> Result<WorkspaceMemberObservation, PackageCommandError> {
+        let mut inputs = Vec::new();
+        for (ordinal, (successor, dependencies)) in self.preparations.iter().enumerate() {
+            for dependency in dependencies {
+                let selected = &dependency.prepared;
+                let supplier = &settled[selected.settled];
+                let graph = supplier
+                    .graph
+                    .rooted_at(&supplier.declaration, &selected.acquisition)?;
+                inputs.push(CatalogInput {
+                    preparation: Some(CatalogPreparation {
+                        ordinal,
+                        successor: successor.clone(),
+                    }),
+                    purpose: dependency.purpose,
+                    ordinal: dependency.ordinal,
+                    request: dependency.request.clone(),
+                    graph: Arc::new(graph),
+                });
+            }
+        }
         let declaration = self.stage.observe_source_declaration()?;
         let result = self.stage.source_result()?;
         let mut graphs = Vec::with_capacity(result.demanded_sources().len());
@@ -165,6 +189,7 @@ impl ExecutedBuild {
             declaration,
             &result,
             graphs,
+            inputs,
         )?)
     }
 }
