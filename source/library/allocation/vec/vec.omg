@@ -38,7 +38,7 @@ public data VecCell { value: u32; }
 // The cell's representation remains four bytes at alignment four. Access
 // requests keep that independent selection rather than embedding it in a policy.
 public data VecCellStorage = LayoutStorage<VecCell, VecCellLayout>;
-public domain VecCell::Controlled
+public domain VecCellStorage::Controlled
     access VecCellPolicy;
 public VecCellLayout satisfies FixedLayout<VecCell> {
     public machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches none crashes none terminates {
@@ -62,11 +62,11 @@ data Observed { storage: Extent in Granted & Vacant; value: u32; }
 machine store_cell<Role>(storage: @mutable Extent in Granted & Vacant, value: u32)
 crashes Trap
 {
-    transition access\view_extent_mut::<VecCellStorage in VecCell::Controlled, Role>(storage as @mutable Extent in Granted) {
+    transition access\view_extent_mut::<VecCellStorage in VecCellStorage::Controlled, Role>(storage as @mutable Extent in Granted) {
         AccessOutcome::Ready { view } -> change(view, value),
         AccessOutcome::Rejected { returned, reason } -> bad()
     }
-    machine change(view: @mutable VecCellStorage in VecCell::Controlled, value: u32) {
+    machine change(view: @mutable VecCellStorage in VecCellStorage::Controlled, value: u32) {
         write(@mutable view.value, value);
     }
     machine bad() { crash Trap; }
@@ -116,7 +116,7 @@ crashes Trap
 }
 
 machine inspect_cell<Role>(storage: @Extent in Granted & Vacant) -> u32 crashes Trap {
-    transition access\view_extent::<VecCellStorage in VecCell::Controlled, Role>(storage as @Extent in Granted) {
+    transition access\view_extent::<VecCellStorage in VecCellStorage::Controlled, Role>(storage as @Extent in Granted) {
         AccessOutcome::Ready { view } -> read(@view.value),
         AccessOutcome::Rejected { returned, reason } -> bad()
     }
