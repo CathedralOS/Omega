@@ -315,28 +315,34 @@ impl Flow {
         }
     }
 
-    fn assume_requirement(&mut self, p: &Proposition) {
-        match p {
-            Proposition::LessOrEqual(a, b) | Proposition::LessThan(a, b) => {
-                if let (Ok(a), Ok(b)) = (embed(a.clone()), embed(b.clone())) {
-                    self.bounds.order(a, b);
-                }
+    fn assume_requirement(&mut self, p: &Proposition) -> Checked<()> {
+        let (left, right, equal) = match p {
+            Proposition::Equal(a, b)
+            | Proposition::LessOrEqual(a, b)
+            | Proposition::LessThan(a, b) => {
+                let (Ok(a), Ok(b)) = (embed(a.clone()), embed(b.clone())) else {
+                    return Ok(());
+                };
+                (a, b, matches!(p, Proposition::Equal(..)))
             }
-            Proposition::Equal(a, b) => {
-                if let (Ok(a), Ok(b)) = (embed(a.clone()), embed(b.clone())) {
-                    self.bounds.order(a.clone(), b.clone());
-                    self.bounds.order(b, a);
-                }
+            Proposition::IntegerMathEqual(a, b)
+            | Proposition::IntegerMathLessOrEqual(a, b)
+            | Proposition::IntegerMathLessThan(a, b) => {
+                closed_predicates::check_integer_math_term_size(a, b)
+                    .map_err(|_| "interval assumption exceeds its proof budget")?;
+                (
+                    a.clone(),
+                    b.clone(),
+                    matches!(p, Proposition::IntegerMathEqual(..)),
+                )
             }
-            Proposition::IntegerMathLessOrEqual(a, b) | Proposition::IntegerMathLessThan(a, b) => {
-                self.bounds.order(a.clone(), b.clone());
-            }
-            Proposition::IntegerMathEqual(a, b) => {
-                self.bounds.order(a.clone(), b.clone());
-                self.bounds.order(b.clone(), a.clone());
-            }
-            _ => {}
+            _ => return Ok(()),
+        };
+        if equal {
+            self.bounds.order(right.clone(), left.clone());
         }
+        self.bounds.order(left, right);
+        Ok(())
     }
 
     fn coordinate(
@@ -414,7 +420,15 @@ impl Flow {
 
 /// Check each alternative of a disjunctive precondition separately. Other
 /// preconditions may be weakened: every remaining case must prove the law.
-fn assume(mut flow: Flow, p: &Proposition, remaining: &mut usize) -> Checked<Vec<Flow>> {
+fn assume(
+    mut flow: Flow,
+    p: &Proposition,
+    depth: usize,
+    remaining: &mut usize,
+) -> Checked<Vec<Flow>> {
+    if depth > 128 {
+        return Err("interval precondition exceeds its nesting budget");
+    }
     *remaining = remaining
         .checked_sub(1 + flow.bounds.len() + flow.storage.0.len())
         .ok_or("interval partition exceeds its receiving work budget")?;
@@ -423,13 +437,13 @@ fn assume(mut flow: Flow, p: &Proposition, remaining: &mut usize) -> Checked<Vec
         Proposition::Disjunction(arms) => {
             let mut cases = Vec::new();
             for arm in arms {
-                cases.extend(assume(flow.clone(), arm, remaining)?);
+                cases.extend(assume(flow.clone(), arm, depth + 1, remaining)?);
             }
             Ok(cases)
         }
-        Proposition::Conjunction(parts) => assume_all(vec![flow], parts, remaining),
+        Proposition::Conjunction(parts) => assume_all(vec![flow], parts, depth + 1, remaining),
         _ => {
-            flow.assume_requirement(p);
+            flow.assume_requirement(p)?;
             Ok(vec![flow])
         }
     }
@@ -438,12 +452,13 @@ fn assume(mut flow: Flow, p: &Proposition, remaining: &mut usize) -> Checked<Vec
 fn assume_all(
     mut flows: Vec<Flow>,
     predicates: &[Proposition],
+    depth: usize,
     remaining: &mut usize,
 ) -> Checked<Vec<Flow>> {
     for p in predicates {
         let mut next = Vec::new();
         for flow in flows {
-            next.extend(assume(flow, p, remaining)?);
+            next.extend(assume(flow, p, depth, remaining)?);
         }
         flows = next;
     }
@@ -486,7 +501,7 @@ pub(super) fn check(
         originals.push(initial.interval(module, &record, shape)?);
     }
     let mut remaining = 65_536usize;
-    let mut pending = assume_all(vec![initial], &machine.requires, &mut remaining)?
+    let mut pending = assume_all(vec![initial], &machine.requires, 0, &mut remaining)?
         .into_iter()
         .map(|flow| (machine.entry, flow, BTreeSet::<BlockId>::new()))
         .collect::<Vec<_>>();
