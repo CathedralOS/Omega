@@ -1625,7 +1625,7 @@ fn adapt_flow(
                     let implemented = operation.required_contract.is_some();
                     if let Some(public) = public {
                         if !implemented
-                            && let Some(positions) = generic_calls.scoped.and_then(|scope| scope.get(&callee))
+                            && let Some(positions) = generic_calls.scoped.and_then(|scope| scope.get(callee))
                         {
                             let formals = &public.contract().structural_parameters;
                             if formals.len() == structural_arguments.len()

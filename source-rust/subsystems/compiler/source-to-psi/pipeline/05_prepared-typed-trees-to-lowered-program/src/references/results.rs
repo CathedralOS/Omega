@@ -611,7 +611,7 @@ fn publish_results(
             selected.iter().copied(),
             &[],
             nominal_calls,
-            &terminal_check_tables::contracts::scoped_requirement_addresses(schemas),
+            &terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas),
         )
         .map_err(|error| graph_unavailable(module, error))?;
     // A returned generic value can carry a loan from a view inside an input
@@ -953,7 +953,7 @@ fn publish_parents(
     let roots = queries.iter().map(|(machine, _, _, _)| machine.id);
     let graph = terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_with_generic_calls(
         module, roots, &[], &NO_NOMINAL_CALLS,
-        &terminal_check_tables::contracts::scoped_requirement_addresses(schemas),
+        &terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas),
     )
         .map_err(|error| graph_unavailable(module, error))?;
     let solve_machine = |query: (

@@ -321,7 +321,7 @@ pub(crate) fn reference_graph_with_generic_calls(
         [machine],
         &[],
         nominal_calls,
-        &terminal_check_tables::contracts::scoped_requirement_addresses(schemas),
+        &terminal_check_tables::contracts::scoped_requirement_addresses(&module.machines, schemas),
     )
     .map_err(|error| graph_refusal(module, error))
 }
