@@ -2877,7 +2877,17 @@ impl<'t> Program<'t> {
             match self.typed.evidence_requirement_declaration(target) {
                 Ok(Some(requirement)) => requirement,
                 Ok(None) => {
-                    let Some(contract) = self.typed.retained_static_machine_contract(target) else {
+                    let contract = self
+                        .symbols
+                        .get(id)
+                        .and_then(|owner| self.typed.machine_by_symbol(*owner))
+                        .and_then(|owner| self.typed.machine_parameter_contract_in(owner, target));
+                    let Some(contract) = contract else {
+                        if self.typed.retained_static_machine_contract(target).is_some() {
+                            return Err(unserved(
+                                "static machine parameter outside its declaration scope",
+                            ));
+                        }
                         return Ok(None);
                     };
                     if let crate::source_state::data::MachineParameterContractView::Nominal {
@@ -2890,20 +2900,7 @@ impl<'t> Program<'t> {
                             "a boundary callback needs its selected boundary entry",
                         ));
                     }
-                    let requirement = contract.signature();
-                    let owner = self
-                        .symbols
-                        .get(id)
-                        .and_then(|owner| self.typed.machine_by_symbol(*owner));
-                    if owner
-                        .and_then(|owner| self.typed.machine_parameter_signature_in(owner, target))
-                        != Some(requirement)
-                    {
-                        return Err(unserved(
-                            "static machine parameter outside its declaration scope",
-                        ));
-                    }
-                    requirement
+                    contract.signature()
                 }
                 Err(_) => {
                     return Err(unserved(

@@ -101,6 +101,36 @@ fn a_static_callback_requirement_reads_the_type_supplied_by_its_generic_machine(
 }
 
 #[test]
+fn a_nested_machine_uses_the_applied_callback_from_its_lexical_scope() {
+    let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
+    let source = r#"
+        data Item { value: i32; }
+        data OtherItem { value: i32; }
+        trait Get<T> { machine receive(value: i32) -> i32 terminates; }
+        machine get(value: i32) -> i32 satisfies Get<Item>::receive { value }
+        machine read<T, const F: Get<T>::receive>(value: i32) -> i32 terminates {
+            child(value)
+            machine child(value: i32) -> i32 { F(value) }
+        }
+        public machine run() -> i32 {
+            let item: Item = Item { value: 42 };
+            read::<Item, get>(item.value)
+        }"#;
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+
+    let different_application = source.replace("satisfies Get<Item>", "satisfies Get<OtherItem>");
+    let (files, root) = captured(package, &different_application);
+    let errors = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("must satisfy the exact requirement")),
+        "{errors:?}"
+    );
+}
+
+#[test]
 fn a_requirement_reads_nested_nominal_arguments_in_its_own_type_scope() {
     let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
     let source = r#"
