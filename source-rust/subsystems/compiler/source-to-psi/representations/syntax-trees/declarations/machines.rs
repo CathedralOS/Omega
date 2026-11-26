@@ -138,6 +138,7 @@ pub struct StateSignature {
     pub blocks_keyword_source_spans: Vec<source_text::SourceSpan>,
     pub suspends: bool,
     pub blocks: bool,
+    pub admitted_same_stack_bytes: u64,
     pub contracts: HandleSpan<CapabilityContract>,
     pub default_body: Option<MachineBody>,
     pub terminates_guarantee: bool,

@@ -87,6 +87,7 @@ pub struct RequirementReviewMetadata {
     pub parameter_policies: Vec<(u32, ScalarType, ArithmeticDomain)>,
     pub suspends: bool,
     pub blocks: bool,
+    pub admitted_same_stack_bytes: u64,
     pub terminates: bool,
 }
 

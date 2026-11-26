@@ -30,10 +30,14 @@ fn compare(configuration: &str) -> (bool, String) {
 fn every_test_and_engine_replays_an_independent_copy_of_finite_stdin() {
     let (success, output) = compare(BUILD);
     assert!(success, "{output}");
-    for test in ["first_echo", "second_echo"] {
+    for (test, group) in [
+        ("first_echo", "echo"),
+        ("second_echo", "echo"),
+        ("default_input_is_empty", "empty_input"),
+    ] {
         let row = output
             .lines()
-            .find(|row| row.contains(&format!("test `{test}` in group `Checks::echo`")))
+            .find(|row| row.contains(&format!("test `{test}` in group `Checks::{group}`")))
             .unwrap_or_else(|| panic!("{output}"));
         assert!(
             row.contains("passed on Psi interpreter, native")

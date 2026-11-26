@@ -3346,6 +3346,56 @@ pub(crate) mod machine_parameter_signatures {
         }
 
         #[test]
+        fn lexical_callback_selection_reaches_the_named_outer_machine() {
+            let mut symbols = SymbolTableBuilder::default();
+            let outer = symbol(&mut symbols, SymbolKind::Machine, "outer");
+            let members = children(
+                &mut symbols,
+                outer,
+                &[
+                    (SymbolKind::TypeParameter, "Step"),
+                    (SymbolKind::Machine, "middle"),
+                    (SymbolKind::Machine, "shadow"),
+                ],
+            );
+            let (step, middle, shadow) = (members[0], members[1], members[2]);
+            let inner = children(&mut symbols, middle, &[(SymbolKind::Machine, "inner")])[0];
+            let shadowed = children(
+                &mut symbols,
+                shadow,
+                &[
+                    (SymbolKind::TypeParameter, "Step"),
+                    (SymbolKind::Machine, "inner"),
+                ],
+            );
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..TypedTrees::default()
+            };
+            machine(
+                &mut program,
+                outer,
+                vec![parameter(step, "Step", Some(true))],
+            );
+            machine(&mut program, middle, vec![]);
+            machine(&mut program, inner, vec![]);
+            machine(
+                &mut program,
+                shadow,
+                vec![parameter(shadowed[0], "Step", None)],
+            );
+            machine(&mut program, shadowed[1], vec![]);
+
+            let lookup = |owner| {
+                program
+                    .machine_parameter_signature_in(program.machine_by_symbol(owner).unwrap(), step)
+            };
+            assert!(lookup(inner).unwrap().blocks);
+            assert!(lookup(shadow).is_none());
+            assert!(lookup(shadowed[1]).is_none());
+        }
+
+        #[test]
         fn batch_keeps_conformance_shadowing_and_first_visible_owner() {
             let mut symbols = SymbolTableBuilder::default();
             let map = symbol(&mut symbols, SymbolKind::Conformance, "Map");
@@ -4271,8 +4321,8 @@ pub(crate) mod trait_and_machine_tables {
             symbol: SymbolHandle,
             mut scope_parent: impl FnMut(SymbolHandle) -> SymbolHandle,
         ) -> Option<&'program signature::StateSignature> {
-            let own = self.machine_type_parameters(machine);
-            let mut parameters = own;
+            let mut parameters = self.machine_type_parameters(machine);
+            let mut nearer_names = std::collections::BTreeSet::new();
             let mut enclosing = machine.symbol;
             let mut visited = Vec::new();
             loop {
@@ -4280,6 +4330,9 @@ pub(crate) mod trait_and_machine_tables {
                     .iter()
                     .find(|parameter| parameter.symbol == symbol)
                 {
+                    if nearer_names.contains(parameter.name.as_str()) {
+                        return None;
+                    }
                     return match &parameter.kind {
                         data::TypeParameterKind::Machine { contract } => self
                             .machine_parameter_contract_view(contract)
@@ -4287,22 +4340,20 @@ pub(crate) mod trait_and_machine_tables {
                         _ => None,
                     };
                 }
+                nearer_names.extend(parameters.iter().map(|parameter| parameter.name.as_str()));
                 enclosing = scope_parent(enclosing);
                 if !enclosing.is_valid() || visited.contains(&enclosing) {
                     return None;
                 }
                 visited.push(enclosing);
-                if let Some(map) = self.conformance_by_symbol(enclosing) {
-                    parameters = self.conformance_type_parameters(map);
-                    if parameters.iter().any(|parameter| {
-                        parameter.symbol == symbol
-                            && own.iter().any(|local| local.name == parameter.name)
-                    }) {
-                        return None;
-                    }
-                } else {
-                    parameters = Default::default();
-                }
+                parameters =
+                    if let Some(parent) = self.machine_declaration_for_lexical_scope(enclosing) {
+                        self.machine_type_parameters(parent)
+                    } else if let Some(map) = self.conformance_by_symbol(enclosing) {
+                        self.conformance_type_parameters(map)
+                    } else {
+                        Default::default()
+                    };
             }
         }
 

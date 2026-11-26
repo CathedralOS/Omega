@@ -113,7 +113,7 @@ impl PlannedTest {
             native_target.isolated_execution_grant =
                 Some(IsolatedExecutionGrant::captured_process(
                     target,
-                    root.inputs.stdin.is_some(),
+                    super::standard_input(&root.inputs, target).is_some(),
                     root.inputs.private_filesystem && linux,
                 ));
             let program = Program::CheckedSource {

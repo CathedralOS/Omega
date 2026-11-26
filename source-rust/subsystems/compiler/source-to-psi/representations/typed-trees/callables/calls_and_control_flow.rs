@@ -110,6 +110,7 @@ pub mod calls {
             pub blocks_keyword_source_spans: Vec<source_text::SourceSpan>,
             pub suspends: bool,
             pub blocks: bool,
+            pub admitted_same_stack_bytes: u64,
             pub contracts: HandleSpan<SignatureContract>,
             pub termination_guarantee: source_declarations::TerminationGuarantee,
             /// The requirement wrote `crashes none`. It publishes no contract
@@ -138,6 +139,7 @@ pub mod calls {
                     blocks_keyword_source_spans: Vec::new(),
                     suspends: false,
                     blocks: false,
+                    admitted_same_stack_bytes: 0,
                     contracts: HandleSpan::empty(),
                     termination_guarantee: source_declarations::TerminationGuarantee::NoGuarantee,
                     declares_no_crash_route: false,

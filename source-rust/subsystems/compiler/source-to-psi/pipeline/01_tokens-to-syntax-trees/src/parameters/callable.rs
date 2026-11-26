@@ -153,6 +153,7 @@ pub(crate) fn blank_state_signature() -> syntax_trees::item::StateSignature {
         blocks_keyword_source_spans: Vec::new(),
         suspends: false,
         blocks: false,
+        admitted_same_stack_bytes: 0,
         contracts: HandleSpan::empty(),
         default_body: None,
         terminates_guarantee: false,

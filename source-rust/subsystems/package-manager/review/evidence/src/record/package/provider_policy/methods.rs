@@ -29,6 +29,8 @@ pub struct PackagePolicyServiceMethod {
     pub synchronous_invocations: Vec<ServiceSynchronousInvocation>,
     pub may_suspend: bool,
     pub may_block: bool,
+    /// Foreign stack demand claimed for this requirement. Zero means the source supplies no bound.
+    pub admitted_same_stack_bytes: u64,
     pub terminates_guarantee: bool,
     pub termination_premises: Vec<ServiceProgressPremise>,
     pub identities: ProviderIdentityTable, // Interned identities referenced by embedded plan-side fields.

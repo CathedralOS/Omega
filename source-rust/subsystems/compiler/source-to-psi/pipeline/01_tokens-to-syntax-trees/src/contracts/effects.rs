@@ -154,3 +154,21 @@ pub(crate) fn finish_crashes_none<'tokens, 'source>(
     }
     Ok(after_none)
 }
+
+
+pub(crate) fn same_stack_demand<'tokens, 'source>(
+    input: crate::token_input::cursor::Input<'tokens, 'source>,
+    already_declared: u64,
+) -> crate::token_input::cursor::ParseResult<'tokens, 'source, u64> {
+    if already_declared != 0 {
+        return Err(input.error_here("duplicate `stack N bytes` clause"));
+    }
+    let number = input.take_contextual("stack")?;
+    let (bytes, after_number) = number.take_integer()?;
+    if bytes <= 0 {
+        return Err(number.error_here(
+            "`stack` demand must be a positive byte count; zero does not admit a foreign leaf",
+        ));
+    }
+    Ok((bytes as u64, after_number.take_contextual("bytes")?))
+}

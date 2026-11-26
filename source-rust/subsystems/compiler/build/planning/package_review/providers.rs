@@ -1306,6 +1306,7 @@ impl PolicySource<'_> {
         invocations.sort_unstable();
         let invocations_match = invocations == method.synchronous_invocations;
         if method.completion != boundary.completion
+            || method.admitted_same_stack_bytes != signature.admitted_same_stack_bytes
             || method.terminates_guarantee != boundary.unconditional_termination
             || !ceiling_matches
             || !method.entry_claims.is_empty()
@@ -1763,6 +1764,7 @@ pub(super) fn service_method_policy(
         synchronous_invocations: method.synchronous_invocations.clone(),
         may_suspend: method.may_suspend,
         may_block: method.may_block,
+        admitted_same_stack_bytes: method.admitted_same_stack_bytes,
         terminates_guarantee: method.terminates_guarantee,
         termination_premises: method.termination_premises.clone(),
         identities: schema.declaration.identities.clone(),
