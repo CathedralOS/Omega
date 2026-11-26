@@ -59,7 +59,7 @@ wire or replacement support.
 ### Service exclusion authoring
 
 ```omega
-machine configure(builder: @mutable Build) {
+machine configure(builder: @mutable BuildPlan) {
     Build::exclude_service::<Console>(builder);
 }
 ```
@@ -80,7 +80,7 @@ The compiler-owned Build prelude provides:
 
 ```omega
 public machine Build::exclude_physical_authority(
-    builder: @mutable Build,
+    builder: @mutable BuildPlan,
     authority: PhysicalAuthorityClass
 ) {}
 ```

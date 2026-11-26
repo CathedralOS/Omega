@@ -30,8 +30,8 @@ same board entry and uses the same revision.
 use {omega}/build/dependency.omg;
 use {omega}/build/dependencies/providers/git.omg;
 
-machine build(build: @mutable Build) {
-    Build::package(build, "firmware");
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Package { name: "firmware" };
     let board: DependencyDescription = |git|::dependency(
         "board", "https://example.org/board.git", "refs/heads/stable",
         "72bc01f59de8a314c60155e8c3b7474b261490fe"
@@ -45,14 +45,14 @@ machine build(build: @mutable Build) {
 use {omega}/build/dependency.omg;
 use {omega}/build/dependencies/providers/git.omg;
 
-machine build(build: @mutable Build) {
+machine build(build: @mutable BuildPlan) {
     let layout: DependencyDescription = |git|::dependency(
         "layout", "https://example.org/layout.git", "refs/heads/stable",
         "8e76d2a18f2ecb674b75670ab380aa1cf32f9d44"
     );
     let service_free: [BoundaryServiceReference; 0] = [];
     _ = |dependency|::add(build, layout, @service_free[..]);
-    Build::build_entry(build, "configure.omg");
+    build.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
 }
 ```
 
@@ -60,8 +60,8 @@ machine build(build: @mutable Build) {
 // board/configure.omg
 use {layout}/api.omg as layout;
 
-machine build(build: @mutable Build) {
-    Build::package(build, "board");
+machine build(build: @mutable BuildPlan) {
+    build.product = BuildProduct::Package { name: "board" };
     |layout|::configure_product(build);
 }
 ```

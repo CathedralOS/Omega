@@ -21,16 +21,16 @@ pub(super) fn guide(arguments: &mut super::Arguments) -> Result<&'static str, St
     }
     match topic.to_str() {
         Some("add") => Ok(r#"Choose the Build that supplies the dependency to its immediate product.
-For an interpreted helper, register it before Build::build_entry. For application code, register it in the Build that describes the application.
+For a helper used by a successor Build, register it in the plan returning InterpretedBuild. For application code, register it in the plan returning Application.
 
 use {omega}/build/dependencies/providers/git.omg as git;
 
-machine build(build: @mutable Build) {
-    Build::package(build, "board");
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "board" };
     let layout: DependencyDescription = |git|::dependency(
         "layout", "https://example.org/layout.git", "refs/heads/stable",
         "8e76d2a18f2ecb674b75670ab380aa1cf32f9d44");
-    _ = Build::dependency(build, layout);
+    _ = Build::dependency(plan, layout);
 }
 
 Replace the example repository and commit with the verified upstream revision. Import the library in that product with `use {layout}/api.omg;`. This example uses a service-free library."#),
