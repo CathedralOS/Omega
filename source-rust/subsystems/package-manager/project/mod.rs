@@ -1,5 +1,6 @@
 //! Prepare a project by resolving its package dependencies and asking Build to execute each declaration.
 mod services;
+mod successor_inputs;
 #[cfg(all(test, unix))]
 mod workspace_tests;
 
