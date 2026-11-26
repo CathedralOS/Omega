@@ -1,19 +1,12 @@
 // Expected exit: 0
-use omega\language\core\F32;
-use omega\language\core\F64;
-use omega\language\core\F32::from_i64;
-use omega\language\core\F32::from_f64;
-use omega\language\core\F64::from_i32;
-use omega\language\core\F64::from_u32;
-use omega\language\core\F64::from_u64;
-use omega\language\core\F64::from_f32;
+use {omega}/language/core/float_operations.omg;
 
-machine signed(value: i32) -> f64 { F64::from_i32(value) }
-machine unsigned(value: u32) -> f64 { F64::from_u32(value) }
-machine rounded32(value: i64) -> f32 { F32::from_i64(value) }
-machine rounded64(value: u64) -> f64 { F64::from_u64(value) }
-machine narrowed(value: f64) -> f32 { F32::from_f64(value) }
-machine widened(value: f32) -> f64 { F64::from_f32(value) }
+machine signed(value: i32) -> f64 { |float_operations|::F64::from_i32(value) }
+machine unsigned(value: u32) -> f64 { |float_operations|::F64::from_u32(value) }
+machine rounded32(value: i64) -> f32 { |float_operations|::F32::from_i64(value) }
+machine rounded64(value: u64) -> f64 { |float_operations|::F64::from_u64(value) }
+machine narrowed(value: f64) -> f32 { |float_operations|::F32::from_f64(value) }
+machine widened(value: f32) -> f64 { |float_operations|::F64::from_f32(value) }
 
 machine main() crashes Trap {
     transition signed(-37) == -37.0f64 && signed(41) == 41.0f64

@@ -1,6 +1,6 @@
 // Report the active case, visit its payload in order, and restore the enclosing record.
 // Expected exit: 0
-use omega\language\core\reflect;
+use {omega}/language/core/reflect/reflect.omg;
 
 data Choice [copy] {
     #90 case Left;
@@ -10,7 +10,7 @@ data Choice [copy] {
 data Envelope [copy] { before: u64; choice: Choice; after: u64; }
 data Trace { calls: u64; order: u64; }
 
-machine report_case(trace: @mutable Trace, selected: @reflect\CaseInfo)
+machine report_case(trace: @mutable Trace, selected: @|reflect|::CaseInfo)
 requires trace.calls == 0u64
 {
     trace.calls = ((trace.calls as +Wrapping) + (1u64 as u64 +Wrapping)) as -Wrapping;
@@ -19,7 +19,7 @@ requires trace.calls == 0u64
 }
 
 // Multiplying before each addition makes the visit order visible.
-machine report_field<Kind>(trace: @mutable Trace, field: @reflect\FieldInfo, value: @Kind)
+machine report_field<Kind>(trace: @mutable Trace, field: @|reflect|::FieldInfo, value: @Kind)
 requires Kind == u64
 {
     trace.calls = ((trace.calls as +Wrapping) + (1u64 as u64 +Wrapping)) as -Wrapping;
@@ -30,7 +30,7 @@ requires Kind == u64
 
 machine observe(choice: @Choice, calls: u64, order: u64) crashes Trap {
     let mutable trace: Trace = Trace { calls: 0u64, order: 0u64 };
-    reflect\visit_active_fields::<Choice, report_case, report_field>(choice, @mutable trace);
+    |reflect|::visit_active_fields::<Choice, report_case, report_field>(choice, @mutable trace);
     transition trace.calls == calls && trace.order == order {
         true -> done(),
         _ -> wrong()
@@ -48,7 +48,7 @@ machine shared_cases() crashes Trap {
     observe(@pair, 3u64, 9539u64);
 }
 
-machine edit_field<Kind>(trace: @mutable Trace, field: @reflect\FieldInfo, value: @mutable Kind)
+machine edit_field<Kind>(trace: @mutable Trace, field: @|reflect|::FieldInfo, value: @mutable Kind)
 requires Kind == u64
 {
     trace.calls = ((trace.calls as +Wrapping) + (1u64 as u64 +Wrapping)) as -Wrapping;
@@ -66,7 +66,7 @@ machine mutable_case() crashes Trap {
         after: 41u64,
     };
     let mutable trace: Trace = Trace { calls: 0u64, order: 0u64 };
-    reflect\visit_active_fields_mut::<Choice, report_case, edit_field>(@mutable envelope.choice, @mutable trace);
+    |reflect|::visit_active_fields_mut::<Choice, report_case, edit_field>(@mutable envelope.choice, @mutable trace);
     transition envelope.choice {
         Choice::Pair { first, second } ->
             verify(envelope.before, envelope.after, first, second, trace.calls, trace.order),

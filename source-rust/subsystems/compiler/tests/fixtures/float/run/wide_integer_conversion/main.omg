@@ -1,81 +1,76 @@
 // Expected exit: 0
 // Named 64-bit conversions retain toward-zero results, policy and guarded failures.
-use omega\language\core\I64;
-use omega\language\core\U64;
-use omega\language\core\I64::from_f32;
-use omega\language\core\I64::from_f64;
-use omega\language\core\U64::from_f32;
-use omega\language\core\U64::from_f64;
+use {omega}/language/core/float_operations.omg;
 machine signed32_plain(value: f32) -> i64
 requires value == value && value >= -9223372036854775808.0f32 && value < 9223372036854775808.0f32
 crashes none {
-    let converted: i64 = I64::from_f32(value);
+    let converted: i64 = |float_operations|::I64::from_f32(value);
     converted
 }
 machine signed64_plain(value: f64) -> i64
 requires value == value && value >= -9223372036854775808.0f64 && value < 9223372036854775808.0f64
 crashes none {
-    let converted: i64 = I64::from_f64(value);
+    let converted: i64 = |float_operations|::I64::from_f64(value);
     converted
 }
 machine unsigned32_plain(value: f32) -> u64
 requires value == value && value > -1.0f32 && value < 18446744073709551616.0f32
 crashes none {
-    let converted: u64 = U64::from_f32(value);
+    let converted: u64 = |float_operations|::U64::from_f32(value);
     converted
 }
 machine unsigned64_plain(value: f64) -> u64
 requires value == value && value > -1.0f64 && value < 18446744073709551616.0f64
 crashes none {
-    let converted: u64 = U64::from_f64(value);
+    let converted: u64 = |float_operations|::U64::from_f64(value);
     converted
 }
 machine signed32_trapping(value: f32) -> i64
 requires value == value && value >= -9223372036854775808.0f32 && value < 9223372036854775808.0f32
 crashes none {
-    let converted: i64 in Trapping = I64::from_f32(value);
+    let converted: i64 in Trapping = |float_operations|::I64::from_f32(value);
     converted as -Trapping
 }
 machine signed64_trapping(value: f64) -> i64
 requires value == value && value >= -9223372036854775808.0f64 && value < 9223372036854775808.0f64
 crashes none {
-    let converted: i64 in Trapping = I64::from_f64(value);
+    let converted: i64 in Trapping = |float_operations|::I64::from_f64(value);
     converted as -Trapping
 }
 machine unsigned32_trapping(value: f32) -> u64
 requires value == value && value > -1.0f32 && value < 18446744073709551616.0f32
 crashes none {
-    let converted: u64 in Trapping = U64::from_f32(value);
+    let converted: u64 in Trapping = |float_operations|::U64::from_f32(value);
     converted as -Trapping
 }
 machine unsigned64_trapping(value: f64) -> u64
 requires value == value && value > -1.0f64 && value < 18446744073709551616.0f64
 crashes none {
-    let converted: u64 in Trapping = U64::from_f64(value);
+    let converted: u64 in Trapping = |float_operations|::U64::from_f64(value);
     converted as -Trapping
 }
 machine signed32_saturating(value: f32) -> i64
 requires true
 crashes none {
-    let converted: i64 in Saturating = I64::from_f32(value);
+    let converted: i64 in Saturating = |float_operations|::I64::from_f32(value);
     converted as -Saturating
 }
 machine signed64_saturating(value: f64) -> i64
 requires true
 crashes none {
-    let converted: i64 in Saturating = I64::from_f64(value);
+    let converted: i64 in Saturating = |float_operations|::I64::from_f64(value);
     converted as -Saturating
 }
 machine unsigned32_saturating(value: f32) -> u64
 requires true
 crashes none {
-    let converted: u64 in Saturating = U64::from_f32(value);
+    let converted: u64 in Saturating = |float_operations|::U64::from_f32(value);
     converted as -Saturating
 }
 machine unsigned64_saturating(value: f64) -> u64
 requires true
 crashes none {
-    let converted: u64 in Saturating = U64::from_f64(value);
+    let converted: u64 in Saturating = |float_operations|::U64::from_f64(value);
     converted as -Saturating
 }
 machine main() crashes Trap {

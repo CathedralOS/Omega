@@ -2,7 +2,7 @@
 // eleven. The data lets an element be at most ten, and a list of one
 // eleven does not sum to seven, so `Vector::Cons` cannot be built at
 // `Vector<1, 7>` and the program is refused where the literal is written.
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 
 data Vector<Length: u64, Total: u64>
     requires ((self in Vector::Nil) && (Length == 0 && Total == 0)) || ((self in Vector::Cons) && (self.head <= 10 && embed(self.previous) + 1 == embed(Length)
@@ -44,13 +44,13 @@ machine room() -> u64 {
 }
 
 data Main { }
-machine exit_with_status(main: @mutable Main) reaches ProcessExit {
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
     let left: u64 = room();
-    ProcessExit::exit_process(0);
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     block exit_with_status(@mutable entry_storage);
 }
