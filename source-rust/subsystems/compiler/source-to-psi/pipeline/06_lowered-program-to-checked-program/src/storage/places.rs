@@ -2228,6 +2228,19 @@ impl<'a> Storage<'a> {
         Ok(true)
     }
 
+    /// Whether no logged write other than `invocation` touches `root`, either
+    /// directly or through a resolved backing overlap.
+    pub(crate) fn unmodified_since(&self, root: PlaceId, invocation: OperationId) -> bool {
+        let target = Lineage {
+            root,
+            segments: Vec::new(),
+        };
+        !self.log.iter().any(|row| {
+            row.operation != invocation
+                && (row.destination.root == root || overlap(&row.backing, &target))
+        })
+    }
+
     /// Reading through a pointer depends on its stored binding as well as
     /// its referent. Rebinding that pointer cannot preserve the old read.
     fn backing_access(
@@ -3359,6 +3372,13 @@ impl<'a> Storage<'a> {
                         ) =>
                 {
                     Reached::Extent(row.operation)
+                }
+                (Stored::Established, Asked::Contents(_))
+                    if budget.observations == Observations::WholeInput
+                        && beneath.is_empty()
+                        && row.destination.segments.is_empty() =>
+                {
+                    Reached::Input(row.destination.root)
                 }
                 (Stored::Established, Asked::Contents(leaf)) => {
                     let named = (budget.observations != Observations::None)
@@ -7083,11 +7103,9 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
     /// The data subject a clause of the result names when `root` is the
     /// declared structural result, and `None` for any other storage.
     fn result_subject(&self, root: PlaceId) -> Result<Option<PlaceId>, crate::Unbound> {
-        if !self
-            .structural
-            .as_ref()
-            .is_some_and(|(declared, _)| *declared == root)
-        {
+        if !self.structural.as_ref().is_some_and(|(declared, actual)| {
+            *declared == root || (actual.segments.is_empty() && actual.root == root)
+        }) {
             return Ok(None);
         }
         terminal_check_tables::program::self_place()
@@ -7147,6 +7165,29 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
 impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
     type Error = crate::Unbound;
     fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
+        if let Some((declared, actual)) = self.structural.clone()
+            && declared == root
+            && actual.segments.is_empty()
+        {
+            let (block, up_to) = self
+                .storage
+                .graph
+                .locate(self.point)
+                .map_err(crate::Unbound::Refused)?;
+            let mut trace = self.storage.budget();
+            trace.observations = Observations::WholeInput;
+            if let Ok(Reached::Input(origin)) = self.storage.reaching(
+                self.inputs.references(),
+                self.tables,
+                Asked::Contents(&actual),
+                (block, up_to),
+                &mut trace,
+                self.concerns,
+            ) {
+                return Ok(origin);
+            }
+            return Ok(actual.root);
+        }
         let _ = self.formal_access(root)?;
         self.inputs.whole_input(root)
     }
@@ -8243,6 +8284,7 @@ impl crate::Bindings for AtCall<'_, '_> {
             .map_err(crate::Unbound::Refused)?
         {
             Reached::Input(parameter) => Ok(parameter),
+            _ if actual.segments.is_empty() => Ok(actual.root),
             _ => Err(crate::Unbound::Unproved(
                 "no single input supplies this whole value",
             )),
