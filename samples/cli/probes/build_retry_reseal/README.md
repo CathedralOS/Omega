@@ -14,8 +14,8 @@ The [refusal controls](../build_retry_reseal_controls/) are separate projects.
 
 - `invalid_build_imports_its_generated` imports the future Product file into
   the Build that would emit it. Build source is fixed before execution.
-- `invalid_foreign_include` tries to resolve a file outside the writable directory.
-- `invalid_path_as_source_bytes` passes a borrowed filesystem handle where a file
+- `invalid_output_escape` tries to resolve a file outside the writable directory.
+- `invalid_path_as_write_bytes` passes a borrowed filesystem handle where a file
   write requires bytes.
 
 The `build_package_custody` sample also has a control that calls `fail` after
