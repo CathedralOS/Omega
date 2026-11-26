@@ -3436,14 +3436,21 @@ impl<'t> Program<'t> {
         is_public: bool,
         selection: Option<AuthoredDeclarationSelection>,
     ) -> Checked<()> {
-        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if is_public {
             return Ok(());
         }
+        let violation = |rule| {
+            Err(terminal_check_tables::Refusal::at(
+                terminal_check_tables::RefusalReason::Violation,
+                id.into(),
+                rule,
+            )
+            .with_source_span(selection.map(|selection| selection.source_span())))
+        };
         if selection.is_some_and(|selection| {
             selection.exposure() == AuthoredDeclarationSelectionExposure::PublicInterface
         }) {
-            return unserved("private machine in a public interface");
+            return violation("a public interface cannot select a private machine");
         }
         let symbols = &self.typed.symbols;
         // A machine stage 04 generated belongs where its declaration does.
@@ -3464,8 +3471,12 @@ impl<'t> Program<'t> {
         };
         match (caller, package(callee)) {
             (Some(caller), Some(callee)) if caller == callee => Ok(()),
-            (Some(_), Some(_)) => unserved("private machine of another package"),
-            _ => unserved("call between declarations without a source file"),
+            (Some(_), Some(_)) => violation("cannot call a private machine of another package"),
+            _ => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("call between declarations without a source file"),
+            )),
         }
     }
 
