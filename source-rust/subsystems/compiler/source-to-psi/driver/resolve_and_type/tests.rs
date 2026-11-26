@@ -263,8 +263,8 @@ fn a_product_typing_resolves_every_body_before_its_first_cohort() {
         machines.sort_by(|left, right| left.0.cmp(&right.0));
         machines
     };
-    let product = product.complete_authored(&mut timings).unwrap().finish();
-    let build = build.complete_authored(&mut timings).unwrap().finish();
+    let product = product.complete(&mut timings).unwrap();
+    let build = build.complete(&mut timings).unwrap();
     assert_eq!(machines(&product.typed), machines(&build.typed));
 }
 

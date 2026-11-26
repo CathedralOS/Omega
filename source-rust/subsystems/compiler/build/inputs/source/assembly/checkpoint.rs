@@ -41,6 +41,7 @@ impl DeferredProductSources {
         self,
         package_inputs: Option<&PackageCompilationInputs>,
         entries: ProductEntrySources<'_>,
+        generated: &[build_output::PackageGeneratedSource],
         declarations: &[Arc<ProductDeclarationRequest>],
         build_providers: &crate::InterpretedProviderSelections,
         timings: &mut CompileTimings,
@@ -57,6 +58,7 @@ impl DeferredProductSources {
             package_inputs,
             Some(ProductSourceSelection {
                 roots,
+                generated,
                 entries,
                 declarations,
             }),
@@ -76,6 +78,7 @@ pub struct ProductEntrySources<'a> {
 
 pub(super) struct ProductSourceSelection<'a> {
     roots: Arc<[std::path::PathBuf]>,
+    pub(super) generated: &'a [build_output::PackageGeneratedSource],
     entries: ProductEntrySources<'a>,
     declarations: &'a [Arc<ProductDeclarationRequest>],
 }
@@ -284,7 +287,7 @@ impl ImmutableSourceParseCheckpoint {
         let (discovered, _) = discover_package_imports(
             &parsed,
             inputs,
-            PackageImportPhase::ExactTarget(None),
+            PackageImportPhase::ExactTarget,
             storage,
         )?;
         storage.attach_parsed(parsed);
@@ -297,7 +300,7 @@ impl ImmutableSourceParseCheckpoint {
             storage,
             &mut imports,
             Some(inputs),
-            PackageImportPhase::ExactTarget(None),
+            PackageImportPhase::ExactTarget,
             timings,
             catalogue,
         )?;

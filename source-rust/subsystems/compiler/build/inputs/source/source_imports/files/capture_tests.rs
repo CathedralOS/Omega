@@ -90,7 +90,7 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
         let FileSelection::Package(request) = selected else {
             panic!("a selected package file must come from its owner")
         };
-        request.resolve_for_exact_target(&graph, &mut Vec::new())
+        request.resolve_for_exact_target(&graph, &mut Vec::new(), &Default::default())
     };
     assert_eq!(
         resolve(0)

@@ -2,7 +2,7 @@
 //
 // `BuildSourceCustody` tracks the frontend's source file count, admitted build
 // execution profile, dependency-generated source custody, and base source-consumption
-// commitment across pre-build admission and `admit_generated_extension`. Once the
+// commitment while checking the frozen source view. Once the
 // immutable typed source is retained, `BuildSourceCustody::seal`
 // derives the final `PackageCompilationSubject` and `exact_toolchain_sources`
 // without reopening the host filesystem. `package_build_handoff` exports only the
@@ -62,51 +62,6 @@ impl BuildSourceCustody {
             subject.source_consumption_commitment(),
             own_generated_sources,
         ))
-    }
-
-    pub fn admit_generated_extension<'inputs>(
-        &mut self,
-        base_sources: &std::sync::Arc<source_compiler::representations::source_inputs::SourceMap>,
-        package_inputs: Option<&'inputs PackageCompilationInputs>,
-        generated_sources: &[build_output::PackageGeneratedSource],
-        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
-    ) -> Result<
-        Option<(
-            crate::source::source_imports::GeneratedSourceExtension,
-            &'inputs PackageCompilationInputs,
-        )>,
-        Vec<Diagnostic>,
-    > {
-        if generated_sources.is_empty() {
-            return Ok(None);
-        }
-        let package_inputs = package_inputs.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "generated-source final compilation requires package-aware source custody",
-            )]
-        })?;
-        let package_root = package_inputs
-            .package_root(package_inputs.root())
-            .expect("validated package inputs retain their root package");
-        let extension = crate::source::source_imports::admit_generated_extension(
-            base_sources,
-            package_root,
-            Some(package_inputs.root()),
-            generated_sources,
-            catalogue,
-        )?;
-        let source_file_count = self
-            .source_file_count
-            .checked_add(extension.custody().len())
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "generated package source count exceeds the compiler range",
-                )]
-            })?;
-        self.generated_source_custody
-            .extend(extension.custody().iter().cloned());
-        self.source_file_count = source_file_count;
-        Ok(Some((extension, package_inputs)))
     }
 
     pub fn seal(

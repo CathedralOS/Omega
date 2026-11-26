@@ -73,7 +73,6 @@ pub struct PlannedProduct {
     pub(crate) build_profile: TargetProfile,
     pub(super) runtime_consents: Option<Vec<TerminalPermissionAcceptance>>,
     pub(crate) source: AssembledSyntax,
-    pub(super) generated: Option<source_compiler::SourceExtensionRequest>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(super) suppliers:
         std::collections::BTreeMap<semantic_vocabulary::PackageKeyIdentity, PlannedProduct>,
@@ -165,11 +164,11 @@ impl PlannedProduct {
     }
 
     pub fn attribute_diagnostics(&self, rows: &mut [Diagnostic]) {
-        let sources = self
-            .generated
-            .as_ref()
-            .map_or(&self.source.parsed.files, |extension| &extension.sources);
-        package_compilation::attribute_diagnostics(rows, sources, self.package_inputs());
+        package_compilation::attribute_diagnostics(
+            rows,
+            &self.source.parsed.files,
+            self.package_inputs(),
+        );
     }
 
     pub fn preparation(&self) -> &SourcePreparation {
@@ -527,6 +526,7 @@ impl PlanningSource {
                         .iter()
                         .any(|event| event.test_group.is_some()),
                 },
+                &evaluated.configuration.generated_sources,
                 &evaluated.configuration.declared_product_selections,
                 &evaluated.interpreter_providers,
                 &mut self.timings,
@@ -539,33 +539,7 @@ impl PlanningSource {
                 )
             })?
             .1;
-        let generated = if evaluated.configuration.generated_sources.is_empty() {
-            None
-        } else {
-            let inputs = inputs.ok_or_else(|| {
-                refusal(
-                    "generated-source final compilation requires package-aware source custody"
-                        .to_owned(),
-                )
-            })?;
-            let root = inputs.package_root(inputs.root()).ok_or_else(|| {
-                refusal("generated-source handoff has no acquired package root".to_owned())
-            })?;
-            let extension = package_compilation::source_imports::admit_generated_extension(
-                &source.parsed.files,
-                root,
-                Some(inputs.root()),
-                &evaluated.configuration.generated_sources,
-                &mut *self.preparation.catalogue()?,
-            )?;
-            Some(extension.prepare_source_request(
-                &source.parsed.files,
-                inputs,
-                &mut self.timings,
-            )?)
-        };
         Ok(PlannedProduct {
-            generated,
             evaluated,
             build_profile: self.profile,
             runtime_consents: None,

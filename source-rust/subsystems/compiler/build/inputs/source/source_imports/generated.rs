@@ -1,127 +1,17 @@
-// Generated product source admission (`GeneratedSourceExtension`, `admit_generated_extension`)
-// and dependency generated-source handoff admission (`DependencyGeneratedSource`, `admit_dependency_build_handoffs`).
-//
-// `admit_generated_extension` maps each `PackageGeneratedSource` to its virtual path
-// `<package_root>/.omega/generated/<relative_path>`, checks for duplicate generated
-// paths or collisions with existing `base_sources`, validates UTF-8 text, and admits
-// each unit under `SourceResolutionStratum::CurrentActivationExtension` in the
-// `Product` dependency scope while retaining `Arc::ptr_eq` verification against
-// `base_sources`. `admit_dependency_build_handoffs` admits dependency-generated
-// units under `DependencyActivationExtension` and seeds each dependency's authored
-// project roots (`authored_base`, excluding `build.omg`) so generated code can select
-// its package's authored declarations.
-
+//! Frozen generated files from the current activation and admitted dependency handoffs.
 use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use std::path::Path;
-use std::sync::Arc;
 
-pub struct GeneratedSourceExtension {
-    sources: Arc<source_compiler::representations::source_inputs::SourceMap>,
-    custody: Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
-    base_sources: Arc<source_compiler::representations::source_inputs::SourceMap>,
-}
-
-impl GeneratedSourceExtension {
-    pub fn custody(&self) -> &[(source_text::SourceId, build_output::PackageGeneratedSource)] {
-        &self.custody
-    }
-
-    pub(crate) fn into_source_inputs(
-        self,
-        base_sources: &Arc<source_compiler::representations::source_inputs::SourceMap>,
-    ) -> Result<
-        (
-            Arc<source_compiler::representations::source_inputs::SourceMap>,
-            Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>,
-        ),
-        Vec<Diagnostic>,
-    > {
-        if !Arc::ptr_eq(base_sources, &self.base_sources) {
-            return Err(vec![Diagnostic::error(
-                "retained generated-source extension no longer matches its base source frontier",
-            )]);
-        }
-        Ok((self.sources, self.custody))
-    }
-}
-
-pub fn admit_generated_extension(
-    base_sources: &Arc<source_compiler::representations::source_inputs::SourceMap>,
-    package_root: &Path,
-    package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    generated_sources: &[build_output::PackageGeneratedSource],
-    catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
-) -> Result<GeneratedSourceExtension, Vec<Diagnostic>> {
-    let mut sources = (**base_sources).clone();
-    let mut retained = Vec::with_capacity(generated_sources.len());
-    let logical_paths = generated_sources
-        .iter()
-        .map(|generated| {
-            generated_source_custody_path(package_root, generated)
-                .expect("validated generated source paths retain UTF-8 components")
-        })
-        .collect::<Vec<_>>();
-    let mut occupied = HashSet::with_capacity(generated_sources.len());
-    for file in base_sources.selected_files().filter(|file| {
-        file.package_root == package_root
-            && file.package_identity == package_identity
-            && file.dependency_scope == source_provenance::DependencyScope::Product
-    }) {
-        occupied.insert(
-            file.logical_filename()
-                .map_err(|reason| vec![Diagnostic::error(reason)])?,
-        );
-    }
-    for (generated, logical_path) in generated_sources.iter().zip(logical_paths) {
-        let filename = std::str::from_utf8(generated.relative_path()).map_err(|_| {
-            vec![Diagnostic::error(
-                "generated source has no UTF-8 logical filename",
-            )]
-        })?;
-        let collides = !occupied.insert(filename.to_owned());
-        let source = std::str::from_utf8(generated.bytes()).map_err(|_| {
-            vec![Diagnostic::error(format!(
-                "included generated source `{}` is not UTF-8 Omega source",
-                String::from_utf8_lossy(generated.relative_path())
-            ))]
-        })?;
-        if collides {
-            return Err(vec![Diagnostic::error(format!(
-                "generated source logical path `{}` collides with an existing source",
-                logical_path.display()
-            ))]);
-        }
-
-        let added = catalogue
-            .admit_checked_instance(
-                &mut sources,
-                logical_path.clone(),
-                source,
-                package_root.to_path_buf(),
-                package_identity,
-                source_admission::SourceOrigin::User,
-                source_admission::SourceResolutionStratum::CurrentActivationExtension,
-                source_provenance::DependencyScope::Product,
-            )
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-        retained.push((added.source_id, generated.clone()));
-    }
-    Ok(GeneratedSourceExtension {
-        sources: Arc::new(sources),
-        custody: retained,
-        base_sources: base_sources.clone(),
-    })
-}
-
-pub(crate) struct DependencyGeneratedSource<'source> {
+pub(crate) struct GeneratedFile<'source> {
     pub logical_path: std::path::PathBuf,
     pub source: &'source build_output::PackageGeneratedSource,
+    pub stratum: source_admission::SourceResolutionStratum,
     pub package: semantic_vocabulary::PackageKeyIdentity,
     pub scope: source_provenance::DependencyScope,
 }
 
-impl<'source> DependencyGeneratedSource<'source> {
+impl<'source> GeneratedFile<'source> {
     pub fn authored_base(
         &self,
         package_inputs: &crate::PackageCompilationInputs,
@@ -157,85 +47,83 @@ impl<'source> DependencyGeneratedSource<'source> {
     }
 }
 
-pub(crate) fn admit_dependency_build_handoffs(
-    package_inputs: &crate::PackageCompilationInputs,
+pub(crate) fn collect_generated_files<'source>(
+    package_inputs: &'source crate::PackageCompilationInputs,
+    own_files: &'source [build_output::PackageGeneratedSource],
     source_scope: source_provenance::DependencyScope,
-) -> Result<Vec<DependencyGeneratedSource<'_>>, Vec<Diagnostic>> {
+) -> Result<Vec<GeneratedFile<'source>>, Vec<Diagnostic>> {
+    use source_admission::SourceResolutionStratum::{
+        CurrentActivationExtension, DependencyActivationExtension,
+    };
+    use source_provenance::DependencyScope::{Build, Product};
+
     let filesystem = package_inputs.source_filesystem();
     let mut entries = Vec::new();
-    for (purpose, bundle) in package_inputs.dependency_build_handoff_instances() {
-        let scope = match purpose {
-            build_declarations::DependencyPurpose::Product => {
-                source_provenance::DependencyScope::Product
-            }
-            build_declarations::DependencyPurpose::Build => {
-                source_provenance::DependencyScope::Build
-            }
-        };
-        if source_scope == source_provenance::DependencyScope::Build
-            && scope != source_scope
-        {
-            continue;
-        }
-        let package_root = package_inputs
-            .package_root(bundle.package())
-            .expect("validated generated-source bundle retains its package root");
-        for source in bundle.sources() {
-            entries.push((
-                dependency_generated_source_logical_path(package_root, source),
-                source,
-                bundle.package(),
-                scope,
-            ));
-        }
-    }
-    {
-        let mut loaded_paths = HashSet::with_capacity(entries.len());
-        for (logical_path, _, _, scope) in &entries {
-            let logical_path = logical_path.as_ref().map_err(Clone::clone)?;
-            if filesystem.exists(logical_path)
-                || !loaded_paths.insert((logical_path.as_path(), *scope))
+    let mut occupied = HashSet::new();
+    let mut mount = |package,
+                     scope,
+                     stratum,
+                     files: &'source [build_output::PackageGeneratedSource]|
+     -> Result<(), Vec<Diagnostic>> {
+        let root = package_inputs
+            .package_root(package)
+            .expect("admitted generated file owner");
+        for source in files {
+            let logical_path = generated_file_path(root, source)?;
+            let filename = logical_path
+                .strip_prefix(root.join(source_admission::GENERATED_SOURCE_DIRECTORY))
+                .expect("generated coordinates are relative to their package");
+            if super::files::captured_file(root, filename, filesystem)?.is_some()
+                || filesystem.exists(&logical_path)
+                || !occupied.insert((logical_path.clone(), scope))
             {
                 return Err(vec![Diagnostic::error(format!(
-                    "generated dependency source logical path `{}` collides with another source",
-                    logical_path.display(),
+                    "generated logical file `{}` collides with an existing source", filename.display(),
                 ))]);
             }
-        }
-    }
-
-    entries
-        .into_iter()
-        .map(|(logical_path, source, package, scope)| {
-            Ok(DependencyGeneratedSource {
-                logical_path: logical_path?,
+            entries.push(GeneratedFile {
+                logical_path,
                 source,
                 package,
                 scope,
-            })
-        })
-        .collect()
+                stratum,
+            });
+        }
+        Ok(())
+    };
+    mount(
+        package_inputs.root(),
+        Product,
+        CurrentActivationExtension,
+        own_files,
+    )?;
+    for (purpose, bundle) in package_inputs.dependency_build_handoff_instances() {
+        let scope = match purpose {
+            build_declarations::DependencyPurpose::Product => Product,
+            build_declarations::DependencyPurpose::Build => Build,
+        };
+        if source_scope == Product || scope == Build {
+            mount(
+                bundle.package(),
+                scope,
+                DependencyActivationExtension,
+                bundle.sources(),
+            )?;
+        }
+    }
+    Ok(entries)
 }
 
-pub(crate) fn dependency_generated_source_logical_path(
+pub(crate) fn generated_file_path(
     package_root: &Path,
     source: &build_output::PackageGeneratedSource,
 ) -> Result<std::path::PathBuf, Vec<Diagnostic>> {
-    generated_source_custody_path(package_root, source).map_err(|_| {
+    let filename = std::str::from_utf8(source.relative_path()).map_err(|_| {
         vec![Diagnostic::error(
-            "generated dependency source path is not canonical UTF-8",
+            "generated source path is not canonical UTF-8",
         )]
-    })
-}
-
-// Both admissions use the same private path; relative_path stays package-relative.
-fn generated_source_custody_path(
-    package_root: &Path,
-    source: &build_output::PackageGeneratedSource,
-) -> Result<std::path::PathBuf, std::str::Utf8Error> {
-    let mut path = package_root.join(source_admission::GENERATED_SOURCE_DIRECTORY);
-    for component in source.relative_path().split(|byte| *byte == b'/') {
-        path.push(std::str::from_utf8(component)?);
-    }
-    Ok(path)
+    })?;
+    Ok(package_root
+        .join(source_admission::GENERATED_SOURCE_DIRECTORY)
+        .join(filename))
 }

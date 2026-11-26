@@ -598,29 +598,9 @@ impl SourceMap {
         match declaration.resolution_stratum {
             SourceResolutionStratum::Base => true,
             SourceResolutionStratum::CurrentActivationExtension => {
-                reference.resolution_stratum == SourceResolutionStratum::CurrentActivationExtension
+                reference.dependency_scope == DependencyScope::Product
             }
-            SourceResolutionStratum::DependencyActivationExtension => {
-                reference.resolution_stratum != SourceResolutionStratum::Base
-                    || !same_package_files(reference, declaration)
-            }
-        }
-    }
-
-    pub fn captured_reference_can_see_stratum(
-        package: PackageKeyIdentity,
-        stratum: SourceResolutionStratum,
-        declaration: &SourceFile,
-    ) -> bool {
-        match declaration.resolution_stratum {
-            SourceResolutionStratum::Base => true,
-            SourceResolutionStratum::CurrentActivationExtension => {
-                stratum == SourceResolutionStratum::CurrentActivationExtension
-            }
-            SourceResolutionStratum::DependencyActivationExtension => {
-                stratum != SourceResolutionStratum::Base
-                    || declaration.package_identity != Some(package)
-            }
+            SourceResolutionStratum::DependencyActivationExtension => true,
         }
     }
 
@@ -904,7 +884,7 @@ mod tests {
             )
             .source_span(Span::new(40, 55));
 
-        assert!(!sources.reference_can_see_declaration(authored, generated));
+        assert!(sources.reference_can_see_declaration(authored, generated));
         assert!(sources.reference_can_see_declaration(importer, generated));
         assert!(sources.reference_can_see_declaration(generated_reference, authored));
         assert!(sources.reference_can_see_declaration(generated_reference, generated));

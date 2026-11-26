@@ -4,7 +4,7 @@
 
 mod admitted;
 mod product_operand;
-pub(crate) use admitted::{build_product_file_imports, generated_file_imports};
+pub(crate) use admitted::build_product_file_imports;
 pub(crate) use product_operand::product_file_sources;
 
 use super::bindings::{ImportOccurrence, PendingPackageImport, ResolvedSourceImport};

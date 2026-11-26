@@ -77,6 +77,7 @@ fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
             None,
             Default::default(),
             &[],
+            &[],
             &Default::default(),
             &mut timings,
             &mut catalogue,

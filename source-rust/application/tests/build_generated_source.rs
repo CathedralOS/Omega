@@ -1,62 +1,86 @@
-//! Exercise declaration and body completion after a Build includes generated Product source.
+//! A Product imports the exact files its Build emitted. The producing Build retains its own inputs.
+use platform_custody::temporary_directory::TemporaryDirectory;
+use std::fs;
+use std::path::Path;
+use std::process::{Command, Output, Stdio};
 
-mod support;
+fn run(project: &Path, engine: &str) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["run", "--engine", engine, "build.omg"])
+        .current_dir(project)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap()
+}
 
-use std::{fs, process::Command};
+fn report(result: &Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    )
+}
 
 #[test]
-fn generated_machine_bodies_go_through_product_resolution() {
+fn handwritten_product_calls_a_generated_file() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
-        "generated-product-body",
-        false,
+    let project =
+        TemporaryDirectory::create("handwritten-import-of-generated-file", false).unwrap();
+    fs::write(
+        project.path().join("main.omg"),
+        r#"
+        use generated.omg;
+        public machine launch() crashes Trap {
+            transition |generated|::read() == 17u8 { true -> success(), _ -> failure() }
+            machine success() {}
+            machine failure() { crash Trap; }
+        }
+    "#,
     )
     .unwrap();
-    let root = project.path();
-    let fixture = support::repository_root().join(
-        "source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_source_generated_constant",
-    );
-    let asset_len = fs::read(fixture.join("asset.txt")).unwrap().len();
-    let build = fs::read_to_string(fixture.join("build.omg"))
-        .unwrap()
-        .replace(
-            "Build::artifact_only(builder);",
-            &format!(
-                "Build::bind(builder, {}::ProgramEntry, main);",
-                host.target_name()
-            ),
-        );
-    fs::write(root.join("build.omg"), build).unwrap();
-    fs::write(root.join("main.omg"), "machine main() {}").unwrap();
-    for (generated, accepted) in [
-        ("machine late() -> i32 { 7 }", true),
-        ("machine late() { missing(); }", false),
+    for (body, valid) in [
+        ("public machine read() -> u8 { 17u8 }", true),
+        ("public machine read() -> u8 { missing() }", false),
     ] {
-        assert!(generated.len() <= asset_len);
-        fs::write(root.join("asset.txt"), format!("{generated:asset_len$}")).unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--both", "build.omg"])
-            .current_dir(root)
-            .output()
-            .unwrap();
-        let report = format!(
-            "{}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
+        let source = format!(
+            r#"use main.omg as app;
+            machine build(builder: @mutable Build) {{
+                Build::application(builder, "frozen");
+                Build::include_source(builder, "generated.omg", "{body}");
+                Build::bind(builder, {}::ProgramEntry, |app|::launch);
+            }}"#,
+            host.target_name()
         );
-        assert_eq!(output.status.success(), accepted, "{report}");
-        if accepted {
-            assert!(
-                report.contains("native exit 0") && report.contains("interp exit: 0"),
-                "{report}"
-            );
-        } else {
-            assert!(
-                report.contains("no visible declaration") && report.contains("late"),
-                "{report}"
-            );
+        fs::write(project.path().join("build.omg"), source).unwrap();
+        for engine in ["psi", "native"] {
+            let result = run(project.path(), engine);
+            let report = report(&result);
+            assert_eq!(result.status.success(), valid, "{engine}: {report}");
+            if !valid {
+                assert!(report.contains("missing"), "{engine}: {report}");
+            }
         }
     }
+}
+
+#[test]
+fn a_build_cannot_import_its_own_future_product_file() {
+    let project = TemporaryDirectory::create("build-import-of-future-product-file", false).unwrap();
+    fs::write(
+        project.path().join("build.omg"),
+        r#"
+        use generated.omg;
+        machine build(builder: @mutable Build) {
+            let value: u8 = |generated|::read();
+            Build::application(builder, "future");
+            Build::include_source(builder, "generated.omg", "public machine read() -> u8 { 17u8 }");
+        }
+    "#,
+    )
+    .unwrap();
+    let result = run(project.path(), "psi");
+    assert!(!result.status.success());
+    assert!(report(&result).contains("no admitted logical file `generated.omg`"));
 }

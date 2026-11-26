@@ -543,6 +543,7 @@ impl ProductQueryInputs {
                                     .or(mounted)
                                     .expect("a package import has an admitted graph"),
                                 &mut storage.package_roots,
+                                &storage.sources,
                                 mount.and_then(|dependency| dependency.generated.as_ref()),
                             )?,
                         super::files::FileSelection::Unbound => continue,
