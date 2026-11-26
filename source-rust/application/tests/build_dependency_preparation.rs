@@ -2,21 +2,13 @@
 //! The evaluator runs the selected package's Build and resumes the parked
 //! caller at the wait. Preparing an unissued registration must fail there.
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 /// Run a Build whose application entry is bound only after the wait.
 fn check(name: &str, after: &str, dep: &str) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-dependency-preparation-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("dep")).expect("staging directory");
-    std::fs::write(root.join("main.omg"), "public machine main() { }\n").expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "use main.omg as app;
+    let build = format!(
+        "use main.omg as app;
 machine build(plan: @mutable BuildPlan) suspends {{
     let registered: DependencyRegistration = Build::dependency(plan, Source::Path {{ location: \"dep\" }});
 {after}
@@ -24,25 +16,16 @@ machine build(plan: @mutable BuildPlan) suspends {{
     Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
 }}
 "
-        ),
-    )
-    .expect("staged Build");
-    std::fs::write(root.join("dep/build.omg"), dep).expect("staged dependency Build");
-    std::fs::write(
-        root.join("dep/main.omg"),
-        "public machine v() -> i32 { 7 }\n",
-    )
-    .expect("staged dependency source");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--engine", "psi", "build.omg"])
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
+    );
+    project::check(
+        name,
+        &[
+            ("main.omg", "public machine main() { }\n"),
+            ("build.omg", &build),
+            ("dep/build.omg", dep),
+            ("dep/main.omg", "public machine v() -> i32 { 7 }\n"),
+        ],
+        &["run", "--engine", "psi", "build.omg"],
     )
 }
 

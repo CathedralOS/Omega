@@ -22,10 +22,11 @@
 //! - `public_signature`: `wiki/spec/language/modules.md`, "Visibility":
 //!   "Public interfaces cannot select private declarations".
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 fn fixture(case: &str) -> PathBuf {
     support::repository_root()
@@ -33,20 +34,15 @@ fn fixture(case: &str) -> PathBuf {
         .join(case)
 }
 
-fn omega(project: &Path, arguments: &[&str]) -> (bool, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .current_dir(project)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
+fn omega(directory: &Path, arguments: &[&str]) -> (bool, String) {
+    let output = project::omega(directory, arguments);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    let _ = std::fs::remove_dir_all(project.join("build"));
-    let _ = std::fs::remove_file(project.join("omega.lock"));
+    let _ = std::fs::remove_dir_all(directory.join("build"));
+    let _ = std::fs::remove_file(directory.join("omega.lock"));
     (output.status.success(), report)
 }
 
@@ -69,16 +65,12 @@ fn edited(source: &str, from: &str, occurrence: usize, to: &str) -> (String, usi
 /// directory, and require `omega --check` to refuse it with `rule` at
 /// `line:column` of `main.omg`.
 fn refuses(case: &str, label: &str, text: &str, line: usize, column: usize, rule: &str) {
-    let project = std::env::temp_dir().join(format!(
-        "omega-spec-refusals-{}-{case}-{label}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&project);
-    std::fs::create_dir_all(&project).unwrap();
-    std::fs::copy(fixture(case).join("build.omg"), project.join("build.omg")).unwrap();
-    std::fs::write(project.join("main.omg"), text).unwrap();
-    let (success, report) = omega(&project, &["--check", "main.omg"]);
-    let _ = std::fs::remove_dir_all(&project);
+    let build = std::fs::read_to_string(fixture(case).join("build.omg")).unwrap();
+    let scratch = project::stage(
+        &format!("spec-refusals-{case}-{label}"),
+        &[("build.omg", &build), ("main.omg", text)],
+    );
+    let (success, report) = omega(scratch.path(), &["--check", "main.omg"]);
     assert!(!success, "{case} {label} compiled:\n{text}\n{report}");
     assert!(report.contains(rule), "{case} {label}: {report}");
     let at = format!("main.omg:{line}:{column}");

@@ -6,8 +6,8 @@
 //! "must match the declaration's lifetime arity", so a bare `forward::<Loan>`
 //! is refused for that rule.
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
 fn fixture_path(tier: &str, case: &str) -> std::path::PathBuf {
@@ -19,12 +19,12 @@ fn fixture_path(tier: &str, case: &str) -> std::path::PathBuf {
 
 #[test]
 fn a_borrowed_type_argument_runs_in_both_engines() {
-    build_fixture::assert_silent_return(&fixture_path("run", "copied_borrowed_types"));
+    program::assert_fixture_silent_return(&fixture_path("run", "copied_borrowed_types"));
 }
 
 #[test]
 fn a_forwarded_loan_still_excludes_overlapping_writes() {
-    let (output, report) = build_fixture::check(&fixture_path("fail", "copied_borrowed_types"));
+    let (output, report) = program::check_fixture(&fixture_path("fail", "copied_borrowed_types"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("storage is changed while a conflicting reference remains live")
@@ -36,7 +36,7 @@ fn a_forwarded_loan_still_excludes_overlapping_writes() {
 #[test]
 fn a_type_argument_without_its_lifetime_arguments_is_refused() {
     let (output, report) =
-        build_fixture::check(&fixture_path("fail", "bare_borrowed_type_argument"));
+        program::check_fixture(&fixture_path("fail", "bare_borrowed_type_argument"));
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains(

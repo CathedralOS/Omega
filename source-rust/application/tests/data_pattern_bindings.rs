@@ -15,9 +15,9 @@
 //! the pattern alone and is refused. `expected.txt` beside the twin holds
 //! the refusal and the line and column it must point at.
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
-
-use std::process::{Command, Stdio};
 
 /// The forms, each a directory under `run` and under `fail`.
 ///
@@ -47,13 +47,7 @@ fn invoke(arguments: &[&str], tier: &str, form: &str) -> (bool, String) {
         .join("source-rust/application/tests/fixtures/patterns")
         .join(tier)
         .join(form);
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .arg("main.omg")
-        .current_dir(&project)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target");
+    let output = project::omega(&project, &[arguments, &["main.omg"][..]].concat());
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),

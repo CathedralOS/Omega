@@ -33,8 +33,7 @@ pub(crate) mod field_value_specialization {
 pub(crate) mod representation_specialization {
     use optimization_unit::{
         CaseMembershipSpecializationRewrite, FoldedCaseMembershipRow, NodeLocation,
-        ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
-        PsiRealizationSite,
+        ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
     };
     use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 
@@ -42,9 +41,9 @@ pub(crate) mod representation_specialization {
 
     pub(crate) mod accounting {
         use super::{
-            CaseMembershipSpecializationRewrite, ProvenanceDisposition, ProvenanceRewrite,
-            PsiOptimizationFunction, PsiRealizationSite,
+            CaseMembershipSpecializationRewrite, ProvenanceRewrite, PsiOptimizationFunction,
         };
+        use crate::abstract_optimization::rules::control_flow_cleanup::node_realized_provenance;
 
         pub(crate) fn provenance_rows(
             input_function: &PsiOptimizationFunction,
@@ -56,13 +55,7 @@ pub(crate) mod representation_specialization {
                 let node = input_function
                     .block(row.site.block)
                     .and_then(|block| block.nodes.get(index))?;
-                let site = PsiRealizationSite::Node(row.site);
-                rows.push(ProvenanceRewrite {
-                    input: site,
-                    disposition: ProvenanceDisposition::RealizedAt(site),
-                    sources: node.provenance.clone(),
-                    work: node.work.clone(),
-                });
+                rows.push(node_realized_provenance(row.site, node));
             }
             rows.sort_by_key(ProvenanceRewrite::canonical_sort_key);
             Some(rows)
@@ -186,7 +179,7 @@ pub(crate) mod representation_specialization {
 
 pub(crate) mod state_specialization {
     use optimization_unit::{
-        NodeLocation, OptimizationEdge, OptimizationNode, ProvenanceDisposition, ProvenanceRewrite,
+        NodeLocation, OptimizationEdge, OptimizationNode, ProvenanceRewrite,
         PsiOptimizationFunction, PsiOptimizationUnit, PsiRealizationSite, SpecializedStateEdgeRow,
         StateArgumentSpecializationRewrite,
     };
@@ -198,9 +191,10 @@ pub(crate) mod state_specialization {
 
     pub(crate) mod accounting {
         use super::{
-            OptimizationEdge, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction,
-            PsiRealizationSite, StateArgumentSpecializationRewrite,
+            OptimizationEdge, ProvenanceRewrite, PsiOptimizationFunction, PsiRealizationSite,
+            StateArgumentSpecializationRewrite,
         };
+        use crate::abstract_optimization::rules::control_flow_cleanup::provenance_realized_at;
         use semantic_vocabulary::EdgeId;
         use std::collections::BTreeSet;
 
@@ -222,18 +216,18 @@ pub(crate) mod state_specialization {
                     machine,
                     edge: row.taken_edge,
                 };
-                rows.push(ProvenanceRewrite {
-                    input: incoming_site,
-                    disposition: ProvenanceDisposition::RealizedAt(incoming_site),
-                    sources: incoming.provenance.clone(),
-                    work: incoming.work.clone(),
-                });
-                rows.push(ProvenanceRewrite {
-                    input: resolved_site,
-                    disposition: ProvenanceDisposition::RealizedAt(incoming_site),
-                    sources: resolved.provenance.clone(),
-                    work: resolved.work.clone(),
-                });
+                rows.push(provenance_realized_at(
+                    incoming_site,
+                    incoming_site,
+                    &incoming.provenance,
+                    &incoming.work,
+                ));
+                rows.push(provenance_realized_at(
+                    resolved_site,
+                    incoming_site,
+                    &resolved.provenance,
+                    &resolved.work,
+                ));
                 resolved_edges.insert(row.taken_edge);
             }
             for taken_edge in resolved_edges {
@@ -242,12 +236,12 @@ pub(crate) mod state_specialization {
                     machine,
                     edge: taken_edge,
                 };
-                rows.push(ProvenanceRewrite {
-                    input: resolved_site,
-                    disposition: ProvenanceDisposition::RealizedAt(resolved_site),
-                    sources: resolved.provenance.clone(),
-                    work: resolved.work.clone(),
-                });
+                rows.push(provenance_realized_at(
+                    resolved_site,
+                    resolved_site,
+                    &resolved.provenance,
+                    &resolved.work,
+                ));
             }
             rows.sort_by_key(ProvenanceRewrite::canonical_sort_key);
             Some(rows)

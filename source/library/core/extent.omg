@@ -1,5 +1,10 @@
-use {omega}/language/core/foundation.omg as proof;
 use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/content.omg;
+use {omega}/language/core/device.omg;
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/nat.omg;
+use {omega}/language/core/run.omg;
 
 // Core concrete-range authority.
 //
@@ -23,11 +28,11 @@ public data Extent [linear] {
 // must establish the declared content state for this exact existing range;
 // the routes alone supply neither actual backing nor a Stable access profile.
 public domain Extent::Vacant
-established by VacantContentTransfer::transfer, AccessLifecycle::move_out,
-    |access|::extract_resident, Run::extract_from_profile, Run::retire_empty,
-    Run::relocate_from_profiles;
+established by VacantContentTransfer::transfer, |layout|::AccessLifecycle::move_out,
+    |access|::extract_resident, |run|::Run::extract_from_profile, |run|::Run::retire_empty,
+    |run|::Run::relocate_from_profiles;
 public domain<P, T> Extent::Resident<P, T>
-established by ResidentContentTransfer::transfer, AccessLifecycle::initialize,
+established by ResidentContentTransfer::transfer, |layout|::AccessLifecycle::initialize,
     |access|::initialize_from_profile;
 
 // Transfer an existing grant after an admitted provider establishes that its
@@ -38,19 +43,19 @@ public boundary trait VacantContentTransfer {
     reaches none
     ensures
         result in Granted & Vacant,
-        |proof|::Identity::<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))
+        |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(Granted::content(old(@storage)), Granted::content(@result))
     crashes Trap crashes Abort;
 }
 
 // Vacancy is absence of live content over an exact range, independently of
 // the backing grant. Its own content equation transfers that existing absence
 // across a partition; conservation of Granted alone cannot introduce vacancy.
-public machine Vacant::content(extent: @Extent) -> IntervalSet<Nat>
-satisfies Content<Extent, IntervalSet<Nat>>::project
+public machine Vacant::content(extent: @Extent) -> |content|::IntervalSet<|nat|::Nat>
+satisfies |content|::Content<Extent, |content|::IntervalSet<|nat|::Nat>>::project
 {
-    IntervalSet {
-        start: embed(extent.base) as Nat,
-        end: (embed(extent.base) + embed(extent.length)) as Nat
+    |content|::IntervalSet {
+        start: embed(extent.base) as |nat|::Nat,
+        end: (embed(extent.base) + embed(extent.length)) as |nat|::Nat
     }
 }
 
@@ -73,12 +78,12 @@ ensures
     result.rest.length == whole.length - requested,
     requested != 0 || result.rest.base == whole.base,
     result.rest.length == 0 || embed(result.rest.base) == embed(whole.base) + embed(requested),
-    |proof|::Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
         Granted::content(old(@whole)),
         separate(
             Granted::content(@result.taken), Granted::content(@result.rest))
     ),
-    |proof|::Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
         Vacant::content(old(@whole)),
         separate(
             Vacant::content(@result.taken), Vacant::content(@result.rest))
@@ -112,11 +117,11 @@ ensures
     embed(result.length) == embed(left.length) + embed(right.length),
     left.length == 0 || result.base == left.base,
     left.length != 0 || result.base == right.base,
-    |proof|::Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
         separate(Granted::content(old(@left)), Granted::content(old(@right))),
         Granted::content(@result)
     ),
-    |proof|::Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
         separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
         Vacant::content(@result)
     )
@@ -139,7 +144,7 @@ public boundary trait ResidentContentTransfer<P, T> {
     reaches none
     ensures
         result in Granted & Resident<P, T>,
-        |proof|::Identity::<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))
+        |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(Granted::content(old(@storage)), Granted::content(@result))
     crashes Trap crashes Abort;
 }
 
@@ -161,8 +166,8 @@ requires
 established by
     ExtentRootProvider::grant,
     ProgramStorageEntry::enter,
-    DeviceLoanProvider::reserve,
-    DeviceLoanProvider::acquire;
+    |device|::DeviceLoanProvider::reserve,
+    |device|::DeviceLoanProvider::acquire;
 
 // One stable semantic entry requirement owns the loader-provisioned image and
 // initial-storage roots. The active physical entry stack remains a separate
@@ -195,12 +200,12 @@ public ProgramStorageEntryNativeProvider satisfies ProgramStorageEntry {
 // bound even when `address` cannot represent it. Both conversions remain visible:
 // embedding selects the uniform proof-Int meaning, while `as Nat` consumes its
 // derived nonnegative range fact at the content-algebra boundary.
-public machine Granted::content(extent: @Extent) -> IntervalSet<Nat>
-satisfies Content<Extent, IntervalSet<Nat>>::project
+public machine Granted::content(extent: @Extent) -> |content|::IntervalSet<|nat|::Nat>
+satisfies |content|::Content<Extent, |content|::IntervalSet<|nat|::Nat>>::project
 {
-    IntervalSet {
-        start: embed(extent.base) as Nat,
-        end: (embed(extent.base) + embed(extent.length)) as Nat
+    |content|::IntervalSet {
+        start: embed(extent.base) as |nat|::Nat,
+        end: (embed(extent.base) + embed(extent.length)) as |nat|::Nat
     }
 }
 

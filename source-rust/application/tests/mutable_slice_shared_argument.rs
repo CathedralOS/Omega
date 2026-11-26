@@ -6,13 +6,13 @@
 //! descriptor; it used to refuse it with "borrowed call argument does not
 //! match its retained source geometry and ABI".
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
 #[test]
 fn a_mutable_byte_view_lends_to_a_shared_view_parameter_on_both_engines() {
-    build_fixture::assert_silent_return(
+    program::assert_fixture_silent_return(
         &support::repository_root()
             .join("source-rust/application/tests/fixtures/views/run/mutable_slice_shared_argument"),
     );

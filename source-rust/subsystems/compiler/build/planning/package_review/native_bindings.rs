@@ -33,13 +33,13 @@ struct NativeDeclaration {
     boundary: semantic_vocabulary::BoundaryMachineId,
     callable: String,
     abi: semantic_vocabulary::CallingAbiIdentity,
-    materialization: evaluation_receipts::NativeBindingMaterialization,
     application: Option<String>,
     producer: PackagePolicyEvaluatedBindingProducer,
 }
 
 pub(super) fn prepare(
     input: &PolicySource<'_>,
+    checked: &compiler::SelectedProviderResult,
     package: PackageKeyIdentity,
     target: TargetProfile,
     declarations: &AcceptedDeclarations<'_>,
@@ -65,17 +65,17 @@ pub(super) fn prepare(
     let mut requirements = accepted
         .boundary_requirements_declared()
         .map_err(|reason| vec![reason])?;
-    let key = |row: &source_compiler::publication::DeclaredBoundaryRequirement| {
-        (symbol_key(row.slot), symbol_key(row.requirement))
-    };
-    requirements.sort_unstable_by_key(key);
-    if requirements
-        .windows(2)
-        .any(|pair| key(&pair[0]) == key(&pair[1]))
-    {
-        return Err(unavailable(
-            "one accepted declaration for a native requirement",
-        ));
+    requirements.sort_unstable_by_key(|row| row.boundary);
+    let mut origins = std::collections::BTreeMap::<_, Vec<_>>::new();
+    for supply in supplies.clone() {
+        let selection = &supply.selection;
+        origins
+            .entry((
+                selection.supplier_package,
+                selection.source_occurrence_digest,
+            ))
+            .or_default()
+            .push((supply, false));
     }
     let mut slots = supplies
         .clone()
@@ -101,19 +101,45 @@ pub(super) fn prepare(
         .sources()
         .dependency_closure()
         .ok_or_else(|| unavailable("the native binding's Product dependency closure"))?;
-    for supply in supplies {
+    // Target review already validated which closed requirements each Build
+    // decision supplies. One generic decision can have several checked calls.
+    let reviewed = checked
+        .package_review()
+        .ok_or_else(|| unavailable("the package's target review plan"))?
+        .bindings
+        .as_ref()
+        .map_err(Clone::clone)?;
+    for reviewed_row in &reviewed.rows {
+        let index = requirements
+            .binary_search_by_key(&reviewed_row.boundary, |row| row.boundary)
+            .map_err(|_| unavailable("the reviewed native binding's checked declaration"))?;
+        let declaration = &requirements[index];
+        let origin = &reviewed_row.materialization;
+        let mut matched = None;
+        for (supply, represented) in origins
+            .get_mut(&(origin.supplier_package, origin.source_occurrence_digest))
+            .into_iter()
+            .flatten()
+        {
+            if supply.selection.subject == declaration.slot
+                && supply
+                    .materialization_for(source, declaration.requirement)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    .as_ref()
+                    == Some(origin)
+            {
+                if matched.replace(*supply).is_some() {
+                    return Err(unavailable(
+                        "one authored Build decision for the reviewed native requirement",
+                    ));
+                }
+                *represented = true;
+            }
+        }
+        let supply = matched
+            .ok_or_else(|| unavailable("the native requirement's authored Build decision"))?;
         let selection = &supply.selection;
         let producer = binding_producer(product, selection.supplier_package, &selection.producer)?;
-        let index = requirements
-            .binary_search_by_key(
-                &(
-                    symbol_key(selection.subject),
-                    symbol_key(selection.requirement),
-                ),
-                key,
-            )
-            .map_err(|_| unavailable("the native binding's exact accepted requirement"))?;
-        let declaration = &requirements[index];
         let boundary = module
             .boundary_machine(declaration.boundary)
             .ok_or_else(|| unavailable("the native binding's checked boundary"))?;
@@ -154,7 +180,12 @@ pub(super) fn prepare(
                 }
                 Ok::<_, Vec<Diagnostic>>(identity)
             })
-            .transpose()?;
+            .transpose()?
+            .or_else(|| {
+                source
+                    .closed_requirement_application(signature.symbol)
+                    .map(|_| canonical.clone())
+            });
         let boundary_callable = boundary
             .declaration
             .as_ref()
@@ -217,13 +248,27 @@ pub(super) fn prepare(
             abi: abi
                 .identity(&module.identities)
                 .map_err(|reason| unavailable(&reason))?,
-            materialization: supply.materialization(),
             application,
             producer,
         });
     }
+    if let Some((missing, _)) = origins
+        .values()
+        .flatten()
+        .find(|(_, represented)| !represented)
+    {
+        let name = source
+            .symbols
+            .display_path(missing.selection.requirement, "::");
+        return Err(vec![
+            Diagnostic::error(format!(
+                "package review omitted the Build binding for native requirement `{name}`"
+            ))
+            .with_source_span(missing.selection.source_span),
+        ]);
+    }
     // Source coverage searches declarations by requirement identity. The
-    // retained planner rows are in the original Build's order.
+    // retained rows follow the order of the target's checked bindings.
     declared.sort_by(|(left, left_method, _), (right, right_method, _)| {
         let left = &rows[*left];
         let right = &rows[*right];
@@ -302,10 +347,7 @@ impl PreparedNativeBindings {
         }
         let mut receipts = Vec::with_capacity(reviewed.rows.len());
         for (source, row) in self.rows.iter().zip(&reviewed.rows) {
-            if source.boundary != row.boundary
-                || source.materialization != row.materialization
-                || row.binding.target() != target
-            {
+            if source.boundary != row.boundary || row.binding.target() != target {
                 return Err(unavailable("the complete selected native supply custody"));
             }
             receipts.push((

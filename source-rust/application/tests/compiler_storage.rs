@@ -1,22 +1,21 @@
 //! Package review and compilation share acquired sources. Compiler working state ends with the invocation.
 #![cfg(target_os = "linux")]
 
-use platform_custody::temporary_directory::TemporaryDirectory;
+#[path = "support/project.rs"]
+mod project;
+
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::process::{Command, Stdio};
 
 #[test]
 fn builds_and_reviews_ignore_the_old_compiler_directories() {
-    let scratch = TemporaryDirectory::create("compiler-storage", false).unwrap();
-    let app = scratch.path().join("app");
-    let kit = scratch.path().join("kit");
-    let user_cache = scratch.path().join("cache");
-    fs::create_dir(&app).unwrap();
-    fs::create_dir(&kit).unwrap();
-    fs::write(
-        app.join("build.omg"),
-        r#"use main.omg as app;
+    let scratch = project::stage(
+        "compiler-storage",
+        &[
+            (
+                "app/build.omg",
+                r#"use main.omg as app;
 use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "cache_probe");
@@ -24,24 +23,25 @@ machine build(builder: @mutable Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
 }"#,
-    )
-    .unwrap();
-    fs::write(
-        app.join("main.omg"),
-        r#"use {kit}/math.omg as lib;
+            ),
+            (
+                "app/main.omg",
+                r#"use {kit}/math.omg as lib;
 machine main() crashes Trap {
     transition |lib|::answer() == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }"#,
-    )
-    .unwrap();
-    fs::write(
-        kit.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#,
-    )
-    .unwrap();
-    fs::write(kit.join("math.omg"), "public machine answer() -> i32 { 7 }").unwrap();
+            ),
+            (
+                "kit/build.omg",
+                r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#,
+            ),
+            ("kit/math.omg", "public machine answer() -> i32 { 7 }"),
+        ],
+    );
+    let app = scratch.path().join("app");
+    let user_cache = scratch.path().join("cache");
 
     let omega = |arguments: &[&str]| {
         let output = Command::new(env!("CARGO_BIN_EXE_omega"))

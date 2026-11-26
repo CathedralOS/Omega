@@ -637,16 +637,6 @@ pub(crate) mod merge_boundary_ownership {
 
     use crate::abstract_optimization::OwnershipFrontierAnalysis;
 
-    pub(crate) fn merge_boundary_ownership_is_identity(
-        unit: &PsiOptimizationUnit,
-        function: &PsiOptimizationFunction,
-        frontiers: &OwnershipFrontierAnalysis,
-        incoming: EdgeId,
-        target: BlockId,
-    ) -> bool {
-        merge_boundary_ownership_witness(unit, function, frontiers, incoming, target).is_some()
-    }
-
     pub(crate) fn merge_boundary_ownership_witness(
         unit: &PsiOptimizationUnit,
         function: &PsiOptimizationFunction,
@@ -704,7 +694,7 @@ pub(crate) mod non_adjacent_block_merge {
 
     use crate::abstract_optimization::analyses::block_dominates;
     use crate::abstract_optimization::rules::control_flow_cleanup::block_merge_substitutions::merge_substitutions;
-    use crate::abstract_optimization::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
+    use crate::abstract_optimization::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_witness;
     use crate::abstract_optimization::rules::control_flow_cleanup::scalar_cleanup_functions;
     use crate::abstract_optimization::rules::control_flow_cleanup::{
         merge_candidates, provenance_realized_at, record_merged_node_positions,
@@ -747,13 +737,15 @@ pub(crate) mod non_adjacent_block_merge {
                     )
             }) {
                 let target = candidate.target;
-                if !merge_boundary_ownership_is_identity(
+                if merge_boundary_ownership_witness(
                     unit,
                     function,
                     frontiers,
                     candidate.jump.edge,
                     target.id,
-                ) {
+                )
+                .is_none()
+                {
                     continue;
                 }
                 let Some(substitutions) = merge_substitutions(
@@ -1081,7 +1073,7 @@ pub(crate) mod shared_jump_fusion {
     };
     use semantic_vocabulary::{BlockId, EdgeId};
 
-    use crate::abstract_optimization::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_is_identity;
+    use crate::abstract_optimization::rules::control_flow_cleanup::merge_boundary_ownership::merge_boundary_ownership_witness;
     use crate::abstract_optimization::rules::control_flow_cleanup::scalar_cleanup_functions;
     use crate::abstract_optimization::rules::control_flow_cleanup::{
         provenance_realized_at, terminal_jump,
@@ -1146,9 +1138,10 @@ pub(crate) mod shared_jump_fusion {
                     .filter(|edge| edge.target == target.id)
                     .count();
                 if incoming_count < 2
-                    || !merge_boundary_ownership_is_identity(
+                    || merge_boundary_ownership_witness(
                         unit, function, frontiers, jump.edge, target.id,
                     )
+                    .is_none()
                 {
                     continue;
                 }

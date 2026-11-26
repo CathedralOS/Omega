@@ -1,17 +1,17 @@
 //! The local Build can read its admitted source and explicitly selected assets.
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Stdio};
+#[path = "support/project.rs"]
+mod project;
 
 #[test]
 fn a_build_and_its_successor_read_their_helper_and_only_selected_assets() {
-    let project = TemporaryDirectory::create("local-source-inventory", false).unwrap();
+    let project = project::stage(
+        "local-source-inventory",
+        &[
+            ("note.txt", "test input"),
+            ("helper.omg", "public machine ready() -> bool { true }"),
+        ],
+    );
     let root = project.path();
-    std::fs::write(root.join("note.txt"), b"test input").unwrap();
-    std::fs::write(
-        root.join("helper.omg"),
-        "public machine ready() -> bool { true }",
-    )
-    .unwrap();
     let source = r#"use helper.omg;
 machine readable(builder: @BuildPlan, name: @[u8]) -> bool {
     let path: BuildPath = BuildSource::resolve(@builder.source, name);
@@ -57,12 +57,12 @@ machine build(builder: @mutable BuildPlan) crashes Trap {
                     inputs.push("note.txt");
                 }
             }
-            let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-            command.arg("build").current_dir(root).stdin(Stdio::null());
+            let mut arguments = vec!["build"];
             for &input in &inputs {
-                command.args(["--build-input", input]);
+                arguments.extend(["--build-input", input]);
             }
-            let result = command.arg("build.omg").output().unwrap();
+            arguments.push("build.omg");
+            let result = project::omega(root, &arguments);
             assert!(
                 result.status.success(),
                 "successor={successor}, inputs {inputs:?}: {}",
@@ -74,22 +74,17 @@ machine build(builder: @mutable BuildPlan) crashes Trap {
 
 #[test]
 fn a_scoped_build_imports_its_nested_dependency_through_its_registration() {
-    let project = TemporaryDirectory::create("nested-source-inventory", false).unwrap();
-    let root = project.path();
-    std::fs::create_dir(root.join("dep")).unwrap();
-    std::fs::write(
-        root.join("dep/build.omg"),
-        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "numbers" }; }"#,
-    )
-    .unwrap();
-    std::fs::write(
-        root.join("dep/api.omg"),
-        "public machine value() -> i32 { 37 }",
-    )
-    .unwrap();
-    std::fs::write(
-        root.join("build.omg"),
-        r#"use {omega}/build/dependency.omg;
+    let project = project::stage(
+        "nested-source-inventory",
+        &[
+            (
+                "dep/build.omg",
+                r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "numbers" }; }"#,
+            ),
+            ("dep/api.omg", "public machine value() -> i32 { 37 }"),
+            (
+                "build.omg",
+                r#"use {omega}/build/dependency.omg;
 use main.omg as app;
 machine build(builder: @mutable BuildPlan) crashes Trap {
     builder.product = BuildProduct::Application { name: "reader" };
@@ -104,8 +99,10 @@ machine build(builder: @mutable BuildPlan) crashes Trap {
     machine enter(builder: @mutable BuildPlan) { Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main); }
     machine exposed() crashes Trap { crash Trap; }
 }"#,
-    )
-    .unwrap();
+            ),
+        ],
+    );
+    let root = project.path();
     for (import, permitted) in [("{numbers}/api.omg", true), ("dep/api.omg", false)] {
         std::fs::write(
             root.join("main.omg"),
@@ -117,8 +114,9 @@ machine build(builder: @mutable BuildPlan) crashes Trap {
             ),
         )
         .unwrap();
-        let result = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args([
+        let result = project::omega(
+            root,
+            &[
                 "run",
                 "--engine",
                 "psi",
@@ -131,11 +129,8 @@ machine build(builder: @mutable BuildPlan) crashes Trap {
                 "--build-input",
                 "build.omg",
                 "build.omg",
-            ])
-            .current_dir(root)
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
+            ],
+        );
         let stdout = String::from_utf8_lossy(&result.stdout);
         let stderr = String::from_utf8_lossy(&result.stderr);
         assert_eq!(result.status.success(), permitted, "{stdout}{stderr}");

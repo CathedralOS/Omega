@@ -1,19 +1,13 @@
 //! Forwarding keeps all possible sources when a loop selects an array element.
 //! Forming a new borrow still requires one exact parent.
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
-use std::process::{Command, Stdio};
-
 fn observe(fixture: &str, arguments: &[&str]) -> (bool, String) {
-    let project = support::repository_root()
-        .join(fixture);
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .current_dir(&project)
-        .stdin(Stdio::null())
-        .output()
-        .unwrap_or_else(|error| panic!("run {fixture}: {error}"));
+    let project = support::repository_root().join(fixture);
+    let output = project::omega(&project, arguments);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),

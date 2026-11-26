@@ -2509,11 +2509,10 @@ mod tests {
                     .unwrap();
                 crate::frontend_fixture::parse(&mut syntax, declaration, &tokens).unwrap();
                 bindings.push(
-                    crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+                    crate::source_symbols::SourceScopedTopLevelBinding::file_import(
                         source,
                         declaration,
-                        "omega::language::core::byte_observation",
-                        3,
+                        "byte_observation",
                     ),
                 );
             }
@@ -2536,7 +2535,7 @@ mod tests {
         }
 
         let program = typed(
-            "use omega\\language\\core\\byte_observation;\npublic domain [u8]::Path requires byte_observation\\no_nul(@self[..]);\ndomain [u8]::Ascii requires byte_observation\\ascii_only(@self[..]);",
+            "use {omega}/language/core/byte_observation/byte_observation.omg;\npublic domain [u8]::Path requires |byte_observation|::no_nul(@self[..]);\ndomain [u8]::Ascii requires |byte_observation|::ascii_only(@self[..]);",
             true,
         );
         let domain = &program.domain_definitions()[0];

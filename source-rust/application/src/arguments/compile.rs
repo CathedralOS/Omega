@@ -150,17 +150,16 @@ pub(super) fn parse_arguments(
         }
 
         if argument == "--emit-psi" {
-            if emit_psi.is_some() {
-                return Err("duplicate --emit-psi".into());
-            }
-            let path = PathBuf::from(super::take_value(arguments, "--emit-psi")?);
-            if !path
-                .extension()
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
-            {
-                return Err("--emit-psi requires a .psi output file".into());
-            }
-            emit_psi = Some(path);
+            super::set_once(&mut emit_psi, "--emit-psi", || {
+                let path = PathBuf::from(super::take_value(arguments, "--emit-psi")?);
+                if !path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
+                {
+                    return Err("--emit-psi requires a .psi output file".into());
+                }
+                Ok(path)
+            })?;
             continue;
         }
         if argument == "--trusted-artifact" {
@@ -168,24 +167,20 @@ pub(super) fn parse_arguments(
             continue;
         }
         if argument == "--report-file" {
-            if report_file.is_some() {
-                return Err("duplicate --report-file".into());
-            }
-            report_file = option_value(arguments).map(PathBuf::from);
-            if report_file.is_none() {
-                return Err("--report-file requires a path".into());
-            }
+            super::set_once(&mut report_file, "--report-file", || {
+                option_value(arguments)
+                    .map(PathBuf::from)
+                    .ok_or_else(|| "--report-file requires a path".into())
+            })?;
             continue;
         }
 
         if argument == "--build-dir" {
-            if build_dir.is_some() {
-                return Err("duplicate --build-dir".into());
-            }
-            build_dir = option_value(arguments).map(PathBuf::from);
-            if build_dir.is_none() {
-                return Err("--build-dir requires a directory".into());
-            }
+            super::set_once(&mut build_dir, "--build-dir", || {
+                option_value(arguments)
+                    .map(PathBuf::from)
+                    .ok_or_else(|| "--build-dir requires a directory".into())
+            })?;
             continue;
         }
 

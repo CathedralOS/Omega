@@ -15,8 +15,10 @@ repository's fixture budget.
 
 */
 
+#[path = "support/project.rs"]
+mod project;
+
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 const UNPROVED: &str = "may overflow `u64`";
 
@@ -60,16 +62,15 @@ impl Project {
         if root.exists() {
             std::fs::remove_dir_all(&root).expect("previous project is removable");
         }
-        std::fs::create_dir_all(root.join("app")).expect("consumer directory");
-        std::fs::create_dir_all(root.join("vendor")).expect("project directory");
-        for (path, text) in [
-            ("app/build.omg", APP_BUILD),
-            ("app/main.omg", self.app_main.as_str()),
-            ("vendor/build.omg", self.vendor_build.as_str()),
-            ("vendor/api.omg", self.vendor_main.as_str()),
-        ] {
-            std::fs::write(root.join(path), text).expect("project source");
-        }
+        project::write(
+            &root,
+            &[
+                ("app/build.omg", APP_BUILD),
+                ("app/main.omg", &self.app_main),
+                ("vendor/build.omg", &self.vendor_build),
+                ("vendor/api.omg", &self.vendor_main),
+            ],
+        );
         root.join("app")
     }
 }
@@ -85,15 +86,10 @@ fn check(directory: &Path) -> Outcome {
 }
 
 fn check_entry(directory: &Path, entry: &str) -> Outcome {
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("--offline")
-        .args(["--target", "linux_x86_64"])
-        .arg(entry)
-        .current_dir(directory)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
+    let output = project::omega(
+        directory,
+        &["--check", "--offline", "--target", "linux_x86_64", entry],
+    );
     Outcome {
         success: output.status.success(),
         stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
