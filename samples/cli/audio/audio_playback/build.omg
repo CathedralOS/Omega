@@ -6,8 +6,8 @@ use {omega}/language/core/external_binding.omg as native;
 
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Package { name: "audio_playback" };
-    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
-        location: "../../../../source/library/system"
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Bundled {
+        name: "system"
     }));
 
     Build::select_provider::<audio_playback\AudioPlayback, audio_playback\WindowsAudioPlayback>(builder, windows_x86_64);
