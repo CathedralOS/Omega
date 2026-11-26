@@ -15,7 +15,7 @@ public TwentyThree satisfies |api|::Meter {
     machine read() -> u32 reaches none crashes none { 23u32 }
 }"#;
 
-fn run(target: &str, provider: Option<&str>, before_read: &str) -> (Output, String) {
+fn project(target: &str, provider: Option<&str>, before_read: &str) -> TemporaryDirectory {
     let sandbox = TemporaryDirectory::create("staged-build-providers", false).unwrap();
     let app = sandbox.path().join("app");
     let meter = sandbox.path().join("meter");
@@ -65,8 +65,8 @@ machine build(builder: @mutable Build) {{
         23u32 -> select_trap(builder),
         _ -> reject(builder)
     }}
-    machine select_return(builder: @mutable Build) {{ Build::bind(builder, {target}\ProgramEntry, return_normally); }}
-    machine select_trap(builder: @mutable Build) {{ Build::bind(builder, {target}\ProgramEntry, trap); }}
+    machine select_return(builder: @mutable Build) {{ Build::bind(builder, {target}::ProgramEntry, return_normally); }}
+    machine select_trap(builder: @mutable Build) {{ Build::bind(builder, {target}::ProgramEntry, trap); }}
     machine reject(builder: @mutable Build) {{ Build::application(builder, "unknown_reading"); }}
 }}
 machine return_normally() {{}}
@@ -74,11 +74,15 @@ machine trap() crashes Trap {{ crash Trap; }}"#
         ),
     )
     .unwrap();
+    sandbox
+}
+
+fn run(project: &TemporaryDirectory, engine: &str) -> (Output, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .current_dir(&app)
+        .current_dir(project.path().join("app"))
+        .args(["run", "--engine", engine, "--outputs"])
+        .arg(project.path().join(engine))
         .args([
-            "run",
-            "--both",
             "--build-input",
             "build.omg",
             "--build-input",
@@ -101,21 +105,36 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    let (returning, report) = run(host.target_name(), Some("Seventeen"), "");
-    assert!(returning.status.success(), "{report}");
-    for outcome in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == outcome), "{report}");
+    for (provider, psi_termination, native_trap) in [
+        ("Seventeen", "psi\treturn", false),
+        ("TwentyThree", "psi\tcrash\tTrap", true),
+    ] {
+        let fixture = project(host.target_name(), Some(provider), "");
+        for engine in ["native", "psi"] {
+            let (output, report) = run(&fixture, engine);
+            assert!(output.status.success(), "{provider} {engine}: {report}");
+            let termination =
+                fs::read_to_string(fixture.path().join(engine).join("termination.tsv")).unwrap();
+            if engine == "psi" {
+                assert_eq!(termination.trim_end(), psi_termination, "{provider}");
+            } else {
+                let columns: Vec<_> = termination.trim_end().split('\t').collect();
+                let expected = if native_trap {
+                    matches!(columns.as_slice(), ["native", _, _, "trap", _])
+                } else {
+                    matches!(columns.as_slice(), ["native", "exit", "0", _, _])
+                };
+                assert!(expected, "{provider}: {termination}");
+            }
+        }
     }
-    let (trapping, report) = run(host.target_name(), Some("TwentyThree"), "");
-    assert!(!trapping.status.success(), "{report}");
-    assert!(report.contains("interp crash: Trap"), "{report}");
-    assert!(!report.contains("native exit 0"), "{report}");
 }
 
 #[test]
 fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
     let poison = r#"Build::build_entry(builder, "../successor-started.omg");"#;
-    let (output, report) = run("linux_x86_64", None, poison);
+    let fixture = project("linux_x86_64", None, poison);
+    let (output, report) = run(&fixture, "psi");
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("before entry; no interpreter provider or host binding was supplied"),
