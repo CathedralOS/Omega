@@ -69,6 +69,10 @@ fn choices(bundle: &PackageBuildHandoff, output: &mut Vec<u8>) {
                 push_framed(output, install_name);
                 push_framed(output, symbol);
             }
+            NativeBindingLocator::FunctionField(binding) => {
+                output.push(5);
+                output.extend_from_slice(&binding.identity_digest());
+            }
             NativeBindingLocator::Syscall { number: syscall } => {
                 output.push(4);
                 number(output, *syscall);

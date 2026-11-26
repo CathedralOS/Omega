@@ -844,7 +844,12 @@ machine build(builder: @mutable Build) {
 "#;
     let program = native_binding_program(build);
     let locator = published_native_locator(&program);
-    assert_eq!(locator.widths, [0, 0, 0]);
+    assert_eq!(
+        locator.kind,
+        checked_program_to_psi::TerminalBuildNativeLocatorKind::ForeignBinding {
+            widths: [0, 0, 0]
+        }
+    );
     let formations = program
         .build_bindings()
         .native_formations_for(program.view())
@@ -1007,7 +1012,12 @@ machine build(builder: @mutable Build) {
 "#,
     );
     let locator = published_native_locator(&program);
-    assert_eq!(locator.widths, [9, 10, 0]);
+    assert_eq!(
+        locator.kind,
+        checked_program_to_psi::TerminalBuildNativeLocatorKind::ForeignBinding {
+            widths: [9, 10, 0]
+        }
+    );
     let TerminalBuildValueShape::Sum { cases } = locator.shape.as_ref() else {
         panic!("the locator retains its checked sum")
     };
@@ -1049,7 +1059,12 @@ machine build(builder: @mutable Build) {
 }
 "#,
     );
-    assert_eq!(published_native_locator(&program).widths, [9, 10, 0]);
+    assert_eq!(
+        published_native_locator(&program).kind,
+        checked_program_to_psi::TerminalBuildNativeLocatorKind::ForeignBinding {
+            widths: [9, 10, 0]
+        }
+    );
 }
 
 #[test]

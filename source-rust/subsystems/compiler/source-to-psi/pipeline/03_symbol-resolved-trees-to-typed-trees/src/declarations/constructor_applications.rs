@@ -929,7 +929,10 @@ fn infer(
                     // every argument determined by its payload or destination.
                     if matches!(
                         program.core_vocabulary(data.symbol),
-                        Some(language_core::core_vocabulary::CoreVocabulary::ExternalBinding(_))
+                        Some(language_core::core_vocabulary::CoreVocabulary::ExternalBinding(
+                            language_core::core_vocabulary::ExternalBindingVocabulary::ForeignBinding
+                            | language_core::core_vocabulary::ExternalBindingVocabulary::DllImport
+                        ))
                     ) {
                         let used: Vec<_> = program
                             .data_members(&data)
