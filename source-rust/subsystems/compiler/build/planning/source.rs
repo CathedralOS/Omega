@@ -19,7 +19,7 @@ pub use build_recheck::{
 };
 use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
-    AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint,
+    AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint, ProductEntrySources,
 };
 use package_compilation::source_imports::{ProductQueryInputs, SuppliedBuildLibrary};
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
@@ -514,7 +514,14 @@ impl PlanningSource {
             .deferred
             .assemble(
                 inputs,
-                &evaluated.configuration.root_binding_requests,
+                ProductEntrySources {
+                    bindings: &evaluated.configuration.root_binding_requests,
+                    has_registered_tests: evaluated
+                        .configuration
+                        .product_selection_requests
+                        .iter()
+                        .any(|event| event.test_group.is_some()),
+                },
                 &evaluated.configuration.declared_product_selections,
                 &evaluated.interpreter_providers,
                 &mut self.timings,
