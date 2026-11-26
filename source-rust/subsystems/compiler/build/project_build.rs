@@ -20,6 +20,7 @@ pub use source::{
     OwedBuildRecheck, PendingProduct, PlannedProduct, PlanningRequest, PlanningSources,
     PreparedPlanningStage, prepare, rechecks_outlive_caller, with_build_rechecks,
 };
+pub use source_compiler::SourcePreparation;
 
 use build_declarations::BuildRequest;
 use build_execution::host::bindings::BuildProductQuery;
@@ -138,6 +139,18 @@ impl SettledDependency {
             evaluated.subject_validation = build_execution::BuildSubjectValidation::NeedsOwnerCheck;
         }
         self.source.clone().open_pending(evaluated, Some(&inputs))
+    }
+
+    /// Open only the entry, operand, and imported files needed to form a
+    /// dependency Build handoff without seeding unimported package files.
+    pub fn open_pending_for_handoff(
+        &self,
+        inputs: PackageCompilationInputs,
+    ) -> Result<PendingProduct, CompileFailure> {
+        self.require_own_graph(&inputs)?;
+        self.source
+            .clone()
+            .open_pending_for_handoff(self.evaluated.clone(), Some(&inputs))
     }
 
     fn require_own_graph(&self, inputs: &PackageCompilationInputs) -> Result<(), CompileFailure> {

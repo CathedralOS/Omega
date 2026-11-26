@@ -160,8 +160,22 @@ pub(crate) fn check_subject_before_execution(
     let owner = anonymous_source
         .provisional_check_owner()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let check_only_sources = check_only.symbols.source_map().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "the provisional Build check has no source map",
+        )]
+    })?;
+    let unowned = executed.symbols.source_map().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "the executed Build has no source map to anchor its constants",
+        )]
+    })?;
+    let check_only_build = unowned
+        .get(build_source.entry().source_id)
+        .and_then(|file| check_only_sources.rejoined_source_id(file))
+        .map_or(build_source, |rejoined| build_source.rejoined(rejoined));
     let entry =
-        package_compilation::build_execution::select_build_machine(check_only, build_source)?
+        package_compilation::build_execution::select_build_machine(check_only, check_only_build)?
             .symbol;
     let judged = timings
         .record_result(BUILD_SOURCE_JUDGMENT, || {
@@ -181,15 +195,10 @@ pub(crate) fn check_subject_before_execution(
             )
         })
         .map_err(|failure| CompileFailure::from(failure.diagnostics))?;
-    let unowned = executed.symbols.source_map().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "the executed Build has no source map to anchor its constants",
-        )]
-    })?;
     let read = judged
         .constants
         .into_iter()
-        .map(|read| unbind_provisional_owner(read, &unowned, owner))
+        .map(|read| unbind_provisional_owner(read, &unowned, &check_only_sources, owner))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(BuildConstants {
         folded_under_providers: false,
@@ -202,16 +211,24 @@ pub(crate) fn check_subject_before_execution(
 fn unbind_provisional_owner(
     read: source_compiler::publication::ConstantRead,
     unowned: &source_compiler::representations::source_inputs::SourceMap,
+    check_only_sources: &source_compiler::representations::source_inputs::SourceMap,
     owner: semantic_vocabulary::PackageKeyIdentity,
 ) -> Result<source_compiler::publication::ConstantRead, Vec<Diagnostic>> {
     let Some(declaration) = &read.declaration else {
         return Ok(read);
     };
     let checked = declaration.source();
+    let rejoined_from = check_only_sources
+        .source_rejoins()
+        .find_map(|(original, selected)| (selected == checked.source_id).then_some(original));
+    let target_id = rejoined_from.unwrap_or(checked.source_id);
     let file = unowned
-        .get(checked.source_id)
+        .get(target_id)
         .filter(|file| {
             let mut unbound = checked.clone();
+            if rejoined_from.is_some() && check_only_sources.get(target_id) == Some(*file) {
+                unbound.source_id = file.source_id;
+            }
             if unbound.package_identity == Some(owner) && file.package_identity.is_none() {
                 unbound.package_identity = None;
             }

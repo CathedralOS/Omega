@@ -2825,6 +2825,11 @@ enum BindingProducer {
 }
 
 impl SourceScopedTopLevelBinding {
+    pub fn remap_sources(&mut self, remap: impl Fn(SourceId) -> SourceId) {
+        self.reference_source = remap(self.reference_source);
+        self.declaration_source = remap(self.declaration_source);
+    }
+
     pub fn new(
         reference_source: SourceId,
         declaration_source: SourceId,

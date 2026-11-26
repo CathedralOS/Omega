@@ -404,6 +404,53 @@ impl SourceMap {
         Ok(())
     }
 
+    /// Rebind unowned user files under `identity` by appending newly owned
+    /// checked instances and rejoining them, leaving existing `files` entries
+    /// untouched so `retains_source_storage` (`starts_with`) holds.
+    pub fn rebind_anonymous_owner_retaining_storage(
+        &mut self,
+        root: &std::path::Path,
+        identity: PackageKeyIdentity,
+    ) -> Result<Vec<(SourceId, SourceId)>, String> {
+        let mut to_rebind = Vec::new();
+        for file in self.selected_files() {
+            if file.origin == SourceOrigin::User && file.package_identity.is_none() {
+                if file.package_root != root {
+                    return Err(format!(
+                        "source {} has no supplied owner outside the anonymous capture",
+                        file.path.display()
+                    ));
+                }
+                to_rebind.push(file.clone());
+            }
+        }
+        if to_rebind.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut remapped = Vec::with_capacity(to_rebind.len());
+        for file in to_rebind {
+            let new_id = self
+                .select_checked_instance(
+                    file.path,
+                    file.source,
+                    file.package_root,
+                    Some(identity),
+                    file.origin,
+                    file.resolution_stratum,
+                    file.dependency_scope,
+                )
+                .source_id;
+            remapped.push((file.source_id, new_id));
+        }
+        self.retain_selected_sources(|file| {
+            !remapped.iter().any(|(old_id, _)| *old_id == file.source_id)
+        });
+        for &(old_id, new_id) in &remapped {
+            self.retain_source_rejoin(old_id, new_id)?;
+        }
+        Ok(remapped)
+    }
+
     pub fn retain_product_dependency_scope<'a>(
         &mut self,
         edges: impl IntoIterator<Item = (PackageKeyIdentity, &'a str, PackageKeyIdentity)>,
