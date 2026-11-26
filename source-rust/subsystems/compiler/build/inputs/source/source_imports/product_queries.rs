@@ -483,7 +483,6 @@ impl ProductQueryInputs {
                         .find(|inputs| inputs.package_for_source(&authored.path) == Some(owner))
                 });
             for import in &authored.imports {
-                let ordinal = import.ordinal;
                 let contract = storage.installed_roots.root_for(&authored.path);
                 let mounted_owner = owner.is_some_and(|inputs| {
                     !self
@@ -668,7 +667,7 @@ impl ProductQueryInputs {
                     storage.resolved_imports.push(ResolvedSourceImport {
                         occurrence: ImportOccurrence::new(
                             authored.source_id,
-                            ordinal,
+                            import,
                             members,
                             prefix,
                         ),

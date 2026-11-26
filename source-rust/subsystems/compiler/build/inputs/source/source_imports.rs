@@ -77,7 +77,6 @@ pub(crate) fn discover_imports(
             default_root
         };
         for import in &unit.imports {
-            let ordinal = import.ordinal;
             if let Some(file) = FileImport::from(unit, import) {
                 let root = contracts.root_for(&unit.path).unwrap_or(source_root);
                 match file.standalone(root, None, filesystem)? {
@@ -131,7 +130,7 @@ pub(crate) fn discover_imports(
             }
             for path in selected {
                 retained.push(ResolvedSourceImport {
-                    occurrence: ImportOccurrence::new(unit.source_id, ordinal, members, prefix),
+                    occurrence: ImportOccurrence::new(unit.source_id, import, members, prefix),
                     path: path.clone(),
                 });
                 imports.push((path, unit.scope));
@@ -185,7 +184,6 @@ pub(crate) fn discover_package_imports(
         let purpose = source_import_scope(packages, parsed_source.scope, &parsed_source.path);
         let contract_root = contract_custody.root_for(&parsed_source.path);
         for import in &parsed_source.imports {
-            let ordinal = import.ordinal;
             if let Some(file) = FileImport::from(parsed_source, import) {
                 match file.reconciled(packages, requester, purpose, contract_root, filesystem)? {
                     FileSelection::Selected(resolved) => {
@@ -220,7 +218,7 @@ pub(crate) fn discover_package_imports(
                         retained.push(ResolvedSourceImport {
                             occurrence: ImportOccurrence::new(
                                 parsed_source.source_id,
-                                ordinal,
+                                import,
                                 members,
                                 prefix,
                             ),
@@ -234,7 +232,7 @@ pub(crate) fn discover_package_imports(
                     let pending = PendingPackageImport {
                         occurrence: ImportOccurrence::new(
                             parsed_source.source_id,
-                            ordinal,
+                            import,
                             members,
                             prefix,
                         ),
