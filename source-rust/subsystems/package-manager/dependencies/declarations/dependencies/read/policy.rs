@@ -7,35 +7,35 @@ use crate::declarations::editable_build::{
     DEPENDENCY_DESCRIPTION_TYPE_NAME, FROM_SOURCE_HELPER_NAME, WITH_ALIAS_HELPER_NAME,
     imported_dependency_helper, package_authored_type_name,
 };
-use build_declarations::{BUILD_TYPE_NAME, DependencyOperation};
+use build_declarations::{BUILD_MODULE_NAME, BUILD_TYPE_NAME, DependencyOperation};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::Item;
 
-pub(super) fn reject_authored_toolchain_vocabulary(
+pub(crate) fn reject_authored_toolchain_vocabulary(
     syntax_trees: &SyntaxTrees,
 ) -> Result<(), DependencyProjectionError> {
     for item in syntax_trees.root_items() {
-        match package_authored_type_name(syntax_trees, item) {
-            Some(name)
-                if matches!(
-                    machine_leaf_name(name),
-                    BUILD_TYPE_NAME
-                        | SOURCE_TYPE_NAME
-                        | PACKAGE_SELECTION_TYPE_NAME
-                        | DEPENDENCY_DESCRIPTION_TYPE_NAME
-                        | REGISTRATION_TYPE_NAME
-                ) =>
+        if let Some(declaration) = package_authored_type_name(syntax_trees, item) {
+            let name = machine_leaf_name(declaration);
+            if [
+                BUILD_MODULE_NAME,
+                BUILD_TYPE_NAME,
+                SOURCE_TYPE_NAME,
+                PACKAGE_SELECTION_TYPE_NAME,
+                DEPENDENCY_DESCRIPTION_TYPE_NAME,
+                REGISTRATION_TYPE_NAME,
+            ]
+            .contains(&name)
             {
                 return Err(DependencyProjectionError::AuthoredToolchainVocabulary {
-                    name: machine_leaf_name(name).to_owned(),
+                    name: name.to_owned(),
                 });
             }
-            _ => {}
         }
         if let Item::Machine(machine) = item
             && let Some(owner) = machine.attached_data.as_ref()
-            && owner.as_str(syntax_trees) == BUILD_TYPE_NAME
+            && owner.as_str(syntax_trees) == BUILD_MODULE_NAME
             && DependencyOperation::classify(machine_leaf_name(machine.name.as_str(syntax_trees)))
                 .is_some()
         {
@@ -94,7 +94,7 @@ pub(super) fn reject_unprojected_dependency_syntax(
                 }
             }
             ExpressionNode::Call(call)
-                if ((expression_owner(syntax_trees, call.receiver) == Some(BUILD_TYPE_NAME)
+                if ((expression_owner(syntax_trees, call.receiver) == Some(BUILD_MODULE_NAME)
                     && DependencyOperation::classify(call.target.as_str(syntax_trees))
                         .is_some())
                     || (!call.receiver.is_valid()

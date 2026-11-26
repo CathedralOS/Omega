@@ -20,6 +20,7 @@ mod source_literal;
 
 pub(crate) use aliases::DependencyAliasError;
 pub(crate) use error::DependencyProjectionError;
+pub(crate) use policy::reject_authored_toolchain_vocabulary;
 
 use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
