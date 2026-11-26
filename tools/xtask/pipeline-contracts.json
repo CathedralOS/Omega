@@ -20300,6 +20300,39 @@
     },
     {
       "consumers": [
+        "logical_reach::admit_interpreted_providers"
+      ],
+      "file": "source-rust/subsystems/compiler/psi/execution-inputs/providers/logical_reach.rs",
+      "item": "admit_interpreted_providers::use:semantic_vocabulary :: source_selections :: { CompositionMode , ProductTarget }#1",
+      "kind": "definition",
+      "meaning": "Select the interpreter target and distinguish an embedded checked body from a separately admitted component.",
+      "producer": "Psi logical provider reach",
+      "signature": "588f1ea8e064915e4111fd7ef0550ea43fd1202bb96bc4d08b3b94d4a97dbcf8"
+    },
+    {
+      "consumers": [
+        "logical_reach::admit_interpreted_providers"
+      ],
+      "file": "source-rust/subsystems/compiler/psi/execution-inputs/providers/logical_reach.rs",
+      "item": "admit_interpreted_providers::use:terminal_semantics :: logical_providers :: LogicalRealization#1",
+      "kind": "definition",
+      "meaning": "Read the checked candidate positions for each reached requirement. An external realization needs its own backing.",
+      "producer": "Psi logical provider reach",
+      "signature": "8dd959dd8054eda250c2acf77a12e47a356c7599b861fe0925fd066b78985fec"
+    },
+    {
+      "consumers": [
+        "BuildProviderScope::admit"
+      ],
+      "file": "source-rust/subsystems/compiler/psi/execution-inputs/providers/logical_reach.rs",
+      "item": "function:admit_interpreted_providers#1",
+      "kind": "producer",
+      "meaning": "Follow the interpreter entry into its selected checked provider bodies and admit their exact boundary-to-machine installation for this published artifact.",
+      "producer": "Psi logical provider reach",
+      "signature": "9a38b4858695465b01bbef34e1d916514f5c9777ceb3d52ddb8acbb629a93cd4"
+    },
+    {
+      "consumers": [
         "Psi logical provider closure"
       ],
       "file": "source-rust/subsystems/compiler/psi/execution-inputs/providers/logical_reach.rs",
