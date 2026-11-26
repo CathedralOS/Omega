@@ -2588,12 +2588,13 @@ fn lower_places(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, Mac
 fn projected(tables: &MachineTables, root: PlaceId, fields: &[u64]) -> ExactPlaceId {
     let mut place = *tables.roots.get(root).unwrap();
     for field in fields {
-        let children = &tables.places.get(place).unwrap().children;
         let segment = Segment::Field(id::<StructuralFieldId>(*field));
-        let found = children
-            .binary_search_by_key(&segment, |(segment, _)| *segment)
+        place = tables
+            .places
+            .get(place)
+            .unwrap()
+            .child(&tables.places, segment)
             .unwrap();
-        place = children[found].1;
     }
     place
 }
@@ -2871,7 +2872,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
             written(&tables, root(copy)),
             [(Content::Overwritten, after(position))]
         );
-        for (_, leaf) in &tables.places.get(root(copy)).unwrap().children {
+        for leaf in &tables.places.get(root(copy)).unwrap().children {
             assert!(written(&tables, *leaf).is_empty());
         }
     }
@@ -3515,9 +3516,8 @@ fn a_local_without_an_initializer_logs_the_zero_it_is_established_with() {
             .places
             .get(p_root)
             .unwrap()
-            .children
-            .iter()
-            .all(|(segment, _)| *segment != Segment::Field(id(2)))
+            .child(&tables.places, Segment::Field(id(2)))
+            .is_none()
     );
     // Each use of `x` is a fresh read of its home, and the store into `p.x`
     // records that read's value independently of the whole zero establishment.
@@ -3665,11 +3665,12 @@ fn lower_sums(body: Body, signatures: Vec<Signature>) -> (TerminalMachine, Machi
 fn projected_by(tables: &MachineTables, root: PlaceId, segments: &[Segment]) -> ExactPlaceId {
     let mut place = *tables.roots.get(root).unwrap();
     for segment in segments {
-        let children = &tables.places.get(place).unwrap().children;
-        let found = children
-            .binary_search_by_key(segment, |(segment, _)| *segment)
+        place = tables
+            .places
+            .get(place)
+            .unwrap()
+            .child(&tables.places, *segment)
             .unwrap();
-        place = children[found].1;
     }
     place
 }
@@ -3982,17 +3983,9 @@ fn a_case_test_observes_the_sum_in_place_and_a_payload_read_ends_its_carrier_in_
         weighs(),
     );
     let input = tables.roots.get(id(1)).unwrap();
-    let children = &tables.places.get(*input).unwrap().children;
-    assert!(
-        children
-            .iter()
-            .any(|(segment, _)| *segment == case_segment(1))
-    );
-    assert!(
-        children
-            .iter()
-            .all(|(segment, _)| *segment != case_segment(4))
-    );
+    let input = tables.places.get(*input).unwrap();
+    assert!(input.child(&tables.places, case_segment(1)).is_some());
+    assert!(input.child(&tables.places, case_segment(4)).is_none());
     let [test] = block(&machine, 1).operations.as_slice() else {
         panic!("one operation");
     };

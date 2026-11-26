@@ -1243,11 +1243,11 @@ fn a_place_table_that_holds_two_fields_as_one_place_is_refused() {
         let tables = entry_tables(elaboration);
         let x = projected(tables, id(1), &[1]);
         let root = *tables.roots.get(id::<PlaceId>(1)).unwrap();
-        tables.places.get_mut(root).unwrap().children[1].1 = x;
+        tables.places.get_mut(root).unwrap().children[1] = x;
     });
     assert_refused(
         verdict,
-        "a place row is not the projection its parent lists",
+        "a place's projections are not sorted, one per segment",
     );
 }
 
