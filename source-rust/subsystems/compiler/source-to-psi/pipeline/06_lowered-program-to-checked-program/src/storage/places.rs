@@ -2632,45 +2632,54 @@ impl<'a> Storage<'a> {
         Ok(Some(at))
     }
 
-    /// Every leaf at or beneath `place`, as lineages: each scalar, and each
-    /// sum itself, whose discriminator is contents like any other.
-    fn leaves(
+    /// Does any leaf under this place match? A whole-array proof can cover an
+    /// array without visiting its elements. Keep one path while walking; even
+    /// after a match or a query error, finish checking that the shape is valid.
+    fn any_leaf<S>(
         &self,
         place: &Lineage,
         concerns: Construct,
-        mut established_array: impl FnMut(&Lineage) -> bool,
-    ) -> Checked<Vec<Lineage>> {
-        let mut found = Vec::new();
+        state: &mut S,
+        mut established_array: impl FnMut(&mut S, &Lineage) -> bool,
+        mut matches: impl FnMut(&mut S, &Lineage) -> Checked<bool>,
+    ) -> Checked<bool> {
+        let mut found = Ok(false);
+        let mut visit = |state: &mut S, leaf: &Lineage| {
+            if matches!(found, Ok(false)) {
+                found = matches(state, leaf);
+            }
+        };
         let mut at = place.clone();
         match self.shape(place, concerns)? {
-            Shape::Atomic(_) | Shape::Scalar(_) | Shape::View => found.push(at),
-            Shape::Typed(structural_type) => {
-                self.leaves_of(
-                    structural_type,
-                    &mut at,
-                    &mut found,
-                    concerns,
-                    &mut established_array,
-                )?;
-            }
+            Shape::Atomic(_) | Shape::Scalar(_) | Shape::View => visit(state, &at),
+            Shape::Typed(structural_type) => self.leaves_of(
+                structural_type,
+                &mut at,
+                concerns,
+                state,
+                &mut established_array,
+                &mut visit,
+            )?,
             Shape::Payload(case) => self.field_leaves(
                 &case.fields,
                 &mut at,
-                &mut found,
                 concerns,
+                state,
                 &mut established_array,
+                &mut visit,
             )?,
         }
-        Ok(found)
+        found
     }
 
-    fn field_leaves(
+    fn field_leaves<S>(
         &self,
         fields: &[StructuralFieldDeclaration],
         at: &mut Lineage,
-        found: &mut Vec<Lineage>,
         concerns: Construct,
-        established_array: &mut impl FnMut(&Lineage) -> bool,
+        state: &mut S,
+        established_array: &mut impl FnMut(&mut S, &Lineage) -> bool,
+        visit: &mut impl FnMut(&mut S, &Lineage),
     ) -> Checked<()> {
         for field in fields {
             // An erased field has no storage, so no leaf: it "contributes
@@ -2682,11 +2691,11 @@ impl<'a> Storage<'a> {
             match field.field_type {
                 StructuralFieldType::Atomic(_)
                 | StructuralFieldType::AtomicBoundedInteger(_)
-                | StructuralFieldType::Scalar(_) => found.push(at.clone()),
+                | StructuralFieldType::Scalar(_) => visit(state, at),
                 StructuralFieldType::Structural(nested) => {
-                    self.leaves_of(nested, at, found, concerns, established_array)?;
+                    self.leaves_of(nested, at, concerns, state, established_array, visit)?;
                 }
-                ref stored if is_stored_view(stored) => found.push(at.clone()),
+                ref stored if is_stored_view(stored) => visit(state, at),
                 _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
             }
             at.segments.pop();
@@ -2751,13 +2760,14 @@ impl<'a> Storage<'a> {
         Ok(inline)
     }
 
-    fn leaves_of(
+    fn leaves_of<S>(
         &self,
         structural_type: StructuralTypeId,
         at: &mut Lineage,
-        found: &mut Vec<Lineage>,
         concerns: Construct,
-        established_array: &mut impl FnMut(&Lineage) -> bool,
+        state: &mut S,
+        established_array: &mut impl FnMut(&mut S, &Lineage) -> bool,
+        visit: &mut impl FnMut(&mut S, &Lineage),
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
             // References and opaque values each occupy one established
@@ -2767,19 +2777,19 @@ impl<'a> Storage<'a> {
             | StructuralTypeShape::TypeParameter
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::Reference { .. } => {
-                found.push(at.clone());
+                visit(state, at);
             }
             // Availability concerns the descriptor, not ownership of its
             // backing. An exclusive descriptor is readable too; copying it
             // still requires the separate unrestricted-copy judgment.
-            shape if shape.is_view_descriptor() => found.push(at.clone()),
+            shape if shape.is_view_descriptor() => visit(state, at),
             // A symbolic array can be established whole without enumerating
             // N elements. Every selected read still owes its own index bound.
             StructuralTypeShape::FixedArray {
                 length: terminal_psi::ArrayExtent::Parameter { .. },
                 ..
             } => {
-                found.push(at.clone());
+                visit(state, at);
             }
             StructuralTypeShape::FixedArray {
                 element,
@@ -2789,28 +2799,28 @@ impl<'a> Storage<'a> {
                 // a selected payload still requires the case at that use.
                 if *length > 1
                     && self.inline_array_element(*element, concerns, &mut Vec::new())?
-                    && established_array(at)
+                    && established_array(state, at)
                 {
                     return Ok(());
                 }
                 for index in 0..*length {
                     at.segments.push(Segment::FixedIndex(index));
-                    self.leaves_of(*element, at, found, concerns, established_array)?;
+                    self.leaves_of(*element, at, concerns, state, established_array, visit)?;
                     at.segments.pop();
                 }
             }
             StructuralTypeShape::Record { fields, .. } => {
-                self.field_leaves(fields, at, found, concerns, established_array)?;
+                self.field_leaves(fields, at, concerns, state, established_array, visit)?;
             }
             // A sum is established when something was stored into it whole,
             // whatever its case: the sum's own place stands for its
             // discriminator, and the payload leaves of every case lie under
             // it. A sum with no payload has only that one leaf.
             StructuralTypeShape::Sum { cases } => {
-                found.push(at.clone());
+                visit(state, at);
                 for case in cases {
                     at.segments.push(Segment::Case(case.id));
-                    self.field_leaves(&case.fields, at, found, concerns, established_array)?;
+                    self.field_leaves(&case.fields, at, concerns, state, established_array, visit)?;
                     at.segments.pop();
                 }
             }
@@ -4386,7 +4396,8 @@ impl<'a> Storage<'a> {
                 if budget.initialization == Initialization::NotAsked
                     && budget.observations == Observations::All
                     && let Asked::Contents(leaf) = asked
-                    && let Some(observations) = self.observations[index(block.get())].reads.get(leaf)
+                    && let Some(observations) =
+                        self.observations[index(block.get())].reads.get(leaf)
                 {
                     let end =
                         observations.partition_point(|observation| observation.position <= up_to);
@@ -4429,10 +4440,7 @@ impl<'a> Storage<'a> {
                     // facts except its head contract, which names the entry
                     // snapshot, so the snapshot is the value later proofs use.
                     if self.cuts_incoming_facts(block)? {
-                        budget.add_supply(
-                            destination,
-                            Supply::Direct(Reached::Value(entry)),
-                        );
+                        budget.add_supply(destination, Supply::Direct(Reached::Value(entry)));
                         continue;
                     }
                     // Elsewhere, walk incoming arrivals first so uninitialized
@@ -5436,9 +5444,10 @@ impl<'a> Storage<'a> {
                 &self.byte_field_argument(*source, path, *field, concerns)?,
                 concerns,
             )?]),
-            OperationKind::PackedIntegerBinary { left, right, .. } => {
-                Ok(vec![self.argument(left, concerns)?, self.argument(right, concerns)?])
-            }
+            OperationKind::PackedIntegerBinary { left, right, .. } => Ok(vec![
+                self.argument(left, concerns)?,
+                self.argument(right, concerns)?,
+            ]),
             OperationKind::PackedIntegerUnary { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
             }
@@ -5751,44 +5760,49 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<Checked<()>> {
         for place in used {
-            let leaves = self.leaves(place, concerns, |array| {
-                // Cleanup can vacate a projected region independently of the
-                // operation log. Its precise per-cell judgment remains valid.
-                if !self.cleanup_writes.is_empty() {
-                    return false;
-                }
-                let mut budget = self.initialization_budget();
-                budget.initialization = Initialization::WholeArray;
-                budget.used = Some(point);
-                self.reaching(
-                    references,
-                    tables,
-                    Asked::Contents(array),
-                    (block, up_to),
-                    &mut budget,
-                    concerns,
-                )
-                .is_ok_and(|reached| reached != Reached::Unestablished)
-            })?;
-            for leaf in leaves {
-                let mut budget = self.initialization_budget();
-                budget.used = Some(point);
-                if self.reaching(
-                    references,
-                    tables,
-                    Asked::Contents(&leaf),
-                    (block, up_to),
-                    &mut budget,
-                    concerns,
-                )? == Reached::Unestablished
-                {
-                    return Ok(Err(refusal(
-                        RefusalReason::Unestablished,
-                        self.machine,
+            let missing = self.any_leaf(
+                place,
+                concerns,
+                references,
+                |references, array| {
+                    // Cleanup can vacate a projected region independently of the
+                    // operation log. Its precise per-cell judgment remains valid.
+                    if !self.cleanup_writes.is_empty() {
+                        return false;
+                    }
+                    let mut budget = self.initialization_budget();
+                    budget.initialization = Initialization::WholeArray;
+                    budget.used = Some(point);
+                    self.reaching(
+                        references,
+                        tables,
+                        Asked::Contents(array),
+                        (block, up_to),
+                        &mut budget,
                         concerns,
-                        "storage is used on a path on which nothing was stored into it",
-                    )));
-                }
+                    )
+                    .is_ok_and(|reached| reached != Reached::Unestablished)
+                },
+                |references, leaf| {
+                    let mut budget = self.initialization_budget();
+                    budget.used = Some(point);
+                    Ok(self.reaching(
+                        references,
+                        tables,
+                        Asked::Contents(leaf),
+                        (block, up_to),
+                        &mut budget,
+                        concerns,
+                    )? == Reached::Unestablished)
+                },
+            )?;
+            if missing {
+                return Ok(Err(refusal(
+                    RefusalReason::Unestablished,
+                    self.machine,
+                    concerns,
+                    "storage is used on a path on which nothing was stored into it",
+                )));
             }
         }
         for place in named {
@@ -6904,13 +6918,21 @@ impl<'a> Storage<'a> {
             if !overlap(used, watched) {
                 continue;
             }
-            for leaf in self.leaves(raw, touch.at, |_| false)? {
-                let leaf = self.backing_for_touch(references, &leaf, touch)?;
-                if overlap(&leaf, watched)
-                    && self.open_at(references, tables, &leaf, window.opened_by, &[], touch)?
-                {
-                    return Ok(true);
-                }
+            if self.any_leaf(
+                raw,
+                touch.at,
+                references,
+                |_, _| false,
+                |references, leaf| {
+                    let leaf = self.backing_for_touch(references, leaf, touch)?;
+                    if overlap(&leaf, watched) {
+                        self.open_at(references, tables, &leaf, window.opened_by, &[], touch)
+                    } else {
+                        Ok(false)
+                    }
+                },
+            )? {
+                return Ok(true);
             }
         }
         Ok(false)
@@ -9535,14 +9557,42 @@ mod observation_tests {
         // Whole storage proves the contents of the scalar or record array at
         // once. The field-level checks below still see a later vacancy.
         let mut checked_arrays = Vec::new();
-        let leaves = storage
-            .leaves(&array, Construct::Machine, |place| {
-                checked_arrays.push(place.clone());
-                true
-            })
+        let encountered_leaf = storage
+            .any_leaf(
+                &array,
+                Construct::Machine,
+                &mut (),
+                |_, place| {
+                    checked_arrays.push(place.clone());
+                    true
+                },
+                |_, _| Ok(true),
+            )
             .unwrap();
         assert_eq!(checked_arrays.as_slice(), std::slice::from_ref(&array));
-        assert!(leaves.is_empty());
+        assert!(!encountered_leaf);
+
+        // A matching leaf ends semantic queries even when the element has
+        // several fields and later array cells still have to be walked.
+        let mut visits = 0;
+        let found = storage
+            .any_leaf(
+                &array,
+                Construct::Machine,
+                &mut (),
+                |_, _| false,
+                |_, place| {
+                    assert_eq!(visits, 0);
+                    visits += 1;
+                    Ok(matches!(
+                        place.segments.first(),
+                        Some(Segment::FixedIndex(0))
+                    ))
+                },
+            )
+            .unwrap();
+        assert!(found);
+        assert_eq!(visits, 1);
         let stores: Vec<_> = storage
             .log
             .iter()
