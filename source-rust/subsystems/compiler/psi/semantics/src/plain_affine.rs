@@ -2340,24 +2340,7 @@ fn validate_successor(
             .ok_or(Error::malformed(
                 "structural successor argument has no actual source declaration",
             ))?;
-        let projected = crate::borrowed_projection_type(
-            types.iter(),
-            source,
-            &argument.path,
-            Some(parameter.structural_type),
-        );
-        if !projected.is_some_and(|actual| {
-            // A canonical view header receives the descriptor value. A stored
-            // descriptor header borrows the descriptor home and needs its exact type.
-            actual == parameter.structural_type
-                || crate::structural_declaration(types.iter(), parameter.structural_type)
-                    .is_some_and(|row| row.shape.is_canonical_view_descriptor())
-                    && crate::references::reference_views::structural_actual_matches(
-                        types,
-                        (actual, argument.access),
-                        (parameter.structural_type, parameter.access),
-                    )
-        }) {
+        if !crate::successor_argument_carrier_matches(types, source, argument, parameter) {
             return Err(Error::malformed(
                 "structural successor argument differs from its parameter type",
             ));

@@ -43,6 +43,32 @@ pub fn descriptor_value_transfer_matches<'types>(
             == Some(crate::BorrowedReferentPresentation::Unchanged)
 }
 
+/// A successor's canonical view parameter receives the descriptor value.
+/// A borrow of descriptor storage still requires its exact carrier.
+pub fn successor_argument_carrier_matches(
+    types: &[StructuralTypeDeclaration],
+    source: StructuralTypeId,
+    argument: &terminal_psi::StructuralArgument,
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+) -> bool {
+    crate::borrowed_projection_type(
+        types.iter(),
+        source,
+        &argument.path,
+        Some(parameter.structural_type),
+    )
+        .is_some_and(|actual| {
+            actual == parameter.structural_type
+                || crate::structural_declaration(types.iter(), parameter.structural_type)
+                    .is_some_and(|row| row.shape.is_canonical_view_descriptor())
+                    && structural_actual_matches(
+                        types,
+                        (actual, argument.access),
+                        (parameter.structural_type, parameter.access),
+                    )
+        })
+}
+
 pub(crate) fn structural_actual_matches(
     types: &[StructuralTypeDeclaration],
     actual: (StructuralTypeId, StructuralAccess),
