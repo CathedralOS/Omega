@@ -1,8 +1,7 @@
 //! Compile a batch once, then run each named input with the selected engine.
 use super::{
-    AgreedTermination, DEFAULT_PSI_WORK_ALLOWANCE, ExecutionSelection, InterpreterComparison,
-    ProcessExitObservation, ProgramStreams, PsiTermination, RunError, TerminalOutcome,
-    compare_interpretation, compilation, format_work_tsv, private_observation, psi,
+    DEFAULT_PSI_WORK_ALLOWANCE, ExecutionSelection, ProcessExitObservation, PsiTermination,
+    RunError, TerminalOutcome, compilation, format_work_tsv, private_observation, psi,
     retained_artifacts,
 };
 use package_compilation::build_execution::BuildSnapshotRequest;
@@ -23,11 +22,9 @@ pub struct CaseRunRequest {
     pub keep_artifacts: bool,
 }
 
-pub enum CaseOutcome {
-    Native {
+pub enum CaseOutcome {    Native {
         name: String,
         exit: ProcessExitObservation,
-        comparison: InterpreterComparison,
     },
     Psi {
         name: String,
@@ -113,32 +110,14 @@ pub fn run_project_cases(
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
+    std::fs::create_dir(directory).map_err(RunError::ReferenceOutput)?;
     let (cases, table) = match request.selection {
         ExecutionSelection::Terminal => {
-            // Single-engine observations have a fresh destination. A failed
-            // guest cannot inherit streams from an earlier invocation.
-            std::fs::create_dir(directory).map_err(RunError::ReferenceOutput)?;
             psi_cases(&inputs, directory, &report, budget)?
         }
-        selection => {
-            std::fs::create_dir_all(directory).map_err(RunError::ReferenceOutput)?;
-            // Publishing consumes the retained Psi. Interpret each requested
-            // case while the same compiled product still owns its artifact.
-            let mut references = Vec::new();
-            if selection == ExecutionSelection::Both {
-                for input in &inputs {
-                    references.push(psi::execute(&report, Some(Box::new(input.open()?)), budget));
-                }
-            }
+        ExecutionSelection::Native => {
             let (report, executable) = report.publish(&build_dir).map_err(RunError::Publication)?;
-            native_cases(
-                &inputs,
-                directory,
-                &report,
-                &executable,
-                references.into_iter(),
-                budget,
-            )?
+            native_cases(&inputs, directory, &report, &executable)?
         }
     };
     std::fs::write(directory.join("results.tsv"), table).map_err(RunError::ReferenceOutput)?;
@@ -190,16 +169,9 @@ fn native_cases(
     directory: &Path,
     report: &compilation::RunProduct,
     executable: &Path,
-    mut interpretations: impl Iterator<
-        Item = Result<
-            terminal_runtime::TerminalRuntimeObservation,
-            terminal_runtime::TerminalRuntimeError,
-        >,
-    >,
-    psi_work_budget: u64,
 ) -> Result<(Vec<CaseOutcome>, String), RunError> {
     let mut cases = Vec::with_capacity(inputs.len());
-    let mut table = String::from("case\tnative\tinterpreter\tinterpreter_exit\n");
+    let mut table = String::from("case\tnative\n");
     for input in inputs {
         let name = &input.name;
         report
@@ -214,69 +186,21 @@ fn native_cases(
                     error,
                 }
             })?;
-        let write = |suffix: &str, bytes: &[u8]| {
-            std::fs::write(input.output_path(directory, suffix), bytes).map_err(RunError::ReferenceOutput)
-        };
-        write("stdout", &output.stdout)?;
-        write("stderr", &output.stderr)?;
+        input.write_observation(directory, "stdout", &output.stdout)?;
+        input.write_observation(directory, "stderr", &output.stderr)?;
         if !private_frames.is_empty() {
-            write("native.entry-ram.frames", &private_frames)?;
+            input.write_observation(directory, "native.entry-ram.frames", &private_frames)?;
         }
         for (position, contents) in &private_entry_ram {
-            write(&format!("native.entry-ram.{position}.bin"), contents)?;
-        }
-        let interpretation = interpretations.next();
-        if let Some(Ok(reference)) = interpretation.as_ref() {
-            write("terminal.stdout", &reference.stdout)?;
-            write("terminal.stderr", &reference.stderr)?;
-            write(
-                "psi.work.tsv",
-                format_work_tsv(reference, psi_work_budget).as_bytes(),
-            )?;
+            input.write_observation(directory, &format!("native.entry-ram.{position}.bin"), contents)?;
         }
         let exit = ProcessExitObservation::observe(&output.status);
-        let comparison = compare_interpretation(
-            exit,
-            ProgramStreams {
-                stdout: &output.stdout,
-                stderr: &output.stderr,
-            },
-            interpretation,
-        );
-        let (verdict, interpreter_exit) = comparison_columns(&comparison);
-        table.push_str(&format!(
-            "{name}\t{}\t{verdict}\t{interpreter_exit}\n",
-            exit.code()
-                .map_or_else(|| exit.describe(), |code| code.to_string())
-        ));
-        cases.push(CaseOutcome::Native {
-            name: name.clone(),
-            exit,
-            comparison,
-        });
+        writeln!(
+            table,
+            "{name}\t{}",
+            exit.code().map_or_else(|| exit.describe(), |code| code.to_string())
+        ).unwrap();
+        cases.push(CaseOutcome::Native { name: name.clone(), exit });
     }
     Ok((cases, table))
-}
-
-fn comparison_columns(comparison: &InterpreterComparison) -> (&'static str, String) {
-    match comparison {
-        InterpreterComparison::NotRequested => ("not-requested", String::new()),
-        InterpreterComparison::Declined(_) => ("declined", String::new()),
-        InterpreterComparison::Agrees { exit_code } => ("agrees", exit_code.to_string()),
-        InterpreterComparison::Disagrees {
-            interpreter_exit_code,
-        } => ("disagrees", interpreter_exit_code.to_string()),
-        InterpreterComparison::AgreesCrash { cause } => ("agrees-crash", format!("{cause:?}")),
-        InterpreterComparison::DisagreesCrash { cause } => {
-            ("disagrees-crash", format!("{cause:?}"))
-        }
-        InterpreterComparison::OutputDisagrees { termination, .. } => (
-            "disagrees-output",
-            match termination {
-                AgreedTermination::Exit(exit_code) => exit_code.to_string(),
-                AgreedTermination::Crash(cause) => format!("{cause:?}"),
-            },
-        ),
-        InterpreterComparison::Failed(_) => ("failed", String::new()),
-    }
 }

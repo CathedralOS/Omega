@@ -1,73 +1,15 @@
-/*
-
-Console adapter and exit-code policy for `omega run`.
-
-We run a program in one of two shapes:
-- Single run (`run_project`): compiles the root program once and executes it
-  natively (`ExecutionSelection::Native`), in the Terminal Psi interpreter
-  (`ExecutionSelection::Terminal`), or in both engines with differential
-  comparison (`ExecutionSelection::Both`). Any explicit `--target` selects
-  artifact emission when using the native default, `--engine native`, or
-  `--both` (`ExecutionOutcome::TargetOnly`). `--engine psi` uses the
-  selected target environment for execution.
-- Case batch (`run_cases`, selected by `--inputs` or `--input`): compiles the
-  program once on the host and runs every `*.stdin` file in `--inputs` (sorted
-  lexicographically) or each explicit `--input` file in argument order. Per-case
-  streams and `results.tsv` are written to `--outputs`.
-
-Program stdout and stderr are raw byte streams, not UTF-8 text. In
-`forward_output_or_exit`, we write and explicitly flush both streams before
-printing any CLI status lines on stderr. Explicit flushes surface a broken pipe
-before we choose an exit code; if forwarding fails, we make a best-effort write
-to stderr (which may itself be the broken pipe) and exit 200 so a truncated
-stream never masquerades as a clean program exit.
-
-When `--engine psi` fails to compile, no native compilation was requested,
-so we prefix the diagnostics with `Psi compile FAILED:`. Native and
-`--both` runs print `RunError` directly so sample-gate harnesses match the
-established native failure wording.
-
-*/
-
-/*
-
-Why `omega run` uses exit codes 200..=204 for harness and interpreter outcomes:
-
-The harness uses 200..=204 to keep common guest statuses (including 1, 2 and 3)
-available. A guest can also return 200..=204. In that range the accompanying
-exit or failure message identifies which outcome occurred.
-- `200`: compile rejection, launch failure, output-forwarding failure, empty or
-  unreadable `--inputs`, or Terminal Psi execution stopping without a process
-  exit (unavailable host capability, sponsor work exhaustion, or pending host
-  effect).
-- `201`: differential divergence under `--both` (exit code mismatch, crash vs.
-  normal exit, different stdout or stderr after an agreeing finish, or Terminal
-  Psi interpretation failure after native execution).
-- `202`: compilation halted at `CompilerRequestOutcome::Incomplete` (a private
-  provision bound was exceeded without refuting the source).
-- `203`: guest crash inside `--engine psi`. Unlike a native child process,
-  the interpreter cannot present a guest trap as an OS termination signal
-  without raising that signal on `omega` itself, so it reports the crash on
-  stderr and exits 203.
-- `204`: `--both` could not compare the runs (`InterpreterComparison::Declined`:
-  the Psi run ran out of work, waited on the host, returned no process result,
-  hit an unsupported construct, or exited with a status the host shows only
-  truncated). The native status alone is not agreement, so it is not reused.
-
-*/
-
+//! Present the selected application engine's execution or retained observation.
 mod observation;
 
 use crate::arguments::RunArguments;
 use crate::execution::{
-    AgreedTermination, CaseOutcome, CaseRunRequest, ExecutionOutcome, ExecutionSelection,
-    InterpreterComparison, RunError, RunRequest, TerminalOutcome, run_project, run_project_cases,
+    CaseOutcome, CaseRunRequest, ExecutionOutcome, ExecutionSelection, RunError, RunRequest,
+    TerminalOutcome, run_project, run_project_cases,
 };
 use compiler::CompilerRequestOutcome;
 use package_compilation::build_execution::BuildSnapshotRequest;
 use std::io::Write;
 
-const COMPARISON_DECLINED: i32 = 204;
 use std::path::PathBuf;
 
 pub(crate) fn run(arguments: RunArguments) -> ! {
@@ -153,7 +95,6 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         ExecutionOutcome::Host {
             output,
             exit,
-            comparison,
             private_entry_ram,
             ..
         } => {
@@ -161,56 +102,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             print_private_entry_ram(&private_entry_ram);
             let native_code = exit.code().unwrap_or(-1);
             eprintln!("native {}", exit.describe());
-            match comparison {
-                InterpreterComparison::NotRequested => native_code,
-                InterpreterComparison::Declined(reason) => {
-                    eprintln!("interp: DECLINED ({reason})");
-                    COMPARISON_DECLINED
-                }
-                InterpreterComparison::Agrees { exit_code } => {
-                    eprintln!("interp exit: {exit_code}");
-                    native_code
-                }
-                InterpreterComparison::AgreesCrash { cause } => {
-                    eprintln!("interp crash: {cause:?} (host presentation agrees)");
-                    native_code
-                }
-                InterpreterComparison::DisagreesCrash { cause } => {
-                    eprintln!("interp crash: {cause:?}");
-                    eprintln!(
-                        "DIVERGENCE: native {} vs interp crash {cause:?}",
-                        exit.describe()
-                    );
-                    201
-                }
-                InterpreterComparison::Disagrees {
-                    interpreter_exit_code,
-                } => {
-                    eprintln!("interp exit: {interpreter_exit_code}");
-                    eprintln!("DIVERGENCE: native {native_code} vs interp {interpreter_exit_code}");
-                    201
-                }
-                InterpreterComparison::OutputDisagrees {
-                    termination,
-                    divergence,
-                } => {
-                    match termination {
-                        AgreedTermination::Exit(exit_code) => eprintln!("interp exit: {exit_code}"),
-                        AgreedTermination::Crash(cause) => {
-                            eprintln!("interp crash: {cause:?} (host presentation agrees)")
-                        }
-                    }
-                    eprintln!("DIVERGENCE: {divergence}");
-                    201
-                }
-                InterpreterComparison::Failed(diagnostics) => {
-                    eprintln!("Psi interpretation FAILED:");
-                    for diagnostic in diagnostics {
-                        eprintln!("  {diagnostic}");
-                    }
-                    201
-                }
-            }
+            native_code
         }
     };
     if arguments.keep {
@@ -318,56 +210,16 @@ fn run_cases(
     };
     let mut status = 0;
     for case in &outcome.cases {
-        let (name, exit, comparison) = match case {
-            CaseOutcome::Native {
-                name,
-                exit,
-                comparison,
-            } => (name, exit, comparison),
+        match case {
+            CaseOutcome::Native { name, exit } => eprintln!("case {name}: native {}", exit.describe()),
             CaseOutcome::Psi { name, termination } => {
                 let (kind, detail) = termination.columns();
                 eprintln!("case {name}: Psi {kind} {detail}");
                 if !termination.complete() {
                     status = 200;
                 }
-                continue;
             }
-        };
-        let interpreter = match comparison {
-            InterpreterComparison::NotRequested => String::new(),
-            InterpreterComparison::Declined(reason) => {
-                // A divergence in another case (201) outranks an unchecked one.
-                if status == 0 {
-                    status = COMPARISON_DECLINED;
-                }
-                format!("; interp DECLINED ({reason})")
-            }
-            InterpreterComparison::Agrees { exit_code } => format!("; interp exit {exit_code}"),
-            InterpreterComparison::AgreesCrash { cause } => format!("; interp crash {cause:?}"),
-            InterpreterComparison::Disagrees {
-                interpreter_exit_code,
-            } => {
-                status = 201;
-                format!("; DIVERGENCE interp exit {interpreter_exit_code}")
-            }
-            InterpreterComparison::DisagreesCrash { cause } => {
-                status = 201;
-                format!("; DIVERGENCE interp crash {cause:?}")
-            }
-            InterpreterComparison::OutputDisagrees { divergence, .. } => {
-                status = 201;
-                format!("; DIVERGENCE {divergence}")
-            }
-            InterpreterComparison::Failed(diagnostics) => {
-                status = 201;
-                let reasons = diagnostics
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>();
-                format!("; Psi interpretation FAILED: {}", reasons.join("; "))
-            }
-        };
-        eprintln!("case {name}: native {}{interpreter}", exit.describe());
+        }
     }
     eprintln!(
         "{} cases; streams and results.tsv in {}",
