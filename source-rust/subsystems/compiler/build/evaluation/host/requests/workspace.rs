@@ -32,6 +32,9 @@ impl WorkspaceCatalogs {
             .lock()
             .map_err(|_| refuse("workspace catalog lock poisoned"))?;
         let prefix = Self::index(&members, prior);
+        if prefix.is_none() && (FIRST_SNAPSHOT..2 * FIRST_SNAPSHOT).contains(&prior.opaque_identity) {
+            return Err(refuse("workspace prefix was not issued by this Build"));
+        }
         let ordinal = u64::try_from(members.len())
             .ok()
             .filter(|n| *n < FIRST_SNAPSHOT)
