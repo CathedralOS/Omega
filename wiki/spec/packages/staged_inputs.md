@@ -6,8 +6,8 @@ project is the root or a dependency. A consumer can build a board package
 without knowing which libraries the board uses to configure itself.
 
 This page specifies the source-based replacement for the [version 4 project lock](locks.md).
-The Rust tools currently use the lock workflow. Successor plans and their
-package and provider selections are implementation work. The [binding and
+The Rust driver follows authored successor entries and forwards explicitly
+registered package bindings. Install and update still use the lock workflow. The [binding and
 admission rules](#binding-identity-and-admission) govern the staged workflow.
 
 ## From source to the next stage

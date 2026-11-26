@@ -26,9 +26,9 @@ fn git(repo: &Path, args: &[&str]) -> String {
     String::from_utf8(output.stdout).unwrap().trim().to_owned()
 }
 
-fn run(project: &Path, remote: &Path, offline: bool) -> Output {
+fn build(project: &Path, remote: &Path, output: &Path, offline: bool) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-    command.args(["run", "--both"]);
+    command.arg("build").arg("--build-dir").arg(output);
     if offline {
         command.arg("--offline");
     }
@@ -89,16 +89,16 @@ machine main() crashes Trap { if |answer|::value() != 37u64 { crash Trap; } }"#,
         if offline {
             fs::rename(&remote, dir.path().join("disconnected")).unwrap();
         }
-        let output = run(&project, &remote, offline);
+        let destination = dir.path().join(if offline { "rebuilt" } else { "first" });
+        let output = build(&project, &remote, &destination, offline);
         let report = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
         assert!(output.status.success(), "{report}");
-        assert!(
-            report.contains("native exit 0") && report.contains("interp exit: 0"),
-            "{report}"
-        );
+        let executable = destination.join("omega-program");
+        let status = Command::new(executable).current_dir(&project).status().unwrap();
+        assert!(status.success(), "{status}");
     }
 }
