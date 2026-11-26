@@ -1,13 +1,14 @@
+use main.omg as app;
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "simd_lane_add");
-    let registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "simd_lane_add" };
+    _ = |dependency|::add(builder, |dependency|::from_source(Source::Path {
         location: "../../../../../../../source/library/simd"
     }));
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);
 }
