@@ -57,7 +57,10 @@ struct FixtureFile<'a> {
 fn fixture_trees(
     files: &[FixtureFile<'_>],
     bindings: impl FnOnce(&[source_text::SourceId]) -> Vec<source_symbols::SourceScopedTopLevelBinding>,
-) -> (typed_trees::source_state::TypedTrees, Vec<source_text::SourceId>) {
+) -> (
+    typed_trees::source_state::TypedTrees,
+    Vec<source_text::SourceId>,
+) {
     let mut sources = source_inputs::SourceMap::default();
     let mut syntax = None;
     let mut ids = Vec::with_capacity(files.len());
@@ -76,7 +79,9 @@ fn fixture_trees(
         ids.push(id);
         let tokens = frontend_fixture::Lexer::new(file.text).tokenize().unwrap();
         match &mut syntax {
-            None => syntax = Some(frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap()),
+            None => {
+                syntax = Some(frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap())
+            }
             Some(syntax) => {
                 frontend_fixture::parse(syntax, id, &tokens).unwrap();
             }
@@ -109,7 +114,11 @@ fn judge_entry(
     purpose: source_provenance::DependencyScope,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
-    let entry = program.trees().realized_machine_named(entry).unwrap().symbol;
+    let entry = program
+        .trees()
+        .realized_machine_named(entry)
+        .unwrap()
+        .symbol;
     judge_fixture(
         program,
         lowering::Compilation {

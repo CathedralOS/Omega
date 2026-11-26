@@ -1819,7 +1819,10 @@ impl<'source> Declarations<'source> {
         symbol: SymbolHandle,
     ) -> Option<(Option<&std::path::PathBuf>, source_text::SourceSpan)> {
         let span = self.typed.symbols.symbol_provenance_source_span(symbol)?;
-        Some((self.typed.symbols.source_file(span).map(|file| &file.path), span))
+        Some((
+            self.typed.symbols.source_file(span).map(|file| &file.path),
+            span,
+        ))
     }
 
     fn local_binding(
@@ -2199,10 +2202,9 @@ mod invocation_tests {
         changed: &terminal_check_tables::program::Selected,
     ) -> Diagnostic {
         let mut questions = Questions::new(source, source.module()).unwrap();
-        questions.requirements.insert(
-            (changed.caller, header, changed.implementation),
-            changed,
-        );
+        questions
+            .requirements
+            .insert((changed.caller, header, changed.implementation), changed);
         questions
             .retain_invocation(
                 caller,
@@ -2278,18 +2280,24 @@ machine entry() -> u64 crashes none {
             path: "selection/main.omg",
             text,
             root: "selection",
-            package: Some(semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap()),
+            package: Some(
+                semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap(),
+            ),
             origin: source_admission::SourceOrigin::User,
             scope: source_provenance::DependencyScope::Product,
         })
-        .chain(core.iter().zip(&paths).map(|(&(_, _, bytes), path)| crate::FixtureFile {
-            path,
-            text: std::str::from_utf8(bytes).unwrap(),
-            root,
-            package: None,
-            origin: source_admission::SourceOrigin::Toolchain,
-            scope: source_provenance::DependencyScope::Product,
-        }))
+        .chain(
+            core.iter()
+                .zip(&paths)
+                .map(|(&(_, _, bytes), path)| crate::FixtureFile {
+                    path,
+                    text: std::str::from_utf8(bytes).unwrap(),
+                    root,
+                    package: None,
+                    origin: source_admission::SourceOrigin::Toolchain,
+                    scope: source_provenance::DependencyScope::Product,
+                }),
+        )
         .collect::<Vec<_>>();
         let (typed, _) = crate::fixture_trees(&files, |ids| {
             core.iter()
@@ -2378,8 +2386,16 @@ machine entry() -> u32 crashes none {{
         );
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xc4; 32]).unwrap();
         let files = [
-            ("scope/build.omg", BUILD, source_provenance::DependencyScope::Build),
-            ("scope/main.omg", product.as_str(), source_provenance::DependencyScope::Product),
+            (
+                "scope/build.omg",
+                BUILD,
+                source_provenance::DependencyScope::Build,
+            ),
+            (
+                "scope/main.omg",
+                product.as_str(),
+                source_provenance::DependencyScope::Product,
+            ),
         ]
         .map(|(path, text, scope)| crate::FixtureFile {
             path,
@@ -2452,7 +2468,11 @@ machine entry() -> u32 crashes none {{
     fn accept_formation_program(
         program: crate::lowering::PreparedTypedTrees,
     ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
-        let entry = program.trees().realized_machine_named("entry").unwrap().symbol;
+        let entry = program
+            .trees()
+            .realized_machine_named("entry")
+            .unwrap()
+            .symbol;
         let package = program.trees().symbols.symbol_package_identity(entry);
         crate::judge_entry(
             program,
@@ -2820,7 +2840,6 @@ machine entry() -> u64 crashes none { choose::<prepare>(read, 47u64) }
 "#,
             &[],
         );
-        let module = source.module();
         let prepared = validated(&source);
 
         let typed = source.source();
@@ -2924,7 +2943,10 @@ machine entry() -> u64 reaches none crashes none {
         let meanings = [first.4.clone(), second.4.clone()];
 
         // Adding a comment after the types must leave their identities unchanged.
-        let revised = accepted_source(&format!("{TEXT}\n// An unrelated trailing source comment.\n"), &[]);
+        let revised = accepted_source(
+            &format!("{TEXT}\n// An unrelated trailing source comment.\n"),
+            &[],
+        );
         let revised = occurrences(&revised);
         assert_eq!(revised.len(), 2);
         for (name, (_, _, _, identity, meaning)) in &original {
@@ -3408,7 +3430,7 @@ machine entry() reaches Input {}
                 .contains("differs from its exact source selection")
         );
 
-        let prepared = validated(&source);
+        validated(&source);
     }
 
     #[test]
