@@ -25,37 +25,9 @@ pub struct TerminalIdentityTable {
     entries: Vec<String>,
     invocation: Option<InvocationCodeScope>,
     invocation_local: Vec<TerminalIdentityIndex>,
-    rejoin: Vec<InvocationDeclarationOrigin>,
-    records: Vec<InvocationRecordOrigin>,
     private_inputs: Option<std::sync::Arc<InvocationPrivateInputs>>,
     private_results: Option<std::sync::Arc<[super::InvocationPrivateResult]>>,
     positions: TerminalIdentityPositionsMemo,
-}
-
-/// Invocation code remembers the source and signature inspected by its producer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct InvocationDeclarationOrigin {
-    machine: TerminalIdentityIndex,
-    state: TerminalIdentityIndex,
-    callable: TerminalIdentityIndex,
-    package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    occurrence: [u8; 32],
-    contract: [u8; 32],
-}
-
-impl InvocationDeclarationOrigin {
-    fn names(&self, declaration: &crate::CheckedMachineDeclaration) -> bool {
-        self.machine == declaration.machine.identity()
-            && self.state == declaration.state.identity()
-            && self.callable == declaration.callable
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct InvocationRecordOrigin {
-    record: semantic_vocabulary::StructuralTypeId,
-    package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    occurrence: Option<[u8; 32]>,
 }
 
 #[derive(Default)]
@@ -99,8 +71,6 @@ impl Default for TerminalIdentityTable {
             entries: vec![String::new()],
             invocation: None,
             invocation_local: Vec::new(),
-            rejoin: Vec::new(),
-            records: Vec::new(),
             private_inputs: None,
             private_results: None,
             positions: TerminalIdentityPositionsMemo::default(),
@@ -123,64 +93,6 @@ impl TerminalIdentityTable {
                 .as_ref()
                 .zip(other.invocation.as_ref())
                 .is_some_and(|(left, right)| left == right)
-    }
-
-    /// A previously anonymous Build declaration may acquire its package owner.
-    /// Each producer committed the file, both declaration occurrences, and the
-    /// same contract with the owner's name factored out. Ordinary declaration
-    /// identity and portable publication never consult this invocation evidence.
-    pub fn rejoins_machine(
-        &self,
-        old: &crate::CheckedMachineDeclaration,
-        other: &Self,
-        new: &crate::CheckedMachineDeclaration,
-    ) -> bool {
-        let origin = |table: &Self, declaration: &crate::CheckedMachineDeclaration| {
-            table
-                .rejoin
-                .iter()
-                .find(|row| row.names(declaration))
-                .copied()
-        };
-        (self.is_invocation_local(old.machine.identity())
-            || (old.machine.same_identity_as(self, &new.machine, other)
-                && old.state.same_identity_as(self, &new.state, other)))
-            && origin(self, old)
-                .zip(origin(other, new))
-                .is_some_and(|(a, b)| {
-                    a.occurrence == b.occurrence
-                        && a.contract == b.contract
-                        && a.package.is_none_or(|owner| b.package == Some(owner))
-                })
-    }
-
-    /// Find the same ordinary authored declaration when this Build acquires
-    /// a package name. Its producer committed the ordered type and member
-    /// occurrences from immutable source; the caller must still compare
-    /// the published layouts, ownership and all nested field types.
-    pub fn rejoined_record(
-        &self,
-        id: semantic_vocabulary::StructuralTypeId,
-        successor: &Self,
-    ) -> Result<Option<semantic_vocabulary::StructuralTypeId>, &'static str> {
-        let Ok(index) = self.records.binary_search_by_key(&id, |row| row.record) else {
-            return Ok(None);
-        };
-        let old = &self.records[index];
-        let occurrence = old
-            .occurrence
-            .ok_or("this anonymous record has no retained application identity")?;
-        if old.package.is_some() {
-            return Ok(None);
-        }
-        let mut matches = successor
-            .records
-            .iter()
-            .filter(|r| r.occurrence == Some(occurrence));
-        match (matches.next(), matches.next()) {
-            (Some(new), None) => Ok(Some(new.record)),
-            _ => Err("the previously anonymous record has no unique source successor"),
-        }
     }
 
     /// The checker inferred this input from arrivals in this accepted invocation.
@@ -341,73 +253,6 @@ impl TerminalIdentityTableBuilder {
         self.table.invocation.is_some()
     }
 
-    pub fn retain_invocation_machine(
-        &mut self,
-        declaration: &crate::CheckedMachineDeclaration,
-        package: Option<semantic_vocabulary::PackageKeyIdentity>,
-        occurrence: [u8; 32],
-        contract: [u8; 32],
-    ) -> Result<(), &'static str> {
-        let machine = declaration.machine.identity();
-        let state = declaration.state.identity();
-        let callable = declaration.callable;
-        if !self.is_invocation_scoped()
-            || [machine, state, callable]
-                .into_iter()
-                .any(|id| id.is_absent() || self.text(id).is_none())
-        {
-            return Err("a retained Build declaration needs machine, state and callable identities");
-        }
-        let origin = InvocationDeclarationOrigin {
-            machine,
-            state,
-            callable,
-            package,
-            occurrence,
-            contract,
-        };
-        if let Some(existing) = self
-            .table
-            .rejoin
-            .iter()
-            .find(|r| r.names(declaration))
-        {
-            if *existing != origin {
-                return Err("the Build declaration already has another retained origin");
-            }
-        } else {
-            self.table.rejoin.push(origin);
-        }
-        Ok(())
-    }
-
-    pub fn retain_invocation_record(
-        &mut self,
-        record: semantic_vocabulary::StructuralTypeId,
-        package: Option<semantic_vocabulary::PackageKeyIdentity>,
-        occurrence: Option<[u8; 32]>,
-    ) -> Result<(), &'static str> {
-        let Err(position) = self
-            .table
-            .records
-            .binary_search_by_key(&record, |row| row.record)
-        else {
-            return Err("a retained Build record has multiple source declarations");
-        };
-        if !self.is_invocation_scoped() {
-            return Err("a retained Build record requires an invocation");
-        }
-        self.table.records.insert(
-            position,
-            InvocationRecordOrigin {
-                record,
-                package,
-                occurrence,
-            },
-        );
-        Ok(())
-    }
-
     pub fn intern_invocation_local(
         &mut self,
         coordinate: &str,
@@ -468,8 +313,6 @@ impl From<Vec<String>> for TerminalIdentityTable {
             entries,
             invocation: None,
             invocation_local: Vec::new(),
-            rejoin: Vec::new(),
-            records: Vec::new(),
             private_inputs: None,
             private_results: None,
             positions: TerminalIdentityPositionsMemo::default(),

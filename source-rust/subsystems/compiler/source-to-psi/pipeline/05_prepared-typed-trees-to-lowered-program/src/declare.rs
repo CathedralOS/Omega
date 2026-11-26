@@ -295,15 +295,12 @@ pub(crate) fn declare(
         Err(_) if identities.is_invocation_scoped() => Ok(&[][..]),
         sources => sources,
     };
-    let mut build_file_digests = Vec::new();
     let mut prepared = Vec::new();
     let requirements_list = &elaboration.requirements;
     let static_reach_summaries = &elaboration.static_reach_summaries;
     let static_reach_parameters = &elaboration.static_reach_parameters;
-    let module_entry = elaboration.module.entry;
     let declare_machine = |machine: &TerminalMachine,
-                           identities: &mut TerminalIdentityTableBuilder,
-                           build_file_digests: &mut Vec<(source_text::SourceId, [u8; 32])>|
+                           identities: &mut TerminalIdentityTableBuilder|
      -> Result<PreparedDeclaration, &'static str> {
         match (
             &sources,
@@ -360,8 +357,7 @@ pub(crate) fn declare(
                     *symbol,
                     signature,
                     machine,
-                    (
-                        Published {
+                    Published {
                             reach: &reach,
                             entries: &entries,
                             operational,
@@ -369,10 +365,7 @@ pub(crate) fn declare(
                         binder_reach
                             .get(machine.id)
                             .ok_or("a machine has no prepared binder reach row")?,
-                        module_entry
-                            == Some(terminal_psi::TargetMachineCallable::Machine(machine.id)),
-                    ),
-                    (identities, build_file_digests),
+                    identities,
                 )?;
                 let Some(term) = generic else {
                     if let Some(application) = &mut application
@@ -474,8 +467,7 @@ pub(crate) fn declare(
                     return None;
                 }
                 let mut local_identities = TerminalIdentityTableBuilder::default();
-                let mut local_digests = Vec::new();
-                let stated = declare_machine(machine, &mut local_identities, &mut local_digests);
+                let stated = declare_machine(machine, &mut local_identities);
                 Some((machine.id, stated, local_identities))
             })
             .collect();
@@ -508,7 +500,7 @@ pub(crate) fn declare(
             if requirements_list.contains(&machine.id) {
                 continue;
             }
-            let stated = declare_machine(machine, &mut identities, &mut build_file_digests);
+            let stated = declare_machine(machine, &mut identities);
             outcomes_list.push((machine.id, stated));
         }
     }
@@ -861,130 +853,15 @@ pub(crate) fn provider_candidates(
     Ok(rows)
 }
 
-/// A root Build can acquire its package owner at a wait. Bind the original
-/// occurrence to the captured bytes, source context and member spans so another
-/// declaration with the same spelling cannot supply the parked value.
-pub(crate) struct BuildDeclarationOccurrence {
-    pub(crate) digest: DomainDigestEncoder,
-    pub(crate) package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    source: source_text::SourceId,
-}
-
-impl BuildDeclarationOccurrence {
-    pub(crate) fn new(
-        typed: &TypedTrees,
-        symbol: SymbolHandle,
-        digests: &mut Vec<(source_text::SourceId, [u8; 32])>,
-        domain: &[u8],
-    ) -> Option<Self> {
-        let span = typed.symbols.symbol_source_span(symbol)?;
-        let file = typed.symbols.source_file(span)?;
-        if file.origin != source_admission::SourceOrigin::User
-            || file.dependency_scope != source_provenance::DependencyScope::Build
-            || file.resolution_stratum != source_admission::SourceResolutionStratum::Base
-        {
-            return None;
-        }
-        let content = match digests.iter().find(|(id, _)| *id == span.source_id) {
-            Some((_, content)) => *content,
-            None => {
-                let content = source_provenance::source_content_digest(file.source.as_bytes());
-                digests.push((span.source_id, content));
-                content
-            }
-        };
-        let mut digest = DomainDigestEncoder::new(domain);
-        digest.bytes(file.path.as_os_str().as_encoded_bytes());
-        digest.bytes(file.package_root.as_os_str().as_encoded_bytes());
-        digest.raw(&content);
-        let mut result = Self {
-            source: span.source_id,
-            package: file.package_identity,
-            digest,
-        };
-        result.add(span).then_some(result)
-    }
-
-    pub(crate) fn add(&mut self, span: source_text::SourceSpan) -> bool {
-        if span.source_id != self.source || span.span.start >= span.span.end {
-            return false;
-        }
-        self.digest.len(span.span.start);
-        self.digest.len(span.span.end);
-        true
-    }
-}
-
-/// A plain, nongeneric data declaration in this Build can receive its package
-/// name at a wait. Bind that exact signature position to the original file and
-/// name token. References, applications, aliases and refinements retain the
-/// normal signature identity, including their lifetime and argument structure.
-fn build_signature_type(
-    typed: &TypedTrees,
-    reference: crate::source_state::types::TypeReferenceHandle,
-    normalized: &str,
-    owner: SymbolHandle,
-    digests: &mut Vec<(source_text::SourceId, [u8; 32])>,
-) -> String {
-    use crate::source_state::types::TypeReferenceNode;
-    let declaration = || {
-        if !typed
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
-            return None;
-        }
-        let TypeReferenceNode::Named { symbol, .. } =
-            typed.type_reference_table.type_reference(reference)
-        else {
-            return None;
-        };
-        let data = typed.data_definition_by_symbol(*symbol)?;
-        if data.generic_instance.is_some()
-            || !data.type_parameters.is_empty()
-            || !data.lifetime_parameters.is_empty()
-            || typed.symbols.get(*symbol).generated_from.is_valid()
-        {
-            return None;
-        }
-        let source = |symbol| {
-            typed
-                .symbols
-                .source_file(typed.symbols.symbol_source_span(symbol)?)
-        };
-        let file = source(*symbol)?;
-        let root = source(owner)?;
-        (file.package_root == root.package_root && file.package_identity == root.package_identity)
-            .then_some(*symbol)
-    };
-    if let Some(symbol) = declaration()
-        && let Some(occurrence) = BuildDeclarationOccurrence::new(
-            typed,
-            symbol,
-            digests,
-            b"omega.authored-build-signature-data.v1",
-        )
-    {
-        format!(
-            "D{}",
-            ::wire::digest_encoder::hex(&occurrence.digest.finish())
-        )
-    } else {
-        format!("T{normalized}")
-    }
-}
-
 fn declaration(
     typed: &TypedTrees,
     sources: &[(source_text::SourceId, [u8; 32])],
     symbol: SymbolHandle,
     signature: &Signature,
     machine: &TerminalMachine,
-    (published, binder_reach, is_entry): (Published<'_>, &BinderReach, bool),
-    (identities, build_file_digests): (
-        &mut TerminalIdentityTableBuilder,
-        &mut Vec<(source_text::SourceId, [u8; 32])>,
-    ),
+    published: Published<'_>,
+    binder_reach: &BinderReach,
+    identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<(CheckedMachineDeclaration, Option<PreparedApplication>), &'static str> {
     let declared = typed
         .machine_by_symbol(symbol)
@@ -1025,132 +902,42 @@ fn declaration(
     let machine_identity = nominal(typed, sources, symbol, identities)?;
     let state_identity = nominal(typed, sources, state.symbol, identities)?;
 
-    let commitment = |identities: &mut TerminalIdentityTableBuilder,
-                      name: &str,
-                      parameters: &[String],
-                      result: &str,
-                      effects: Published<'_>| {
-        declaration_contract_commitment(
-            typed,
-            sources,
-            identities,
-            name,
-            formals,
-            parameters,
-            result,
-            &machine.contract.requires,
-            machine
-                .contract
-                .ensures
-                .iter()
-                .map(|clause| &clause.proposition),
-            &machine.contract.crash_routes,
-            signature,
-            effects,
-        )
-    };
-    let contract = commitment(
+    let contract = declaration_contract_commitment(
+        typed,
+        sources,
         identities,
         &callable,
+        formals,
         &parameter_types,
         &result_type,
+        &machine.contract.requires,
+        machine
+            .contract
+            .ensures
+            .iter()
+            .map(|clause| &clause.proposition),
+        &machine.contract.crash_routes,
+        signature,
         published,
     )?;
-    let declaration = CheckedMachineDeclaration {
-        machine: NominalDeclarationIdentity::new(machine_identity),
-        state: NominalDeclarationIdentity::new(state_identity),
-        semantic_declaration: semantic,
-        parameter_types: parameter_types
-            .iter()
-            .map(|text| identities.intern(text))
-            .collect(),
-        callable: identities.intern(&callable),
-        result_type: identities.intern(&result_type),
-        contract,
-        published_may_suspend: machine.published_may_suspend,
-        published_may_block: machine.published_may_block,
-        specialization,
-    };
-    // Build first checks the root before it has a package owner. Keep only
-    // ordinary authored base declarations: a generated specialization needs
-    // its own exact application correspondence. This does not name a source
-    // declaration in portable Psi.
-    if identities.is_invocation_scoped()
-        && declaration.specialization.is_none()
-        && !typed.symbols.get(symbol).generated_from.is_valid()
-        && let Some(mut occurrence) = BuildDeclarationOccurrence::new(
-            typed,
-            symbol,
-            build_file_digests,
-            b"omega.authored-build-machine.v1",
-        )
-        && let Some(state_span) = typed.symbols.symbol_provenance_source_span(state.symbol)
-        && occurrence.add(state_span)
-    {
-        let parameters: Vec<_> = formals
-            .iter()
-            .zip(&parameter_types)
-            .map(|(formal, ty)| {
-                if formal.relevance == language_core::BindingRelevance::Relevant && !formal.is_const
-                {
-                    build_signature_type(
-                        typed,
-                        formal.type_reference,
-                        ty,
-                        symbol,
-                        build_file_digests,
-                    )
-                } else {
-                    format!("T{ty}")
-                }
-            })
-            .collect();
-        let result = if matches!(
-            machine.result,
-            terminal_psi::TerminalMachineResult::Structural(_)
-        ) {
-            build_signature_type(
-                typed,
-                state.return_type,
-                &result_type,
-                symbol,
-                build_file_digests,
-            )
-        } else {
-            format!("T{result_type}")
-        };
-        // A Build entry has no caller relying on an inferred ceiling.
-        // Preserve authored promises in its source commitment. The continuation
-        // checks every previously reached service against the new admission.
-        let effects = Published {
-            reach: if is_entry && matches!(signature.reaches, crate::Ceiling::Inferred) {
-                &[]
-            } else {
-                published.reach
-            },
-            entries: if is_entry && matches!(signature.invokes, crate::Ceiling::Inferred) {
-                &[]
-            } else {
-                published.entries
-            },
-            ..published
-        };
-        let signature = commitment(
-            identities,
-            "authored-build-declaration",
-            &parameters,
-            &result,
-            effects,
-        )?;
-        identities.retain_invocation_machine(
-            &declaration,
-            occurrence.package,
-            occurrence.digest.finish(),
-            signature,
-        )?;
-    }
-
-    Ok((declaration, prepared))
+    Ok((
+        CheckedMachineDeclaration {
+            machine: NominalDeclarationIdentity::new(machine_identity),
+            state: NominalDeclarationIdentity::new(state_identity),
+            semantic_declaration: semantic,
+            parameter_types: parameter_types
+                .iter()
+                .map(|text| identities.intern(text))
+                .collect(),
+            callable: identities.intern(&callable),
+            result_type: identities.intern(&result_type),
+            contract,
+            published_may_suspend: machine.published_may_suspend,
+            published_may_block: machine.published_may_block,
+            specialization,
+        },
+        prepared,
+    ))
 }
 
 /// What the declaration of `instance`, a machine stage 04 generated from the

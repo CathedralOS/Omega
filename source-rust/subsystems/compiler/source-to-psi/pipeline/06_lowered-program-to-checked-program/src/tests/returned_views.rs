@@ -355,34 +355,31 @@ machine entry() reaches Fs invokes Fs suspends {
     see(bytes);
     keep(@source);
 }";
-    let RouteVerdict::Accepted(checked) = judge(elaborate(source)).unwrap() else {
-        panic!("the provider result and its lender survive the ordinary suspension");
-    };
-    let publication = checked.publish_invocation().unwrap();
-    let m = publication.artifact.view().module();
-    let entry = &m.machines[0];
-    let stop = entry
+    let mut lowered = elaborate(source).unwrap();
+    assert!(matches!(
+        judge(Ok(lowered.clone())),
+        Ok(RouteVerdict::Accepted(_))
+    ));
+    let crossing = lowered.module.machines[0]
         .operations()
-        .find(|op| op.suspension_crossing.is_some())
+        .find_map(|op| op.suspension_crossing)
         .unwrap();
-    let cut = (entry.id, stop.id);
-    terminal_semantics::continuation::CheckedPrefix::check(m, cut, m, cut)
-        .expect("the returned view has its original provider and live input");
-    let mut missing = m.clone();
-    let plan = missing
+    let plan = lowered
+        .module
         .execution
         .suspension_call_plans
         .iter_mut()
-        .find(|plan| Some(plan.crossing) == stop.suspension_crossing)
+        .find(|plan| plan.crossing == crossing)
         .unwrap();
     let before = plan.live_values.len();
     plan.live_values
         .retain(|row| row.loans != terminal_psi::TerminalSuspensionValueLoans::ViewFree);
     assert!(plan.live_values.len() < before);
     plan.live_value_count = plan.live_values.len() as u32;
-    assert!(
-        terminal_semantics::continuation::CheckedPrefix::check(&missing, cut, &missing, cut)
-            .is_err()
+    let refusal = crate::operational::judge(&lowered).unwrap_err();
+    assert_eq!(
+        refusal.detail,
+        "a suspension plan is not the live frontier of its call"
     );
 }
 

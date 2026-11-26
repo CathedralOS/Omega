@@ -3005,20 +3005,6 @@ pub(crate) mod byte_sequences {
     impl Eq for ByteSequenceView {}
 
     impl ByteSequenceView {
-        pub(crate) fn relocate_checked_entry(
-            &mut self,
-            map: &crate::continuation::Coordinates<'_, '_>,
-        ) -> Result<(), String> {
-            if let Some(home) = &mut self.descriptor_home {
-                map.value(home)?;
-            }
-            if let Some(window) = &mut self.original_array {
-                map.array(&mut window.array)?;
-                map.ty(&mut window.array_type)?;
-            }
-            Ok(())
-        }
-
         pub(crate) fn shares_backing(&self, other: &Self) -> bool {
             Arc::ptr_eq(&self.backing, &other.backing)
         }

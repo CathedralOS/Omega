@@ -2623,8 +2623,8 @@ impl Program<'_> {
         };
         let actual = actual.ok_or_else(mismatch)?;
         let plain = carrier.erased().qualified(crate::body::Qualification::NONE);
-        let exact = plain.is_some()
-            && actual.erased().qualified(crate::body::Qualification::NONE) == plain;
+        let exact =
+            plain.is_some() && actual.erased().qualified(crate::body::Qualification::NONE) == plain;
         if !exact && !self.represented_domain_carrier(id, actual, carrier, definition)? {
             return Err(mismatch());
         }

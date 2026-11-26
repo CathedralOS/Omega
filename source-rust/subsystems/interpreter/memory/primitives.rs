@@ -191,16 +191,6 @@ pub(crate) mod activation_storage {
     }
 
     impl RuntimeActivationStorage {
-        /// Activation grants contain issuing-machine and operation coordinates.
-        /// A parked source frame may move only once all such grants are settled.
-        pub(crate) fn can_continue_entry(&self) -> bool {
-            self.ledgers.is_empty()
-                && self.grants.is_empty()
-                && self.owners.is_empty()
-                && self.claim_descriptors.is_empty()
-                && self.split_children.is_empty()
-        }
-
         pub(crate) fn measure_result_custody<'storage>(
             &'storage self,
             root: &StructuralRuntimePlace,
@@ -2067,13 +2057,6 @@ pub(crate) mod primitive_storage {
                 place,
                 structural_type,
             }
-        }
-        pub(crate) fn relocate_checked_entry(
-            &mut self,
-            map: &crate::continuation::Coordinates<'_, '_>,
-        ) -> Result<(), String> {
-            self.machine = map.machine(self.depth, self.machine)?;
-            map.ty(&mut self.structural_type)
         }
         pub(crate) fn scalar_array_frame(self) -> (usize, PlaceId, StructuralTypeId) {
             (self.depth, self.place, self.structural_type)
@@ -6056,27 +6039,6 @@ pub(crate) mod storage_addresses {
 
     type Coordinate = (u64, u64);
 
-    /// The integer address still contains these coordinates after a new program is admitted.
-    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-    pub(crate) enum ExposedStorageSelector {
-        FieldName(terminal_psi::TerminalIdentityIndex),
-        Case(semantic_vocabulary::StructuralCaseId),
-        Field(semantic_vocabulary::StructuralFieldId),
-    }
-
-    impl ExposedStorageSelector {
-        pub(crate) fn unchanged(
-            self,
-            prefix: &terminal_semantics::continuation::CheckedPrefix<'_>,
-        ) -> bool {
-            match self {
-                Self::FieldName(name) => prefix.field_identity(name) == Some(name),
-                Self::Case(id) => prefix.unambiguous_case_id(id) == Some(id),
-                Self::Field(id) => prefix.unambiguous_field_id(id) == Some(id),
-            }
-        }
-    }
-
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub(crate) enum ScalarStorageAddressKey {
         Scalar(StructuralRuntimePlace),
@@ -6554,25 +6516,6 @@ pub(crate) mod storage_addresses {
                 .or(self.local_structural_identities.exposure_namespace)
                 .ok_or_else(exhausted)?;
             let encoded = encode(namespace, root, &path)?;
-            for &(kind, coordinate) in &path {
-                let selector = match kind {
-                    0 => continue, // fixed element index
-                    1 => ExposedStorageSelector::FieldName(terminal_psi::TerminalIdentityIndex(
-                        u32::try_from(coordinate).map_err(|_| malformed())?,
-                    )),
-                    2 => ExposedStorageSelector::Case(
-                        semantic_vocabulary::StructuralCaseId::new(coordinate).ok_or(malformed())?,
-                    ),
-                    3 | 4 => ExposedStorageSelector::Field(
-                        semantic_vocabulary::StructuralFieldId::new(coordinate)
-                            .ok_or(malformed())?,
-                    ),
-                    _ => return Err(malformed()),
-                };
-                if let Err(index) = self.exposed_address_selectors.binary_search(&selector) {
-                    self.exposed_address_selectors.insert(index, selector);
-                }
-            }
             let value = IntegerValue::Unsigned(u128::from(encoded));
             if !integer.admits(value) {
                 return Err(exhausted());

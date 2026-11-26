@@ -478,54 +478,6 @@ pub(crate) mod origin_backings {
     use terminal_semantics::reference_storage_region;
 
     impl ReferenceBacking {
-        pub(crate) fn portable_for_continuation(
-            &self,
-            held: &mut crate::continuation::HeldCoordinates<'_, '_, '_>,
-        ) -> bool {
-            self.placed.is_none()
-                && self.element_view.is_none()
-                && self.array_loan.is_none()
-                && held.value(&self.value)
-                && self
-                    .aggregate_view
-                    .is_none_or(|region| held.ty(region.structural_type))
-                && self.primitive_storage.as_ref().is_none_or(|storage| {
-                    storage.has_literal_scalar_encoding() && held.endpoint(&storage.endpoint)
-                })
-                && self
-                    .byte_binding
-                    .as_ref()
-                    .is_none_or(|bytes| held.binding(bytes))
-                && self.suffix.iter().all(|projection| match projection {
-                    ReferenceOriginProjection::Exact(segment) => {
-                        held.path(std::slice::from_ref(segment))
-                    }
-                    ReferenceOriginProjection::Element => true,
-                })
-        }
-
-        pub(crate) fn relocate_checked_entry(
-            &mut self,
-            coordinates: &crate::continuation::Coordinates<'_, '_>,
-        ) -> Result<(), String> {
-            coordinates.value(&mut self.value)?;
-            if let Some(region) = &mut self.aggregate_view {
-                coordinates.ty(&mut region.structural_type)?;
-            }
-            if let Some(storage) = &mut self.primitive_storage {
-                coordinates.endpoint(&mut storage.endpoint)?;
-            }
-            if let Some(bytes) = &mut self.byte_binding {
-                coordinates.binding(bytes)?;
-            }
-            for projection in &mut self.suffix {
-                if let ReferenceOriginProjection::Exact(segment) = projection {
-                    coordinates.path(std::slice::from_mut(segment))?;
-                }
-            }
-            Ok(())
-        }
-
         pub(crate) fn retain_storage(
             &self,
             retained: &mut crate::storage::structural_storage::RetainedStorage,
