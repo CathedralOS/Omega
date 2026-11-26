@@ -157,22 +157,15 @@ crashes none
 }
 ```
 
-Acquire and review the dependencies, using your target from the table above:
+Build for your host. The first build resolves the named `system` package at the
+commit recorded in `build.omg`. Use your host target from the table above.
 
 ```sh
-omega packages update --project . --target windows_x86_64
+omega build --target windows_x86_64 --build-dir build/program build.omg
 ```
 
-Exit status 3 means review is required. Read the reported audit and the generated
-`build/package-manager/review-<target>.txt`; decide its pending entries rather
-than automatically accepting unfamiliar dependencies. Then resume:
-
-```sh
-omega packages update --resume --project . --offline
-omega --offline --target windows_x86_64 --build-dir build/program build.omg
-```
-
-Use your host target for both update and compilation. Run `./build/program/omega-program`
+After the source is available locally, add `--offline` to rebuild from that pin.
+Run `./build/program/omega-program`
 on Linux or macOS, or `./build/program/omega-program.exe` on Windows. The process
 exits with **42**. Read `$?` in a POSIX shell or `$LASTEXITCODE` in PowerShell.
 
@@ -184,10 +177,9 @@ your project. Keep the old directory until you have verified the new one; rollin
 back is selecting the old installation again. Do not overwrite only the executable
 or mix library sources from different compiler versions.
 
-`omega packages update` reviews and updates **project dependencies**. It does not upgrade
-the Omega executable. A compiler upgrade does not itself authorize rewriting a
-project's `omega.lock`. If new compiler behavior or a requested dependency change
-requires review, inspect it through the normal package workflow.
+To update a source dependency, edit its revision in the consuming Build.
+`omega packages help update` describes how to check the candidate and review
+the edit. [Package guidance](language_guide/packages.md)
 
 For problems, include `omega --version`, host OS/architecture, the exact command,
 and its diagnostic. The [CLI reference](../source-rust/application/README.md#command-surface)
