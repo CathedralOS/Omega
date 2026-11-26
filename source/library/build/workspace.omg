@@ -1,0 +1,21 @@
+// Copy paths out of a temporary member array while its source storage is live.
+public machine members(plan: @BuildPlan, rows: @[BuildWorkspaceMember]) -> WorkspaceMembers reaches BuildRequestOperations {
+    collect(plan, rows, 0u64, WorkspaceMembers {})
+
+    machine collect(plan: @BuildPlan, rows: @[BuildWorkspaceMember], index: u64, prefix: WorkspaceMembers) -> WorkspaceMembers
+    reaches BuildRequestOperations
+    {
+        transition index < rows.length {
+            true -> append(plan, rows, index, prefix),
+            false -> prefix
+        }
+    }
+
+    machine append(plan: @BuildPlan, rows: @[BuildWorkspaceMember], index: u64, prefix: WorkspaceMembers) -> WorkspaceMembers
+    reaches BuildRequestOperations
+    requires index < rows.length
+    {
+        let next: WorkspaceMembers = BuildRequestOperations::extend_workspace(plan, prefix, rows[index].path);
+        collect(plan, rows, index +% 1u64, next)
+    }
+}

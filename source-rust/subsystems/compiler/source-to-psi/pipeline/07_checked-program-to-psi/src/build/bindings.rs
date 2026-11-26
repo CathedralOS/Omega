@@ -382,6 +382,7 @@ pub(crate) mod build_requests {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
     pub enum TerminalBuildRequestOperation {
+        ExtendWorkspace,
         ArtifactOnly,
         PathDependency,
         GitDependency,

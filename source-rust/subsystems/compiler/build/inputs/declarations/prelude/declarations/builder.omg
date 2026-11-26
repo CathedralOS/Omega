@@ -62,11 +62,15 @@ public data BuildWorkspaceMember<'storage> {
     path: @'storage [u8];
 }
 
+// A value returned by the workspace library names an immutable collection of
+// paths in this Build invocation. An ordinary empty value denotes no members.
+public data WorkspaceMembers [copy] {}
+
 public data BuildProduct<'storage> {
     case Unselected;
     case Package(name: @'storage [u8]);
     case Application(name: @'storage [u8]);
-    case Workspace(members: @'storage [BuildWorkspaceMember<'storage>]);
+    case Workspace(members: WorkspaceMembers);
     case InterpretedBuild(entry: @'storage [u8]);
 }
 

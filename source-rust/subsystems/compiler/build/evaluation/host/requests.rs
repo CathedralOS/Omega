@@ -19,6 +19,7 @@ use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease}
 mod input_bindings;
 mod output;
 mod reach;
+mod workspace;
 pub use input_bindings::FrozenBuildBinding;
 use input_bindings::InputBindings;
 pub(crate) use output::BuildRequestOutput;
@@ -54,6 +55,7 @@ impl IssuedBuildRequest {
 pub struct TerminalBuildRequestHost {
     inputs: InputBindings,
     reach: reach::ReachSets,
+    workspace: workspace::WorkspaceCatalogs,
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildRequestCall]>,
     original: TerminalStructuralValue,
@@ -122,6 +124,7 @@ impl TerminalBuildRequestHost {
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             inputs: InputBindings::new(libraries),
+            workspace: Default::default(),
             reach: reach::ReachSets::from_module(
                 artifact.module(),
                 calls
@@ -140,6 +143,13 @@ impl TerminalBuildRequestHost {
 
     pub(crate) fn reflected_services(&self) -> Arc<ReflectedServices> {
         Arc::clone(&self.reach.reflections)
+    }
+
+    pub(crate) fn workspace_members(
+        &self,
+        marker: &TerminalStructuralValue,
+    ) -> Result<Vec<build_declarations::WorkspaceMemberPath>, String> {
+        self.workspace.paths(marker)
     }
 
     pub fn adapter(
@@ -430,6 +440,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 | Operation::InputBinding
                 | Operation::AddBinding
                 | Operation::ExtendReach
+                | Operation::ExtendWorkspace
         );
         if structural_arguments.first() != Some(&self.host.original)
             || byte_sequence_arguments.first() != Some(&None)
@@ -483,7 +494,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::ArtifactOnly => (0, 1),
             Operation::InputBinding => (0, 2),
             Operation::AddBinding => (0, 3),
-            Operation::ExtendReach => (0, 3),
+            Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
             Operation::PathDependency => (2, 4),
             Operation::GitDependency => (3, 6),
             Operation::ConfigureTestFixture
@@ -510,6 +521,28 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .select(
                     text(1)?,
                     binding.structural_type,
+                    self.host.account.as_ref(),
+                )
+                .map(TerminalEffectResult::Structural);
+        }
+        if call.action == Operation::ExtendWorkspace {
+            let terminal_psi::BoundaryMachineResult::Structural(result) = result else {
+                return Err(refuse(
+                    "workspace member extension requires a snapshot result",
+                ));
+            };
+            let [None, None, Some(path)] = byte_sequence_arguments.as_slice() else {
+                return Err(refuse(
+                    "workspace member extension requires its pathname bytes",
+                ));
+            };
+            return self
+                .host
+                .workspace
+                .extend(
+                    &structural_arguments[1],
+                    path,
+                    result.structural_type,
                     self.host.account.as_ref(),
                 )
                 .map(TerminalEffectResult::Structural);
@@ -643,7 +676,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 return Err(refuse("Build request did not complete its host request"));
             }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
-            Operation::InputBinding | Operation::ExtendReach => {
+            Operation::InputBinding | Operation::ExtendReach | Operation::ExtendWorkspace => {
                 return Err(refuse(
                     "Build input binding or service set already returned",
                 ));

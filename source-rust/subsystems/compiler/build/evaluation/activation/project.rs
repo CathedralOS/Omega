@@ -1,7 +1,7 @@
 //! Interpret the product in the plan lent to the currently executing Build.
 use build_declarations::{
     ApplicationDeclaration, BuildDeclaration, BuildEntryPath, BuildRequest, PackageDeclaration,
-    ProjectName, WorkspaceDeclaration, WorkspaceMemberPath,
+    ProjectName, WorkspaceDeclaration,
 };
 use build_time_values::BuildTimeValue;
 use package_compilation::build_execution::SelectedBuildMachine;
@@ -28,6 +28,7 @@ pub(super) fn destination(
     machine: &SelectedBuildMachine,
     root: TerminalObservationRoot,
     requests: &[IssuedBuildRequest],
+    host: &crate::host::requests::TerminalBuildRequestHost,
 ) -> Result<Destination, String> {
     let program = instance.program();
     let receiver = machine.receiver_for(program.module())?;
@@ -60,28 +61,44 @@ pub(super) fn destination(
             payload, "entry",
         )?)?)?),
         "Workspace" => {
-            let BuildTimeValue::Array(rows) = field_value(payload, "members")? else {
-                return Err("BuildProduct::Workspace requires a sequence of members".into());
+            if !matches!(root, TerminalObservationRoot::ReturnedArgument(0)) {
+                return Err("a workspace has no named Product declaration".into());
+            }
+            let terminal_psi::StructuralFieldType::Structural(product) = field.field_type else {
+                return Err("BuildPlan.product has no structural carrier".into());
             };
-            if rows.is_empty() {
-                return Err("Build workspace requires at least one member".into());
+            let product = program
+                .structural_type(product)
+                .ok_or("BuildProduct has no structural declaration")?;
+            let case = product
+                .shape
+                .cases()
+                .iter()
+                .find(|case| {
+                    program.module().identities.text(case.identity) == Some(variant.as_str())
+                })
+                .ok_or("selected Workspace has no active case declaration")?;
+            let [members] = case.fields.as_slice() else {
+                return Err("Workspace must contain exactly one member catalog".into());
+            };
+            if program.module().identities.text(members.identity) != Some("members") {
+                return Err("Workspace requires its members field".into());
             }
-            let mut members = Vec::with_capacity(rows.len());
-            let mut unique = std::collections::BTreeSet::new();
-            for row in rows {
-                let BuildTimeValue::Struct { fields, .. } = row else {
-                    return Err("invalid workspace member record".into());
-                };
-                let path = WorkspaceMemberPath::parse(text(field_value(fields, "path")?)?)
-                    .map_err(|error| error.to_string())?;
-                if !unique.insert(path.clone()) {
-                    return Err(format!(
-                        "Build repeated workspace member `{}`",
-                        path.as_str()
-                    ));
-                }
-                members.push(path);
-            }
+            use terminal_psi::StructuralPathSegment as Path;
+            let marker = instance
+                .borrowed_entry_host_atom(
+                    0,
+                    &[
+                        Path::Field(field.identity),
+                        Path::Case(case.id),
+                        Path::Field(members.identity),
+                    ],
+                )
+                .map_err(|reason| {
+                    format!("cannot read the returned workspace catalog: {reason:?}")
+                })?
+                .ok_or("Build workspace requires at least one member")?;
+            let members = host.workspace_members(&marker)?;
             Destination::Project(BuildDeclaration::Workspace(WorkspaceDeclaration {
                 members,
             }))

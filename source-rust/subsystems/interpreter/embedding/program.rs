@@ -911,7 +911,8 @@ pub(crate) mod instance {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
-        pub enum TerminalStorageObservationError {            Closed,
+        pub enum TerminalStorageObservationError {
+            Closed,
             NormalReturnRequired,
             PendingHostComputationRequired,
             NotBorrowedEntryArgument { argument_index: u32 },
@@ -947,7 +948,27 @@ pub(crate) mod instance {
                     .iter()
                     .find(|(index, _, _)| *index == argument_index)
                     .ok_or_else(malformed)?;
-                let mut selected = execution.projected_empty_host_value(root, path)?;
+                let mut home = StructuralRuntimePlace::from(root);
+                for (index, step) in path.iter().enumerate() {
+                    match step {
+                        terminal_psi::StructuralPathSegment::Field(_) => {}
+                        terminal_psi::StructuralPathSegment::Case(case) => {
+                            let carrier = crate::engine::custody::resolve_structural_path_type(
+                                &execution.structural_types(),
+                                root.structural_type,
+                                &path[..index],
+                            )?;
+                            if !execution.case_at(&home).is_some_and(|tag| {
+                                tag.structural_type == carrier && tag.case == *case
+                            }) {
+                                return Err(malformed());
+                            }
+                        }
+                        _ => return Err(malformed()),
+                    }
+                    home.path.push(step.clone());
+                }
+                let mut selected = execution.inline_empty_host_value(root, path)?;
                 let home = StructuralRuntimePlace::from(&selected);
                 match execution.structural_host_atoms.get(&home) {
                     None => Ok(None),

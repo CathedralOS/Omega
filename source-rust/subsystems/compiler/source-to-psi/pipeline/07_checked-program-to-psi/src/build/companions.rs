@@ -453,6 +453,7 @@ fn unknown(protocol: &str, operation: &str) -> Diagnostic {
 fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagnostic> {
     use TerminalBuildRequestOperation as Request;
     Ok(match name {
+        "extend_workspace" => Request::ExtendWorkspace,
         "artifact_only" => Request::ArtifactOnly,
         "register_path_dependency" => Request::PathDependency,
         "register_git_dependency" => Request::GitDependency,

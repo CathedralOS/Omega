@@ -573,7 +573,7 @@ impl TerminalBuildActivation {
     pub fn project_declaration(&self) -> Result<build_declarations::BuildDeclaration, String> {
         let current = project::destination(
             &self.instance, &self.host.machine,
-            terminal_interpreter::TerminalObservationRoot::ArgumentAtHostCall(0), &self.requests,
+            terminal_interpreter::TerminalObservationRoot::ArgumentAtHostCall(0), &self.requests, &self.host.requests,
         ).map_err(|reason| format!(
             "Product declaration query requires an already-issued named package or application: {reason}"
         ))?;
@@ -807,7 +807,7 @@ impl TerminalBuildActivation {
             None
         } else {
             Some(project::destination(&self.instance, &self.host.machine,
-                terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0), &self.requests)?)
+                terminal_interpreter::TerminalObservationRoot::ReturnedArgument(0), &self.requests, &self.host.requests)?)
         };
         if let Some(issued) = &self.described_product {
             let returned = destination
