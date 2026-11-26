@@ -204,6 +204,7 @@ int main(int count, char **args) {
     let draft = std::fs::read_to_string(&decision).unwrap();
     assert!(
         draft.contains("Packer")
+            && draft.contains("program-owner requesting-source")
             && draft.contains("timeout-ms")
             && draft.contains("decision build"),
         "{draft}"

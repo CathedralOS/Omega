@@ -342,7 +342,8 @@ pub(crate) fn render_build_request(
 
 fn build_request(output: &mut Output, request: &RestrictedBuildRequest) -> fmt::Result {
     use package_compilation::build_execution::{
-        RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
+        ProgramDeclarationOwner, RestrictedBuildGrant, RestrictedBuildGrantRoot,
+        RestrictedBuildOperation,
     };
     let operation = match request.operation() {
         RestrictedBuildOperation::ProgramLaunch(_) => "program-launch",
@@ -359,6 +360,17 @@ fn build_request(output: &mut Output, request: &RestrictedBuildRequest) -> fmt::
             Hex(&program.image_sha256),
             program.timeout_ms
         )?;
+        match &program.owner {
+            ProgramDeclarationOwner::RequestingSource => {
+                writeln!(output, "program-owner requesting-source")?
+            }
+            ProgramDeclarationOwner::Package(package) => {
+                writeln!(output, "program-owner package {}", Hex(package))?
+            }
+            ProgramDeclarationOwner::Toolchain(source) => {
+                writeln!(output, "program-owner toolchain {}", Hex(source))?
+            }
+        }
         for (access, paths) in [("read", &program.readable), ("write", &program.writable)] {
             for path in paths {
                 writeln!(
