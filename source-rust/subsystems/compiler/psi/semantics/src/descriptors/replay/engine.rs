@@ -4274,8 +4274,24 @@ impl<'a> Replay<'a> {
                 continue;
             };
             let slots = if self.slot_kind.tracks_references() {
-                self.slot_kind
-                    .writable_slots(self.types, row.place, structural_type, access)?
+                let inventory = self.slot_kind.writable_inventory(
+                    self.types, row.place, structural_type, access,
+                )?;
+                for opaque in inventory.unknown_contents {
+                    // A generic value's contents can be carried unchanged without
+                    // inspecting its fields. The packet names its entire entry
+                    // contents, so every returning path must retain that identity.
+                    if opaque.kind != UnknownContentsKind::Value {
+                        return None;
+                    }
+                    let incoming = BTreeSet::from([Origin::Incoming(opaque.location.clone())]);
+                    for exit in completed.values() {
+                        if exit.contents_invalidated || self.read(machine, exit, &opaque.location)? != incoming {
+                            return None;
+                        }
+                    }
+                }
+                inventory.slots
             } else {
                 if !matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
                     && !matches!(

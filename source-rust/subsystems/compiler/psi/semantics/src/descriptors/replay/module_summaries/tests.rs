@@ -212,6 +212,43 @@ fn unshared(
 }
 
 #[test]
+fn replay_requires_the_exact_opaque_entry_contents_even_after_summary_sharing() {
+    let mut types = types();
+    types.truncate(1);
+    types[0].shape = StructuralTypeShape::TypeParameter;
+    let parameter_type = types[0].id;
+    for invalidate in [false, true] {
+        let mut leaf = returning(LEAF, None);
+        leaf.returns = None;
+        leaf.originations.clear();
+        leaf.flow.get_mut(&point(0)).unwrap().definitions.clear();
+        let parameter = &mut leaf.places[0];
+        parameter.producer = None;
+        parameter.definition = DescriptorDefinition::Parameter {
+            position: 0,
+            structural_type: parameter_type,
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+        };
+        leaf.place_types.insert(parameter.place, parameter_type);
+        if invalidate {
+            leaf.unresolved_contents_writes.insert(point(0));
+        }
+        let graph = [leaf];
+        let shared = table(&types, Vec::new());
+        for summaries in [None, Some(&shared), Some(&shared)] {
+            let mut replay = replay(&types, &graph, summaries);
+            let effects = replay
+                .summary(id(LEAF), 0)
+                .and_then(|s| s.effects.into_observed());
+            assert_eq!(
+                effects.map(|effects| effects.len()),
+                (!invalidate).then_some(0)
+            );
+        }
+    }
+}
+
+#[test]
 fn an_adopted_summary_is_the_one_its_caller_would_replay() {
     let types = types();
     let graph = graph();
