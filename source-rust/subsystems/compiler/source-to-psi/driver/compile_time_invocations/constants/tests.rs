@@ -937,3 +937,65 @@ fn a_later_layout_of_data_the_constant_reached_refuses_its_receipt() {
         "constant receipt read a layout that changed after the constant was evaluated"
     );
 }
+
+#[test]
+fn guarded_crash_route_constant_initializers_admit_only_impossible_routes() {
+    for (guard, arg, expected) in [
+        ("x == 0", "3u8", Some(3)),
+        ("x == 0", "0u8", None),
+        ("x == 3", "0u8", Some(0)),
+        ("x == 3", "3u8", None),
+    ] {
+        let source = format!(
+            "machine guarded(x: u8) -> u8 reaches none crashes Trap {guard} terminates {{ x }}
+             const VAL: u8 = guarded({arg});
+             machine main() -> u8 {{ VAL }}"
+        );
+        let mut typed = typed_source(&source);
+        let entry = typed.realized_machine_named("main").unwrap().symbol;
+        let mut accounting = SourceCompletionAccounting::default();
+        let outcome = evaluate_with_reaches(&mut typed, request(&[entry]), None, &mut accounting);
+        match (expected, outcome) {
+            (Some(value), Ok(_)) => {
+                let [PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+                    panic!("one actual invocation for guard `{guard}` with `{arg}`")
+                };
+                assert!(
+                    matches!(
+                        receipt.outcome(),
+                        PureTerminalEvaluationOutcome::Materialized {
+                            value: build_time_values::BuildTimeValue::Int(actual),
+                            ..
+                        } if *actual == value
+                    ),
+                    "VAL should freeze to {value}: {:?}",
+                    receipt.outcome()
+                );
+            }
+            (Some(_), Err(errors)) => {
+                panic!("guard `{guard}` with `{arg}` must be admitted: {errors:?}");
+            }
+            (None, Ok(_)) => {
+                panic!("possible guarded crash route must be refused for `{guard}` with `{arg}`");
+            }
+            (None, Err(errors)) => {
+                assert!(
+                    errors.iter().any(|error| error
+                        .message
+                        .contains("the checked Trap crash route can occur")),
+                    "expected Trap crash refusal for guard `{guard}` with `{arg}`, got {errors:?}"
+                );
+            }
+        }
+    }
+
+    let skipped = "machine forbidden() -> u64 crashes Trap { crash Trap; }
+        const SKIPPED: u64 = match false { true -> forbidden(), _ -> 7u64 };
+        machine main() -> u64 { SKIPPED }";
+    let mut typed = typed_source(skipped);
+    let entry = typed.realized_machine_named("main").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    let Ok(_) = evaluate_with_reaches(&mut typed, request(&[entry]), None, &mut accounting) else {
+        panic!("unreachable crashing arm in constant initializer must be admitted");
+    };
+}
