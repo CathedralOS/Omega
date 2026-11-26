@@ -59,7 +59,7 @@ use paths::{identifier_path_text, is_bundled_omega_path};
 use source_compiler::ParsedSourceBatch;
 use source_compiler::SourceImportTarget;
 use source_provenance::DependencyScope;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub(crate) fn discover_imports(
     parsed: &ParsedSourceBatch,
