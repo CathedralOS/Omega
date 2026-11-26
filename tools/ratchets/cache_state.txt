@@ -11,8 +11,8 @@
 8 source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees/symbol-table/source_symbols/table.rs
 3 source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees/tables/lookup_indexes.rs
 21 source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/storage/declaration_tables_and_index.rs
-12 source-rust/subsystems/package-manager/source-acquisition/custody/lock.rs
-22 source-rust/subsystems/package-manager/source-acquisition/custody/platform.rs
+8 source-rust/subsystems/package-manager/source-acquisition/custody/lock.rs
+21 source-rust/subsystems/package-manager/source-acquisition/custody/platform.rs
 6 source-rust/subsystems/package-manager/source-acquisition/custody/publication.rs
 15 source-rust/subsystems/package-manager/source-acquisition/custody/tree.rs
 1 source-rust/subsystems/package-manager/source-acquisition/error.rs

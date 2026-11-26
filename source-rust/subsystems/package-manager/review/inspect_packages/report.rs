@@ -1,15 +1,14 @@
 // Bounded text report rendering for observational package inspection (`omega packages`), contrasting accepted lock history with fresh compiler findings and build-snapshot settlements.
 
 use crate::Hex;
-use crate::declarations::PackageKey;
 use crate::lock::PackageLockTarget;
 use crate::resolution::graph::CanonicalSourceClosureSubject;
+use crate::review::rendering::{GitFields::Labelled, checked_context, package_key, resolution};
 use crate::review::{
     CompilerIssuedPackageReviewSet, PackagePolicyChangeSet, PackagePolicyDependencyPath,
 };
 use package_compilation::build_execution::BuildObservationSummary;
 use review_evidence::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
-use source_acquisition::{GitTransport, ImmutableSourceResolution, SourceLineage};
 use std::fmt::{self, Write};
 use target::TargetProfile;
 
@@ -117,7 +116,7 @@ fn contents(
         graph(output, "accepted", accepted.source())?;
         let mut occurrences = accepted.occurrences().iter().peekable();
         for package in accepted.source().packages() {
-            package_key(output, "\naccepted package", package.key())?;
+            package_key(output, "\naccepted package", package.key(), Labelled)?;
             if let Some((_, _, changes)) = fresh {
                 let Some(change) = changes
                     .packages()
@@ -174,7 +173,7 @@ fn contents(
     writeln!(output, "\nfresh compiler findings for current sources")?;
     graph(output, "fresh", source)?;
     for package in source.packages() {
-        package_key(output, "\nfresh package", package.key())?;
+        package_key(output, "\nfresh package", package.key(), Labelled)?;
         let Some(change) = changes
             .packages()
             .iter()
@@ -225,22 +224,6 @@ fn contents(
         }
     }
     Ok(())
-}
-
-fn checked_context(
-    output: &mut Output,
-    prefix: &str,
-    context: crate::lock::PackageCheckedContext,
-) -> fmt::Result {
-    writeln!(
-        output,
-        "{prefix} occurrence {} target {} execution {}",
-        context.purpose().name(),
-        context.target().target_name(),
-        context
-            .build_execution_profile()
-            .map_or("none", |profile| profile.target_name())
-    )
 }
 
 fn build_snapshot(
@@ -314,11 +297,11 @@ fn graph(output: &mut Output, label: &str, source: &CanonicalSourceClosureSubjec
         "{label} graph ({} packages)",
         source.packages().len()
     )?;
-    package_key(output, "root", source.root().selected().key())?;
+    package_key(output, "root", source.root().selected().key(), Labelled)?;
     writeln!(output, "root-role {:?}", source.root_role())?;
     for package in source.packages() {
-        package_key(output, "package", package.key())?;
-        resolution(output, package.resolution())?;
+        package_key(output, "package", package.key(), Labelled)?;
+        resolution(output, "  source", package.resolution())?;
     }
     writeln!(output, "edges {}", source.dependency_requests().len())?;
     for edge in source.dependency_requests() {
@@ -336,78 +319,6 @@ fn graph(output: &mut Output, label: &str, source: &CanonicalSourceClosureSubjec
         writeln!(output, "  request {:?}", edge.request())?;
     }
     Ok(())
-}
-
-fn package_key(output: &mut Output, prefix: &str, key: &PackageKey) -> fmt::Result {
-    write!(
-        output,
-        "{prefix} {:?} {} ",
-        key.name().as_str(),
-        Hex(&key.identity().digest())
-    )?;
-    match key.source_lineage() {
-        SourceLineage::GitHub(source) => {
-            writeln!(
-                output,
-                "github {:?} {:?}",
-                source.owner(),
-                source.repository()
-            )
-        }
-        SourceLineage::GitLab(source) => writeln!(output, "gitlab {:?}", source.repository_path()),
-        SourceLineage::Git(source) => {
-            let transport = match source.transport() {
-                GitTransport::Https => "https",
-                GitTransport::SshUrl => "ssh",
-                GitTransport::ScpLike => "scp",
-            };
-            writeln!(
-                output,
-                "git {transport} user {:?} host {:?} port {:?} path {:?}",
-                source.user(),
-                source.host(),
-                source.port(),
-                source.repository_path()
-            )
-        }
-        SourceLineage::Bundled { library, directory } => writeln!(
-            output,
-            "bundled {:?} library {}",
-            directory.as_str(),
-            library.to_hex()
-        ),
-        SourceLineage::Workspace(source) => {
-            writeln!(output, "workspace {:?}", source.member_path().as_str())
-        }
-        SourceLineage::ExternalLocal(source) => {
-            writeln!(output, "local {:?}", source.canonical_absolute_path())
-        }
-    }
-}
-
-fn resolution(output: &mut Output, resolution: &ImmutableSourceResolution) -> fmt::Result {
-    match resolution {
-        ImmutableSourceResolution::Git {
-            commit,
-            tree,
-            content,
-        } => writeln!(
-            output,
-            "  source git commit {} tree {} content {}",
-            commit.to_hex(),
-            tree.to_hex(),
-            content.to_hex()
-        ),
-        ImmutableSourceResolution::Bundled { content } => {
-            writeln!(output, "  source bundled content {}", content.to_hex())
-        }
-        ImmutableSourceResolution::Workspace { content } => {
-            writeln!(output, "  source workspace content {}", content.to_hex())
-        }
-        ImmutableSourceResolution::ExternalLocal { content } => {
-            writeln!(output, "  source local content {}", content.to_hex())
-        }
-    }
 }
 
 fn path(
