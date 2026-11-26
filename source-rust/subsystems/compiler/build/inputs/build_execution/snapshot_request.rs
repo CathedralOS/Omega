@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSnapshotRequest {
+    directories: platform_custody::directory_mappings::DirectoryMappings,
     required_outputs: Vec<Vec<u8>>,
     product_source_directory: Option<Vec<u8>>,
     capture: BuildSnapshotCapture,
@@ -32,6 +33,7 @@ impl BuildSnapshotRequest {
                 BuildSnapshotCapture::RequiredSources
             },
             inputs: BTreeMap::new(),
+            directories: Default::default(),
             product_source_directory: None,
         }
     }
@@ -44,8 +46,22 @@ impl BuildSnapshotRequest {
             required_outputs: required_outputs.into_iter().collect(),
             capture: BuildSnapshotCapture::Scoped(capture),
             inputs: BTreeMap::new(),
+            directories: Default::default(),
             product_source_directory: None,
         }
+    }
+
+    /// Extra live directories belong only to this Build activation.
+    pub fn with_directories(
+        mut self,
+        directories: platform_custody::directory_mappings::DirectoryMappings,
+    ) -> Self {
+        self.directories = directories;
+        self
+    }
+
+    pub fn directories(&self) -> &platform_custody::directory_mappings::DirectoryMappings {
+        &self.directories
     }
 
     pub fn with_inputs(

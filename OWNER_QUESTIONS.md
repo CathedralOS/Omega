@@ -85,3 +85,24 @@ would continue to come from the Build. An alternative is to have the caller
 review and accept the exact requests for that invocation, with an equivalent
 way to supply those decisions unattended. Which approval input should the
 source-based CLI and embedding host support?
+
+<a id="initial-build-package-bindings"></a>
+### 2. How does the CLI user supply a library to the initial Build?
+
+An initial Build can import a local helper by filename. To call the installed
+`Filesystem::read_all`, it also needs an incoming package binding for
+`use {system}/filesystem.omg` and the service ceiling declared on that call.
+The embedding API accepts such a binding. The CLI's directory options supply
+physical backing only. Which CLI input supplies the independent package binding
+and its allowed reach?
+[Build declarations](wiki/spec/build/declarations.md#build-declarations-and-package-identity) ·
+[Staged package inputs](wiki/spec/packages/staged_inputs.md#from-source-to-the-next-stage) ·
+[Initial Build directory mappings](wiki/spec/build/command_line.md#initial-build-directory-mappings)
+
+**Recommend an explicit invocation input for reviewed root Build package
+bindings.** It should identify the package instance, the alias visible to
+this Build and the permitted dependency reach. An embedding caller can already
+supply those three selections individually. An alternative is to define a
+standard, always-available Build library containing the filesystem interface.
+That choice would define a new default for source visibility independently of
+whether the caller supplied any directory.

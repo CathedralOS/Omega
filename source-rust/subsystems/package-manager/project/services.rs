@@ -176,7 +176,7 @@ impl SourceHost<'_, '_> {
         let requests: Vec<_> = libraries
             .iter()
             .map(|library| BuildRequest::Dependency {
-                max_reach: Default::default(),
+                max_reach: library.max_reach.clone(),
                 purpose: DependencyPurpose::Build,
                 alias: Some(library.alias.clone()),
                 source: library.source.clone(),
@@ -201,7 +201,7 @@ impl SourceHost<'_, '_> {
                 &self.settled[index],
                 DependencyPurpose::Build,
                 library.alias.as_str().to_owned(),
-                Default::default(),
+                library.max_reach.clone(),
             )?;
             supplied.push(SuppliedBuildLibrary::new(library.source.clone(), input)?);
         }

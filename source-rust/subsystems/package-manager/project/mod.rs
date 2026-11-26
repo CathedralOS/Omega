@@ -587,6 +587,8 @@ fn planning_timings(enabled: bool) -> CompileTimings {
 /// The root invoker's selection. The package manager resolves the source before entering the receiving Build.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BuildLibraryRequest {
+    /// The invoker supplies this edge independently of any filesystem mapping.
+    pub max_reach: semantic_vocabulary::dependency_reach::DependencyReach,
     pub alias: build_declarations::ProjectName,
     pub source: build_declarations::BuildDependencySource,
 }

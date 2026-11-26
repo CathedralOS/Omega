@@ -46,6 +46,7 @@ fn check(source: &str) -> Result<(), Vec<Diagnostic>> {
     std::fs::write(product.join("main.omg"), "public data Item {}").unwrap();
 
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("images").unwrap(),
         source: BuildDependencySource::Path("vendor".into()),
     }];

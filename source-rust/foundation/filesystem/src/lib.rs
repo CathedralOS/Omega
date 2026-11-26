@@ -35,6 +35,8 @@ Submodules:
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
+pub mod bound_directory;
+pub mod directory_mappings;
 pub mod file_publication;
 pub mod lock_file;
 pub mod record_file;

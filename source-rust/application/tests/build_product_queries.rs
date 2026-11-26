@@ -78,6 +78,7 @@ fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Re
     )
     .unwrap();
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("kit").unwrap(),
         source: BuildDependencySource::Path(library.into()),
     }];

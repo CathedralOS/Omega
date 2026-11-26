@@ -49,7 +49,8 @@ impl BuildActivation {
 pub enum BuildFilesystemRoot {
     Source,
     Output,
-    NamedInput(u32), // Compiler-issued root joined to the observation's named inventory.
+    MappedDirectories, // An absolute guest path in this activation’s live directory grants.
+    NamedInput(u32),   // Compiler-issued root joined to the observation's named inventory.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

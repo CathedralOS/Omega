@@ -155,6 +155,33 @@ impl BuildFilesystemRuntime {
         access: FilesystemGrantAccess,
         descriptor: Option<i32>,
     ) -> Result<usize, String> {
+        let meaning = if root == BUILD_SOURCE_ROOT_IDENTITY {
+            BuildFilesystemRoot::Source
+        } else if root == BUILD_OUTPUT_ROOT_IDENTITY {
+            BuildFilesystemRoot::Output
+        } else {
+            self.snapshot(root)?;
+            BuildFilesystemRoot::NamedInput(root.get())
+        };
+        let provider = if root == BUILD_OUTPUT_ROOT_IDENTITY
+            || (root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some())
+        {
+            FilesystemObservationProvider::RealScoped
+        } else {
+            FilesystemObservationProvider::Captured
+        };
+        self.begin_path_attempt(operation, meaning, provider, path, access, descriptor)
+    }
+
+    fn begin_path_attempt(
+        &mut self,
+        operation: FilesystemHostOperation,
+        meaning: BuildFilesystemRoot,
+        provider: FilesystemObservationProvider,
+        path: &[u8],
+        access: FilesystemGrantAccess,
+        descriptor: Option<i32>,
+    ) -> Result<usize, String> {
         if self.incomplete_attempt.is_some() || self.refused.is_some() {
             return Err("Build filesystem activation has already failed".into());
         }
@@ -167,14 +194,6 @@ impl BuildFilesystemRuntime {
                 path.len() as u64,
             )
             .map_err(|error| error.to_string())?;
-        let meaning = if root == BUILD_SOURCE_ROOT_IDENTITY {
-            BuildFilesystemRoot::Source
-        } else if root == BUILD_OUTPUT_ROOT_IDENTITY {
-            BuildFilesystemRoot::Output
-        } else {
-            self.snapshot(root)?;
-            BuildFilesystemRoot::NamedInput(root.get())
-        };
         let mut input = Vec::new();
         let mut retired_logical_handles = Vec::new();
         if let Some(descriptor) = descriptor {
@@ -215,13 +234,7 @@ impl BuildFilesystemRuntime {
             .map_err(|_| "cannot retain filesystem reservation")?;
         self.effects.attempts.push(BuildFilesystemOperationAttempt {
             operation_tag: operation.operation_tag(),
-            provider: if root == BUILD_OUTPUT_ROOT_IDENTITY
-                || (root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some())
-            {
-                FilesystemObservationProvider::RealScoped
-            } else {
-                FilesystemObservationProvider::Captured
-            },
+            provider,
             result: FilesystemOperationResult::Scalar(-1),
             post_error: 0,
             authorized_paths,
@@ -243,13 +256,17 @@ impl BuildFilesystemRuntime {
     }
 
     fn refuse_write(&mut self, ordinal: usize) -> i64 {
+        self.refuse_access(ordinal, FilesystemGrantAccess::Write)
+    }
+
+    fn refuse_access(&mut self, ordinal: usize, access: FilesystemGrantAccess) -> i64 {
         let attempt = &mut self.effects.attempts[ordinal];
         attempt.authorized_paths.clear();
         attempt
             .grant_refusals
             .push(filesystem_authority::FilesystemGrantRefusal::new(
                 0,
-                FilesystemGrantAccess::Write,
+                access,
                 filesystem_authority::FilesystemGrantRefusalReason::OutsideGrantedRoots,
             ));
         self.complete_attempt(ordinal, -1, 13)
@@ -348,6 +365,60 @@ impl BuildFilesystemRuntime {
         self.complete_logical_handle(ordinal, descriptor)
     }
 
+    /// An absolute path is resolved exclusively within this activation's caller-issued
+    /// directories. Reads and writes still consume the evaluated call's work budget.
+    fn mapped_operation(
+        &mut self,
+        path: &[u8],
+        access: FilesystemGrantAccess,
+        operation: FilesystemHostOperation,
+        perform: impl FnOnce(
+            &platform_custody::directory_mappings::DirectoryMapping,
+            &[u8],
+        ) -> std::io::Result<usize>,
+    ) -> Result<Result<usize, std::io::ErrorKind>, String> {
+        let ordinal = self.begin_path_attempt(
+            operation,
+            BuildFilesystemRoot::MappedDirectories,
+            FilesystemObservationProvider::RealScoped,
+            path,
+            access,
+            None,
+        )?;
+        let result = self
+            .effects
+            .scope
+            .directories
+            .resolve_file(path)
+            .and_then(|(directory, file)| perform(directory, file));
+        match result {
+            Ok(count) => {
+                self.complete_attempt(
+                    ordinal,
+                    i64::try_from(count).map_err(|_| "mapped size exceeds i64")?,
+                    0,
+                );
+                Ok(Ok(count))
+            }
+            Err(error) => {
+                let kind = error.kind();
+                let errno = match kind {
+                    std::io::ErrorKind::NotFound => 2,
+                    std::io::ErrorKind::PermissionDenied => 13,
+                    std::io::ErrorKind::IsADirectory => 21,
+                    std::io::ErrorKind::InvalidInput => 22,
+                    _ => error.raw_os_error().unwrap_or(5),
+                };
+                if kind == std::io::ErrorKind::PermissionDenied {
+                    self.refuse_access(ordinal, access);
+                } else {
+                    self.complete_attempt(ordinal, -1, errno);
+                }
+                Ok(Err(kind))
+            }
+        }
+    }
+
     /// Open, read and close the admitted captured file using ordinary observation
     /// and handle accounting. Missing bytes never trigger a live-host lookup.
     pub fn read_file(
@@ -358,9 +429,24 @@ impl BuildFilesystemRuntime {
     ) -> Result<Result<u64, std::io::ErrorKind>, String> {
         const ROOT: FilesystemGrantRootIdentity = BUILD_SOURCE_ROOT_IDENTITY;
         use std::io::ErrorKind;
-        if count > buffer.len() as u64
-            || !filesystem_authority::source_snapshot_path_is_canonical(path, false)
-        {
+        if count > buffer.len() as u64 {
+            return Ok(Err(ErrorKind::InvalidInput));
+        }
+        if path.starts_with(b"/") {
+            return self
+                .mapped_operation(
+                    path,
+                    FilesystemGrantAccess::Read,
+                    FilesystemHostOperation::Read,
+                    |directory, file| {
+                        directory
+                            .open_read(file)?
+                            .read(&mut buffer[..count as usize])
+                    },
+                )
+                .map(|result| result.map(|bytes| bytes as u64));
+        }
+        if !filesystem_authority::source_snapshot_path_is_canonical(path, false) {
             return Ok(Err(ErrorKind::InvalidInput));
         }
         // The package remains read-only even if an explicitly granted Output
@@ -414,6 +500,19 @@ impl BuildFilesystemRuntime {
         use build_output::SourceSnapshotError;
         use std::io::ErrorKind;
 
+        if path.starts_with(b"/") {
+            return self
+                .mapped_operation(
+                    path,
+                    FilesystemGrantAccess::Write,
+                    FilesystemHostOperation::Write,
+                    |directory, file| {
+                        directory.open_write(file)?.write_all(bytes)?;
+                        Ok(bytes.len())
+                    },
+                )
+                .map(|result| result.map(|_| ()));
+        }
         if !filesystem_root_relative_path_is_canonical(path, false) {
             return Ok(Err(ErrorKind::InvalidInput));
         }

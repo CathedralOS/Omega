@@ -10,7 +10,7 @@ use compiler::CompilerRequestOutcome;
 use compiler::stage_validators::{NativeValidationError, StageValidationRow, StageValidator};
 use compiler::{Artifact, CompileRequest};
 use diagnostics::Diagnostic;
-use package_compilation::build_execution::{BuildSnapshotRequest, RetainedBuildOutputs};
+use package_compilation::build_execution::RetainedBuildOutputs;
 use product_publication::CompletedProduct;
 use project_build::PlannedProduct;
 use std::cell::RefCell;
@@ -187,10 +187,10 @@ fn compile_targets(
         .zip(&leases)
         .filter_map(|(profile, lease)| lease.is_ok().then_some(*profile))
         .collect();
-    let snapshot = arguments
-        .build_inputs
-        .clone()
-        .map(|capture| BuildSnapshotRequest::scoped(std::iter::empty(), capture));
+    let snapshot = crate::arguments::build_snapshot(
+        arguments.build_inputs.clone(),
+        arguments.build_directories.clone(),
+    );
     // A check writes nothing, so it can run while the dependency Build
     // rechecks finish; each target settles them before its result is reported.
     let root = arguments.root_path.clone();
