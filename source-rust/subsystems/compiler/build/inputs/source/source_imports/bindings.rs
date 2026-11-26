@@ -246,11 +246,12 @@ pub(crate) fn pending_build_imports(
 
 pub(crate) fn retain_import_bindings(
     storage: &SourceStorage,
+    query: Option<&super::ProductQueryInputs>,
 ) -> Result<
     Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
     Vec<Diagnostic>,
 > {
-    let mut bindings = super::files::build_product_file_imports(storage)?;
+    let mut bindings = super::files::build_product_file_imports(storage, query)?;
     if storage.resolved_imports.is_empty() {
         return Ok(bindings);
     }
@@ -437,7 +438,7 @@ mod tests {
             import(importer, "/dep/b.omg"),
         ];
         assert_eq!(
-            retain_import_bindings(&storage).unwrap(),
+            retain_import_bindings(&storage, None).unwrap(),
             [
                 source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
                     importer,
@@ -515,14 +516,14 @@ mod tests {
             SourceScopedTopLevelBinding::file_import(author, build_target, "chosen")
                 .from_dependency(Some(("kit", build)));
         assert_eq!(
-            retain_import_bindings(&storage).unwrap(),
+            retain_import_bindings(&storage, None).unwrap(),
             std::slice::from_ref(&build_binding)
         );
         storage
             .sources
             .retain_product_dependency_scope([(app, "kit", product)]);
         assert_eq!(
-            retain_import_bindings(&storage).unwrap(),
+            retain_import_bindings(&storage, None).unwrap(),
             [
                 SourceScopedTopLevelBinding::product_file_import(author, product_target, "chosen")
                     .from_dependency(Some(("kit", product))),
@@ -551,7 +552,7 @@ mod tests {
             });
         }
         storage.resolved_imports = vec![import(SourceId(0), "/dep/a.omg")];
-        assert!(retain_import_bindings(&storage).is_err());
+        assert!(retain_import_bindings(&storage, None).is_err());
     }
 
     #[test]
@@ -577,6 +578,6 @@ mod tests {
             import(SourceId(0), "/dep/a.omg"),
             import(SourceId(0), "/other/b.omg"),
         ];
-        assert!(retain_import_bindings(&storage).is_err());
+        assert!(retain_import_bindings(&storage, None).is_err());
     }
 }

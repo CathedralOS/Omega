@@ -105,7 +105,7 @@ impl PlanningSource {
             )?;
             self.query_declarations = Some((inputs, source));
         }
-        let (_, source) = self
+        let (inputs, source) = self
             .query_declarations
             .as_ref()
             .expect("the Product declarations were prepared");
@@ -113,6 +113,9 @@ impl PlanningSource {
             refusal("Product query lost its authored source occurrence".into())
         })?;
         let description = describe(source, authors, query).map_err(refusal)?;
+        for (issuer, alias) in inputs.queried_file_aliases() {
+            self.file_imports.use_queried_file(issuer, alias);
+        }
         Ok((description, selections))
     }
 }
