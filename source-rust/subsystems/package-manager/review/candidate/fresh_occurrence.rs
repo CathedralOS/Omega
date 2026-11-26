@@ -1,6 +1,6 @@
 //! Review the Product selected by this package Build.
 use super::{
-    AssembledOccurrence, CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
+    BuildSnapshotRequest, CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
     CompletedOccurrence, OccurrenceFacts, PackageCompilationInputs, PackageReviewOccurrence,
     PackageReviewRound,
 };
@@ -10,11 +10,11 @@ impl PackageReviewRound<'_> {
         &mut self,
         occurrence: PackageReviewOccurrence<'_>,
         inputs: PackageCompilationInputs,
-        assembled: AssembledOccurrence,
+        build_snapshot: BuildSnapshotRequest,
         product: project_build::PlannedProduct,
     ) -> Result<(), CompileResolvedPackageReviewsError> {
         let checked = self.compile_occurrence(&occurrence, &product)?;
-        self.retain_occurrence(&occurrence, &inputs, &assembled, checked)
+        self.retain_occurrence(&occurrence, &inputs, &build_snapshot, checked)
     }
 
     fn compile_occurrence(

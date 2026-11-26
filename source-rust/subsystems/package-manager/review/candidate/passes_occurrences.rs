@@ -13,7 +13,6 @@ use crate::declarations::{DependencyPurpose, purpose_slot};
 use crate::lock::PackageOccurrenceRoster;
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
-use crate::resolution::source::PackageSourceCustody;
 use diagnostics::Diagnostic;
 use package_compilation::{
     ConsumedSourceUnit, IndependentComponentDescription, PackageCompilationInputError,
@@ -59,7 +58,6 @@ pub(super) struct OccurrenceFacts {
 pub(super) struct RetainedOccurrenceCompile {
     pub(super) position: usize, // Position in the dependency-first occurrence order.
     pub(super) purpose: DependencyPurpose,
-    pub(super) entry: std::path::PathBuf, // The checked entry path this occurrence's compile consumed.
     pub(super) inputs: PackageCompilationInputs, // Complete inputs after resolved semantic bindings and dependency handoffs joined.
     pub(super) build_snapshot: BuildSnapshotRequest, // Source inventory and output roster captured by build evaluation.
     pub(super) policy_canonical_bytes: usize, // Canonical-policy bytes added to the running retained-policy total.
@@ -80,7 +78,6 @@ pub(super) struct PackageReviewPass<'pass> {
 
 struct ReviewPackage<'pass> {
     scope: PackageCompilationScope<'pass>,
-    custody: &'pass PackageSourceCustody,
     position: usize,
     purposes: Vec<(DependencyPurpose, target::TargetProfile)>,
 }
@@ -138,7 +135,6 @@ impl<'pass> PackageReviewPass<'pass> {
             }
             packages.push(ReviewPackage {
                 scope: PackageCompilationScope::new(closure, custody.key()),
-                custody,
                 position,
                 purposes,
             });
@@ -160,11 +156,10 @@ impl<'pass> PackageReviewPass<'pass> {
                 .purposes
                 .iter()
                 .map(move |&(purpose, checked_target)| {
-                    let key = package.custody.key();
+                    let key = package.scope.root();
                     PackageReviewOccurrence {
                         key,
                         scope: &package.scope,
-                        custody: package.custody,
                         position: package.position,
                         purpose,
                         checked_target,
@@ -236,7 +231,6 @@ struct PackageReviewOccurrence<'occurrence> {
     key: &'occurrence PackageKey,
     scope: &'occurrence PackageCompilationScope<'occurrence>,
     _timing: Option<crate::review::timings::StageTiming>,
-    custody: &'occurrence PackageSourceCustody,
     position: usize,
     purpose: DependencyPurpose,
     checked_target: target::TargetProfile,
@@ -267,36 +261,30 @@ struct CompletedOccurrence {
     policy_bytes: usize,
 }
 
-struct AssembledOccurrence {
-    entry: std::path::PathBuf,
-    build_snapshot: BuildSnapshotRequest,
-}
-
 impl<'pass> PackageReviewRound<'pass> {
     fn review_occurrence(
         &mut self,
         occurrence: PackageReviewOccurrence<'_>,
         builds: &crate::project::PackageReviewBuilds,
     ) -> Result<(), CompileResolvedPackageReviewsError> {
-        let (inputs, assembled) = self.assemble_occurrence_inputs(&occurrence)?;
+        let (inputs, build_snapshot) = self.assemble_occurrence_inputs(&occurrence)?;
         let product = builds
             .product(&inputs)
             .map_err(|failure| occurrence.compilation_error(self.execution_profile, failure))?;
-        if self.carry_prior_compile(&occurrence, &inputs, &assembled, &product)? {
+        if self.carry_prior_compile(&occurrence, &inputs, &build_snapshot, &product)? {
             return Ok(());
         }
-        self.retain_product(occurrence, inputs, assembled, product)
+        self.retain_product(occurrence, inputs, build_snapshot, product)
     }
 
     fn assemble_occurrence_inputs(
         &mut self,
         occurrence: &PackageReviewOccurrence<'_>,
-    ) -> Result<(PackageCompilationInputs, AssembledOccurrence), CompileResolvedPackageReviewsError>
+    ) -> Result<(PackageCompilationInputs, BuildSnapshotRequest), CompileResolvedPackageReviewsError>
     {
         let PackageReviewOccurrence {
             key,
             scope,
-            custody,
             position,
             purpose,
             ..
@@ -411,32 +399,20 @@ impl<'pass> PackageReviewRound<'pass> {
                     },
                 )
             })?;
-        let main_entry = custody.snapshot_root().join("main.omg");
-        let entry = if main_entry.is_file() {
-            main_entry
-        } else {
-            custody.snapshot_root().join("build.omg")
-        };
         let build_snapshot = if key == closure.graph().root() {
             self.root_build_snapshot.cloned()
         } else {
             None
         }
         .unwrap_or_else(|| BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
-        Ok((
-            inputs,
-            AssembledOccurrence {
-                entry,
-                build_snapshot,
-            },
-        ))
+        Ok((inputs, build_snapshot))
     }
 
     fn carry_prior_compile(
         &mut self,
         occurrence: &PackageReviewOccurrence<'_>,
         unanswered_inputs: &PackageCompilationInputs,
-        assembled: &AssembledOccurrence,
+        build_snapshot: &BuildSnapshotRequest,
         product: &project_build::PlannedProduct,
     ) -> Result<bool, CompileResolvedPackageReviewsError> {
         let PackageReviewOccurrence {
@@ -445,13 +421,10 @@ impl<'pass> PackageReviewRound<'pass> {
             checked_target,
             ..
         } = *occurrence;
-        let entry = assembled.entry.as_path();
-        let build_snapshot = &assembled.build_snapshot;
         let carried = self.prior.and_then(|prior| {
             let occurrence = prior.occurrences.iter().find(|occurrence| {
                 occurrence.position == position
                     && occurrence.purpose == purpose
-                    && occurrence.entry == *entry
                     && occurrence.inputs == *unanswered_inputs
                     && occurrence.build_snapshot == *build_snapshot
             })?;
@@ -478,7 +451,7 @@ impl<'pass> PackageReviewRound<'pass> {
         self.retain_occurrence(
             occurrence,
             unanswered_inputs,
-            assembled,
+            build_snapshot,
             CompletedOccurrence {
                 review: review.clone(),
                 facts: Arc::clone(&previous.compilation),
@@ -493,7 +466,7 @@ impl<'pass> PackageReviewRound<'pass> {
         &mut self,
         occurrence: &PackageReviewOccurrence<'_>,
         unanswered_inputs: &PackageCompilationInputs,
-        assembled: &AssembledOccurrence,
+        build_snapshot: &BuildSnapshotRequest,
         completed: CompletedOccurrence,
     ) -> Result<(), CompileResolvedPackageReviewsError> {
         let PackageReviewOccurrence {
@@ -507,8 +480,6 @@ impl<'pass> PackageReviewRound<'pass> {
             facts: compile,
             policy_bytes: policy_canonical_bytes,
         } = completed;
-        let entry = &assembled.entry;
-        let build_snapshot = &assembled.build_snapshot;
         derive_source_consumption_commitment(&compile.consumed_units, unanswered_inputs).and_then(|commitment| {
             if commitment == review.source_consumption_commitment() {
                 Ok(())
@@ -541,7 +512,6 @@ impl<'pass> PackageReviewRound<'pass> {
         self.occurrences.push(RetainedOccurrenceCompile {
             position,
             purpose,
-            entry: entry.to_path_buf(),
             inputs: unanswered_inputs.clone(),
             build_snapshot: build_snapshot.clone(),
             policy_canonical_bytes,
