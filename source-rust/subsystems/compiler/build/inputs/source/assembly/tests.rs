@@ -40,8 +40,10 @@ fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
     };
     let mut catalogue = source_compiler::representations::source_inputs::SourceCatalogue::default();
     let mut timings = CompileTimings::default();
+    // This case opens an authored Build with no retained entry bindings.
+    // Selecting main.omg here would request the implicit executable instead.
     let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
-        &root,
+        &root.with_file_name("build.omg"),
         None,
         None,
         &mut timings,

@@ -176,7 +176,7 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
     )
     .unwrap();
     let (returned, inputs) = run_project_build_with_sources(
-        &root.join("main.omg"),
+        &root.join("build.omg"),
         &targets,
         &["main.omg", "build.omg", relative],
     );
