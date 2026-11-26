@@ -331,6 +331,21 @@ impl Direction {
             (Self::Upper, Some(Ordering::Less)) | (Self::Lower, Some(Ordering::Greater))
         )
     }
+
+    /// Whether `next` is a strictly tighter bound than `best` in this
+    /// direction; no bound yet is always improved. A tie keeps `best`.
+    fn improves(self, integer: IntegerType, next: &Bound, best: Option<&Bound>) -> bool {
+        best.is_none_or(|best| self.prefers(integer.compare(next.literal, best.literal)))
+    }
+
+    /// The tighter of two bounds in this direction, `best` on a tie.
+    fn tighter(self, integer: IntegerType, best: Bound, next: Bound) -> Bound {
+        if self.improves(integer, &next, Some(&best)) {
+            next
+        } else {
+            best
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3821,13 +3836,7 @@ impl<'a> Prover<'a> {
                     .multiple_remainder_bound(term, None, direction)
                     .or_else(|| self.literal_equality_bound(term, direction));
                 let best_extra = match (definition, multiple) {
-                    (Some(left), Some(right)) => Some(
-                        if direction.prefers(integer.compare(right.literal, left.literal)) {
-                            right
-                        } else {
-                            left
-                        },
-                    ),
+                    (Some(left), Some(right)) => Some(direction.tighter(integer, left, right)),
                     (left, right) => left.or(right),
                 };
                 let bound = match (image, best_extra) {
@@ -3952,9 +3961,7 @@ impl<'a> Prover<'a> {
                 self.bound(value, direction).map(|bound| (index, bound))
             })
             .reduce(|best, next| {
-                let (_, best_bound) = &best;
-                let (_, next_bound) = &next;
-                if direction.prefers(integer.compare(next_bound.literal, best_bound.literal)) {
+                if direction.improves(integer, &next.1, Some(&best.1)) {
                     next
                 } else {
                     best
@@ -4065,9 +4072,7 @@ impl<'a> Prover<'a> {
                 direction,
                 best.as_ref().map(|bound| bound.literal),
             ) {
-                if best.as_ref().is_none_or(|current| {
-                    direction.prefers(integer.compare(next.literal, current.literal))
-                }) {
+                if direction.improves(integer, &next, best.as_ref()) {
                     best = Some(next);
                 }
                 // A direct equality supplies the exact literal. Following
@@ -4089,9 +4094,7 @@ impl<'a> Prover<'a> {
             }
             let current = best.as_ref().map(|bound| bound.literal);
             if let Some(next) = self.bound_from_fact(index, &subject, integer, direction, current)
-                && best.as_ref().is_none_or(|current| {
-                    direction.prefers(integer.compare(next.literal, current.literal))
-                })
+                && direction.improves(integer, &next, best.as_ref())
             {
                 best = Some(next);
                 self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress(best.clone());
@@ -4386,25 +4389,13 @@ impl<'a> Prover<'a> {
                     self.interior_sum_edges(subject, expression)
                         .into_iter()
                         .filter_map(|(end, relation, _)| self.through(relation, &end, direction))
-                        .reduce(|best, next| {
-                            if direction.prefers(integer.compare(next.literal, best.literal)) {
-                                next
-                            } else {
-                                best
-                            }
-                        })
+                        .reduce(|best, next| direction.tighter(integer, best, next))
                 })
                 .flatten();
                 [defined, below, within, quotient, fixed, multiple, interior]
                     .into_iter()
                     .flatten()
-                    .reduce(|best, next| {
-                        if direction.prefers(integer.compare(next.literal, best.literal)) {
-                            next
-                        } else {
-                            best
-                        }
-                    })
+                    .reduce(|best, next| direction.tighter(integer, best, next))
             }
             _ => self.compound_bound_from_fact(index, subject, integer, direction, current),
         }
@@ -4546,13 +4537,7 @@ impl<'a> Prover<'a> {
                     };
                 self.monotone_open_bound(open_side, le_proof, subject, integer, m_val, direction)
             })
-            .reduce(|best, next| {
-                if direction.prefers(integer.compare(next.literal, best.literal)) {
-                    next
-                } else {
-                    best
-                }
-            })
+            .reduce(|best, next| direction.tighter(integer, best, next))
     }
 
     /// Turns the selected order (`open_side R limit_side` for `Upper`, or
