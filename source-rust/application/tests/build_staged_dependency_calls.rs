@@ -167,14 +167,23 @@ machine build(builder: @mutable Build) {{
 }}"#,
         target.target_name(),
     );
-    let (compiled, report) = check_project(
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
         "anonymous-constant",
-        &build,
-        7,
-        "",
-        &["--check", "main.omg"],
+        false,
+    )
+    .unwrap();
+    std::fs::write(project.path().join("build.omg"), build).unwrap();
+    std::fs::write(project.path().join("main.omg"), "machine main() {}").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(project.path())
+        .args(["--check", "main.omg"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
     );
-    assert!(compiled, "{report}");
 }
 
 #[test]
@@ -870,12 +879,13 @@ fn each_transition_arm_can_prepare_its_own_dependency() {
         false,
     )
     .unwrap();
-    let root = project.path();
+    let root = project.path().join("app");
+    std::fs::create_dir(&root).unwrap();
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
     for (directory, name, value) in [("left_vendor", "alpha", 7), ("right_vendor", "beta", 13)] {
         std::fs::write(root.join(format!("{name}.omg")),
             format!("public machine value() -> i32 {{ {value} }}")).unwrap();
-        let package = root.join(directory);
+        let package = project.path().join(directory);
         std::fs::create_dir(&package).unwrap();
         std::fs::write(
             package.join("build.omg"),
@@ -901,13 +911,13 @@ machine build(builder: @mutable Build) suspends {
         _ -> suspend right(builder)
     }
     machine left(builder: @mutable Build) suspends {
-        let item: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "left_vendor" }));
+        let item: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../left_vendor" }));
         suspend Build::prepare_dependency(builder, item);
         let actual: i32 = |alpha|::value();
         transition actual == 7 { true -> done(builder), _ -> wrong(builder) }
     }
     machine right(builder: @mutable Build) suspends {
-        let item: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "right_vendor" }));
+        let item: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../right_vendor" }));
         suspend Build::prepare_dependency(builder, item);
         let actual: i32 = |beta|::value();
         transition actual == 13 { true -> done(builder), _ -> wrong(builder) }
@@ -923,7 +933,7 @@ machine build(builder: @mutable Build) suspends {
         std::fs::write(root.join("build.omg"), selected).unwrap();
         let output = Command::new(env!("CARGO_BIN_EXE_omega"))
             .args(["run", "--both", "build.omg"])
-            .current_dir(root)
+            .current_dir(&root)
             .stdin(std::process::Stdio::null())
             .output()
             .unwrap();

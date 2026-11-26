@@ -30,7 +30,13 @@ pub struct MathematicalParameterSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MathematicalDefinitionBodySnapshot {
-    Definition { expression: ExpressionSnapshot },
+    Definition {
+        expression: ExpressionSnapshot,
+    },
+    DependentArrow {
+        binders: Vec<MathematicalParameterSnapshot>,
+        expression: ExpressionSnapshot,
+    },
     Assumption,
 }
 
@@ -77,6 +83,24 @@ pub(super) fn snapshot_definition(
             MathematicalDefinitionBody::Definition(value) => {
                 MathematicalDefinitionBodySnapshot::Definition {
                     expression: snapshot_expression_handle(trees, value),
+                }
+            }
+            MathematicalDefinitionBody::DependentArrow { binders, body } => {
+                MathematicalDefinitionBodySnapshot::DependentArrow {
+                    binders: trees
+                        .items
+                        .mathematical_parameters(binders)
+                        .iter()
+                        .map(|handle| {
+                            let parameter = trees.items.mathematical_parameter(*handle);
+                            MathematicalParameterSnapshot {
+                                name: snapshot_identifier(trees, &parameter.name),
+                                relevance: snapshot_binding_relevance(parameter.relevance),
+                                ty: snapshot_type(trees, parameter.ty),
+                            }
+                        })
+                        .collect(),
+                    expression: snapshot_expression_handle(trees, body),
                 }
             }
             MathematicalDefinitionBody::Assumption => {

@@ -19,7 +19,7 @@ pub use build_recheck::{
 };
 use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
-    AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint,
+    AssembledSyntax, DeferredProductSources, ImmutableSourceParseCheckpoint, ProductEntrySources,
 };
 use package_compilation::source_imports::{ProductQueryInputs, SuppliedBuildLibrary};
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
@@ -74,7 +74,6 @@ pub struct PlannedProduct {
     pub(crate) build_profile: TargetProfile,
     pub(super) runtime_consents: Option<Vec<TerminalPermissionAcceptance>>,
     pub(crate) source: AssembledSyntax,
-    pub(super) generated: Option<source_compiler::SourceExtensionRequest>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(super) suppliers:
         std::collections::BTreeMap<semantic_vocabulary::PackageKeyIdentity, PlannedProduct>,
@@ -166,11 +165,11 @@ impl PlannedProduct {
     }
 
     pub fn attribute_diagnostics(&self, rows: &mut [Diagnostic]) {
-        let sources = self
-            .generated
-            .as_ref()
-            .map_or(&self.source.parsed.files, |extension| &extension.sources);
-        package_compilation::attribute_diagnostics(rows, sources, self.package_inputs());
+        package_compilation::attribute_diagnostics(
+            rows,
+            &self.source.parsed.files,
+            self.package_inputs(),
+        );
     }
 
     pub fn preparation(&self) -> &SourcePreparation {
@@ -228,7 +227,7 @@ pub fn prepare(
         PlanningSources::Package(inputs) => (Some(inputs), None, Vec::new()),
     };
     let supplied_libraries: Arc<[_]> = supplied_libraries.into();
-    let mut execution = execution.resolve_compilation_defaults(inputs);
+    let mut execution = execution.resolve_compilation_defaults(inputs, capture.is_some());
     let profile = execution.profile.ok_or_else(|| {
         vec![Diagnostic::error(
             "Build execution requires an explicit profile on an uncatalogued host",
@@ -525,7 +524,15 @@ impl PlanningSource {
             .deferred
             .assemble(
                 inputs,
-                &evaluated.configuration.root_binding_requests,
+                ProductEntrySources {
+                    bindings: &evaluated.configuration.root_binding_requests,
+                    has_registered_tests: evaluated
+                        .configuration
+                        .product_selection_requests
+                        .iter()
+                        .any(|event| event.test_group.is_some()),
+                },
+                &evaluated.configuration.generated_sources,
                 &evaluated.configuration.declared_product_selections,
                 &evaluated.interpreter_providers,
                 &mut self.timings,
@@ -538,34 +545,8 @@ impl PlanningSource {
                 )
             })?
             .1;
-        let generated = if evaluated.configuration.generated_sources.is_empty() {
-            None
-        } else {
-            let inputs = inputs.ok_or_else(|| {
-                refusal(
-                    "generated-source final compilation requires package-aware source custody"
-                        .to_owned(),
-                )
-            })?;
-            let root = inputs.package_root(inputs.root()).ok_or_else(|| {
-                refusal("generated-source handoff has no acquired package root".to_owned())
-            })?;
-            let extension = package_compilation::source_imports::admit_generated_extension(
-                &source.parsed.files,
-                root,
-                Some(inputs.root()),
-                &evaluated.configuration.generated_sources,
-                &mut *self.preparation.catalogue()?,
-            )?;
-            Some(extension.prepare_source_request(
-                &source.parsed.files,
-                inputs,
-                &mut self.timings,
-            )?)
-        };
         Ok(PlannedProduct {
             supplied_build_libraries: self.supplied_libraries,
-            generated,
             evaluated,
             build_profile: self.profile,
             runtime_consents: None,

@@ -190,12 +190,14 @@ pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallB
         crate::NormalizedForeignCallMechanism::Table {
             target,
             byte_offset,
+            table_operand,
             dispatch_only,
             same_stack_contribution,
         } => {
             encode_string(bytes, "@table");
             encode_string(bytes, target.target_name());
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
+            bytes.extend_from_slice(&table_operand.to_le_bytes());
             bytes.push(u8::from(*dispatch_only));
             same_stack_contribution
         }

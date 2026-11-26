@@ -59,7 +59,7 @@ pub(crate) fn product_file_sources<'graph>(
         let request = PendingPackageImport {
             occurrence: ImportOccurrence::file(
                 author,
-                import.ordinal,
+                import,
                 import.target.to_string(),
                 alias,
                 root.as_deref(),
@@ -74,7 +74,7 @@ pub(crate) fn product_file_sources<'graph>(
             ),
         };
         return request
-            .resolve_for_exact_target(graph, &mut storage.package_roots)
+            .resolve_for_exact_target(graph, &mut storage.package_roots, &storage.sources)
             .map(|resolved| resolved.into_iter().map(|file| file.path).collect());
     }
     if root.is_none() {

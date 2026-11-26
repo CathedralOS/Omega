@@ -992,7 +992,6 @@ pub mod control_flow {
                 domain_symbol: symbols::SymbolHandle,
                 domain_full_name: &str,
                 domain_arguments: Vec<crate::source_state::types::TypeReferenceHandle>,
-                semantic_domain: semantic_vocabulary::SemanticDomainId,
             ) -> crate::source_state::signature::SignatureContract {
                 let domain_arguments = self
                     .type_reference_table
@@ -1031,7 +1030,9 @@ pub mod control_flow {
                             domain,
                             domain_symbol,
                             domain_arguments,
-                            semantic_domain,
+                            // Stage 03 selects the application when the carrier and all
+                            // index types have their final qualifications.
+                            semantic_domain: Default::default(),
                             authored_domain_selection: None,
                         },
                     ),

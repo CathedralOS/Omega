@@ -737,7 +737,7 @@ fn selection_honors_the_stored_call_plan_without_recomputing_it() {
     // the plan `evaluate_call_plan` produces. Selection checks the arguments
     // against the stored plan and accepts it; it never recomputes the plan.
     // Comparing the stored plan with the callee's own plan is the independent
-    // audit's job (`direct_calls` in legalization_target.rs).
+    // audit's job (`direct_calls` in legalization/target.rs).
     let policy = CallingPolicy::native_for_target(HOST());
     let shape = calling_conventions::ValueShape::for_integer(u64_type()).unwrap();
     let evaluated = calling_conventions::evaluate_call_plan(

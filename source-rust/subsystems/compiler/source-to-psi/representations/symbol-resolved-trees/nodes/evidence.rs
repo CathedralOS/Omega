@@ -54,6 +54,10 @@ pub mod mathematical {
         #[default]
         Assumption,
         Definition(ExpressionHandle),
+        DependentArrow {
+            binders: HandleSpan<MathematicalParameter>,
+            body: ExpressionHandle,
+        },
     }
 }
 pub mod proposition {

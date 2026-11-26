@@ -994,6 +994,10 @@ impl<'program> DeclaredCallTargets<'program> {
                             .is_ok(),
                     };
             }
+            SymbolKind::Proposition => {
+                return receiver.is_none_or(|receiver| static_namespace(program, receiver))
+                    && program.proposition_definition_by_symbol(symbol).is_some();
+            }
             // A compiler operation such as `embed(value)` has one bare name
             // and no qualified or receiver form.
             SymbolKind::BuiltinFunction => {

@@ -12876,8 +12876,8 @@ mod normalized_foreign_call {
             use super::super::table_call::{
                 encode_aarch64_selected_table_call_form, validate_aarch64_selected_table_call_form,
             };
-            for byte_offset in [7, 65_536, u32::MAX] {
-                let (_, _, alternative, operands, accesses, _, mut record) = inputs(false, 1, 1);
+            for (table_operand, byte_offset) in [(0, 7), (1, 65_536), (1, u32::MAX)] {
+                let (_, _, alternative, operands, accesses, _, mut record) = inputs(false, 2, 1);
                 let contribution = record
                     .call
                     .binding
@@ -12888,6 +12888,7 @@ mod normalized_foreign_call {
                     target_operations::NormalizedForeignCallMechanism::Table {
                         target: target::TargetProfile::LinuxArm64,
                         byte_offset,
+                        table_operand,
                         dispatch_only: false,
                         same_stack_contribution: contribution,
                     };
@@ -12899,8 +12900,15 @@ mod normalized_foreign_call {
                 )
                 .unwrap();
                 assert_eq!(encoded.bytes().len(), 20);
-                assert!(matches!(encoded.footprint().encoded.memory,
-                MachineEncodedMemoryEffect::ReadTableFieldV1 { byte_offset: retained, .. } if retained == byte_offset));
+                assert_eq!(
+                    encoded.footprint().encoded.memory,
+                    MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                        pointer_operand: table_operand as u16,
+                        byte_offset,
+                    }
+                );
+                let add_base = 0x8b11_0011u32 | (table_operand << 5);
+                assert_eq!(&encoded.bytes()[8..12], &add_base.to_le_bytes());
                 assert_eq!(
                     encoded.footprint().encoded.control,
                     MachineEncodedControlEffect::IndirectExternalCallV1
@@ -12937,6 +12945,7 @@ mod normalized_foreign_call {
                 target_operations::NormalizedForeignCallMechanism::Table {
                     target: target::TargetProfile::MacosArm64,
                     byte_offset: 8,
+                    table_operand: 1,
                     dispatch_only: true,
                     same_stack_contribution: contribution,
                 };

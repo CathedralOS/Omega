@@ -20,8 +20,7 @@ pub fn type_authored_source_for_test(
 ) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
     Ok(request
         .prepare(timings)?
-        .complete_authored(timings)?
-        .finish()
+        .complete(timings)?
         .typed)
 }
 

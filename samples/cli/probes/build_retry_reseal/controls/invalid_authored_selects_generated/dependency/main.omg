@@ -1,5 +1,0 @@
-use generated.omg;
-
-public machine value() -> i32 {
-    |generated|::generated_value()
-}

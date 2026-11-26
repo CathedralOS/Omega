@@ -11,12 +11,7 @@
 // the Rust field vocabulary), and `unload` is a function-pointer carrier. The
 // implicit four-byte pads after `revision` and `load_options_size` are ABI
 // alignment the report encodes as gaps between declared members.
-use omega\language\core\Schema;
-use omega\language\core\FieldPlan;
-use omega\language\core\FieldEntry;
-use omega\language\core\LayoutPlan;
-use omega\language\core\LayoutTarget;
-use omega\language\core\FixedLayout;
+use {omega}/language/core/layout.omg;
 
 data EfiLoadedImage {
     revision: u32;
@@ -34,25 +29,25 @@ data EfiLoadedImage {
     unload: u64;
 }
 
-EfiLoadedImageLayout satisfies FixedLayout<EfiLoadedImage> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+EfiLoadedImageLayout satisfies |layout|::FixedLayout<EfiLoadedImage> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
     reaches none
     terminates {
-    let mutable entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 8 } };
-    entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 16 } };
-    entries[3] = FieldEntry { key: schema.fields[3].key, representation: FieldPlan::At { offset: 24 } };
-    entries[4] = FieldEntry { key: schema.fields[4].key, representation: FieldPlan::At { offset: 32 } };
-    entries[5] = FieldEntry { key: schema.fields[5].key, representation: FieldPlan::At { offset: 40 } };
-    entries[6] = FieldEntry { key: schema.fields[6].key, representation: FieldPlan::At { offset: 48 } };
-    entries[7] = FieldEntry { key: schema.fields[7].key, representation: FieldPlan::At { offset: 56 } };
-    entries[8] = FieldEntry { key: schema.fields[8].key, representation: FieldPlan::At { offset: 64 } };
-    entries[9] = FieldEntry { key: schema.fields[9].key, representation: FieldPlan::At { offset: 72 } };
-    entries[10] = FieldEntry { key: schema.fields[10].key, representation: FieldPlan::At { offset: 80 } };
-    entries[11] = FieldEntry { key: schema.fields[11].key, representation: FieldPlan::At { offset: 84 } };
-    entries[12] = FieldEntry { key: schema.fields[12].key, representation: FieldPlan::At { offset: 88 } };
-    LayoutPlan { entries: entries, entry_count: 13, size_fixed: 96, size_is_dynamic: false, align: 8 }
+    let mutable entries: [|layout|::FieldEntry; 64];
+    entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+    entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 8 } };
+    entries[2] = |layout|::FieldEntry { key: schema.fields[2].key, representation: |layout|::FieldPlan::At { offset: 16 } };
+    entries[3] = |layout|::FieldEntry { key: schema.fields[3].key, representation: |layout|::FieldPlan::At { offset: 24 } };
+    entries[4] = |layout|::FieldEntry { key: schema.fields[4].key, representation: |layout|::FieldPlan::At { offset: 32 } };
+    entries[5] = |layout|::FieldEntry { key: schema.fields[5].key, representation: |layout|::FieldPlan::At { offset: 40 } };
+    entries[6] = |layout|::FieldEntry { key: schema.fields[6].key, representation: |layout|::FieldPlan::At { offset: 48 } };
+    entries[7] = |layout|::FieldEntry { key: schema.fields[7].key, representation: |layout|::FieldPlan::At { offset: 56 } };
+    entries[8] = |layout|::FieldEntry { key: schema.fields[8].key, representation: |layout|::FieldPlan::At { offset: 64 } };
+    entries[9] = |layout|::FieldEntry { key: schema.fields[9].key, representation: |layout|::FieldPlan::At { offset: 72 } };
+    entries[10] = |layout|::FieldEntry { key: schema.fields[10].key, representation: |layout|::FieldPlan::At { offset: 80 } };
+    entries[11] = |layout|::FieldEntry { key: schema.fields[11].key, representation: |layout|::FieldPlan::At { offset: 84 } };
+    entries[12] = |layout|::FieldEntry { key: schema.fields[12].key, representation: |layout|::FieldPlan::At { offset: 88 } };
+    |layout|::LayoutPlan { entries: entries, entry_count: 13, size_fixed: 96, size_is_dynamic: false, align: 8 }
 }
 }
 
@@ -98,25 +93,25 @@ data EfiSystemTableView {
     configuration_table: u64;
 }
 
-EfiSystemTableViewLayout satisfies FixedLayout<EfiSystemTableView> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+EfiSystemTableViewLayout satisfies |layout|::FixedLayout<EfiSystemTableView> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
     reaches none
     terminates {
-    let mutable entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 24 } };
-    entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 32 } };
-    entries[3] = FieldEntry { key: schema.fields[3].key, representation: FieldPlan::At { offset: 40 } };
-    entries[4] = FieldEntry { key: schema.fields[4].key, representation: FieldPlan::At { offset: 48 } };
-    entries[5] = FieldEntry { key: schema.fields[5].key, representation: FieldPlan::At { offset: 56 } };
-    entries[6] = FieldEntry { key: schema.fields[6].key, representation: FieldPlan::At { offset: 64 } };
-    entries[7] = FieldEntry { key: schema.fields[7].key, representation: FieldPlan::At { offset: 72 } };
-    entries[8] = FieldEntry { key: schema.fields[8].key, representation: FieldPlan::At { offset: 80 } };
-    entries[9] = FieldEntry { key: schema.fields[9].key, representation: FieldPlan::At { offset: 88 } };
-    entries[10] = FieldEntry { key: schema.fields[10].key, representation: FieldPlan::At { offset: 96 } };
-    entries[11] = FieldEntry { key: schema.fields[11].key, representation: FieldPlan::At { offset: 104 } };
-    entries[12] = FieldEntry { key: schema.fields[12].key, representation: FieldPlan::At { offset: 112 } };
-    LayoutPlan { entries: entries, entry_count: 13, size_fixed: 120, size_is_dynamic: false, align: 8 }
+    let mutable entries: [|layout|::FieldEntry; 64];
+    entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+    entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 24 } };
+    entries[2] = |layout|::FieldEntry { key: schema.fields[2].key, representation: |layout|::FieldPlan::At { offset: 32 } };
+    entries[3] = |layout|::FieldEntry { key: schema.fields[3].key, representation: |layout|::FieldPlan::At { offset: 40 } };
+    entries[4] = |layout|::FieldEntry { key: schema.fields[4].key, representation: |layout|::FieldPlan::At { offset: 48 } };
+    entries[5] = |layout|::FieldEntry { key: schema.fields[5].key, representation: |layout|::FieldPlan::At { offset: 56 } };
+    entries[6] = |layout|::FieldEntry { key: schema.fields[6].key, representation: |layout|::FieldPlan::At { offset: 64 } };
+    entries[7] = |layout|::FieldEntry { key: schema.fields[7].key, representation: |layout|::FieldPlan::At { offset: 72 } };
+    entries[8] = |layout|::FieldEntry { key: schema.fields[8].key, representation: |layout|::FieldPlan::At { offset: 80 } };
+    entries[9] = |layout|::FieldEntry { key: schema.fields[9].key, representation: |layout|::FieldPlan::At { offset: 88 } };
+    entries[10] = |layout|::FieldEntry { key: schema.fields[10].key, representation: |layout|::FieldPlan::At { offset: 96 } };
+    entries[11] = |layout|::FieldEntry { key: schema.fields[11].key, representation: |layout|::FieldPlan::At { offset: 104 } };
+    entries[12] = |layout|::FieldEntry { key: schema.fields[12].key, representation: |layout|::FieldPlan::At { offset: 112 } };
+    |layout|::LayoutPlan { entries: entries, entry_count: 13, size_fixed: 120, size_is_dynamic: false, align: 8 }
 }
 }
 
@@ -125,13 +120,13 @@ data EfiBootServicesView {
     services: [u64; 44];
 }
 
-EfiBootServicesViewLayout satisfies FixedLayout<EfiBootServicesView> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+EfiBootServicesViewLayout satisfies |layout|::FixedLayout<EfiBootServicesView> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
     reaches none
     terminates {
-    let mutable entries: [FieldEntry; 64];
-    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
-    entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 24 } };
-    LayoutPlan { entries: entries, entry_count: 2, size_fixed: 376, size_is_dynamic: false, align: 8 }
+    let mutable entries: [|layout|::FieldEntry; 64];
+    entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+    entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 24 } };
+    |layout|::LayoutPlan { entries: entries, entry_count: 2, size_fixed: 376, size_is_dynamic: false, align: 8 }
 }
 }

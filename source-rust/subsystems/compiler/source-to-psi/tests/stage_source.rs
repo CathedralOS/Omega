@@ -57,7 +57,6 @@ fn product<'a>(
             build_accounting: None,
             declaration_scope: None,
             build_host: ProductTarget::LinuxX86_64,
-            generated: None,
             targets: &[],
             calling_targets: &[],
             subject: Some(package),
@@ -1376,8 +1375,66 @@ fn an_indexed_domain_retains_the_members_of_its_applied_carrier() {
             let errors = result.expect_err("returning the segment must preserve its domain");
             assert!(errors.iter().any(|error| error.message.contains(refusal)), "{errors:?}");
         } else {
-            result.expect("the alias and expanded index describe the same live segment");
+            let program =
+                result.expect("the alias and expanded index describe the same live segment");
+            let bytes = program.to_bytes();
+            let received = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+            assert_eq!(received.to_bytes(), bytes);
         }
+    }
+}
+
+#[test]
+fn an_owned_move_preserves_declared_whole_and_field_domains() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let (files, root) = captured(
+        package,
+        "
+        data Word { bits: u64; }
+        domain Word::Placed;
+        data Parcel [linear] { marked: Word in Word::Placed; plain: Word; }
+        domain Parcel::Ready;
+        machine carry(p: Parcel in Parcel::Ready) -> Parcel in Parcel::Ready { p }
+        machine main() {}
+    ",
+    );
+    let bytes = compile(product(files, root, package, &[]).unwrap(), None)
+        .unwrap()
+        .to_bytes();
+    let received = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+
+    for whole in [true, false] {
+        let mut module = received.semantic_module().clone();
+        let moved = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match (&operation.kind, &mut operation.result) {
+                (
+                    terminal_psi::OperationKind::MoveStructuralValue { .. },
+                    terminal_psi::OperationResult::Structural(result),
+                ) => Some(result),
+                _ => None,
+            })
+            .expect("carry moves the whole parcel");
+        if whole {
+            assert!(moved.qualifications.pop().is_some());
+        } else {
+            assert_eq!(
+                moved.projected_qualifications.len(),
+                1,
+                "only marked declares Placed"
+            );
+            moved.projected_qualifications.clear();
+        }
+        let forged = terminal_codec::encode_module(&module).unwrap();
+        let refusal = terminal_codec::decode_module(&forged).unwrap_err();
+        assert!(
+            refusal
+                .to_string()
+                .contains("owned value transfer loses source memberships")
+        );
     }
 }
 
@@ -1399,7 +1456,11 @@ fn a_domain_on_a_qualified_alias_preserves_both_qualifications() {
         let (files, root) = captured(package, &source);
         let result = compile(product(files, root, package, &[]).unwrap(), None);
         if carries_stored {
-            result.expect("Live qualifies the carrier of the already stored segment");
+            let bytes = result
+                .expect("Live qualifies the carrier of the already stored segment")
+                .to_bytes();
+            let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+            assert_eq!(reopened.to_bytes(), bytes);
         } else {
             let errors = result.expect_err("Live alone does not establish Stored");
             assert!(
@@ -1441,7 +1502,7 @@ fn transparent_aliases_check_their_const_arguments_even_when_expansion_erases_th
         ),
         (
             "machine missing() -> u8 { crash Trap; } machine f(x: Plain<missing()>) {}",
-            Some("const argument typing does not admit"),
+            Some("checked Trap crash route can occur"),
         ),
     ] {
         let (files, root) = captured(package, &format!("{declarations} {source}"));

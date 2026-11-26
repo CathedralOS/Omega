@@ -226,8 +226,9 @@ impl BoundedProcessPrepared {
         &mut self,
         scratch: &Path,
         files: crate::PrivateFilesystemFiles,
+        purpose: crate::PrivateFilesystemPurpose,
     ) -> io::Result<crate::PrivateFilesystemOutputs> {
-        let (setup, capture) = crate::private_root::Setup::new(scratch, files)?;
+        let (setup, capture) = crate::private_root::Setup::new(scratch, files, purpose)?;
         self.private_root = Some(setup);
         Ok(capture)
     }

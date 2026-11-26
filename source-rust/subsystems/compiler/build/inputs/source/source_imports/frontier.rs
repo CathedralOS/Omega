@@ -132,7 +132,7 @@ impl SourceStorage {
                 .path
                 .strip_prefix(&root)
                 .map_err(|_| vec![Diagnostic::error("core source escaped its admitted root")])?;
-            if file.origin != SourceOrigin::Toolchain
+            if file.origin != core_source_origin(&root, &file.path)
                 || file.package_identity.is_some()
                 || capture.tree().read_to_string(relative).ok().as_deref()
                     != Some(file.source.as_ref())
@@ -225,7 +225,12 @@ impl SourceStorage {
             return Ok(Vec::new());
         }
         let (root, _, origin) = self.source_metadata(path, None);
-        if origin == source_admission::SourceOrigin::Toolchain {
+        if origin == source_admission::SourceOrigin::Toolchain
+            || self
+                .core_capture
+                .as_ref()
+                .is_some_and(|core| core.canonical_live_root() == root)
+        {
             return Ok(Vec::new());
         }
         let excluded = self
@@ -731,7 +736,7 @@ impl SourceStorage {
         if let Some(core) = &self.core_root
             && path.starts_with(core)
         {
-            return (core.clone(), None, SourceOrigin::Toolchain);
+            return (core.clone(), None, core_source_origin(core, path));
         }
 
         if origin_override == Some(SourceOrigin::Toolchain)
@@ -768,6 +773,16 @@ impl SourceStorage {
                 SourceOrigin::User,
             ),
         }
+    }
+}
+
+fn core_source_origin(root: &Path, path: &Path) -> SourceOrigin {
+    // Build and Product may import this contract. Unlike the core prelude,
+    // its names belong only to the file that imported them.
+    if path.strip_prefix(root) == Ok(Path::new("sandbox/streams.omg")) {
+        SourceOrigin::ToolchainLibrary
+    } else {
+        SourceOrigin::Toolchain
     }
 }
 

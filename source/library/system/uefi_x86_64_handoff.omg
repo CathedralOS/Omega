@@ -1,10 +1,5 @@
-use targets\uefi_x86_64\uefi_os_handoff_cycle_acquire;
-use targets\uefi_x86_64\uefi_os_handoff_cycle_attempt_exit;
-use targets\uefi_x86_64\uefi_os_handoff_cycle_firmware_return;
-use targets\uefi_x86_64\uefi_os_handoff_cycle_free_map;
-use targets\uefi_x86_64\uefi_os_handoff_cycle_grow;
-use targets\uefi_x86_64\uefi_os_handoff_cycle_transfer;
-use targets\uefi_x86_64\valid_map_geometry;
+use targets/uefi_x86_64/handoff.omg as legs;
+
 // EFI_STATUS codes the authored cycle dispatches on (the UEFI error bit is
 // bit 63, so these exceed i64 range by construction).
 public const EFI_SUCCESS: u64 = 0;
@@ -189,7 +184,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     }
 
     machine acquire(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
-        uefi_os_handoff_cycle_acquire(uefi_os_handoff_cycle);
+        |legs|::uefi_os_handoff_cycle_acquire(uefi_os_handoff_cycle);
         transition { _ -> acquired(uefi_os_handoff_cycle) }
     }
 
@@ -204,7 +199,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     }
 
     machine validate_map(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
-        let valid: bool = valid_map_geometry(
+        let valid: bool = |legs|::valid_map_geometry(
             uefi_os_handoff_cycle.legs.map_size,
             uefi_os_handoff_cycle.legs.map_capacity,
             uefi_os_handoff_cycle.legs.descriptor_size,
@@ -249,7 +244,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
         // reported requirement, including when it was already page-aligned.
         uefi_os_handoff_cycle.legs.pages = (((uefi_os_handoff_cycle.legs.map_size
             as u64 +Saturating) / EFI_PAGE_BYTES) + 1) as u64;
-        uefi_os_handoff_cycle_grow(uefi_os_handoff_cycle);
+        |legs|::uefi_os_handoff_cycle_grow(uefi_os_handoff_cycle);
         transition { _ -> release(uefi_os_handoff_cycle) }
     }
 
@@ -268,7 +263,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     }
 
     machine free(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
-        uefi_os_handoff_cycle_free_map(uefi_os_handoff_cycle);
+        |legs|::uefi_os_handoff_cycle_free_map(uefi_os_handoff_cycle);
         transition uefi_os_handoff_cycle.legs.status == EFI_SUCCESS {
             true -> adopt(uefi_os_handoff_cycle),
             _ -> reject_status(uefi_os_handoff_cycle)
@@ -289,7 +284,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     // A successful acquire attempted no exit yet; the freshest `key` on the
     // legs record is the snapshot the exit leg presents.
     machine attempt_exit(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
-        uefi_os_handoff_cycle_attempt_exit(uefi_os_handoff_cycle);
+        |legs|::uefi_os_handoff_cycle_attempt_exit(uefi_os_handoff_cycle);
         transition { _ -> exit_rejected(uefi_os_handoff_cycle) }
     }
 
@@ -355,11 +350,11 @@ public machine uefi_os_handoff_cycle_run(uefi_os_handoff_cycle: @mutable UefiOsH
         UefiOsHandoffDisposition::Rejected { status } -> returned(uefi_os_handoff_cycle, status)
     }
     machine complete(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle) {
-        uefi_os_handoff_cycle_transfer(uefi_os_handoff_cycle);
+        |legs|::uefi_os_handoff_cycle_transfer(uefi_os_handoff_cycle);
         transition { _ -> complete(uefi_os_handoff_cycle) }
     }
     machine returned(uefi_os_handoff_cycle: @mutable UefiOsHandoffCycle, status: u64) {
-        uefi_os_handoff_cycle_firmware_return(uefi_os_handoff_cycle, status);
+        |legs|::uefi_os_handoff_cycle_firmware_return(uefi_os_handoff_cycle, status);
         transition { _ -> returned(uefi_os_handoff_cycle, status) }
     }
 }

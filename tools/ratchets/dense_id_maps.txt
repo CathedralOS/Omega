@@ -17,9 +17,9 @@
 21 source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/ranked_rewrites.rs
 24 source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/semantic_analyses.rs
 86 source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/validation.rs
-20 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/legalization_reference_custody.rs
-1 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/legalization_scalar_graph.rs
-1 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/legalization_target.rs
+20 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/legalization/reference_custody.rs
+1 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/legalization/scalar_graph.rs
+1 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/legalization/target.rs
 25 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/control_flow.rs
 8 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/control_flow_calls.rs
 13 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/control_flow_operations.rs
@@ -31,8 +31,8 @@
 28 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/scalar.rs
 24 source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/unit.rs
 7 source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection.rs
-1 source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection_inputs.rs
-1 source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection_scalar_graph.rs
+1 source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection/inputs.rs
+1 source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection/scalar_graph.rs
 20 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/candidates.rs
 128 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/current_ownership.rs
 9 source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/descriptor_results.rs

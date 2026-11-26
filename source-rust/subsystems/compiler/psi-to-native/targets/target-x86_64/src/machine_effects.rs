@@ -716,14 +716,10 @@ mod scalar_call {
                         encoded.control = MachineEncodedControlEffect::SupervisorCallV1;
                     }
                     if let Some((_, byte_offset)) = table {
-                        let position =
-                            selected_instructions::calls::constraints::foreign_argument_registers(
-                                &record.call,
-                            )
-                            .iter()
-                            .position(|(parameter, _)| *parameter == 0)?;
+                        use selected_instructions::calls::constraints::table_pointer_register_operand;
+                        let pointer_operand = table_pointer_register_operand(&record.call)?;
                         encoded.memory = MachineEncodedMemoryEffect::ReadTableFieldV1 {
-                            pointer_operand: u16::try_from(position).ok()?,
+                            pointer_operand,
                             byte_offset,
                         };
                         encoded.control = MachineEncodedControlEffect::IndirectExternalCallV1;

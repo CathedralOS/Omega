@@ -115,9 +115,8 @@ pub(super) fn derive_source_evaluated_mechanisms(
                         )]);
                     }
                 };
-                let entry = super::external_calling_application(external, provider_plan, &abi)?
-                    .plan
-                    .plan();
+                let application = super::external_calling_application(external, provider_plan, &abi)?;
+                let entry = application.plan.plan();
                 let signature = calling_conventions::CallSignature::of_placements(
                     &entry.call.parameters,
                     entry.call.result.as_ref(),
@@ -135,6 +134,9 @@ pub(super) fn derive_source_evaluated_mechanisms(
                         validated.contract_commitment_digest(),
                     ),
                     byte_offset,
+                    table_operand: application.call_projection()
+                        .and_then(|projection| projection.operand_for_formal(0))
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?,
                     dispatch_only,
                 }
             }

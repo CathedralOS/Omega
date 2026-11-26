@@ -15,9 +15,10 @@ tests.
 */
 
 /*
-- `legalization.rs`, `legalization_instruction.rs`, `legalization_control.rs`: preparation of the plan from retained target rows.
-- `legalization_scalar_graph.rs`, `legalization_reference_custody.rs`, `legalization_target.rs`, `legalization_source.rs`, `legalization_descriptor_inputs.rs`, `legalization_function_inputs.rs`: shared derivation and the independent validator.
-- `installed_interrupts.rs`, `interrupt_installation.rs`: the join of the target program to its admitted interrupt installations.
+- `legalization.rs` coordinates preparation and verification.
+- `legalization/instruction.rs` and `legalization/control.rs` prepare the plan from retained target rows.
+- The other files under `legalization/` derive the input rows and verify their correspondence.
+- `installed_interrupts.rs` and `interrupt_installation.rs` join the target program to its admitted interrupt installations.
 */
 
 pub(crate) mod native_geometry {
@@ -203,13 +204,21 @@ pub use verified_optimization_input::publication::target_replay::BoundaryOriginF
 pub(crate) mod installed_interrupts;
 pub(crate) mod interrupt_installation;
 mod legalization;
+#[path = "legalization/control.rs"]
 mod legalization_control;
+#[path = "legalization/descriptor_inputs.rs"]
 mod legalization_descriptor_inputs;
+#[path = "legalization/function_inputs.rs"]
 mod legalization_function_inputs;
+#[path = "legalization/instruction.rs"]
 mod legalization_instruction;
+#[path = "legalization/reference_custody.rs"]
 mod legalization_reference_custody;
+#[path = "legalization/scalar_graph.rs"]
 mod legalization_scalar_graph;
+#[path = "legalization/source.rs"]
 mod legalization_source;
+#[path = "legalization/target.rs"]
 mod legalization_target;
 
 pub(crate) use legalization::LegalizationError;

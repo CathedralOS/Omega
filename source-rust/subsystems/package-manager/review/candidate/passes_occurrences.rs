@@ -404,12 +404,13 @@ impl<'pass> PackageReviewRound<'pass> {
                     },
                 )
             })?;
-        let build_snapshot = if key == closure.graph().root() {
-            self.root_build_snapshot.cloned()
-        } else {
+        let is_dependency = key != closure.graph().root();
+        let build_snapshot = if is_dependency {
             None
+        } else {
+            self.root_build_snapshot.cloned()
         }
-        .unwrap_or_else(|| BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
+        .unwrap_or_else(|| BuildSnapshotRequest::for_activation(is_dependency));
         Ok((inputs, build_snapshot))
     }
 

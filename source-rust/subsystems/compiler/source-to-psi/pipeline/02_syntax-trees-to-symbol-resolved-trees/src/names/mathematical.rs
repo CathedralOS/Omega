@@ -126,16 +126,74 @@ pub(super) fn assign_mathematical_expression_symbols(
             *mathematical_types.get_mut(handle) = node;
         }
 
-        let MathematicalBody::Definition(term) = definition.body else {
-            continue;
+        let mut body_type_parameters = local_type_parameters.clone();
+        for parameter in mathematical_parameters.span_or_empty(definition.parameters) {
+            body_type_parameters.push(crate::source_resolved::data::TypeParameter {
+                symbol: parameter.symbol,
+                name: parameter.name.clone(),
+                kind: TypeParameterKind::Type,
+                bounds: Default::default(),
+            });
+        }
+
+        let (arrow_binders, term) = match definition.body {
+            MathematicalBody::Definition(term) => (arena::HandleSpan::empty(), term),
+            MathematicalBody::DependentArrow { binders, body } => (binders, body),
+            MathematicalBody::Assumption => continue,
         };
+        let mut arrow_worklist: Vec<_> = mathematical_parameters
+            .span_or_empty(arrow_binders)
+            .iter()
+            .map(|parameter| parameter.ty)
+            .collect();
+        while let Some(handle) = arrow_worklist.pop() {
+            let mut node = mathematical_types.get(handle).clone();
+            match &mut node {
+                MathematicalType::Ordinary(reference) => {
+                    assign_type_reference_symbol_with_locals_and_constraints(
+                        symbols,
+                        child_type_references,
+                        type_constraints,
+                        &body_type_parameters,
+                        reference,
+                    );
+                    bind_binder_value_arguments(
+                        &declared,
+                        child_type_references,
+                        &body_type_parameters,
+                        reference,
+                    );
+                }
+                MathematicalType::Arrow {
+                    domain, codomain, ..
+                } => {
+                    arrow_worklist.push(*domain);
+                    arrow_worklist.push(*codomain);
+                }
+                MathematicalType::Application { callee, arguments } => {
+                    arrow_worklist.push(*callee);
+                    for argument in expressions.expression_handles(*arguments).to_vec() {
+                        assign_expression_symbols(
+                            expressions,
+                            child_type_references,
+                            type_constraints,
+                            symbols,
+                            definition.symbol,
+                            &body_type_parameters,
+                            argument,
+                        );
+                    }
+                }
+            }
+            *mathematical_types.get_mut(handle) = node;
+        }
         assign_expression_symbols(
             expressions,
             child_type_references,
             type_constraints,
             symbols,
             definition.symbol,
-            &local_type_parameters,
+            &body_type_parameters,
             term,
         );
     }

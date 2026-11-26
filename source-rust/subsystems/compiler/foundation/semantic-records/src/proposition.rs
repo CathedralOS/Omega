@@ -1658,6 +1658,7 @@ mod propositions {
             Conjunction(usize),
             Disjunction(usize),
             Implication,
+            IsMere,
         }
 
         fn clone_atomic(proposition: &Proposition) -> Proposition {
@@ -1713,7 +1714,7 @@ mod propositions {
                     source: source.clone(),
                     target: *target,
                 },
-                Conjunction(_) | Disjunction(_) | Implication { .. } => {
+                Conjunction(_) | Disjunction(_) | Implication { .. } | IsMere(_) => {
                     unreachable!("the logical clone continuation owns these children")
                 }
             }
@@ -1722,7 +1723,10 @@ mod propositions {
         impl Clone for Proposition {
             fn clone(&self) -> Self {
                 use Proposition::*;
-                if !matches!(self, Conjunction(_) | Disjunction(_) | Implication { .. }) {
+                if !matches!(
+                    self,
+                    Conjunction(_) | Disjunction(_) | Implication { .. } | IsMere(_)
+                ) {
                     return clone_atomic(self);
                 }
                 let mut pending = vec![CloneWork::Enter(self)];
@@ -1749,6 +1753,11 @@ mod propositions {
                                 pending.push(CloneWork::Enter(premise));
                                 continue;
                             }
+                            IsMere(inner) => {
+                                pending.push(CloneWork::IsMere);
+                                pending.push(CloneWork::Enter(inner));
+                                continue;
+                            }
                             _ => clone_atomic(proposition),
                         },
                         CloneWork::Conjunction(count) => {
@@ -1766,6 +1775,10 @@ mod propositions {
                                 premise: Box::new(premise),
                                 conclusion: Box::new(conclusion),
                             }
+                        }
+                        CloneWork::IsMere => {
+                            let inner = values.pop().expect("one cloned mere proposition");
+                            IsMere(Box::new(inner))
                         }
                     };
                     values.push(value);
@@ -1854,6 +1867,13 @@ mod propositions {
                         }
                         ContentConservation(a) => matches!(right, ContentConservation(b) if a == b),
                         DeclarationIdentity(a) => matches!(right, DeclarationIdentity(b) if a == b),
+                        IsMere(a) => {
+                            let IsMere(b) = right else {
+                                return false;
+                            };
+                            pending.push((a, b));
+                            true
+                        }
                         FloatIntegerConversion(a) => {
                             matches!(right, FloatIntegerConversion(b) if a == b)
                         }
@@ -1894,6 +1914,7 @@ mod propositions {
                         Truth | Falsehood => {}
                         Atom(identity) => identity.hash(state),
                         DeclarationIdentity(clause) => clause.hash(state),
+                        IsMere(inner) => pending.push(inner.as_ref()),
                         FloatIntegerConversion(clause) => clause.hash(state),
                         IeeeFloatIntegerExact { source, target } => {
                             source.hash(state);
@@ -2016,23 +2037,29 @@ mod propositions {
             target: crate::IeeeFloatFormat,
         },
         DeclarationIdentity(crate::ClauseIdentity),
+        /// Any two witnesses of the inner proposition are propositionally equal:
+        /// `(p: P) -> (q: P) -> core\Identity::<P>(p, q)`.
+        IsMere(Box<Proposition>),
     }
 
     impl Proposition {
-        /// A compound clause containing Identity needs a mathematical judgment
-        /// of the entire proposition, including the connective.
+        /// A compound clause containing Identity or IsMere needs a mathematical
+        /// judgment of the entire proposition, including the connective.
         pub fn contains_declaration_identity(&self) -> bool {
             match self {
-                Self::DeclarationIdentity(_) => return true,
+                Self::DeclarationIdentity(_) | Self::IsMere(_) => return true,
                 Self::Conjunction(_) | Self::Disjunction(_) | Self::Implication { .. } => {}
                 _ => return false,
             }
             let mut pending = vec![self];
             while let Some(part) = pending.pop() {
                 match part {
-                    Self::DeclarationIdentity(_) => return true,
+                    Self::DeclarationIdentity(_) | Self::IsMere(_) => return true,
                     Self::Conjunction(parts) | Self::Disjunction(parts) => pending.extend(parts),
-                    Self::Implication { premise, conclusion } => {
+                    Self::Implication {
+                        premise,
+                        conclusion,
+                    } => {
                         pending.extend([premise.as_ref(), conclusion.as_ref()]);
                     }
                     _ => {}
@@ -2081,6 +2108,7 @@ mod propositions {
                     Self::Truth | Self::Falsehood => {}
                     Self::Atom(_) => {}
                     Self::DeclarationIdentity(clause) => clause.validate()?,
+                    Self::IsMere(inner) => pending.push(inner.as_ref()),
                     Self::FloatIntegerConversion(clause) => clause.validate().map_err(|error| {
                         PropositionError::InvalidFloatIntegerConversion(Box::new(error))
                     })?,
@@ -2250,13 +2278,18 @@ mod propositions {
                         for value in &clause.values {
                             match &value.operand {
                                 crate::ClauseOperand::Scalar(term) => self.validate_term(term)?,
-                                crate::ClauseOperand::Input(subject) if !self.structural_places.contains_key(&subject.root()) => {
-                                    return Err(PropositionError::UnknownStructuralPlace(subject.root()));
+                                crate::ClauseOperand::Input(subject)
+                                    if !self.structural_places.contains_key(&subject.root()) =>
+                                {
+                                    return Err(PropositionError::UnknownStructuralPlace(
+                                        subject.root(),
+                                    ));
                                 }
                                 _ => {}
                             }
                         }
                     }
+                    Proposition::IsMere(inner) => pending.push(inner.as_ref()),
                     Proposition::FloatIntegerConversion(clause) => {
                         self.validate_term(&clause.source)?;
                         self.validate_term(&clause.result)?;
@@ -2667,10 +2700,14 @@ mod value_ids {
                             }
                             Self::DeclarationIdentity(clause) => {
                                 for value in &mut clause.values {
-                                    if let crate::ClauseOperand::Scalar(source) = &mut value.operand {
+                                    if let crate::ClauseOperand::Scalar(source) = &mut value.operand
+                                    {
                                         source.remap_value_ids(&mut map);
                                     }
                                 }
+                            }
+                            Self::IsMere(inner) => {
+                                pending.push(Pending::Proposition(inner.as_mut()));
                             }
                             Self::FloatIntegerConversion(clause) => {
                                 pending.push(Pending::Scalar(&mut clause.result));
@@ -2839,12 +2876,17 @@ mod value_ids {
                         }
                         for value in clause.values.iter().rev() {
                             match &value.operand {
-                                crate::ClauseOperand::Scalar(source) => pending.push(Pending::Scalar(source)),
-                                crate::ClauseOperand::Input(_) | crate::ClauseOperand::Formal(_) => complete = false,
-                                crate::ClauseOperand::Application { .. } | crate::ClauseOperand::FloatMeaning(_) => {}
+                                crate::ClauseOperand::Scalar(source) => {
+                                    pending.push(Pending::Scalar(source))
+                                }
+                                crate::ClauseOperand::Input(_)
+                                | crate::ClauseOperand::Formal(_) => complete = false,
+                                crate::ClauseOperand::Application { .. }
+                                | crate::ClauseOperand::FloatMeaning(_) => {}
                             }
                         }
                     }
+                    Proposition::IsMere(inner) => pending.push(Pending::Proposition(inner)),
                     Proposition::FloatIntegerConversion(clause) => {
                         pending.push(Pending::Scalar(&clause.result));
                         pending.push(Pending::Scalar(&clause.source));

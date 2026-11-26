@@ -262,6 +262,22 @@ impl Program<'_> {
     /// `int_pair_equivalent(a, b)` and the Identity it abbreviates are one
     /// clause. A proposition declared without a formula, or with a binder,
     /// has no such reading and is refused.
+    pub(super) fn named_proposition_call(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &crate::source_state::expression::TableCallExpression,
+    ) -> Checked<Proposition> {
+        let application = crate::source_state::proposition::PropositionApplication {
+            name: call.target.clone(),
+            proposition: call.target_symbol,
+            binder_arguments: Default::default(),
+            arguments: call.arguments,
+        };
+        self.named_proposition(id, scope, &application)
+            .map(|(proposition, _)| proposition)
+    }
+
     fn named_proposition(
         &mut self,
         id: MachineId,
@@ -1080,10 +1096,17 @@ impl Program<'_> {
                 && written_type.replace(row).is_some()
             {
                 return Err(unavailable("Identity repeats its written type selection"));
-            } else if applied && row.kind() == StaticArgument && row.top_level_static_argument_position().is_none() {
-                let symbol = row.target().as_resolved()
+            } else if applied
+                && row.kind() == StaticArgument
+                && row.top_level_static_argument_position().is_none()
+            {
+                let symbol = row
+                    .target()
+                    .as_resolved()
                     .map(|selected| selected.selected_symbol())
-                    .ok_or_else(|| unavailable("Identity has an unresolved nested type selection"))?;
+                    .ok_or_else(|| {
+                        unavailable("Identity has an unresolved nested type selection")
+                    })?;
                 nested_types.push((row.source_span(), symbol));
             }
         }
@@ -1091,10 +1114,7 @@ impl Program<'_> {
         // parameter instead has its identity in the current type telescope.
         let parameter_in_scope = typed.symbols.get(subject).kind
             == symbols::SymbolKind::TypeParameter
-            && self
-                .scope
-                .iter()
-                .any(|(binder, _)| *binder == subject);
+            && self.scope.iter().any(|(binder, _)| *binder == subject);
         let supplied_type = if written_type.is_none()
             && !parameter_in_scope
             && let Some(supplier) = self.clause_supplier
@@ -1107,25 +1127,44 @@ impl Program<'_> {
                 .static_record_bound_requirement(lexical, supplier, owner)
                 .map_err(|_| unavailable("Identity lost its supplying requirement scope"))?;
             required.is_some_and(|required| {
-                let template = typed.closed_requirement_application(owner).map_or(owner, |closed| closed.template);
-                let Some(original) = typed.trait_machine_signature_by_symbol(required.application.declaration, template) else { return false };
-                let Some(contracts) = typed.signature_contracts.span(original.contracts) else { return false };
+                let template = typed
+                    .closed_requirement_application(owner)
+                    .map_or(owner, |closed| closed.template);
+                let Some(original) = typed
+                    .trait_machine_signature_by_symbol(required.application.declaration, template)
+                else {
+                    return false;
+                };
+                let Some(contracts) = typed.signature_contracts.span(original.contracts) else {
+                    return false;
+                };
                 let mut pending = Vec::new();
                 for contract in contracts {
-                    let Some(facts) = typed.proof_facts.span(contract.facts) else { return false };
-                    pending.extend(facts.iter().filter_map(|fact| fact.as_expression().copied()));
+                    let Some(facts) = typed.proof_facts.span(contract.facts) else {
+                        return false;
+                    };
+                    pending.extend(
+                        facts
+                            .iter()
+                            .filter_map(|fact| fact.as_expression().copied()),
+                    );
                 }
                 while let Some(handle) = pending.pop() {
-                    if !expressions.expression_is_valid(handle) { return false; }
+                    if !expressions.expression_is_valid(handle) {
+                        return false;
+                    }
                     let node = expressions.expression(handle);
                     if let ExpressionNode::Call(written) = node
                         && written.authored_call_selection == Some(selection)
                         && written.target_symbol == call.target_symbol
                         && let [binder] = written.machine_arguments.as_ref()
                         && typed.symbols.symbols().nodes().is_valid(binder.symbol)
-                        && typed.symbols.get(binder.symbol).kind == symbols::SymbolKind::TypeParameter
+                        && typed.symbols.get(binder.symbol).kind
+                            == symbols::SymbolKind::TypeParameter
                     {
-                        let supplied = required.application.parameter_argument(typed, binder.symbol);
+                        let supplied = required
+                            .application
+                            .parameter_argument(typed, binder.symbol);
                         return typed.contains_type_reference(supplied)
                             && matches!(typed.type_reference_table.type_reference(supplied),
                                 TypeReferenceNode::Named { symbol, .. } if *symbol == subject);
@@ -1918,7 +1957,9 @@ impl Program<'_> {
         } else {
             match self.member_of(id, record, symbol)? {
                 Member::Field(field) => {
-                    path.push(CanonicalStructuralPathSegment::Field(data.fields()[field].id).into());
+                    path.push(
+                        CanonicalStructuralPathSegment::Field(data.fields()[field].id).into(),
+                    );
                     data.fields()[field].value_type
                 }
                 Member::Payload { case, field } => {

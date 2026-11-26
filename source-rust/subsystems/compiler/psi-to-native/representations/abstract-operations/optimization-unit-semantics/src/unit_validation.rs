@@ -8610,14 +8610,9 @@ pub(crate) mod function_structure {
                             )
                             .map_err(invalid)?;
                             if contract.carrier != result.structural_type
-                                || contract
-                                    .qualifications
-                                    .iter()
-                                    .any(|domain| !result.qualifications.contains(domain))
-                                || contract
-                                    .projected_qualifications
-                                    .iter()
-                                    .any(|row| !result.projected_qualifications.contains(row))
+                                || !signature
+                                    .payload_contract()
+                                    .move_preserves_qualifications(&source.path, result)
                             {
                                 return Err(invalid(
                                     "transfer loses the selected source memberships",
@@ -10853,6 +10848,7 @@ pub(crate) mod operation_contracts {
                         collect(premise, roots);
                         collect(conclusion, roots);
                     }
+                    Proposition::IsMere(inner) => collect(inner, roots),
                     Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
                 }
             }
@@ -10901,9 +10897,12 @@ pub(crate) mod operation_contracts {
                     },
                     arguments: vec![0],
                 };
+                let proposition = identity(vec![read, input, application.clone()]);
+                let roots = BTreeSet::from([place(3), place(4)]);
+                assert_eq!(proposition_structural_roots(&proposition), roots);
                 assert_eq!(
-                    proposition_structural_roots(&identity(vec![read, input, application.clone()])),
-                    BTreeSet::from([place(3), place(4)])
+                    proposition_structural_roots(&Proposition::IsMere(Box::new(proposition))),
+                    roots
                 );
                 assert!(
                     proposition_structural_roots(&identity(vec![

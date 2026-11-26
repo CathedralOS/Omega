@@ -76,6 +76,17 @@ fn build_with(
     target: &str,
     flags: &[&str],
 ) -> (bool, String) {
+    let source = format!(
+        "machine build(builder: @mutable Build) {{
+    Build::application(builder, \"{name}\");
+    Build::bind(builder, {target}::ProgramEntry, main);
+{registration}
+}}"
+    );
+    build_project(&source, expected_sum, target, flags)
+}
+
+fn build_project(source: &str, expected_sum: &str, target: &str, flags: &[&str]) -> (bool, String) {
     let scratch = platform_custody::temporary_directory::TemporaryDirectory::create(
         "build-test-group",
         false,
@@ -87,18 +98,7 @@ fn build_with(
         TESTS.replace("EXPECTED", expected_sum),
     )
     .expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "machine build(builder: @mutable Build) {{
-    Build::application(builder, \"{name}\");
-    Build::bind(builder, {target}::ProgramEntry, main);
-{registration}
-}}
-"
-        ),
-    )
-    .expect("staged Build");
+    std::fs::write(root.join("build.omg"), source).expect("staged Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .arg("build")
         .args(flags)
@@ -603,5 +603,39 @@ fn registered_output_ceiling_stops_only_the_exhausted_invocation() {
         returned.contains("passed on Psi interpreter, native")
             && returned.contains("native/Psi comparison agrees"),
         "{returned}"
+    );
+}
+
+#[test]
+fn a_package_build_runs_registered_tests_without_an_application_entry() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let target = host.target_name();
+    let package = format!(
+        "machine build(builder: @mutable Build) {{ Build::package(builder, \"library\"); {GROUP} }}"
+    );
+    let (ok, report) = build_project(
+        &package,
+        "5u32",
+        target,
+        &["--compare-tests", "--report-file", "report.txt"],
+    );
+    assert!(ok, "{report}");
+    assert_eq!(
+        report.matches("native/Psi comparison agrees").count(),
+        2,
+        "{report}"
+    );
+    assert!(!report.contains("published native output"), "{report}");
+
+    let bound_package = format!(
+        "machine build(builder: @mutable Build) {{ Build::package(builder, \"library\");
+         Build::bind(builder, {target}::ProgramEntry, main); }}"
+    );
+    let (ok, report) = build_project(&bound_package, "5u32", target, &[]);
+    assert!(
+        !ok && report.contains("a package Product cannot bind an executable root"),
+        "{report}"
     );
 }
