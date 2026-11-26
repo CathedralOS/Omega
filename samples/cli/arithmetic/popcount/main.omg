@@ -15,15 +15,13 @@
 use {system}/console.omg as console;
 use {omega}/language/core/process_authority.omg as streams;
 use {omega}/language/core/process_exit.omg as process;
-use {omega}/language/core/numeric_conversion.omg as numeric;
 
 public machine main()
 reaches |process|::ProcessExit + |streams|::StandardInput + |streams|::StandardOutput
 blocks
 {
     |console|::Console::write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
-    let count: u32 = population_count(3735928559);
-    let result: i32 = |numeric|::narrow_u32_to_i32_trapping(count);
+    let result: i32 = population_count(3735928559);
     |console|::Console::write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
     |console|::Console::write_line("[press Enter to close]");
     let mutable pause: [u8; 256];
@@ -31,13 +29,15 @@ blocks
     |process|::ProcessExit::exit_process(result);
 }
 
-machine population_count(word: u32) -> u32 {
-    step(word as +Wrapping, 0 as +Wrapping)
+machine population_count(word: u32) -> i32 {
+    step(word as +Wrapping, 0i32)
 
-    machine step(remaining: u32 in Wrapping, count: u32 in Wrapping) -> u32 {
-        transition remaining == 0 {
-            true -> count as -Wrapping,
-            _ -> step(remaining >> 1, count + (remaining & 1))
+    machine step(remaining: u32 in Wrapping, count: i32) -> i32 {
+        let bit: u32 in Wrapping = remaining & 1;
+        transition {
+            remaining == 0 -> count,
+            bit == 0 -> step(remaining >> 1, count),
+            _ -> step(remaining >> 1, count +% 1i32)
         }
     }
 }
