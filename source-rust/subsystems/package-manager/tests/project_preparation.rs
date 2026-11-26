@@ -162,6 +162,38 @@ public TestImage satisfies |image|::ProgramImage {
     );
 }
 
+fn open_recheck_case(
+    entry: &Path,
+    target: TargetProfile,
+    directory: &Path,
+    alongside: bool,
+) -> package_manager::project::ProjectProducts {
+    let targets = [target];
+    if alongside {
+        let mut subjects = package_manager::project::open_check_subjects(
+            entry, &targets, true, true, directory, None,
+        )
+        .unwrap();
+        let product = subjects
+            .next()
+            .expect("the named check subject")
+            .products
+            .unwrap();
+        assert!(subjects.next().is_none());
+        product
+    } else {
+        open_products(
+            ProjectInput::File(entry),
+            &targets,
+            true,
+            true,
+            directory,
+            None,
+        )
+        .unwrap()
+    }
+}
+
 /// A dependency whose Build read a constant is checked again on its Product's
 /// sources. Opened alongside that check, the consuming Product is the same one
 /// `open_products` returns once every check has finished, and the check is
@@ -221,22 +253,7 @@ machine build(builder: @mutable Build) {
             })
             .collect::<Vec<_>>()
     };
-    let open = |alongside| {
-        let open = if alongside {
-            package_manager::project::open_products_alongside_rechecks
-        } else {
-            open_products
-        };
-        open(
-            ProjectInput::File(&entry),
-            &[target],
-            true,
-            true,
-            &temp.path().join("out"),
-            None,
-        )
-        .unwrap()
-    };
+    let open = |alongside| open_recheck_case(&entry, target, &temp.path().join("out"), alongside);
     let settled = open(false);
     // `open_products` finished every recheck, so none is left to settle.
     assert!(!settled.settle_rechecks(target).unwrap().is_enabled());
@@ -304,22 +321,7 @@ machine build(builder: @mutable Build) {{
     );
     let target = TargetProfile::host_if_supported().unwrap();
     let entry = client.join("build.omg");
-    let open = |alongside| {
-        let open = if alongside {
-            package_manager::project::open_products_alongside_rechecks
-        } else {
-            open_products
-        };
-        open(
-            ProjectInput::File(&entry),
-            &[target],
-            true,
-            true,
-            &temp.path().join("out"),
-            None,
-        )
-        .unwrap()
-    };
+    let open = |alongside| open_recheck_case(&entry, target, &temp.path().join("out"), alongside);
     let validation = |products: &package_manager::project::ProjectProducts| {
         products
             .select(target)
