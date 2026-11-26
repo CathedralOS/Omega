@@ -799,8 +799,9 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
 #[test]
 fn opaque_representation_selection_retains_data_and_conformance_paths() {
     let source = r#"
+        use bindings.omg;
         machine build(builder: @mutable Build) {
-            Build::select_representation::<interrupt::Ack, platform\AckRepresentation>(builder);
+            Build::select_representation::<interrupt::Ack, |bindings|::AckRepresentation>(builder);
         }
     "#;
     let parsed = crate::tests::parse_source(source);
@@ -824,7 +825,7 @@ fn opaque_representation_selection_retains_data_and_conformance_paths() {
     );
     assert_eq!(
         crate::tests::argument_path(&parsed, &call.machine_arguments[1].path),
-        ["platform", "AckRepresentation"]
+        ["|bindings|::AckRepresentation"]
     );
 }
 
@@ -1020,7 +1021,8 @@ fn proposition_declarations_reject_retired_brace_evidence_with_migration_guidanc
 #[test]
 fn parses_a_trait_relation_family_from_its_mathematical_type() {
     let source = r#"
-        trait Reflexive<C, R: C -> C -> core\Type> {
+        use {omega}/language/core/foundation.omg as proof;
+        trait Reflexive<C, R: C -> C -> |proof|::Type> {
         }
     "#;
     let parsed = crate::tests::parse_source(source);
@@ -1053,11 +1055,11 @@ fn the_former_proposition_parameter_spelling_is_refused() {
             "`<proposition Relation>` is retired",
         ),
         (
-            "trait Reflexive<C, R: C -> C -> core\\Type>\nrequires proposition R(left: C, right: C);\n{}",
+            "trait Reflexive<C, R: C -> C -> |proof|::Type>\nrequires proposition R(left: C, right: C);\n{}",
             "`requires proposition Relation(...);` is retired",
         ),
         (
-            "trait Reflexive<C, R: core\\Type> {}",
+            "trait Reflexive<C, R: |proof|::Type> {}",
             "needs at least one domain",
         ),
     ] {

@@ -396,7 +396,7 @@ fn reject_proposition_parameter_contracts<'tokens, 'source>(
     {
         return Err(input.error_here(
             "`requires proposition Relation(...);` is retired; declare the relation family \
-             with its mathematical type in the parameter list, like `<C, R: C -> C -> core\\Type>`",
+             with its mathematical type in the parameter list, like `<C, R: C -> C -> |proof|::Type>`",
         ));
     }
     Ok(((), input))

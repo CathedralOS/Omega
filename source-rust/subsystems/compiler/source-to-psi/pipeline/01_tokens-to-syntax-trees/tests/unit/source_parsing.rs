@@ -197,10 +197,10 @@ fn import_bounds_preserve_interleaved_root_ordinals_on_both_parser_routes() {
     let cases = [
         ("", 0..0, vec![]),
         ("data Only {}", 0..0, vec![]),
-        ("use alpha; data Tail {}", 0..1, vec![0]),
-        ("data Head {} use alpha;", 1..2, vec![1]),
+        ("use alpha.omg; data Tail {}", 0..1, vec![0]),
+        ("data Head {} use alpha.omg;", 1..2, vec![1]),
         (
-            "data Head {} use alpha; let pi(): core\\Real = term; data Middle {} use beta; data Tail {}",
+            "data Head {} use alpha.omg; let pi(): |alpha|::Real = term; data Middle {} use beta.omg; data Tail {}",
             1..4,
             vec![1, 3],
         ),
@@ -425,6 +425,9 @@ fn invalid_file_paths_and_aliases_are_refused_at_the_import() {
         "use ./a.omg;",
         "use ../a.omg;",
         "use a/../b.omg;",
+        "use helpers;",
+        r"use net\wire\Packet;",
+        "use net::wire::Packet;",
         "use dir/a;",
         "use dir/a.txt;",
         "use {dep}//x.omg;",
@@ -432,6 +435,16 @@ fn invalid_file_paths_and_aliases_are_refused_at_the_import() {
         parse_error(text);
     }
 }
+#[test]
+fn a_backslash_cannot_select_an_imported_type_or_machine() {
+    for text in [
+        r"use net/wire.omg; data Record { field: wire\Packet; }",
+        r"use net/wire.omg; machine caller() { wire\send::<u8>(); }",
+    ] {
+        crate::tests::parse_error(text);
+    }
+}
+
 #[test]
 fn root_operand_file_roles_follow_the_declared_build_record() {
     use syntax_trees::item::UseItem;

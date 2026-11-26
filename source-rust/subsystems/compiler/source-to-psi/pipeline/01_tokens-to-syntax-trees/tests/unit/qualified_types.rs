@@ -10,7 +10,7 @@ fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and
                     "machine convert(value: u64) {{ let tagged: u64 = value as +Tagged<{spelling}>; }}"
                 )
             } else {
-                format!("data Packet {{ value: u64 in policy\\Tagged<{spelling}>; }}")
+                format!("data Packet {{ value: u64 in |policy|::Tagged<{spelling}>; }}")
             };
             let source_id = SourceId(17);
             let tokens = Lexer::new(&text)
@@ -72,10 +72,10 @@ fn qualified_type_names_reject_missing_path_members() {
 }
 
 #[test]
-fn a_module_path_can_end_in_a_static_member_or_generic_call() {
-    let text = r"use net\wire\Packet::Header;
-        data Record { field: net\wire\Packet::Header; }
-        machine caller() { net\wire\send::<u8>(); }";
+fn a_file_path_can_end_in_a_static_member_or_generic_call() {
+    let text = r"use net/wire.omg;
+        data Record { field: |wire|::Packet::Header; }
+        machine caller() { |wire|::send::<u8>(); }";
     crate::tests::parse_source(text);
 }
 

@@ -281,7 +281,7 @@ fn parses_a_domain_access_policy_after_its_predicates() {
 #[test]
 fn parses_an_access_policy_applied_at_static_arguments() {
     let parsed = crate::tests::parse_source(
-        "domain Folder::Writable access IssuedBy<reflect\\callable(choose_folder)>;",
+        "domain Folder::Writable access IssuedBy<|reflect|::callable(choose_folder)>; use {omega}/language/core/reflect/reflect.omg;",
     );
     let domain = crate::tests::root_domain(&parsed, "domain");
     let policy = domain.access_policy.as_ref().expect("the access policy");
@@ -520,9 +520,10 @@ fn parses_explicit_shared_borrow_with_exact_access_mode() {
 #[test]
 fn uninvoked_declaration_paths_retain_both_static_telescopes_when_copied() {
     let source = r#"
+        use {omega}/language/core/reflect/reflect.omg;
         machine inspect() {
-            reflect\callable(Operations::<'scope, u32>::update::<'item, u64>);
-            reflect\field(Buffer::<u32>::used);
+            |reflect|::callable(Operations::<'scope, u32>::update::<'item, u64>);
+            |reflect|::field(Buffer::<u32>::used);
         }
         "#;
     let parsed = crate::tests::parse_source(source);
@@ -890,7 +891,7 @@ fn parses_machine_parameter_with_mandatory_contract() {
 
 #[test]
 fn parses_nominal_callable_as_a_typed_static_parameter() {
-    let source = r"boundary machine register<const Selected: platform\WindowProcedure::call>();";
+    let source = r"boundary machine register<const Selected: |window|::WindowProcedure::call>(); use window.omg;";
     let parsed = crate::tests::parse_source(source);
     let machine = crate::tests::root_machine(&parsed, "generic machine");
     assert!(machine.bodyless);
@@ -905,7 +906,7 @@ fn parses_nominal_callable_as_a_typed_static_parameter() {
     else {
         panic!("qualified nominal requirement path");
     };
-    assert_eq!(name.as_str(&parsed), "platform::WindowProcedure::call");
+    assert_eq!(name.as_str(&parsed), "|window|::WindowProcedure::call");
 }
 
 #[test]
