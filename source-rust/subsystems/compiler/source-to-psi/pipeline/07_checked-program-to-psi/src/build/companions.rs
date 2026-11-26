@@ -15,9 +15,10 @@ use crate::source_symbols::is_build_protocol;
 use crate::{
     AcceptedTerminalSource, BuildCallSite, ProviderSelectionOption, TerminalBuildBindingCall,
     TerminalBuildBindingOperand, TerminalBuildBindingOperation, TerminalBuildFilesystemCall,
-    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildQueryCall,
-    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
-    TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
+    TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildNativeLocatorKind,
+    TerminalBuildQueryCall, TerminalBuildQueryOperation, TerminalBuildRequestCall,
+    TerminalBuildRequestOperation, TerminalBuildValueCase, TerminalBuildValueField,
+    TerminalBuildValueShape,
 };
 use diagnostics::Diagnostic;
 use language_core::build_protocol::SELECTION_PROTOCOL;
@@ -666,20 +667,27 @@ fn native_locator(
         module,
         "native binding requires one owned structural locator",
     )?;
-    let application = record.application.as_ref().ok_or_else(|| {
-        refused(
-            "native locator needs its concrete source type application to establish byte widths",
-        )
-    })?;
-    let widths = crate::source_state::native_locators::application_widths(
-        source.source().as_ref(),
-        application.reference,
+    let typed = source.source().as_ref();
+    let kind = if crate::source_state::native_locators::is_function_field_binding(
+        typed,
+        record.declaration,
     )
-    .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?;
+    .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?
+    {
+        TerminalBuildNativeLocatorKind::FunctionFieldBinding
+    } else {
+        let application = record.application.as_ref().ok_or_else(|| {
+            refused("native locator needs its concrete source type application to establish byte widths")
+        })?;
+        let widths =
+            crate::source_state::native_locators::application_widths(typed, application.reference)
+                .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?;
+        TerminalBuildNativeLocatorKind::ForeignBinding { widths }
+    };
     let shape = collect_shape(module, record.record, shapes)?;
     Ok(TerminalBuildNativeLocator {
         structural_type: record.record,
-        widths,
+        kind,
         shape,
     })
 }

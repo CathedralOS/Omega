@@ -204,6 +204,16 @@ pub fn collect(
         let (owner, signature) = typed
             .trait_machine_signature(selected)
             .ok_or_else(|| refuse("native binding lost its complete requirement signature"))?;
+        if let semantic_vocabulary::NativeBindingLocator::FunctionField(binding) = &event.locator {
+            crate::source_state::native_locators::validate_function_field_binding(
+                typed,
+                selected,
+                supplier_package,
+                scope.resolution_stratum,
+                binding,
+            )
+            .map_err(|reason| refuse(&reason))?;
+        }
         selections.push(NativeBindingSelection {
             application: application.map(provider_choice_inputs::application_id),
             subject,
@@ -295,17 +305,21 @@ pub fn capture_package_intents(
                             .and_then(|sources| sources.product_dependency_target(package, alias))
                             .map(|_| alias.to_owned())
                     });
-            Ok(CapturedNativeDeclaration {
-                application,
-                source,
-                requirement: anchor,
-                requirement_identity: program
-                    .trait_requirement_callable_identity_text(owner, signature),
-                service_declaration: commitments(owner).map_err(|error| vec![error])?,
-                dependency_alias,
-            })
+            Ok((
+                selected,
+                CapturedNativeDeclaration {
+                    application,
+                    source,
+                    requirement: anchor,
+                    requirement_identity: program
+                        .trait_requirement_callable_identity_text(owner, signature),
+                    service_declaration: commitments(owner).map_err(|error| vec![error])?,
+                    dependency_alias,
+                },
+            ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+    let (requirements, declarations): (Vec<_>, Vec<_>) = declarations.into_iter().unzip();
     let intents = executed
         .iter()
         .map(|event| {
@@ -320,6 +334,20 @@ pub fn capture_package_intents(
                         "native effect lost its exact captured source formation and author",
                     )]
                 })?;
+            if let semantic_vocabulary::NativeBindingLocator::FunctionField(binding) =
+                &event.locator
+            {
+                crate::source_state::native_locators::validate_function_field_binding(
+                    program,
+                    requirements[index],
+                    package,
+                    declarations[index].source.resolution_stratum,
+                    binding,
+                )
+                .map_err(|reason| {
+                    vec![Diagnostic::error(reason).with_source_span(event.request.source_span)]
+                })?;
+            }
             Ok(CapturedNativeIntent {
                 declaration: u32::try_from(index).map_err(|_| {
                     vec![Diagnostic::error(
@@ -480,6 +508,16 @@ pub fn collect_captured(
                     "captured native requirement lost its checked Product source",
                 )]
             })?;
+        if let semantic_vocabulary::NativeBindingLocator::FunctionField(binding) = &intent.locator {
+            crate::source_state::native_locators::validate_function_field_binding(
+                program,
+                requirement,
+                declaration.source.producer.package,
+                declaration.source.resolution_stratum,
+                binding,
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
+        }
         selections.push(NativeBindingSelection {
             application: application.map(provider_choice_inputs::application_id),
             subject,

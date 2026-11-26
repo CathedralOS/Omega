@@ -44,6 +44,9 @@ fn evaluate(
     let author_identity = &selection.producer_identity;
     let source_occurrence_digest = selection.source_occurrence_digest;
     let (locator, binding_digest) = match &selection.locator {
+        NativeBindingLocator::FunctionField(_) => {
+            return Err("a native function table binding requires its checked layout and calling-plan correspondence".into());
+        }
         NativeBindingLocator::Import(raw) => {
             let locator = target::normalize_foreign_locator(raw.clone(), target)
                 .map_err(|reason| format!("native Build locator: {reason}"))?;

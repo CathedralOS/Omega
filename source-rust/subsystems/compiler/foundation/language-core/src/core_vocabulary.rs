@@ -132,6 +132,7 @@ pub enum AssemblyEffect {
 /// The native-binding vocabulary types in `external_binding.omg`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ExternalBindingVocabulary {
+    FunctionFieldBinding,
     ForeignBinding,
     DllImport,
 }
@@ -662,6 +663,12 @@ const ROWS: &[CoreVocabularyRow] = &[
         "atomic_release_written",
         BundledFile::CoreAssemblyModel,
         CoreVocabulary::AssemblyEffect(AssemblyEffect::AtomicReleaseWritten),
+    ),
+    row(
+        "external_binding.omg",
+        "FunctionFieldBinding",
+        BundledFile::CoreExternalBinding,
+        CoreVocabulary::ExternalBinding(ExternalBindingVocabulary::FunctionFieldBinding),
     ),
     row(
         "external_binding.omg",

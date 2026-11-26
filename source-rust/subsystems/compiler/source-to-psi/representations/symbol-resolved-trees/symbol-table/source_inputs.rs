@@ -403,6 +403,31 @@ impl SourceMap {
             .copied()
     }
 
+    /// Check a retained selector that carries a declaration identity rather than
+    /// source syntax against the producing package's Product visibility.
+    pub fn product_description_visible(
+        &self,
+        supplier: PackageKeyIdentity,
+        stratum: SourceResolutionStratum,
+        declaration: &SourceFile,
+        public: bool,
+    ) -> bool {
+        declaration.dependency_scope == DependencyScope::Product
+            && self.source_is_selected(declaration.source_id)
+            && Self::captured_reference_can_see_stratum(supplier, stratum, declaration)
+            && (declaration.package_identity == Some(supplier)
+                || public
+                    && (declaration.origin == SourceOrigin::Toolchain
+                        || self
+                            .product_dependencies
+                            .get(&supplier)
+                            .is_some_and(|edges| {
+                                edges
+                                    .values()
+                                    .any(|target| Some(*target) == declaration.package_identity)
+                            })))
+    }
+
     pub fn retain_query_dependencies(
         &mut self,
         root: PathBuf,

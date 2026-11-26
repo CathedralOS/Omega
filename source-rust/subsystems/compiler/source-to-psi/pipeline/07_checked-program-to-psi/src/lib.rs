@@ -80,8 +80,9 @@ pub use source::selections::TerminalSourceSelections;
 pub use build::bindings::{
     ProviderSelectionOption, TerminalBuildBindingCall, TerminalBuildBindingOperand,
     TerminalBuildBindingOperation, TerminalBuildBindings, TerminalBuildNativeLocator,
-    TerminalBuildProviderRequirement, TerminalBuildSelectionRequest, TerminalBuildValueCase,
-    TerminalBuildValueField, TerminalBuildValueShape,
+    TerminalBuildNativeLocatorKind, TerminalBuildProviderRequirement,
+    TerminalBuildSelectionRequest, TerminalBuildValueCase, TerminalBuildValueField,
+    TerminalBuildValueShape,
 };
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,

@@ -140,8 +140,8 @@ describes which arguments the foreign function receives.
 
 | Operand | Meaning |
 | --- | --- |
-| `table: ParameterInfo` | An exact formal of the bound requirement, selected with `reflect\parameter(Requirement::formal)`. |
-| `field: FieldInfo` | An exact field of the borrowed table application, selected with `reflect\field(Table::field)`. |
+| `table: ParameterInfo` | An exact formal of the bound requirement, selected with `\|reflect\|::parameter(Requirement::formal)`. |
+| `field: FieldInfo` | An exact field of the borrowed table application, selected with `\|reflect\|::field(Table::field)`. |
 
 These are [typed declaration selectors](../language/reflection.md#typed-declaration-selectors),
 not strings, ordinals, runtime values, or executable machine selections. In a

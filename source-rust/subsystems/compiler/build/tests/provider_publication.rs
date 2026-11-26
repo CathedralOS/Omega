@@ -5,6 +5,8 @@ mod conformances;
 mod fixed_image;
 #[path = "../../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
+#[path = "provider_publication/function_table.rs"]
+mod function_table;
 #[path = "provider_publication/provider_grants.rs"]
 mod provider_grants;
 
