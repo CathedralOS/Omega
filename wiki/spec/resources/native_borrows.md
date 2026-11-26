@@ -1,6 +1,6 @@
 # Native borrows and mutability upgrades
 
-Omega exposes three generic operations in `{omega}/core/unsafe.omg`. A caller
+Omega exposes three generic operations in `{omega}/language/core/unsafe.omg`. A caller
 can form a borrow from a native address or upgrade a borrow it already holds.
 The trust decision is at the call that creates the borrow. Ordinary Omega
 continues to check uses of the returned reference.
@@ -23,7 +23,7 @@ initialized byte can pass its address to this machine. `$byte` writes the
 referent under the ordinary mutable-borrow rules.
 
 ```omega
-use {omega}/core/unsafe.omg as unsafe;
+use {omega}/language/core/unsafe.omg as unsafe;
 
 machine clear_byte(address: addr) {
     let byte: @mutable u8 = |unsafe|::borrow_mutable_at::<u8>(address);

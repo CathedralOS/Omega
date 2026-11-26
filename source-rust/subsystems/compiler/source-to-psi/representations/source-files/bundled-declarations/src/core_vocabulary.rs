@@ -26,12 +26,18 @@ mod tests {
     use language_core::core_vocabulary::*;
 
     #[test]
-    fn critical_services_require_the_exact_bundled_declaration() {
+    fn core_services_require_the_exact_bundled_declaration() {
         use CoreVocabulary as Core;
         let services = FilesystemService::ALL
             .into_iter()
             .map(Core::FilesystemService)
             .chain([
+                Core::UnsafeService,
+                Core::UnsafeAtom(UnsafeAtom::RawMemoryRead),
+                Core::UnsafeAtom(UnsafeAtom::RawMemoryWrite),
+                Core::UnsafeAtom(UnsafeAtom::BorrowMutabilityUpgrade),
+                Core::UnsafeAtom(UnsafeAtom::ForeignCodeExecution),
+                Core::NativeImageLoadService,
                 Core::StandardInputService,
                 Core::StandardOutputService,
                 Core::ProcessExitService,
