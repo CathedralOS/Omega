@@ -383,8 +383,12 @@ impl BuildFilesystemRuntime {
             .strip_prefix(b"/")
             .ok_or("mapped path must be absolute")?;
         let ordinal = self.begin_path_attempt(
-            operation, BuildFilesystemRoot::MappedDirectories, FilesystemObservationProvider::RealScoped,
-            relative, access, None,
+            operation,
+            BuildFilesystemRoot::MappedDirectories,
+            FilesystemObservationProvider::RealScoped,
+            relative,
+            access,
+            None,
         )?;
         let result = match self.effects.scope.directories.resolve_file(path) {
             Ok((directory, _))
