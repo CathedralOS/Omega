@@ -8,7 +8,7 @@ public machine build_dependency(builder: @mutable Build, description: Dependency
 
 // Checking the selected dependency is scheduled after this Build returns.
 public machine validate(builder: @mutable Build, registered: @DependencyRegistration) reaches BuildRequestOperations invokes BuildRequestOperations {
-    BuildRequestOperations::validate_dependency(builder, registered);
+    BuildRequestOperations::validate_dependency(builder, $registered);
 }
 
 // The readiness boundary for one exact registration: the Build parks here
