@@ -406,9 +406,10 @@ machine build(builder: @mutable BuildPlan) {
         .unwrap();
         std::fs::write(producer.path().join("main.omg"), r#"use {omega}/language/core/extent.omg as memory;
 use {system}/uefi_x86_64_entry.omg as firmware;
+use {system}/uefi_x86_64_handoff.omg as boot;
 RejectArrival satisfies |firmware|::UefiPhysicalEntry {
     machine enter(image_handle: |firmware|::EfiImageHandle, system_table: @|firmware|::EfiSystemTable) -> |firmware|::EfiStatus
-    reaches none crashes none {
+    reaches |boot|::UefiBootServices invokes |memory|::ProgramStorageEntry crashes none {
         |firmware|::EfiStatus { code: 0x8000000000000002 }
     }
 }
