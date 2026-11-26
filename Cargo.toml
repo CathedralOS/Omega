@@ -203,6 +203,7 @@ members = [
     "source-rust/subsystems/interpreter/memory/materialization",
     "source-rust/subsystems/interpreter/memory/storage-access",
     "source-rust/subsystems/interpreter/numeric-imports",
+    "source-rust/subsystems/source",
     "source-rust/subsystems/package-manager",
     "source-rust/subsystems/package-manager/review/evidence",
     "source-rust/subsystems/package-manager/source-acquisition",

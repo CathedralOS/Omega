@@ -8,6 +8,7 @@ the result into output and an exit status:
 | --- | --- |
 | `omega <root.omg>` (build), `--check`, `omega psi inspect` | the compiler |
 | `omega run` | the interpreter runtime |
+| `omega source parse` | the [source subsystem](../subsystems/source/lib.rs) |
 | `omega packages install`, `omega packages update`, `omega packages audit` | the package manager |
 
 [main.rs](src/main.rs) dispatches an invocation. [Arguments](src/arguments/mod.rs) owns command spelling. [Commands](src/commands/mod.rs) presents results and sets the shell exit status.
@@ -144,7 +145,7 @@ The [command-line contract](../../wiki/spec/build/command_line.md) owns
 ratified subsystem routing and public **Psi** naming; the spellings below follow
 it. Flat `install`/`update`, action-first `audit`, and
 `inspect-terminal` are rejected, not aliases.
-`omega source parse` checks one file through the lexer and parser. Imported files may be absent.
+The CLI passes the named path to the source subsystem. Its parse action checks the file with the compiler’s lexer and parser. Imported files may be absent.
 `omega source rewrite` is specified but not implemented, so the parser rejects
 it. Kept file names such as
 `program.oterm` are internal artifact names and do not change.

@@ -61,6 +61,8 @@ const PACKAGE_MANAGER: &str = "source-rust/subsystems/package-manager";
 const PRODUCT_COORDINATOR: &str = "source-rust/subsystems/compiler";
 #[cfg(test)]
 const BUILD_COORDINATOR: &str = "source-rust/subsystems/compiler/build";
+const SOURCE_OPERATIONS: &str = "source-rust/subsystems/source";
+#[cfg(test)]
 const CLI_APPLICATION: &str = "source-rust/application";
 const REVIEW_EVIDENCE: &str = "source-rust/subsystems/package-manager/review/evidence";
 #[cfg(test)]
@@ -197,7 +199,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         forbidden_packages: vec![linear_pipeline::TEXT_READER],
         allowed: [
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
-            (CLI_APPLICATION, linear_pipeline::TEXT_READER),
+            (SOURCE_OPERATIONS, linear_pipeline::TEXT_READER),
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[0]),
             (linear_pipeline::TEXT_READER, linear_pipeline::PSI_STAGES[1]),
             ("source-rust/subsystems/compiler/build/evaluation/result", linear_pipeline::PSI_STAGES[7]),
@@ -1391,6 +1393,15 @@ mod tests {
                     "omega",
                     CLI_APPLICATION,
                     &[
+                        ("source", SOURCE_OPERATIONS, None),
+                        ("bypass-source", linear_pipeline::TEXT_READER, None),
+                        ("run-parser", stages[1], None),
+                    ],
+                ),
+                pkg(
+                    "omega-source",
+                    SOURCE_OPERATIONS,
+                    &[
                         ("parse-file", linear_pipeline::TEXT_READER, None),
                         ("run-parser", stages[1], None),
                     ],
@@ -1426,8 +1437,17 @@ mod tests {
             .filter(|rule| rule.reason.starts_with("source stages are consumed"))
             .collect();
         let violations = forbidden_dependency_violations(&metadata, &rules).unwrap();
-        assert_eq!(violations.len(), 5, "{violations:?}");
-        assert!(violations.iter().any(|error| error.contains("omega -> 01_tokens-to-syntax-trees")));
+        assert_eq!(violations.len(), 7, "{violations:?}");
+        for blocked in [
+            "omega -> source-syntax",
+            "omega -> 01_tokens-to-syntax-trees",
+            "omega-source -> 01_tokens-to-syntax-trees",
+        ] {
+            assert!(
+                violations.iter().any(|error| error.contains(blocked)),
+                "{blocked}"
+            );
+        }
         assert!(
             violations
                 .iter()

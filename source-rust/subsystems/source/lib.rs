@@ -1,8 +1,11 @@
-//! Check a file through the compiler's lexer and parser without loading imports.
+//! Source operations on authored Omega files.
+#![forbid(unsafe_code)]
+
 use source_syntax::SourceParseError;
 use std::path::Path;
 
-pub(crate) fn parse(path: &Path) -> Result<(), String> {
+/// Check the named file's syntax without resolving imports.
+pub fn parse_file(path: &Path) -> Result<(), String> {
     let bytes = std::fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
     let diagnostic = |start: usize, end: usize, message: &str| {
         let prefix = &bytes[..start];

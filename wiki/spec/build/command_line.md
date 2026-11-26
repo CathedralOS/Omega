@@ -11,7 +11,9 @@ Named decision: `subsystem-command-routing`, ratified 2026-11-06.
 
 Compilation and execution remain the flat product commands. Other tools use
 `omega <subsystem> <action>`. A subsystem need not have multiple actions to
-justify its name.
+justify its name. The source subsystem owns operations on authored source files,
+including parsing and rewriting. The CLI routes each implemented action to its
+owner.
 
 ```text
 omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
