@@ -183,11 +183,34 @@ fn contents(
             return output.fail("package inspection is missing a fresh dependency path");
         };
         path(output, "fresh dependency-path", change.candidate_path())?;
-        writeln!(output, "source-changed {}", change.source_changed())?;
+        if accepted.is_some() {
+            writeln!(output, "source-changed {}", change.source_changed())?;
+        } else {
+            writeln!(output, "source-changed unknown (no accepted baseline)")?;
+        }
         writeln!(output, "audit-recommended {}", change.audit_recommended())?;
         for review in reviews.reviews_for(package.key()) {
             checked_context(output, "fresh", review.checked_context())?;
             policy::render(output, "fresh-policy", review.policy(), source, verbose)?;
+            for stage in review.preparations() {
+                writeln!(
+                    output,
+                    "preparing Build {:?} callable {:?} selected {:?}",
+                    stage.file, stage.callable, stage.successor.as_str()
+                )?;
+                writeln!(output, "preparation concrete-reach {:?}", stage.concrete_reach)?;
+                for (requirement, upper_bound) in &stage.installation_reach {
+                    writeln!(output, "  installed requirement {requirement:?} reach upper-bound {upper_bound:?}")?;
+                }
+                build_snapshot(output, Some(&stage.observation), verbose)?;
+            }
+            if let Some(last) = review.preparations().last() {
+                writeln!(
+                    output,
+                    "final Build {:?} callable {:?}",
+                    last.successor.as_str(), review.selected_build_machine_identity()
+                )?;
+            }
             build_snapshot(output, review.build_observation_summary(), verbose)?;
         }
     }

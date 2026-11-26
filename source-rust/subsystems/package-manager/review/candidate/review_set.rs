@@ -19,12 +19,15 @@ use source_acquisition::ImmutableSourceResolution;
 
 use review_evidence::record::SemanticBindingReviewCandidate;
 
+use project_build::ReviewedPreparation;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CompilerIssuedPackageReview {
     pub(super) key: PackageKey,
     pub(super) resolution: ImmutableSourceResolution,
     pub(super) source_consumption_commitment: PackageSourceConsumptionCommitment,
     pub(super) selected_build_machine_identity: String,
+    pub(super) preparations: Vec<ReviewedPreparation>,
     pub(super) build_evaluation_usage: Option<BuildEvaluationUsage>,
     pub(super) build_observation_summary: Option<BuildObservationSummary>,
     pub(super) restricted_build_requests: Vec<RestrictedBuildRequest>, // Normalized restricted build-host requests asked of the host before execution.
@@ -55,6 +58,10 @@ impl CompilerIssuedPackageReview {
 
     pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
         self.source_consumption_commitment
+    }
+
+    pub fn preparations(&self) -> &[ReviewedPreparation] {
+        &self.preparations
     }
 
     pub fn selected_build_machine_identity(&self) -> &str {
