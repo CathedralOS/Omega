@@ -604,6 +604,7 @@ pub(crate) fn prepare_discharge<'l>(
     scope.infer_results(&mut unreached, &inhabitation, activity)?;
     scope.infer_inputs(&mut unreached, &inhabitation, activity)?;
     scope.infer_results(&mut unreached, &inhabitation, activity)?;
+    scope.infer_crash_routes(&mut unreached, &inhabitation, activity)?;
     scope.finalize_callable_refinements(activity)?;
     let mut law_instances = scope
         .source()
