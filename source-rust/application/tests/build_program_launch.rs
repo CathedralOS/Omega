@@ -121,18 +121,16 @@ int main(int count, char **args) {
             .err()
             .expect("unauthorized Build reached execution")
     };
-    assert!(
-        refusal(BuildProgramInvocation::default())
-            .into_diagnostics()
-            .iter()
-            .any(|d| d.message.contains("ceiling"))
-    );
-    assert!(
-        refusal(invocation("Other"))
-            .into_diagnostics()
-            .iter()
-            .any(|d| d.message.contains("lacks an executable binding"))
-    );
+    for (grants, expected) in [
+        (BuildProgramInvocation::default(), "ceiling"),
+        (invocation("Other"), "lacks an executable binding"),
+    ] {
+        let diagnostics = refusal(grants).into_diagnostics();
+        assert!(
+            diagnostics.iter().any(|d| d.message.contains(expected)),
+            "expected {expected:?}, got {diagnostics:?}"
+        );
+    }
 
     let build_execution::CompileFailure::BuildConsentRequired { requests, .. } =
         refusal(invocation("Packer"))
