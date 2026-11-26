@@ -31,12 +31,8 @@ pub struct PreparedTerminalPublication {
 }
 
 impl PreparedTerminalPublication {
-    /// The Build program’s host requirements, derived from its prepared calls.
-    pub fn build_protocol_use(&self) -> crate::BuildProtocolUse {
-        crate::BuildProtocolUse {
-            reaches_outside: self.companions.unowned != 0,
-            filesystem: !self.companions.filesystem.is_empty(),
-        }
+    pub fn uses_build_filesystem(&self) -> bool {
+        !self.companions.filesystem.is_empty()
     }
 
     pub fn publish(

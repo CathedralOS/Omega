@@ -14,8 +14,6 @@ build-settings = { path = "../settings" }
 build-evaluation-result = { path = "result" }
 normalized-build-settings = { path = "../settings/normalized" }
 behavior-exclusion-requests = { path = "../settings/behavior-exclusions" }
-numeric-intrinsic-admission = { path = "../../psi-to-native/verification/numeric-intrinsics" }
-selected-provider-plans = { path = "../providers/selections" }
 psi-authorization = { path = "../../psi/artifact/authorization" }
 evaluation-admission = { path = "authority/admission" }
 psi-provider-selections = { path = "../../psi/execution-inputs/providers" }
@@ -40,7 +38,6 @@ filesystem-authority = { path = "authority/filesystem" }
 artifacts = { path = "../../foundation/measurements" }
 build-output = { path = "../inputs/trees" }
 package-compilation = { path = "../inputs" }
-interpreter-numeric-imports = { path = "../../../interpreter/numeric-imports" }
 target = { path = "../../psi-to-native/targets/target" }
 runtime-abi = { path = "../../psi-to-native/targets/runtime-abi" }
 diagnostics = { path = "../../../../foundation/diagnostics" }

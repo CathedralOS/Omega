@@ -10,7 +10,7 @@ use crate::source_state::TypedTrees;
 use crate::{CompileTimings, ParsedStageSources, SourcePreparation};
 use checked_program_to_psi as production;
 use checked_program_to_psi::{
-    AcceptedTerminalSource, BuildProtocolUse, ConstantRead, PreparedTerminalPublication,
+    AcceptedTerminalSource, ConstantRead, PreparedTerminalPublication,
     ProducedTerminalProgram, TerminalSourceCompilation,
 };
 use declaration_scope::PackageDeclarationScope;
@@ -316,8 +316,8 @@ pub struct PreparedBuildInvocation {
 }
 
 impl PreparedBuildInvocation {
-    pub fn build_protocol_use(&self) -> BuildProtocolUse {
-        self.publication.build_protocol_use()
+    pub fn uses_build_filesystem(&self) -> bool {
+        self.publication.uses_build_filesystem()
     }
 
     pub fn publish(

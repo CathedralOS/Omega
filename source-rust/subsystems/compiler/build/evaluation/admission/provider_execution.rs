@@ -12,8 +12,8 @@ pub(crate) struct BuildProviderScope {
 }
 
 pub(crate) struct BuildProviderInstallation {
-    pub(crate) checked: psi_provider_selections::AdmittedProviderSelections,
-    pub(crate) intrinsics: numeric_intrinsic_admission::AdmittedTerminalIntrinsics,
+    pub(crate) supplies: terminal_interpreter::TerminalRuntimeSupplies,
+    pub(crate) awaited: Vec<semantic_vocabulary::BoundaryMachineId>,
 }
 
 impl BuildProviderScope {
@@ -78,12 +78,46 @@ impl BuildProviderScope {
             .ok_or_else(|| failure("Build lost its source-issued declarations"))?
             .admit_captured_execution(artifact, pending.entry, &pending.calls)
             .map_err(failure)?;
+        let requests = program
+            .build_requests()
+            .calls_for(artifact)
+            .ok_or_else(|| failure("Build requests lost their artifact custody"))?;
+        let bindings = program
+            .build_bindings()
+            .calls_for(artifact)
+            .ok_or_else(|| failure("Build bindings lost their artifact custody"))?;
+        let queries = program
+            .build_bindings()
+            .queries_for(artifact)
+            .ok_or_else(|| failure("Build queries lost their artifact custody"))?;
+        let filesystem = program
+            .build_filesystem()
+            .calls_for(artifact)
+            .ok_or_else(|| failure("Build filesystem calls lost their artifact custody"))?;
+        let mut host_imports = requests
+            .iter()
+            .map(|call| call.site.boundary)
+            .chain(bindings.iter().map(|call| call.site.boundary))
+            .chain(queries.iter().map(|call| call.site.boundary))
+            .chain(filesystem.iter().map(|call| call.site.boundary))
+            .collect::<Vec<_>>();
+        host_imports.sort_unstable();
+        host_imports.dedup();
+        let mut awaited = Vec::new();
+        for call in bindings.iter() {
+            if let source_compiler::representations::declaration_selection::BuildSelectionRequest::ProviderReadiness(request) = &call.request {
+                awaited.extend_from_slice(&request.requirement.boundaries);
+            }
+        }
+        awaited.sort_unstable();
+        awaited.dedup();
+
         let program = terminal_interpreter::TerminalProgram::borrow(artifact);
-        let supplies = program
+        let mut supplies = program
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
                 installation: Some(&checked),
                 native_code_layouts: None,
-                host_imports: &[],
+                host_imports: &host_imports,
                 external_completions: &[],
                 entry: None,
                 x86_flags: None,
@@ -92,6 +126,11 @@ impl BuildProviderScope {
                 target_layouts: None,
             })
             .map_err(|reason| failure(format!("Build selected provider supplies: {reason:?}")))?;
+        for &boundary in &awaited {
+            supplies = program
+                .defer_component(supplies, boundary)
+                .map_err(|error| failure(format!("Build awaited provider: {error:?}")))?;
+        }
         let demand = program
             .execution_requirements(Some(&supplies))
             .map_err(|reason| {
@@ -99,55 +138,24 @@ impl BuildProviderScope {
                     "Build selected provider execution closure: {reason:?}"
                 ))
             })?;
-        // A selection is complete only against what the module actually
-        // calls. A provider the module demands and no plan supplies would
-        // otherwise surface as a failed call after authored code has run.
-        if !demand.missing_providers.is_empty() {
-            return Err(demand
-                .missing_providers
-                .iter()
-                .map(|slot| {
-                    let requirement = module
-                        .boundary_machine(*slot)
-                        .and_then(|declaration| module.identities.text(declaration.identity));
-                    Diagnostic::error(format!(
-                        "Build requires `{}` before entry; no interpreter provider was supplied",
-                        requirement.unwrap_or("<unknown boundary>"),
-                    ))
-                })
-                .collect());
-        }
-        let demanded = demand
-            .imports
+        let missing = demand
+            .missing_providers
             .iter()
-            .map(|slot| {
-                let boundary = terminal_psi::find_boundary_machine(
-                    &module.interfaces.boundary_machines,
-                    *slot,
-                )
-                .ok_or_else(|| {
-                    failure(format!("Build import {slot:?} has no boundary declaration"))
-                })?;
-                module
-                    .identities
-                    .text(boundary.identity)
-                    .filter(|identity| !identity.is_empty())
-                    .map(str::to_owned)
-                    .ok_or_else(|| {
-                        failure(format!("Build import {slot:?} has no callable identity"))
-                    })
-            })
-            .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
-        let intrinsics = numeric_intrinsic_admission::admit_terminal_intrinsics(
-            artifact,
-            &selected_provider_plans::SelectedProviderPlanFacts::default(),
-            std::iter::empty(),
-            &demanded,
-        )?;
-        Ok(BuildProviderInstallation {
-            checked,
-            intrinsics,
-        })
+            .chain(demand.imports.iter().filter(|slot| {
+                host_imports.binary_search(slot).is_err() && awaited.binary_search(slot).is_err()
+            }));
+        let errors: Vec<_> = missing.map(|slot| {
+            let requirement = module.boundary_machine(*slot)
+                .and_then(|declaration| module.identities.text(declaration.identity));
+            Diagnostic::error(format!(
+                "Build requires `{}` before entry; no interpreter provider or host binding was supplied",
+                requirement.unwrap_or("<unknown boundary>"),
+            ))
+        }).collect();
+        if !errors.is_empty() {
+            return Err(errors);
+        }
+        Ok(BuildProviderInstallation { supplies, awaited })
     }
 }
 
