@@ -358,6 +358,88 @@ machine finish(reader: @mutable SectionReader) {
     machine done() {}
 }
 
+// Package acquisition assigns one-byte tags inside the length-framed lineage.
+machine take_octet(reader: @mutable SectionReader, request: @|input|::Request, high: u8) -> u8
+crashes Trap
+{
+    let end: u64 in Trapping = reader.end;
+    transition !reader.failed && reader.cursor < end {
+        true -> read(reader, request, high),
+        _ -> rejected(reader, end)
+    }
+
+    machine read(reader: @mutable SectionReader, request: @|input|::Request, high: u8) -> u8 {
+        let at: u64 in Trapping = reader.cursor;
+        let tag: u8 = |input|::request_byte(request, at);
+        transition tag <= high {
+            true -> consume(reader, tag),
+            _ -> rejected(reader, at)
+        }
+    }
+
+    machine consume(reader: @mutable SectionReader, tag: u8) -> u8 {
+        advance(reader, 1 as +Trapping);
+        tag
+    }
+
+    machine rejected(reader: @mutable SectionReader, offset: u64 in Trapping) -> u8 {
+        fail(reader, offset);
+        0
+    }
+}
+
+// Bound every inner read to the lineage itself so a truncated origin cannot
+// consume the following revision. All six families finish with a path field.
+machine take_lineage(reader: @mutable SectionReader, request: @|input|::Request)
+crashes Trap
+{
+    let outer_end: u64 in Trapping = reader.end;
+    let start: u64 in Trapping = take_bytes(reader, request);
+    let end: u64 in Trapping = reader.cursor;
+    reader.end = end;
+    reader.cursor = start;
+    let family: u8 = take_octet(reader, request, 5);
+    prefix(reader, request, family);
+    let path: u64 in Trapping = take_bytes(reader, request);
+    finish(reader);
+    reader.cursor = end;
+    reader.end = outer_end;
+
+    machine prefix(reader: @mutable SectionReader, request: @|input|::Request, family: u8) {
+        transition family {
+            0 -> string_field(reader, request),
+            1 -> empty(),
+            2 -> git(reader, request),
+            _ -> advance(reader, 32 as +Trapping)
+        }
+    }
+
+    machine git(reader: @mutable SectionReader, request: @|input|::Request) {
+        let transport: u8 = take_octet(reader, request, 2);
+        let user: u8 = take_octet(reader, request, 1);
+        optional_user(reader, request, user);
+        string_field(reader, request);
+        let port: u8 = take_octet(reader, request, 1);
+        transition port {
+            1 -> advance(reader, 2 as +Trapping),
+            _ -> empty()
+        }
+    }
+
+    machine optional_user(reader: @mutable SectionReader, request: @|input|::Request, present: u8) {
+        transition present {
+            1 -> string_field(reader, request),
+            _ -> empty()
+        }
+    }
+
+    machine string_field(reader: @mutable SectionReader, request: @|input|::Request) {
+        let start: u64 in Trapping = take_bytes(reader, request);
+    }
+
+    machine empty() {}
+}
+
 // Phases 2 and 6: the subject's and the invocation's field/tag shape, read
 // positionally in the contract's table order. Reads are fail-sticky, so a
 // table whose count failed reads no rows. A request that survives is
@@ -370,8 +452,8 @@ crashes Trap
 {
     let mutable reader: SectionReader;
     open(@mutable reader, sections.subject_start, sections.subject_end);
-    // A package row is at least its eight framing words and snapshot count.
-    let packages: u64 in Trapping = take_count(@mutable reader, request, 36 as +Trapping);
+    // Eight outer words and the smallest lineage (GitLab tag and path length).
+    let packages: u64 in Trapping = take_count(@mutable reader, request, 37 as +Trapping);
     transition { _ -> package(request, sections, @mutable reader, packages, 0 as +Trapping) }
 
     machine package(request: @|input|::Request, sections: Sections, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> |results|::Outcome {
@@ -383,8 +465,7 @@ crashes Trap
 
     machine package_fields(request: @|input|::Request, sections: Sections, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> |results|::Outcome {
         let name: u64 in Trapping = take_bytes(reader, request);
-        let lineage_kind: u64 in Trapping = take_tag(reader, request, 1 as +Trapping, 2 as +Trapping);
-        let lineage: u64 in Trapping = take_bytes(reader, request);
+        take_lineage(reader, request);
         let revision: u64 in Trapping = take_bytes(reader, request);
         let tree: u64 in Trapping = take_bytes(reader, request);
         let content: u64 in Trapping = take_bytes(reader, request);
