@@ -81,7 +81,11 @@ machine build(build: @mutable Build) {{
     fs::write(
         project.join("main.omg"),
         r#"use {pinned_answers}/answer.omg as answer;
-machine main() crashes Trap { if |answer|::value() != 37u64 { crash Trap; } }"#,
+machine main() crashes Trap {
+    transition |answer|::value() { 37u64 -> passed(), _ -> failed() }
+    machine passed() {}
+    machine failed() { crash Trap; }
+}"#,
     )
     .unwrap();
 
