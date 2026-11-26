@@ -20,7 +20,7 @@ use super::{
     BUILDER_PARAMETER_NAME, MEMBER_MACHINE_NAME, PACKAGE_MACHINE_NAME,
 };
 use build_declarations::{
-    ApplicationDeclaration, BUILD_TYPE_NAME, BuildDeclaration, BuildDeclarationKind,
+    ApplicationDeclaration, BUILD_TYPE_NAME, BuildDeclaration, BuildDeclarationKind, DependencyOperation,
     PackageDeclaration, ProjectName, WorkspaceDeclaration, WorkspaceMemberPath,
 };
 use syntax_trees::SyntaxTrees;

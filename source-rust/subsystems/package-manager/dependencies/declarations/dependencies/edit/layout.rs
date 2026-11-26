@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn quoted_delimiters_leave_the_build_body_and_dependency_row_intact() {
-        let source = r#"
+        let source = r#"use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, "}");
     _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "(" }));
