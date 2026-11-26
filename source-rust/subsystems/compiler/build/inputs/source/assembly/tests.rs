@@ -261,7 +261,7 @@ machine build(builder: @mutable Build) suspends {
 use {omega}/build/dependency.omg as dependencies;
 machine build(builder: @mutable Build) {
     let kit: DependencyDescription = |dependencies|::from_source(Source::Path { location: "lib" });
-    Build::dependency(builder, kit);
+    _ = Build::dependency(builder, kit);
     Build::bind(builder, linux_x86_64\ProgramEntry, |scores|::main);
 }
 "#;

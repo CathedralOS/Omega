@@ -45,7 +45,7 @@ fn run(target: &str, provider: Option<&str>, before_read: &str) -> (Output, Stri
 {provider_files}
 machine build(builder: @mutable Build) {{
     let source: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "../meter" }});
-    Build::dependency(builder, source);
+    _ = Build::dependency(builder, source);
     Build::build_entry(builder, "configure.omg");
     {selection}
 }}"#
