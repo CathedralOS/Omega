@@ -85,6 +85,24 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
 }
 
 #[test]
+fn a_mutably_borrowed_generic_value_can_cross_an_unchanged_call() {
+    let package = PackageKeyIdentity::from_digest([0x74; 32]).unwrap();
+    let source = "data Item { field: i32; }
+        machine inner<T>(value: @mutable T) {}
+        public machine outer<T>(value: @mutable T) { inner::<T>(value); }
+        public machine observed() -> i32 {
+            let mutable item: Item = Item { field: 42 };
+            outer::<Item>(@mutable item);
+            item.field
+        }";
+    let (files, root) = captured(package, source);
+    let program = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+    let bytes = program.to_bytes();
+    let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    assert_eq!(reopened.to_bytes(), bytes);
+}
+
+#[test]
 fn a_static_callback_requirement_reads_the_type_supplied_by_its_generic_machine() {
     let package = PackageKeyIdentity::from_digest([0x75; 32]).unwrap();
     let source = "data Item { value: i32; }
