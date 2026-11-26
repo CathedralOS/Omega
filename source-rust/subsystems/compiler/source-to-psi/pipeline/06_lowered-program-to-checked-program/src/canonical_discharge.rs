@@ -43,27 +43,35 @@ use terminal_check_tables::obligations::{
 };
 use terminal_check_tables::values::{Justification, KnowledgeRow, ValueOrigin, ValueRow};
 use terminal_check_tables::{MachineTables, ProgramPoint, Refusal, RefusalSite};
+use terminal_psi::machines::ByteSequenceOperand;
 use terminal_psi::{
-    ArrayExtent, Block, BoundaryMachineDeclaration, BoundaryMachineResult, ByteSequenceCarrier,
-    CallAcknowledgement, CallFormation, CallOrigin, CallSite, CheckedBoundaryCallable,
-    CheckedBoundaryExecution, CheckedMachineCapture, CheckedMachineDeclaration,
-    CheckedMachineSpecialization, ClosedReachApplication, ClosedReachCall, ClosedReachCapture,
-    ClosedReachParameter, CompletionReceipt, ContractClause, ElementViewRegion, EntryClaim,
-    ExecutionSite, FloatResultPolicy, LayoutMeasurement, MachineContract,
+    ArrayExtent, Block, BoundaryLifetimeDependency, BoundaryMachineDeclaration,
+    BoundaryMachineResult, ByteSequenceCarrier, ByteSequencePredicate, CallAcknowledgement,
+    CallFormation, CallOrigin, CallSite, CheckedBoundaryCallable, CheckedBoundaryExecution,
+    CheckedMachineCapture, CheckedMachineDeclaration, CheckedMachineSpecialization,
+    ClosedConformanceApplication, ClosedConformanceCallableResult,
+    ClosedConformanceParameterBinding, ClosedConformanceParameterKind,
+    ClosedConformanceRealizationCallable, ClosedConformanceRow, ClosedConformanceSchema,
+    ClosedConformanceSchemaKind, ClosedConformanceStaticApplication, ClosedReachApplication,
+    ClosedReachArgument, ClosedReachCall, ClosedReachCapture, ClosedReachParameter,
+    CompletionReceipt, ContractClause, DeclaredResultLifetime, ElementViewRegion, EntryClaim,
+    ExecutionSite, FenceOrdering, FloatResultPolicy, LayoutMeasurement, MachineContract,
     NominalDeclarationIdentity, Operation, OperationKind, OperationResult, PublishedWriteFrame,
-    RecordFieldValue, ReferenceStorageView, ResolvedStructuralPathSegment,
-    ResultQualificationEstablishment, RuntimeDomainMembership, ScalarApplication,
-    ScalarBlockInvariant, ScalarDomainDeclaration, ScalarQualificationSet, ServiceDeclaration,
-    StaticRequirementDispatch, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralCaseDeclaration, StructuralDomainAccessPlan, StructuralDomainDeclaration,
-    StructuralEstablishmentRoute, StructuralFieldDeclaration, StructuralFieldType,
-    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathQualification, StructuralPathSegment, StructuralPlaceDeclaration,
-    StructuralRecordStorage, StructuralReferentIdentity, StructuralResultDeclaration,
+    RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, ResidentReferenceSource,
+    ResolvedStructuralPathSegment, ResultQualificationEstablishment, RuntimeDomainMembership,
+    ScalarApplication, ScalarBlockInvariant, ScalarCaseField, ScalarDomainDeclaration,
+    ScalarQualificationSet, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
+    StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
+    StructuralDomainAccessPlan, StructuralDomainDeclaration, StructuralEstablishmentRoute,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathQualification,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralRecordStorage,
+    StructuralReferentIdentity, StructuralResultDeclaration, StructuralStoreDisposition,
     StructuralTypeDeclaration, StructuralTypeShape, TargetMachineCallable,
-    TerminalAffineCleanupAction, TerminalIdentityIndex, TerminalIdentityTable,
-    TerminalIntegerRankValue, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalNaturalCycle, TerminalRankedScc, Terminator,
+    TerminalAffineCleanupAction, TerminalCallableEnvelope, TerminalCallableInvocation,
+    TerminalCallableTermination, TerminalCallableTerminationPremise, TerminalIdentityIndex,
+    TerminalIdentityTable, TerminalIntegerRankValue, TerminalMachine, TerminalMachineResult,
+    TerminalModule, TerminalNaturalCycle, TerminalRankedScc, Terminator, TrappingIntegerOperation,
 };
 
 use crate::graph::Graph;
@@ -355,6 +363,7 @@ struct PendingQueues {
     services: Vec<ServiceId>,
     boundaries: Vec<BoundaryMachineId>,
     scalar_applications: Vec<ScalarApplicationId>,
+    declaration_contracts: Vec<ContractId>,
 }
 
 impl PendingQueues {
@@ -367,6 +376,7 @@ impl PendingQueues {
             && self.services.is_empty()
             && self.boundaries.is_empty()
             && self.scalar_applications.is_empty()
+            && self.declaration_contracts.is_empty()
     }
 }
 
@@ -375,6 +385,9 @@ struct CanonicalEncoder<'a> {
     module: &'a TerminalModule,
     maps: CanonicalIdMaps,
     pending: PendingQueues,
+    queued_declaration_contracts: Vec<u32>,
+    needs_root_declaration: bool,
+    needs_root_checked_requirement: bool,
     writer: KeyWriter,
 }
 
@@ -385,6 +398,9 @@ impl<'a> CanonicalEncoder<'a> {
             module: view.module,
             maps: CanonicalIdMaps::default(),
             pending: PendingQueues::default(),
+            queued_declaration_contracts: Vec::new(),
+            needs_root_declaration: false,
+            needs_root_checked_requirement: false,
             writer: KeyWriter::default(),
         }
     }
@@ -462,6 +478,15 @@ impl<'a> CanonicalEncoder<'a> {
 
     fn contract(&mut self, id: ContractId) {
         let (canonical, _) = self.maps.contracts.intern(id);
+        self.writer.u32(canonical);
+    }
+
+    fn required_contract(&mut self, id: ContractId) {
+        let (canonical, _) = self.maps.contracts.intern(id);
+        if !self.queued_declaration_contracts.contains(&canonical) {
+            self.queued_declaration_contracts.push(canonical);
+            self.pending.declaration_contracts.push(id);
+        }
         self.writer.u32(canonical);
     }
 
@@ -1382,14 +1407,9 @@ impl<'a> CanonicalEncoder<'a> {
             s.structural_parameter(p)
         })?;
         self.machine_result(&contract.result)?;
-        if contract
-            .result_lifetimes
-            .as_ref()
-            .is_some_and(|lifetimes| !lifetimes.is_empty())
-        {
-            return Err(());
-        }
-        self.writer.bool(contract.result_lifetimes.is_some());
+        self.option(contract.result_lifetimes.as_deref(), |s, lifetimes| {
+            s.slice(lifetimes, Self::declared_result_lifetime)
+        })?;
         self.slice(&contract.entry_claims, Self::entry_claim)?;
         self.option(contract.declared_service_reach.as_ref(), |s, services| {
             s.slice(services, |s, &id| {
@@ -1746,6 +1766,41 @@ impl<'a> CanonicalEncoder<'a> {
         self.writer.id64(lowered.entry);
         self.slice(&lowered.blocks, Self::block)?;
         self.machine_contract(&lowered.contract)?;
+        self.option(
+            self.module.execution.callables.machine_envelope(id),
+            Self::callable_envelope,
+        )?;
+        let mut owned_applications: Vec<&ClosedConformanceApplication> = self
+            .module
+            .proofs
+            .closed_conformance_applications
+            .iter()
+            .filter(|app| app.owner == id)
+            .collect();
+        owned_applications
+            .sort_unstable_by_key(|app| (app.commitment.as_bytes(), app.report_fingerprint));
+        self.slice(&owned_applications, |s, app| {
+            s.closed_conformance_application(app)
+        })?;
+        let mut qual_changes: Vec<&terminal_psi::StructuralQualificationChange> = self
+            .module
+            .types
+            .structural_qualification_changes
+            .iter()
+            .filter(|change| change.machine == id)
+            .collect();
+        qual_changes.sort_unstable_by_key(|c| (c.edge, c.argument_ordinal));
+        self.slice(&qual_changes, |s, change| {
+            s.writer.id64(change.edge);
+            s.writer.u32(change.argument_ordinal);
+            s.writer.id64(change.source);
+            s.writer.id64(change.destination);
+            s.slice(&change.establishments, |s, est| {
+                s.structural_domain(est.domain);
+                s.writer.u32(est.route);
+                Ok(())
+            })
+        })?;
         Ok(())
     }
 
@@ -1857,7 +1912,7 @@ impl<'a> CanonicalEncoder<'a> {
             return Err(());
         }
         self.option(op.required_contract, |s, c| {
-            s.contract(c);
+            s.required_contract(c);
             Ok(())
         })?;
         self.writer.id64(op.id);
@@ -2332,27 +2387,7 @@ impl<'a> CanonicalEncoder<'a> {
             }
             OperationKind::EstablishRecord { fields } => {
                 self.writer.u8(37);
-                self.slice(fields, |s, init| {
-                    s.structural_field(init.field);
-                    match &init.value {
-                        RecordFieldValue::Scalar {
-                            value,
-                            range_obligation,
-                        } => {
-                            s.writer.u8(0);
-                            s.writer.id64(*value);
-                            s.option(*range_obligation, |s, ob| {
-                                s.writer.id64(ob);
-                                Ok(())
-                            })?;
-                        }
-                        RecordFieldValue::Structural(arg) => {
-                            s.writer.u8(1);
-                            s.structural_argument(arg)?;
-                        }
-                    }
-                    Ok(())
-                })?;
+                self.encode_record_fields(fields)?;
             }
             OperationKind::EstablishScalarArray { elements } => {
                 self.writer.u8(38);
@@ -2386,9 +2421,555 @@ impl<'a> CanonicalEncoder<'a> {
                 self.writer.u8(43);
                 self.structural_argument(source)?;
             }
+            OperationKind::ElementViewRead {
+                source,
+                index,
+                length,
+                obligation,
+                path,
+            } => {
+                self.writer.u8(44);
+                self.structural_argument(source)?;
+                self.writer.id64(*index);
+                self.writer.id64(*length);
+                self.writer.id64(*obligation);
+                self.slice(path, Self::structural_path_segment)?;
+            }
+            OperationKind::ElementViewSubslice {
+                source,
+                start,
+                end,
+                length,
+                obligation,
+            } => {
+                self.writer.u8(45);
+                self.structural_argument(source)?;
+                self.writer.id64(*start);
+                self.writer.id64(*end);
+                self.writer.id64(*length);
+                self.writer.id64(*obligation);
+            }
+            OperationKind::ElementViewWrite {
+                destination,
+                path,
+                index,
+                value,
+                length,
+                obligation,
+            } => {
+                self.writer.u8(46);
+                self.structural_argument(destination)?;
+                self.slice(path, Self::structural_path_segment)?;
+                self.writer.id64(*index);
+                self.writer.id64(*value);
+                self.writer.id64(*length);
+                self.writer.id64(*obligation);
+            }
+            OperationKind::EstablishScalarCase {
+                result_case,
+                fields,
+            } => {
+                self.writer.u8(47);
+                self.structural_case(*result_case);
+                self.slice(fields, |s, field: &ScalarCaseField| {
+                    s.structural_field(field.field);
+                    s.writer.id64(field.value);
+                    s.option(field.range_obligation, |s, ob| {
+                        s.writer.id64(ob);
+                        Ok(())
+                    })
+                })?;
+            }
+            OperationKind::EstablishStructuralCase {
+                result_case,
+                fields,
+            } => {
+                self.writer.u8(48);
+                self.structural_case(*result_case);
+                self.encode_record_fields(fields)?;
+            }
+            OperationKind::StructuralCaseMembership { source, path, case } => {
+                self.writer.u8(49);
+                self.writer.id64(*source);
+                self.slice(path, Self::structural_path_segment)?;
+                self.structural_case(*case);
+            }
+            OperationKind::PrimitiveScalarRead { source, path } => {
+                self.writer.u8(50);
+                self.writer.id64(*source);
+                self.slice(path, Self::structural_path_segment)?;
+            }
+            OperationKind::WriteOnlyPrimitiveStore {
+                destination,
+                path,
+                value,
+                range_obligation,
+            } => {
+                self.writer.u8(51);
+                self.writer.id64(*destination);
+                self.slice(path, Self::structural_path_segment)?;
+                self.writer.id64(*value);
+                self.option(*range_obligation, |s, ob| {
+                    s.writer.id64(ob);
+                    Ok(())
+                })?;
+            }
+            OperationKind::StructuralScalarFieldStore {
+                destination,
+                path,
+                field,
+                value,
+                range_obligation,
+            } => {
+                self.writer.u8(52);
+                self.writer.id64(*destination);
+                self.slice(path, Self::structural_path_segment)?;
+                self.structural_field(*field);
+                self.writer.id64(*value);
+                self.option(*range_obligation, |s, ob| {
+                    s.writer.id64(ob);
+                    Ok(())
+                })?;
+            }
+            OperationKind::MoveStructuralField {
+                source,
+                path,
+                field,
+            } => {
+                self.writer.u8(53);
+                self.writer.id64(*source);
+                self.slice(path, Self::structural_path_segment)?;
+                self.option(*field, |s, f| {
+                    s.structural_field(f);
+                    Ok(())
+                })?;
+            }
+            OperationKind::StoreStructuralField {
+                disposition,
+                destination,
+                path,
+                field,
+                value,
+            } => {
+                self.writer.u8(54);
+                self.writer.u8(match disposition {
+                    StructuralStoreDisposition::Vacant => 0,
+                    StructuralStoreDisposition::ReplaceDiscardable => 1,
+                });
+                self.writer.id64(*destination);
+                self.slice(path, Self::structural_path_segment)?;
+                self.option(*field, |s, f| {
+                    s.structural_field(f);
+                    Ok(())
+                })?;
+                self.structural_argument(value)?;
+            }
+            OperationKind::MoveStructuralValue { source } => {
+                self.writer.u8(55);
+                self.structural_argument(source)?;
+            }
+            OperationKind::DecomposeStructuralValue { subject } => {
+                self.writer.u8(56);
+                self.needs_root_declaration = true;
+                self.structural_argument(subject)?;
+            }
+            OperationKind::StructuralLeafCopy { source, path } => {
+                self.writer.u8(57);
+                self.writer.id64(*source);
+                self.slice(path, Self::structural_path_segment)?;
+            }
+            OperationKind::StructuralCaseLeafCopy { source, path } => {
+                self.writer.u8(58);
+                self.writer.id64(*source);
+                self.slice(path, |s, seg| {
+                    s.canonical_segment(*seg);
+                    Ok(())
+                })?;
+            }
+            OperationKind::BooleanNot { operand } => {
+                self.writer.u8(59);
+                self.writer.id64(*operand);
+            }
+            OperationKind::TrappingInteger { operation } => {
+                self.writer.u8(60);
+                self.trapping_integer_operation(*operation);
+            }
+            OperationKind::BooleanStructuralField {
+                source,
+                path,
+                field,
+            } => {
+                self.writer.u8(61);
+                self.writer.id64(*source);
+                self.slice(path, |s, seg| {
+                    s.canonical_segment(*seg);
+                    Ok(())
+                })?;
+                self.structural_field(*field);
+            }
+            OperationKind::ScalarStructuralField {
+                source,
+                path,
+                field,
+            } => {
+                self.writer.u8(62);
+                self.writer.id64(*source);
+                self.slice(path, |s, seg| {
+                    s.canonical_segment(*seg);
+                    Ok(())
+                })?;
+                self.structural_field(*field);
+            }
+            OperationKind::StorageAddress { source } => {
+                self.writer.u8(63);
+                self.structural_argument(source)?;
+            }
+            OperationKind::StorageAlignment { source } => {
+                self.writer.u8(64);
+                self.structural_argument(source)?;
+            }
+            OperationKind::EstablishAccessReference { source, resident } => {
+                self.writer.u8(65);
+                self.structural_argument(source)?;
+                self.option(*resident, |s, r: ResidentReferenceSource| {
+                    s.structural_field(r.base);
+                    s.structural_field(r.length);
+                    s.structural_domain(r.granted);
+                    s.structural_domain(r.resident);
+                    Ok(())
+                })?;
+            }
+            OperationKind::ByteSequenceStore {
+                destination,
+                source,
+                length,
+                obligation,
+            } => {
+                self.writer.u8(66);
+                self.writer.id64(*destination);
+                self.writer.id64(*source);
+                self.writer.id64(*length);
+                self.writer.id64(*obligation);
+            }
+            OperationKind::ByteSequenceRead {
+                source,
+                index,
+                length,
+                obligation,
+            } => {
+                self.writer.u8(67);
+                self.writer.id64(*source);
+                self.writer.id64(*index);
+                self.writer.id64(*length);
+                self.writer.id64(*obligation);
+            }
+            OperationKind::ByteSequenceWrite {
+                destination,
+                index,
+                value,
+                length,
+                obligation,
+            } => {
+                self.writer.u8(68);
+                self.writer.id64(*destination);
+                self.writer.id64(*index);
+                self.writer.id64(*value);
+                self.writer.id64(*length);
+                self.writer.id64(*obligation);
+            }
+            OperationKind::ByteSequenceSubslice {
+                source,
+                start,
+                end,
+                length,
+                obligation,
+            } => {
+                self.writer.u8(69);
+                self.structural_argument(source)?;
+                self.writer.id64(*start);
+                self.writer.id64(*end);
+                self.writer.id64(*length);
+                self.writer.id64(*obligation);
+            }
+            OperationKind::ByteSequencePredicate { operand, predicate } => {
+                self.writer.u8(70);
+                self.byte_sequence_operand(operand)?;
+                let pred: ByteSequencePredicate = *predicate;
+                self.writer.u8(pred as u8);
+            }
+            OperationKind::ByteSequenceEqual { left, right } => {
+                self.writer.u8(71);
+                self.byte_sequence_operand(left)?;
+                self.byte_sequence_operand(right)?;
+            }
+            OperationKind::EstablishByteSequenceConcatenation {
+                left,
+                right,
+                capacity_obligation,
+            } => {
+                self.writer.u8(72);
+                self.byte_sequence_operand(left)?;
+                self.byte_sequence_operand(right)?;
+                self.writer.id64(*capacity_obligation);
+            }
+            OperationKind::StructuralByteSequenceFieldLength {
+                source,
+                path,
+                field,
+            } => {
+                self.writer.u8(73);
+                self.writer.id64(*source);
+                self.slice(path, Self::structural_path_segment)?;
+                self.structural_field(*field);
+            }
+            OperationKind::StructuralByteSequenceFieldByteStore {
+                destination,
+                path,
+                field,
+                index,
+                value,
+                length,
+                obligation,
+            } => {
+                self.writer.u8(74);
+                self.writer.id64(*destination);
+                self.slice(path, Self::structural_path_segment)?;
+                self.structural_field(*field);
+                self.writer.id64(*index);
+                self.writer.id64(*value);
+                self.writer.id64(*length);
+                self.writer.id64(*obligation);
+            }
+            OperationKind::StructuralByteSequenceFieldStore {
+                destination,
+                path,
+                field,
+                source,
+                length,
+                obligation,
+            } => {
+                self.writer.u8(75);
+                self.writer.id64(*destination);
+                self.slice(path, Self::structural_path_segment)?;
+                self.structural_field(*field);
+                self.writer.id64(*source);
+                self.writer.id64(*length);
+                self.writer.id64(*obligation);
+            }
+            OperationKind::StructuralByteViewFieldStore {
+                destination,
+                path,
+                field,
+                source,
+                predicate_obligation,
+            } => {
+                self.writer.u8(76);
+                self.writer.id64(*destination);
+                self.slice(path, Self::structural_path_segment)?;
+                self.option(*field, |s, f| {
+                    s.structural_field(f);
+                    Ok(())
+                })?;
+                self.writer.id64(*source);
+                self.option(*predicate_obligation, |s, ob| {
+                    s.writer.id64(ob);
+                    Ok(())
+                })?;
+            }
+            OperationKind::StructuralByteSequenceFieldRead {
+                source,
+                path,
+                field,
+                index,
+                length,
+                obligation,
+            } => {
+                self.writer.u8(77);
+                self.writer.id64(*source);
+                self.slice(path, Self::structural_path_segment)?;
+                self.structural_field(*field);
+                self.writer.id64(*index);
+                self.writer.id64(*length);
+                self.writer.id64(*obligation);
+            }
+            OperationKind::IeeeFloatCompare {
+                comparison,
+                left,
+                right,
+            } => {
+                self.writer.u8(78);
+                self.writer.u8(comparison.ordinal());
+                self.writer.id64(*left);
+                self.writer.id64(*right);
+            }
+            OperationKind::ScalarRepresentationView {
+                operand,
+                landing_obligation,
+            } => {
+                self.writer.u8(79);
+                self.writer.id64(*operand);
+                self.option(*landing_obligation, |s, ob| {
+                    s.writer.id64(ob);
+                    Ok(())
+                })?;
+            }
+            OperationKind::NearestIeeeFloatFusedMultiplyAdd {
+                left,
+                right,
+                addend,
+            } => {
+                self.writer.u8(80);
+                self.writer.id64(*left);
+                self.writer.id64(*right);
+                self.writer.id64(*addend);
+            }
+            OperationKind::ReleaseActivationClaim { source, claim } => {
+                self.writer.u8(81);
+                self.structural_argument(source)?;
+                self.writer.id64(*claim);
+            }
+            OperationKind::SplitActivationClaim {
+                source,
+                claim,
+                bound_at,
+                committed_at,
+                covered_case,
+                rejected_case,
+            } => {
+                self.writer.u8(82);
+                self.structural_argument(source)?;
+                self.writer.id64(*claim);
+                self.writer.u64(*bound_at);
+                self.writer.id64(*committed_at);
+                self.structural_case(*covered_case);
+                self.structural_case(*rejected_case);
+            }
+            OperationKind::MergeActivationClaim {
+                lower,
+                upper,
+                lower_claim,
+                upper_claim,
+                covered_case,
+                rejected_case,
+            } => {
+                self.writer.u8(83);
+                self.structural_argument(lower)?;
+                self.structural_argument(upper)?;
+                self.writer.id64(*lower_claim);
+                self.writer.id64(*upper_claim);
+                self.structural_case(*covered_case);
+                self.structural_case(*rejected_case);
+            }
+            OperationKind::AtomicFence { ordering } => {
+                self.writer.u8(84);
+                self.writer.u8(match ordering {
+                    FenceOrdering::Receive => 0,
+                    FenceOrdering::Publish => 1,
+                    FenceOrdering::ReceivePublish => 2,
+                });
+            }
+            OperationKind::PortWrite {
+                service,
+                port,
+                value,
+            } => {
+                self.writer.u8(85);
+                self.service(*service);
+                self.writer.u16(*port);
+                self.writer.u8(*value);
+            }
             _ => return Err(()),
         }
         Ok(())
+    }
+
+    fn encode_record_fields(&mut self, fields: &[RecordFieldInitializer]) -> Result<(), ()> {
+        self.slice(fields, |s, init| {
+            s.structural_field(init.field);
+            match &init.value {
+                RecordFieldValue::Scalar {
+                    value,
+                    range_obligation,
+                } => {
+                    s.writer.u8(0);
+                    s.writer.id64(*value);
+                    s.option(*range_obligation, |s, ob| {
+                        s.writer.id64(ob);
+                        Ok(())
+                    })?;
+                }
+                RecordFieldValue::Structural(arg) => {
+                    s.writer.u8(1);
+                    s.structural_argument(arg)?;
+                }
+            }
+            Ok(())
+        })
+    }
+
+    fn byte_sequence_operand(&mut self, operand: &ByteSequenceOperand) -> Result<(), ()> {
+        match operand {
+            ByteSequenceOperand::Whole { source, length } => {
+                self.writer.u8(0);
+                self.structural_argument(source)?;
+                self.writer.id64(*length);
+            }
+            ByteSequenceOperand::Field {
+                source,
+                field,
+                length,
+            } => {
+                self.writer.u8(1);
+                self.structural_argument(source)?;
+                self.structural_field(*field);
+                self.writer.id64(*length);
+            }
+        }
+        Ok(())
+    }
+
+    fn trapping_integer_operation(&mut self, operation: TrappingIntegerOperation) {
+        match operation {
+            TrappingIntegerOperation::Add { left, right } => {
+                self.writer.u8(0);
+                self.writer.id64(left);
+                self.writer.id64(right);
+            }
+            TrappingIntegerOperation::Subtract { left, right } => {
+                self.writer.u8(1);
+                self.writer.id64(left);
+                self.writer.id64(right);
+            }
+            TrappingIntegerOperation::Multiply { left, right } => {
+                self.writer.u8(2);
+                self.writer.id64(left);
+                self.writer.id64(right);
+            }
+            TrappingIntegerOperation::Divide { left, right } => {
+                self.writer.u8(3);
+                self.writer.id64(left);
+                self.writer.id64(right);
+            }
+            TrappingIntegerOperation::Remainder { left, right } => {
+                self.writer.u8(4);
+                self.writer.id64(left);
+                self.writer.id64(right);
+            }
+            TrappingIntegerOperation::ShiftLeft { value, count } => {
+                self.writer.u8(5);
+                self.writer.id64(value);
+                self.writer.id64(count);
+            }
+            TrappingIntegerOperation::ShiftRight { value, count } => {
+                self.writer.u8(6);
+                self.writer.id64(value);
+                self.writer.id64(count);
+            }
+            TrappingIntegerOperation::Convert { operand } => {
+                self.writer.u8(7);
+                self.writer.id64(operand);
+            }
+        }
     }
 
     fn terminator(&mut self, terminator: &Terminator) -> Result<(), ()> {
@@ -2434,7 +3015,7 @@ impl<'a> CanonicalEncoder<'a> {
                 self.writer.u8(2);
                 self.writer.id64(*edge);
                 self.option(*required_contract, |s, c| {
-                    s.contract(c);
+                    s.required_contract(c);
                     Ok(())
                 })?;
                 self.machine(*callee);
@@ -2966,7 +3547,7 @@ impl<'a> CanonicalEncoder<'a> {
             Callee::Selected { .. } => return Err(()),
         }
         self.option(inv.required_contract, |s, c| {
-            s.contract(c);
+            s.required_contract(c);
             Ok(())
         })?;
         self.slice(&inv.actuals, |s, &actual: &Actual| {
@@ -3028,6 +3609,256 @@ impl<'a> CanonicalEncoder<'a> {
             if let Some(app) = self.pending.scalar_applications.pop() {
                 self.writer.u8(0x17);
                 self.encode_scalar_application(app)?;
+                continue;
+            }
+            if let Some(contract_id) = self.pending.declaration_contracts.pop() {
+                self.writer.u8(0x18);
+                self.encode_declaration_contract(contract_id)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn encode_declaration_contract(&mut self, id: ContractId) -> Result<(), ()> {
+        self.option(self.module.declaration_contract(id), |s, c| {
+            s.machine_contract(c)
+        })?;
+        self.option(
+            self.module.execution.callables.declaration_envelope(id),
+            Self::callable_envelope,
+        )
+    }
+
+    fn encode_root_declaration_facts(&mut self, id: MachineId) -> Result<(), ()> {
+        self.writer.bool(self.needs_root_declaration);
+        self.writer.bool(self.needs_root_checked_requirement);
+        if !self.needs_root_declaration && !self.needs_root_checked_requirement {
+            return Ok(());
+        }
+        let lowered = crate::terminal_machine(&self.module.machines, id, id).map_err(|_| ())?;
+        if self.needs_root_declaration {
+            self.option(lowered.declaration.as_ref(), Self::checked_declaration)?;
+        }
+        if self.needs_root_checked_requirement {
+            self.option(lowered.declaration.as_ref(), |s, decl| {
+                let mut routes: Vec<(TerminalIdentityIndex, TerminalIdentityIndex)> = Vec::new();
+                for application in &s.module.proofs.closed_conformance_applications {
+                    let realizes_machine =
+                        application.realization_callables.iter().any(|callable| {
+                            callable.source_callable_identity == decl.callable
+                                && callable.callable == TargetMachineCallable::Machine(id)
+                        });
+                    if !realizes_machine {
+                        continue;
+                    }
+                    for row in &application.rows {
+                        if row.realization_callable_identity == Some(decl.callable) {
+                            routes.push((
+                                row.public_requirement_identity,
+                                row.requirement_declaration.identity(),
+                            ));
+                        }
+                    }
+                }
+                routes.sort_unstable_by_key(|(req, issuer)| {
+                    (
+                        s.module.identities.text(*req).unwrap_or_default(),
+                        s.module.identities.text(*issuer).unwrap_or_default(),
+                    )
+                });
+                routes.dedup_by(|a, b| {
+                    s.module.identities.text(a.0) == s.module.identities.text(b.0)
+                        && s.module.identities.text(a.1) == s.module.identities.text(b.1)
+                });
+                s.slice(&routes, |s, &(req, issuer)| {
+                    s.identity(req)?;
+                    s.identity(issuer)
+                })
+            })?;
+        }
+        Ok(())
+    }
+
+    fn declared_result_lifetime(&mut self, life: &DeclaredResultLifetime) -> Result<(), ()> {
+        self.slice(&life.inputs, |s, dep: &BoundaryLifetimeDependency| {
+            match dep {
+                BoundaryLifetimeDependency::Referent {
+                    argument_index,
+                    access,
+                } => {
+                    s.writer.u8(0);
+                    s.writer.u32(*argument_index);
+                    s.access(*access);
+                }
+                BoundaryLifetimeDependency::Stored {
+                    argument_index,
+                    path,
+                    access,
+                } => {
+                    s.writer.u8(1);
+                    s.writer.u32(*argument_index);
+                    s.slice(path, Self::structural_path_segment)?;
+                    s.access(*access);
+                }
+            }
+            Ok(())
+        })?;
+        self.slice(&life.results, |s, path| {
+            s.slice(path, Self::structural_path_segment)
+        })
+    }
+
+    fn callable_envelope(&mut self, env: &TerminalCallableEnvelope) -> Result<(), ()> {
+        self.slice(&env.service_reach, |s, &id| {
+            s.service(id);
+            Ok(())
+        })?;
+        self.slice(&env.invocations, |s, inv| {
+            match inv {
+                TerminalCallableInvocation::Parameter(pos) => {
+                    s.writer.u8(0);
+                    s.writer.u32(*pos);
+                }
+                TerminalCallableInvocation::Service(id) => {
+                    s.writer.u8(1);
+                    s.service(*id);
+                }
+            }
+            Ok(())
+        })?;
+        self.writer.bool(env.suspends);
+        self.writer.bool(env.blocks);
+        match &env.termination {
+            TerminalCallableTermination::NotGuaranteed => self.writer.u8(0),
+            TerminalCallableTermination::Terminates { premises } => {
+                self.writer.u8(1);
+                self.slice(premises, |s, p: &TerminalCallableTerminationPremise| {
+                    s.writer.u32(p.parameter);
+                    s.slice(&p.path, Self::structural_path_segment)?;
+                    s.structural_domain(p.domain);
+                    Ok(())
+                })?;
+            }
+        }
+        Ok(())
+    }
+
+    fn closed_conformance_application(
+        &mut self,
+        app: &ClosedConformanceApplication,
+    ) -> Result<(), ()> {
+        self.identity(app.declaration_identity)?;
+        self.slice(
+            &app.telescope,
+            |s, b: &ClosedConformanceParameterBinding| {
+                s.writer.str(&b.parameter);
+                s.writer.u8(match b.kind {
+                    ClosedConformanceParameterKind::Lifetime => 0,
+                    ClosedConformanceParameterKind::Type => 1,
+                    ClosedConformanceParameterKind::Const => 2,
+                    ClosedConformanceParameterKind::Machine => 3,
+                });
+                s.writer.str(&b.argument);
+                Ok(())
+            },
+        )?;
+        self.identity(app.trait_identity)?;
+        self.slice(&app.trait_lifetime_arguments, |s, a| {
+            s.writer.str(a);
+            Ok(())
+        })?;
+        self.slice(&app.trait_arguments, |s, a| {
+            s.writer.str(a);
+            Ok(())
+        })?;
+        self.slice(
+            &app.realization_callables,
+            |s, c: &ClosedConformanceRealizationCallable| {
+                s.identity(c.source_callable_identity)?;
+                s.target_callable(c.callable);
+                match c.result {
+                    ClosedConformanceCallableResult::Unit => s.writer.u8(0),
+                    ClosedConformanceCallableResult::Scalar(st) => {
+                        s.writer.u8(1);
+                        s.scalar_type(st)?;
+                    }
+                    ClosedConformanceCallableResult::Structural(ty) => {
+                        s.writer.u8(2);
+                        s.structural_type(ty);
+                    }
+                }
+                Ok(())
+            },
+        )?;
+        self.slice(&app.schemas, |s, schema: &ClosedConformanceSchema| {
+            s.nominal_identity(&schema.requirement_declaration)?;
+            s.identity(schema.declaring_trait_identity)?;
+            s.identity(schema.public_requirement_identity)?;
+            s.identity(schema.requirement_identity)?;
+            s.identity(schema.realization_identity)?;
+            s.writer.usize(schema.definition.len());
+            s.writer.push_bytes(&schema.definition);
+            s.writer.u8(match schema.kind {
+                ClosedConformanceSchemaKind::Nongeneric => 0,
+                ClosedConformanceSchemaKind::Finite => 1,
+                ClosedConformanceSchemaKind::Open => 2,
+            });
+            s.writer.u32(schema.lifetime_parameter_count);
+            s.writer.usize(schema.parameter_kinds.len());
+            s.writer.push_bytes(&schema.parameter_kinds);
+            s.option(schema.finite_tuples.as_ref(), |s, tuples| {
+                s.slice(tuples, |s, tuple| s.slice(tuple, |s, &idx| s.identity(idx)))
+            })
+        })?;
+        self.slice(
+            &app.static_applications,
+            |s, applied: &ClosedConformanceStaticApplication| {
+                s.identity(applied.public_requirement_identity)?;
+                s.identity(applied.realization_identity)?;
+                s.identity(applied.source_callable_identity)?;
+                s.target_callable(applied.callable);
+                s.option(applied.application_commitment, |s, c| {
+                    s.writer.push_bytes(&c);
+                    Ok(())
+                })?;
+                s.slice(&applied.method_arguments, Self::closed_reach_argument)
+            },
+        )?;
+        self.slice(&app.rows, |s, row: &ClosedConformanceRow| {
+            s.nominal_identity(&row.requirement_declaration)?;
+            s.identity(row.declaring_trait_identity)?;
+            s.identity(row.public_requirement_identity)?;
+            s.slice(&row.family_tuple, |s, &idx| s.identity(idx))?;
+            s.identity(row.requirement_identity)?;
+            s.identity(row.realization_identity)?;
+            s.option(row.realization_callable_identity, |s, idx| s.identity(idx))
+        })?;
+        self.writer.u64(app.report_fingerprint);
+        self.writer.push_bytes(&app.commitment.as_bytes());
+        Ok(())
+    }
+
+    fn closed_reach_argument(&mut self, arg: &ClosedReachArgument) -> Result<(), ()> {
+        match arg {
+            ClosedReachArgument::Type(idx) => {
+                self.writer.u8(0);
+                self.identity(*idx)?;
+            }
+            ClosedReachArgument::Const(idx) => {
+                self.writer.u8(1);
+                self.identity(*idx)?;
+            }
+            ClosedReachArgument::Proposition(idx) => {
+                self.writer.u8(2);
+                self.identity(*idx)?;
+            }
+            ClosedReachArgument::Machine {
+                identity,
+                contract_commitment,
+            } => {
+                self.writer.u8(3);
+                self.identity(*identity)?;
+                self.writer.push_bytes(contract_commitment);
             }
         }
         Ok(())
@@ -3344,6 +4175,15 @@ impl<'a> CanonicalEncoder<'a> {
                 Ok(())
             })?;
             s.option(d.establishment_routes.as_ref(), |s, routes| {
+                s.needs_root_declaration = true;
+                if routes.iter().any(|route| {
+                    matches!(
+                        route,
+                        StructuralEstablishmentRoute::CheckedRequirement { .. }
+                    )
+                }) {
+                    s.needs_root_checked_requirement = true;
+                }
                 s.slice(routes, Self::establishment_route)
             })
         })
@@ -3372,6 +4212,15 @@ impl<'a> CanonicalEncoder<'a> {
             s.identity(d.identity)?;
             s.scalar_type(d.carrier)?;
             s.option(d.establishment_routes.as_ref(), |s, routes| {
+                s.needs_root_declaration = true;
+                if routes.iter().any(|route| {
+                    matches!(
+                        route,
+                        StructuralEstablishmentRoute::CheckedRequirement { .. }
+                    )
+                }) {
+                    s.needs_root_checked_requirement = true;
+                }
                 s.slice(routes, Self::establishment_route)
             })
         })
@@ -3483,13 +4332,16 @@ impl<'a> CanonicalEncoder<'a> {
                 || !d.reference_outputs.is_empty()
                 || !d.program_local_root_introductions.is_empty()
                 || !d.content_guarantees.is_empty()
-                || d.result_lifetimes
-                    .as_ref()
-                    .is_some_and(|lifetimes| !lifetimes.is_empty())
             {
                 return Err(());
             }
-            s.writer.bool(d.result_lifetimes.is_some());
+            s.option(d.result_lifetimes.as_deref(), |s, lifetimes| {
+                s.slice(lifetimes, Self::declared_result_lifetime)
+            })?;
+            s.option(
+                s.module.execution.callables.boundary_envelope(id),
+                Self::callable_envelope,
+            )?;
             s.slice(&d.requires, |s, req| {
                 s.writer.u32(req.argument_index);
                 s.slice(&req.path, Self::structural_path_segment)?;
@@ -3650,11 +4502,9 @@ pub(crate) fn canonicalize_witness_machine<'m>(
         || !module.proofs.theorem_applications.is_empty()
         || !module.proofs.theorem_citations.is_empty()
         || !module.proofs.operation_crash_contracts.is_empty()
-        || !module.proofs.closed_conformance_applications.is_empty()
         || !module.types.quotients.representations.is_empty()
         || !module.types.quotients.operations.is_empty()
         || !module.types.quotients.adaptations.is_empty()
-        || !module.types.structural_qualification_changes.is_empty()
         || !module.types.scalar_qualifications.fields.is_empty()
         || !module.types.scalar_qualifications.primitives.is_empty()
         || !module.types.scalar_qualifications.returns.is_empty()
@@ -3678,7 +4528,6 @@ pub(crate) fn canonicalize_witness_machine<'m>(
         || module.execution.task_activation_demands != Default::default()
         || !module.execution.suspension_call_plans.is_empty()
         || !module.execution.suspension_call_sites.is_empty()
-        || !module.execution.declaration_contracts.is_empty()
         || !module.access.access_view_inputs.is_empty()
         || !module.access.access_view_plans.is_empty()
         || !module.access.access_lifecycle_plans.is_empty()
@@ -3695,6 +4544,8 @@ pub(crate) fn canonicalize_witness_machine<'m>(
     encoder
         .root_tables(tables, inputs, verified_borrow_ends)
         .ok()?;
+    encoder.drain_pending().ok()?;
+    encoder.encode_root_declaration_facts(id).ok()?;
     encoder.drain_pending().ok()?;
 
     Some(CanonicalizedMachine {
@@ -4859,4 +5710,281 @@ pub(crate) fn prepare_duplicate_materialization(
         propositions,
         knowledge,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{BlockId, ObligationId, OperationId, ValueId};
+    use terminal_check_tables::program::{DomainSource, MachineSources};
+    use terminal_psi::{
+        Block, ClosedConformanceApplicationCommitment, StructuralQualificationChange,
+    };
+
+    fn make_view<'a>(
+        module: &'a TerminalModule,
+        machines: &'a arena::IdTable<MachineId, symbols::SymbolHandle>,
+    ) -> ElaborationView<'a> {
+        static DOMAINS: std::sync::OnceLock<arena::IdTable<StructuralTypeId, Vec<Proposition>>> =
+            std::sync::OnceLock::new();
+        static SOURCES: std::sync::OnceLock<arena::IdTable<MachineId, MachineSources>> =
+            std::sync::OnceLock::new();
+        static VALUE_PARAMS: std::sync::OnceLock<arena::IdTable<MachineId, usize>> =
+            std::sync::OnceLock::new();
+        static VALUE_ARGS: std::sync::OnceLock<arena::IdTable<MachineId, Vec<ScalarTerm>>> =
+            std::sync::OnceLock::new();
+        static DOMAIN_SOURCES: std::sync::OnceLock<arena::IdTable<DomainSemanticId, DomainSource>> =
+            std::sync::OnceLock::new();
+        ElaborationView {
+            module,
+            domains: DOMAINS.get_or_init(Default::default),
+            sources: SOURCES.get_or_init(Default::default),
+            requirements: &[],
+            applications: &[],
+            local_results: &[],
+            machines,
+            nominal_calls: &[],
+            value_parameters: VALUE_PARAMS.get_or_init(Default::default),
+            value_arguments: VALUE_ARGS.get_or_init(Default::default),
+            domain_sources: DOMAIN_SOURCES.get_or_init(Default::default),
+        }
+    }
+
+    fn base_machine(id: u64, contract_id: u64, ops: Vec<Operation>) -> TerminalMachine {
+        let block_id = BlockId::new(1).unwrap();
+        let mut block = Block::plain(
+            block_id,
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: EdgeId::new(1).unwrap(),
+                cleanup_actions: Vec::new(),
+            },
+        );
+        block.operations = ops;
+        TerminalMachine {
+            call_formations: Vec::new(),
+            assembly_target_requirement: Default::default(),
+            id: MachineId::new(id).unwrap(),
+            attachment: None,
+            ranked_scc: None,
+            structural_places: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id,
+            blocks: vec![block],
+            contract: MachineContract::empty(ContractId::new(contract_id).unwrap()),
+        }
+    }
+
+    fn sample_ops(shift: u64) -> Vec<Operation> {
+        let arg = |place_id: u64| StructuralArgument {
+            place: PlaceId::new(place_id).unwrap(),
+            path: Vec::new(),
+            access: StructuralAccess::SharedBorrow,
+        };
+        let mut op1 = Operation::unsuspended(
+            OperationId::new(1).unwrap(),
+            OperationResult::Unit,
+            OperationKind::TrappingInteger {
+                operation: TrappingIntegerOperation::Add {
+                    left: ValueId::new(1).unwrap(),
+                    right: ValueId::new(2).unwrap(),
+                },
+            },
+        );
+        op1.required_contract = Some(ContractId::new(10 + shift).unwrap());
+        vec![
+            op1,
+            Operation::unsuspended(
+                OperationId::new(2).unwrap(),
+                OperationResult::Unit,
+                OperationKind::ElementViewRead {
+                    source: arg(1),
+                    index: ValueId::new(1).unwrap(),
+                    length: ValueId::new(2).unwrap(),
+                    obligation: ObligationId::new(1).unwrap(),
+                    path: Vec::new(),
+                },
+            ),
+            Operation::unsuspended(
+                OperationId::new(3).unwrap(),
+                OperationResult::Unit,
+                OperationKind::EstablishScalarCase {
+                    result_case: StructuralCaseId::new(1 + shift).unwrap(),
+                    fields: vec![ScalarCaseField {
+                        field: StructuralFieldId::new(1 + shift).unwrap(),
+                        value: ValueId::new(1).unwrap(),
+                        range_obligation: None,
+                    }],
+                },
+            ),
+            Operation::unsuspended(
+                OperationId::new(4).unwrap(),
+                OperationResult::Unit,
+                OperationKind::StructuralCaseMembership {
+                    source: PlaceId::new(1).unwrap(),
+                    path: Vec::new(),
+                    case: StructuralCaseId::new(1 + shift).unwrap(),
+                },
+            ),
+            Operation::unsuspended(
+                OperationId::new(5).unwrap(),
+                OperationResult::Unit,
+                OperationKind::AtomicFence {
+                    ordering: FenceOrdering::ReceivePublish,
+                },
+            ),
+        ]
+    }
+
+    #[test]
+    fn canonical_witness_deduplicates_shifted_ids_with_declaration_contracts_and_ops() {
+        let build = |shift: u64, domain_id: u64, trap_subtract: bool| {
+            let mut module = TerminalModule::declarations();
+            let req_contract_id = ContractId::new(10 + shift).unwrap();
+            let mut req_contract = MachineContract::empty(req_contract_id);
+            req_contract.termination = Termination::Terminates;
+            module.execution.declaration_contracts.push(req_contract);
+            // Unrelated closed conformance owned by another machine must not block `id`.
+            module
+                .proofs
+                .closed_conformance_applications
+                .push(ClosedConformanceApplication {
+                    owner: MachineId::new(99).unwrap(),
+                    declaration_identity: TerminalIdentityIndex::default(),
+                    telescope: Vec::new(),
+                    trait_identity: TerminalIdentityIndex::default(),
+                    trait_lifetime_arguments: Vec::new(),
+                    trait_arguments: Vec::new(),
+                    realization_callables: Vec::new(),
+                    schemas: Vec::new(),
+                    static_applications: Vec::new(),
+                    rows: Vec::new(),
+                    report_fingerprint: 0,
+                    commitment: ClosedConformanceApplicationCommitment::from_digest([1; 32]),
+                });
+            module
+                .types
+                .structural_qualification_changes
+                .push(StructuralQualificationChange {
+                    machine: MachineId::new(1 + shift).unwrap(),
+                    edge: EdgeId::new(1).unwrap(),
+                    argument_ordinal: 0,
+                    source: PlaceId::new(1).unwrap(),
+                    destination: PlaceId::new(2).unwrap(),
+                    establishments: vec![ResultQualificationEstablishment {
+                        domain: StructuralDomainId::new(domain_id).unwrap(),
+                        route: 0,
+                    }],
+                });
+            let mut ops = sample_ops(shift);
+            if trap_subtract {
+                ops[0].kind = OperationKind::TrappingInteger {
+                    operation: TrappingIntegerOperation::Subtract {
+                        left: ValueId::new(1).unwrap(),
+                        right: ValueId::new(2).unwrap(),
+                    },
+                };
+            }
+            for pad in 1..=(shift) {
+                module.machines.push(base_machine(pad, pad, Vec::new()));
+            }
+            module
+                .machines
+                .push(base_machine(1 + shift, 1 + shift, ops));
+            module
+        };
+
+        let inputs = MachineInputs {
+            branches: &[],
+            carried: None,
+            requirement: false,
+        };
+        fn replays<'m>(
+            module: &'m TerminalModule,
+            affine: &'m terminal_semantics::plain_affine::AffineSummaries<'m>,
+        ) -> ModuleReplays<'m> {
+            ModuleReplays {
+                borrowed_storage:
+                    terminal_semantics::descriptor_results::ModuleSummaries::borrowed_storage(
+                        module,
+                        &[],
+                    ),
+                affine,
+            }
+        }
+
+        let mut sym_a = arena::IdTable::default();
+        sym_a.push(symbols::SymbolHandle::from_parts(1, 1));
+        let mod_a = build(0, 7, false);
+        let view_a = make_view(&mod_a, &sym_a);
+        let aff_a = terminal_semantics::plain_affine::AffineSummaries::new(&mod_a);
+        let canon_a = canonicalize_witness_machine(
+            &view_a,
+            MachineId::new(1).unwrap(),
+            &MachineTables::default(),
+            &inputs,
+            None,
+            &[],
+            &[],
+            &replays(&mod_a, &aff_a),
+        )
+        .expect("witness A with declaration contract, qual change, and new ops canonicalizes");
+
+        let mut sym_b = arena::IdTable::default();
+        for s in 10..=15 {
+            sym_b.push(symbols::SymbolHandle::from_parts(s, 1));
+        }
+        let mod_b = build(5, 42, false);
+        let view_b = make_view(&mod_b, &sym_b);
+        let aff_b = terminal_semantics::plain_affine::AffineSummaries::new(&mod_b);
+        let canon_b = canonicalize_witness_machine(
+            &view_b,
+            MachineId::new(6).unwrap(),
+            &MachineTables::default(),
+            &inputs,
+            None,
+            &[],
+            &[],
+            &replays(&mod_b, &aff_b),
+        )
+        .expect("shifted witness B canonicalizes");
+
+        assert_eq!(canon_a.key, canon_b.key);
+
+        let mod_diff_op = build(5, 42, true);
+        let view_diff = make_view(&mod_diff_op, &sym_b);
+        let aff_diff = terminal_semantics::plain_affine::AffineSummaries::new(&mod_diff_op);
+        let canon_diff = canonicalize_witness_machine(
+            &view_diff,
+            MachineId::new(6).unwrap(),
+            &MachineTables::default(),
+            &inputs,
+            None,
+            &[],
+            &[],
+            &replays(&mod_diff_op, &aff_diff),
+        )
+        .expect("variant op canonicalizes");
+        assert_ne!(canon_a.key, canon_diff.key);
+
+        let mut mod_diff_contract = build(5, 42, false);
+        mod_diff_contract.execution.declaration_contracts[0].termination = Termination::NoGuarantee;
+        let view_diff_contract = make_view(&mod_diff_contract, &sym_b);
+        let aff_dc = terminal_semantics::plain_affine::AffineSummaries::new(&mod_diff_contract);
+        let canon_diff_contract = canonicalize_witness_machine(
+            &view_diff_contract,
+            MachineId::new(6).unwrap(),
+            &MachineTables::default(),
+            &inputs,
+            None,
+            &[],
+            &[],
+            &replays(&mod_diff_contract, &aff_dc),
+        )
+        .expect("changed declaration contract canonicalizes");
+        assert_ne!(canon_a.key, canon_diff_contract.key);
+    }
 }
