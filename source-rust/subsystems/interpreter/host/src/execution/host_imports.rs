@@ -45,7 +45,6 @@ mod descriptor_io;
 mod descriptor_mode;
 #[path = "../../filesystem/bindings.rs"]
 mod filesystem;
-mod integer_absolute;
 mod integer_division;
 mod integer_parsing;
 mod native_provider;
@@ -420,7 +419,9 @@ pub fn bind_numeric_import_slot(
     use interpreter_numeric_imports::NumericImportError;
     interpreter_numeric_imports::bind_numeric_import_slot(instance, slot, realization).map_err(
         |error| match error {
-            NumericImportError::InvalidProvision(reason) => TerminalRuntimeError::InvalidProvision(reason),
+            NumericImportError::InvalidProvision(reason) => {
+                TerminalRuntimeError::InvalidProvision(reason)
+            }
             NumericImportError::Binding(reason) => TerminalRuntimeError::Binding(reason),
         },
     )
@@ -500,24 +501,34 @@ pub(super) fn bind<'host>(
                         "foreign host binding does not match its admitted requirement row",
                     ));
                 }
-                if let Some(adapter) = filesystem::linux::LinuxFilesystemImport::admit(
+                // Adapters are tried in priority order; the first one that
+                // admits the binding takes the slot, and an adapter error stops
+                // the search.
+                macro_rules! bind_admitted {
+                    ($admission:expr) => {
+                        if let Some(adapter) = $admission? {
+                            instance.bind_import(*slot, adapter)?;
+                            continue;
+                        }
+                    };
+                }
+                let application =
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot));
+                let layouts = provisions.map_or(
+                    &[][..],
+                    TerminalRuntimeHostProvisions::borrowed_storage_layouts,
+                );
+                bind_admitted!(filesystem::linux::LinuxFilesystemImport::admit(
                     &context.filesystem,
                     program,
                     declaration,
                     binding,
-                    provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                let filesystem = context.filesystem.admit(
-                    program,
-                    declaration,
-                    binding,
-                    provisions
-                        .map(|provisions| provisions.borrowed_storage_layouts())
-                        .unwrap_or(&[]),
-                )?;
+                    layouts,
+                ));
+                let filesystem =
+                    context
+                        .filesystem
+                        .admit(program, declaration, binding, layouts)?;
                 if filesystem.as_ref().is_some_and(|call| call.descriptor_io()) {
                     let adapter = native_provider::NativeImport::admit(
                         program,
@@ -538,100 +549,65 @@ pub(super) fn bind<'host>(
                     instance.bind_import(*slot, adapter)?;
                     continue;
                 }
-                if let Some(adapter) = absolute_value::AbsoluteValueImport::admit(
+                bind_admitted!(absolute_value::AbsoluteValueImport::admit(
                     program,
                     declaration,
                     binding,
-                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                if let Some(adapter) = allocation::AllocationImport::admit(
+                    application,
+                ));
+                bind_admitted!(allocation::AllocationImport::admit(
                     program,
                     declaration,
                     binding,
-                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                    application,
                     std::sync::Arc::clone(allocations),
                     emulates_allocation,
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                if let Some(adapter) = clock::ClockImport::admit(
+                ));
+                bind_admitted!(clock::ClockImport::admit(
                     program,
                     declaration,
                     binding,
-                    provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
+                    layouts,
                     clock.as_ref().cloned(),
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                if let Some(adapter) = descriptor_io::DescriptorIoImport::admit(
+                ));
+                bind_admitted!(descriptor_io::DescriptorIoImport::admit(
                     program,
                     declaration,
                     binding,
-                    provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
+                    layouts,
                     input.as_ref().cloned(),
                     output.clone(),
                     &context.filesystem,
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                if let Some(adapter) = affine_transform::AffineTransformImport::admit(
+                ));
+                bind_admitted!(affine_transform::AffineTransformImport::admit(
                     program,
                     declaration,
                     binding,
-                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                if let Some(adapter) = integer_absolute::IntegerAbsoluteImport::admit(
+                    application,
+                ));
+                bind_admitted!(integer_division::IntegerDivisionImport::admit(
                     program,
                     declaration,
                     binding,
-                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                if let Some(adapter) = integer_division::IntegerDivisionImport::admit(
+                    application,
+                ));
+                bind_admitted!(integer_parsing::IntegerParsingImport::admit(
                     program,
                     declaration,
                     binding,
-                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                if let Some(adapter) = integer_parsing::IntegerParsingImport::admit(
-                    program,
+                    layouts,
+                ));
+                bind_admitted!(network_address::NetworkAddressImport::admit(
                     declaration,
                     binding,
-                    provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                if let Some(adapter) = network_address::NetworkAddressImport::admit(
-                    declaration,
-                    binding,
-                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
+                    application,
                     std::sync::Arc::clone(addresses),
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                if let Some(adapter) =
-                    descriptor_mode::DescriptorModeImport::admit(declaration, binding)?
-                {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
-                if let Some(adapter) = native_provider::NativeImport::admit(
+                ));
+                bind_admitted!(descriptor_mode::DescriptorModeImport::admit(
+                    declaration,
+                    binding
+                ));
+                bind_admitted!(native_provider::NativeImport::admit(
                     program,
                     declaration,
                     binding,
@@ -640,10 +616,7 @@ pub(super) fn bind<'host>(
                     filesystem,
                     input.as_ref().cloned(),
                     output.clone(),
-                )? {
-                    instance.bind_import(*slot, adapter)?;
-                    continue;
-                }
+                ));
                 return Err(TerminalRuntimeError::missing(
                     "runtime-host-import-bindings",
                     format!(
