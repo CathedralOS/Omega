@@ -97,8 +97,8 @@ fn generic_layout_policy_retains_its_declared_machine_and_observed_geometry() {
     // metadata and its captured body in the actual invocation receipt.
     let authored = AUTHORED
     .replace(
-        "PairLayout satisfies FixedLayout<Pair>",
-        "public data OtherPair [copy] { lo: u64 in Delivered; hi: u64; }\nPairLayout<T> satisfies FixedLayout<T>",
+        "PairLayout satisfies |layout|::FixedLayout<Pair>",
+        "public data OtherPair [copy] { lo: u64 in Delivered; hi: u64; }\nPairLayout<T> satisfies |layout|::FixedLayout<T>",
     );
     let subject = |argument: &str| {
         with_reflection(&authored.replace(

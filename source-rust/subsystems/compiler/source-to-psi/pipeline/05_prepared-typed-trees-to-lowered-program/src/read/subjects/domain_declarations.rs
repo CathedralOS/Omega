@@ -182,7 +182,7 @@ impl<'source> Program<'source> {
             };
             let theory = self.domain_theory(id, instance)?;
             let carrier = self.declaration_subject(id, theory)?;
-            self.declared_domain(id, instance, carrier, domain.target_type, at)?;
+            self.declared_domain(id, instance, carrier, at)?;
             self.declared_predicates(id, theory)?;
         }
         if !domain_accepts_underlying_carrier(typed, member, domain.target_type, &[]) {

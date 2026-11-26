@@ -547,6 +547,26 @@ impl Minted<'_> {
         Ok(())
     }
 
+    /// A call that can crash owes, at `before`, `CrashCoverage` at `crash`
+    /// for each cause among its callee's crash routes.
+    fn call_owing_crashes(
+        &mut self,
+        site: InvocationSite,
+        inputs: call_contracts::Inputs<'_>,
+        before: ProgramPoint,
+        concerns: Construct,
+        crash: CrashSite,
+    ) -> Checked<()> {
+        for bucket in self.call(site, inputs, before, concerns)? {
+            let kind = ObligationKind::CrashCoverage {
+                site: crash,
+                cause: bucket.cause,
+            };
+            self.owed(kind, before, concerns)?;
+        }
+        Ok(())
+    }
+
     /// One call of the lowered form: its invocation row restates the callee
     /// and the actuals, and it owes one `CallRequirement` per `requires`
     /// clause of the callee, in clause order, at `before`.
@@ -978,19 +998,15 @@ pub(crate) fn follow_the_lowered_form(
                     ));
                 }
             }
+            // Each proof-bearing part of the operation owes its safety before it.
+            let safety = ObligationKind::OperationSafety {
+                site: terminal_check_tables::obligations::ExecutionSite::Operation(operation.id),
+            };
             if let Some(semantics) =
                 terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
                     .map_err(semantics_refusal(id, operation.id))?
             {
-                minted.claim(
-                    semantics.obligation(),
-                    ObligationKind::OperationSafety {
-                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
-                            operation.id,
-                        ),
-                    },
-                    before,
-                )?;
+                minted.claim(semantics.obligation(), safety, before)?;
             }
             for projection in operation.kind.structural_projections() {
                 for segment in projection.path {
@@ -998,15 +1014,7 @@ pub(crate) fn follow_the_lowered_form(
                         obligation, ..
                     } = segment
                     {
-                        minted.claim(
-                            *obligation,
-                            ObligationKind::OperationSafety {
-                                site: terminal_check_tables::obligations::ExecutionSite::Operation(
-                                    operation.id,
-                                ),
-                            },
-                            before,
-                        )?;
+                        minted.claim(*obligation, safety, before)?;
                     }
                 }
             }
@@ -1025,15 +1033,7 @@ pub(crate) fn follow_the_lowered_form(
                 ..
             } = &operation.kind
             {
-                minted.claim(
-                    *obligation,
-                    ObligationKind::OperationSafety {
-                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
-                            operation.id,
-                        ),
-                    },
-                    before,
-                )?;
+                minted.claim(*obligation, safety, before)?;
             }
             // A trapping primitive owes its own Trap coverage independently
             // of the same operation's call-contract processing.
@@ -1049,18 +1049,13 @@ pub(crate) fn follow_the_lowered_form(
             }
             let site = InvocationSite::Operation(operation.id);
             if let Some(inputs) = call_contracts::inputs_at(lowered, site)? {
-                let routes =
-                    minted.call(site, inputs, before, Construct::Operation(operation.id))?;
-                for bucket in routes {
-                    minted.owed(
-                        ObligationKind::CrashCoverage {
-                            site: CrashSite::Operation(operation.id),
-                            cause: bucket.cause,
-                        },
-                        before,
-                        Construct::Operation(operation.id),
-                    )?;
-                }
+                minted.call_owing_crashes(
+                    site,
+                    inputs,
+                    before,
+                    Construct::Operation(operation.id),
+                    CrashSite::Operation(operation.id),
+                )?;
             }
             before = ProgramPoint::AfterOperation(operation.id);
         }
@@ -1084,17 +1079,13 @@ pub(crate) fn follow_the_lowered_form(
         if let Some(site) = call_contracts::terminator_site(&block.terminator)
             && let Some(inputs) = call_contracts::inputs_at(lowered, site)?
         {
-            let routes = minted.call(site, inputs, before, Construct::Block(block.id))?;
-            for bucket in routes {
-                minted.owed(
-                    ObligationKind::CrashCoverage {
-                        site: CrashSite::Block(block.id),
-                        cause: bucket.cause,
-                    },
-                    before,
-                    Construct::Block(block.id),
-                )?;
-            }
+            minted.call_owing_crashes(
+                site,
+                inputs,
+                before,
+                Construct::Block(block.id),
+                CrashSite::Block(block.id),
+            )?;
         }
         for (edge, actions) in block.terminator.cleanup_rosters() {
             for (ordinal, action) in actions.iter().enumerate() {

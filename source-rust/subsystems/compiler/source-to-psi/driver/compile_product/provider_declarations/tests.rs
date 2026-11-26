@@ -184,8 +184,8 @@ impl Fixture {
             crate::source_symbols::SourceScopedTopLevelBinding::product_file_import(
                 ids[0], ids[3], "app",
             ),
-            crate::source_symbols::SourceScopedTopLevelBinding::module_import(
-                ids[0], ids[2], "Build", 0,
+            crate::source_symbols::SourceScopedTopLevelBinding::prelude_module(
+                ids[0], ids[2], "Build",
             ),
         ];
         if dependency.is_some() {

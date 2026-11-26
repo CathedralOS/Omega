@@ -280,6 +280,9 @@ pub struct StaticRequirementInstance {
     /// A nominal callable parameter promises this trait member independently of its shape.
     pub nominal_requirement: Option<SymbolHandle>,
     pub member: terminal_psi::TerminalIdentityIndex,
+    /// Positions of borrowed inputs whose own address has a fresh invocation
+    /// lifetime confined to that formal. Stored references keep their own regions.
+    pub scoped_addresses: Vec<usize>,
     pub header: CallableHeader,
 }
 
@@ -308,6 +311,26 @@ pub struct StaticSchemaQuestion {
     /// Source-only const values checked under this complete declared schema.
     pub bindings: Vec<StaticRecordBinding>,
 }
+
+/// The exact abstract instances whose formals introduce independent regions.
+pub fn scoped_requirement_addresses(
+    schemas: &[StaticSchemaQuestion],
+) -> std::collections::BTreeMap<MachineId, &[usize]> {
+    let mut positions = std::collections::BTreeMap::new();
+    for instance in schemas
+        .iter()
+        .flat_map(|schema| &schema.requirements)
+        .filter_map(|requirement| requirement.instance.as_ref())
+    {
+        positions
+            .entry(instance.machine)
+            .and_modify(|known| *known = &[][..])
+            .or_insert(instance.scoped_addresses.as_slice());
+    }
+    positions.retain(|_, inputs| !inputs.is_empty());
+    positions
+}
+
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticRecordBinding {

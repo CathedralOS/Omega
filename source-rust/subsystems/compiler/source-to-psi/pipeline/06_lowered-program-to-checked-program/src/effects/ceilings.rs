@@ -1211,85 +1211,31 @@ fn judge_axes(
                 axes,
                 at,
             };
-            let mut reached = Contributions::default();
-            if let Some(applied) =
-                crate::static_reach::call_reach(elaboration, caller.id, row.site, call.inputs)?
-            {
-                reached.reach.extend(applied.services);
-                if applied.open && ceiling.reach().is_some() {
-                    return Err(context.unsupported(
-                        "open abstract service reach cannot establish a finite caller ceiling",
-                    ));
-                }
-            } else if let Some(reach) = envelope.reach() {
-                reached.reach.extend_from_slice(reach);
-            } else if ceiling.reach().is_some() {
-                return Err(context.unsupported(
-                    "open abstract service reach cannot establish a finite caller ceiling",
-                ));
-            }
-            if let Some(entries) = envelope.entries() {
-                for entry in entries {
-                    match entry {
-                        Entry::Service(service) => {
-                            union(&mut reached.entries, [Entry::Service(service)])
-                        }
-                        Entry::Parameter(position) => {
-                            context.parameter(position, row.site, &call, &mut reached)?
-                        }
-                    }
-                }
-            } else if ceiling.entries().is_some() {
-                return Err(context.unsupported(
-                    "open abstract invocation ceiling cannot establish a finite caller ceiling",
-                ));
-            }
-            context.operational(envelope, &mut reached)?;
-            if let Callee::Selected { callable } = call.inputs.callee {
-                let contract = call.inputs.contract.ok_or_else(|| {
-                    context.foreign("selected invocation lost its exact contract")
-                })?;
-                let origins = context.resolve(CallableValueQuery::Scalar {
-                    machine: caller.id,
-                    value: callable,
-                    contract,
-                })?;
-                context.holder(contract, &origins, &mut reached)?;
-            }
-            if reached.conditional_progress
-                && matches!(
-                    ceiling.termination(),
-                    terminal_psi::TerminalCallableTermination::Terminates { .. }
-                )
-            {
-                return Err(context
-                    .unsupported("callee termination premises need their exact invocation proof"));
-            }
-            if elaboration.installation_bound_refinement == Some(caller.id)
-                && let (Some(ceiling), Callee::Declared(callee)) =
-                    (ceiling.reach(), call.inputs.callee)
-                && reached
-                    .reach
-                    .iter()
-                    .any(|service| ceiling.binary_search(service).is_err())
-            {
-                reached.reach = fixed_refinement_reach(
-                    module,
-                    tables,
-                    caller.id,
-                    callee,
-                    call.inputs.required_contract,
-                )?;
-            }
-            contain(
-                ceiling,
-                &reached,
-                caller.id,
-                call.inputs.callee,
-                at,
+            let applied =
+                crate::static_reach::call_reach(elaboration, caller.id, row.site, call.inputs)?;
+            contribution(
+                elaboration,
+                &context,
+                envelope,
+                applied,
+                &mut |position, reached| context.parameter(position, row.site, &call, reached),
+                &mut |reached| {
+                    let Callee::Selected { callable } = call.inputs.callee else {
+                        return Ok(());
+                    };
+                    let contract = call.inputs.contract.ok_or_else(|| {
+                        context.foreign("selected invocation lost its exact contract")
+                    })?;
+                    let origins = context.resolve(CallableValueQuery::Scalar {
+                        machine: caller.id,
+                        value: callable,
+                        contract,
+                    })?;
+                    context.holder(contract, &origins, reached)
+                },
+                (call.inputs.callee, call.inputs.required_contract),
                 &mut found,
-                axes,
-            );
+            )?;
         }
         let tails = crate::call_contracts::TailCallSites::new(caller);
         for formation in &caller.call_formations {
@@ -1360,14 +1306,46 @@ fn tail_contribution(
     edge: semantic_vocabulary::EdgeId,
     found: &mut Vec<Excess>,
 ) -> Checked<()> {
-    let module = &elaboration.module;
+    let tail = crate::call_contracts::tail_call(&elaboration.module, tails, callee, edge)?;
+    contribution(
+        elaboration,
+        &context,
+        machine_envelope(elaboration, callee)?,
+        None,
+        &mut |position, reached| context.tail_parameter(position, &tail, reached),
+        &mut |_| Ok(()),
+        (Callee::Declared(callee.into()), None),
+        found,
+    )
+}
+
+/// What one call or tail jump contributes, contained in the caller's
+/// ceiling (`contain`). Both reach their callee's envelope the same way. An
+/// invocation row first takes the reach the static analysis applied to it
+/// (`applied`), and `holder` adds what a selected callable's holders reach,
+/// after the envelope's operational effects.
+#[allow(clippy::too_many_arguments)]
+fn contribution(
+    elaboration: &terminal_check_tables::program::Elaboration,
+    context: &Calls<'_>,
+    envelope: Envelope<'_>,
+    applied: Option<crate::static_reach::ReachContribution>,
+    parameter: &mut dyn FnMut(u32, &mut Contributions) -> Checked<()>,
+    holder: &mut dyn FnMut(&mut Contributions) -> Checked<()>,
+    (callee, required_contract): (Callee, Option<semantic_vocabulary::ContractId>),
+    found: &mut Vec<Excess>,
+) -> Checked<()> {
     let caller = context.caller;
-    let at = context.at;
     let ceiling = context.ceiling;
-    let tail = crate::call_contracts::tail_call(module, tails, callee, edge)?;
-    let envelope = machine_envelope(elaboration, callee)?;
     let mut reached = Contributions::default();
-    if let Some(reach) = envelope.reach() {
+    if let Some(applied) = applied {
+        reached.reach.extend(applied.services);
+        if applied.open && ceiling.reach().is_some() {
+            return Err(context.unsupported(
+                "open abstract service reach cannot establish a finite caller ceiling",
+            ));
+        }
+    } else if let Some(reach) = envelope.reach() {
         reached.reach.extend_from_slice(reach);
     } else if ceiling.reach().is_some() {
         return Err(context
@@ -1377,9 +1355,7 @@ fn tail_contribution(
         for entry in entries {
             match entry {
                 Entry::Service(service) => union(&mut reached.entries, [Entry::Service(service)]),
-                Entry::Parameter(position) => {
-                    context.tail_parameter(position, &tail, &mut reached)?;
-                }
+                Entry::Parameter(position) => parameter(position, &mut reached)?,
             }
         }
     } else if ceiling.entries().is_some() {
@@ -1388,6 +1364,7 @@ fn tail_contribution(
         ));
     }
     context.operational(envelope, &mut reached)?;
+    holder(&mut reached)?;
     if reached.conditional_progress
         && matches!(
             ceiling.termination(),
@@ -1399,21 +1376,26 @@ fn tail_contribution(
         );
     }
     if elaboration.installation_bound_refinement == Some(caller.id)
-        && let Some(ceiling) = ceiling.reach()
+        && let (Some(ceiling), Callee::Declared(callee)) = (ceiling.reach(), callee)
         && reached
             .reach
             .iter()
             .any(|service| ceiling.binary_search(service).is_err())
     {
-        reached.reach =
-            fixed_refinement_reach(module, &elaboration.tables, caller.id, callee.into(), None)?;
+        reached.reach = fixed_refinement_reach(
+            &elaboration.module,
+            &elaboration.tables,
+            caller.id,
+            callee,
+            required_contract,
+        )?;
     }
     contain(
         ceiling,
         &reached,
         caller.id,
-        Callee::Declared(callee.into()),
-        at,
+        callee,
+        context.at,
         found,
         context.axes,
     );

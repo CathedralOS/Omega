@@ -1,20 +1,12 @@
 //! Build prelude operations resolve to the compiler-owned machines. The selected
 //! program must satisfy the exclusions its Build actually runs.
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 fn execute(name: &str, build: &str, program: &str, args: &[&str]) -> (bool, String) {
-    let project = platform_custody::temporary_directory::TemporaryDirectory::create(name, false)
-        .expect("staging directory");
-    let root = project.path();
-    std::fs::write(root.join("main.omg"), program).expect("staged program");
-    std::fs::write(root.join("build.omg"), build).expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(args)
-        .current_dir(root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
+    let scratch = project::stage(name, &[("main.omg", program), ("build.omg", build)]);
+    let output = project::omega(scratch.path(), args);
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -59,27 +51,28 @@ machine main() crashes Trap { selected(); }
 machine selected() crashes Trap { BEHAVIOR }
 "#;
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-    let (passed, report) = execute(
-        "excluded-clean",
-        &build,
-        &program.replace("BEHAVIOR", ""),
-        &["run", "--engine", engine, "build.omg"],
-    );
+        let (passed, report) = execute(
+            "excluded-clean",
+            &build,
+            &program.replace("BEHAVIOR", ""),
+            &["run", "--engine", engine, "build.omg"],
+        );
         assert!(
-        passed && report.lines().any(|line| line == expected),
-        "{report}"
-    );
+            passed && report.lines().any(|line| line == expected),
+            "{report}"
+        );
 
-    let (passed, report) = execute(
-        "excluded-trap",
-        &build,
-        &program.replace("BEHAVIOR", "crash Trap;"),
-        &["run", "--engine", engine, "build.omg"],
-    );
-    assert!(
-        !passed && report.contains("behavior exclusion violated: crash cause Trap is reachable"),
-        "{report}"
-    );
+        let (passed, report) = execute(
+            "excluded-trap",
+            &build,
+            &program.replace("BEHAVIOR", "crash Trap;"),
+            &["run", "--engine", engine, "build.omg"],
+        );
+        assert!(
+            !passed
+                && report.contains("behavior exclusion violated: crash cause Trap is reachable"),
+            "{report}"
+        );
     }
 }
 
@@ -98,16 +91,16 @@ machine build(builder: @mutable Build) {
 "#
     .replace("HOST", host.target_name());
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-    let (passed, report) = execute(
-        "excluded-output",
-        &build,
-        "machine main() {}",
-        &["run", "--engine", engine, "build.omg"],
-    );
+        let (passed, report) = execute(
+            "excluded-output",
+            &build,
+            "machine main() {}",
+            &["run", "--engine", engine, "build.omg"],
+        );
         assert!(
-        passed && report.lines().any(|line| line == expected),
-        "{report}"
-    );
+            passed && report.lines().any(|line| line == expected),
+            "{report}"
+        );
     }
 }
 

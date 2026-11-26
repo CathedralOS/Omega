@@ -166,7 +166,6 @@ impl<'t> Program<'t> {
                 id,
                 domain,
                 actual,
-                definition.target_type,
                 at,
                 super::types::DomainUse::test(nominal),
             )
@@ -784,7 +783,7 @@ impl<'t> Program<'t> {
                 let at = crate::SourceOrigin::Unpositioned(
                     crate::Unpositioned::SpanAbsent,
                 );
-                self.declared_domain(id, domain, carrier, definition.target_type, at)?;
+                self.declared_domain(id, domain, carrier, at)?;
             }
             return Ok(());
         }
@@ -823,7 +822,7 @@ impl<'t> Program<'t> {
         };
         let at =
             crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
-        self.declared_domain(id, domain, carrier, definition.target_type, at)?;
+        self.declared_domain(id, domain, carrier, at)?;
         match carrier {
             ValueType::Scalar(scalar_type, _) => {
                 let domains = crate::body::DomainSet::EMPTY

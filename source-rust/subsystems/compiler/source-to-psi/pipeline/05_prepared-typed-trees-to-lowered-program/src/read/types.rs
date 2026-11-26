@@ -1217,7 +1217,7 @@ impl Program<'_> {
         for domain in qualification.domains.members() {
             if !carrier.qualification().domains.contains(domain) {
                 let at = self.written_domain(constraints, domain);
-                self.declared_domain(id, domain, result, base_type, at)?;
+                self.declared_domain(id, domain, result, at)?;
             }
         }
         Ok(result)
@@ -1484,10 +1484,9 @@ impl Program<'_> {
         id: MachineId,
         domain: crate::body::DomainInstance,
         carrier: ValueType,
-        carrier_type: TypeReferenceHandle,
         at: crate::SourceOrigin,
     ) -> Checked<()> {
-        self.form_domain(id, domain, carrier, carrier_type, at, DomainUse::Retained)
+        self.form_domain(id, domain, carrier, at, DomainUse::Retained)
     }
 
     pub(super) fn form_domain(
@@ -1495,7 +1494,6 @@ impl Program<'_> {
         id: MachineId,
         domain: crate::body::DomainInstance,
         carrier: ValueType,
-        carrier_type: TypeReferenceHandle,
         at: crate::SourceOrigin,
         use_site: DomainUse,
     ) -> Checked<()> {
@@ -1560,12 +1558,17 @@ impl Program<'_> {
             return unserved("a domain declared on an arithmetic-policy-qualified carrier");
         }
         if subject.qualified(Qualification::NONE) != Some(plain) {
-            // `LayoutStorage<T, L> in T::D`: the laid value is T's value in
-            // L's geometry (plans.md, "Representation applications"), so T's
-            // domain qualifies it. Only a domain whose meaning is its access
-            // policy or routes is read here: a predicate over `self` would
-            // read T's fields through L's geometry, which nothing judges yet.
-            let laid = typed.layout_storage_arguments(carrier_type);
+            // A domain on T can qualify LayoutStorage<T, L>. Recover the layout
+            // application from the value being tested, including a projected field.
+            // The domain declaration itself only identifies T.
+            let laid = match plain {
+                ValueType::Record(record, ..) => self
+                    .record_sources
+                    .get(record)
+                    .and_then(|source| source.application.as_ref())
+                    .and_then(|application| typed.layout_storage_arguments(application.reference)),
+                _ => None,
+            };
             let Some(laid) = laid else {
                 return unserved("constrained by a domain declared on another carrier");
             };
@@ -1629,7 +1632,7 @@ impl Program<'_> {
             // An unused child can be the only occurrence of this parent application.
             // The published prerequisite must have an identity before the child uses it.
             if let Some(parent) = parent {
-                self.declared_domain(id, parent, carrier, carrier_type, at)?;
+                self.declared_domain(id, parent, carrier, at)?;
             }
             let schema_scope = typed
                 .domain_application(domain.declaration, domain.identity)

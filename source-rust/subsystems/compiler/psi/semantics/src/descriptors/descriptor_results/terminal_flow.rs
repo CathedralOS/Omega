@@ -181,7 +181,7 @@ pub(crate) fn adapt(
     slot_kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     selector_graph: Option<&[DescriptorMachine]>,
-    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    generic_calls: super::GenericCallInputs<'_>,
     zeroed_cases: &mut super::ZeroedCaseTable<'_>,
 ) -> Result<DescriptorMachine, super::DescriptorGraphError> {
     // Setup failures have no operation. Reuse the same typed error
@@ -199,7 +199,7 @@ pub(crate) fn adapt(
         slot_kind,
         selected_calls,
         selector_graph,
-        nominal_calls,
+        generic_calls,
         zeroed_cases,
         &mut failure,
     )
@@ -214,7 +214,7 @@ fn adapt_flow(
     slot_kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     selector_graph: Option<&[DescriptorMachine]>,
-    nominal_calls: &[terminal_psi::generic_calls::NominalCallArgument],
+    generic_calls: super::GenericCallInputs<'_>,
     zeroed_cases: &mut super::ZeroedCaseTable<'_>,
     failure: &mut super::DescriptorGraphError,
 ) -> Option<DescriptorMachine> {
@@ -337,7 +337,7 @@ fn adapt_flow(
                 machine,
                 operation,
                 &scalar_expressions,
-                nominal_calls,
+                generic_calls.nominal,
             ) {
                 graph
                     .payload_scalar_postconditions
@@ -1624,6 +1624,25 @@ fn adapt_flow(
                     };
                     let implemented = operation.required_contract.is_some();
                     if let Some(public) = public {
+                        if !implemented
+                            && let Some(positions) = generic_calls.scoped.and_then(|scope| scope.get(&callee))
+                        {
+                            let formals = &public.contract().structural_parameters;
+                            if formals.len() == structural_arguments.len()
+                                && formals.iter().zip(structural_arguments).all(|(formal, actual)| {
+                                    positions.contains(&(formal.position as usize))
+                                        && formal.access != StructuralAccess::Owned
+                                        && formal.access == actual.access
+                                        && actual.path.is_empty()
+                                        && slot_kind.borrows_inline_storage(
+                                            &module.types.structural_types, actual.place, formal.structural_type,
+                                        )
+                                })
+                            {
+                                step.invocation_addresses.extend(structural_arguments.iter()
+                                    .map(|actual| DescriptorLocation::whole(actual.place)));
+                            }
+                        }
                         let mut call = public_invocation(
                             operation.id,
                             &module.types.structural_types,

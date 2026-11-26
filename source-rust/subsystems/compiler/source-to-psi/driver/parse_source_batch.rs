@@ -6,8 +6,8 @@ mod import_advisories;
 mod parsed_files;
 pub use import_advisories::FileImportAdvisories;
 pub use parsed_files::{
-    ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport,
-    SourceImportTarget, SourceItems, SourceSyntax,
+    ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceImport, SourceImportTarget,
+    SourceItems, SourceSyntax,
 };
 
 use artifacts::compile_timings::{CompileTimings, source as stages};

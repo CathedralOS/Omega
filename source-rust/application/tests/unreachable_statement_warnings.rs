@@ -14,20 +14,15 @@ call.
 
 */
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
-
-use std::process::Command;
 
 #[test]
 fn statements_after_a_call_that_never_returns_warn_once_and_compile() {
     let directory = support::repository_root()
         .join("source-rust/application/tests/fixtures/contracts/pass/statement_after_never_returning_call_exit");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
-        .current_dir(&directory)
-        .output()
-        .expect("omega runs");
+    let output = project::omega(&directory, &["--check", "main.omg"]);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "the program compiles: {stderr}");
     let lines: Vec<&str> = stderr.lines().collect();

@@ -1,3 +1,5 @@
+use assembly.omg;
+
 // Select the code descriptor in the GDT that the kernel keeps alive.
 // The compiler supplies the continuation; callers cannot supply a return address.
 // The admitted bootstrap scope runs at CPL0 with interrupts masked, CET disabled,
@@ -12,27 +14,27 @@
 public boundary trait CodeSegmentControl {
     machine reload<const Entries: u64>(gdt: @mutable [u64; Entries], selector: u16) -> bool
     requires Entries >= 1 && Entries <= 8192
-    reaches MachineControl
+    reaches |assembly|::MachineControl
     crashes none;
 
-    machine selector() -> u16 reaches MachineControl crashes none;
+    machine selector() -> u16 reaches |assembly|::MachineControl crashes none;
 }
 
 // Build selects the implementation. This implementation requires x86-64.
 public X86CodeSegmentControl satisfies CodeSegmentControl {
     machine reload<const Entries: u64>(gdt: @mutable [u64; Entries], selector: u16) -> bool
     requires Entries >= 1 && Entries <= 8192
-    reaches MachineControl {
+    reaches |assembly|::MachineControl {
         let mutable observed: [u8; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         reload_code_segment::<Entries>(gdt, selector, @mutable observed) == 1
     }
 
-    machine selector() -> u16 reaches MachineControl { read_code_selector() }
+    machine selector() -> u16 reaches |assembly|::MachineControl { read_code_selector() }
 }
 
 // The compiler checks the current GDTR and descriptor, then transfers to its
 // own continuation without changing privilege or accepting a source address.
 boundary machine reload_code_segment<const Entries: u64>(
     gdt: @mutable [u64; Entries], selector: u16, scratch: @mutable [u8; 10]
-) -> u8 reaches MachineControl;
-boundary machine read_code_selector() -> u16 reaches MachineControl;
+) -> u8 reaches |assembly|::MachineControl;
+boundary machine read_code_selector() -> u16 reaches |assembly|::MachineControl;

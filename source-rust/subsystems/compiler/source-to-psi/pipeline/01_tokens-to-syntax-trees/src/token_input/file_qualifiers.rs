@@ -177,7 +177,7 @@ impl<'source> FileQualifiers<'source> {
         let mut description_apis = BTreeSet::new();
         for root in &roots.items {
             match trees.root_item(*root) {
-                Item::Use(syntax_trees::item::UseItem::File {
+                Item::Use(syntax_trees::item::UseItem {
                     root: Some(root),
                     components,
                     alias,

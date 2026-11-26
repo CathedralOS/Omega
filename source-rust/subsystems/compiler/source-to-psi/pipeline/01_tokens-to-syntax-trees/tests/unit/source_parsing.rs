@@ -336,7 +336,7 @@ machine build(builder: @mutable Build) {
         .items
         .iter()
         .filter_map(|root| match trees.root_item(*root) {
-            Item::Use(UseItem::File {
+            Item::Use(UseItem {
                 alias, qualifiers, ..
             }) => Some((
                 alias.as_str(&trees),
@@ -375,7 +375,7 @@ fn a_description_uses_the_file_selected_by_the_query_alias() {
     let mut trees = SyntaxTrees::new(SourceId(1));
     let tokens = Lexer::new(text).tokenize().unwrap();
     let roots = parse(&mut trees, SourceId(1), &tokens).unwrap();
-    let Item::Use(UseItem::File { qualifiers, .. }) = trees.root_item(roots.items[2]) else {
+    let Item::Use(UseItem { qualifiers, .. }) = trees.root_item(roots.items[2]) else {
         panic!("expected the types file import");
     };
     assert_eq!(
@@ -398,7 +398,7 @@ fn file_imports_keep_their_roots_filenames_and_local_aliases() {
         .items
         .iter()
         .map(|item| {
-            let Item::Use(UseItem::File {
+            let Item::Use(UseItem {
                 root,
                 components,
                 alias,
@@ -502,7 +502,7 @@ fn root_operand_file_roles_follow_the_declared_build_record() {
         );
         let parsed = crate::tests::parse_source(&text);
         let import = parsed.root_items().find_map(|item| match item {
-            Item::Use(UseItem::File { qualifiers, .. }) => Some(
+            Item::Use(UseItem { qualifiers, .. }) => Some(
                 !qualifiers.is_empty()
                     && qualifiers
                         .iter()

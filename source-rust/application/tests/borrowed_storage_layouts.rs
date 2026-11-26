@@ -1,6 +1,9 @@
+#[path = "support/project.rs"]
+mod project;
+
 use compiler::{Artifact, CompileRequest};
 use product_publication::CompletedProduct;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use target::TargetProfile;
 
 #[derive(Clone, Copy)]
@@ -42,15 +45,6 @@ fn compile(
     }
 }
 
-fn stage_project(name: &str, source: &str, build: &str) -> PathBuf {
-    let project =
-        std::env::temp_dir().join(format!("omega-psi-runtime-{name}-{}", std::process::id()));
-    std::fs::create_dir_all(&project).expect("staging directory");
-    std::fs::write(project.join("main.omg"), source).expect("staged program");
-    std::fs::write(project.join("build.omg"), build).expect("staged Build");
-    project
-}
-
 #[test]
 fn psi_admission_retains_the_native_borrowed_storage_layouts() {
     let library = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source/library");
@@ -63,9 +57,7 @@ machine build(builder: @mutable Build) {
 }
 "#
     .replace("TARGET", TargetProfile::host().target_name());
-    let project = stage_project(
-        "borrowed-layout",
-        "data Cell [copy] { prefix: u32; word: u32; suffix: u32; }
+    let source = "data Cell [copy] { prefix: u32; word: u32; suffix: u32; }
 public boundary trait ReadCell {
     machine word(cell: @Cell) -> u32 reaches none crashes none;
 }
@@ -82,16 +74,19 @@ machine main() crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-",
-        &build,
+";
+    let scratch = project::stage(
+        "psi-runtime-borrowed-layout",
+        &[("main.omg", source), ("build.omg", &build)],
     );
-    let psi = compile(&project, Product::Runtime);
-    let native = compile(&project, Product::Native);
+    let project = scratch.path();
+    let psi = compile(project, Product::Runtime);
+    let native = compile(project, Product::Native);
 
     for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
         let execution = std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
             .args(["run", "--engine", engine, "build.omg"])
-            .current_dir(&project)
+            .current_dir(project)
             .env("OMEGA_LIBRARY_ROOT", &library)
             .output()
             .expect("run the selected provider on both engines");
@@ -107,8 +102,8 @@ machine main() crashes Trap {
         .collect::<Vec<_>>()
         .join("\n");
     std::fs::write(project.join("build.omg"), unbound).expect("staged missing provider");
-    let refused = compile(&project, Product::Runtime);
-    std::fs::remove_dir_all(&project).expect("clean staged project");
+    let refused = compile(project, Product::Runtime);
+    drop(scratch);
 
     let psi = psi.expect("admit the checked provider and its runtime geometry");
     let native = native.expect("realize the same admitted provider");

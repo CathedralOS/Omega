@@ -3003,7 +3003,8 @@ pub mod numeric_intrinsics {
             let result = match self.primitive_type_reference(return_type) {
                 Some(PrimitiveType::Bool) => Some(NumericResult::Boolean),
                 Some(primitive) => primitive_numeric_type(primitive).map(NumericResult::Primitive),
-                None => (self.display_type_reference(return_type) == "FloatClass")
+                None => (self.core_vocabulary(self.type_reference_symbol(return_type))
+                    == Some(language_core::core_vocabulary::CoreVocabulary::FloatClass))
                     .then_some(NumericResult::FloatClass),
             };
             intrinsic

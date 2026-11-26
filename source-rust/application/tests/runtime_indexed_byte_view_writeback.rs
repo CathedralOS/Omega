@@ -1,21 +1,13 @@
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
+use project::omega;
 use std::path::{Path, PathBuf};
-use std::process::{self, Command, Stdio};
+use std::process;
 
 fn project(relative: &str, fixture: &str) -> PathBuf {
-    support::repository_root()
-        .join(relative)
-        .join(fixture)
-}
-
-fn omega(directory: &Path, arguments: &[&str]) -> process::Output {
-    Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .current_dir(directory)
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs on the hosted target")
+    support::repository_root().join(relative).join(fixture)
 }
 
 fn report(output: &process::Output) -> String {
@@ -80,13 +72,19 @@ fn indexed_view_store(inspected: &str) -> usize {
 
 #[test]
 fn a_call_replaces_only_the_selected_byte_view() {
-    let project = project("source-rust/application/tests/fixtures/ownership/run", "runtime_indexed_byte_view_writeback");
+    let project = project(
+        "source-rust/application/tests/fixtures/ownership/run",
+        "runtime_indexed_byte_view_writeback",
+    );
     indexed_view_store(&run_and_reopen(&project));
 }
 
 #[test]
 fn a_runtime_store_keeps_the_old_owned_array_contents_until_replacement() {
-    let project = project("source-rust/application/tests/fixtures/ownership/run", "owned_runtime_indexed_byte_view_writeback");
+    let project = project(
+        "source-rust/application/tests/fixtures/ownership/run",
+        "owned_runtime_indexed_byte_view_writeback",
+    );
     let inspected = run_and_reopen(&project);
     let store = indexed_view_store(&inspected);
     assert!(
@@ -111,7 +109,10 @@ fn a_runtime_store_keeps_the_old_owned_array_contents_until_replacement() {
 
 #[test]
 fn an_indexed_store_refuses_an_owned_array_with_a_moved_element() {
-    let project = project("source-rust/application/tests/fixtures/borrows/fail", "owned_runtime_indexed_byte_view_writeback");
+    let project = project(
+        "source-rust/application/tests/fixtures/borrows/fail",
+        "owned_runtime_indexed_byte_view_writeback",
+    );
     let output = omega(&project, &["--check", "build.omg"]);
     let refused = report(&output);
     assert_eq!(output.status.code(), Some(1), "{refused}");
@@ -124,7 +125,10 @@ fn an_indexed_store_refuses_an_owned_array_with_a_moved_element() {
 
 #[test]
 fn a_written_entry_contract_cannot_omit_the_store_bound() {
-    let project = project("source-rust/application/tests/fixtures/borrows/fail", "runtime_indexed_byte_view_writeback");
+    let project = project(
+        "source-rust/application/tests/fixtures/borrows/fail",
+        "runtime_indexed_byte_view_writeback",
+    );
     let output = omega(&project, &["--check", "build.omg"]);
     let refused = report(&output);
     assert_eq!(output.status.code(), Some(1), "{refused}");

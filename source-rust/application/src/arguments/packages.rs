@@ -85,12 +85,9 @@ pub(super) fn parse_arguments(
             "--build-input" | "--optional-build-input" => {
                 build_inputs.push(parse_build_input(arguments, &argument)?);
             }
-            "--project" => {
-                if project_root.is_some() {
-                    return Err("duplicate --project".to_owned());
-                }
-                project_root = Some(PathBuf::from(take_value(arguments, &argument)?));
-            }
+            "--project" => super::set_once(&mut project_root, &argument, || {
+                take_value(arguments, &argument).map(PathBuf::from)
+            })?,
             "--rev" | "--to" => {
                 if !matches!(
                     (&kind, argument.as_str()),
@@ -98,28 +95,19 @@ pub(super) fn parse_arguments(
                 ) {
                     return Err(format!("{argument} is not valid for this package command"));
                 }
-                if revision.is_some() {
-                    return Err(format!("duplicate {argument}"));
-                }
-                revision = Some(take_text(arguments, &argument)?);
+                super::set_once(&mut revision, &argument, || take_text(arguments, &argument))?;
             }
             "--package" => {
                 if !matches!(kind, PackageCommandKind::Install) {
                     return Err("--package is only valid for install".to_owned());
                 }
-                if package.is_some() {
-                    return Err("duplicate --package".to_owned());
-                }
-                package = Some(take_text(arguments, &argument)?);
+                super::set_once(&mut package, &argument, || take_text(arguments, &argument))?;
             }
             "--as" => {
                 if !matches!(kind, PackageCommandKind::Install) {
                     return Err("--as is only valid for install".to_owned());
                 }
-                if alias.is_some() {
-                    return Err("duplicate --as".to_owned());
-                }
-                alias = Some(take_text(arguments, &argument)?);
+                super::set_once(&mut alias, &argument, || take_text(arguments, &argument))?;
             }
             "--target" => target_names.push(take_text(arguments, &argument)?),
             _ if argument.starts_with('-') => {

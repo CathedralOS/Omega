@@ -14,7 +14,7 @@ const UNCITED: &str =
 
 fn proofs(source: &str) -> String {
     let end = source.find("data Main").expect("the fixture's entry state");
-    source[..end].replace("use omega\\language\\core\\ProcessExit;\n", "")
+    source[..end].replace("use {omega}/language/core/process_exit.omg;\n", "")
 }
 
 fn judged(source: &str) -> Vec<RouteVerdict> {
@@ -151,36 +151,16 @@ fn every_law_of_int_is_judged() {
     // `nat.omg`, the library is judged only through a program, and these
     // machines are private, so the two files' declarations are compiled as
     // the program's.
-    let mut program = super::nat_semiring::library_declarations();
-    program.push_str(include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../source/library/core/int.omg"
-    )));
-    let typed = super::build_purpose::frontier_with_core(
-        &program,
-        "machine build_entry() {}",
-        source_provenance::DependencyScope::Product,
+    let verdicts = super::fuel_recursion::judged_library_files(
+        &super::nat_semiring::library_declarations(),
         &[(
-            "algebra.omg",
-            "CommutativeSemiring",
+            "int.omg",
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../../../../../../source/library/core/algebra.omg"
+                "/../../../../../../source/library/core/int.omg"
             )),
         )],
     );
-    let prepared = crate::prepare_fixture(typed);
-    let scope = source_provenance::DependencyScope::Product;
-    let compilation = crate::lowering::prepare_compilation(
-        &prepared,
-        super::build_purpose::roster(&[], &[Some(super::build_purpose::package())], scope),
-        terminal_codec::TerminalPublication::Invocation,
-    )
-    .unwrap();
-    let verdicts: Vec<_> = crate::judge_compilation(compilation.program)
-        .into_iter()
-        .map(|verdict| verdict.expect("a judged part"))
-        .collect();
     let judgment = signature(&verdicts);
     for machine in [
         "add_int_comm",

@@ -2584,7 +2584,6 @@ impl Program<'_> {
                 id,
                 domain,
                 actual,
-                target_type,
                 subject.source,
                 super::types::DomainUse::test(needs_evidence),
             )?;

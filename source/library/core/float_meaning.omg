@@ -1,4 +1,7 @@
 use {omega}/language/core/foundation.omg as proof;
+use int.omg;
+use nat.omg;
+use rat.omg;
 
 // Core proof meaning for floating-point values.
 //
@@ -20,12 +23,12 @@ public data Sign [copy] {
 // The finite case is domain-qualified so rational zero cannot overlap either
 // signed Zero case. A caller may establish this body from an ordinary checked
 // fact; no compiler-known float or rational predicate is involved.
-public domain Rat::NonZero
+public domain |rat|::Rat::NonZero
 requires
-    !|proof|::Identity::<Nat>(self.num.pos, self.num.neg);
+    !|proof|::Identity::<|nat|::Nat>(self.num.pos, self.num.neg);
 
 public data FloatMeaning {
-    case FiniteNonZero(value: Rat in NonZero);
+    case FiniteNonZero(value: |rat|::Rat in NonZero);
     case Zero(sign: Sign);
     case Infinity(sign: Sign);
     case NaN;
@@ -35,16 +38,16 @@ public data FloatMeaning {
 // premise is a direct Nat inequality rather than an opaque predicate over an
 // already packaged Rat.
 machine nonzero_rat(
-    negative: Nat,
-    positive: Nat,
-    denominator: Nat
-) -> Rat in NonZero
+    negative: |nat|::Nat,
+    positive: |nat|::Nat,
+    denominator: |nat|::Nat
+) -> |rat|::Rat in NonZero
 requires
-    !|proof|::Identity::<Nat>(positive, negative),
-    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, denominator), Nat::Zero)
+    !|proof|::Identity::<|nat|::Nat>(positive, negative),
+    |proof|::Identity::<|nat|::Nat>(|nat|::saturating_sub(|nat|::Nat::Succ { prev: |nat|::Nat::Zero }, denominator), |nat|::Nat::Zero)
 {
-    Rat {
-        num: IntPair {
+    |rat|::Rat {
+        num: |int|::IntPair {
             neg: negative,
             pos: positive
         },
@@ -52,6 +55,6 @@ requires
     }
 }
 
-machine finite_nonzero(value: Rat in NonZero) -> FloatMeaning {
+machine finite_nonzero(value: |rat|::Rat in NonZero) -> FloatMeaning {
     FloatMeaning::FiniteNonZero { value: value }
 }

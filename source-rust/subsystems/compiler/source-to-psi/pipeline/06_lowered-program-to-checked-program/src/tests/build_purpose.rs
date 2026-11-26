@@ -41,17 +41,25 @@ pub(super) fn frontier_with_core(
     core_scope: DependencyScope,
     core: &[(&str, &str, &str)],
 ) -> crate::source_state::TypedTrees {
+    frontier_with_product_files(&[("main.omg", product)], build, core_scope, core)
+}
+
+pub(super) fn frontier_with_product_files(
+    product: &[(&str, &str)],
+    build: &str,
+    core_scope: DependencyScope,
+    core: &[(&str, &str, &str)],
+) -> crate::source_state::TypedTrees {
     let mut sources = crate::source_inputs::SourceMap::default();
     let mut syntax = None;
-    let mut product_source = None;
-    let mut build_source = None;
-    for (path, text, scope) in [
-        ("package/main.omg", product, DependencyScope::Product),
-        ("package/build.omg", build, DependencyScope::Build),
-    ] {
+    let files = product
+        .iter()
+        .map(|&(name, text)| (name, text, DependencyScope::Product))
+        .chain([("build.omg", build, DependencyScope::Build)]);
+    for (path, text, scope) in files {
         let id = sources
             .add_checked_instance(
-                path.into(),
+                std::path::Path::new("package").join(path),
                 text,
                 "package".into(),
                 Some(package()),
@@ -60,11 +68,6 @@ pub(super) fn frontier_with_core(
                 scope,
             )
             .source_id;
-        if scope == DependencyScope::Product {
-            product_source = Some(id);
-        } else {
-            build_source = Some(id);
-        }
         let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
@@ -83,45 +86,42 @@ pub(super) fn frontier_with_core(
     let mut syntax = syntax.unwrap();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../../../../source/library/core");
-    let mut bindings = Vec::with_capacity(core.len());
-    let importing_source = match core_scope {
-        DependencyScope::Product => product_source.unwrap(),
-        DependencyScope::Build => build_source.unwrap(),
-    };
-    let mut loaded = Vec::<(&str, _)>::new();
-    for &(file, declaration, text) in core {
-        // One file may supply several declarations; it is loaded once.
-        let id = match loaded.iter().find(|(known, _)| *known == file) {
-            Some((_, id)) => *id,
-            None => {
-                let id = sources
-                    .add_checked_instance(
-                        root.join(file),
-                        text,
-                        root.clone(),
-                        None,
-                        source_admission::SourceOrigin::Toolchain,
-                        source_admission::SourceResolutionStratum::Base,
-                        core_scope,
-                    )
-                    .source_id;
-                let tokens = crate::frontend_fixture::Lexer::new(text)
-                    .tokenize()
-                    .unwrap();
-                crate::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
-                loaded.push((file, id));
-                id
-            }
-        };
-        bindings.push(
-            crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                importing_source,
-                id,
-                &format!("omega::language::core::{declaration}"),
-                3,
-            ),
-        );
+    let mut loaded = Vec::new();
+    for &(file, _, text) in core {
+        // A caller may exercise several declarations from one file.
+        if loaded.contains(&file) {
+            continue;
+        }
+        loaded.push(file);
+        let id = sources
+            .add_checked_instance(
+                root.join(file),
+                text,
+                root.clone(),
+                None,
+                source_admission::SourceOrigin::Toolchain,
+                source_admission::SourceResolutionStratum::Base,
+                core_scope,
+            )
+            .source_id;
+        let tokens = crate::frontend_fixture::Lexer::new(text)
+            .tokenize()
+            .unwrap();
+        crate::frontend_fixture::parse(&mut syntax, id, &tokens).unwrap();
     }
+    sources.add_checked_instance(
+        root.join("foundation.omg"),
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../../../source/library/core/foundation.omg"
+        )),
+        root.clone(),
+        None,
+        source_admission::SourceOrigin::Toolchain,
+        source_admission::SourceResolutionStratum::Base,
+        core_scope,
+    );
+    let bindings = crate::resolution::fixture_local_and_core_imports(&syntax, &sources, &root);
     let mut request = crate::resolution::ResolutionRequest::new(syntax);
     request.sources = Some(Arc::new(sources));
     request.top_level_bindings = bindings;
@@ -139,7 +139,8 @@ fn bundled_core_imports_keep_the_callers_checked_purpose() {
             "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
         )),
     )];
-    let imports = "use omega\\language\\core\\byte_observation; machine importer() {}";
+    let imports =
+        "use {omega}/language/core/byte_observation/byte_observation.omg; machine importer() {}";
     let empty = "machine other() {}";
     for scope in [DependencyScope::Product, DependencyScope::Build] {
         let (product, build) = match scope {

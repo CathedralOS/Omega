@@ -1,19 +1,11 @@
 //! A Build returns byte views through its plan; preparation validates their values.
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 fn check(name: &str, assignments: &str) -> (bool, String) {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-configuration-view-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staging directory");
-    std::fs::write(root.join("main.omg"), "machine main() { }\n").expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "use main.omg as app;
+    let build = format!(
+        "use main.omg as app;
 use {{omega}}/build/storage.omg;
 machine build(builder: @mutable BuildPlan) {{
     builder.product = BuildProduct::Application {{ name: \"configured\" }};
@@ -21,20 +13,11 @@ machine build(builder: @mutable BuildPlan) {{
     Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
 }}
 "
-        ),
-    )
-    .expect("staged Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "--target", "linux_x86_64"])
-        .arg("build.omg")
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    (
-        output.status.success(),
-        String::from_utf8_lossy(&output.stderr).into_owned(),
+    );
+    project::check(
+        name,
+        &[("main.omg", "machine main() { }\n"), ("build.omg", &build)],
+        &["--check", "--target", "linux_x86_64", "build.omg"],
     )
 }
 

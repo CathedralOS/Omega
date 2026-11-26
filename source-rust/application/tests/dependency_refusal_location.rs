@@ -17,24 +17,21 @@ machine's name.
 
 */
 
-use std::process::Command;
+#[path = "support/project.rs"]
+mod project;
 
 #[test]
 fn a_refusal_inside_a_dependency_names_its_machine_and_file_position() {
-    let root = std::env::temp_dir().join(format!(
-        "omega-dependency-refusal-location-{}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(root.join("dep")).expect("staging directory");
-    std::fs::write(
-        root.join("main.omg"),
-        "use {kit}/main.omg as kit;\n\nmachine entry() -> i32 {\n    |kit|::value()\n}\n",
-    )
-    .expect("staged program");
-    std::fs::write(
-        root.join("build.omg"),
-        "use {omega}/build/dependency.omg;
+    let (success, stderr) = project::check(
+        "dependency-refusal-location",
+        &[
+            (
+                "main.omg",
+                "use {kit}/main.omg as kit;\n\nmachine entry() -> i32 {\n    |kit|::value()\n}\n",
+            ),
+            (
+                "build.omg",
+                "use {omega}/build/dependency.omg;
 machine build(builder: @mutable Build) {
     Build::application(builder, \"consumer\");
     let mutable description: DependencyDescription = |dependency|::from_source(Source::Path { location: \"dep\" });
@@ -42,33 +39,24 @@ machine build(builder: @mutable Build) {
     let registered: DependencyRegistration = Build::dependency(builder, description);
 }
 ",
-    )
-    .expect("staged Build");
-    // `7 % 2` is an anonymous remainder, which the checker cannot give an
-    // exact meaning yet. The expression has no span of its own on the
-    // refusal, so the refusal is placed at the machine's name, line 3
-    // column 16.
-    std::fs::write(
-        root.join("dep").join("main.omg"),
-        "// A dependency machine the checker cannot read yet.\n\n\
-         public machine value() -> i32 {\n    7 % 2\n}\n",
-    )
-    .expect("staged dependency");
-    std::fs::write(
-        root.join("dep").join("build.omg"),
-        "machine build(builder: @mutable Build) {\n    Build::package(builder, \"kernel\");\n}\n",
-    )
-    .expect("dependency Build");
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
-        .current_dir(&root)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!output.status.success(), "{stderr}");
+            ),
+            // `7 % 2` is an anonymous remainder, which the checker cannot give an
+            // exact meaning yet. The expression has no span of its own on the
+            // refusal, so the refusal is placed at the machine's name, line 3
+            // column 16.
+            (
+                "dep/main.omg",
+                "// A dependency machine the checker cannot read yet.\n\n\
+                 public machine value() -> i32 {\n    7 % 2\n}\n",
+            ),
+            (
+                "dep/build.omg",
+                "machine build(builder: @mutable Build) {\n    Build::package(builder, \"kernel\");\n}\n",
+            ),
+        ],
+        &["--check", "main.omg"],
+    );
+    assert!(!success, "{stderr}");
     let refusal = stderr
         .lines()
         .position(|line| {

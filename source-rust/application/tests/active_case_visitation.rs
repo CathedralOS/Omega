@@ -1,10 +1,11 @@
 //! Active-case visitation admits only reachable payload callbacks and checks
 //! the declared callback interfaces even when the applied sum is empty.
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
-use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::ExitStatus;
 
 fn fixture(tier: &str, name: &str) -> PathBuf {
     support::repository_root()
@@ -14,22 +15,16 @@ fn fixture(tier: &str, name: &str) -> PathBuf {
 }
 
 fn invoke(fixture: &Path, source: &str, args: &[&str]) -> (ExitStatus, String) {
-    let scratch = TemporaryDirectory::create("active-case-visitation", false).unwrap();
+    let scratch = project::stage("active-case-visitation", &[("main.omg", source)]);
     std::fs::copy(fixture.join("build.omg"), scratch.path().join("build.omg")).unwrap();
-    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(args)
-        .args([
-            "--build-input",
-            "build.omg",
-            "--build-input",
-            "main.omg",
-            "build.omg",
-        ])
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
+    let inputs = [
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "build.omg",
+    ];
+    let output = project::omega(scratch.path(), &[args, &inputs].concat());
     (
         output.status,
         String::from_utf8_lossy(&output.stderr).into_owned(),

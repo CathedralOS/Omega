@@ -77,6 +77,15 @@ use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, Unproved
 
 use crate::{Discharge, ImpossibleArm, describe, refusal};
 
+/// A rejection's error, placed at its source when the checker knows where.
+fn error_at(message: impl Into<String>, span: Option<source_text::SourceSpan>) -> Diagnostic {
+    let diagnostic = Diagnostic::error(message);
+    match span {
+        Some(span) => diagnostic.with_source_span(span),
+        None => diagnostic,
+    }
+}
+
 /// What the route decided for one closure.
 #[derive(Debug)]
 pub enum RouteVerdict {
@@ -565,29 +574,25 @@ impl UnprovedObligation {
     /// module comment. For an unclosed window it is placed at the failing
     /// consumption point, and `opening_diagnostic` names the write.
     pub fn reject_diagnostic(&self) -> Diagnostic {
-        let diagnostic = Diagnostic::error(self.message());
-        match self
-            .consumed
-            .map_or(self.site, |consumed| consumed.site)
-            .span()
-        {
-            Some(span) => diagnostic.with_source_span(span),
-            None => diagnostic,
-        }
+        error_at(
+            self.message(),
+            self.consumed
+                .map_or(self.site, |consumed| consumed.site)
+                .span(),
+        )
     }
 
     /// For an unclosed window, the second diagnostic of the rejection: the
     /// write that opened it, at that write.
     pub fn opening_diagnostic(&self) -> Option<Diagnostic> {
         self.consumed?;
-        let diagnostic = Diagnostic::error(format!(
-            "this write opens the invariant window: it is not shown to keep {}",
-            describe_kind(self.kind)
-        ));
-        Some(match self.site.span() {
-            Some(span) => diagnostic.with_source_span(span),
-            None => diagnostic,
-        })
+        Some(error_at(
+            format!(
+                "this write opens the invariant window: it is not shown to keep {}",
+                describe_kind(self.kind)
+            ),
+            self.site.span(),
+        ))
     }
 }
 
@@ -621,11 +626,7 @@ impl UnestablishedUse {
 
     /// The `Reject` diagnostic.
     pub fn reject_diagnostic(&self) -> Diagnostic {
-        let diagnostic = Diagnostic::error(self.message());
-        match self.site.and_then(SourceOrigin::span) {
-            Some(span) => diagnostic.with_source_span(span),
-            None => diagnostic,
-        }
+        error_at(self.message(), self.site.and_then(SourceOrigin::span))
     }
 }
 
@@ -651,11 +652,7 @@ impl RuleViolation {
 
     /// The `Reject` diagnostic.
     pub fn reject_diagnostic(&self) -> Diagnostic {
-        let diagnostic = Diagnostic::error(self.message());
-        match self.site {
-            Some(span) => diagnostic.with_source_span(span),
-            None => diagnostic,
-        }
+        error_at(self.message(), self.site)
     }
 }
 
@@ -695,11 +692,7 @@ impl ExceededReach {
 
     /// The `Reject` diagnostic.
     pub fn reject_diagnostic(&self) -> Diagnostic {
-        let diagnostic = Diagnostic::error(self.message());
-        match self.site.and_then(SourceOrigin::span) {
-            Some(span) => diagnostic.with_source_span(span),
-            None => diagnostic,
-        }
+        error_at(self.message(), self.site.and_then(SourceOrigin::span))
     }
 }
 
@@ -812,11 +805,7 @@ impl ConflictingUse {
 
     /// The `Reject` diagnostic.
     pub fn reject_diagnostic(&self) -> Diagnostic {
-        let diagnostic = Diagnostic::error(self.message());
-        match self.site.span() {
-            Some(span) => diagnostic.with_source_span(span),
-            None => diagnostic,
-        }
+        error_at(self.message(), self.site.span())
     }
 }
 
@@ -1055,6 +1044,7 @@ fn examine(
             sources: &elaboration.sources,
             requirements: &elaboration.requirements,
             nominal_calls: &elaboration.nominal_calls,
+            schemas: &elaboration.static_schemas,
             domain_sources: &elaboration.domain_sources,
         },
         &mut elaboration.tables,

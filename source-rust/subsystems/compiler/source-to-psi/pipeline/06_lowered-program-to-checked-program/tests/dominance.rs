@@ -2,5 +2,5 @@
 //! checker scratch a public API or linking unrelated source-language tests.
 #![allow(dead_code)]
 
-#[path = "../src/graph.rs"]
+#[path = "../src/control_flow/graph.rs"]
 mod graph;

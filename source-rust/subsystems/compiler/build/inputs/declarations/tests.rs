@@ -76,7 +76,7 @@ fn every_build_host_operation_writes_its_crash_ceiling() {
 
 #[test]
 fn build_prelude_uses_file_imports_and_free_machines() {
-    use syntax_trees::item::{Item, UseItem};
+    use syntax_trees::item::Item;
 
     let prelude = crate::build_prelude();
     for (namespace, text) in std::iter::once((None, prelude.declarations)).chain(
@@ -93,10 +93,6 @@ fn build_prelude_uses_file_imports_and_free_machines() {
             "{namespace:?}"
         );
         for item in syntax.root_items() {
-            assert!(
-                !matches!(item, Item::Use(UseItem::Namespace { .. })),
-                "{namespace:?}: a Build import must select a file"
-            );
             if let Item::Machine(machine) = item {
                 assert!(
                     machine.attached_data.is_none(),

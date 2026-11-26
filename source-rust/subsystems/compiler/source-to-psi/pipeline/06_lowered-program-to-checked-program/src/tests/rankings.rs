@@ -273,6 +273,13 @@ pub(crate) fn typed_with_ranking_catalog(text: &str) -> crate::source_state::Typ
         .expect("ranking declaration prefix")
         .0;
     let mut sources = crate::source_inputs::SourceMap::default();
+    let imported;
+    let text = if text.contains("|nat|::") && !text.contains("use {omega}/language/core/nat.omg;") {
+        imported = format!("use {{omega}}/language/core/nat.omg;\n{text}");
+        imported.as_str()
+    } else {
+        text
+    };
     let source = sources
         .add("rankings/source.omg".into(), text.to_owned())
         .source_id;
@@ -280,7 +287,7 @@ pub(crate) fn typed_with_ranking_catalog(text: &str) -> crate::source_state::Typ
         .add_with_metadata(
             core_root.join("nat.omg"),
             nat.to_owned(),
-            core_root,
+            core_root.clone(),
             None,
             source_admission::SourceOrigin::Toolchain,
         )
@@ -294,17 +301,11 @@ pub(crate) fn typed_with_ranking_catalog(text: &str) -> crate::source_state::Typ
         .tokenize()
         .unwrap();
     crate::frontend_fixture::parse(&mut syntax, core, &tokens).unwrap();
+    let bindings = crate::resolution::fixture_local_and_core_imports(&syntax, &sources, &core_root);
     let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
         syntax,
         sources: Some(Arc::new(sources)),
-        top_level_bindings: vec![
-            crate::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
-                source,
-                core,
-                "Nat::Descending",
-                0,
-            ),
-        ],
+        top_level_bindings: bindings,
         retained_base: None,
     })
     .unwrap();
@@ -317,7 +318,7 @@ fn an_authored_countdown_measure_must_decrease_on_the_recursive_route() {
         format!(
             r#"
 machine countdown(n: u32) -> u32
-terminates by n -> Nat::Descending
+terminates by n -> |nat|::Nat::Descending
 crashes none
 {{
     transition n > 0 {{
@@ -508,12 +509,12 @@ machine entry() -> u64 {{ count(0, 5) }}
         );
         super::boundary_calls::compilation_results_of(&typed_with_ranking_catalog(&source))
     };
-    let increasing = "cursor -> Nat::IncreasingTo(limit)";
+    let increasing = "cursor -> |nat|::Nat::IncreasingTo(limit)";
     for (view, actuals) in [
         (increasing, "cursor + 1, limit"),
         (increasing, "cursor + 1, limit + 0"),
         (
-            "(cursor, limit) -> Nat::BoundedDistance",
+            "(cursor, limit) -> |nat|::Nat::BoundedDistance",
             "cursor, limit - 1",
         ),
     ] {
@@ -603,23 +604,23 @@ fn selected_ranking_views_check_their_own_subject_and_catalog_header() {
     )), "an acyclic clause still owes collection formation: {:?}", observed_verdicts(&verdicts));
     for (text, diagnostic) in [
         (
-            "machine entry(n: u128) terminates by n -> Nat::Descending crashes none {}",
+            "machine entry(n: u128) terminates by n -> |nat|::Nat::Descending crashes none {}",
             "cannot embed exactly",
         ),
         (
-            "machine entry(n: u32) terminates by n -> Nat::IncreasingTo crashes none {}",
+            "machine entry(n: u32) terminates by n -> |nat|::Nat::IncreasingTo crashes none {}",
             "one fixed bound",
         ),
         (
-            "machine entry(n: u32, m: u32) terminates by (n, m) -> Nat::IncreasingTo(n) crashes none {}",
+            "machine entry(n: u32, m: u32) terminates by (n, m) -> |nat|::Nat::IncreasingTo(n) crashes none {}",
             "exactly one subject",
         ),
         (
-            "machine entry(n: i32) terminates by n -> Nat::Descending crashes none {}",
+            "machine entry(n: i32) terminates by n -> |nat|::Nat::Descending crashes none {}",
             "unsigned integer subject",
         ),
         (
-            "machine entry(n: u32, m: u32) terminates by (n, m) -> Nat::Descending crashes none {}",
+            "machine entry(n: u32, m: u32) terminates by (n, m) -> |nat|::Nat::Descending crashes none {}",
             "exactly one subject",
         ),
     ] {
@@ -630,7 +631,7 @@ fn selected_ranking_views_check_their_own_subject_and_catalog_header() {
         )), "a selected view still owes its argument formation: {text}: {:?}", observed_verdicts(&verdicts));
     }
     let mut program = typed_with_ranking_catalog(
-        "machine entry(n: u32) terminates by n -> Nat::Descending crashes none {}",
+        "machine entry(n: u32) terminates by n -> |nat|::Nat::Descending crashes none {}",
     );
     let declaration = program
         .machines()
@@ -654,7 +655,7 @@ fn an_acyclic_ranking_expression_still_proves_its_subtraction_is_defined() {
         let text = format!(
             r#"
 public machine measured(n: u32)
-terminates by n - 1 -> Nat::Descending
+terminates by n - 1 -> |nat|::Nat::Descending
 {contract}
 crashes none {{}}
 machine entry() crashes none {{ measured({actual}); }}
@@ -712,7 +713,7 @@ fn a_ranked_tail_transfer_creates_its_element_index_obligation_at_the_jump() {
 data Shape {{ size: u64; }}
 data Signature {{ count: u64; shapes: [Shape; 4]; }}
 machine walk(sig: @Signature, ordinal: u64, remaining: u64) -> bool
-terminates by remaining -> Nat::Descending
+terminates by remaining -> |nat|::Nat::Descending
 crashes none
 {{
     transition {{

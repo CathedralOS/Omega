@@ -793,7 +793,7 @@ impl MachineScope<'_> {
             };
             let mut visible = selects(&path);
             if !visible {
-                for import in symbols.source_module_import_paths(target.source_span().source_id) {
+                for import in symbols.prelude_module_paths(target.source_span().source_id) {
                     let mut prefix_end = 0;
                     for member in import.split("::") {
                         prefix_end += member.len();
