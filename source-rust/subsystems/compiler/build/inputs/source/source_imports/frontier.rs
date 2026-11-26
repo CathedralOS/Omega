@@ -34,7 +34,7 @@ pub(crate) struct SourceStorage {
     pub(crate) unbound_acquisition: Option<crate::CapturedLocalSource>,
     core_capture: Option<crate::CapturedLocalSource>, // Exact core input shared by Build imports, Product typing and owner derivation.
     pub(crate) package_roots: Vec<RegisteredPackageRoot>, // Dense registered source-owner rows; inventories belong to their exact capture.
-    toolchain_root: Option<PathBuf>, // Bundled toolchain root (`omega` or `core`).
+    core_root: Option<PathBuf>, // Installed core package used by both standalone and package builds.
     pub toolchain_contract_custody: ToolchainContractCustody, // Closed toolchain contract roots and directories.
 }
 
@@ -224,9 +224,10 @@ impl SourceStorage {
                 "source preparation cannot combine an unbound capture with a supplied package graph",
             )]);
         }
+        let core_root = super::bundled_core_root()?;
         let mut storage = match package_inputs {
             Some(package_inputs) => {
-                package_inputs.validate_for_compilation(root_path, &super::bundled_core_root()?)?;
+                package_inputs.validate_for_compilation(root_path, &core_root)?;
                 let root_package = package_inputs
                     .package_root(package_inputs.root())
                     .expect("validated package inputs retain their root")
@@ -234,7 +235,7 @@ impl SourceStorage {
                 let mut storage = SourceStorage::for_package_compilation(
                     root_package,
                     package_inputs.root(),
-                    super::bundled_core_root()?,
+                    core_root.clone(),
                     package_inputs.source_filesystem().clone(),
                 );
                 storage.sources = catalogue.begin_selection();
@@ -257,8 +258,7 @@ impl SourceStorage {
                         "compilation root is outside its acquired source capture",
                     )]);
                 }
-                let mut storage =
-                    SourceStorage::for_compilation(root.clone(), super::bundled_omega_root()?);
+                let mut storage = SourceStorage::for_compilation(root.clone(), core_root.clone());
                 storage
                     .filesystem
                     .add_capture(root, captured.tree().clone())
@@ -269,7 +269,7 @@ impl SourceStorage {
                     })?;
                 storage.sources = catalogue.begin_selection();
                 storage.anonymous_capture = Some(captured.tree().clone());
-                if storage.default_package_root == super::bundled_core_root()? {
+                if storage.default_package_root == core_root {
                     storage.core_capture = Some(captured.clone());
                 }
                 storage.unbound_acquisition = Some(captured);
@@ -280,7 +280,7 @@ impl SourceStorage {
         // that exact immutable input here for package and anonymous sources.
         let core = match &storage.core_capture {
             Some(capture) => capture.clone(),
-            None => crate::capture_anonymous_compilation_source(&super::bundled_core_root()?)?,
+            None => crate::capture_anonymous_compilation_source(&core_root)?,
         };
         storage.admit_toolchain_capture(&core)?;
         Ok(storage)
@@ -494,12 +494,12 @@ impl SourceStorage {
         }))
     }
 
-    pub(crate) fn for_compilation(default_package_root: PathBuf, toolchain_root: PathBuf) -> Self {
+    pub(crate) fn for_compilation(default_package_root: PathBuf, core_root: PathBuf) -> Self {
         Self {
             // The acquisition already issued this canonical root. A later host rename
             // or symlink replacement must not change the captured package owner.
             default_package_root,
-            toolchain_root: Some(normalize_directory(toolchain_root)),
+            core_root: Some(normalize_directory(core_root)),
             ..Self::default()
         }
     }
@@ -507,7 +507,7 @@ impl SourceStorage {
     pub(crate) fn for_package_compilation(
         default_package_root: PathBuf,
         default_package_identity: PackageKeyIdentity,
-        toolchain_root: PathBuf,
+        core_root: PathBuf,
         filesystem: source_capture::SourceFileSystem,
     ) -> Self {
         Self {
@@ -516,7 +516,7 @@ impl SourceStorage {
                 .unwrap_or(default_package_root),
             filesystem,
             default_package_identity: Some(default_package_identity),
-            toolchain_root: Some(normalize_directory(toolchain_root)),
+            core_root: Some(normalize_directory(core_root)),
             ..Self::default()
         }
     }
@@ -699,26 +699,10 @@ impl SourceStorage {
                 SourceOrigin::ToolchainContract,
             );
         }
-        if let Some(toolchain_root) = &self.toolchain_root
-            && path.starts_with(toolchain_root)
+        if let Some(core) = &self.core_root
+            && path.starts_with(core)
         {
-            let toolchain_is_core =
-                toolchain_root.file_name().and_then(|name| name.to_str()) == Some("core");
-            let core_roots = if toolchain_is_core {
-                vec![toolchain_root.clone()]
-            } else {
-                vec![
-                    toolchain_root.join("core"),
-                    toolchain_root.join("language").join("core"),
-                ]
-            };
-            if let Some(core_root) = core_roots
-                .into_iter()
-                .filter(|root| path.starts_with(root))
-                .max_by_key(|root| root.components().count())
-            {
-                return (core_root, None, SourceOrigin::Toolchain);
-            }
+            return (core.clone(), None, SourceOrigin::Toolchain);
         }
 
         if origin_override == Some(SourceOrigin::Toolchain)
@@ -736,7 +720,7 @@ impl SourceStorage {
                 );
             }
             return (
-                self.toolchain_root.clone().unwrap_or_default(),
+                self.core_root.clone().unwrap_or_default(),
                 None,
                 SourceOrigin::Toolchain,
             );
@@ -1140,10 +1124,19 @@ mod tests {
     #[test]
     fn implicit_explicit_and_package_core_imports_keep_the_same_owner() {
         let base = std::env::temp_dir().join("omega-core-source-metadata");
-        let library = base.join("library");
+        // Installation paths are chosen by the distributor. Its directory name
+        // has no bearing on which of its packages the compiler supplies.
+        let library = base.join("core");
         let core = library.join("core");
         let path = core.join("storage.omg");
-        let loose = SourceStorage::for_compilation(base.join("application"), library);
+        let mut loose = SourceStorage::for_compilation(base.join("application"), core.clone());
+        let system = library.join("system");
+        let owner = semantic_vocabulary::PackageKeyIdentity::from_digest([23; 32]).unwrap();
+        loose.register_reconciled_package_root(system.clone(), owner);
+        assert_eq!(
+            loose.source_metadata(&system.join("console.omg"), None),
+            (system, Some(owner), SourceOrigin::User)
+        );
         let implicit = loose.source_metadata(&path, None);
         let explicit = loose.source_metadata(&path, Some(SourceOrigin::Toolchain));
         assert_eq!(
