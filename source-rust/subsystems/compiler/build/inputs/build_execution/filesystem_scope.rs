@@ -22,7 +22,7 @@ Provenance:
 - Terminal Psi runtime filesystem host (`BuildFilesystemRuntime`): `build_execution/filesystem_scope/runtime.rs`.
 */
 
-mod bound_directory;
+use platform_custody::bound_directory;
 pub mod preparation;
 pub mod runtime;
 pub(super) mod successor_directory;
@@ -100,7 +100,8 @@ pub struct BuildMachineFilesystemScope {
     captured_source_input: Option<CapturedBuildSourceInput>, // Immutable captured Source inventory.
     pub(super) product_source_directory: Option<Vec<u8>>,
     required_outputs: BTreeSet<Vec<u8>>, // Declared required sealed output paths in canonical order.
-    named_inputs: Vec<NamedBuildInput>,  // Assigned named input roots (`3..`).
+    directories: platform_custody::directory_mappings::DirectoryMappings,
+    named_inputs: Vec<NamedBuildInput>, // Assigned named input roots (`3..`).
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,6 +202,7 @@ impl BuildMachineFilesystemScope {
             captured_source_input: None,
             required_outputs: BTreeSet::new(),
             product_source_directory: None,
+            directories: Default::default(),
             named_inputs: Vec::new(),
         }
     }
@@ -227,6 +229,7 @@ impl BuildMachineFilesystemScope {
             captured_source_input: None,
             required_outputs: BTreeSet::new(),
             product_source_directory: None,
+            directories: Default::default(),
             named_inputs: Vec::new(),
         }
     }

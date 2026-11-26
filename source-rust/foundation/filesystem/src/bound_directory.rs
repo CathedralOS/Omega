@@ -1,11 +1,4 @@
-// Directory capability for admitted live input and private staging.
-//
-// Descendants are opened relative to the retained `cap_std::fs::Dir` handle using
-// `open_dir_nofollow` and `FollowSymlinks::No` rather than joining ambient paths,
-// so renaming or symlinking the root or any intermediate directory after admission
-// cannot retarget a read or creation outside the admitted directory tree.
-// Pointer equality on `Arc<Dir>` ensures two independent live-root admissions
-// never compare equal or exchange filesystem effects.
+//! File operations rooted at a directory handle issued by the caller.
 
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, OpenOptionsSyncExt};
 use cap_std::fs::{Dir, OpenOptions};
@@ -14,7 +7,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
-pub(super) struct BoundDirectory(Arc<Dir>);
+pub struct BoundDirectory(Arc<Dir>);
 
 impl PartialEq for BoundDirectory {
     fn eq(&self, other: &Self) -> bool {
@@ -24,7 +17,7 @@ impl PartialEq for BoundDirectory {
 impl Eq for BoundDirectory {}
 
 impl BoundDirectory {
-    pub(super) fn bind(root: &Path) -> io::Result<Self> {
+    pub fn bind(root: &Path) -> io::Result<Self> {
         Ok(Self(Arc::new(Dir::open_ambient_dir(
             root,
             cap_std::ambient_authority(),
@@ -32,14 +25,14 @@ impl BoundDirectory {
     }
 
     fn parent<'path>(&self, path: &'path [u8]) -> io::Result<(Dir, &'path str)> {
-        if !filesystem_authority::filesystem_root_relative_path_is_canonical(path, false) {
+        let spelling = std::str::from_utf8(path)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "file path is not UTF-8"))?;
+        if !crate::directory_mappings::valid_components(spelling) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                "noncanonical Build path",
+                "expected a canonical relative filename",
             ));
         }
-        let spelling = std::str::from_utf8(path)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "Build path is not UTF-8"))?;
         let mut components = spelling.split('/');
         let leaf = components.next_back().ok_or(io::ErrorKind::InvalidInput)?;
         let mut directory = self.0.try_clone()?;
@@ -49,7 +42,7 @@ impl BoundDirectory {
         Ok((directory, leaf))
     }
 
-    pub(super) fn open_read(&self, path: &[u8]) -> io::Result<std::fs::File> {
+    pub fn open_read(&self, path: &[u8]) -> io::Result<std::fs::File> {
         let (directory, name) = self.parent(path)?;
         if !directory.symlink_metadata(name)?.is_file() {
             return Err(io::Error::new(
@@ -69,7 +62,30 @@ impl BoundDirectory {
         Ok(file.into_std())
     }
 
-    pub(super) fn create_new(&self, path: &[u8]) -> io::Result<std::fs::File> {
+    /// Open the file before replacing its contents, so an unsuccessful type
+    /// or symlink check cannot truncate an unrelated object.
+    pub fn open_write(&self, path: &[u8]) -> io::Result<std::fs::File> {
+        let (directory, name) = self.parent(path)?;
+        match directory.symlink_metadata(name) {
+            Ok(metadata) if !metadata.is_file() => return Err(io::ErrorKind::InvalidInput.into()),
+            Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error),
+            _ => {}
+        }
+        let mut options = OpenOptions::new();
+        options
+            .write(true)
+            .create(true)
+            .nonblock(true)
+            .follow(FollowSymlinks::No);
+        let file = directory.open_with(name, &options)?;
+        if !file.metadata()?.is_file() {
+            return Err(io::ErrorKind::InvalidInput.into());
+        }
+        file.set_len(0)?;
+        Ok(file.into_std())
+    }
+
+    pub fn create_new(&self, path: &[u8]) -> io::Result<std::fs::File> {
         let (directory, name) = self.parent(path)?;
         let mut options = OpenOptions::new();
         options
@@ -89,7 +105,7 @@ mod tests {
 
     #[test]
     fn creation_uses_the_bound_directory_when_its_host_name_is_replaced() {
-        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+        let temp = crate::temporary_directory::TemporaryDirectory::create(
             "bound-staging-directory",
             false,
         )

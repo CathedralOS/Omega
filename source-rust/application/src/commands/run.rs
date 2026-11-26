@@ -7,7 +7,6 @@ use crate::execution::{
     TerminalOutcome, run_project, run_project_cases,
 };
 use compiler::CompilerRequestOutcome;
-use package_compilation::build_execution::BuildSnapshotRequest;
 use std::io::Write;
 
 use std::path::PathBuf;
@@ -41,9 +40,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     let outcome = match run_project(
         artifact,
         RunRequest {
-            build_snapshot: arguments
-                .build_inputs
-                .map(|inputs| BuildSnapshotRequest::scoped(Vec::new(), inputs)),
+            build_snapshot: crate::arguments::build_snapshot(arguments.build_inputs, arguments.build_directories),
             private_entry_ram: arguments.private_entry_ram,
             root_path: arguments.main_path,
             target_name: arguments.target_name,
@@ -196,9 +193,7 @@ fn run_cases(
     let outcome = match run_project_cases(
         artifact,
         CaseRunRequest {
-            build_snapshot: arguments
-                .build_inputs
-                .map(|inputs| BuildSnapshotRequest::scoped(Vec::new(), inputs)),
+            build_snapshot: crate::arguments::build_snapshot(arguments.build_inputs, arguments.build_directories),
             private_entry_ram: arguments.private_entry_ram,
             root_path: arguments.main_path,
             target_name: arguments.target_name,

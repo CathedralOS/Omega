@@ -128,6 +128,7 @@ machine build(builder: @mutable BuildPlan) {
         TargetProfile::LinuxArm64
     };
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("host_lib").unwrap(),
         source: BuildDependencySource::Path("library".into()),
     }];
@@ -203,6 +204,7 @@ public TestImage satisfies |image|::ProgramImage {
 }"#,
         );
         BuildLibraryRequest {
+            max_reach: Default::default(),
             alias: ProjectName::parse("backing").unwrap(),
             source: BuildDependencySource::Path(directory.into()),
         }
@@ -439,6 +441,7 @@ public machine charged() reaches AuditEffect {}
 public machine free() {}"#,
     );
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("checking").unwrap(),
         source: BuildDependencySource::Path("helper".into()),
     }];
@@ -506,6 +509,7 @@ public machine answer() -> i32 { |layout|::answer() }"#,
         "public machine answer() -> i32 { 42 }",
     );
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("layout").unwrap(),
         source: BuildDependencySource::Path("supplier".into()),
     }];
@@ -614,6 +618,7 @@ machine build(builder: @mutable BuildPlan) {
         ProjectInput::WithBuildLibraries {
             file: &root.join("build.omg"),
             libraries: &[BuildLibraryRequest {
+                max_reach: Default::default(),
                 alias: ProjectName::parse("policy").unwrap(),
                 source: BuildDependencySource::Path("library".into()),
             }],
@@ -660,6 +665,7 @@ machine build(builder: @mutable BuildPlan) {
         "public machine free() {}",
     );
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("helper").unwrap(),
         source: BuildDependencySource::Path("library".into()),
     }];
@@ -700,6 +706,7 @@ public machine charged() reaches Sensor<17u32> {}
 public machine free() {}"#,
     );
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("policy").unwrap(),
         source: BuildDependencySource::Path("library".into()),
     }];
@@ -798,6 +805,7 @@ machine build(builder: @mutable BuildPlan) {{
         contract.owner, contract.slot_name
     );
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("policy").unwrap(),
         source: BuildDependencySource::Path("library".into()),
     }];

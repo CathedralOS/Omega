@@ -561,6 +561,7 @@ machine build(builder: @mutable Build) {
 "#;
     std::fs::write(&entry, source).unwrap();
     let libraries = [BuildLibraryRequest {
+        max_reach: Default::default(),
         alias: ProjectName::parse("authored").unwrap(),
         source: BuildDependencySource::Path("implementation".into()),
     }];

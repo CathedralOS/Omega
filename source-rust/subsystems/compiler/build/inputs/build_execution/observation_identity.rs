@@ -221,6 +221,7 @@ const fn filesystem_root_tag(root: BuildFilesystemRoot) -> u8 {
         BuildFilesystemRoot::Source => 0,
         BuildFilesystemRoot::Output => 1,
         BuildFilesystemRoot::NamedInput(_) => 2,
+        BuildFilesystemRoot::MappedDirectories => 3,
     }
 }
 
