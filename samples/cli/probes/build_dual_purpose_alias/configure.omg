@@ -1,0 +1,23 @@
+use {omega}/build/dependency.omg;
+use {kit}/generated.omg as kit;
+use main.omg as app;
+
+machine build(plan: @mutable BuildPlan) crashes Trap {
+    transition |kit|::value() == 7 {
+        true -> application(plan),
+        false -> failed()
+    }
+}
+
+machine application(plan: @mutable BuildPlan) {
+    let prepared: PackageBinding = |dependency|::input(plan, "kit");
+    _ = |dependency|::add(plan, prepared);
+    plan.product = BuildProduct::Application { name: "build_dual_purpose_alias" };
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(plan, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(plan, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(plan, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(plan, windows_arm64::ProgramEntry, |app|::main);
+}
+
+machine failed() { crash Trap; }

@@ -1,5 +1,14 @@
-use {product_kit}/generated.omg as product_kit;
+use {product_kit}/generated.omg as kit;
 
-machine entry() -> i32 {
-    |product_kit|::value()
+machine entry() -> i32 { |kit|::value() }
+
+public machine main() crashes Trap {
+    transition entry() == 7 {
+        true -> done(),
+        false -> failed()
+    }
 }
+
+machine failed() { crash Trap; }
+
+machine done() {}

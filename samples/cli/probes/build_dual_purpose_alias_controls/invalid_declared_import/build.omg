@@ -1,0 +1,8 @@
+use {omega}/build/dependency.omg;
+
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_declared_import" };
+    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../build_dual_purpose_alias/dependency" });
+    |dependency|::with_alias(@mutable kit_dependency, "kit");
+    _ = |dependency|::add(builder, kit_dependency);
+}

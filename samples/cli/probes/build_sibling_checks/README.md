@@ -1,22 +1,19 @@
-# build_sibling_checks
+# Three generated sibling packages
 
-Sibling pooled-check probe: three sibling packages are checked as one
-occurrence batch, and each sibling's build consults the same `shared`
-package through a nested build edge. Each sibling publishes its own captured
-source bytes and also promises an output file with those bytes. The shared
-build must evaluate once across the sibling batch and across every
-requested target, while each sibling still seals and settles its own
-obligation. Each sibling's generated `*_value()` forwards to its authored
-`*_seed()`. The product sums the three constants:
+The application imports three packages as `a`, `b`, and `c`. Their generated
+functions call their own authored seeds, yielding 10, 20, and 30. The
+application checks that the sum is 60.
 
-```text
-mbx run -p omega -- --check --target linux_x86_64 --target macos_arm64 \
-    samples/cli/probes/build_sibling_checks/main.omg
-```
+Each sibling's first Build supplies the [shared package](../build_sibling_checks_support/)
+to its generating Build. All three check the shared seed before copying their own
+templates. Each sibling seals its output and selects its own directory for the
+receiving Build. The seed is a dependency of the three Builds and stays out
+of the application.
 
-`controls/` pins the rejection shapes around the pool: a divergent sibling
-between two convergent ones (the diagnostic names the failing occurrence),
-a Product edge alias imported into build scope and a Build edge alias
-imported into product scope (purpose-keyed rows the request never asked
-for), a non-application package binding an executable root, and a
-dependency location carrying no build declaration.
+Run `omega run --engine psi build.omg` or `omega run --engine native build.omg`.
+To check both target profiles, run `omega --check --target linux_x86_64 --target macos_arm64 build.omg`.
+
+The [negative cases](../build_sibling_checks_controls/) cover a malformed
+middle sibling, alias collisions, Build and Product scope isolation, and
+incorrect package roles. The malformed-sibling case requires the diagnostic
+to identify `bad_sibling`.

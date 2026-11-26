@@ -1,1 +1,0 @@
-expected a package build declaration, found an explicit application declaration
