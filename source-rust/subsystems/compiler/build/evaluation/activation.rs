@@ -136,6 +136,26 @@ impl ReturnedBuild {
         }
     }
 
+    /// The default next source view is the immutable package this Build received.
+    /// Issue the selection and its backing from the same completed activation.
+    pub fn successor_source(
+        &self,
+    ) -> Result<
+        (
+            &build_declarations::BuildEntryPath,
+            &package_compilation::CapturedLocalSource,
+        ),
+        String,
+    > {
+        let entry = self
+            .successor_entry()
+            .ok_or("only a preparing Build can supply a successor")?;
+        let source = self
+            .original_acquisition()
+            .ok_or("the preparing Build has no issued source view for its successor")?;
+        Ok((entry, source))
+    }
+
     pub fn requests(&self) -> &[IssuedBuildRequest] {
         &self.requests
     }
