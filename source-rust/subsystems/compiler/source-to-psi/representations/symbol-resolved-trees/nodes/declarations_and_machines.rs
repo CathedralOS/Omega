@@ -241,7 +241,7 @@ pub mod declarations {
         pub struct PropositionParameterSignature {
             pub name: DiagnosticName,
             pub parameters: HandleSpan<crate::source_resolved::signature::StateParameter>,
-            /// The family's result sort, which typing requires to be `core\Type`.
+            /// The family's result sort, which typing requires to be `|proof|::Type`.
             pub result: crate::source_resolved::types::TypeReference,
         }
 
