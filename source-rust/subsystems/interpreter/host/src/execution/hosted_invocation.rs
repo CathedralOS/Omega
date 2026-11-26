@@ -26,12 +26,9 @@ pub(super) fn execute_installed(
                 target::TargetProfile::LinuxX64 | target::TargetProfile::LinuxArm64
             ) && request.target == Some(host.target_name())
         });
-        if !matched_linux
-            || request.native_provider.is_some()
-            || request.native_services != super::TerminalNativeServiceDelegation::Unprovided
-        {
+        if !matched_linux {
             return Err(TerminalRuntimeError::InvalidProvision(
-                "live directory mappings require a matching Linux interpreter without an unrestricted native sponsor",
+                "live directory mappings require a matching Linux interpreter",
             ));
         }
     }

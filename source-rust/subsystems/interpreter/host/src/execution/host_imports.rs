@@ -301,6 +301,14 @@ impl<'host> HostContext<'host> {
         native_services: super::TerminalNativeServiceDelegation,
         filesystem: super::TerminalFilesystemDelegation,
     ) -> Result<Self, TerminalRuntimeError> {
+        if matches!(filesystem, super::TerminalFilesystemDelegation::Mapped(_))
+            && (native_provider.is_some()
+                || native_services != super::TerminalNativeServiceDelegation::Unprovided)
+        {
+            return Err(TerminalRuntimeError::InvalidProvision(
+                "live directory mappings cannot confine an unrestricted native sponsor",
+            ));
+        }
         // The sponsor resolves its own relative paths (libc, Windows), so a
         // rooted namespace starts it in that root as well.
         let native_provider = native_provider.map(|mut command| {
