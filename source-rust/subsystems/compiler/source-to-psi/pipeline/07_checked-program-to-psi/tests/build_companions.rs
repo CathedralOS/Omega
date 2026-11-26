@@ -23,6 +23,7 @@ public data Build {
     declarations: BuildDeclarations;
 }
 public data BuildDeclarations {}
+public data BuildPlan { marker: u64; }
 public data ProductEntryRef [copy] {}
 public boundary trait BuildProductOperations {
     machine entry(product: @BuildDeclarations, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
@@ -173,6 +174,11 @@ fn typed_with_core_sources(
     request.top_level_bindings.push(
         source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
     );
+    request.top_level_bindings.push(
+        source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::new(
+            ids[0], ids[1], "BuildPlan",
+        ),
+    );
     for (namespace, module) in [("Build", ids[2]), ("BuildDeclarations", ids[3])] {
         request.top_level_bindings.push(
             source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::module_import(
@@ -257,7 +263,7 @@ fn selected_entry(source: &AcceptedTerminalSource) -> symbols::SymbolHandle {
 
 #[test]
 fn only_the_checked_invocation_can_borrow_its_published_build_receiver() {
-    let build = "machine build(builder: @mutable Build) {}";
+    let build = "machine build(builder: @mutable BuildPlan) {}";
     let (receiver, code) = {
         let source = accepted(build).unwrap();
         let receiver = source.build_receiver(selected_entry(&source)).unwrap();
@@ -285,8 +291,8 @@ fn only_the_checked_invocation_can_borrow_its_published_build_receiver() {
 #[test]
 fn a_user_declared_build_type_cannot_receive_the_hosts_build() {
     let text = "data BuildDeclarations {}
-                data Build { marker: u64; declarations: BuildDeclarations; }
-                machine build(builder: @mutable Build) {}";
+                data BuildPlan { marker: u64; declarations: BuildDeclarations; }
+                machine build(builder: @mutable BuildPlan) {}";
     let mut files = source_compiler::representations::source_inputs::SourceMap::default();
     let id = files
         .add_checked_instance(
