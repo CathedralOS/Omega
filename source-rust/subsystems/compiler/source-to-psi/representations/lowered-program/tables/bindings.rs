@@ -127,10 +127,11 @@ pub enum Content {
 
 /// Calls can reveal a more precise written field after every body is lowered.
 /// Use the same interning owner as the original storage producer, so adding
-/// that projection cannot give one place two identities.
+/// that projection cannot give one place two identities. Lookups preserve the
+/// shared geometry until an entry needs to insert a new projection.
 pub fn intern_projection(
     machine: MachineId,
-    places: &mut IdTable<ExactPlaceId, PlaceRow>,
+    places: &mut super::CheckingRows<ExactPlaceId, PlaceRow>,
     parent: ExactPlaceId,
     segment: Segment,
 ) -> crate::Checked<ExactPlaceId> {
