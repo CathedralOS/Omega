@@ -20,8 +20,7 @@ pub(crate) mod interrupt_installation {
         InstalledInterruptEntryPlan, InstalledInterruptFrame, root,
     };
     use selected_instructions::{
-        FrameStorageSlotId, LocalStorageSlotId, SelectedImageAddressReference,
-        SelectedLocalStorageSlot, SelectedMemoryAccessRole,
+        LocalStorageSlotId, SelectedImageAddressReference, SelectedMemoryAccessRole,
     };
     use semantic_vocabulary::IntegerValue;
     use target_vocabulary::InstallationCallRole;
@@ -272,40 +271,13 @@ pub(crate) mod interrupt_installation {
         row: &LegalizedScalarInstruction,
         anchor: semantic_vocabulary::PlaceId,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-        let slot = LocalStorageSlotId::Boundary {
-            operation: row.operation,
-        };
-        if builder
-            .transport
-            .local_slots
-            .iter()
-            .any(|existing| existing.id == slot)
-        {
-            return Err(failure("installation root allocation is duplicated"));
-        }
-        builder
-            .transport
-            .local_slots
-            .push(SelectedLocalStorageSlot {
-                id: slot,
-                byte_size: guards::CONTROL_BYTES,
-                alignment: guards::CONTROL_ALIGNMENT,
-            });
-        let pointer = crate::instruction_selection::selection::construction::scalar_graph::structural::transport_register(
-            builder, anchor, 0,
-        )?;
-        crate::instruction_selection::selection::construction::scalar_graph::structural::memory(
+        let (_, pointer) = crate::instruction_selection::selection::construction::scalar_graph::structural::local_storage::boundary_scratch(
             builder,
             row,
             anchor,
-            0,
             guards::CONTROL_BYTES,
-            SelectedMemoryAccessRole::AddressLocal { slot },
-        )?;
-        builder.emit_frame_address(
-            FrameStorageSlotId::Local(slot),
-            pointer,
-            crate::instruction_selection::selection::construction::scalar_graph::structural::provenance(row),
+            guards::CONTROL_ALIGNMENT,
+            "installation root allocation is duplicated",
         )?;
         Ok(pointer)
     }
@@ -671,20 +643,9 @@ pub(crate) mod interrupt_installation_guards {
                 right: VirtualRegisterId,
                 kind: SelectedInstructionKind,
             ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-                let result = transport_register(builder, self.anchor, 0)?;
-                builder.emit(
-                    SelectedInstructionKind::CompareI64,
-                    builder.constraints.keys.compare_i64,
-                    &[left, right],
-                    provenance(self.row),
-                )?;
-                builder.emit(
-                    kind,
-                    builder.constraints.keys.materialize_boolean,
-                    &[result],
-                    provenance(self.row),
-                )?;
-                Ok(result)
+                crate::instruction_selection::selection::construction::scalar_graph::structural::access_lifecycles::outcome::compare(
+                    builder, self.row, self.anchor, left, right, kind,
+                )
             }
             pub(crate) fn equal(
                 &self,
@@ -2062,18 +2023,13 @@ pub(crate) mod static_interrupts {
         left: VirtualRegisterId,
         right: VirtualRegisterId,
     ) -> Result<(), SelectedInstructionError> {
-        let predicate = transport_register(builder, place, 0)?;
-        builder.emit(
-            SelectedInstructionKind::CompareI64,
-            builder.constraints.keys.compare_i64,
-            &[left, right],
-            provenance(row),
-        )?;
-        builder.emit(
+        let predicate = crate::instruction_selection::selection::construction::scalar_graph::structural::access_lifecycles::outcome::compare(
+            builder,
+            row,
+            place,
+            left,
+            right,
             SelectedInstructionKind::MaterializeBooleanEqual,
-            builder.constraints.keys.materialize_boolean,
-            &[predicate],
-            provenance(row),
         )?;
         crate::instruction_selection::selection::construction::scalar_graph::operation_control::require_nonzero(
             builder, row, predicate,

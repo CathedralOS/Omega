@@ -446,19 +446,8 @@ fn collect_multi_def_vregs(function: &SelectedFunction) -> HashSet<VirtualRegist
             *def_counts.entry(reg.id).or_default() += 1;
         }
     }
-    for block in &function.blocks {
-        for inst in &block.instructions {
-            for op in &inst.operands {
-                if matches!(
-                    op.access,
-                    RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
-                ) {
-                    *def_counts.entry(op.virtual_register).or_default() += 1;
-                }
-            }
-        }
-        let term = terminator_instruction(&block.terminator);
-        for op in &term.operands {
+    for inst in function.blocks.iter().flat_map(block_instructions) {
+        for op in &inst.operands {
             if matches!(
                 op.access,
                 RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
@@ -705,35 +694,13 @@ fn analyze_non_escaping_slots(
             }
         }
         for succ in terminator_successors(&block.terminator) {
-            for b in &succ.bindings {
-                if let selected_instructions::SelectedValueTransport::Registers { argument, .. } =
-                    b.transport
-                    && let Some(&(_, s, _)) = ptr_to_slot_global.get(&argument)
+            successor_registers(succ, |role, register| {
+                if matches!(role, EdgeRegister::Argument | EdgeRegister::Structural)
+                    && let Some(&(_, s, _)) = ptr_to_slot_global.get(&register)
                 {
                     escaped.insert(s);
                 }
-            }
-            for sb in &succ.structural_bindings {
-                match sb.transport {
-                    selected_instructions::SelectedStructuralTransport::Address {
-                        base: selected_instructions::SelectedAddressBase::Register(r),
-                        ..
-                    }
-                    | selected_instructions::SelectedStructuralTransport::ScalarReference {
-                        base: selected_instructions::SelectedAddressBase::Register(r),
-                        ..
-                    }
-                    | selected_instructions::SelectedStructuralTransport::WholeValue {
-                        argument: r,
-                        ..
-                    } => {
-                        if let Some(&(_, s, _)) = ptr_to_slot_global.get(&r) {
-                            escaped.insert(s);
-                        }
-                    }
-                    _ => {}
-                }
-            }
+            });
         }
     }
 
@@ -2551,6 +2518,26 @@ fn is_memory_barrier_free_for_coalesce(
     block_local_ptrs: &HashMap<VirtualRegisterId, PtrOrigin>,
 ) -> bool {
     match &inst.kind {
+        _ if register_op_purity(&inst.kind).is_some() => true,
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(s),
+            ..
+        } => local_slots.contains(s),
+        _ if pointer_access(&inst.kind).is_some() => {
+            !inst.operands.is_empty()
+                && block_local_ptrs.contains_key(&inst.operands[0].virtual_register)
+        }
+        _ => false,
+    }
+}
+
+/// Register-only instructions that dead-code elimination may drop and store
+/// coalescing may move across. `Some(true)` marks the scalar address and
+/// arithmetic forms, which elimination drops when their provenance carries no
+/// work or edges; `Some(false)` marks packed register forms, whose provenance
+/// must also carry no obligations.
+fn register_op_purity(kind: &SelectedInstructionKind) -> Option<bool> {
+    match kind {
         SelectedInstructionKind::MaterializeI64 { .. }
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::AddressOffset { .. }
@@ -2559,8 +2546,8 @@ fn is_memory_barrier_free_for_coalesce(
         | SelectedInstructionKind::WrappingMultiplyI64
         | SelectedInstructionKind::WrappingAddI64
         | SelectedInstructionKind::ExactAddI64 { .. }
-        | SelectedInstructionKind::ExactAddI64Immediate { .. }
-        | SelectedInstructionKind::PackedMaterializeZero
+        | SelectedInstructionKind::ExactAddI64Immediate { .. } => Some(true),
+        SelectedInstructionKind::PackedMaterializeZero
         | SelectedInstructionKind::PackedFromGpr64ZeroExtend
         | SelectedInstructionKind::PackedFromGpr64Pair
         | SelectedInstructionKind::PackedAddI16x8Reg
@@ -2574,27 +2561,31 @@ fn is_memory_barrier_free_for_coalesce(
         | SelectedInstructionKind::PackedCmpGtI16x8Reg
         | SelectedInstructionKind::PackedBitAndI16x8Reg
         | SelectedInstructionKind::PackedBitAndNotI16x8Reg
-        | SelectedInstructionKind::PackedAbsI16x8Reg => true,
-        SelectedInstructionKind::Store64 {
-            slot: FrameStorageSlotId::Local(s),
-            ..
-        } => local_slots.contains(s),
-        SelectedInstructionKind::Load8 { .. }
-        | SelectedInstructionKind::Load16 { .. }
-        | SelectedInstructionKind::Load32 { .. }
-        | SelectedInstructionKind::Load64 { .. }
-        | SelectedInstructionKind::Store { .. }
-        | SelectedInstructionKind::PackedLoad128 { .. }
-        | SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
-        | SelectedInstructionKind::PackedLoad32ZeroExtend { .. }
-        | SelectedInstructionKind::PackedStore128 { .. }
-        | SelectedInstructionKind::PackedStore64 { .. }
-        | SelectedInstructionKind::PackedStore32 { .. } => {
-            !inst.operands.is_empty()
-                && block_local_ptrs.contains_key(&inst.operands[0].virtual_register)
-        }
-        _ => false,
+        | SelectedInstructionKind::PackedAbsI16x8Reg => Some(false),
+        _ => None,
     }
+}
+
+/// The byte window a load or store reaches through its pointer operand
+/// (operand 0): whether it writes, its offset from the pointer and its width.
+fn pointer_access(kind: &SelectedInstructionKind) -> Option<(bool, u32, usize)> {
+    Some(match *kind {
+        SelectedInstructionKind::Load8 { byte_offset } => (false, byte_offset, 1),
+        SelectedInstructionKind::Load16 { byte_offset } => (false, byte_offset, 2),
+        SelectedInstructionKind::Load32 { byte_offset } => (false, byte_offset, 4),
+        SelectedInstructionKind::Load64 { byte_offset } => (false, byte_offset, 8),
+        SelectedInstructionKind::PackedLoad128 { byte_offset } => (false, byte_offset, 16),
+        SelectedInstructionKind::PackedLoad64ZeroExtend { byte_offset } => (false, byte_offset, 8),
+        SelectedInstructionKind::PackedLoad32ZeroExtend { byte_offset } => (false, byte_offset, 4),
+        SelectedInstructionKind::Store {
+            byte_offset,
+            byte_size,
+        } => (true, byte_offset, byte_size as usize),
+        SelectedInstructionKind::PackedStore128 { byte_offset } => (true, byte_offset, 16),
+        SelectedInstructionKind::PackedStore64 { byte_offset } => (true, byte_offset, 8),
+        SelectedInstructionKind::PackedStore32 { byte_offset } => (true, byte_offset, 4),
+        _ => return None,
+    })
 }
 
 fn eliminate_dead_local_stores(
@@ -2606,47 +2597,7 @@ fn eliminate_dead_local_stores(
     if local_slots.is_empty() {
         return false;
     }
-    // Forward compute ptr_origin within the transformed block.
-    let mut ptr_origin: HashMap<VirtualRegisterId, PtrOrigin> = HashMap::new();
-    for inst in insts.iter() {
-        match &inst.kind {
-            SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Local(s),
-                byte_offset,
-            } if local_slots.contains(s) => {
-                if let Some(dst) = inst.operands.first().map(|o| o.virtual_register)
-                    && !multi_def_vregs.contains(&dst)
-                {
-                    ptr_origin.insert(
-                        dst,
-                        PtrOrigin::Local {
-                            slot: *s,
-                            offset: *byte_offset,
-                        },
-                    );
-                }
-            }
-            SelectedInstructionKind::CopyI64 if inst.operands.len() == 2 => {
-                let dst = inst.operands[1].virtual_register;
-                if !multi_def_vregs.contains(&dst)
-                    && let Some(&orig) = ptr_origin.get(&inst.operands[0].virtual_register)
-                {
-                    ptr_origin.insert(dst, orig);
-                }
-            }
-            SelectedInstructionKind::AddressOffset { byte_offset } if inst.operands.len() == 2 => {
-                let dst = inst.operands[1].virtual_register;
-                if !multi_def_vregs.contains(&dst)
-                    && let Some(PtrOrigin::Local { slot, offset }) =
-                        ptr_origin.get(&inst.operands[0].virtual_register).copied()
-                    && let Some(sum) = offset.checked_add(*byte_offset)
-                {
-                    ptr_origin.insert(dst, PtrOrigin::Local { slot, offset: sum });
-                }
-            }
-            _ => {}
-        }
-    }
+    let ptr_origin = collect_block_local_ptrs(insts, local_slots, multi_def_vregs);
 
     let mut live_bytes: HashMap<LocalStorageSlotId, Vec<bool>> = local_slots
         .iter()
@@ -2655,96 +2606,31 @@ fn eliminate_dead_local_stores(
     let mut removed = vec![false; insts.len()];
 
     for (idx, inst) in insts.iter().enumerate().rev() {
-        match &inst.kind {
-            SelectedInstructionKind::Load8 { byte_offset }
-            | SelectedInstructionKind::Load16 { byte_offset }
-            | SelectedInstructionKind::Load32 { byte_offset }
-            | SelectedInstructionKind::Load64 { byte_offset } => {
-                let width = match inst.kind {
-                    SelectedInstructionKind::Load8 { .. } => 1,
-                    SelectedInstructionKind::Load16 { .. } => 2,
-                    SelectedInstructionKind::Load32 { .. } => 4,
-                    SelectedInstructionKind::Load64 { .. } => 8,
-                    _ => unreachable!(),
-                };
-                if let Some(&PtrOrigin::Local { slot, offset }) =
-                    ptr_origin.get(&inst.operands[0].virtual_register)
-                {
-                    let off = (offset + *byte_offset) as usize;
-                    for b in &mut live_bytes.get_mut(&slot).unwrap()[off..(off + width)] {
-                        *b = true;
-                    }
-                }
-            }
-            SelectedInstructionKind::PackedLoad128 { byte_offset }
-            | SelectedInstructionKind::PackedLoad64ZeroExtend { byte_offset }
-            | SelectedInstructionKind::PackedLoad32ZeroExtend { byte_offset } => {
-                let width = match inst.kind {
-                    SelectedInstructionKind::PackedLoad128 { .. } => 16,
-                    SelectedInstructionKind::PackedLoad64ZeroExtend { .. } => 8,
-                    SelectedInstructionKind::PackedLoad32ZeroExtend { .. } => 4,
-                    _ => unreachable!(),
-                };
-                if let Some(&PtrOrigin::Local { slot, offset }) =
-                    ptr_origin.get(&inst.operands[0].virtual_register)
-                {
-                    let off = (offset + *byte_offset) as usize;
-                    for b in &mut live_bytes.get_mut(&slot).unwrap()[off..(off + width)] {
-                        *b = true;
-                    }
-                }
-            }
+        let (writes, off, width) = match inst.kind {
             SelectedInstructionKind::Store64 {
                 slot: FrameStorageSlotId::Local(slot),
                 byte_offset,
-            } if local_slots.contains(slot) => {
-                let off = *byte_offset as usize;
-                let live = &mut live_bytes.get_mut(slot).unwrap()[off..(off + 8)];
-                if !live.iter().any(|&b| b) && is_pure_provenance(&inst.provenance) {
-                    removed[idx] = true;
-                } else {
-                    live.fill(false);
-                }
-            }
-            SelectedInstructionKind::Store {
-                byte_offset,
-                byte_size,
-            } => {
-                if let Some(&PtrOrigin::Local { slot, offset }) =
-                    ptr_origin.get(&inst.operands[0].virtual_register)
-                {
-                    let off = (offset + *byte_offset) as usize;
-                    let sz = *byte_size as usize;
-                    let live = &mut live_bytes.get_mut(&slot).unwrap()[off..(off + sz)];
-                    if !live.iter().any(|&b| b) && is_pure_provenance(&inst.provenance) {
-                        removed[idx] = true;
-                    } else {
-                        live.fill(false);
-                    }
-                }
-            }
-            SelectedInstructionKind::PackedStore128 { byte_offset }
-            | SelectedInstructionKind::PackedStore64 { byte_offset }
-            | SelectedInstructionKind::PackedStore32 { byte_offset } => {
-                let width = match inst.kind {
-                    SelectedInstructionKind::PackedStore128 { .. } => 16,
-                    SelectedInstructionKind::PackedStore64 { .. } => 8,
-                    SelectedInstructionKind::PackedStore32 { .. } => 4,
-                    _ => unreachable!(),
+            } if local_slots.contains(&slot) => (true, (slot, byte_offset as usize), 8),
+            _ => {
+                let Some((writes, byte_offset, width)) = pointer_access(&inst.kind) else {
+                    continue;
                 };
-                if let Some(&PtrOrigin::Local { slot, offset }) =
+                let Some(&PtrOrigin::Local { slot, offset }) =
                     ptr_origin.get(&inst.operands[0].virtual_register)
-                {
-                    let off = (offset + *byte_offset) as usize;
-                    let live = &mut live_bytes.get_mut(&slot).unwrap()[off..(off + width)];
-                    if !live.iter().any(|&b| b) && is_pure_provenance(&inst.provenance) {
-                        removed[idx] = true;
-                    } else {
-                        live.fill(false);
-                    }
-                }
+                else {
+                    continue;
+                };
+                (writes, (slot, (offset + byte_offset) as usize), width)
             }
-            _ => {}
+        };
+        let (slot, off) = off;
+        let live = &mut live_bytes.get_mut(&slot).unwrap()[off..(off + width)];
+        if !writes {
+            live.fill(true);
+        } else if !live.iter().any(|&b| b) && is_pure_provenance(&inst.provenance) {
+            removed[idx] = true;
+        } else {
+            live.fill(false);
         }
     }
 
@@ -2778,16 +2664,8 @@ fn dce_and_copy_prop(
         .filter(|r| r.entry_fixed_view.is_some())
         .map(|r| r.id)
         .collect();
-    for block in &function.blocks {
-        for inst in &block.instructions {
-            for op in &inst.operands {
-                if op.fixed_view.is_some() || op.tied_to.is_some() {
-                    fixed_entry_vregs.insert(op.virtual_register);
-                }
-            }
-        }
-        let term = terminator_instruction(&block.terminator);
-        for op in &term.operands {
+    for inst in function.blocks.iter().flat_map(block_instructions) {
+        for op in &inst.operands {
             if op.fixed_view.is_some() || op.tied_to.is_some() {
                 fixed_entry_vregs.insert(op.virtual_register);
             }
@@ -2800,7 +2678,7 @@ fn dce_and_copy_prop(
         // Collect block occurrence sets so we only propagate CopyI64 when dst is local to 1 block.
         let mut vreg_blocks: HashMap<VirtualRegisterId, HashSet<usize>> = HashMap::new();
         for (b_idx, block) in function.blocks.iter().enumerate() {
-            for inst in &block.instructions {
+            for inst in block_instructions(block) {
                 for op in &inst.operands {
                     vreg_blocks
                         .entry(op.virtual_register)
@@ -2808,43 +2686,15 @@ fn dce_and_copy_prop(
                         .insert(b_idx);
                 }
             }
-            let term = terminator_instruction(&block.terminator);
-            for op in &term.operands {
-                vreg_blocks
-                    .entry(op.virtual_register)
-                    .or_default()
-                    .insert(b_idx);
-            }
             for succ in terminator_successors(&block.terminator) {
-                for b in &succ.bindings {
-                    if let selected_instructions::SelectedValueTransport::Registers {
-                        argument,
-                        parameter,
-                    } = b.transport
-                    {
-                        vreg_blocks.entry(argument).or_default().insert(b_idx);
-                        vreg_blocks.entry(parameter).or_default().insert(b_idx);
+                successor_registers(succ, |role, register| {
+                    if matches!(
+                        role,
+                        EdgeRegister::Argument | EdgeRegister::Parameter | EdgeRegister::Structural
+                    ) {
+                        vreg_blocks.entry(register).or_default().insert(b_idx);
                     }
-                }
-                for sb in &succ.structural_bindings {
-                    match sb.transport {
-                        selected_instructions::SelectedStructuralTransport::Address {
-                            base: selected_instructions::SelectedAddressBase::Register(r),
-                            ..
-                        }
-                        | selected_instructions::SelectedStructuralTransport::ScalarReference {
-                            base: selected_instructions::SelectedAddressBase::Register(r),
-                            ..
-                        }
-                        | selected_instructions::SelectedStructuralTransport::WholeValue {
-                            argument: r,
-                            ..
-                        } => {
-                            vreg_blocks.entry(r).or_default().insert(b_idx);
-                        }
-                        _ => {}
-                    }
-                }
+                });
             }
         }
 
@@ -2920,58 +2770,18 @@ fn dce_and_copy_prop(
 
             let orig_len = block.instructions.len();
             block.instructions.retain(|inst| {
-                let is_pure_op = match &inst.kind {
-                    SelectedInstructionKind::MaterializeI64 { .. }
-                    | SelectedInstructionKind::CopyI64
-                    | SelectedInstructionKind::FrameAddress { .. }
-                    | SelectedInstructionKind::AddressOffset { .. }
-                    | SelectedInstructionKind::ByteViewAddress
-                    | SelectedInstructionKind::WrappingMultiplyI64
-                    | SelectedInstructionKind::WrappingAddI64
-                    | SelectedInstructionKind::ExactAddI64 { .. }
-                    | SelectedInstructionKind::ExactAddI64Immediate { .. } => {
-                        if !is_pure_scalar_provenance(&inst.provenance) {
-                            return true;
-                        }
-                        true
+                let removable = match register_op_purity(&inst.kind) {
+                    Some(true) => is_pure_scalar_provenance(&inst.provenance),
+                    Some(false) => is_pure_provenance(&inst.provenance),
+                    None => {
+                        pointer_access(&inst.kind).is_some_and(|(writes, ..)| !writes)
+                            && is_pure_provenance(&inst.provenance)
+                            && ((!inst.operands.is_empty()
+                                && local_addrs.contains(&inst.operands[0].virtual_register))
+                                || folded_ext_loads.contains(&inst.id))
                     }
-                    SelectedInstructionKind::PackedMaterializeZero
-                    | SelectedInstructionKind::PackedFromGpr64ZeroExtend
-                    | SelectedInstructionKind::PackedFromGpr64Pair
-                    | SelectedInstructionKind::PackedAddI16x8Reg
-                    | SelectedInstructionKind::PackedSubI16x8Reg
-                    | SelectedInstructionKind::PackedShiftRightArithmeticI16x8Reg { .. }
-                    | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
-                    | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
-                    | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
-                    | SelectedInstructionKind::PackedAddU8x16Reg
-                    | SelectedInstructionKind::PackedMinI16x8Reg
-                    | SelectedInstructionKind::PackedCmpGtI16x8Reg
-                    | SelectedInstructionKind::PackedBitAndI16x8Reg
-                    | SelectedInstructionKind::PackedBitAndNotI16x8Reg
-                    | SelectedInstructionKind::PackedAbsI16x8Reg => {
-                        if !is_pure_provenance(&inst.provenance) {
-                            return true;
-                        }
-                        true
-                    }
-                    SelectedInstructionKind::Load8 { .. }
-                    | SelectedInstructionKind::Load16 { .. }
-                    | SelectedInstructionKind::Load32 { .. }
-                    | SelectedInstructionKind::Load64 { .. }
-                    | SelectedInstructionKind::PackedLoad128 { .. }
-                    | SelectedInstructionKind::PackedLoad64ZeroExtend { .. }
-                    | SelectedInstructionKind::PackedLoad32ZeroExtend { .. } => {
-                        if !is_pure_provenance(&inst.provenance) {
-                            return true;
-                        }
-                        (!inst.operands.is_empty()
-                            && local_addrs.contains(&inst.operands[0].virtual_register))
-                            || folded_ext_loads.contains(&inst.id)
-                    }
-                    _ => false,
                 };
-                if !is_pure_op {
+                if !removable {
                     return true;
                 }
                 inst.operands.iter().any(|op| {
@@ -3020,49 +2830,11 @@ fn collect_used_vregs(function: &SelectedFunction) -> HashSet<VirtualRegisterId>
             used.insert(op.virtual_register);
         }
         for succ in terminator_successors(&block.terminator) {
-            for b in &succ.bindings {
-                if let selected_instructions::SelectedValueTransport::Registers {
-                    argument, ..
-                } = b.transport
-                {
-                    used.insert(argument);
+            successor_registers(succ, |role, register| {
+                if !matches!(role, EdgeRegister::Parameter | EdgeRegister::CaseParameter) {
+                    used.insert(register);
                 }
-            }
-            for sb in &succ.structural_bindings {
-                match sb.transport {
-                    selected_instructions::SelectedStructuralTransport::Address {
-                        base: selected_instructions::SelectedAddressBase::Register(r),
-                        ..
-                    }
-                    | selected_instructions::SelectedStructuralTransport::ScalarReference {
-                        base: selected_instructions::SelectedAddressBase::Register(r),
-                        ..
-                    }
-                    | selected_instructions::SelectedStructuralTransport::WholeValue {
-                        argument: r,
-                        ..
-                    } => {
-                        used.insert(r);
-                    }
-                    _ => {}
-                }
-            }
-            if let Some(case) = &succ.structural_case {
-                if let SelectedCaseDispatchSource::Borrowed { pointer, .. } = case.source {
-                    used.insert(pointer);
-                }
-                for payload in &case.payloads {
-                    match payload.transport {
-                        SelectedCasePayloadTransport::Registers { argument, .. } => {
-                            used.insert(argument);
-                        }
-                        SelectedCasePayloadTransport::Unmaterialized { parameter } => {
-                            used.insert(parameter);
-                        }
-                        SelectedCasePayloadTransport::Unused => {}
-                    }
-                }
-            }
+            });
         }
     }
     used
@@ -3125,7 +2897,7 @@ fn prune_dead_metadata(function: &mut SelectedFunction) {
     let mut live_slots = HashSet::new();
 
     for block in &function.blocks {
-        for inst in &block.instructions {
+        for inst in block_instructions(block) {
             live_insts.insert(inst.id);
             for op in &inst.operands {
                 live_vregs.insert(op.virtual_register);
@@ -3148,37 +2920,10 @@ fn prune_dead_metadata(function: &mut SelectedFunction) {
                 _ => {}
             }
         }
-        let term = terminator_instruction(&block.terminator);
-        live_insts.insert(term.id);
-        for op in &term.operands {
-            live_vregs.insert(op.virtual_register);
-        }
-        if let SelectedInstructionKind::FrameAddress {
-            slot: FrameStorageSlotId::Local(s),
-            ..
-        }
-        | SelectedInstructionKind::Store64 {
-            slot: FrameStorageSlotId::Local(s),
-            ..
-        }
-        | SelectedInstructionKind::HostedReadByte { slot: s }
-        | SelectedInstructionKind::HostedWriteByteI32 { slot: s }
-        | SelectedInstructionKind::SaveFloatingControl { slot: s }
-        | SelectedInstructionKind::RestoreFloatingControl { slot: s } = &term.kind
-        {
-            live_slots.insert(*s);
-        }
         for succ in terminator_successors(&block.terminator) {
-            for b in &succ.bindings {
-                if let selected_instructions::SelectedValueTransport::Registers {
-                    argument,
-                    parameter,
-                } = b.transport
-                {
-                    live_vregs.insert(argument);
-                    live_vregs.insert(parameter);
-                }
-            }
+            successor_registers(succ, |_, register| {
+                live_vregs.insert(register);
+            });
             for sb in &succ.structural_bindings {
                 match sb.transport {
                     selected_instructions::SelectedStructuralTransport::Address {
@@ -3192,50 +2937,23 @@ fn prune_dead_metadata(function: &mut SelectedFunction) {
                         ..
                     } => {
                         live_slots.insert(destination);
-                        match base {
-                            selected_instructions::SelectedAddressBase::Register(r) => {
-                                live_vregs.insert(r);
-                            }
-                            selected_instructions::SelectedAddressBase::Local(s) => {
-                                live_slots.insert(s);
-                            }
+                        if let selected_instructions::SelectedAddressBase::Local(s) = base {
+                            live_slots.insert(s);
                         }
                     }
                     selected_instructions::SelectedStructuralTransport::WholeValue {
-                        argument,
                         destination,
                         ..
                     } => {
-                        live_vregs.insert(argument);
                         live_slots.insert(destination);
                     }
                     selected_instructions::SelectedStructuralTransport::Unused => {}
                 }
             }
-            if let Some(case) = &succ.structural_case {
-                match case.source {
-                    SelectedCaseDispatchSource::Local { slot } => {
-                        live_slots.insert(slot);
-                    }
-                    SelectedCaseDispatchSource::Borrowed { pointer, .. } => {
-                        live_vregs.insert(pointer);
-                    }
-                }
-                for payload in &case.payloads {
-                    match payload.transport {
-                        SelectedCasePayloadTransport::Unmaterialized { parameter } => {
-                            live_vregs.insert(parameter);
-                        }
-                        SelectedCasePayloadTransport::Registers {
-                            argument,
-                            parameter,
-                        } => {
-                            live_vregs.insert(argument);
-                            live_vregs.insert(parameter);
-                        }
-                        SelectedCasePayloadTransport::Unused => {}
-                    }
-                }
+            if let Some(case) = &succ.structural_case
+                && let SelectedCaseDispatchSource::Local { slot } = case.source
+            {
+                live_slots.insert(slot);
             }
         }
     }
@@ -3356,6 +3074,82 @@ fn prune_dead_metadata(function: &mut SelectedFunction) {
                         SelectedCasePayloadTransport::Unused => {}
                     }
                 }
+            }
+        }
+    }
+}
+
+/// A block's instructions followed by its terminator instruction.
+fn block_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
+    block
+        .instructions
+        .iter()
+        .chain(std::iter::once(terminator_instruction(&block.terminator)))
+}
+
+/// Where on a successor edge a register appears. A value binding reads its
+/// `Argument` in this block and defines its `Parameter` in the successor.
+/// `Structural` covers transport bases and whole-value arguments. `Case` covers
+/// the borrowed dispatch pointer, payload arguments and unmaterialized payload
+/// parameters; `CaseParameter` is a materialized payload's parameter.
+#[derive(Clone, Copy)]
+enum EdgeRegister {
+    Argument,
+    Parameter,
+    Structural,
+    Case,
+    CaseParameter,
+}
+
+/// Visit every virtual register a successor edge names. Each pass filters
+/// the roles it needs instead of walking the edge itself.
+fn successor_registers(
+    succ: &selected_instructions::SelectedSuccessor,
+    mut visit: impl FnMut(EdgeRegister, VirtualRegisterId),
+) {
+    for b in &succ.bindings {
+        if let selected_instructions::SelectedValueTransport::Registers {
+            argument,
+            parameter,
+        } = b.transport
+        {
+            visit(EdgeRegister::Argument, argument);
+            visit(EdgeRegister::Parameter, parameter);
+        }
+    }
+    for sb in &succ.structural_bindings {
+        match sb.transport {
+            selected_instructions::SelectedStructuralTransport::Address {
+                base: selected_instructions::SelectedAddressBase::Register(r),
+                ..
+            }
+            | selected_instructions::SelectedStructuralTransport::ScalarReference {
+                base: selected_instructions::SelectedAddressBase::Register(r),
+                ..
+            }
+            | selected_instructions::SelectedStructuralTransport::WholeValue {
+                argument: r, ..
+            } => visit(EdgeRegister::Structural, r),
+            _ => {}
+        }
+    }
+    if let Some(case) = &succ.structural_case {
+        if let SelectedCaseDispatchSource::Borrowed { pointer, .. } = case.source {
+            visit(EdgeRegister::Case, pointer);
+        }
+        for payload in &case.payloads {
+            match payload.transport {
+                SelectedCasePayloadTransport::Registers {
+                    argument,
+                    parameter,
+                } => {
+                    visit(EdgeRegister::Case, argument);
+                    visit(EdgeRegister::CaseParameter, parameter);
+                }
+                SelectedCasePayloadTransport::Unmaterialized { parameter } => {
+                    visit(EdgeRegister::Case, parameter)
+                }
+                SelectedCasePayloadTransport::Unused => {}
             }
         }
     }
