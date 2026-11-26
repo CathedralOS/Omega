@@ -4,6 +4,7 @@ use pipeline/tokens_to_syntax_trees/parser.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/resolver.omg;
 use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg as resolved;
 use representations/syntax_trees/syntax_trees.omg as syntax;
 
 machine append_input(scanner: @mutable |lexer|::Lexer, text: @[u8]) crashes Trap {
@@ -95,7 +96,10 @@ machine main() crashes Trap {
     machine negative(parser: @mutable |parser|::Parser, files: @mutable |source|::SourceSet, resolution: @mutable |resolution_state|::Resolver) {
         add_unit(parser, files, 0 as +Trapping, "bare.omg", "use child/value-cell.omg as cell; machine missing(x: Cell) -> u8 { 0 }");
         |resolver|::resolve(resolution, files, @parser.output);
-        transition parser.output.accepted && !resolution.output.accepted && resolution.output.diagnostic.source_span.source.value == 4 {
+        let diagnostic: |resolved|::ResolveDiagnostic = resolution.output.diagnostic;
+        transition parser.output.accepted && !resolution.output.accepted
+            && diagnostic.code == |resolved|::ResolveDiagnosticCode::UnknownDataType
+            && diagnostic.source_span.source.value == 4 && |source|::span_spells(files, diagnostic.source_span, "Cell") {
             true -> directory(parser, files),
             false -> wrong()
         }
