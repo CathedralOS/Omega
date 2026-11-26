@@ -2194,7 +2194,7 @@ pub(crate) fn close_typed_cohort(
         bound_types,
     )?);
     crate::expressions::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
-    crate::declarations::constructor_applications::retain_indexed_operand_types_in_cohort(
+    crate::declarations::constructor_applications::retain_projection_types_in_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         owners_ref,
