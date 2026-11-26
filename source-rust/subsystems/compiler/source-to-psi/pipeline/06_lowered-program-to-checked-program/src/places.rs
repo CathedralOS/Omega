@@ -97,7 +97,7 @@ use crate::{CaseAnswer, StorageUse, refusal};
 
 mod arrivals;
 mod backing;
-use backing::Backing;
+use backing::{Backing, ResolvedBackings};
 
 mod byte_payloads;
 mod byte_views;
@@ -112,7 +112,7 @@ pub(crate) use loans::reference_graph;
 pub(crate) use loans::reference_graph_with_nominal_calls;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 fn index(raw: u64) -> usize {
@@ -690,7 +690,7 @@ enum BytePredicateState {
 
 /// A storage trace must retain which block entries it crossed. A descriptor
 /// saved on an earlier loop iteration cannot use today's endpoint SSA values.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum QueryKind {
     Contents,
     Case(Option<StructuralCaseId>),
@@ -828,9 +828,89 @@ enum Initialization {
     WholeArray,
 }
 
+#[derive(Default)]
+struct ReachingKeys {
+    small: Vec<(BlockId, usize, Lineage, QueryKind, usize)>,
+    large: HashMap<(BlockId, usize, PlaceId, QueryKind), Vec<(Vec<Segment>, usize)>>,
+}
+
+impl ReachingKeys {
+    fn clear(&mut self) {
+        self.small.clear();
+        self.large.clear();
+    }
+
+    fn get(&self, block: BlockId, up_to: usize, place: &Lineage, kind: QueryKind) -> Option<usize> {
+        if self.large.is_empty() {
+            self.small
+                .iter()
+                .find(|(b, u, p, k, _)| *b == block && *u == up_to && *k == kind && p == place)
+                .map(|(_, _, _, _, addr)| *addr)
+        } else {
+            self.large
+                .get(&(block, up_to, place.root, kind))
+                .and_then(|rows| {
+                    rows.iter()
+                        .find(|(segments, _)| segments.as_slice() == place.segments.as_slice())
+                        .map(|(_, addr)| *addr)
+                })
+        }
+    }
+
+    fn insert(
+        &mut self,
+        block: BlockId,
+        up_to: usize,
+        place: &Lineage,
+        kind: QueryKind,
+        address: usize,
+    ) {
+        if self.large.is_empty() {
+            if self.small.len() < 16 {
+                self.small
+                    .push((block, up_to, place.clone(), kind, address));
+                return;
+            }
+            for (b, u, p, k, addr) in self.small.drain(..) {
+                self.large
+                    .entry((b, u, p.root, k))
+                    .or_default()
+                    .push((p.segments, addr));
+            }
+        }
+        self.large
+            .entry((block, up_to, place.root, kind))
+            .or_default()
+            .push((place.segments.clone(), address));
+    }
+}
+
+struct PendingKey<'a> {
+    block: BlockId,
+    up_to: usize,
+    place: &'a Lineage,
+    kind: Option<QueryKind>,
+    address: usize,
+    recorded: bool,
+}
+
+impl PendingKey<'_> {
+    fn record(&mut self, budget: &mut Reaching) {
+        if !self.recorded {
+            self.recorded = true;
+            if let Some(kind) = self.kind {
+                budget
+                    .keys
+                    .insert(self.block, self.up_to, self.place, kind, self.address);
+            }
+        }
+    }
+}
+
 pub(super) struct Reaching {
-    keys: BTreeMap<(BlockId, usize, Lineage, QueryKind), usize>,
+    keys: ReachingKeys,
     equations: Vec<ReachingEquation>,
+    equation_count: usize,
     fallbacks: Vec<EntryFallback>,
     boundary: BoundaryDepth,
     initialization: Initialization,
@@ -840,24 +920,70 @@ pub(super) struct Reaching {
     selected_payload_case: Option<StructuralCaseId>,
     remaining: usize,
     crossed_entries: Vec<bool>,
+    crossed_dirty: bool,
     // Entries whose current selector evaluations justify a reaching store.
     // A later-discovered backedge retires this correspondence too.
     selector_entries: Vec<BlockId>,
     used: Option<ProgramPoint>,
+    solve_pending: Vec<usize>,
+    solve_queued: Vec<bool>,
+    resolved_backings: ResolvedBackings,
     #[cfg(test)]
     scanned_rows: usize,
 }
 
 impl Reaching {
+    fn reset_for(
+        &mut self,
+        used: Option<ProgramPoint>,
+        initialization: Initialization,
+        observations: Observations,
+        remaining: usize,
+    ) {
+        self.keys.clear();
+        self.equation_count = 0;
+        self.fallbacks.clear();
+        self.boundary = BoundaryDepth::Cycle;
+        self.initialization = initialization;
+        self.observations = observations;
+        self.selected_payload_case = None;
+        self.remaining = remaining;
+        if self.crossed_dirty {
+            self.crossed_entries.fill(false);
+            self.crossed_dirty = false;
+        }
+        self.selector_entries.clear();
+        self.used = used;
+        #[cfg(test)]
+        {
+            self.scanned_rows = 0;
+        }
+    }
+
+    fn mark_crossed(&mut self, block: BlockId) {
+        self.crossed_dirty = true;
+        self.crossed_entries[index(block.get())] = true;
+    }
+
     fn add_equation(&mut self) -> usize {
-        let address = self.equations.len();
-        self.equations.push(ReachingEquation {
-            seed: Reached::Cycle,
-            seed_boundary: BoundaryDepth::Cycle,
-            direct: Reached::Cycle,
-            boundary: BoundaryDepth::Cycle,
-            transfers: Vec::new(),
-        });
+        let address = self.equation_count;
+        self.equation_count += 1;
+        if address < self.equations.len() {
+            let row = &mut self.equations[address];
+            row.seed = Reached::Cycle;
+            row.seed_boundary = BoundaryDepth::Cycle;
+            row.direct = Reached::Cycle;
+            row.boundary = BoundaryDepth::Cycle;
+            row.transfers.clear();
+        } else {
+            self.equations.push(ReachingEquation {
+                seed: Reached::Cycle,
+                seed_boundary: BoundaryDepth::Cycle,
+                direct: Reached::Cycle,
+                boundary: BoundaryDepth::Cycle,
+                transfers: Vec::new(),
+            });
+        }
         address
     }
 
@@ -911,21 +1037,28 @@ impl Reaching {
     }
 
     fn solve(&mut self, root: usize) -> Reached {
-        let mut pending = Vec::new();
-        let mut queued = vec![false; self.equations.len()];
-        for (address, row) in self.equations.iter_mut().enumerate() {
+        if self.equation_count == 1 && self.equations[0].transfers.is_empty() {
+            let row = &mut self.equations[0];
+            row.direct = row.seed;
+            row.boundary = row.seed_boundary;
+            return row.direct;
+        }
+        self.solve_pending.clear();
+        self.solve_queued.clear();
+        self.solve_queued.resize(self.equation_count, false);
+        for (address, row) in self.equations[..self.equation_count].iter_mut().enumerate() {
             row.direct = row.seed;
             row.boundary = row.seed_boundary;
             if row.direct != Reached::Cycle || row.boundary != BoundaryDepth::Cycle {
-                queued[address] = true;
-                pending.push(address);
+                self.solve_queued[address] = true;
+                self.solve_pending.push(address);
             }
         }
         // Copies have no independent contents. Propagate real arrivals until
         // every equation agrees with its predecessors. A cycle with no real
         // supply remains empty, including one with projected copies.
-        while let Some(source) = pending.pop() {
-            queued[source] = false;
+        while let Some(source) = self.solve_pending.pop() {
+            self.solve_queued[source] = false;
             let previous = self.equations[source].direct;
             let previous_boundary = self.equations[source].boundary;
             for position in 0..self.equations[source].transfers.len() {
@@ -944,8 +1077,8 @@ impl Reaching {
                 if merged != destination.direct || merged_boundary != destination.boundary {
                     destination.direct = merged;
                     destination.boundary = merged_boundary;
-                    if !std::mem::replace(&mut queued[transfer.destination], true) {
-                        pending.push(transfer.destination);
+                    if !std::mem::replace(&mut self.solve_queued[transfer.destination], true) {
+                        self.solve_pending.push(transfer.destination);
                     }
                 }
             }
@@ -1409,6 +1542,7 @@ impl<'a> Storage<'a> {
         // writes to original guest addresses for reaching-value queries. Provider
         // scalar cells have no captured guest address, including when lent to a
         // call. Their permission is checked and each read observes fresh contents.
+        let mut resolved_backings = ResolvedBackings::default();
         let relocated = storage
             .log
             .iter()
@@ -1434,10 +1568,23 @@ impl<'a> Storage<'a> {
                 {
                     return Ok(None);
                 }
-                let backing =
-                    storage.backing(references, &row.destination, row.block, before, concerns)?;
+                let backing = storage.backing_with(
+                    references,
+                    &row.destination,
+                    row.block,
+                    before,
+                    concerns,
+                    &mut resolved_backings,
+                )?;
                 if let Stored::Moved(source) = &row.stored {
-                    storage.backing(references, source, row.block, before, concerns)?;
+                    storage.backing_with(
+                        references,
+                        source,
+                        row.block,
+                        before,
+                        concerns,
+                        &mut resolved_backings,
+                    )?;
                 }
                 Ok(Some(backing))
             })
@@ -1467,7 +1614,14 @@ impl<'a> Storage<'a> {
                 {
                     continue;
                 }
-                let leaf = storage.backing(references, &leaf, block.id, before, concerns)?;
+                let leaf = storage.backing_with(
+                    references,
+                    &leaf,
+                    block.id,
+                    before,
+                    concerns,
+                    &mut resolved_backings,
+                )?;
                 let value = operation
                     .result
                     .scalar_ref()
@@ -2215,7 +2369,34 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<BackingAccess> {
-        let storage = self.backing(references, place, block, before, concerns)?;
+        let mut resolved_backings = ResolvedBackings::default();
+        self.backing_access_with(
+            references,
+            place,
+            block,
+            before,
+            concerns,
+            &mut resolved_backings,
+        )
+    }
+
+    fn backing_access_with(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        place: &Lineage,
+        block: BlockId,
+        before: usize,
+        concerns: Construct,
+        resolved_backings: &mut ResolvedBackings,
+    ) -> Checked<BackingAccess> {
+        let storage = self.backing_with(
+            references,
+            place,
+            block,
+            before,
+            concerns,
+            resolved_backings,
+        )?;
         let mut pointers = Vec::new();
         for (position, segment) in place.segments.iter().enumerate() {
             if *segment == Segment::Referent {
@@ -2223,7 +2404,14 @@ impl<'a> Storage<'a> {
                     root: place.root,
                     segments: place.segments[..position].to_vec(),
                 };
-                pointers.push(self.backing(references, &prefix, block, before, concerns)?);
+                pointers.push(self.backing_with(
+                    references,
+                    &prefix,
+                    block,
+                    before,
+                    concerns,
+                    resolved_backings,
+                )?);
             }
         }
         Ok(BackingAccess { storage, pointers })
@@ -2608,13 +2796,26 @@ impl<'a> Storage<'a> {
 
     /// Every leaf at or beneath `place`, as lineages: each scalar, and each
     /// sum itself, whose discriminator is contents like any other.
+    #[cfg(test)]
     fn leaves(
         &self,
         place: &Lineage,
         concerns: Construct,
-        mut established_array: impl FnMut(&Lineage) -> bool,
+        established_array: impl FnMut(&Lineage) -> bool,
     ) -> Checked<Vec<Lineage>> {
         let mut found = Vec::new();
+        self.leaves_into(place, concerns, &mut found, established_array)?;
+        Ok(found)
+    }
+
+    fn leaves_into(
+        &self,
+        place: &Lineage,
+        concerns: Construct,
+        found: &mut Vec<Lineage>,
+        mut established_array: impl FnMut(&Lineage) -> bool,
+    ) -> Checked<()> {
+        found.clear();
         let mut at = place.clone();
         match self.shape(place, concerns)? {
             Shape::Atomic(_) | Shape::Scalar(_) | Shape::View => found.push(at),
@@ -2622,7 +2823,7 @@ impl<'a> Storage<'a> {
                 self.leaves_of(
                     structural_type,
                     &mut at,
-                    &mut found,
+                    found,
                     concerns,
                     &mut established_array,
                 )?;
@@ -2630,12 +2831,12 @@ impl<'a> Storage<'a> {
             Shape::Payload(case) => self.field_leaves(
                 &case.fields,
                 &mut at,
-                &mut found,
+                found,
                 concerns,
                 &mut established_array,
             )?,
         }
-        Ok(found)
+        Ok(())
     }
 
     fn field_leaves(
@@ -3297,6 +3498,7 @@ impl<'a> Storage<'a> {
     }
 
     /// What one reaching store supplies to the place asked about.
+    #[allow(clippy::too_many_arguments)]
     fn supplied(
         &self,
         references: &mut DescriptorAnalysis<'a>,
@@ -3305,6 +3507,7 @@ impl<'a> Storage<'a> {
         asked: Asked<'_>,
         watched: &Backing,
         budget: &mut Reaching,
+        caller_key: &mut PendingKey<'_>,
         concerns: Construct,
     ) -> Checked<Supply> {
         let mut weakened = false;
@@ -3404,6 +3607,7 @@ impl<'a> Storage<'a> {
                     && matches!(&self.declaration(sum, concerns)?.shape,
                         StructuralTypeShape::Sum { cases } if cases.iter().any(|case| case.id == stored))
                 {
+                    caller_key.record(budget);
                     return self.reaching_backing_supply(
                         references,
                         tables,
@@ -3451,6 +3655,7 @@ impl<'a> Storage<'a> {
                 if watched.single_place().is_none() {
                     // This row can supply one address without supplying the
                     // others. Let each address find its own last store.
+                    caller_key.record(budget);
                     let joined = budget.add_equation();
                     for captured in watched.captured_regions() {
                         let supply = self.reaching_backing_supply(
@@ -3467,6 +3672,7 @@ impl<'a> Storage<'a> {
                     }
                     return Ok(Supply::transfer(joined));
                 }
+                caller_key.record(budget);
                 return Ok(self
                     .reaching_backing_supply(
                         references,
@@ -3627,9 +3833,16 @@ impl<'a> Storage<'a> {
                     // the operand's own selectors can justify its typing;
                     // the suffix from the destination must be static.
                     let before = row.position - 1;
+                    caller_key.record(budget);
                     let supply = if carry_depth {
-                        let backing =
-                            self.backing(references, &leaf, row.block, before, concerns)?;
+                        let backing = self.backing_with(
+                            references,
+                            &leaf,
+                            row.block,
+                            before,
+                            concerns,
+                            &mut budget.resolved_backings,
+                        )?;
                         let at = (row.block, before);
                         let depth = self.borrowed_transfer_depth(
                             tables,
@@ -3746,6 +3959,7 @@ impl<'a> Storage<'a> {
         excluded: Option<StructuralCaseId>,
         (from, into): (BlockId, BlockId),
         crossed: &[bool],
+        resolved_backings: &mut ResolvedBackings,
         concerns: Construct,
     ) -> Checked<Option<Reached>> {
         let sum = &watched.place;
@@ -3801,7 +4015,7 @@ impl<'a> Storage<'a> {
                 {
                     return Ok(None);
                 }
-                let tested = self.backing_access(
+                let tested = self.backing_access_with(
                     references,
                     sum,
                     from,
@@ -3809,6 +4023,7 @@ impl<'a> Storage<'a> {
                         .checked_sub(1)
                         .ok_or_else(|| self.foreign(concerns, "a case test has no prestate"))?,
                     concerns,
+                    resolved_backings,
                 )?;
                 if !tested.storage.same_single_region(watched)
                     && !(tested.storage.current_subject_contains(watched, crossed)
@@ -3845,6 +4060,18 @@ impl<'a> Storage<'a> {
         row: &Logged,
         concerns: Construct,
     ) -> Checked<bool> {
+        let mut resolved_backings = ResolvedBackings::default();
+        self.call_preserves_extent_with(references, asked, row, &mut resolved_backings, concerns)
+    }
+
+    fn call_preserves_extent_with(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        asked: Asked<'_>,
+        row: &Logged,
+        resolved_backings: &mut ResolvedBackings,
+        concerns: Construct,
+    ) -> Checked<bool> {
         let (Stored::Established, Asked::Contents(leaf)) = (&row.stored, asked) else {
             return Ok(false);
         };
@@ -3870,7 +4097,14 @@ impl<'a> Storage<'a> {
             u32::try_from(position)
                 .map_err(|_| self.foreign(concerns, "call observation position exceeds u32"))?,
         );
-        let watched = self.backing(references, &descriptor, block, position, concerns)?;
+        let watched = self.backing_with(
+            references,
+            &descriptor,
+            block,
+            position,
+            concerns,
+            resolved_backings,
+        )?;
         let mut covered = false;
         let mut boundary_preserves = None;
         for (parameter, argument) in operation.kind.structural_arguments().iter().enumerate() {
@@ -3882,7 +4116,14 @@ impl<'a> Storage<'a> {
                 continue;
             }
             let actual = self.argument(argument, concerns)?;
-            let actual = self.backing(references, &actual, block, position, concerns)?;
+            let actual = self.backing_with(
+                references,
+                &actual,
+                block,
+                position,
+                concerns,
+                resolved_backings,
+            )?;
             if !overlap(&watched, &actual) {
                 continue;
             }
@@ -4030,7 +4271,7 @@ impl<'a> Storage<'a> {
         let Supply::Transfer { source, depth, .. } = root else {
             unreachable!("a query is an equation")
         };
-        for equation in &mut trace.equations {
+        for equation in &mut trace.equations[..trace.equation_count] {
             // Entry crossings discovered anywhere in the query retire reads
             // from an earlier iteration, even if we saw the read first.
             if let Reached::Value(value) = equation.seed
@@ -4246,7 +4487,14 @@ impl<'a> Storage<'a> {
                 {
                     self.cleanup_backing(references, original, edge, ordinal, concerns)?
                 } else {
-                    self.backing(references, original, block, up_to, concerns)?
+                    self.backing_with(
+                        references,
+                        original,
+                        block,
+                        up_to,
+                        concerns,
+                        &mut budget.resolved_backings,
+                    )?
                 }
             }
         };
@@ -4275,14 +4523,9 @@ impl<'a> Storage<'a> {
     ) -> Checked<Supply> {
         let original = asked.place();
         let asked = asked.at(&resolved.place);
-        let key = match asked {
-            Asked::Contents(_) => Some((block, up_to, resolved.place.clone(), QueryKind::Contents)),
-            Asked::Case(_, excluded) => Some((
-                block,
-                up_to,
-                resolved.place.clone(),
-                QueryKind::Case(excluded),
-            )),
+        let kind = match asked {
+            Asked::Contents(_) => Some(QueryKind::Contents),
+            Asked::Case(_, excluded) => Some(QueryKind::Case(excluded)),
             Asked::Window { .. } => None,
         };
         let projection = if original == &resolved.place {
@@ -4290,8 +4533,8 @@ impl<'a> Storage<'a> {
         } else {
             rebase_depth
         };
-        if let Some(key) = &key
-            && let Some(&address) = budget.keys.get(key)
+        if let Some(kind) = kind
+            && let Some(address) = budget.keys.get(block, up_to, &resolved.place, kind)
         {
             return Ok(Supply::transfer(address).within(projection));
         }
@@ -4301,9 +4544,14 @@ impl<'a> Storage<'a> {
             budget.add_supply(address, Supply::Direct(Reached::Unestablished));
             return Ok(Supply::transfer(address));
         }
-        if let Some(key) = key {
-            budget.keys.insert(key, address);
-        }
+        let mut pending_key = PendingKey {
+            block,
+            up_to,
+            place: &resolved.place,
+            kind,
+            address,
+            recorded: false,
+        };
         // A real cleanup epoch can end this observation before operation
         // stores do. Feed that result into the same equation graph so shared
         // copy traces and initialization still use the ordinary solver.
@@ -4356,7 +4604,13 @@ impl<'a> Storage<'a> {
                         || budget.initialization == Initialization::WholeArray
                             && matches!(row.stored, Stored::Value(_) | Stored::Zeroed | Stored::Established)
                             && !row.backing.definitely_contains(resolved)
-                        || self.call_preserves_extent(references, asked, row, concerns)?
+                        || self.call_preserves_extent_with(
+                            references,
+                            asked,
+                            row,
+                            &mut budget.resolved_backings,
+                            concerns,
+                        )?
                     {
                         continue;
                     }
@@ -4389,8 +4643,16 @@ impl<'a> Storage<'a> {
                     }
                 }
                 if let Some((index, _)) = last {
-                    let supply = self
-                        .supplied(references, tables, index, asked, resolved, budget, concerns)?;
+                    let supply = self.supplied(
+                        references,
+                        tables,
+                        index,
+                        asked,
+                        resolved,
+                        budget,
+                        &mut pending_key,
+                        concerns,
+                    )?;
                     budget.add_supply(destination, supply);
                     continue;
                 }
@@ -4460,7 +4722,8 @@ impl<'a> Storage<'a> {
                         budget.add_supply(destination, Supply::Direct(Reached::Closed));
                         continue;
                     }
-                    budget.crossed_entries[index(block.get())] = true;
+                    pending_key.record(budget);
+                    budget.mark_crossed(block);
                     self.visit_incoming_storage(
                         target,
                         position,
@@ -4549,7 +4812,7 @@ impl<'a> Storage<'a> {
                     };
                     budget.add_supply(destination, supply);
                 }
-                budget.crossed_entries[index(block.get())] = true;
+                budget.mark_crossed(block);
                 let predecessors = self.graph.predecessors(block)?;
                 for (position, predecessor) in predecessors.iter().enumerate() {
                     // A block that enters by two edges is listed twice; ask
@@ -4571,6 +4834,7 @@ impl<'a> Storage<'a> {
                             excluded,
                             (*predecessor, block),
                             &budget.crossed_entries,
+                            &mut budget.resolved_backings,
                             concerns,
                         )?
                     {
@@ -4623,8 +4887,9 @@ impl<'a> Storage<'a> {
 
     fn budget(&self) -> Reaching {
         Reaching {
-            keys: BTreeMap::new(),
+            keys: ReachingKeys::default(),
             equations: Vec::new(),
+            equation_count: 0,
             fallbacks: Vec::new(),
             boundary: BoundaryDepth::Cycle,
             initialization: Initialization::NotAsked,
@@ -4632,8 +4897,12 @@ impl<'a> Storage<'a> {
             selected_payload_case: None,
             remaining: self.reaching_budget,
             crossed_entries: vec![false; self.graph.block_count()],
+            crossed_dirty: false,
             selector_entries: Vec::new(),
             used: None,
+            solve_pending: Vec::new(),
+            solve_queued: Vec::new(),
+            resolved_backings: ResolvedBackings::default(),
             #[cfg(test)]
             scanned_rows: 0,
         }
@@ -5717,8 +5986,35 @@ impl<'a> Storage<'a> {
     /// the same root and prefix at the read's observation epoch."). The
     /// case comes from a dispatch edge, the true edge of a membership test,
     /// or the construction that every reaching write is.
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     fn judged(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        used: &[Lineage],
+        named: &[Lineage],
+        at: (BlockId, usize),
+        point: ProgramPoint,
+        concerns: Construct,
+    ) -> Checked<Checked<()>> {
+        let mut budget = self.initialization_budget();
+        let mut leaves = Vec::new();
+        self.judged_with(
+            references,
+            tables,
+            used,
+            named,
+            at,
+            point,
+            concerns,
+            &mut budget,
+            &mut leaves,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn judged_with(
         &self,
         references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
@@ -5727,36 +6023,45 @@ impl<'a> Storage<'a> {
         (block, up_to): (BlockId, usize),
         point: ProgramPoint,
         concerns: Construct,
+        budget: &mut Reaching,
+        leaves: &mut Vec<Lineage>,
     ) -> Checked<Checked<()>> {
         for place in used {
-            let leaves = self.leaves(place, concerns, |array| {
+            self.leaves_into(place, concerns, leaves, |array| {
                 // Cleanup can vacate a projected region independently of the
                 // operation log. Its precise per-cell judgment remains valid.
                 if !self.cleanup_writes.is_empty() {
                     return false;
                 }
-                let mut budget = self.initialization_budget();
-                budget.initialization = Initialization::WholeArray;
-                budget.used = Some(point);
+                budget.reset_for(
+                    Some(point),
+                    Initialization::WholeArray,
+                    Observations::None,
+                    self.reaching_budget,
+                );
                 self.reaching(
                     references,
                     tables,
                     Asked::Contents(array),
                     (block, up_to),
-                    &mut budget,
+                    budget,
                     concerns,
                 )
                 .is_ok_and(|reached| reached != Reached::Unestablished)
             })?;
-            for leaf in leaves {
-                let mut budget = self.initialization_budget();
-                budget.used = Some(point);
+            for leaf in leaves.drain(..) {
+                budget.reset_for(
+                    Some(point),
+                    Initialization::Leaf,
+                    Observations::None,
+                    self.reaching_budget,
+                );
                 if self.reaching(
                     references,
                     tables,
                     Asked::Contents(&leaf),
                     (block, up_to),
-                    &mut budget,
+                    budget,
                     concerns,
                 )? == Reached::Unestablished
                 {
@@ -5788,7 +6093,8 @@ impl<'a> Storage<'a> {
                     up_to,
                     concerns,
                 };
-                if observation.case_at(&sum, *case)? != Some(CaseAnswer::Holds(true)) {
+                if observation.case_at_with(&sum, *case, budget)? != Some(CaseAnswer::Holds(true))
+                {
                     return Ok(Err(refusal(
                         RefusalReason::Unestablished,
                         self.machine,
@@ -6686,12 +6992,14 @@ impl<'a> Storage<'a> {
         empty_types: &terminal_semantics::inhabitation::Inhabitation,
     ) -> Checked<Vec<StorageUse>> {
         let mut uses = Vec::new();
+        let mut scratch = self.initialization_budget();
+        let mut leaves = Vec::new();
         for touch in self.touches(references, tables)? {
             if !touch.judged {
                 continue;
             }
             let mut judge = || {
-                self.judged(
+                self.judged_with(
                     references,
                     tables,
                     &touch.used,
@@ -6699,6 +7007,8 @@ impl<'a> Storage<'a> {
                     (touch.block, touch.up_to),
                     self.point(&touch)?,
                     touch.at,
+                    &mut scratch,
+                    &mut leaves,
                 )
             };
             let verdict = match (touch.how, touch.used.first()) {
@@ -6756,7 +7066,8 @@ impl<'a> Storage<'a> {
     /// Whether the window is still open at the point before `touch`: on
     /// some path the last write that could close it is the one that opened
     /// it.
-    fn open_at(
+    #[allow(clippy::too_many_arguments)]
+    fn open_at_with(
         &self,
         references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
@@ -6764,9 +7075,14 @@ impl<'a> Storage<'a> {
         by: OperationId,
         restored: &[OperationId],
         touch: &Touch<'_>,
+        budget: &mut Reaching,
     ) -> Checked<bool> {
-        let mut budget = self.budget();
-        budget.used = Some(self.point(touch)?);
+        budget.reset_for(
+            Some(self.point(touch)?),
+            Initialization::NotAsked,
+            Observations::None,
+            self.reaching_budget,
+        );
         Ok(self.reaching(
             references,
             tables,
@@ -6776,7 +7092,7 @@ impl<'a> Storage<'a> {
                 restored,
             },
             (touch.block, touch.up_to),
-            &mut budget,
+            budget,
             touch.at,
         )? == Reached::Open)
     }
@@ -6853,13 +7169,16 @@ impl<'a> Storage<'a> {
     /// an established value only after its default-domain obligations
     /// hold." Every read under its root that still observes a leaf the
     /// declaration zeroed consumes it, a field read included.
-    fn consumes(
+    #[allow(clippy::too_many_arguments)]
+    fn consumes_with(
         &self,
         references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         touch: &Touch<'_>,
         backings: &TouchBackings,
         window: &Window,
+        budget: &mut Reaching,
+        leaves: &mut Vec<Lineage>,
     ) -> Checked<bool> {
         let watched = &window.backing;
         let released = touch.releases && !window.initial;
@@ -6871,13 +7190,14 @@ impl<'a> Storage<'a> {
             })
             || backings.relied.iter().any(|leaf| overlap(leaf, watched));
         if !aimed
-            || !self.open_at(
+            || !self.open_at_with(
                 references,
                 tables,
                 watched,
                 window.opened_by,
                 &window.restored,
                 touch,
+                budget,
             )?
         {
             return Ok(false);
@@ -6889,10 +7209,16 @@ impl<'a> Storage<'a> {
             if !overlap(used, watched) {
                 continue;
             }
-            for leaf in self.leaves(raw, touch.at, |_| false)? {
-                let leaf = self.backing_for_touch(references, &leaf, touch)?;
+            self.leaves_into(raw, touch.at, leaves, |_| false)?;
+            for leaf in leaves.drain(..) {
+                let leaf = self.backing_for_touch_with(
+                    references,
+                    &leaf,
+                    touch,
+                    &mut budget.resolved_backings,
+                )?;
                 if overlap(&leaf, watched)
-                    && self.open_at(references, tables, &leaf, window.opened_by, &[], touch)?
+                    && self.open_at_with(references, tables, &leaf, window.opened_by, &[], touch, budget)?
                 {
                     return Ok(true);
                 }
@@ -6901,17 +7227,25 @@ impl<'a> Storage<'a> {
         Ok(false)
     }
 
-    fn backing_for_touch(
+    fn backing_for_touch_with(
         &self,
         references: &mut DescriptorAnalysis<'a>,
         place: &Lineage,
         touch: &Touch<'_>,
+        resolved_backings: &mut ResolvedBackings,
     ) -> Checked<Backing> {
         match touch.cleanup {
             Some((edge, ordinal)) => {
                 self.cleanup_backing(references, place, edge, ordinal, touch.at)
             }
-            None => self.backing(references, place, touch.block, touch.up_to, touch.at),
+            None => self.backing_with(
+                references,
+                place,
+                touch.block,
+                touch.up_to,
+                touch.at,
+                resolved_backings,
+            ),
         }
     }
 
@@ -6955,21 +7289,45 @@ impl<'a> Storage<'a> {
         if windows.is_empty() {
             return Ok(found);
         }
+        let mut scratch = self.budget();
+        let mut leaves = Vec::new();
         for touch in self.touches(references, tables)? {
             let backings = TouchBackings {
                 used: touch
                     .used
                     .iter()
-                    .map(|place| self.backing_for_touch(references, place, &touch))
+                    .map(|place| {
+                        self.backing_for_touch_with(
+                            references,
+                            place,
+                            &touch,
+                            &mut scratch.resolved_backings,
+                        )
+                    })
                     .collect::<Checked<Vec<_>>>()?,
                 relied: touch
                     .relied
                     .iter()
-                    .map(|place| self.backing_for_touch(references, place, &touch))
+                    .map(|place| {
+                        self.backing_for_touch_with(
+                            references,
+                            place,
+                            &touch,
+                            &mut scratch.resolved_backings,
+                        )
+                    })
                     .collect::<Checked<Vec<_>>>()?,
             };
             for (position, window) in windows.iter().enumerate() {
-                if !self.consumes(references, tables, &touch, &backings, window)? {
+                if !self.consumes_with(
+                    references,
+                    tables,
+                    &touch,
+                    &backings,
+                    window,
+                    &mut scratch,
+                    &mut leaves,
+                )? {
                     continue;
                 }
                 found.push(Consumption {
@@ -8819,17 +9177,31 @@ impl Held<'_, '_> {
     /// case. Otherwise, each other declared case must be excluded on every
     /// arrival to the same storage.
     fn case_at(&mut self, sum: &Lineage, case: StructuralCaseId) -> Checked<Option<CaseAnswer>> {
+        let mut budget = self.storage.budget();
+        self.case_at_with(sum, case, &mut budget)
+    }
+
+    fn case_at_with(
+        &mut self,
+        sum: &Lineage,
+        case: StructuralCaseId,
+        budget: &mut Reaching,
+    ) -> Checked<Option<CaseAnswer>> {
         let storage = self.storage;
         let concerns = self.concerns;
         let mut read = |excluded| {
-            let mut budget = storage.budget();
-            budget.used = self.point;
+            budget.reset_for(
+                self.point,
+                Initialization::NotAsked,
+                Observations::None,
+                storage.reaching_budget,
+            );
             storage.reaching(
                 self.references,
                 self.tables,
                 Asked::Case(sum, excluded),
                 (self.block, self.up_to),
-                &mut budget,
+                budget,
                 concerns,
             )
         };

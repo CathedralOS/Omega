@@ -1012,23 +1012,27 @@ impl<'a> Replay<'a> {
             location.clone(),
             depth,
             None,
-            BTreeMap::new(),
+            Vec::new(),
         )
     }
 
     fn expand_storage(
-        expansions: &mut BTreeMap<DescriptorLocation, usize>,
+        expansions: &mut Vec<(DescriptorLocation, usize)>,
         equation: DescriptorLocation,
         remaining: usize,
     ) -> Option<()> {
-        if expansions
-            .insert(equation, remaining)
-            .is_some_and(|previous| remaining >= previous)
+        if let Some((_, previous)) = expansions
+            .iter_mut()
+            .find(|(existing, _)| *existing == equation)
         {
-            None
+            if remaining >= *previous {
+                return None;
+            }
+            *previous = remaining;
         } else {
-            Some(())
+            expansions.push((equation, remaining));
         }
+        Some(())
     }
 
     fn storage_alternatives(
@@ -1126,7 +1130,7 @@ impl<'a> Replay<'a> {
         account: &StorageResolution,
         suffix: &[StructuralPathSegment],
         depth: &DescriptorReadDepth<'_>,
-        expansions: BTreeMap<DescriptorLocation, usize>,
+        expansions: Vec<(DescriptorLocation, usize)>,
     ) -> Option<StorageResolution> {
         let (origin, entry, unavailable) = match account {
             StorageResolution::Unique(location) => {
@@ -1232,7 +1236,7 @@ impl<'a> Replay<'a> {
         origins: &BTreeSet<Origin>,
         depth: &DescriptorReadDepth<'_>,
         captured_entry: Option<DescriptorLocation>,
-        expansions: BTreeMap<DescriptorLocation, usize>,
+        expansions: Vec<(DescriptorLocation, usize)>,
         unavailable: Option<&'static str>,
     ) -> Option<StorageResolution> {
         let suffix_path = machine.location_path_indexed(&self.type_index, current, None)?;
@@ -1310,7 +1314,7 @@ impl<'a> Replay<'a> {
         mut current: DescriptorLocation,
         depth: &DescriptorReadDepth<'_>,
         mut captured_entry: Option<DescriptorLocation>,
-        mut expansions: BTreeMap<DescriptorLocation, usize>,
+        mut expansions: Vec<(DescriptorLocation, usize)>,
     ) -> Option<StorageResolution> {
         let _guard = depth.enter()?;
         let mut unavailable = None;
@@ -1392,9 +1396,15 @@ impl<'a> Replay<'a> {
                     && origins.iter().all(|origin| matches!(origin, Origin::Storage(backing)
                         if self.has_roster_source(machine, backing, depth))))
             {
-                let locations = self.storage_origins_with_depth(machine, state, &current, depth)?;
-                let first = locations.first()?.clone();
-                if locations.iter().any(|candidate| *candidate != first) {
+                let mut locations = self.storage_origins_with_depth(machine, state, &current, depth)?;
+                if locations.is_empty() {
+                    return None;
+                }
+                if locations.len() > 1
+                    && locations[1..]
+                        .iter()
+                        .any(|candidate| *candidate != locations[0])
+                {
                     Self::expand_storage(&mut expansions,
                         DescriptorLocation::whole(current.root), current.path.len())?;
                     let resolutions = locations.into_iter().map(|target| {
@@ -1403,6 +1413,7 @@ impl<'a> Replay<'a> {
                     }).collect::<Option<Vec<_>>>()?;
                     return self.storage_alternatives(machine, resolutions);
                 }
+                let first = locations.swap_remove(0);
                 if first != current {
                     Self::expand_storage(&mut expansions,
                         DescriptorLocation::whole(current.root), current.path.len())?;
@@ -1438,14 +1449,19 @@ impl<'a> Replay<'a> {
                 ) {
                     return None;
                 }
-                if origins.len() == 1 && origins.contains(&Origin::Incoming(prefix.clone())) {
-                    captured_entry = Some(prefix.clone());
-                    continue;
-                }
-                if origins.len() == 1 && origins.contains(&Origin::Storage(prefix.clone())) {
-                    unavailable
-                        .get_or_insert("reference descriptor names only its storage home");
-                    continue;
+                if let Some(only) = (origins.len() == 1).then(|| origins.first()).flatten() {
+                    match only {
+                        Origin::Incoming(loc) if *loc == prefix => {
+                            captured_entry = Some(prefix);
+                            continue;
+                        }
+                        Origin::Storage(loc) if *loc == prefix => {
+                            unavailable
+                                .get_or_insert("reference descriptor names only its storage home");
+                            continue;
+                        }
+                        _ => {}
+                    }
                 }
                 if origins.iter().any(|origin| {
                     !matches!(
@@ -1464,6 +1480,10 @@ impl<'a> Replay<'a> {
                 }
                 let mut targets = Vec::with_capacity(origins.len());
                 let mut projected = Vec::new();
+                let mut indexed_paths: Option<(
+                    Vec<terminal_psi::StructuralPathSegment>,
+                    Vec<terminal_psi::StructuralPathSegment>,
+                )> = None;
                 for origin in origins {
                     let mut next_entry = None;
                     let mut target = match origin {
@@ -1474,9 +1494,22 @@ impl<'a> Replay<'a> {
                             // A formed reference can retain an indexed address
                             // that has no descriptor-slot location. Crossing it
                             // uses that exact captured address, not its carrier home.
-                            let full = machine.location_path_indexed(&self.type_index, &current, None)?;
-                            let prefix_path =
-                                machine.location_path_indexed(&self.type_index, &prefix, None)?;
+                            let (full, prefix_path) = match &indexed_paths {
+                                Some(paths) => paths,
+                                None => {
+                                    let full = machine.location_path_indexed(
+                                        &self.type_index,
+                                        &current,
+                                        None,
+                                    )?;
+                                    let prefix_path = machine.location_path_indexed(
+                                        &self.type_index,
+                                        &prefix,
+                                        None,
+                                    )?;
+                                    indexed_paths.insert((full, prefix_path))
+                                }
+                            };
                             if full.get(prefix_path.len())
                                 != Some(&StructuralPathSegment::Referent)
                             {
@@ -1543,9 +1576,22 @@ impl<'a> Replay<'a> {
                                 unavailable.get_or_insert("captured reference backing changes or cannot identify its declared referee type");
                                 continue;
                             }
-                            let full = machine.location_path_indexed(&self.type_index, &current, None)?;
-                            let prefix_path =
-                                machine.location_path_indexed(&self.type_index, &prefix, None)?;
+                            let (full, prefix_path) = match &indexed_paths {
+                                Some(paths) => paths,
+                                None => {
+                                    let full = machine.location_path_indexed(
+                                        &self.type_index,
+                                        &current,
+                                        None,
+                                    )?;
+                                    let prefix_path = machine.location_path_indexed(
+                                        &self.type_index,
+                                        &prefix,
+                                        None,
+                                    )?;
+                                    indexed_paths.insert((full, prefix_path))
+                                }
+                            };
                             projected.push(self.append_storage_capture(
                                 machine,
                                 state,
@@ -3363,8 +3409,21 @@ impl<'a> Replay<'a> {
         &mut self,
         identity: MachineId,
     ) -> Result<(), DescriptorGraphError> {
-        if !self.snapshots.contains_key(&identity) {
-            let _ = self.states(identity, 0);
+        match self.snapshots.get(&identity) {
+            Some(PreparedStateCache::Ready(_)) => return Ok(()),
+            Some(PreparedStateCache::Failed(error)) => return Err(*error),
+            Some(PreparedStateCache::Preparing) => {
+                return Err(DescriptorGraphError::IncompleteMachine {
+                    machine: identity,
+                    position: None,
+                    successor: None,
+                    detail: Some("descriptor state preparation is recursively in progress"),
+                });
+            }
+            None => {}
+        }
+        if self.states(identity, 0).is_some() {
+            return Ok(());
         }
         match self.snapshots.get(&identity) {
             Some(PreparedStateCache::Ready(_)) => Ok(()),

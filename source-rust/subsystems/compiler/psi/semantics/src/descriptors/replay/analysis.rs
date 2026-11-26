@@ -5,12 +5,11 @@ use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
 
 pub(crate) mod call_origins;
 
-// Unchanged-entry checks of incoming sources revisit the same storage at the
-// same cut. These rows belong only to this immutable graph and contain actual
-// flow positions of machines the query has selected, never a raw-ID maximum.
-// In-progress replay states remain outside this prepared query owner.
-// Storage resolutions are not kept here: nearly every resolution asks a new
-// cut and location, so a kept answer would cost more than it saves.
+// Unchanged-entry checks of incoming sources and resolved storage-address
+// families revisit the same storage at the same cut. These rows belong only
+// to this immutable graph and contain actual flow positions of machines the
+// query has selected, never a raw-ID maximum. In-progress replay states remain
+// outside this prepared query owner.
 #[derive(Default)]
 struct StorageQueries {
     machines: Vec<MachineStorageQueries>,
@@ -23,6 +22,7 @@ type IncomingTopology =
 #[derive(Default)]
 struct StorageQuery {
     incoming: LocationMap<IncomingSources>,
+    families: LocationMap<Vec<DescriptorCallOrigin>>,
 }
 
 struct MachineStorageQueries {
@@ -67,6 +67,18 @@ impl StorageQueries {
             .binary_search_by_key(&position, |(position, _)| *position)
             .ok()?;
         Some(&mut positions[index].1.incoming)
+    }
+
+    fn families_at(
+        &mut self,
+        machine: &DescriptorMachine,
+        position: DescriptorPosition,
+    ) -> Option<&mut LocationMap<Vec<DescriptorCallOrigin>>> {
+        let positions = &mut self.machine(machine).positions;
+        let index = positions
+            .binary_search_by_key(&position, |(position, _)| *position)
+            .ok()?;
+        Some(&mut positions[index].1.families)
     }
 
     fn incoming(&mut self, machine: &DescriptorMachine) -> Option<IncomingTopology> {
@@ -536,6 +548,13 @@ impl<'a> DescriptorAnalysis<'a> {
             .replay
             .machine(identity)
             .ok_or("captured storage machine is absent or stale")?;
+        if let Some(existing) = self
+            .storage_queries
+            .families_at(machine, position)
+            .and_then(|families| families.get(location))
+        {
+            return Ok(existing.clone());
+        }
         self.replay
             .prepare_states_checked(identity)
             .map_err(|error| {
@@ -552,8 +571,13 @@ impl<'a> DescriptorAnalysis<'a> {
             .ok_or("captured storage position has no reachable snapshot")?;
         let resolution = Self::resolved_storage(&self.replay, machine, state, location)
             .ok_or("captured storage family has a missing, cyclic or unknown arrival")?;
-        self.replay
-            .checked_storage_family(machine, state, resolution)
+        let origins = self
+            .replay
+            .checked_storage_family(machine, state, resolution)?;
+        if let Some(families) = self.storage_queries.families_at(machine, position) {
+            families.insert(location.clone(), origins.clone());
+        }
+        Ok(origins)
     }
 
     /// Capture an actual source before it is transported. This keeps
@@ -565,6 +589,10 @@ impl<'a> DescriptorAnalysis<'a> {
         source: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<Vec<DescriptorCallOrigin>, &'static str> {
+        let machine = self
+            .replay
+            .machine(identity)
+            .ok_or("borrowed argument machine is absent or stale")?;
         self.replay
             .prepare_states_checked(identity)
             .map_err(|error| {
@@ -572,10 +600,6 @@ impl<'a> DescriptorAnalysis<'a> {
                     .detail()
                     .unwrap_or("borrowed argument snapshots cannot be reconstructed")
             })?;
-        let machine = self
-            .replay
-            .machine(identity)
-            .ok_or("borrowed argument machine is absent or stale")?;
         let state = self
             .replay
             .snapshots
@@ -610,7 +634,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 &values,
                 &depth,
                 None,
-                BTreeMap::new(),
+                Vec::new(),
                 None,
             )
             .ok_or("borrowed argument has missing or unresolved captured storage")?;

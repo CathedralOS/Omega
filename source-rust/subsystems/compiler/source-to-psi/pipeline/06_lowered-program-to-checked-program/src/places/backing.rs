@@ -15,6 +15,60 @@ struct CapturedRegion {
     index_can_change_on_reentry: bool,
 }
 
+#[derive(Default)]
+pub(super) struct ResolvedBackings {
+    by_root: std::collections::HashMap<(BlockId, u32, PlaceId), Vec<(Vec<Segment>, Backing)>>,
+}
+
+impl ResolvedBackings {
+    fn get(
+        &self,
+        block: BlockId,
+        before: u32,
+        root: PlaceId,
+        segments: &[Segment],
+    ) -> Option<Backing> {
+        let entries = self.by_root.get(&(block, before, root))?;
+        if entries.len() <= 8 {
+            entries
+                .iter()
+                .find(|(stored, _)| stored.as_slice() == segments)
+                .map(|(_, backing)| backing.clone())
+        } else {
+            entries
+                .binary_search_by(|(stored, _)| stored.as_slice().cmp(segments))
+                .ok()
+                .map(|pos| entries[pos].1.clone())
+        }
+    }
+
+    fn insert(
+        &mut self,
+        block: BlockId,
+        before: u32,
+        root: PlaceId,
+        segments: &[Segment],
+        backing: Backing,
+    ) {
+        let entries = self.by_root.entry((block, before, root)).or_default();
+        if entries.len() == 8 {
+            entries.sort_by(|left, right| left.0.cmp(&right.0));
+        }
+        if entries.len() < 8 {
+            if !entries
+                .iter()
+                .any(|(stored, _)| stored.as_slice() == segments)
+            {
+                entries.push((segments.to_vec(), backing));
+            }
+        } else if let Err(pos) =
+            entries.binary_search_by(|(stored, _)| stored.as_slice().cmp(segments))
+        {
+            entries.insert(pos, (segments.to_vec(), backing));
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Backing {
     // One address can keep the existing canonical value lookup. Otherwise
@@ -708,6 +762,26 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<Backing> {
+        let mut resolved_backings = ResolvedBackings::default();
+        self.backing_with(
+            references,
+            place,
+            block,
+            before,
+            concerns,
+            &mut resolved_backings,
+        )
+    }
+
+    pub(super) fn backing_with(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        place: &Lineage,
+        block: BlockId,
+        before: usize,
+        concerns: Construct,
+        resolved_backings: &mut ResolvedBackings,
+    ) -> Checked<Backing> {
         let borrowed_arrival = self.is_borrowed_arrival(place.root, concerns)?;
         if !borrowed_arrival && !place.segments.contains(&Segment::Referent) {
             return Ok(Backing::direct(place.clone()));
@@ -716,6 +790,9 @@ impl<'a> Storage<'a> {
             before.min(self.block(block)?.operations.len()),
             self.machine,
         )?;
+        if let Some(resolved) = resolved_backings.get(block, before, place.root, &place.segments) {
+            return Ok(resolved);
+        }
         let split = place
             .segments
             .iter()
@@ -728,11 +805,25 @@ impl<'a> Storage<'a> {
                 "reference backing crosses a permission beneath an unresolved selector",
             ));
         }
-        let location = Lineage {
-            root: place.root,
-            segments: prefix.to_vec(),
+        let owner = if borrowed_arrival && !place.segments.contains(&Segment::Referent) {
+            match self.root_kind(place.root, concerns)? {
+                StructuralPlaceKind::BlockParameter { block, .. } => Some(block),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        if !suffix.is_empty()
+            && let Some(prefix_backing) = resolved_backings.get(block, before, place.root, prefix)
+        {
+            let backing =
+                self.extend_captured_backing(place, suffix, &prefix_backing, owner, concerns)?;
+            resolved_backings.insert(block, before, place.root, &place.segments, backing.clone());
+            return Ok(backing);
         }
-        .descriptor_location()
+        let location = terminal_semantics::descriptor_lifetimes::DescriptorLocation::captured(
+            place.root, prefix,
+        )
         .ok_or_else(|| {
             self.unsupported(
                 concerns,
@@ -742,15 +833,50 @@ impl<'a> Storage<'a> {
         let addresses = references
             .captured_storage_family(self.machine, (block, before), &location)
             .map_err(|detail| self.unsupported(concerns, detail))?;
-        let owner = if borrowed_arrival && !place.segments.contains(&Segment::Referent) {
-            match self.root_kind(place.root, concerns)? {
-                StructuralPlaceKind::BlockParameter { block, .. } => Some(block),
-                _ => None,
-            }
-        } else {
-            None
+        if suffix.is_empty() {
+            let backing = self.captured_backing(place, suffix, addresses, owner, concerns)?;
+            resolved_backings.insert(block, before, place.root, &place.segments, backing.clone());
+            return Ok(backing);
+        }
+        let prefix_subject = Lineage {
+            root: place.root,
+            segments: prefix.to_vec(),
         };
-        self.captured_backing(place, suffix, addresses, owner, concerns)
+        let prefix_backing =
+            self.captured_backing(&prefix_subject, &[], addresses, owner, concerns)?;
+        resolved_backings.insert(block, before, place.root, prefix, prefix_backing.clone());
+        let backing =
+            self.extend_captured_backing(place, suffix, &prefix_backing, owner, concerns)?;
+        resolved_backings.insert(block, before, place.root, &place.segments, backing.clone());
+        Ok(backing)
+    }
+
+    fn extend_captured_backing(
+        &self,
+        subject: &Lineage,
+        suffix: &[Segment],
+        prefix_backing: &Backing,
+        owner: Option<BlockId>,
+        concerns: Construct,
+    ) -> Checked<Backing> {
+        let mut regions = Vec::with_capacity(prefix_backing.regions.len());
+        for region in &prefix_backing.regions {
+            let mut segments = Vec::with_capacity(region.place.segments.len() + suffix.len());
+            segments.extend_from_slice(&region.place.segments);
+            segments.extend_from_slice(suffix);
+            let place = Lineage {
+                root: region.place.root,
+                segments,
+            };
+            self.shape(&place, concerns)?;
+            regions.push(CapturedRegion {
+                place,
+                origin: region.origin.clone(),
+                index_can_change_on_reentry: region.index_can_change_on_reentry,
+            });
+        }
+        Backing::captured(subject, regions, owner)
+            .map_err(|detail| self.unsupported(concerns, detail))
     }
 
     /// Ordinary uses and cleanup actions interpret the same authenticated
