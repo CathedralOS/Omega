@@ -49,9 +49,7 @@ mod register_operations {
         }
     }
 
-    #[derive(
-        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum AsmRegisterOperation {
         ProcessorHalt, // Stop instruction execution until the architecture's admitted wake event.
         InterruptControl(AsmInterruptControlKind),
@@ -1554,7 +1552,8 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         )));
     }
 
-    if let Some(primitive) = crate::sealed_intrinsics::PackedIntegerPrimitive::from_mnemonic(mnemonic)
+    if let Some(primitive) =
+        crate::sealed_intrinsics::PackedIntegerPrimitive::from_mnemonic(mnemonic)
     {
         return Some(Contract(AsmInstructionContract::without_side_effects(
             AsmInstructionShape::PackedInteger(primitive),
@@ -2177,13 +2176,22 @@ mod tests {
         use crate::sealed_intrinsics::PackedIntegerPrimitive;
         for primitive in PackedIntegerPrimitive::ALL {
             let mnemonic = primitive.mnemonic();
-            assert_eq!(PackedIntegerPrimitive::from_mnemonic(mnemonic), Some(primitive));
+            assert_eq!(
+                PackedIntegerPrimitive::from_mnemonic(mnemonic),
+                Some(primitive)
+            );
             let Some(AsmCatalogEntry::Contract(contract)) = asm_catalog_entry(mnemonic) else {
                 panic!("{mnemonic} must be contracted");
             };
-            assert_eq!(contract.shape, AsmInstructionShape::PackedInteger(primitive));
+            assert_eq!(
+                contract.shape,
+                AsmInstructionShape::PackedInteger(primitive)
+            );
             assert_eq!(contract.target, AsmTargetApplicability::X86_64);
-            assert_eq!(contract.availability, AsmInstructionAvailability::UserChecked);
+            assert_eq!(
+                contract.availability,
+                AsmInstructionAvailability::UserChecked
+            );
             assert_eq!(contract.required_authority, AsmAuthorityRequirement::None);
             assert!(contract.clobbers.is_empty());
             let row = crate::sealed_intrinsics::SealedIntrinsicCatalog::match_declaration(
@@ -2193,9 +2201,11 @@ mod tests {
             );
             assert_eq!(
                 row,
-                Some(crate::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
-                    crate::sealed_intrinsics::CompilerPrimitive::PackedInteger(primitive)
-                ))
+                Some(
+                    crate::sealed_intrinsics::SealedIntrinsic::CompilerPrimitive(
+                        crate::sealed_intrinsics::CompilerPrimitive::PackedInteger(primitive)
+                    )
+                )
             );
         }
         // `movq` stays the scalar register move; the vector load is `vmovq`.

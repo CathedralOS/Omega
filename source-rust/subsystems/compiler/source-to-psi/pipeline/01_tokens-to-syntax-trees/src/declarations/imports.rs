@@ -120,7 +120,11 @@ pub(crate) fn reject_packed_contract_imports(
                 components,
                 span,
                 ..
-            }) => (root.as_ref().map(|root| root.as_str(trees)), *components, *span),
+            }) => (
+                root.as_ref().map(|root| root.as_str(trees)),
+                *components,
+                *span,
+            ),
             syntax_trees::item::Item::Use(UseItem::Namespace { path }) => {
                 let Some(head) = trees.items.identifier_path_members(*path).first() else {
                     continue;
@@ -137,7 +141,8 @@ pub(crate) fn reject_packed_contract_imports(
             .collect();
         let names_contracts = match root {
             Some(root) => {
-                root == PACKED_INTEGER_CONTRACTS_ROOT && written == PACKED_INTEGER_CONTRACTS_COMPONENTS
+                root == PACKED_INTEGER_CONTRACTS_ROOT
+                    && written == PACKED_INTEGER_CONTRACTS_COMPONENTS
             }
             None => {
                 written.first() == Some(&PACKED_INTEGER_CONTRACTS_ROOT)
@@ -244,10 +249,16 @@ pub(crate) fn mark_product_operand_imports(
         return;
     }
     for handle in &roots.items[roots.import_range.clone()] {
-        let Item::Use(UseItem::File { alias, .. }) = trees.root_item(*handle) else { continue };
+        let Item::Use(UseItem::File { alias, .. }) = trees.root_item(*handle) else {
+            continue;
+        };
         if operands.contains(alias.as_str(trees)) {
             let mut item = trees.root_item(*handle).clone();
-            if let Item::Use(UseItem::File { only_product_operands, .. }) = &mut item {
+            if let Item::Use(UseItem::File {
+                only_product_operands,
+                ..
+            }) = &mut item
+            {
                 *only_product_operands = true;
             }
             trees.items.replace_item(*handle, item);

@@ -146,9 +146,9 @@ fn loading_eight_lanes_requires_eight_elements() {
 #[test]
 fn shifts_widening_narrowing_and_transposes_match_psi_and_native() {
     let source = r#"
-use {simd}/simd.omg as simd;
-use {simd}/i16x8.omg as i16x8;
-use {simd}/transpose.omg as transpose;
+use {system}/simd/simd.omg as simd;
+use {system}/simd/i16x8.omg as i16x8;
+use {system}/simd/transpose.omg as transpose;
 
 public machine main() crashes Trap {
     let a_arr: [i16; 8] = [-3i16, 100i16, -32768i16, 7i16, 1i16, 2i16, 3i16, 4i16];

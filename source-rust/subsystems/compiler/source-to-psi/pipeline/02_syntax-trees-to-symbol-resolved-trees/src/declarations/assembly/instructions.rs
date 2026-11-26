@@ -761,18 +761,19 @@ pub(super) fn prepare_instruction(
                 members: HandleSpan::from_parts(member, 1),
                 application: None,
             });
-            let value = syntax_trees
-                .expressions
-                .insert(ExpressionNode::Call(TableCallExpression {
-                    callee,
-                    target_is_static: true,
-                    receiver: ExpressionHandle::invalid(),
-                    target,
-                    machine_arguments: machine_arguments.into_boxed_slice(),
-                    arguments,
-                    evidence_arguments: Box::default(),
-                    operational_acknowledgement: Default::default(),
-                }));
+            let value =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        callee,
+                        target_is_static: true,
+                        receiver: ExpressionHandle::invalid(),
+                        target,
+                        machine_arguments: machine_arguments.into_boxed_slice(),
+                        arguments,
+                        evidence_arguments: Box::default(),
+                        operational_acknowledgement: Default::default(),
+                    }));
             syntax_trees
                 .expressions
                 .set_source_span(value, mnemonic_site);
