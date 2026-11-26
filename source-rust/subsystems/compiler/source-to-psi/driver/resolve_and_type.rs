@@ -1,13 +1,13 @@
 //! Resolve declarations and type authored bodies. Retain both frontiers so Build queries
 //! and generated source can resume from the same declarations and source identities.
 
-use syntax_trees_to_symbol_resolved_trees::resolution;
-use symbol_resolved_trees_to_typed_trees as typing;
 use crate::compile_time_invocations::PreCheckEvaluation;
-use declaration_scope::PackageDeclarationScope;
 use artifacts::compile_timings::{CompileTimings, source as stages};
+use declaration_scope::PackageDeclarationScope;
 use diagnostics::{Diagnostic, DiagnosticStage};
 use std::sync::Arc;
+use symbol_resolved_trees_to_typed_trees as typing;
+use syntax_trees_to_symbol_resolved_trees::resolution;
 
 mod activation;
 use activation::SourceContext;
@@ -15,6 +15,22 @@ use activation::SourceContext;
 mod authored_completion;
 use authored_completion::AuthoredCompletions;
 mod storage;
+
+#[derive(Clone, Default)]
+pub(crate) enum BodyDemandRequest {
+    #[default]
+    Default,
+    DeclarationEntryFiles(Vec<source_text::SourceId>),
+    BuildDemand {
+        entry_machine: source_text::SourceSpan,
+        subject_files: Vec<source_text::SourceId>,
+    },
+    ProductDemand {
+        subject_files: Vec<source_text::SourceId>,
+        extra_files: Vec<source_text::SourceId>,
+        provider_conformances: Vec<(std::path::PathBuf, source_text::Span)>,
+    },
+}
 
 #[derive(Clone)]
 pub struct ResolveAndTypeRequest {
@@ -29,6 +45,7 @@ pub struct ResolveAndTypeRequest {
     pub sources: Arc<crate::source_inputs::SourceMap>,
     pub top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
     pub selection_authority: Option<Arc<PackageDeclarationScope>>,
+    pub(crate) body_demand: BodyDemandRequest,
 }
 
 #[derive(Clone, record_storage::Record)]
@@ -43,6 +60,7 @@ struct SourceCompletionInput {
     pending_bodies: resolution::DeferredResolvedFrontier,
     pending_pre_checks: Vec<PreCheckEvaluation>,
     context: SourceContext,
+    demand_completed: bool,
 }
 
 #[derive(Clone, record_storage::Record)]
@@ -133,6 +151,8 @@ impl ResolveAndTypeRequest {
         retain_frontend: bool,
         timings: &mut CompileTimings,
     ) -> Result<SourceTypingCheckpoint, Vec<Diagnostic>> {
+        let demand_completed = !matches!(self.body_demand, BodyDemandRequest::Default);
+        let body_demand = std::mem::take(&mut self.body_demand);
         let context = SourceContext {
             bindings: self.top_level_bindings.clone(),
             declaration_scope: self.selection_authority.clone(),
@@ -175,6 +195,7 @@ impl ResolveAndTypeRequest {
                     retained_base: None,
                 },
                 eager_scope,
+                &body_demand,
                 timings,
             )?;
             let typing = {
@@ -187,21 +208,27 @@ impl ResolveAndTypeRequest {
             };
             (typing, frontier, Vec::new())
         };
-        loop {
-            let build_bodies = pending_bodies.pending_machines_in(followup_scope)?;
-            if build_bodies.is_empty() {
-                break;
+        match &body_demand {
+            BodyDemandRequest::Default => loop {
+                let build_bodies = pending_bodies.pending_machines_in(followup_scope)?;
+                if build_bodies.is_empty() {
+                    break;
+                }
+                pending_bodies =
+                    pending_bodies.with_prepared_allocations(typing.prepare_allocations()?)?;
+                let completed = timings
+                    .record_result(stages::RESOLVE, || {
+                        pending_bodies.complete_machine_bodies(&build_bodies)
+                    })
+                    .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
+                (typing, pending_bodies) = timings
+                    .record_result(stages::TYPE, || type_completed_bodies(typing, completed))
+                    .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?;
+            },
+            _ => {
+                (typing, pending_bodies) =
+                    complete_demanded_typed_bodies(typing, pending_bodies, &body_demand, timings)?;
             }
-            pending_bodies =
-                pending_bodies.with_prepared_allocations(typing.prepare_allocations()?)?;
-            let completed = timings
-                .record_result(stages::RESOLVE, || {
-                    pending_bodies.complete_machine_bodies(&build_bodies)
-                })
-                .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
-            (typing, pending_bodies) = timings
-                .record_result(stages::TYPE, || type_completed_bodies(typing, completed))
-                .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?;
         }
         PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
         if let Some(retained_requests) = retained_requests {
@@ -214,6 +241,7 @@ impl ResolveAndTypeRequest {
             pending_bodies,
             pending_pre_checks,
             context,
+            demand_completed,
         });
         let source = SourceTypingCheckpoint {
             input,
@@ -243,16 +271,201 @@ fn eager_body_scope(purpose: source_provenance::DependencyScope) -> resolution::
     }
 }
 
+fn initial_demand_roots(
+    frontier: &resolution::DeferredResolvedFrontier,
+    request: &BodyDemandRequest,
+) -> (
+    Vec<symbols::SymbolHandle>,
+    Vec<(std::path::PathBuf, source_text::Span)>,
+    Vec<source_text::SourceId>,
+) {
+    let trees = frontier.trees();
+    let symbols = &trees.symbols;
+    match request {
+        BodyDemandRequest::Default => (Vec::new(), Vec::new(), Vec::new()),
+        BodyDemandRequest::DeclarationEntryFiles(files) => {
+            let roots = frontier.pending_machines_in_sources(files);
+            (roots, Vec::new(), files.clone())
+        }
+        BodyDemandRequest::BuildDemand {
+            entry_machine,
+            subject_files,
+        } => {
+            let mut roots = Vec::new();
+            for symbol in frontier.pending_machines() {
+                if symbols.symbol_source_span(symbol) == Some(*entry_machine) {
+                    roots.push(symbol);
+                }
+            }
+            for symbol in frontier.pending_machines_in_sources(subject_files) {
+                if !roots.contains(&symbol) {
+                    roots.push(symbol);
+                }
+            }
+            let mut sources = subject_files.clone();
+            if !sources.contains(&entry_machine.source_id) {
+                sources.push(entry_machine.source_id);
+            }
+            (roots, Vec::new(), sources)
+        }
+        BodyDemandRequest::ProductDemand {
+            subject_files,
+            extra_files,
+            provider_conformances,
+        } => {
+            let mut roots = frontier.pending_machines_in_sources(subject_files);
+            for symbol in frontier.pending_machines_in_sources(extra_files) {
+                if !roots.contains(&symbol) {
+                    roots.push(symbol);
+                }
+            }
+            (roots, provider_conformances.clone(), subject_files.clone())
+        }
+    }
+}
+
+fn next_demand_batch_for_request(
+    frontier: &resolution::DeferredResolvedFrontier,
+    request: &BodyDemandRequest,
+    completed_roots: &mut Vec<symbols::SymbolHandle>,
+) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
+    let (initial, provider_conformances, subject_sources) = initial_demand_roots(frontier, request);
+    if !initial.is_empty() {
+        for symbol in &initial {
+            if !completed_roots.contains(symbol) {
+                completed_roots.push(*symbol);
+            }
+        }
+        return Ok(initial);
+    }
+    if completed_roots.is_empty() {
+        // Seed from any already-completed machines in subject/entry sources.
+        let trees = frontier.trees();
+        let symbols = &trees.symbols;
+        for machine in trees.machines.iter() {
+            let matches = match request {
+                BodyDemandRequest::Default => false,
+                BodyDemandRequest::DeclarationEntryFiles(files) => symbols
+                    .symbol_provenance_source_span(machine.symbol)
+                    .is_some_and(|span| files.contains(&span.source_id)),
+                BodyDemandRequest::BuildDemand {
+                    entry_machine,
+                    subject_files,
+                } => {
+                    symbols.symbol_source_span(machine.symbol) == Some(*entry_machine)
+                        || symbols
+                            .symbol_provenance_source_span(machine.symbol)
+                            .is_some_and(|span| subject_files.contains(&span.source_id))
+                }
+                BodyDemandRequest::ProductDemand {
+                    subject_files,
+                    extra_files,
+                    ..
+                } => symbols
+                    .symbol_provenance_source_span(machine.symbol)
+                    .is_some_and(|span| {
+                        subject_files.contains(&span.source_id)
+                            || extra_files.contains(&span.source_id)
+                    }),
+            };
+            if matches && !completed_roots.contains(&machine.symbol) {
+                completed_roots.push(machine.symbol);
+            }
+        }
+    }
+    let mut batch =
+        frontier.demand_closure_batch(completed_roots, &provider_conformances, &subject_sources)?;
+    // Every batch pays for a whole-program `finish_resolution`, and the call
+    // graph only reveals one layer per batch. Take the other pending bodies
+    // of each demanded body's file with it: files are cohesive, so this
+    // turns tens of one-body batches into a few file-sized ones while still
+    // leaving the files nothing reaches unread.
+    let symbols = &frontier.trees().symbols;
+    let mut files: Vec<source_text::SourceId> = batch
+        .iter()
+        .filter_map(|&symbol| symbols.symbol_provenance_source_span(symbol))
+        .map(|span| span.source_id)
+        .collect();
+    files.sort_unstable_by_key(|id| id.0);
+    files.dedup();
+    for symbol in frontier.pending_machines_in_sources(&files) {
+        if !batch.contains(&symbol) {
+            batch.push(symbol);
+        }
+    }
+    for &symbol in &batch {
+        if !completed_roots.contains(&symbol) {
+            completed_roots.push(symbol);
+        }
+    }
+    Ok(batch)
+}
+
+fn complete_demanded_typed_bodies(
+    mut typing: typing::SeededTypingBase,
+    mut pending_bodies: resolution::DeferredResolvedFrontier,
+    request: &BodyDemandRequest,
+    timings: &mut CompileTimings,
+) -> Result<
+    (
+        typing::SeededTypingBase,
+        resolution::DeferredResolvedFrontier,
+    ),
+    Vec<Diagnostic>,
+> {
+    let mut completed_roots = Vec::new();
+    loop {
+        let selected = timings
+            .record_result(stages::RESOLVE, || {
+                next_demand_batch_for_request(&pending_bodies, request, &mut completed_roots)
+            })
+            .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
+        if selected.is_empty() {
+            break;
+        }
+        pending_bodies = pending_bodies.with_prepared_allocations(typing.prepare_allocations()?)?;
+        let resolved = timings
+            .record_result(stages::RESOLVE, || {
+                pending_bodies.complete_machine_bodies(&selected)
+            })
+            .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
+        (typing, pending_bodies) = timings
+            .record_result(stages::TYPE, || type_completed_bodies(typing, resolved))
+            .map_err(|rows| DiagnosticStage::Typing.attribute(rows))?;
+    }
+    Ok((typing, pending_bodies))
+}
+
 fn resolve_eager_bodies(
     request: resolution::ResolutionRequest,
     scope: resolution::DeferredBodyScope,
+    body_demand: &BodyDemandRequest,
     timings: &mut CompileTimings,
 ) -> Result<resolution::DeferredResolvedFrontier, Vec<Diagnostic>> {
     let mut frontier = timings
         .record_result(stages::RESOLVE, || resolution::resolve_deferred(request))
         .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
+    if matches!(body_demand, BodyDemandRequest::Default) {
+        loop {
+            let selected = frontier.pending_machines_in(scope)?;
+            if selected.is_empty() {
+                return Ok(frontier);
+            }
+            frontier = timings
+                .record_result(stages::RESOLVE, || {
+                    frontier.complete_machine_bodies(&selected)
+                })
+                .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?
+                .into_resolved_frontier();
+        }
+    }
+    let mut completed_roots = Vec::new();
     loop {
-        let selected = frontier.pending_machines_in(scope)?;
+        let selected = timings
+            .record_result(stages::RESOLVE, || {
+                next_demand_batch_for_request(&frontier, body_demand, &mut completed_roots)
+            })
+            .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
         if selected.is_empty() {
             return Ok(frontier);
         }
@@ -317,14 +530,17 @@ impl SourceTypingCheckpoint {
             mut typing,
             mut pending_bodies,
             pending_pre_checks,
+            demand_completed,
             ..
         } = Arc::unwrap_or_clone(owned_input);
-        (typing, pending_bodies) = complete_pending_bodies(
-            typing,
-            pending_bodies,
-            resolution::DeferredBodyScope::All,
-            timings,
-        )?;
+        if !demand_completed {
+            (typing, pending_bodies) = complete_pending_bodies(
+                typing,
+                pending_bodies,
+                resolution::DeferredBodyScope::All,
+                timings,
+            )?;
+        }
         drop(pending_bodies);
         PreCheckEvaluation::record_continuations(pending_pre_checks, typing.typed_mut())?;
         let source = CompletedSource {
@@ -445,7 +661,8 @@ pub struct SourcePreparation {
 impl SourcePreparation {
     pub fn catalogue(
         &self,
-    ) -> Result<std::sync::MutexGuard<'_, crate::source_inputs::SourceCatalogue>, Vec<Diagnostic>> {
+    ) -> Result<std::sync::MutexGuard<'_, crate::source_inputs::SourceCatalogue>, Vec<Diagnostic>>
+    {
         self.catalogue
             .lock()
             .map_err(|_| vec![Diagnostic::error("source catalogue owner is poisoned")])

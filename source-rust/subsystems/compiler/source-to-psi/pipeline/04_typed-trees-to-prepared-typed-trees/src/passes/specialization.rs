@@ -137,6 +137,12 @@ pub(crate) fn prepare_selected(
                 break;
             }
         }
+        if program.machines()[position].body_status
+            == crate::source_state::machine::MachineBodyStatus::Deferred
+        {
+            position += 1;
+            continue;
+        }
         let holder = program.machines()[position].symbol;
         let conditional = program.machines()[position].purpose
             == crate::source_state::machine::MachinePurpose::ActiveCaseBranch

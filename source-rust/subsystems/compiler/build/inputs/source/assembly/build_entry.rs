@@ -37,7 +37,7 @@ impl BuildSourceSelection {
             kind: BuildSourceKind::CompilerDefault,
         }
     }
-    pub(super) fn rejoined(self, source_id: source_text::SourceId) -> Self {
+    pub fn rejoined(self, source_id: source_text::SourceId) -> Self {
         Self {
             entry: source_text::SourceSpan::new(source_id, self.entry.span),
             ..self

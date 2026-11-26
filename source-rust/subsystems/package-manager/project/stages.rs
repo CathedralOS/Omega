@@ -72,7 +72,7 @@ impl SourceHost<'_, '_> {
                     execution,
                     artifact_only: false,
                 },
-                Default::default(),
+                self.preparation.clone(),
                 planning_timings(self.timings),
             )?;
             let mut requests = Default::default();
