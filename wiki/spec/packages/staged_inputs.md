@@ -10,6 +10,21 @@ The Rust driver follows authored successor entries and forwards explicitly
 registered package bindings. Install and update still use the lock workflow. The [binding and
 admission rules](#binding-identity-and-admission) govern the staged workflow.
 
+## Packages available to the initial Build
+
+For `omega build build.omg`, the driver supplies the toolchain's core and
+Build libraries by convention. The project declares additional packages in
+its checked-in Build source. The CLI has no option to inject a package
+binding into the initial Build. An embedding host can supply incoming
+bindings directly.
+
+If only the application imports `{system}/console.omg`, one `build.omg`
+registers `system` and its allowed reach for the application. If Build code
+itself needs to call `Filesystem::read_all` from `system`, the first entry
+registers that package for a successor such as `configure.omg`. The successor
+imports it when compiled with those bindings. In both cases the user runs
+the same command.
+
 ## From source to the next stage
 
 Each stage starts with a frozen source view and caller-supplied package

@@ -86,6 +86,9 @@ guides and command examples together.
 
 ## Local Build inputs
 
+The project selects additional packages in Build source. See
+[packages available to the initial Build](../packages/staged_inputs.md#packages-available-to-the-initial-build).
+
 By default, a local Build can read its entry and the package-local source files
 admitted to compile it. To capture a package asset alongside the source, include it in the invocation inventory.
 For example, a package with a Build entry, one helper, and a lookup table can use the following invocation.
