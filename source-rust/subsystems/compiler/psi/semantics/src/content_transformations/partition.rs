@@ -172,8 +172,8 @@ pub(super) fn checked_return(
             })
         })
         .ok_or("partition input has no exact owner interval projection")?;
-    let mut inputs = std::collections::BTreeSet::new();
-    let mut claims = std::collections::BTreeSet::new();
+    let mut inputs = Vec::with_capacity(exchange.inputs.len());
+    let mut claims = Vec::with_capacity(exchange.inputs.len());
     for entry in exchange.inputs {
         let formal = machine
             .structural_parameter(entry.root)
@@ -192,9 +192,15 @@ pub(super) fn checked_return(
                         .any(|p| p.projection == projection && p.algebra == *law.algebra())
             })
             .ok_or("partition needs the consumed entry carrying its exact projection")?;
-        if !inputs.insert(formal.place) || !claims.insert(claim.claim) {
-            return Err("partition consumes the same entry claim more than once");
-        }
+        inputs.push(formal.place);
+        claims.push(claim.claim);
+    }
+    inputs.sort_unstable();
+    claims.sort_unstable();
+    if inputs.windows(2).any(|pair| pair[0] == pair[1])
+        || claims.windows(2).any(|pair| pair[0] == pair[1])
+    {
+        return Err("partition consumes the same entry claim more than once");
     }
     let Some(ContentProjectionExpression::IntervalSet(intervals)) = domain
         .content_projection
@@ -258,7 +264,7 @@ pub(super) fn checked_return(
     }
     let arrivals = returns::check(module, machine, &inputs, &output, interval)?;
     Ok(Proof {
-        inputs: claims.into_iter().collect(),
+        inputs: claims,
         domain: domain.id,
         arrivals,
     })

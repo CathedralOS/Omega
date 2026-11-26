@@ -156,7 +156,7 @@ struct Flow {
     booleans: Rows<ValueId, Boolean>,
     storage: Rows<PlaceId, Record>,
     bounds: Bounds,
-    opened: BTreeSet<PlaceId>,
+    opened: arena::IdSet<PlaceId>,
     // Exact arrivals of constructed children, including the destination of a
     // qualification-changing edge. Construction identity survives owned moves.
     arrivals: BTreeMap<(EdgeId, PlaceId), PlaceId>,
@@ -193,7 +193,7 @@ impl Flow {
         &mut self,
         module: &TerminalModule,
         op: &Operation,
-        inputs: &BTreeSet<PlaceId>,
+        inputs: &[PlaceId],
     ) -> Checked<()> {
         let scalar = |flow: &mut Self, value| -> Checked<()> {
             let result = op
@@ -218,7 +218,7 @@ impl Flow {
         };
         match &op.kind {
             Op::DecomposeStructuralValue { subject }
-                if inputs.contains(&subject.place) && subject.path.is_empty() && self.opened.insert(subject.place) =>
+                if inputs.binary_search(&subject.place).is_ok() && subject.path.is_empty() && self.opened.insert(subject.place) =>
             {
                 Ok(())
             }
@@ -468,7 +468,7 @@ fn assume_all(
 pub(super) fn check(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    inputs: &BTreeSet<PlaceId>,
+    inputs: &[PlaceId],
     paths: &[Vec<Path>],
     shape: &(ContentProjectionScalar, ContentProjectionScalar),
 ) -> Checked<BTreeSet<(EdgeId, PlaceId)>> {
@@ -534,7 +534,7 @@ pub(super) fn check(
                 returned_claims,
                 ..
             } => {
-                if &flow.opened != inputs {
+                if inputs.iter().any(|input| !flow.opened.contains(*input)) {
                     return Err("interval partition did not consume its promised original input");
                 }
                 let mut pieces = Vec::new();
