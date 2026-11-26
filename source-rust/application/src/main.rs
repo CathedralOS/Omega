@@ -62,7 +62,11 @@ fn run_with_large_stack(
     invocation: Invocation,
     output: diagnostic_output::DiagnosticOutput,
 ) -> ExitCode {
-    let budget = match worker_budget::ExecutionBudget::for_host() {
+    let workers = match invocation {
+        Invocation::ParseSource(_) => worker_budget::ExecutionBudget::with_workers(1),
+        _ => worker_budget::ExecutionBudget::for_host(),
+    };
+    let budget = match workers {
         Ok(budget) => budget,
         Err(error) => {
             eprintln!("failed to start compiler workers: {error}");
