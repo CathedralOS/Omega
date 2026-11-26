@@ -3,8 +3,10 @@ use super::SourceStorage;
 use diagnostics::Diagnostic;
 use std::path::{Path, PathBuf};
 
+pub(super) const ENTRY_PACKAGE: &str = "system";
+
 pub(crate) fn entry_contract_root() -> Result<PathBuf, Vec<Diagnostic>> {
-    Ok(super::bundled_omega_root()?.join("system"))
+    Ok(super::bundled_omega_root()?.join(ENTRY_PACKAGE))
 }
 
 pub(crate) fn entry_contract_seeds(

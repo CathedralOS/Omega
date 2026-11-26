@@ -28,13 +28,15 @@ pub struct SourceTarget {
 pub struct SourceEntryContract {
     pub manifest_identity: &'static str,
     pub relative_source: &'static str,
+    pub package_owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub installed_root: std::path::PathBuf,
     pub source_digest: [u8; 32],
 }
 
 impl SourceEntryContract {
     pub(super) fn owns(&self, file: &source_admission::SourceFile) -> bool {
-        file.package_root == self.installed_root
+        file.package_identity == self.package_owner
+            && file.package_root == self.installed_root
             && file.path.strip_prefix(&file.package_root).ok()
                 == Some(std::path::Path::new(self.relative_source))
             && file.resolution_stratum == source_admission::SourceResolutionStratum::Base
@@ -80,7 +82,8 @@ mod tests {
 
     #[test]
     fn entry_custody_requires_the_designated_package_file_and_product_occurrence() {
-        let contract = SourceEntryContract {
+        let mut contract = SourceEntryContract {
+            package_owner: None,
             installed_root: "/installed/system".into(),
             manifest_identity: "target::entry",
             relative_source: "target/entry.omg",
@@ -105,6 +108,11 @@ mod tests {
         assert!(!contract.owns(&file));
         file.package_identity =
             Some(semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap());
+        assert!(!contract.owns(&file));
+        contract.package_owner =
+            Some(semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap());
+        assert!(!contract.owns(&file));
+        contract.package_owner = file.package_identity;
         assert!(contract.owns(&file));
         file.package_root = "/dependency".into();
         file.path = file.package_root.join(contract.relative_source);
