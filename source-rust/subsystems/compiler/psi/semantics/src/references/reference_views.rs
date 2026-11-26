@@ -43,6 +43,47 @@ pub fn descriptor_value_transfer_matches<'types>(
             == Some(crate::BorrowedReferentPresentation::Unchanged)
 }
 
+pub(crate) fn structural_actual_matches(
+    types: &[StructuralTypeDeclaration],
+    actual: (StructuralTypeId, StructuralAccess),
+    formal: (StructuralTypeId, StructuralAccess),
+) -> bool {
+    if actual == formal {
+        return true;
+    }
+    if actual.1 != formal.1 || formal.1 == StructuralAccess::Owned {
+        return false;
+    }
+    let declaration = |id: StructuralTypeId| {
+        types
+            .binary_search_by_key(&id, |row| row.id)
+            .ok()
+            .map(|position| &types[position])
+    };
+    let (Some(actual_type), Some(formal_type)) = (declaration(actual.0), declaration(formal.0))
+    else {
+        return false;
+    };
+    // A checked transport may put borrowed access on the descriptor or on its
+    // formal. Match that presentation without changing its declared facts
+    // or deriving referent permission from ownership of the descriptor.
+    actual_type.declaration_identity == formal_type.declaration_identity
+        && actual_type.quotient_carrier == formal_type.quotient_carrier
+        && actual_type.owns_linear_claim == formal_type.owns_linear_claim
+        && actual_type.no_code_affine_cleanup == formal_type.no_code_affine_cleanup
+        && actual_type.descriptor_cleanup == formal_type.descriptor_cleanup
+        && actual_type.nominal_cleanup == formal_type.nominal_cleanup
+        && actual_type.scalar_restriction == formal_type.scalar_restriction
+        && actual_type.requires == formal_type.requires
+        && crate::descriptor_reborrow_shapes_match(
+            &actual_type.shape,
+            actual.1,
+            Some(actual.1),
+            &formal_type.shape,
+            formal.1,
+        )
+}
+
 pub fn descriptor_reborrow_matches<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     source: StructuralTypeId,

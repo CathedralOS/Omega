@@ -99,6 +99,31 @@ fn transferring(
     }
 }
 
+#[test]
+fn a_successor_can_reborrow_a_stored_view_into_a_canonical_header() {
+    use StructuralAccess::{MutableBorrow, SharedBorrow};
+    let base = reconvergence_types()[2].clone();
+    let view = |raw, element, access| StructuralTypeDeclaration {
+        id: id(raw),
+        shape: StructuralTypeShape::ElementView { element: id(element), access },
+        ..base.clone()
+    };
+    let accepts = |source: StructuralTypeDeclaration, target: StructuralTypeDeclaration| {
+        let argument = StructuralArgument::whole(id(1), MutableBorrow);
+        let mut machine = transferring(&[source.id], &[target.id], vec![argument.clone()]);
+        machine.blocks[1].structural_parameters[0].access = MutableBorrow;
+        let root = Some((source.id, source.multiplicity, MutableBorrow, None));
+        let other_element = StructuralTypeDeclaration { id: id(4), ..base.clone() };
+        let types = [source, target, base.clone(), other_element];
+        validate_successor(&machine, &types, &[root], id(2), &[argument]).is_ok()
+    };
+    assert!(accepts(view(1, 3, Some(MutableBorrow)), view(2, 3, None)));
+    assert!(!accepts(view(1, 3, Some(SharedBorrow)), view(2, 3, None)));
+    assert!(!accepts(view(1, 4, Some(MutableBorrow)), view(2, 3, None)));
+    // Borrowing the descriptor's storage needs the exact stored type.
+    assert!(!accepts(view(1, 3, None), view(2, 3, Some(MutableBorrow))));
+}
+
 fn field_argument(field: u32) -> StructuralArgument {
     StructuralArgument {
         place: id(1),
