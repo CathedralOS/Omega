@@ -1,5 +1,5 @@
 // Repository-wide census over bundled-library imports in `.omg` sources. The
-// standalone `omega\language\system` and `omega\language\allocation` mount paths are
+// standalone `{omega}/language/system/` and `{omega}/language/allocation/` mount paths are
 // retired outside the libraries themselves: package-aware consumers must reach
 // bundled libraries through declared `build.omg` dependency edges and their
 // requester-local aliases (`system`, `allocation`). Fail-tier fixtures
@@ -70,10 +70,14 @@ fn bundled_packages(repo: &Path) -> BTreeMap<String, PathBuf> {
 }
 
 fn package_name(build_text: &str) -> Option<String> {
-    let marker = "Build::package(builder,";
-    let start = build_text.find(marker)? + marker.len();
-    let rest = build_text[start..].trim_start();
-    let rest = rest.strip_prefix('"')?;
+    let (_, fields) = build_text.split_once("BuildProduct::Package")?;
+    let fields = fields.trim_start().strip_prefix('{')?;
+    let name = fields.trim_start().strip_prefix("name")?;
+    let rest = name
+        .trim_start()
+        .strip_prefix(':')?
+        .trim_start()
+        .strip_prefix('"')?;
     let end = rest.find('"')?;
     Some(rest[..end].to_string())
 }
@@ -114,24 +118,30 @@ fn owning_build_root(file: &Path) -> Option<PathBuf> {
     })
 }
 
-fn dependency_dirs(root: &Path) -> Vec<PathBuf> {
+/// Read the two source constructors which identify bundled packages on disk.
+fn dependency_dirs(root: &Path, packages: &BTreeMap<String, PathBuf>) -> Vec<PathBuf> {
     let Ok(text) = fs::read_to_string(root.join("build.omg")) else {
         return Vec::new();
     };
     let mut dirs = Vec::new();
-    let marker = "Source::Path";
-    let mut rest = text.as_str();
-    while let Some(at) = rest.find(marker) {
-        rest = &rest[at + marker.len()..];
-        let Some(from) = rest.find('"') else {
-            break;
-        };
-        let quoted = &rest[from + 1..];
-        let Some(end) = quoted.find('"') else {
-            break;
-        };
-        dirs.push(root.join(&quoted[..end]));
-        rest = &quoted[end..];
+    for (constructor, field) in [("Source::Path", "location"), ("Source::Bundled", "name")] {
+        for source in text.split(constructor).skip(1) {
+            let Some(value) = source
+                .trim_start()
+                .strip_prefix('{')
+                .and_then(|fields| fields.trim_start().strip_prefix(field))
+                .and_then(|value| value.trim_start().strip_prefix(':'))
+                .and_then(|value| value.trim_start().strip_prefix('"'))
+                .and_then(|value| value.split_once('"').map(|(value, _)| value))
+            else {
+                continue;
+            };
+            if constructor == "Source::Path" {
+                dirs.push(root.join(value));
+            } else if let Some(package_dir) = packages.get(value) {
+                dirs.push(package_dir.clone());
+            }
+        }
     }
     dirs
 }
@@ -222,7 +232,7 @@ fn library_imports_ride_declared_edges_not_the_mount() {
             let Some(root) = owning_build_root(source) else {
                 continue;
             };
-            let reached = dependency_dirs(&root)
+            let reached = dependency_dirs(&root, &packages)
                 .iter()
                 .any(|dir| is_under(package_dir, dir) || is_under(dir, package_dir));
             if !reached {
