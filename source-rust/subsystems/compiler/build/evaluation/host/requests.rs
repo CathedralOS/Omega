@@ -53,6 +53,8 @@ impl IssuedBuildRequest {
 }
 
 pub struct TerminalBuildRequestHost {
+    programs: Arc<super::programs::ProgramInstallation>,
+    filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
     inputs: InputBindings,
     reach: reach::ReachSets,
     workspace: workspace::WorkspaceCatalogs,
@@ -105,9 +107,11 @@ pub struct BuildDependencyPreparation {
 }
 
 impl TerminalBuildRequestHost {
-    pub fn new(
+    pub(crate) fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
         requests: &TerminalBuildRequests,
+        programs: Arc<super::programs::ProgramInstallation>,
+        filesystem: Arc<super::filesystem::TerminalBuildFilesystemHost>,
         original: TerminalStructuralValue,
         diagnostic_output_bytes: Option<u64>,
         account: Option<&EvaluationInvocationAccount>,
@@ -122,6 +126,8 @@ impl TerminalBuildRequestHost {
             None
         };
         Ok(Arc::new(Self {
+            programs,
+            filesystem,
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             inputs: InputBindings::new(libraries),
@@ -369,6 +375,56 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         ))
     }
 
+    fn storage_requirements(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        _: &[TerminalScalarValue],
+    ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
+        let program = self.host.calls.iter().any(|call| {
+            call.site.boundary == boundary && matches!(call.action, Operation::LaunchProgram { .. })
+        });
+        terminal_interpreter::TerminalCallStorageRequirements {
+            arguments: if program { &[0] } else { &[] },
+            original: false,
+        }
+    }
+
+    fn handle_effect_with_buffers(
+        &mut self,
+        effect: &TerminalEffect,
+        bytes: &mut [terminal_interpreter::TerminalBoundaryByteBuffer],
+        storage: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
+    ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        crate::host::require_effect_owner(effect, &self.host.artifact)?;
+        let launch = self.host.calls.iter().find_map(|call| {
+            if crate::host::is_call_at(effect, call.site)
+                && let Operation::LaunchProgram { program } = call.action
+            {
+                Some(program)
+            } else {
+                None
+            }
+        });
+        if let Some(program) = launch {
+            if !bytes.is_empty() {
+                return Err(TerminalEffectRejection::new(
+                    "program arguments may only borrow immutable byte views",
+                ));
+            }
+            return self
+                .host
+                .programs
+                .run(program, storage, &self.host.filesystem)
+                .map_err(TerminalEffectRejection::new);
+        }
+        if !bytes.is_empty() || !storage.is_empty() {
+            return Err(TerminalEffectRejection::new(
+                "unexpected storage in a Build request",
+            ));
+        }
+        self.handle_effect_result(effect)
+    }
+
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
@@ -515,6 +571,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
         };
         let (scalar_count, structural_count) = match call.action {
+            Operation::LaunchProgram { .. } => {
+                return Err(refuse("program call lost its borrowed argument list"));
+            }
             Operation::ArtifactOnly => (0, 1),
             Operation::InputBinding => (0, 2),
             Operation::AddBinding => (0, 3),
@@ -694,6 +753,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         let project_name =
             |value: &str| ProjectName::parse(copy(value)?).map_err(TerminalEffectRejection::new);
         let request = match call.action {
+            Operation::LaunchProgram { .. } => {
+                return Err(refuse("program call lost its borrowed argument list"));
+            }
             Operation::ConfigureTestFixture
             | Operation::ConfigureTestEngine
             | Operation::SandboxWrite

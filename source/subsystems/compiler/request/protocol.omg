@@ -1,14 +1,16 @@
-use wire\u32_from_le_bytes;
+use {wire}/codec.omg;
+use request.omg as input;
+use outcome.omg as results;
 
 // The little-endian `u32` at `offset`; callers have bounded `offset + 4`.
-machine u32_at(request: @Request, offset: u64 in Trapping) -> u64 in Trapping
+machine u32_at(request: @|input|::Request, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let b0: u8 = request_byte(request, offset);
-    let b1: u8 = request_byte(request, offset + 1);
-    let b2: u8 = request_byte(request, offset + 2);
-    let b3: u8 = request_byte(request, offset + 3);
-    u32_from_le_bytes(b0, b1, b2, b3) as u64 +Trapping
+    let b0: u8 = |input|::request_byte(request, offset);
+    let b1: u8 = |input|::request_byte(request, offset + 1);
+    let b2: u8 = |input|::request_byte(request, offset + 2);
+    let b3: u8 = |input|::request_byte(request, offset + 3);
+    |codec|::u32_from_le_bytes(b0, b1, b2, b3) as u64 +Trapping
 }
 
 // The OCREQ identity `4F 43 52 45 51 01 00 00` by position.
@@ -45,10 +47,10 @@ machine sections_none() -> Sections {
 public data Verdict [copy] {
     complete: bool;
     sections: Sections;
-    outcome: Outcome;
+    outcome: |results|::Outcome;
 }
 
-machine refuse(outcome: Outcome) -> Verdict {
+machine refuse(outcome: |results|::Outcome) -> Verdict {
     let sections: Sections = sections_none();
     Verdict { complete: false, sections: sections, outcome: outcome }
 }
@@ -61,24 +63,24 @@ machine refuse(outcome: Outcome) -> Verdict {
 // stream shorter than a fixed field is missing its byte at the stream end.
 // A request the staging provision could not hold is refused first, at the
 // first byte that could not be staged.
-public machine request_envelope(request: @Request) -> Verdict
+public machine request_envelope(request: @|input|::Request) -> Verdict
 crashes Trap
 {
-    let length: u64 in Trapping = staged(request);
+    let length: u64 in Trapping = |input|::staged(request);
     transition request.observed > length {
-        true -> incomplete(Provision::RequestStagingBytes, 65536 as +Trapping, request.observed),
+        true -> incomplete(|results|::Provision::RequestStagingBytes, 65536 as +Trapping, request.observed),
         _ -> framing(request, length)
     }
 
-    machine framing(request: @Request, length: u64 in Trapping) -> Verdict {
+    machine framing(request: @|input|::Request, length: u64 in Trapping) -> Verdict {
         transition length >= 8 {
             true -> identity(request, length, 0 as +Trapping),
             _ -> malformed(length)
         }
     }
 
-    machine identity(request: @Request, length: u64 in Trapping, index: u64 in Trapping) -> Verdict {
-        let byte: u64 in Trapping = request_byte(request, index) as u64 +Trapping;
+    machine identity(request: @|input|::Request, length: u64 in Trapping, index: u64 in Trapping) -> Verdict {
+        let byte: u64 in Trapping = |input|::request_byte(request, index) as u64 +Trapping;
         let expected: u64 in Trapping = identity_byte(index);
         transition byte == expected {
             true -> identity_next(request, length, index),
@@ -86,37 +88,37 @@ crashes Trap
         }
     }
 
-    machine identity_next(request: @Request, length: u64 in Trapping, index: u64 in Trapping) -> Verdict {
+    machine identity_next(request: @|input|::Request, length: u64 in Trapping, index: u64 in Trapping) -> Verdict {
         transition index < 7 {
             true -> identity(request, length, index + 1),
             _ -> header(request, length)
         }
     }
 
-    machine header(request: @Request, length: u64 in Trapping) -> Verdict {
+    machine header(request: @|input|::Request, length: u64 in Trapping) -> Verdict {
         transition length >= 16 {
             true -> subject_high_bit(request, length),
             _ -> malformed(length)
         }
     }
 
-    machine subject_high_bit(request: @Request, length: u64 in Trapping) -> Verdict {
-        let high: u8 = request_byte(request, 11 as +Trapping);
+    machine subject_high_bit(request: @|input|::Request, length: u64 in Trapping) -> Verdict {
+        let high: u8 = |input|::request_byte(request, 11 as +Trapping);
         transition high < 128 {
             true -> invocation_high_bit(request, length),
             _ -> malformed(8 as +Trapping)
         }
     }
 
-    machine invocation_high_bit(request: @Request, length: u64 in Trapping) -> Verdict {
-        let high: u8 = request_byte(request, 15 as +Trapping);
+    machine invocation_high_bit(request: @|input|::Request, length: u64 in Trapping) -> Verdict {
+        let high: u8 = |input|::request_byte(request, 15 as +Trapping);
         transition high < 128 {
             true -> lengths(request, length),
             _ -> malformed(12 as +Trapping)
         }
     }
 
-    machine lengths(request: @Request, length: u64 in Trapping) -> Verdict {
+    machine lengths(request: @|input|::Request, length: u64 in Trapping) -> Verdict {
         let subject_length: u64 in Trapping = u32_at(request, 8 as +Trapping);
         let invocation_length: u64 in Trapping = u32_at(request, 12 as +Trapping);
         transition subject_length <= length - 16 {
@@ -143,14 +145,14 @@ crashes Trap
     machine subject_extent(subject_end: u64 in Trapping, invocation_end: u64 in Trapping) -> Verdict {
         transition subject_end - 16 <= 67108864 {
             true -> invocation_extent(subject_end, invocation_end),
-            _ -> incomplete(Provision::RequestSubjectBytes, 8 as +Trapping, subject_end - 16)
+            _ -> incomplete(|results|::Provision::RequestSubjectBytes, 8 as +Trapping, subject_end - 16)
         }
     }
 
     machine invocation_extent(subject_end: u64 in Trapping, invocation_end: u64 in Trapping) -> Verdict {
         transition invocation_end - subject_end <= 1048576 {
             true -> framed(subject_end, invocation_end),
-            _ -> incomplete(Provision::RequestInvocationBytes, 12 as +Trapping, invocation_end - subject_end)
+            _ -> incomplete(|results|::Provision::RequestInvocationBytes, 12 as +Trapping, invocation_end - subject_end)
         }
     }
 
@@ -161,17 +163,17 @@ crashes Trap
             invocation_start: subject_end,
             invocation_end: invocation_end
         };
-        let outcome: Outcome = coverage_request_semantics();
+        let outcome: |results|::Outcome = |results|::coverage_request_semantics();
         Verdict { complete: true, sections: sections, outcome: outcome }
     }
 
     machine malformed(offset: u64 in Trapping) -> Verdict {
-        let outcome: Outcome = malformed_request(offset);
+        let outcome: |results|::Outcome = |results|::malformed_request(offset);
         refuse(outcome)
     }
 
-    machine incomplete(provision: Provision, coordinate: u64 in Trapping, requested: u64 in Trapping) -> Verdict {
-        let outcome: Outcome = outcome_incomplete(provision, coordinate, requested);
+    machine incomplete(provision: |results|::Provision, coordinate: u64 in Trapping, requested: u64 in Trapping) -> Verdict {
+        let outcome: |results|::Outcome = |results|::outcome_incomplete(provision, coordinate, requested);
         refuse(outcome)
     }
 }
@@ -249,7 +251,7 @@ machine advance(reader: @mutable SectionReader, width: u64 in Trapping) {
 }
 
 // A little-endian `u32` whose high bit is clear.
-machine take_u32(reader: @mutable SectionReader, request: @Request) -> u64 in Trapping
+machine take_u32(reader: @mutable SectionReader, request: @|input|::Request) -> u64 in Trapping
 crashes Trap
 {
     let remaining: u64 in Trapping = section_reader_remaining(reader);
@@ -264,8 +266,8 @@ crashes Trap
         0 as +Trapping
     }
 
-    machine high_bit(reader: @mutable SectionReader, request: @Request) -> u64 in Trapping {
-        let high: u8 = request_byte(request, reader.cursor + 3);
+    machine high_bit(reader: @mutable SectionReader, request: @|input|::Request) -> u64 in Trapping {
+        let high: u8 = |input|::request_byte(request, reader.cursor + 3);
         transition high < 128 {
             true -> value(reader, request),
             _ -> refused(reader)
@@ -278,7 +280,7 @@ crashes Trap
         0 as +Trapping
     }
 
-    machine value(reader: @mutable SectionReader, request: @Request) -> u64 in Trapping {
+    machine value(reader: @mutable SectionReader, request: @|input|::Request) -> u64 in Trapping {
         let value: u64 in Trapping = u32_at(request, reader.cursor);
         advance(reader, 4 as +Trapping);
         value
@@ -287,7 +289,7 @@ crashes Trap
 
 // A table count that must fit the remaining extent at `minimum_row` bytes a
 // row; an impossible count is malformed at its count field.
-machine take_count(reader: @mutable SectionReader, request: @Request, minimum_row: u64 in Trapping) -> u64 in Trapping
+machine take_count(reader: @mutable SectionReader, request: @|input|::Request, minimum_row: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let count: u64 in Trapping = take_u32(reader, request);
@@ -310,7 +312,7 @@ crashes Trap
 
 // A `u32` tag that must lie in `low..=high`; an empty range refuses every
 // value.
-machine take_tag(reader: @mutable SectionReader, request: @Request, low: u64 in Trapping, high: u64 in Trapping) -> u64 in Trapping
+machine take_tag(reader: @mutable SectionReader, request: @|input|::Request, low: u64 in Trapping, high: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let tag: u64 in Trapping = take_u32(reader, request);
@@ -332,7 +334,7 @@ crashes Trap
 
 // A length-framed byte field: its content's first offset, with the cursor
 // moved past it.
-machine take_bytes(reader: @mutable SectionReader, request: @Request) -> u64 in Trapping
+machine take_bytes(reader: @mutable SectionReader, request: @|input|::Request) -> u64 in Trapping
 crashes Trap
 {
     let length: u64 in Trapping = take_u32(reader, request);
@@ -363,7 +365,7 @@ machine finish(reader: @mutable SectionReader) {
 // snapshots, admissions, commitment) are not implemented yet, so it
 // publishes the `coverage_request_semantics` provision rather than a
 // verdict it cannot defend.
-public machine request_structure(request: @Request, sections: Sections) -> Outcome
+public machine request_structure(request: @|input|::Request, sections: Sections) -> |results|::Outcome
 crashes Trap
 {
     let mutable reader: SectionReader;
@@ -372,14 +374,14 @@ crashes Trap
     let packages: u64 in Trapping = take_count(@mutable reader, request, 36 as +Trapping);
     transition { _ -> package(request, sections, @mutable reader, packages, 0 as +Trapping) }
 
-    machine package(request: @Request, sections: Sections, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> Outcome {
+    machine package(request: @|input|::Request, sections: Sections, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> |results|::Outcome {
         transition index < count && !reader.failed {
             true -> package_fields(request, sections, reader, count, index),
             _ -> edges(request, sections, reader)
         }
     }
 
-    machine package_fields(request: @Request, sections: Sections, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> Outcome {
+    machine package_fields(request: @|input|::Request, sections: Sections, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> |results|::Outcome {
         let name: u64 in Trapping = take_bytes(reader, request);
         let lineage_kind: u64 in Trapping = take_tag(reader, request, 1 as +Trapping, 2 as +Trapping);
         let lineage: u64 in Trapping = take_bytes(reader, request);
@@ -394,14 +396,14 @@ crashes Trap
     }
 
     machine snapshot(
-        request: @Request,
+        request: @|input|::Request,
         sections: Sections,
         reader: @mutable SectionReader,
         count: u64 in Trapping,
         index: u64 in Trapping,
         rows: u64 in Trapping,
         row: u64 in Trapping
-    ) -> Outcome {
+    ) -> |results|::Outcome {
         transition row < rows && !reader.failed {
             true -> snapshot_row(request, sections, reader, count, index, rows, row),
             _ -> package(request, sections, reader, count, index + 1)
@@ -411,14 +413,14 @@ crashes Trap
     // Kind 1 is a directory with no payload, 2 a regular file with its
     // executable tag and content, 3 a symbolic link with its target.
     machine snapshot_row(
-        request: @Request,
+        request: @|input|::Request,
         sections: Sections,
         reader: @mutable SectionReader,
         count: u64 in Trapping,
         index: u64 in Trapping,
         rows: u64 in Trapping,
         row: u64 in Trapping
-    ) -> Outcome {
+    ) -> |results|::Outcome {
         let kind: u64 in Trapping = take_tag(reader, request, 1 as +Trapping, 3 as +Trapping);
         let path: u64 in Trapping = take_bytes(reader, request);
         transition kind {
@@ -429,46 +431,46 @@ crashes Trap
     }
 
     machine regular_file(
-        request: @Request,
+        request: @|input|::Request,
         sections: Sections,
         reader: @mutable SectionReader,
         count: u64 in Trapping,
         index: u64 in Trapping,
         rows: u64 in Trapping,
         row: u64 in Trapping
-    ) -> Outcome {
+    ) -> |results|::Outcome {
         let executable: u64 in Trapping = take_tag(reader, request, 0 as +Trapping, 1 as +Trapping);
         let content: u64 in Trapping = take_bytes(reader, request);
         transition { _ -> snapshot(request, sections, reader, count, index, rows, row + 1) }
     }
 
     machine link(
-        request: @Request,
+        request: @|input|::Request,
         sections: Sections,
         reader: @mutable SectionReader,
         count: u64 in Trapping,
         index: u64 in Trapping,
         rows: u64 in Trapping,
         row: u64 in Trapping
-    ) -> Outcome {
+    ) -> |results|::Outcome {
         let target: u64 in Trapping = take_bytes(reader, request);
         transition { _ -> snapshot(request, sections, reader, count, index, rows, row + 1) }
     }
 
     // An edge row is four words: requester, scope, alias length, target.
-    machine edges(request: @Request, sections: Sections, reader: @mutable SectionReader) -> Outcome {
+    machine edges(request: @|input|::Request, sections: Sections, reader: @mutable SectionReader) -> |results|::Outcome {
         let count: u64 in Trapping = take_count(reader, request, 16 as +Trapping);
         transition { _ -> edge(request, sections, reader, count, 0 as +Trapping) }
     }
 
-    machine edge(request: @Request, sections: Sections, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> Outcome {
+    machine edge(request: @|input|::Request, sections: Sections, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> |results|::Outcome {
         transition index < count && !reader.failed {
             true -> edge_fields(request, sections, reader, count, index),
             _ -> root(request, sections, reader)
         }
     }
 
-    machine edge_fields(request: @Request, sections: Sections, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> Outcome {
+    machine edge_fields(request: @|input|::Request, sections: Sections, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> |results|::Outcome {
         let requester: u64 in Trapping = take_u32(reader, request);
         let scope: u64 in Trapping = take_tag(reader, request, 1 as +Trapping, 2 as +Trapping);
         let alias: u64 in Trapping = take_bytes(reader, request);
@@ -476,7 +478,7 @@ crashes Trap
         transition { _ -> edge(request, sections, reader, count, index + 1) }
     }
 
-    machine root(request: @Request, sections: Sections, reader: @mutable SectionReader) -> Outcome {
+    machine root(request: @|input|::Request, sections: Sections, reader: @mutable SectionReader) -> |results|::Outcome {
         let package: u64 in Trapping = take_u32(reader, request);
         let role: u64 in Trapping = take_tag(reader, request, 1 as +Trapping, 2 as +Trapping);
         finish(reader);
@@ -488,7 +490,7 @@ crashes Trap
 
     // The invocation: product, target profile, admissions (no admission kind
     // is assigned, so any present row refuses), and the 32-byte commitment.
-    machine invocation(request: @Request, sections: Sections, reader: @mutable SectionReader) -> Outcome {
+    machine invocation(request: @|input|::Request, sections: Sections, reader: @mutable SectionReader) -> |results|::Outcome {
         open(reader, sections.invocation_start, sections.invocation_end);
         let product: u64 in Trapping = take_tag(reader, request, 1 as +Trapping, 4 as +Trapping);
         let target_profile: u64 in Trapping = take_bytes(reader, request);
@@ -497,20 +499,20 @@ crashes Trap
         transition { _ -> admission(request, reader, admissions, 0 as +Trapping) }
     }
 
-    machine admission(request: @Request, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> Outcome {
+    machine admission(request: @|input|::Request, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> |results|::Outcome {
         transition index < count && !reader.failed {
             true -> admission_fields(request, reader, count, index),
             _ -> commitment(reader)
         }
     }
 
-    machine admission_fields(request: @Request, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> Outcome {
+    machine admission_fields(request: @|input|::Request, reader: @mutable SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> |results|::Outcome {
         let kind: u64 in Trapping = take_tag(reader, request, 1 as +Trapping, 0 as +Trapping);
         let data: u64 in Trapping = take_bytes(reader, request);
         transition { _ -> admission(request, reader, count, index + 1) }
     }
 
-    machine commitment(reader: @mutable SectionReader) -> Outcome {
+    machine commitment(reader: @mutable SectionReader) -> |results|::Outcome {
         advance(reader, 32 as +Trapping);
         finish(reader);
         transition reader.failed {
@@ -519,17 +521,17 @@ crashes Trap
         }
     }
 
-    machine malformed(offset: u64 in Trapping) -> Outcome {
-        malformed_request(offset)
+    machine malformed(offset: u64 in Trapping) -> |results|::Outcome {
+        |results|::malformed_request(offset)
     }
 
-    machine semantics() -> Outcome {
-        coverage_request_semantics()
+    machine semantics() -> |results|::Outcome {
+        |results|::coverage_request_semantics()
     }
 }
 
 // Run the OCREQ phases in contract order and return the first refusal.
-public machine compile_request(request: @Request) -> Outcome
+public machine compile_request(request: @|input|::Request) -> |results|::Outcome
 crashes Trap
 {
     let verdict: Verdict = request_envelope(request);
@@ -538,7 +540,7 @@ crashes Trap
         _ -> refused(verdict.outcome)
     }
 
-    machine refused(outcome: Outcome) -> Outcome {
+    machine refused(outcome: |results|::Outcome) -> |results|::Outcome {
         outcome
     }
 }

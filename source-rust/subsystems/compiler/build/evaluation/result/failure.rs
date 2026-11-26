@@ -11,6 +11,7 @@ pub enum CompileFailure {
         accounting: source_completion_accounting::SourceCompletionAccounting,
     },
     BuildConsentRequired {
+        site: build_consent::RestrictedBuildSite,
         requests: Vec<build_consent::RestrictedBuildRequest>,
         accounting: source_completion_accounting::SourceCompletionAccounting,
     },
@@ -58,11 +59,13 @@ impl CompileFailure {
                 Self::source_completion(diagnostics, accounting)
             }
             Self::BuildConsentRequired {
+                site,
                 requests,
                 accounting: attempted,
             } => {
                 accounting.append(attempted);
                 Self::BuildConsentRequired {
+                    site,
                     requests,
                     accounting,
                 }
@@ -126,6 +129,10 @@ mod tests {
             None,
         );
         let failure = CompileFailure::BuildConsentRequired {
+            site: build_consent::RestrictedBuildSite {
+                entry: "build".into(),
+                program: [7; 32],
+            },
             requests: vec![request.clone()],
             accounting: Default::default(),
         }
@@ -133,6 +140,7 @@ mod tests {
         let CompileFailure::BuildConsentRequired {
             requests,
             accounting,
+            ..
         } = failure
         else {
             panic!("attaching accounting changed the consent outcome")

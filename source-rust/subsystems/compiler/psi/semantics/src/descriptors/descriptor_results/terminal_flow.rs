@@ -2046,10 +2046,20 @@ fn adapt_flow(
                         machine, &module.types.structural_types, argument,
                     ).ok_or("descriptor arrival structural source has no exact projection authority")?;
                     if binding.source.exact_location().is_none() {
-                        step.may_escape |= !borrows_plain_element(
-                            &module.types.structural_types, &graph.place_types,
-                            &binding, parameter.structural_type,
-                        );
+                        let types = &module.types.structural_types;
+                        let parent_type = binding.indexed_borrow_source().and_then(|parent| {
+                            let root = *graph.place_types.get(&parent.root)?;
+                            let view = descriptor_location_type(types, root, &parent.path)?;
+                            find_structural_type(types, view)
+                        });
+                        // An indexed borrow keeps its parent view live. A
+                        // descriptor inside its element can retain other loans.
+                        let plain_element = matches!(
+                            parent_type.map(|declaration| &declaration.shape),
+                            Some(StructuralTypeShape::ElementView { element, .. })
+                                if *element == parameter.structural_type
+                        ) && plain_owned_shape(types.iter(), parameter.structural_type);
+                        step.may_escape |= !plain_element;
                     }
                     bindings.push(binding);
                 }
@@ -2415,27 +2425,6 @@ fn adapt_flow(
         }
     }
     graph.finish_index_literals()
-}
-
-/// A borrowed header retains its parent view while it is used. An element
-/// carrying a separate descriptor may retain other loans and still needs
-/// the conservative escape account.
-fn borrows_plain_element(
-    types: &[StructuralTypeDeclaration],
-    places: &BTreeMap<PlaceId, StructuralTypeId>,
-    binding: &DescriptorFlowBinding,
-    parameter: StructuralTypeId,
-) -> bool {
-    let Some(parent) = binding.indexed_borrow_source() else {
-        return false;
-    };
-    let parent_type = places
-        .get(&parent.root)
-        .and_then(|root| descriptor_location_type(types, *root, &parent.path))
-        .and_then(|ty| find_structural_type(types, ty));
-    matches!(parent_type.map(|declaration| &declaration.shape),
-        Some(StructuralTypeShape::ElementView { element, .. }) if *element == parameter
-    ) && plain_owned_shape(types.iter(), parameter)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

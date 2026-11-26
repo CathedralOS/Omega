@@ -382,6 +382,10 @@ pub(crate) mod build_requests {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
     pub enum TerminalBuildRequestOperation {
+        /// Exact authored nominal declaration in the checked Build source.
+        LaunchProgram {
+            program: source_text::SourceSpan,
+        },
         ArtifactOnly,
         PathDependency,
         GitDependency,

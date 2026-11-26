@@ -107,8 +107,18 @@ pub(crate) fn validate(elaboration: &Elaboration) -> Checked<()> {
             if required != instance.header
                 || question.envelope != source.envelope
                 || question.declaration != source.declaration
-                || question.requirement != source.declaration
-                || !matches!(question.implementation, StaticImplementation::Machine(selected) if selected == argument.selected)
+                || question.requirement != instance.nominal_requirement.unwrap_or(source.declaration)
+                || match question.implementation {
+                    StaticImplementation::Machine(selected) => selected != argument.selected,
+                    StaticImplementation::Parameter(parameter) => parameter.owner != application.caller
+                        || parameter.requirement != argument.selected
+                        || instance.nominal_requirement.is_some_and(|nominal| {
+                            requirement(parameter.requirement).and_then(|actual| actual.nominal_requirement) != Some(nominal)
+                        })
+                        || !argument.arguments.is_empty()
+                        || elaboration.static_reach_parameters.binary_search(&parameter).is_err(),
+                    StaticImplementation::Native { .. } => true,
+                }
             {
                 return Err(fault(
                     application.caller,
