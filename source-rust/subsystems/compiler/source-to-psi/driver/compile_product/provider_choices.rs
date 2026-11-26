@@ -228,11 +228,26 @@ pub fn prepare_with_source_defaults(
     defaults: &[ProviderSelection],
     source_defaults: &[TargetProviderDefaults],
 ) -> Result<PreparedProviderChoices, Vec<Diagnostic>> {
-    let typed: &TypedTrees = source;
-    let context = ProviderPlanningContext::new(
-        typed,
+    prepare_in_scope(
+        source,
+        targets,
+        overrides,
+        defaults,
+        source_defaults,
         source_provenance::DependencyScope::Product,
-    );
+    )
+}
+
+pub(crate) fn prepare_in_scope(
+    source: &Arc<FrozenTypedTrees>,
+    targets: &[&str],
+    overrides: &[ProviderSelection],
+    defaults: &[ProviderSelection],
+    source_defaults: &[TargetProviderDefaults],
+    scope: source_provenance::DependencyScope,
+) -> Result<PreparedProviderChoices, Vec<Diagnostic>> {
+    let typed: &TypedTrees = source;
+    let context = ProviderPlanningContext::new(typed, scope);
     let defaults = source_defaults
         .iter()
         .flat_map(|wrapper| {

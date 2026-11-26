@@ -334,7 +334,6 @@ dependencies = [
  "numeric-intrinsic-admission",
  "optimization-requests",
  "package-compilation",
- "provider-admission",
  "psi-authorization",
  "psi-provider-selections",
  "psi-target-layouts",

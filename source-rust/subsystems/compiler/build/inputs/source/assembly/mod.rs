@@ -215,16 +215,18 @@ impl ImmutableSourceParseCheckpoint {
     pub fn assemble(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
+        providers: &crate::InterpretedProviderSelections,
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
-        self.assemble_sources(package_inputs, None, timings, catalogue)
+        self.assemble_sources(package_inputs, None, providers, timings, catalogue)
     }
 
     fn assemble_sources(
         mut self,
         package_inputs: Option<&PackageCompilationInputs>,
         product: Option<checkpoint::ProductSourceSelection<'_>>,
+        providers: &crate::InterpretedProviderSelections,
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
@@ -277,6 +279,18 @@ impl ImmutableSourceParseCheckpoint {
             }
         }
         load_phase!(PackageImportPhase::ExactTarget(None))?;
+        imports::load_provider_sources(
+            &mut source_storage,
+            &mut imports,
+            imports::SourceRouting::Compilation {
+                root_path: &self.root_path,
+                package_inputs,
+                phase: PackageImportPhase::ExactTarget(None),
+            },
+            providers,
+            timings,
+            catalogue,
+        )?;
         let seeds = if deferred_product.is_none() {
             crate::source::source_imports::entry_contract_seeds(package_inputs, &source_storage)?
         } else {

@@ -41,7 +41,11 @@ fn typed(supplied: &str, program: &str) -> Fixture {
     try_typed(supplied, program).expect("harvest source defaults")
 }
 
-fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::Diagnostic>> {
+fn receiving_source(
+    supplied: &str,
+    program: &str,
+    purpose: source_provenance::DependencyScope,
+) -> Result<typed_trees::TypedTrees, Vec<diagnostics::Diagnostic>> {
     let mut sources = crate::representations::source_inputs::SourceMap::default();
     let mut roots = Vec::new();
     for (path, text, origin) in [
@@ -64,18 +68,25 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
                 Some(package()),
                 origin,
                 source_admission::SourceResolutionStratum::Base,
-                source_provenance::DependencyScope::Product,
+                purpose,
             )
             .source_id;
         roots.push(id);
     }
     let primary = roots[0];
     let parsed = crate::ParsedStageSources::parse(Arc::new(sources), roots, Vec::new())?;
-    let request =
-        parsed.into_request(TARGET, source_provenance::DependencyScope::Product, primary)?;
-    let typed = crate::test_support::type_authored_source_for_test(
+    let request = parsed.into_request(TARGET, purpose, primary)?;
+    crate::test_support::type_authored_source_for_test(
         request,
         &mut crate::CompileTimings::default(),
+    )
+}
+
+fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::Diagnostic>> {
+    let typed = receiving_source(
+        supplied,
+        program,
+        source_provenance::DependencyScope::Product,
     )?;
     let defaults = retain_provider_defaults(ProviderPlanningContext::new(
         &typed,
@@ -286,4 +297,141 @@ fn supply_is_ranked_by_authority_and_keyed_by_target() {
     assert_eq!(windows.target, "windows_x86_64");
     let accepted = judge(&fixture, &choices);
     assert_unsupplied(&accepted, programs::FOREIGN_DEFAULT);
+}
+
+#[test]
+fn interpreted_build_checks_and_executes_the_provider_chosen_for_its_source() {
+    use crate::compile_product::provider_declarations::capture_provider_selection;
+    use source_provenance::DependencyScope;
+    use terminal_interpreter::{
+        TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalScalarValue,
+    };
+
+    let library = format!(
+        "public boundary trait Service {{ machine go() -> u32 reaches none crashes none; }}
+         public Native satisfies Service {{ machine go() -> u32 {{ 17u32 }} }}
+         public Other satisfies Service {{ machine go() -> u32 {{ 23u32 }} }}
+         data NativeDefaults {{}}
+         data OtherDefaults {{}}
+         {NATIVE_DEFAULT}{OTHER_DEFAULT}"
+    );
+    let main = "machine main() -> u32 { Service::go() }";
+    let product = typed(&library, main);
+    let mut choices = product
+        .defaults
+        .iter()
+        .flat_map(|group| &group.selections)
+        .map(|row| {
+            let source = product.source.trees();
+            let expected = match source.symbols.name(row.provider_type.symbol) {
+                "Native" => 17,
+                "Other" => 23,
+                name => panic!("unexpected provider {name}"),
+            };
+            (
+                capture_provider_selection(source, row).expect("exact source declarations"),
+                expected,
+            )
+        });
+    let (first, first_result) = choices.next().unwrap();
+    let (second, second_result) = choices.next().unwrap();
+    let receiver = receiving_source(&library, main, DependencyScope::Build).unwrap();
+    let entry = receiver
+        .machines()
+        .iter()
+        .find(|m| m.name.as_str() == "main")
+        .unwrap()
+        .symbol;
+    let changed = receiving_source(
+        &library.replace("17u32", "18u32"),
+        main,
+        DependencyScope::Build,
+    )
+    .unwrap();
+    let changed_entry = changed
+        .machines()
+        .iter()
+        .find(|m| m.name.as_str() == "main")
+        .unwrap()
+        .symbol;
+    let selected = crate::InterpretedProviderSelections {
+        overrides: vec![first.clone()],
+        defaults: vec![],
+    };
+    let Err(failure) = crate::CheckedBuildInvocation::judge(
+        &changed,
+        changed_entry,
+        &[Some(package())],
+        None,
+        None,
+        &selected,
+    ) else {
+        panic!("changed provider source was accepted for execution")
+    };
+    assert!(
+        failure
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("absent or changed"))
+    );
+    for (chosen, fallback, expected) in [
+        (&first, &second, first_result),
+        (&second, &first, second_result),
+    ] {
+        let providers = crate::InterpretedProviderSelections {
+            overrides: vec![chosen.clone()],
+            defaults: vec![fallback.clone()],
+        };
+        let evaluated = crate::CheckedBuildInvocation::judge(
+            &receiver,
+            entry,
+            &[Some(package())],
+            None,
+            None,
+            &providers,
+        )
+        .unwrap()
+        .invocation
+        .prepare_publication()
+        .unwrap()
+        .publish()
+        .unwrap()
+        .1;
+        let artifact = evaluated.view();
+        let checked =
+            psi_provider_selections::logical_reach::admit_interpreted_providers(artifact).unwrap();
+        let program = TerminalProgram::borrow(artifact);
+        let supplies = program
+            .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                installation: Some(&checked),
+                native_code_layouts: None,
+                host_imports: &[],
+                external_completions: &[],
+                entry: None,
+                x86_flags: None,
+                memory_ordering: None,
+                target_machines: None,
+                target_layouts: None,
+            })
+            .unwrap();
+        let mut instance = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                installation: Some(&supplies),
+                ..Default::default()
+            })
+            .unwrap();
+        let result = instance
+            .invoke(&mut evaluation_work::unsponsored_meter(Some(10_000)))
+            .unwrap();
+        let TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                ..
+            },
+        )) = result
+        else {
+            panic!("expected selected implementation to return: {result:?}");
+        };
+        assert_eq!(value, expected);
+    }
 }

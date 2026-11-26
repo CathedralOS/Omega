@@ -321,16 +321,24 @@ impl TerminalBuildHost {
             crate::CompileFailure,
         >,
     ) -> Result<TerminalBuildActivation, crate::CompileFailure> {
-        let refuse = |reason: String| vec![diagnostics::Diagnostic::error(reason)];
+        let refuse = |reason: String| {
+            let mut error = diagnostics::Diagnostic::error(reason);
+            error.source_span = self
+                .accepted
+                .source()
+                .symbols
+                .symbol_source_span(self.machine.symbol);
+            vec![error]
+        };
         if self.started.swap(true, std::sync::atomic::Ordering::AcqRel) {
             return Err(refuse("Build host has already started its activation".into()).into());
         }
         let ready_providers =
             provider_installation::check_backings(&self.accepted, &self.produced, provide)?;
-        artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
         let instance = self.instantiate().map_err(refuse)?;
         let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0))
             .map_err(|error| refuse(describe(error)))?;
+        artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
         Ok(TerminalBuildActivation {
             history: Default::default(),
             instance,
@@ -467,8 +475,10 @@ impl TerminalBuildHost {
                     .bind_import(boundary, self.filesystem.adapter(declaration.into()))
                     .map_err(describe)?;
             } else {
+                let operation = artifact.module().identities.text(declaration.identity)
+                    .ok_or("Build import has no callable identity")?;
                 return Err(format!(
-                    "Build import {boundary:?} has no admitted host operation or installed provider"
+                    "Build import `{operation}` has no admitted host operation or installed provider"
                 ));
             }
         }

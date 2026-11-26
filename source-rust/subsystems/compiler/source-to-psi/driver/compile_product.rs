@@ -199,7 +199,12 @@ pub(crate) fn prepare_lower_and_check(
         ProductEntry::RegisteredTest { root, .. } => Some(root),
         _ => None,
     };
-    let (activation, admitted) = inputs.policy.admit(typed, inputs.subject, test)?;
+    let (activation, mut admitted) = inputs.policy.admit(typed, inputs.subject, test)?;
+    // An interpreter choice has already had its source checked. Only the
+    // interpreted successor prepares its body and acquires its dependencies.
+    admitted.providers.retain(|choice| {
+        choice.target != Some(semantic_vocabulary::source_selections::ProductTarget::Interpreter)
+    });
     let native_supplies = inputs
         .native_bindings
         .resolve(typed, admitted.native_bindings)?;

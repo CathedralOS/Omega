@@ -40,7 +40,6 @@ filesystem-authority = { path = "authority/filesystem" }
 artifacts = { path = "../../foundation/measurements" }
 build-output = { path = "../inputs/trees" }
 package-compilation = { path = "../inputs" }
-provider-admission = { path = "../../psi-to-native/verification/provider-admission" }
 interpreter-numeric-imports = { path = "../../../interpreter/numeric-imports" }
 target = { path = "../../psi-to-native/targets/target" }
 runtime-abi = { path = "../../psi-to-native/targets/runtime-abi" }

@@ -59,6 +59,7 @@ impl DeferredProductSources {
                 bindings,
                 declarations,
             }),
+            &Default::default(),
             timings,
             catalogue,
         )

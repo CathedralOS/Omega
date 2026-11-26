@@ -55,6 +55,7 @@ fn applied(
     role: ProductOperandRole,
     declaration: SymbolHandle,
     selected: &mut ProviderSelectionIdentity,
+    scope: source_provenance::DependencyScope,
 ) -> Result<(), Diagnostic> {
     selected.application = super::application_id(retained_application::prepare(
         retained,
@@ -62,6 +63,7 @@ fn applied(
         role,
         declaration,
         &selected.authored_path,
+        scope,
     )?);
     selected.applied = true;
     selected.application_identity = Some(retained.identity.clone());
@@ -74,30 +76,41 @@ pub(crate) fn rejoin_provider_defaults(
     typed: &mut TypedTrees,
     retained: &[RetainedProviderSelection],
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    rejoin_in_scope(
+        typed,
+        retained,
+        source_provenance::DependencyScope::Product,
+        true,
+    )
+}
+
+/// A dependency may publish defaults for schemas the receiver never loaded.
+/// Explicit choices must rejoin their designated declarations.
+pub(crate) fn rejoin_in_scope(
+    typed: &mut TypedTrees,
+    retained: &[RetainedProviderSelection],
+    scope: source_provenance::DependencyScope,
+    defaults: bool,
+) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
     let mut candidates = crate::source_symbols::SourceSpanCandidates::default();
     let mut selections = Vec::new();
     for choice in retained {
-        let loaded = typed.symbols.source_files().any(|file| {
-            file.dependency_scope == source_provenance::DependencyScope::Product
-                && typed
-                    .symbols
-                    .source_map()
-                    .is_none_or(|sources| sources.source_is_selected(file.source_id))
-                && choice
-                    .subject
-                    .declarations()
-                    .any(|member| file.path == member.source().path)
-        });
-        if loaded {
-            let selection = rejoin_provider_selection(
-                choice,
-                typed,
-                source_provenance::DependencyScope::Product,
-                &mut candidates,
-            )
-            .map_err(|error| vec![error])?;
-            selections.push(selection);
+        if defaults {
+            let sources = typed.symbols.source_map();
+            let loaded = sources.as_ref().is_some_and(|sources| {
+                choice.subject.declarations().any(|member| {
+                    sources.selected_files().any(|file| {
+                        file.dependency_scope == scope && file.path == member.source().path
+                    })
+                })
+            });
+            if !loaded {
+                continue;
+            }
         }
+        let selection = rejoin_provider_selection(choice, typed, scope, &mut candidates)
+            .map_err(|error| vec![error])?;
+        selections.push(selection);
     }
     Ok(selections)
 }
@@ -181,9 +194,24 @@ fn rejoin_provider_selection(
     scope: source_provenance::DependencyScope,
     candidates: &mut crate::source_symbols::SourceSpanCandidates,
 ) -> Result<ProviderSelection, Diagnostic> {
+    let anchor_in_scope = |program: &TypedTrees, anchor: &RetainedDeclaration| {
+        let sources = program.symbols.source_map().ok_or_else(|| {
+            Diagnostic::error("provider handoff needs the receiving source inventory")
+        })?;
+        let file = retained_application::receiving_file(&sources, anchor.source(), scope)
+            .ok_or_else(|| Diagnostic::error(format!(
+                "provider declaration in `{}` is absent or changed in the receiving {:?} sources",
+                anchor.source().path.display(), scope,
+            )))?;
+        Ok::<_, Diagnostic>(RetainedDeclaration::from_source_occurrence(
+            file.clone(),
+            anchor.span(),
+            anchor.kind(),
+        ))
+    };
     let mut rejoined = |program: &TypedTrees, anchor: &RetainedDeclaration, expected: &str| {
         crate::source_symbols::rejoin_declaration(
-            anchor,
+            &anchor_in_scope(program, anchor)?,
             &program.symbols,
             candidates
                 .at_span(&program.symbols, anchor.span())
@@ -221,6 +249,7 @@ fn rejoin_provider_selection(
                     ProductOperandRole::BoundarySubject,
                     subject,
                     &mut subject_identity,
+                    scope,
                 )?;
             }
             subject_identity
@@ -242,7 +271,7 @@ fn rejoin_provider_selection(
                         })
                 });
             let symbol = crate::source_symbols::rejoin_declaration(
-                &first.declaration,
+                &anchor_in_scope(program, &first.declaration)?,
                 &program.symbols,
                 matching,
             )
@@ -257,6 +286,7 @@ fn rejoin_provider_selection(
             ProductOperandRole::Provider,
             provider,
             &mut provider_identity,
+            scope,
         )?;
     }
     let selection = form(
@@ -281,7 +311,7 @@ fn rejoin_provider_selection(
             }
             for (expected, actual) in family.coordinates().iter().zip(current.coordinates()) {
                 crate::source_symbols::rejoin_declaration(
-                    &expected.declaration,
+                    &anchor_in_scope(program, &expected.declaration)?,
                     &program.symbols,
                     [actual.symbol],
                 )

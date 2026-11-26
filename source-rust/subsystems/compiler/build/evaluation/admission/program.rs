@@ -19,7 +19,7 @@ use symbols::SymbolHandle;
 pub(crate) struct AdmittedBuildProgram {
     pub(crate) prepared: std::sync::Arc<source_compiler::publication::AcceptedTerminalSource>,
     pub(crate) produced: std::sync::Arc<source_compiler::publication::ProducedTerminalProgram>,
-    pub(crate) providers: super::provider_execution::BuildProviderPlans,
+    pub(crate) providers: super::provider_execution::BuildProviderScope,
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
     pub(crate) evaluation_sponsor: Option<BuildEvaluationSponsor>,
@@ -42,7 +42,7 @@ impl AdmittedBuildProgram {
 
 pub(crate) fn admit_build_program(
     invocation: source_compiler::CheckedBuildInvocation,
-    providers: super::provider_execution::BuildProviderPlans,
+    providers: super::provider_execution::BuildProviderScope,
     machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,

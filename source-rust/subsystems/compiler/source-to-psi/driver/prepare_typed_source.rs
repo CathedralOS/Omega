@@ -75,7 +75,7 @@ impl<'request> SourcePreparationRequest<'request> {
         self.settle()?.freeze()
     }
 
-    fn settle(self) -> Result<SettledSource, SourcePreparationFailure> {
+    pub(super) fn settle(self) -> Result<SettledSource, SourcePreparationFailure> {
         let mut accounting = self.accounting;
         let result = (|| -> Result<_, Vec<Diagnostic>> {
             if self.program.is_legacy_build_prefix() {

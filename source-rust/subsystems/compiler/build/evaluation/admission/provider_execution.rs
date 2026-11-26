@@ -1,15 +1,11 @@
-/*
-Retain source-issued Build provider declarations and selected plans beside the
-accepted module. Before the Terminal interpreter starts, admit their actual
-adapters, numeric intrinsics and runtime supplies against that exact execution
-view. Source selection alone supplies no host/device authority.
-*/
+//! Admit Build's published provider choices and reachable imports before entry.
+//! Package authority comes from the supplied Build graph. Selecting a provider
+//! cannot grant that graph a host operation.
 
 use diagnostics::Diagnostic;
 
 #[derive(Clone, PartialEq, Eq, Default)]
-pub(crate) struct BuildProviderPlans {
-    selected: selected_provider_plans::SelectedProviderPlanFacts,
+pub(crate) struct BuildProviderScope {
     packages: Option<package_compilation::PackageCompilationInputs>,
     supplied_scope: Option<declaration_scope::PackageDeclarationScope>,
     supplied_edges: Vec<(semantic_vocabulary::PackageKeyIdentity, String)>,
@@ -20,7 +16,7 @@ pub(crate) struct BuildProviderInstallation {
     pub(crate) intrinsics: numeric_intrinsic_admission::AdmittedTerminalIntrinsics,
 }
 
-impl BuildProviderPlans {
+impl BuildProviderScope {
     pub(crate) fn for_packages(
         packages: Option<&package_compilation::PackageCompilationInputs>,
         libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
@@ -38,7 +34,6 @@ impl BuildProviderPlans {
                 package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
                     libraries, None,
                 ),
-            ..Self::default()
         }
     }
 
@@ -56,21 +51,13 @@ impl BuildProviderPlans {
         &self,
         program: &source_compiler::publication::ProducedTerminalProgram,
     ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
-        use provider_admission as admission;
         let artifact = program.view();
         let module = artifact.module();
-        let adapters =
-            admission::retain_selected_provider_adapters(&self.selected).map_err(failure)?;
-        let checked =
-            provider_admission::provider_installation::admit_terminal_provider_installation(
-                artifact, &adapters,
-            )
-            .map_err(|reason| {
-                failure(format!("Build selected provider installation: {reason:?}"))
-            })?;
         let entry = module
             .entry
             .ok_or_else(|| failure("Build declaration admission has no entry"))?;
+        let checked =
+            psi_provider_selections::logical_reach::admit_interpreted_providers(artifact)?;
         super::library_reach::check(module, entry, &checked, &self.supplied_edges)?;
         let authority = self.selection_scope(build_declarations::DependencyPurpose::Build);
         let pending = evaluation_admission::admit_declaration_selections(
@@ -116,10 +103,19 @@ impl BuildProviderPlans {
         // calls. A provider the module demands and no plan supplies would
         // otherwise surface as a failed call after authored code has run.
         if !demand.missing_providers.is_empty() {
-            return Err(failure(format!(
-                "Build program demands providers no selected plan supplies: {:?}",
-                demand.missing_providers
-            )));
+            return Err(demand
+                .missing_providers
+                .iter()
+                .map(|slot| {
+                    let requirement = module
+                        .boundary_machine(*slot)
+                        .and_then(|declaration| module.identities.text(declaration.identity));
+                    Diagnostic::error(format!(
+                        "Build requires `{}` before entry; no interpreter provider was supplied",
+                        requirement.unwrap_or("<unknown boundary>"),
+                    ))
+                })
+                .collect());
         }
         let demanded = demand
             .imports
@@ -142,26 +138,10 @@ impl BuildProviderPlans {
                     })
             })
             .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
-        let unreviewed = self
-            .selected
-            .plans()
-            .iter()
-            .map(|plan| vec![None; plan.rows.len()])
-            .collect::<Vec<_>>();
         let intrinsics = numeric_intrinsic_admission::admit_terminal_intrinsics(
             artifact,
-            &self.selected,
-            self.selected
-                .plans()
-                .iter()
-                .zip(&unreviewed)
-                .map(|(declaration, executions)| {
-                    numeric_intrinsic_admission::CompilerIntrinsicPlanProvenance {
-                        plan: declaration,
-                        semantic_schema: &declaration.schema,
-                        row_executions: executions,
-                    }
-                }),
+            &selected_provider_plans::SelectedProviderPlanFacts::default(),
+            std::iter::empty(),
             &demanded,
         )?;
         Ok(BuildProviderInstallation {
