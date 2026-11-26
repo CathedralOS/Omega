@@ -79,6 +79,7 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         uses.close_declaration(
             declaration_start.source_span_until(input).span,
             name.source_span().span,
+            body.as_ref().map(|_| body_start.source_span_until(input).span),
         );
     }
     if body.is_some()

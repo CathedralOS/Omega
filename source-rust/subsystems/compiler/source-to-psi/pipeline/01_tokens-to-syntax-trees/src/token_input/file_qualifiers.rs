@@ -21,6 +21,7 @@ struct Occurrence<'source> {
     alias: &'source str,
     role: QualifierUse,
     declaration: Option<source_text::Span>,
+    in_machine_body: bool,
 }
 
 enum QualifierUse {
@@ -51,13 +52,23 @@ impl<'source> FileQualifiers<'source> {
             alias,
             role: QualifierUse::Host,
             declaration: None,
+            in_machine_body: false,
         });
     }
 
     /// Declarations are closed inside-out. A lexical child's uses already have an owner.
-    pub(crate) fn close_declaration(&self, span: source_text::Span, owner: source_text::Span) {
-        for (_, usage) in self.uses.borrow_mut().range_mut(span.start..span.end) {
-            usage.declaration.get_or_insert(owner);
+    pub(crate) fn close_declaration(
+        &self,
+        span: source_text::Span,
+        owner: source_text::Span,
+        body: Option<source_text::Span>,
+    ) {
+        for (&offset, usage) in self.uses.borrow_mut().range_mut(span.start..span.end) {
+            if usage.declaration.is_none() {
+                usage.declaration = Some(owner);
+                usage.in_machine_body =
+                    body.is_some_and(|body| (body.start..body.end).contains(&offset));
+            }
         }
     }
 
@@ -246,6 +257,7 @@ impl<'source> FileQualifiers<'source> {
                     declaration: usage
                         .declaration
                         .expect("a parsed file qualifier belongs to a declaration"),
+                    in_machine_body: usage.in_machine_body,
                     offset,
                     role,
                 });

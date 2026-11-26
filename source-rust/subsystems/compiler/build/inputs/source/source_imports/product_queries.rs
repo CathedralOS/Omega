@@ -533,7 +533,7 @@ impl ProductQueryInputs {
                     self.graphs()
                         .find(|inputs| inputs.package_for_source(&authored.path) == Some(owner))
                 });
-            for import in authored.imports.iter().filter(|import| import.used_in(authored.scope)) {
+            for import in authored.imports.iter().filter(|import| import.used_in_declaration_query(authored.scope)) {
                 let contract = storage.installed_roots.root_for(&authored.path);
                 let mounted_owner = owner.is_some_and(|inputs| {
                     !self

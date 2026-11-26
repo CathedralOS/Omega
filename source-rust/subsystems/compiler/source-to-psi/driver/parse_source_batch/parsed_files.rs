@@ -240,6 +240,17 @@ impl SourceImport {
             .map(|usage| usage.declaration)
     }
 
+    /// A Product description inspects declarations. The receiving stage later
+    /// selects the implementation with its own fixed source and bindings.
+    pub fn used_in_declaration_query(&self, scope: source_provenance::DependencyScope) -> bool {
+        match (&self.target, scope) {
+            (SourceImportTarget::File { .. }, source_provenance::DependencyScope::Product) => {
+                self.qualifiers.iter().any(|usage| !usage.in_machine_body)
+            }
+            _ => self.used_in(scope),
+        }
+    }
+
     pub fn used_in(&self, scope: source_provenance::DependencyScope) -> bool {
         use syntax_trees::item::FileQualifierRole;
         match (&self.target, scope) {

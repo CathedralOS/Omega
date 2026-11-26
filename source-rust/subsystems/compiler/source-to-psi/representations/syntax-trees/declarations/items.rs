@@ -131,6 +131,8 @@ pub enum UseItem {    Namespace {
 pub struct FileQualifier {
     /// The enclosing machine name or other root declaration in this file.
     pub declaration: source_text::Span,
+    /// A declaration query needs header imports before executable bodies are selected.
+    pub in_machine_body: bool,
     pub offset: usize,
     pub role: FileQualifierRole,
 }

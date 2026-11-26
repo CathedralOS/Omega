@@ -404,10 +404,13 @@ fn file_qualifiers_keep_their_enclosing_declaration() {
         .iter()
         .map(|usage| {
             assert!(usage.declaration.end <= usage.offset);
-            &source[usage.declaration.start..usage.declaration.end]
+            (&source[usage.declaration.start..usage.declaration.end], usage.in_machine_body)
         })
         .collect();
-    assert_eq!(owners, ["first", "nested", "second"]);
+    assert_eq!(
+        owners,
+        [("first", false), ("nested", true), ("second", true)]
+    );
 }
 
 #[test]
