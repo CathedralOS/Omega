@@ -310,7 +310,9 @@ fn canonical_git_locator(lineage: &SourceLineage) -> String {
                 lineage.repository_path(),
             ])
         }
-        SourceLineage::Workspace(_) | SourceLineage::ExternalLocal(_) => {
+        SourceLineage::Bundled { .. }
+        | SourceLineage::Workspace(_)
+        | SourceLineage::ExternalLocal(_) => {
             unreachable!("validated Git requests always carry Git lineage")
         }
     }

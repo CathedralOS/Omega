@@ -37,6 +37,18 @@ pub(super) fn project_source_literal(
     };
     let fields = syntax_trees.expressions.struct_fields(literal.fields);
     match case_name {
+        "Bundled" if fields.len() == 1 && fields[0].name.as_str(syntax_trees) == "name" => {
+            let package = string_field(syntax_trees, "name", fields[0].value)?;
+            let name = PackageName::parse(&package)
+                .map_err(|_| DependencyProjectionError::InvalidSelectedPackage { package })?;
+            Ok(DependencySourceRequest::Bundled {
+                explicit_alias,
+                name,
+            })
+        }
+        "Bundled" => Err(DependencyProjectionError::WrongSourceFields {
+            case_name: "Bundled".into(),
+        }),
         "Path" => {
             let [field] = fields else {
                 return Err(DependencyProjectionError::WrongSourceFields {

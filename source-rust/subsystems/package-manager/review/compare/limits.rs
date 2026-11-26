@@ -165,6 +165,7 @@ impl Budget {
                 self.context(value.host().len())?;
                 self.context(value.repository_path().len())
             }
+            SourceLineage::Bundled { directory, .. } => self.context(directory.as_str().len()),
             SourceLineage::Workspace(value) => self.context(value.member_path().as_str().len()),
             SourceLineage::ExternalLocal(value) => self.context(
                 value

@@ -19,7 +19,6 @@
 mod catalog;
 mod construction;
 pub(crate) mod encoding;
-mod request_view;
 mod text;
 mod usage;
 mod validation;
@@ -191,6 +190,9 @@ pub(crate) struct CanonicalCatalogDependency {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CanonicalRootSourceRequest {
+    Bundled {
+        name: crate::declarations::PackageName,
+    },
     Git {
         requested_locator: String,
         requested_revision: String,
@@ -228,54 +230,7 @@ impl CanonicalRootSourceSelection {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum CanonicalDependencySourceRequest {
-    Path {
-        explicit_alias: Option<AliasName>,
-        location: String,
-    },
-    Git {
-        explicit_alias: Option<AliasName>,
-        repository: String,
-        revision: String,
-        selection: PackageSelection,
-    },
-}
-
-impl CanonicalDependencySourceRequest {
-    pub const fn explicit_alias(&self) -> Option<&AliasName> {
-        match self {
-            Self::Path { explicit_alias, .. } | Self::Git { explicit_alias, .. } => {
-                explicit_alias.as_ref()
-            }
-        }
-    }
-}
-
-impl From<&DependencySourceRequest> for CanonicalDependencySourceRequest {
-    fn from(request: &DependencySourceRequest) -> Self {
-        match request {
-            DependencySourceRequest::Path {
-                explicit_alias,
-                location,
-            } => Self::Path {
-                explicit_alias: explicit_alias.clone(),
-                location: location.clone(),
-            },
-            DependencySourceRequest::Git {
-                explicit_alias,
-                repository,
-                revision,
-                selection,
-            } => Self::Git {
-                explicit_alias: explicit_alias.clone(),
-                repository: repository.clone(),
-                revision: revision.clone(),
-                selection: selection.clone(),
-            },
-        }
-    }
-}
+pub(crate) type CanonicalDependencySourceRequest = DependencySourceRequest;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CanonicalDependencySourceSelection {

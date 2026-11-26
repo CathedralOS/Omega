@@ -371,7 +371,8 @@ fn installed_filesystem_operation(
                     .package_root
                     .parent()
                     .is_some_and(|root| root.join("system") == file.package_root)
-        })).then_some(action)
+        }))
+    .then_some(action)
 }
 
 /// Only the checked machine in the installed Build library may ask the host
@@ -576,6 +577,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "copy_bytes" => Request::CopyBytes,
         "artifact_only" => Request::ArtifactOnly,
         "register_path_dependency" => Request::PathDependency,
+        "register_bundled_dependency" => Request::BundledDependency,
         "register_git_dependency" => Request::GitDependency,
         "prepare_dependency" => Request::PrepareDependency,
         "validate_binding" => Request::ValidateBinding,

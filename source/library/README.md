@@ -7,6 +7,11 @@ A folder or catalog label neither admits a package nor claims it works on every
 target. The specification defines the required behavior; owning tasks record
 unfinished implementation.
 
+The distribution lists ordinary packages in `packages.tsv`, one declared name
+and relative directory per tab-separated row. A `Source::Bundled` registration
+reads that catalog and the selected package from the same verified library
+snapshot. The selected Build must return the listed package name.
+
 Build programs can import the installed files under `build/` by their exact
 logical paths. For example, `use {omega}/build/dependency.omg;` makes
 `|dependency|::from_source` available in that file. Relative imports inside

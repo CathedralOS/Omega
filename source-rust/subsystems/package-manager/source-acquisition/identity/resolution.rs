@@ -16,6 +16,7 @@ const GIT_TREE_CONTENT_EVIDENCE_DOMAIN: &[u8] = b"omega-git-tree-content-v1";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SourceLineageFamily {
     Git,
+    Bundled,
     Workspace,
     ExternalLocal,
 }
@@ -25,6 +26,9 @@ pub enum ImmutableSourceResolution {
     Git {
         commit: GitCommitId,
         tree: GitTreeId,
+        content: SourceContentDigest,
+    },
+    Bundled {
         content: SourceContentDigest,
     },
     Workspace {
@@ -77,6 +81,7 @@ impl ImmutableSourceResolution {
                 digest.bytes(commit.0.bytes());
                 digest.bytes(tree.0.bytes());
             }
+            Self::Bundled { .. } => digest.byte(3),
             Self::Workspace { .. } => digest.byte(1),
             Self::ExternalLocal { .. } => digest.byte(2),
         }
@@ -87,6 +92,7 @@ impl ImmutableSourceResolution {
     pub fn content(&self) -> &SourceContentDigest {
         match self {
             Self::Git { content, .. }
+            | Self::Bundled { content }
             | Self::Workspace { content }
             | Self::ExternalLocal { content } => content,
         }
@@ -97,6 +103,7 @@ impl ImmutableSourceResolution {
         matches!(
             (self, lineage.family()),
             (Self::Git { .. }, SourceLineageFamily::Git)
+                | (Self::Bundled { .. }, SourceLineageFamily::Bundled)
                 | (Self::Workspace { .. }, SourceLineageFamily::Workspace)
                 | (
                     Self::ExternalLocal { .. },

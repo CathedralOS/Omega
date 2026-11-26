@@ -18,6 +18,9 @@ pub(in super::super) fn canonical_root_request(
     request: &PackageRootSourceRequest,
 ) -> CanonicalRootSourceRequest {
     match request {
+        PackageRootSourceRequest::Bundled { name } => {
+            CanonicalRootSourceRequest::Bundled { name: name.clone() }
+        }
         PackageRootSourceRequest::Git(request) => CanonicalRootSourceRequest::Git {
             requested_locator: request.acquisition().requested_locator().to_owned(),
             requested_revision: request.acquisition().requested_revision().to_owned(),
@@ -45,6 +48,20 @@ pub(super) fn validate_root_request(
         ));
     }
     match &root.request {
+        CanonicalRootSourceRequest::Bundled { name } => {
+            if root.selected.key().name() != name
+                || root.role != BuildDeclarationKind::Package
+                || !matches!(
+                    root.selected.key().source_lineage(),
+                    SourceLineage::Bundled { .. }
+                )
+                || navigation != &PackageSourceNavigation::Root
+            {
+                return Err(CanonicalSourceClosureSubjectError::new(
+                    "bundled root request disagrees with its selected package",
+                ));
+            }
+        }
         CanonicalRootSourceRequest::Git {
             requested_locator,
             requested_revision,
