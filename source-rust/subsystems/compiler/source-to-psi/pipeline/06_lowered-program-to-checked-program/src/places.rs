@@ -7255,7 +7255,8 @@ impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
 impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
     type Error = crate::Unbound;
     fn whole_input(&mut self, root: PlaceId) -> Result<PlaceId, Self::Error> {
-        self.owned_inputs(root)?.whole_input(root)
+        let _ = self.formal_access(root)?;
+        self.inputs.whole_input(root)
     }
     fn validate_float_meaning_source(&mut self, source: &ScalarTerm) -> Result<(), Self::Error> {
         self.storage.validate_float_meaning_source(source)
