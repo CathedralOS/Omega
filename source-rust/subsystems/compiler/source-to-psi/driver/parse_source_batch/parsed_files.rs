@@ -2,45 +2,16 @@
 //! receives authored import/name summaries and opaque reusable parses.
 use arena::{Arena, HandleSpan};
 use diagnostics::Diagnostic;
-use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 use source_files::{DependencyScope, SourceOrigin};
 use source_text::{SourceId, SourceSpan};
 use std::{path::PathBuf, sync::Arc};
 use syntax_trees::{SyntaxTrees, item::Item};
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
+#[record(format = b"OmegaSourceSyntax1")]
 pub struct SourceSyntax {
     pub(crate) trees: SyntaxTrees,
     files: Vec<ParsedFile>,
-}
-
-// Older compilers stored a projected entry and its return flag before the
-// file table. Keep complete parse records readable and reject a cut tree
-// before any source extension can take its declarations.
-impl Record for SourceSyntax {
-    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
-        output.record(|output| {
-            self.trees.write(output)?;
-            None::<SourceSpan>.write(output)?;
-            false.write(output)?;
-            self.files.write(output)
-        })
-    }
-
-    fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
-        input.record(|input| {
-            let trees = SyntaxTrees::read(input)?;
-            let partial_entry = Option::<SourceSpan>::read(input)?;
-            let partial_can_return = bool::read(input)?;
-            if partial_entry.is_some() || partial_can_return {
-                return Err(input.error("stored Build syntax contains only part of its source"));
-            }
-            Ok(Self {
-                trees,
-                files: Vec::read(input)?,
-            })
-        })
-    }
 }
 
 /// File and item coordinates issued together by the parser.

@@ -93,11 +93,6 @@ impl<'request> SourcePreparationRequest<'request> {
     ) -> Result<SettledSource, SourcePreparationFailure> {
         let mut accounting = self.accounting;
         let result = (|| -> Result<_, Vec<Diagnostic>> {
-            if self.program.is_legacy_build_prefix() {
-                return Err(vec![Diagnostic::error(
-                    "this older Build snapshot contains only part of its source; check the complete source again",
-                )]);
-            }
             // Opaque property receipts came from the deleted checker. Supplying one
             // cannot stand in for evidence from the new route.
             if !self.admission.external_roots.is_empty() || self.admission.declarations.is_some() {

@@ -621,12 +621,25 @@ fn typed_build(
 }
 
 #[test]
-fn stored_complete_parses_reopen_and_partial_build_parses_are_refused() {
+fn source_syntax_stores_only_the_complete_parse_and_files() {
     let id = SourceId(5);
     let entry = SourceSpan::new(id, Span::new(8, 13));
     let limits = record_storage::RecordLimits::default();
-    let old_parse = |entry: Option<SourceSpan>, can_return: bool| {
-        record_storage::encode(
+    let syntax = source_compiler::SourceSyntax::new(id);
+    let bytes = record_storage::encode(&syntax, limits).unwrap();
+    let body = record_storage::encode(
+        &(syntax_trees::SyntaxTrees::new(id), Vec::<()>::new()),
+        limits,
+    )
+    .unwrap();
+    assert_eq!(
+        bytes.strip_prefix(b"OmegaSourceSyntax1".as_slice()),
+        Some(body.as_slice())
+    );
+    let reopened: source_compiler::SourceSyntax = record_storage::decode(&bytes, limits).unwrap();
+    assert_eq!(syntax, reopened);
+    for (entry, can_return) in [(None, false), (Some(entry), false), (None, true)] {
+        let former = record_storage::encode(
             &(
                 syntax_trees::SyntaxTrees::new(id),
                 entry,
@@ -635,55 +648,38 @@ fn stored_complete_parses_reopen_and_partial_build_parses_are_refused() {
             ),
             limits,
         )
-        .unwrap()
-    };
-    let clean = old_parse(None, false);
-    let reopened = record_storage::decode::<source_compiler::SourceSyntax>(&clean, limits).unwrap();
-    assert_eq!(reopened, source_compiler::SourceSyntax::new(id));
-    assert_eq!(record_storage::encode(&reopened, limits).unwrap(), clean);
-    for partial in [old_parse(Some(entry), false), old_parse(None, true)] {
+        .unwrap();
         let error =
-            record_storage::decode::<source_compiler::SourceSyntax>(&partial, limits).unwrap_err();
-        assert!(error.reason.contains("only part of its source"), "{error}");
+            record_storage::decode::<source_compiler::SourceSyntax>(&former, limits).unwrap_err();
+        assert_eq!(error.reason, "unsupported SourceSyntax record format");
     }
 }
 
 #[test]
-fn a_projected_snapshot_cannot_supply_a_complete_build_invocation() {
-    let text = "machine build() {}";
-    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
-    let mut files = SourceMap::default();
-    let build = files
-        .add_checked_instance(
-            "project/build.omg".into(),
-            text,
-            "project".into(),
-            Some(package),
-            SourceOrigin::User,
-            SourceResolutionStratum::Base,
-            DependencyScope::Build,
-        )
-        .source_id;
-    let start = text.find("build").unwrap();
-    let entry = SourceSpan::new(build, Span::new(start, start + "build".len()));
-    let mut program = Arc::unwrap_or_clone(typed_build(files, entry).unwrap());
-    let machine = program.machines().at(0).symbol;
-    program.roots.partial_build_entry = Some(entry);
-    let Err(failure) = source_compiler::CheckedBuildInvocation::judge(
-        &program,
-        machine,
-        &[Some(package)],
-        None,
-        None,
-        &Default::default(),
-    ) else {
-        panic!("a partial snapshot supplied a complete Build invocation");
-    };
-    assert_eq!(failure.diagnostics.len(), 1);
-    assert!(
-        failure.diagnostics[0]
-            .message
-            .contains("older Build snapshot")
+fn typed_trees_check_their_record_format_before_reading_the_forest() {
+    let limits = record_storage::RecordLimits::default();
+    let typed = typed_trees::TypedTrees::default();
+    let bytes = record_storage::encode(&typed, limits).unwrap();
+    let restored: typed_trees::TypedTrees = record_storage::decode(&bytes, limits).unwrap();
+    assert_eq!(record_storage::encode(&restored, limits).unwrap(), bytes);
+
+    // Former forests begin with counts of excluded selections and parked Build locals.
+    // The format check precedes every forest table, even with a nonzero old count.
+    for count in [0u64, 1] {
+        let former_header = record_storage::encode(&(0u64, count), limits).unwrap();
+        let error =
+            record_storage::decode::<typed_trees::TypedTrees>(&former_header, limits).unwrap_err();
+        assert_eq!(error.reason, "unsupported TypedTrees record format");
+    }
+    let mut future = bytes;
+    let header = b"OmegaTypedTrees1";
+    assert!(future.starts_with(header));
+    future[header.len() - 1] = b'2';
+    assert_eq!(
+        record_storage::decode::<typed_trees::TypedTrees>(&future, limits)
+            .unwrap_err()
+            .reason,
+        "unsupported TypedTrees record format",
     );
 }
 

@@ -8,6 +8,7 @@ annotated with `#[record(skip)]` are omitted on write and reconstructed via
 `#[record(write_scope = path)]` writes its fields inside
 `path(self, output, |output| ...)`, which lets it prepare the writer for its
 own fields, such as installing its own renumbering, and restore it after.
+An optional format prefix identifies an incompatible layout before reading its fields.
 */
 
 /*
@@ -53,21 +54,33 @@ fn skipped(field: &syn::Field) -> syn::Result<bool> {
     Ok(skip)
 }
 
-fn write_scope(input: &DeriveInput) -> syn::Result<Option<syn::Path>> {
-    let mut scope = None;
+#[derive(Default)]
+struct RecordOptions {
+    write_scope: Option<syn::Path>,
+    format: Option<syn::LitByteStr>,
+}
+
+fn options(input: &DeriveInput) -> syn::Result<RecordOptions> {
+    let mut options = RecordOptions::default();
     for attribute in &input.attrs {
         if attribute.path().is_ident("record") {
             attribute.parse_nested_meta(|meta| {
-                if meta.path.is_ident("write_scope") {
-                    scope = Some(meta.value()?.parse::<syn::Path>()?);
-                    Ok(())
+                if meta.path.is_ident("write_scope") && options.write_scope.is_none() {
+                    options.write_scope = Some(meta.value()?.parse()?);
+                } else if meta.path.is_ident("format") && options.format.is_none() {
+                    let format: syn::LitByteStr = meta.value()?.parse()?;
+                    if format.value().is_empty() {
+                        return Err(meta.error("record format must have a nonempty prefix"));
+                    }
+                    options.format = Some(format);
                 } else {
-                    Err(meta.error("expected record(write_scope = path) on a type"))
+                    return Err(meta.error("expected one write_scope or format on a record type"));
                 }
+                Ok(())
             })?;
         }
     }
-    Ok(scope)
+    Ok(options)
 }
 
 fn fields(
@@ -153,9 +166,22 @@ fn expand(mut input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             ));
         }
     };
-    let write = match write_scope(&input)? {
+    let options = options(&input)?;
+    let write = match options.write_scope {
         None => write,
         Some(scope) => quote!(#scope(self, output, |output| { #write })),
+    };
+    let (write, read) = match options.format {
+        Some(format) => (
+            quote! { output.extend(#format)?; #write },
+            quote! {
+                if input.take(#format.len())? != #format {
+                    return Err(input.error(concat!("unsupported ", stringify!(#name), " record format")));
+                }
+                #read
+            },
+        ),
+        None => (write, read),
     };
     Ok(quote! {
         impl #implementation ::record_storage::Record for #name #arguments #conditions {
