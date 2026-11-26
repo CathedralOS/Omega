@@ -7,7 +7,8 @@ exit: 0.
 
 ```sh
 omega packages update --project samples/cli/collections/selected_scan_window --target macos_arm64
-omega run --both samples/cli/collections/selected_scan_window/main.omg
+omega run --engine native samples/cli/collections/selected_scan_window/main.omg
+omega run --engine psi samples/cli/collections/selected_scan_window/main.omg
 ```
 
 The runtime position does not grant static knowledge of the overwritten element.

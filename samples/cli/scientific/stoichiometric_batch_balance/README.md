@@ -66,7 +66,8 @@ OMEGA_LIBRARY_ROOT="$PWD/source/library" omega packages update --project samples
 # Read and explicitly accept only the intended pending review decisions.
 omega packages update --resume --project samples/cli/independent/stoichiometric_batch_balance
 omega --check --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/main.omg
-omega run --both --keep samples/cli/independent/stoichiometric_batch_balance/main.omg < samples/cli/independent/stoichiometric_batch_balance/data/water_first.stdin
+omega run --engine native --keep samples/cli/scientific/stoichiometric_batch_balance/main.omg < samples/cli/scientific/stoichiometric_batch_balance/data/water_first.stdin
+omega run --engine psi --keep samples/cli/scientific/stoichiometric_batch_balance/main.omg < samples/cli/scientific/stoichiometric_batch_balance/data/water_first.stdin
 omega --target linux_x86_64 --build-dir samples/cli/independent/stoichiometric_batch_balance/build/native samples/cli/independent/stoichiometric_batch_balance/main.omg
 omega --check --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/controls/intended_invalid/main.omg
 ```

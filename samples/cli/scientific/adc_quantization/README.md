@@ -84,7 +84,8 @@ From the repository root, with a compiler built from this candidate and
 omega packages update --project samples/cli/independent/adc_quantization
 # Review the generated package decisions and resume the documented review.
 omega --check --target linux_x86_64 samples/cli/independent/adc_quantization/main.omg
-omega run --both --keep samples/cli/independent/adc_quantization/main.omg < samples/cli/independent/adc_quantization/data/signed_calibrated.txt
+omega run --engine native --keep samples/cli/scientific/adc_quantization/main.omg < samples/cli/scientific/adc_quantization/data/signed_calibrated.txt
+omega run --engine psi --keep samples/cli/scientific/adc_quantization/main.omg < samples/cli/scientific/adc_quantization/data/signed_calibrated.txt
 ```
 
 Validation runs one Omega command at a time, retains commands, status, stdout

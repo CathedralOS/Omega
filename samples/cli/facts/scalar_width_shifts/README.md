@@ -30,7 +30,8 @@ native execution agreeing:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/scalar_width_shifts
-omega run --both samples/cli/facts/scalar_width_shifts/<place>/main.omg
+omega run --engine native samples/cli/facts/scalar_width_shifts/<place>/main.omg
+omega run --engine psi samples/cli/facts/scalar_width_shifts/<place>/main.omg
 ```
 
 ## Reject twins

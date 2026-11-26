@@ -4,7 +4,8 @@ From the repository root, prepare the project with the ordinary package review
 commands, then run it on the host:
 
 ```text
-mbx run -p omega -- run --both samples/cli/systems/atomics_cross/main.omg
+mbx run -p omega -- run --engine native samples/cli/systems/atomics_cross/main.omg
+mbx run -p omega -- run --engine psi samples/cli/systems/atomics_cross/main.omg
 ```
 
 Use Cargo when `mbx` is unavailable. The expected exit is **70** in both engines,

@@ -10,7 +10,8 @@ From the repository root, with the compiler available as `omega`:
 
 ```text
 omega packages update --project samples/cli/basics/borrowed_nested_sum_replacement
-omega run --both samples/cli/basics/borrowed_nested_sum_replacement/main.omg
+omega run --engine native samples/cli/basics/borrowed_nested_sum_replacement/main.omg
+omega run --engine psi samples/cli/basics/borrowed_nested_sum_replacement/main.omg
 ```
 
 This program exercises **BORROWED-STORAGE-RESTORATION**, not an

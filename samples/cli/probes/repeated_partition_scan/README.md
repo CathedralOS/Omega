@@ -7,7 +7,8 @@ both surrounding sentinels. Expected native and Terminal exit: 0.
 
 ```sh
 omega packages update --project samples/cli/collections/repeated_partition_scan --target macos_arm64 --offline --dangerously-accept-all
-omega run --both samples/cli/collections/repeated_partition_scan/main.omg
+omega run --engine native samples/cli/collections/repeated_partition_scan/main.omg
+omega run --engine psi samples/cli/collections/repeated_partition_scan/main.omg
 ```
 
 This exercises repeat filtering over caller-provided storage, not allocation

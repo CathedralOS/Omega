@@ -1,7 +1,8 @@
 # IEEE guard ranges
 
 ```sh
-mbx run -p omega -- run --both samples/cli/probes/ieee_guard_ranges/main.omg
+mbx run -p omega -- run --engine native samples/cli/probes/ieee_guard_ranges/main.omg
+mbx run -p omega -- run --engine psi samples/cli/probes/ieee_guard_ranges/main.omg
 ```
 
 Expected exit: 0 natively and in Terminal. Checks ordinary values, signed zero,

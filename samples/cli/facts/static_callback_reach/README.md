@@ -196,7 +196,8 @@ Run a place after ordinary package preparation:
 
 ```sh
 omega packages update --project samples/cli/facts/static_callback_reach/local --target linux_x86_64
-omega run --both --keep samples/cli/facts/static_callback_reach/local/main.omg
+omega run --engine native --keep samples/cli/facts/static_callback_reach/local/main.omg
+omega run --engine psi --keep samples/cli/facts/static_callback_reach/local/main.omg
 omega psi inspect --artifact <kept-directory>/program.oterm
 ```
 

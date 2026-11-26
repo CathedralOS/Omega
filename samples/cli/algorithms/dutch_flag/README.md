@@ -14,7 +14,8 @@ into `bp` before its later guard. The algorithm and guards remain unchanged;
 After the ordinary package review, run from the repository root:
 
 ```sh
-omega run --both --input samples/cli/algorithms/dutch_flag/input.txt samples/cli/algorithms/dutch_flag/main.omg
+omega run --engine native samples/cli/algorithms/dutch_flag/main.omg < samples/cli/algorithms/dutch_flag/input.txt
+omega run --engine psi samples/cli/algorithms/dutch_flag/main.omg < samples/cli/algorithms/dutch_flag/input.txt
 ```
 
 The input supplies one newline and then EOF. `expected_stdout.txt` pins the

@@ -34,7 +34,8 @@ Root `main.omg` and all place projects bind `ProgramEntry` for all four hosted t
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/computed_record_window
-omega run --both samples/cli/facts/computed_record_window/case_payload/main.omg
+omega run --engine native samples/cli/facts/computed_record_window/case_payload/main.omg
+omega run --engine psi samples/cli/facts/computed_record_window/case_payload/main.omg
 ```
 
 Each place has an `invalid/` twin whose computed window endpoint is 1 instead of 2, failing the length-2 promise. Check each twin with:

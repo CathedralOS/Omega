@@ -53,7 +53,8 @@ The repair has two parts. `assign_name_symbol` now keeps a chain that names ever
 Every positive binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/dependency_type_qualified_call/<place>/main.omg < /dev/null
+omega run --engine native samples/cli/facts/dependency_type_qualified_call/<place>/main.omg < /dev/null
+omega run --engine psi samples/cli/facts/dependency_type_qualified_call/<place>/main.omg < /dev/null
 omega --check samples/cli/facts/dependency_type_qualified_call/<place>/invalid/main.omg < /dev/null
 ```
 

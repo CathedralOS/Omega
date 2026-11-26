@@ -23,7 +23,8 @@ Each positive place and the root `main.omg` binds `ProgramEntry` for all four ho
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/signed_arithmetic_shift_right
-omega run --both samples/cli/facts/signed_arithmetic_shift_right/<place>/main.omg
+omega run --engine native samples/cli/facts/signed_arithmetic_shift_right/<place>/main.omg
+omega run --engine psi samples/cli/facts/signed_arithmetic_shift_right/<place>/main.omg
 ```
 
 ## Reject twins

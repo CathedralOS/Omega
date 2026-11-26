@@ -112,7 +112,8 @@ omega packages update --project "$sample" --target linux_x86_64
 omega packages update --resume --project "$sample"
 omega --check --target linux_x86_64 "$sample/main.omg"
 omega run --keep "$sample/main.omg" < "$sample/data/mixed_bias.stdin"
-omega run --both --keep "$sample/main.omg" < "$sample/data/mixed_bias.stdin"
+omega run --engine native --keep "$sample/main.omg" < "$sample/data/mixed_bias.stdin"
+omega run --engine psi --keep "$sample/main.omg" < "$sample/data/mixed_bias.stdin"
 omega --check "$sample/controls/intended_invalid/main.omg"
 ```
 

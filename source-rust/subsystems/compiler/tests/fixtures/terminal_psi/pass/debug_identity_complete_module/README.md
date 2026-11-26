@@ -13,5 +13,6 @@ Public CLI reproduction from the repository root:
 omega psi inspect --machine constant source-rust/subsystems/compiler/tests/fixtures/terminal_psi/pass/debug_identity_complete_module/main.omg
 omega psi inspect --machine state_graph source-rust/subsystems/compiler/tests/fixtures/terminal_psi/pass/debug_identity_complete_module/main.omg
 omega psi inspect --machine call_closure source-rust/subsystems/compiler/tests/fixtures/terminal_psi/pass/debug_identity_complete_module/main.omg
-omega run --both source-rust/subsystems/compiler/tests/fixtures/terminal_psi/pass/debug_identity_complete_module/main.omg
+omega run --engine native source-rust/subsystems/compiler/tests/fixtures/terminal_psi/pass/debug_identity_complete_module/main.omg
+omega run --engine psi source-rust/subsystems/compiler/tests/fixtures/terminal_psi/pass/debug_identity_complete_module/main.omg
 ```

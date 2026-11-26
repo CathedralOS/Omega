@@ -6,7 +6,8 @@ dispatch in transitions, and accumulated scalar state across multiple machine
 calls. Runs to exit **70**.
 
 ```sh
-omega run --both --input samples/cli/simulation/traffic_light/input.txt samples/cli/simulation/traffic_light/main.omg
+omega run --engine native samples/cli/simulation/traffic_light/main.omg < samples/cli/simulation/traffic_light/input.txt
+omega run --engine psi samples/cli/simulation/traffic_light/main.omg < samples/cli/simulation/traffic_light/input.txt
 ```
 
 The machine starts in `Red` (zero-initialized) and calls `advance(main)` four

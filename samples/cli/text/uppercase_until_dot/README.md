@@ -17,7 +17,8 @@ exit, stdout and stderr. The default `input.txt` is empty and exits zero.
 After ordinary package review, run the default case from the repository root:
 
 ```sh
-omega run --both --input samples/cli/text/uppercase_until_dot/input.txt samples/cli/text/uppercase_until_dot/main.omg
+omega run --engine native samples/cli/text/uppercase_until_dot/main.omg < samples/cli/text/uppercase_until_dot/input.txt
+omega run --engine psi samples/cli/text/uppercase_until_dot/main.omg < samples/cli/text/uppercase_until_dot/input.txt
 ```
 
 The Build file retains all four hosted entry bindings. The source-migration

@@ -23,7 +23,8 @@ Each positive place and the root `main.omg` binds `ProgramEntry` for all four ho
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/saturating_integer_arithmetic
-omega run --both samples/cli/facts/saturating_integer_arithmetic/<place>/main.omg
+omega run --engine native samples/cli/facts/saturating_integer_arithmetic/<place>/main.omg
+omega run --engine psi samples/cli/facts/saturating_integer_arithmetic/<place>/main.omg
 ```
 
 ## Reject twins

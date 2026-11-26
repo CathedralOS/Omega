@@ -6,7 +6,8 @@ stores the result in a UTF-8 buffer, and prints `KHOOR`.
 After completing the sample's package review, run from the repository root:
 
 ```sh
-omega run --both samples/cli/text/caesar_cipher/main.omg < /dev/null
+omega run --engine native samples/cli/text/caesar_cipher/main.omg < /dev/null
+omega run --engine psi samples/cli/text/caesar_cipher/main.omg < /dev/null
 ```
 
 In PowerShell, run the same command without the redirection and press Enter at
