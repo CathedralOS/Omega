@@ -18297,7 +18297,7 @@
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "NumericReviewInventory::field:by_roots#1",
       "kind": "carried_record",
       "meaning": "One completed result, successful or refused, for each exact entry and selected provider-body set seen at portable publication.",
@@ -18309,7 +18309,7 @@
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "alias:NumericRequirements#1",
       "kind": "carried_record",
       "meaning": "The sorted unique accepted numeric boundary IDs, or the exact source closure refusal.",
@@ -18321,7 +18321,7 @@
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "impl:crate :: AcceptedTerminalSource::implementation#1",
       "kind": "producer",
       "meaning": "Publishes one immutable source closure result per actual package root set and gives review a read-only lookup bound to the original judgment.",
@@ -18333,7 +18333,7 @@
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "impl:crate :: AcceptedTerminalSource::method:compute_numeric_requirements#1",
       "kind": "producer",
       "meaning": "Computes sorted unique numeric requirements from the accepted call closure. An unresolved indirect closure selects every declared numeric operation, and a rootless package selects none.",
@@ -18345,7 +18345,7 @@
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "impl:crate :: AcceptedTerminalSource::method:package_review_roots#1",
       "kind": "definition",
       "meaning": "Returns the sorted unique set containing the accepted entry, when present, and each selected provider machine.",
@@ -18357,7 +18357,7 @@
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "impl:crate :: AcceptedTerminalSource::method:publish_package_review_numeric_requirements#1",
       "kind": "producer",
       "meaning": "During package publication, records each demanded numeric inventory once for the exact entry and selected providers, including any closure refusal.",
@@ -18369,7 +18369,7 @@
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "impl:crate :: AcceptedTerminalSource::method:retained_package_review_numeric_requirements#1",
       "kind": "checker",
       "meaning": "Checks the source judgment already issued the demand for precisely these entry and provider roots. A rootless review has no numeric target obligations. No source analysis is restarted here.",
@@ -18381,7 +18381,7 @@
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "struct:NumericReviewInventory#1",
       "kind": "carried_record",
       "meaning": "Source-owned evidence issued per distinct package root set. A later projection can read the issued requirements without repeating source call-graph work or accepting a fabricated target request.",
@@ -18392,7 +18392,7 @@
       "consumers": [
         "01 source compilation"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "use:semantic_vocabulary :: { BoundaryMachineId , MachineId , TargetMachineCallable }#1",
       "kind": "definition",
       "meaning": "Separates declared boundary invocations from internal calls while walking the accepted machine closure.",
@@ -18404,7 +18404,7 @@
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "use:std :: collections :: BTreeMap#1",
       "kind": "definition",
       "meaning": "Indexes issued source results by the sorted unique entry and provider-body roster.",
@@ -18416,7 +18416,7 @@
         "02 portable publication",
         "package policy projection and canonical review encoding"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "item": "use:std :: sync :: Mutex#1",
       "kind": "definition",
       "meaning": "Synchronizes publication and read-only access on one shared accepted source judgment.",
@@ -18578,7 +18578,7 @@
       "kind": "definition",
       "meaning": "Methods for the SourcePublication contract in 01 source compilation.",
       "producer": "01 source compilation",
-      "signature": "359b2223df6b8918c563aa697b5fa123db479cd6bd4c0d0c2fe34057272099c5"
+      "signature": "4a9b66a01ee20d4989afb47d51a8ce63a7cbd3f02804e164b7b06b2b3b0ac773"
     },
     {
       "consumers": [
@@ -18600,9 +18600,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
       "item": "impl:SourcePublication::method:prepare_provider_demand#1",
       "kind": "producer",
-      "meaning": "Close entry and explicitly selected source roots, source provider bodies and native declaration occurrences. Folded scalar and ABI planning consume these choices later.",
+      "meaning": "Close entry and explicitly selected source roots, source provider bodies and native declaration occurrences. Check dependency service reach for each executable root before publishing the demand; folded scalar and ABI planning consume these choices later.",
       "producer": "01 source compilation",
-      "signature": "226195d081bed04f285f2ea0d03be197720dada42f137639429ea99c3a54b120"
+      "signature": "999cae1e0807f48a7d2ef651b6b538d89d3646551ef3d1cd027ec7662543aabc"
     },
     {
       "consumers": [
@@ -19702,12 +19702,12 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/entry.rs",
       "item": "function:issue#1",
       "kind": "producer",
       "meaning": "Record source-issued entry and calling-policy owners, machine provenance and bound application presence in the published Psi program.",
       "producer": "Psi portable program publication",
-      "signature": "460786d0f4c73310a29447bdfc95bcce45fbac0e644b5df7c703d56e92e6182a"
+      "signature": "4f1045ad81a859ca23a3f7740aa1c146d0bd8253b3bdb088e3497171a84d632c"
     },
     {
       "consumers": [
@@ -19715,7 +19715,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "SourcePublication::field:accepted#1",
       "kind": "producer",
       "meaning": "The accepted source judgment and its exact root roster.",
@@ -19728,7 +19728,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "SourcePublication::field:optimizations#1",
       "kind": "carried_record",
       "meaning": "The fixed Psi optimization selection of this source judgment.",
@@ -19740,7 +19740,7 @@
         "source driver Product publication",
         "source driver target provider publication"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "SourcePublication::field:program#1",
       "kind": "producer",
       "meaning": "Share the canonical Psi artifact or the original publication refusal from this source judgment.",
@@ -19753,23 +19753,23 @@
         "source provider demand preparation",
         "source driver target provider publication"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::implementation#1",
       "kind": "definition",
       "meaning": "Retain the accepted source and roster and publish one canonical Psi artifact for the optimization selection the checked closure executed.",
       "producer": "stage 07 checked source publication",
-      "signature": "de9f561761f2d2d9811670be2d7f963480315b06fbc89e689f903ece6ca81f85"
+      "signature": "e2c390780328d82ad3aebf0ad678ccd7ce7b36adf5f3055a3c0d97dd5fdb7f12"
     },
     {
       "consumers": [
         "source driver Product check"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:check_selections#1",
       "kind": "checker",
       "meaning": "Admit declaration selections against the captured Product package scope. The source driver reads the checker's advisories itself and measures them separately.",
       "producer": "stage 07 checked source publication",
-      "signature": "cb254b99b50deeebdf5c564d0aa9831038ee079c0b82deb871d1f112822e3c38"
+      "signature": "9438a3e1cd62872942acc3560d82d3197ed541a0f94a5d2cec19c1ceec20a3e2"
     },
     {
       "consumers": [
@@ -19777,7 +19777,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:accepted#1",
       "kind": "carried_record",
       "meaning": "Borrow the previously accepted source after checking the fixed Psi optimization route.",
@@ -19790,7 +19790,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:accepted_owner#1",
       "kind": "carried_record",
       "meaning": "Borrow the source owner issued by the whole lowered-form judgment, including the transformed judgment when a pass ran.",
@@ -19803,7 +19803,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:new#1",
       "kind": "producer",
       "meaning": "Create an empty publication fixed to the selected Psi optimization policy.",
@@ -19816,7 +19816,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:optimizations#1",
       "kind": "carried_record",
       "meaning": "Read the fixed portable optimization selection the source publication was issued with.",
@@ -19827,7 +19827,7 @@
       "consumers": [
         "source driver Product publication"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:publish#1",
       "kind": "producer",
       "meaning": "Admit source declaration selections, seal their metadata and checker evidence into the artifact, and share it with Product.",
@@ -19838,7 +19838,7 @@
       "consumers": [
         "source driver target provider publication"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:require_published#1",
       "kind": "checker",
       "meaning": "Borrow the canonical artifact already published by this source judgment or report its refusal to target provider selection.",
@@ -19851,7 +19851,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:require_source_owner#1",
       "kind": "checker",
       "meaning": "Compare the exact frozen tree owner with the one held by this judgment.",
@@ -19863,7 +19863,7 @@
         "source driver Product publication",
         "source driver target provider publication"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:retain#1",
       "kind": "producer",
       "meaning": "Check the requested optimizations and retain the first artifact or refusal for all consumers of this source judgment.",
@@ -19876,7 +19876,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:roster#1",
       "kind": "carried_record",
       "meaning": "Read the root and declaration roster sealed with the judgment.",
@@ -19889,7 +19889,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:std :: fmt :: Debug for SourcePublication::implementation#1",
       "kind": "definition",
       "meaning": "Methods for the std::fmt::Debug for SourcePublication contract in 01 source compilation.",
@@ -19902,7 +19902,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:std :: fmt :: Debug for SourcePublication::method:fmt#1",
       "kind": "host_operation",
       "meaning": "Display the availability of the retained source judgment and publication.",
@@ -19915,7 +19915,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "module:tests#1",
       "kind": "test_support",
       "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
@@ -19928,7 +19928,7 @@
         "source provider demand preparation",
         "source driver target provider publication"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "struct:SourcePublication#1",
       "kind": "producer",
       "meaning": "Retain the checked source and roster with the fixed optimizations and the one resulting canonical artifact or refusal.",
@@ -19941,7 +19941,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "tests::function:publication_keeps_its_projection_and_one_refusal_without_retry#1",
       "kind": "test_support",
       "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
@@ -19954,7 +19954,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "tests::use:optimization :: PsiOptimization#1",
       "kind": "test_support",
       "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
@@ -19967,7 +19967,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "tests::use:super :: *#1",
       "kind": "test_support",
       "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
@@ -19979,7 +19979,7 @@
         "source provider demand preparation",
         "source driver Product publication"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "use:crate :: SourceCompilationRoster#1",
       "kind": "definition",
       "meaning": "Retain the source roster returned by the judgment that the Product will publish.",
@@ -19991,7 +19991,7 @@
         "source driver Product publication",
         "source driver target provider publication"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "use:terminal_codec :: CanonicalTerminalArtifact#1",
       "kind": "definition",
       "meaning": "Use the portable artifact that owns the sealed code, declaration metadata and checker evidence.",
@@ -20004,7 +20004,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
       "meaning": "Bring the existing diagnostics::Diagnostic declarations into the 01 source compilation module.",
@@ -20017,7 +20017,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "use:optimization :: PsiOptimizationSelections#1",
       "kind": "definition",
       "meaning": "Bring the existing optimization::PsiOptimizationSelections declarations into the 01 source compilation module.",
@@ -20030,7 +20030,7 @@
         "02 portable publication",
         "checked source inspection"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "use:std :: sync :: { Arc , OnceLock }#1",
       "kind": "definition",
       "meaning": "Bring the existing std::sync::{ Arc , OnceLock } declarations into the 01 source compilation module.",
@@ -20042,7 +20042,7 @@
         "portable program publication",
         "source roster consumers"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:from_judgment#1",
       "kind": "producer",
       "meaning": "Retain the accepted source and its product roster, and read the publication selection from its checked closure.",
@@ -20054,7 +20054,7 @@
         "portable program publication",
         "source roster consumers"
       ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "item": "impl:SourcePublication::method:unpublished_roster#1",
       "kind": "checker",
       "meaning": "Lend the original checked roster for a fresh judgment only before the first publication attempt.",
@@ -23030,7 +23030,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
+      "path": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/package_review.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
@@ -23066,13 +23066,13 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/published_entry.rs",
+      "path": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/entry.rs",
       "allowed_kinds": [
         "producer"
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
+      "path": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source/publication.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",

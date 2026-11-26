@@ -446,9 +446,14 @@ impl<'source> Questions<'source> {
                 let identity = typed
                     .runtime_callable_contract_identity(runtime.contract, &[])
                     .map_err(refused)?;
-                let retained = self.module.execution.callables.contract(contract).ok_or_else(|| {
-                    refused("selected invocation names no retained callable contract")
-                })?;
+                let retained = self
+                    .module
+                    .execution
+                    .callables
+                    .contract(contract)
+                    .ok_or_else(|| {
+                        refused("selected invocation names no retained callable contract")
+                    })?;
                 if self.module.identities.text(retained.identity) != Some(identity.as_str()) {
                     return Err(refused("selected invocation changes its source contract"));
                 }
@@ -936,7 +941,8 @@ impl<'source> Questions<'source> {
                             ));
                         }
                         let selected = module
-                            .execution.callables
+                            .execution
+                            .callables
                             .descriptor(descriptor)
                             .ok_or_else(|| refused("selected descriptor has no retained row"))?;
                         let target =
@@ -1364,8 +1370,7 @@ impl<'source> Questions<'source> {
             .expression_table
             .build_selection_request(input.request)
             .ok_or_else(|| refused("Product input lost its complete request"))?;
-        let request_bytes =
-            record_storage::encode(request, Default::default()).map_err(refused)?;
+        let request_bytes = record_storage::encode(request, Default::default()).map_err(refused)?;
         let mut digest = DomainDigestEncoder::new(b"omega.source-product-input.v1\0");
         digest.bytes(owner.as_bytes());
         digest.bytes(&encoded);
@@ -2202,8 +2207,7 @@ machine entry() -> u64 crashes none {
         let tokens = crate::frontend_fixture::Lexer::new(text)
             .tokenize()
             .unwrap();
-        let mut syntax =
-            crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let mut syntax = crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../../../../source/library/core");
         let mut bindings = Vec::new();
@@ -2347,10 +2351,7 @@ machine entry() -> u32 crashes none {{
             match &mut syntax {
                 None => {
                     syntax = Some(
-                        crate::frontend_fixture::parse_syntax_trees_with_id(
-                            id, &tokens,
-                        )
-                        .unwrap(),
+                        crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
                     )
                 }
                 Some(syntax) => {
@@ -2396,14 +2397,15 @@ machine entry() -> u32 crashes none {{
         };
         let input = program.clone();
         let lookups = crate::source_state::product_operand::ProductSourceLookups::new(&input);
-        let prepared = typed_trees::product_operand::formation::prepare_product_requirement_operand(
-            &mut program,
-            &lookups,
-            &operand,
-            author,
-            None,
-        )
-        .unwrap();
+        let prepared =
+            typed_trees::product_operand::formation::prepare_product_requirement_operand(
+                &mut program,
+                &lookups,
+                &operand,
+                author,
+                None,
+            )
+            .unwrap();
         let application = program
             .closed_requirement_application(prepared.closed_requirement.unwrap())
             .unwrap()
@@ -2859,7 +2861,8 @@ machine entry() -> u64 reaches none crashes none {
             .filter_map(|(handle, contract)| {
                 let symbol = contract.signature.symbol;
                 if revised_typed.symbols.get(symbol).kind != SymbolKind::CallableContract
-                    || revised_typed.symbols.get(contract.lexical_owner).kind == SymbolKind::TypeAlias
+                    || revised_typed.symbols.get(contract.lexical_owner).kind
+                        == SymbolKind::TypeAlias
                 {
                     return None;
                 }
@@ -2993,10 +2996,14 @@ machine entry() {
         let module = source.module();
         let bytes = terminal_codec::encode_module(module).unwrap();
         let decoded = terminal_codec::decode_module(&bytes).unwrap();
-        assert_eq!(module.types.structural_domains, decoded.types.structural_domains);
+        assert_eq!(
+            module.types.structural_domains,
+            decoded.types.structural_domains
+        );
         assert_eq!(module.types.structural_domains.len(), 2);
         let mut collapsed = module.clone();
-        collapsed.types.structural_domains[1].identity = collapsed.types.structural_domains[0].identity;
+        collapsed.types.structural_domains[1].identity =
+            collapsed.types.structural_domains[0].identity;
         let invalid = terminal_codec::encode_module(&collapsed).unwrap();
         assert!(matches!(
             terminal_codec::decode_module(&invalid),
@@ -3253,7 +3260,7 @@ machine entry() reaches Input {}
         use semantic_vocabulary::source_selections::SelectionCallTarget;
 
         let text = include_str!(
-            "../../06_lowered-program-to-checked-program/tests/fixtures/proofs/positive/named_implication/main.omg"
+            "../../../06_lowered-program-to-checked-program/tests/fixtures/proofs/positive/named_implication/main.omg"
         )
         .replace("    use_step::<", "    only_seven(7u8);\n    use_step::<");
         let source = accepted_source(&text, &[]);
@@ -3314,7 +3321,8 @@ machine entry() reaches Input {}
         );
         let module = source.module();
         let primitive = module
-            .interfaces.boundary_machines
+            .interfaces
+            .boundary_machines
             .iter()
             .find(|boundary| {
                 matches!(
@@ -3394,7 +3402,7 @@ machine entry() reaches Input {}
         use semantic_vocabulary::source_selections::SelectionCallTarget;
 
         let text = include_str!(
-            "../../../../../../../tests/fixtures/calls/run/record_callback_loop/main.omg"
+            "../../../../../../../../tests/fixtures/calls/run/record_callback_loop/main.omg"
         )
         .replace("machine main()", "machine entry()");
         let source = accepted_source(&text, &[]);
