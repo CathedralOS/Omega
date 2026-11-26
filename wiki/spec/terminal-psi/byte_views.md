@@ -374,16 +374,11 @@ an immediately preceding length from the same descriptor, including its
 projection and selector values. Subslice operations still require the matching whole-view length
 observation.
 
-A by-value `ElementViewRead` exists only for `[copy]` element types: a
-non-copy element cannot move out of borrowed storage, and the transfer rule
-rejects the move even where a machine's signature omits the bound. The
-settled source spelling is `Slice::index<T [copy]>` — chapter 19 declares the
-bound; the core `boundary machine [] Slice::index<T>` declaration is
-under-constrained, but identical in accepted programs because the ownership
-law supplies the same cut. Non-copy elements are reached through borrowed
-spellings instead: `SliceAccess::from`, `SliceAccess::tail` and `Slice::range`
-return element views, and `SliceAccess::index_mut` yields a `@mutable T`
-projection rather than an element value. Element writes move the supplied
+A by-value `ElementViewRead` requires a `[copy]` element type. The
+compiler rejects moving a non-copy element out of borrowed storage. A shared
+or mutable borrow of an indexed element retains its backing. A range such as
+`@items[start..end]` returns a view with the element type of the input.
+Element writes move the supplied
 value in and the displaced element out of its slot under the ordinary
 disposal law for its type; the write supplies no escape for a value whose
 cleanup is not legal there.
