@@ -143,6 +143,11 @@ describes which arguments the foreign function receives.
 | `table: ParameterInfo` | An exact formal of the bound requirement, selected with `\|reflect\|::parameter(Requirement::formal)`. |
 | `field: FieldInfo` | An exact field of the borrowed table application, selected with `\|reflect\|::field(Table::field)`. |
 
+The description borrows its reflected identity text. A Build that names the
+locator type can bind its lifetime as `machine build<'selection>(builder:
+@mutable Build)` and declare the local as
+`let locator: |native|::FunctionFieldBinding<'selection> = …`.
+
 These are [typed declaration selectors](../language/reflection.md#typed-declaration-selectors),
 not strings, ordinals, runtime values, or executable machine selections. In a
 Build binding they use the existing designated product-reference mechanism:
