@@ -118,7 +118,7 @@ machine build(builder: @mutable Build) crashes Trap {
         let stderr = String::from_utf8_lossy(&result.stderr);
         assert_eq!(result.status.success(), permitted, "{stdout}{stderr}");
         if permitted {
-            assert!(stdout.lines().any(|line| line == "Psi exit 0"), "{stdout}");
+            assert!(stderr.lines().any(|line| line == "Psi exit 0"), "{stderr}");
         } else {
             assert!(
                 stderr.contains("dep/api.omg")
