@@ -229,7 +229,7 @@ pub(crate) fn build_product_file_imports(
             };
             // Build-only toolchain files are bound directly to their admitted prelude unit.
             if !import.only_product_operands
-                && build_declarations::build_file_namespace(root.as_deref(), path).is_some()
+                && build_declarations::build_file(root.as_deref(), path).is_some()
             {
                 continue;
             }

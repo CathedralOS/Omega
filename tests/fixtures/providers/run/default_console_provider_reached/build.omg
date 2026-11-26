@@ -1,6 +1,8 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "default_console_provider_reached");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../../source/library/system" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../source/library/system" }));
     Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64\ProgramEntry, entry_start);
     Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);

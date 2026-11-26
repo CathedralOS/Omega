@@ -1,3 +1,4 @@
+use {omega}/build/dependency.omg;
 use naming;
 
 machine build(builder: @mutable Build) {
@@ -17,7 +18,7 @@ machine declare_project(builder: @mutable Build) {
 
 machine unselected(builder: @mutable Build) {
     Build::application(builder, "wrong_branch");
-    let mutable missing_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "never_acquired" });
-    dependency\with_alias(@mutable missing_dependency, "missing");
+    let mutable missing_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "never_acquired" });
+    |dependency|::with_alias(@mutable missing_dependency, "missing");
     let missing_registration: DependencyRegistration = Build::dependency(builder, missing_dependency);
 }

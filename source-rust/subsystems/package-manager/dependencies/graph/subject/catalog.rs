@@ -359,9 +359,9 @@ mod tests {
         let request =
             GitSourceRequest::new("https://catalog.invalid/helper.git", Some("main".into()))
                 .unwrap();
-        let recorded = options.recorded(&request).unwrap().unwrap();
+        let recorded = options.exact_revision(&request).unwrap().unwrap();
         assert_eq!(
-            recorded.resolution,
+            &ImmutableSourceResolution::git(recorded.commit, recorded.tree.unwrap()).unwrap(),
             subject.catalog_dependencies[0]
                 .provider
                 .root

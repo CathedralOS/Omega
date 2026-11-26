@@ -228,8 +228,11 @@ fn parse_package(
 }
 
 fn parse_packages_subsystem(arguments: &mut Arguments) -> Result<Invocation, String> {
-    let action = arguments.next_argument();
-    match action.as_deref().and_then(std::ffi::OsStr::to_str) {
+    let Some(action) = arguments.next_argument() else {
+        return Ok(Invocation::Help(packages::GUIDE));
+    };
+    match action.to_str() {
+        Some("help") => packages::guide(arguments).map(Invocation::Help),
         Some("install") => parse_package(PackageCommandKind::Install, arguments),
         Some("update") => parse_package(PackageCommandKind::Update, arguments),
         Some("audit") => {
@@ -244,11 +247,8 @@ fn parse_packages_subsystem(arguments: &mut Arguments) -> Result<Invocation, Str
         }
         Some("--help" | "-h") => Ok(Invocation::Help(packages::USAGE)),
         _ => {
-            let error = action.map_or_else(
-                || "missing packages command\n".to_owned(),
-                |action| format!("unknown packages command `{}`\n", action.to_string_lossy()),
-            );
-            Err(format!("{error}{}", packages::USAGE))
+            let name = action.to_string_lossy();
+            Err(format!("unknown packages command `{name}`\n{}", packages::USAGE))
         }
     }
 }
@@ -429,6 +429,9 @@ mod tests {
             &["psi", "-h"],
             &["psi", "inspect", "--help"],
             &["psi", "inspect", "-h"],
+            &["packages"],
+            &["packages", "help", "add"],
+            &["packages", "help", "update"],
             &["packages", "--help"],
             &["packages", "-h"],
             &["packages", "install", "--help"],

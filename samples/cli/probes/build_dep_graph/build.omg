@@ -2,9 +2,11 @@
 // straight path resolves; controls pin the two closure-resolution
 // rejections — a dependency cycle and an unresolvable source path.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_dep_graph");
-    let mutable kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dependency" });
-    dependency\with_alias(@mutable kit_dependency, "kit");
+    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
+    |dependency|::with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
 }

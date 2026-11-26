@@ -231,17 +231,14 @@ impl BuildSourceAcquisitions<'_> {
         let declarations = super::git::workspace::git_workspace_declaration_limits();
         let recorded = self
             .options
-            .recorded(request.acquisition())
+            .exact_revision(request.acquisition())
             .map_err(|error| error.to_string())?;
         let source = if let Some(recorded) = recorded {
-            let ImmutableSourceResolution::Git { commit, tree, .. } = recorded.resolution else {
-                return Err("recorded Git catalog has a non-Git resolution".into());
-            };
             GitWorkspaceSession::open_at_revision(
                 self.storage,
                 request.acquisition(),
-                commit,
-                tree,
+                &recorded.commit,
+                recorded.tree.as_ref(),
                 recorded.acquisition,
                 limits,
                 declarations,

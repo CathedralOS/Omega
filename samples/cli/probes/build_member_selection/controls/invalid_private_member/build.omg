@@ -1,6 +1,8 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "invalid_private_member");
-    let mutable kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dependency" });
-    dependency\with_alias(@mutable kit_dependency, "kit");
+    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
+    |dependency|::with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
 }

@@ -112,8 +112,42 @@ pub(super) fn append_build_prelude(
         .into_iter()
         .collect();
     let mut units = vec![admitted];
-    let mut namespaces = Vec::with_capacity(prelude.source.modules.len());
-    for (namespace, text) in prelude.source.modules {
+    let mut modules = prelude.source.modules;
+    let implicit = modules.len();
+    let mut file_imports = Vec::new();
+    for (_, file) in storage.source_roots.iter() {
+        if !storage.sources.get(file.source_id).is_some_and(|source| {
+            source.dependency_scope == source_provenance::DependencyScope::Build
+        }) {
+            continue;
+        }
+        for import in &file.build_imports {
+            let source_compiler::SourceImportTarget::File { root, path, alias } = &import.target
+            else {
+                continue;
+            };
+            if !import.only_product_operands
+                && let Some(export) = build_declarations::build_file(root.as_deref(), path)
+            {
+                let index = modules
+                    .iter()
+                    .position(|(name, _)| *name == export.namespace)
+                    .unwrap_or_else(|| {
+                        modules.push((export.namespace, export.source.to_owned()));
+                        modules.len() - 1
+                    });
+                file_imports.push((
+                    file.source_id,
+                    index,
+                    import.ordinal,
+                    import.target.to_string(),
+                    alias.clone(),
+                ));
+            }
+        }
+    }
+    let mut namespaces = Vec::with_capacity(modules.len());
+    for (namespace, text) in modules {
         let admitted = storage.admit_source(
             SourceContents {
                 path: Path::new(source_admission::source_identity::BUILD_PRELUDE_ROOT)
@@ -151,7 +185,7 @@ pub(super) fn append_build_prelude(
         .selected_files()
         .filter(|file| file.dependency_scope == source_provenance::DependencyScope::Build)
     {
-        for &(namespace, declaration_source) in &namespaces {
+        for &(namespace, declaration_source) in &namespaces[..implicit] {
             bindings.push(
                 source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::module_import(
                     file.source_id,
@@ -162,37 +196,19 @@ pub(super) fn append_build_prelude(
             );
         }
     }
-    for (_, file) in storage.source_roots.iter() {
-        for import in &file.build_imports {
-            let source_compiler::SourceImportTarget::File { root, path, alias } = &import.target
-            else {
-                continue;
-            };
-            if !import.only_product_operands
-                && let Some(namespace) =
-                    build_declarations::build_file_namespace(root.as_deref(), path)
-            {
-                let (_, source_id) = namespaces
-                    .iter()
-                    .find(|(name, _)| *name == namespace)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "Build library import lost its compiler-owned source",
-                        )]
-                    })?;
-                let declaration = storage
-                    .sources
-                    .get(*source_id)
-                    .expect("just-admitted Build library");
-                storage.resolved_imports.push(ResolvedSourceImport::file(
-                    file.source_id,
-                    import.ordinal,
-                    import.target.to_string(),
-                    alias,
-                    declaration,
-                ));
-            }
-        }
+    for (author, index, ordinal, name, alias) in file_imports {
+        let (_, source) = namespaces[index];
+        let declaration = storage
+            .sources
+            .get(source)
+            .expect("just-admitted Build library");
+        storage.resolved_imports.push(ResolvedSourceImport::file(
+            author,
+            ordinal,
+            name,
+            &alias,
+            declaration,
+        ));
     }
     Ok(bindings)
 }

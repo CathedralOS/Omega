@@ -36,16 +36,32 @@ pub fn build_prelude() -> BuildPrelude {
     }
 }
 
-/// Logical files exported by the compiler-owned Build library.
-pub fn build_file_namespace(root: Option<&str>, path: &str) -> Option<&'static str> {
-    match (root, path) {
-        (Some("omega"), "build/dependency.omg") => Some("dependency"),
-        _ => None,
-    }
+/// A file under the installed Build library root. Only an importing file receives its alias.
+#[derive(Clone, Copy)]
+pub struct BuildLibraryFile {
+    pub namespace: &'static str,
+    pub source: &'static str,
 }
 
+pub fn build_file(root: Option<&str>, path: &str) -> Option<BuildLibraryFile> {
+    if root != Some("omega") {
+        return None;
+    }
+    let (namespace, source) = match path {
+        "build/dependency.omg" => ("dependency", DEPENDENCY),
+        "build/dependencies/providers/git.omg" => (
+            "git",
+            include_str!("../../../../../../source/library/build/dependencies/providers/git.omg"),
+        ),
+        _ => return None,
+    };
+    Some(BuildLibraryFile { namespace, source })
+}
+
+const DEPENDENCY: &str = include_str!("prelude/modules/dependency.omg");
+
 const MODULES: &[(&str, &str)] = &[
-    ("dependency", include_str!("prelude/modules/dependency.omg")),
+    ("dependency", DEPENDENCY),
     ("Build", include_str!("prelude/modules/build_operations.omg")),
     (
         "BuildSource",

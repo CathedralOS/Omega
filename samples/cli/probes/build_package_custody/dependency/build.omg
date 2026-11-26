@@ -4,14 +4,15 @@
 // through the captured source inventory, and publishes its bytes as generated
 // product source. A separately promised output holds a copy of those bytes.
 
+use {omega}/build/dependency.omg;
 use generator;
 
 machine build(builder: @mutable Build)
 suspends
 {
     Build::package(builder, "custody_kernel");
-    let mutable generator_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../generator" });
-    dependency\with_alias(@mutable generator_dependency, "generator");
+    let mutable generator_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../generator" });
+    |dependency|::with_alias(@mutable generator_dependency, "generator");
     let generator_registration: DependencyRegistration = Build::build_dependency(builder, generator_dependency);
     suspend Build::prepare_dependency(builder, generator_registration);
     let answer: i32 = generator\generation_value();

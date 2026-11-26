@@ -3,14 +3,15 @@
 // resolves under the helper occurrence's own package, never the caller's:
 // passing Build lends operational capability, not visibility into the
 // owner's product namespace, so the helper cannot enumerate it.
+use {omega}/build/dependency.omg;
 use support\configure;
 
 machine build(builder: @mutable Build)
 suspends
 {
     Build::application(builder, "product_entry_query_foreign_helper_private_entry");
-    let mutable support_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "helper" });
-    dependency\with_alias(@mutable support_dependency, "support");
+    let mutable support_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "helper" });
+    |dependency|::with_alias(@mutable support_dependency, "support");
     let support_registration: DependencyRegistration = Build::build_dependency(builder, support_dependency);
     suspend Build::prepare_dependency(builder, support_registration);
     configure\configure(builder);

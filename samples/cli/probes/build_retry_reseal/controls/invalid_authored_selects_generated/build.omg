@@ -2,9 +2,11 @@
 // own build generates. Authored occurrences cannot select their package's
 // generated declarations (wiki/spec/build/execution.md, "Generated-source
 // boundary"); the consumer's check must reject this like the dep's own review.
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "invalid_authored_selects_generated");
-    let mutable kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dependency" });
-    dependency\with_alias(@mutable kit_dependency, "kit");
+    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
+    |dependency|::with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
 }
