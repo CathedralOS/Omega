@@ -1434,7 +1434,6 @@ pub(crate) mod capabilities {
                     boundary,
                     AdmittedBoundarySupply::CheckedProvider(selected),
                 )]),
-                assumed_bindings: Vec::new(),
                 folded_constant_target: None,
                 target_machines: None,
                 target_layouts: None,
@@ -1775,7 +1774,6 @@ pub(crate) mod capabilities {
                     boundary,
                     AdmittedBoundarySupply::CheckedProvider(provider),
                 )]),
-                assumed_bindings: Vec::new(),
                 folded_constant_target: None,
                 target_machines: None,
                 target_layouts: None,
@@ -2128,7 +2126,6 @@ pub(crate) mod capabilities {
                     boundary,
                     AdmittedBoundarySupply::CheckedProvider(target),
                 )]),
-                assumed_bindings: Vec::new(),
                 folded_constant_target: None,
                 target_machines: None,
                 target_layouts: None,
@@ -2186,7 +2183,6 @@ pub(crate) mod capabilities {
                         provided,
                         AdmittedBoundarySupply::CheckedProvider(MachineId::new(2).unwrap()),
                     )]),
-                    assumed_bindings: Vec::new(),
                     folded_constant_target: None,
                     target_machines: None,
                     target_layouts: None,
@@ -2462,7 +2458,7 @@ pub(crate) mod content_transformations {
 pub(crate) mod execution {
     use crate::boundary::effects::original_storage::{OriginalByteCell, OriginalStorageAllocation};
     use crate::boundary::effects::{
-        AdmittedAssumedBinding, TerminalEffect, TerminalEffectHandler, TerminalRuntimeSupplies,
+        TerminalEffect, TerminalEffectHandler, TerminalRuntimeSupplies,
     };
     use crate::boundary::errors::{TerminalInterpretError, malformed};
     use crate::boundary::results::meter_status;
@@ -2542,7 +2538,6 @@ pub(crate) mod execution {
             BTreeMap<BoundaryMachineId, crate::boundary::effects::AdmittedBoundarySupply>,
         pub(crate) native_code_layouts:
             Option<std::sync::Arc<crate::TerminalNativeCodeLayoutEnvironment>>,
-        pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
         pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
         pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
         pub(crate) linear_homes: RuntimeRows<PlaceId, TerminalStructuralValue>,
@@ -3016,9 +3011,6 @@ pub(crate) mod execution {
                     .unwrap_or_default(),
                 native_code_layouts: installation
                     .and_then(|supplies| supplies.native_code_layouts.clone()),
-                assumed_bindings: installation
-                    .map(|installation| installation.assumed_bindings.clone())
-                    .unwrap_or_default(),
                 values,
                 borrowed_entry_storage,
                 structural_values,
@@ -3425,9 +3417,6 @@ pub(crate) mod execution {
             self.result.as_ref()
         }
 
-        pub fn assumed_bindings(&self) -> &[AdmittedAssumedBinding] {
-            &self.assumed_bindings
-        }
 
         pub(crate) fn scalar_value(
             &self,

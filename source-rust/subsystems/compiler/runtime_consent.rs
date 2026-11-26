@@ -40,11 +40,6 @@ pub(super) fn compare(
         )]
     })?;
     let proposal = program.native_realization_proposal();
-    if !proposal.providers().selection.assumed_bindings().is_empty() {
-        return Err(vec![Diagnostic::error(
-            "the selected provider's assumed binding lacks its canonical Build review request",
-        )]);
-    }
     // The locked source and target were checked before this Build ran. Its root grants
     // still have to name providers selected by this execution of the Build.
     let grants = declarations.root_provider_grants(package)?;

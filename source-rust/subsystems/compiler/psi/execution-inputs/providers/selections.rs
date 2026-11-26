@@ -1,4 +1,4 @@
-//! Verify requested providers and assumed bindings against one artifact’s callable
+//! Verify requested providers against one artifact’s callable
 //! catalog. The admitted selection retains the execution identity, receiving
 //! applications, and concrete supply paths needed by its consumers. A component
 //! selection also checks the receiving catalog against the supplying artifact.
@@ -21,28 +21,10 @@ pub struct ProviderInstallationSelection {
     pub candidate: MachineId,
 }
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
-)]
-pub struct AssumedBindingSelection {
-    pub required: BoundaryMachineId,
-    pub supplied_requirement: BoundaryMachineId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AdmittedAssumedBinding {
-    pub required: BoundaryMachineId,
-    pub supplied_requirement: BoundaryMachineId,
-    pub implementation: MachineId,
-    pub selected_requirement: BoundaryMachineId,
-    pub supply_path: Vec<BoundaryMachineId>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedProviderSelections {
     code_identity: terminal_codec::TerminalExecutionIdentity,
     providers: BTreeMap<BoundaryMachineId, AdmittedProviderSelection>,
-    assumed_bindings: Vec<AdmittedAssumedBinding>,
     folded_constant_target: Option<String>,
 }
 
@@ -62,10 +44,6 @@ impl AdmittedProviderSelections {
                 .providers
                 .iter()
                 .all(|(boundary, selected)| complete.providers.get(boundary) == Some(selected))
-            && self
-                .assumed_bindings
-                .iter()
-                .all(|assumed| complete.assumed_bindings.contains(assumed))
             && self
                 .folded_constant_target
                 .as_ref()
@@ -145,7 +123,6 @@ impl AdmittedProviderSelections {
             module,
             terminal_codec::TerminalExecutionIdentity::portable(artifact.identity()),
             &historical,
-            &[],
         )
         .map_err(|error| format!("folded constant catalog admission rejected: {error:?}"))?;
         self.folded_constant_target = Some(target.to_owned());
@@ -177,10 +154,6 @@ impl AdmittedProviderSelections {
 
     pub fn execution_identity(&self) -> &terminal_codec::TerminalExecutionIdentity {
         &self.code_identity
-    }
-
-    pub fn assumed_bindings(&self) -> &[AdmittedAssumedBinding] {
-        &self.assumed_bindings
     }
 
     pub fn receiving_application(
@@ -216,67 +189,33 @@ pub enum ProviderInstallationError {
         boundary: BoundaryMachineId,
         candidate: MachineId,
     },
-    AssumedBindingRejected {
-        required: BoundaryMachineId,
-        supplied_requirement: BoundaryMachineId,
-        reason: AssumedBindingRejection,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AssumedBindingRejection {
-    UnknownRequirement,
-    UnknownSuppliedRequirement,
-    CompetingCheckedSupply,
-    CompetingAssumption,
-    UnselectedSupply,
-    CyclicSupply,
-    IncompatibleRuntimeShape,
-    IncompatibleOperationalContract,
-    UnsupportedAssumedAuthority,
-}
-
-pub fn admit_provider_installation_from_artifact(
-    semantic_bytes: &[u8],
-    selections: &[ProviderInstallationSelection],
-) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
-    admit_provider_installation_with_assumed_bindings_from_artifact(
-        semantic_bytes,
-        selections,
-        &[],
-    )
 }
 
 pub fn admit_provider_execution_installation(
     code: terminal_codec::TerminalExecutionView<'_>,
     selections: &[ProviderInstallationSelection],
-    assumptions: &[AssumedBindingSelection],
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     admit_provider_selections(
         code.module(),
         code.custody_identity(),
         selections,
-        assumptions,
     )
 }
 
 pub fn admit_provider_installation(
     artifact: terminal_codec::TerminalArtifactView<'_>,
     selections: &[ProviderInstallationSelection],
-    assumptions: &[AssumedBindingSelection],
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     admit_provider_selections(
         artifact.module(),
         terminal_codec::TerminalExecutionIdentity::portable(artifact.identity()),
         selections,
-        assumptions,
     )
 }
 
-pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
+pub fn admit_provider_installation_from_artifact(
     semantic_bytes: &[u8],
     selections: &[ProviderInstallationSelection],
-    assumptions: &[AssumedBindingSelection],
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     let module = terminal_codec::decode_module(semantic_bytes)
         .map_err(ProviderInstallationError::SemanticDecode)?;
@@ -286,7 +225,6 @@ pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
         &module,
         terminal_codec::TerminalExecutionIdentity::portable(identity),
         selections,
-        assumptions,
     )
 }
 
@@ -294,7 +232,6 @@ fn admit_provider_selections(
     module: &terminal_psi::TerminalModule,
     identity: terminal_codec::TerminalExecutionIdentity,
     selections: &[ProviderInstallationSelection],
-    assumptions: &[AssumedBindingSelection],
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     let mut installed = BTreeMap::new();
     if !selections.is_empty() {
@@ -363,233 +300,9 @@ fn admit_provider_selections(
             );
         }
     }
-    let assumed_bindings = admit_assumed_bindings(module, &installed, assumptions)?;
     Ok(AdmittedProviderSelections {
         code_identity: identity,
         providers: installed,
-        assumed_bindings,
         folded_constant_target: None,
     })
-}
-
-fn same_structural_input_carriers(
-    required: &[terminal_psi::StructuralParameterDeclaration],
-    supplied: &[terminal_psi::StructuralParameterDeclaration],
-) -> bool {
-    required.len() == supplied.len()
-        && required.iter().zip(supplied).all(|(required, supplied)| {
-            required.position == supplied.position
-                && required.structural_type == supplied.structural_type
-                && required.multiplicity == supplied.multiplicity
-                && required.access == supplied.access
-        })
-}
-
-/// Whether the supplied requirement's operational contract can stand in
-/// for the required one. Its published reach ceiling must fit inside the
-/// required ceiling member for member: the owning service is catalogue
-/// ownership, not reach (`wiki/spec/language/effects.md`), so a supplied
-/// ceiling that names its own owner reaches that service like any other
-/// member and needs the required ceiling to permit it.
-fn operational_contract_fits(
-    required: &terminal_psi::BoundaryMachineDeclaration,
-    supplied: &terminal_psi::BoundaryMachineDeclaration,
-) -> bool {
-    required.kind == supplied.kind
-        && required.completion == supplied.completion
-        && (!required.unconditional_termination || supplied.unconditional_termination)
-        && required.crash_routes == supplied.crash_routes
-        && supplied
-            .published_service_ceiling
-            .iter()
-            .all(|service| required.published_service_ceiling.contains(service))
-}
-
-fn admit_assumed_bindings(
-    module: &terminal_psi::TerminalModule,
-    installed: &BTreeMap<BoundaryMachineId, AdmittedProviderSelection>,
-    assumptions: &[AssumedBindingSelection],
-) -> Result<Vec<AdmittedAssumedBinding>, ProviderInstallationError> {
-    let boundary_ids: BTreeSet<BoundaryMachineId> = module
-        .interfaces.boundary_machines
-        .iter()
-        .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
-        .map(|boundary| boundary.id)
-        .collect();
-    let mut admitted = Vec::new();
-    for assumption in assumptions {
-        let reject = |reason| ProviderInstallationError::AssumedBindingRejected {
-            required: assumption.required,
-            supplied_requirement: assumption.supplied_requirement,
-            reason,
-        };
-        if !boundary_ids.contains(&assumption.required) {
-            return Err(reject(AssumedBindingRejection::UnknownRequirement));
-        }
-        if installed.contains_key(&assumption.required) {
-            return Err(reject(AssumedBindingRejection::CompetingCheckedSupply));
-        }
-        if admitted
-            .iter()
-            .any(|binding: &AdmittedAssumedBinding| binding.required == assumption.required)
-        {
-            return Err(reject(AssumedBindingRejection::CompetingAssumption));
-        }
-        if !boundary_ids.contains(&assumption.supplied_requirement) {
-            return Err(reject(AssumedBindingRejection::UnknownSuppliedRequirement));
-        }
-        let required =
-            terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, assumption.required)
-                .unwrap();
-        let supplied = terminal_psi::find_boundary_machine(
-            &module.interfaces.boundary_machines,
-            assumption.supplied_requirement,
-        )
-        .unwrap();
-        let qualified_result = |boundary: &terminal_psi::BoundaryMachineDeclaration| {
-            matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
-            if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty())
-        };
-        if !required.program_local_root_introductions.is_empty()
-            || !supplied.program_local_root_introductions.is_empty()
-            || !required.content_guarantees.is_empty()
-            || !supplied.content_guarantees.is_empty()
-            || qualified_result(required)
-            || qualified_result(supplied)
-        {
-            return Err(reject(AssumedBindingRejection::UnsupportedAssumedAuthority));
-        }
-        if required.parameter_order != supplied.parameter_order
-            || required.scalar_parameters != supplied.scalar_parameters
-            || !same_structural_input_carriers(
-                &required.structural_parameters,
-                &supplied.structural_parameters,
-            )
-            || required.result != supplied.result
-            || !terminal_semantics::boundary_result_lifetimes_match(
-                module, required, module, supplied,
-            )
-            .unwrap_or(false)
-            || required.reference_outputs != supplied.reference_outputs
-            || required.attachment != supplied.attachment
-        {
-            return Err(reject(AssumedBindingRejection::IncompatibleRuntimeShape));
-        }
-        if !operational_contract_fits(required, supplied) {
-            return Err(reject(
-                AssumedBindingRejection::IncompatibleOperationalContract,
-            ));
-        }
-        let mut visiting = BTreeSet::from([assumption.required]);
-        let mut supply_path = Vec::new();
-        let mut requirement = assumption.supplied_requirement;
-        let implementation = loop {
-            if let Some(candidate) = installed.get(&requirement) {
-                break candidate.candidate;
-            }
-            if !visiting.insert(requirement) {
-                return Err(reject(AssumedBindingRejection::CyclicSupply));
-            }
-            let Some(next) = assumptions.iter().find(|link| link.required == requirement)
-            else {
-                return Err(reject(AssumedBindingRejection::UnselectedSupply));
-            };
-            supply_path.push(requirement);
-            requirement = next.supplied_requirement;
-        };
-        admitted.push(AdmittedAssumedBinding {
-            required: assumption.required,
-            supplied_requirement: assumption.supplied_requirement,
-            implementation,
-            selected_requirement: requirement,
-            supply_path,
-        });
-    }
-    Ok(admitted)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::operational_contract_fits;
-    use semantic_vocabulary::{BoundaryMachineId, ServiceId};
-    use terminal_psi::{
-        BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
-        NominalDeclarationIdentity, TerminalIdentityTableBuilder,
-    };
-
-    fn service(id: u64) -> ServiceId {
-        ServiceId::new(id).unwrap()
-    }
-
-    fn requirement(id: u64, owner: u64, ceiling: &[u64]) -> BoundaryMachineDeclaration {
-        let identity = TerminalIdentityTableBuilder::default().intern("test::Slot::call");
-        let ceiling: Vec<ServiceId> = ceiling.iter().copied().map(service).collect();
-        BoundaryMachineDeclaration {
-            id: BoundaryMachineId::new(id).unwrap(),
-            declaration: None,
-            numeric_intrinsic: None,
-            role: BoundaryDeclarationRole::Callable,
-            kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
-            completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
-            unconditional_termination: true,
-            identity,
-            owner: NominalDeclarationIdentity::new(identity),
-            attachment: None,
-            parameter_order: Vec::new(),
-            scalar_parameters: Vec::new(),
-            crash_routes: Vec::new(),
-            structural_parameters: Vec::new(),
-            result: BoundaryMachineResult::Unit,
-            result_reference_regions: Vec::new(),
-            result_lifetimes: None,
-            requires: Vec::new(),
-            membership_ensures: Vec::new(),
-            normal_qualifications: Vec::new(),
-            scalar_domain_requirements: Vec::new(),
-            scalar_requires: Vec::new(),
-            scalar_ensures: Vec::new(),
-            reference_outputs: Vec::new(),
-            program_local_root_introductions: Vec::new(),
-            content_guarantees: Vec::new(),
-            fixed_service_reach: ceiling.clone(),
-            service_reach_is_installation_bound: false,
-            owning_service: Some(service(owner)),
-            published_service_ceiling: ceiling,
-            published_synchronous_entries: Vec::new(),
-        }
-    }
-
-    // A supply whose ceiling names its own owning slot reaches that slot;
-    // a requirement declared `reaches none` cannot be stood in for by it.
-    #[test]
-    fn supplied_owner_in_its_ceiling_must_fit_the_required_ceiling() {
-        let required = requirement(1, 10, &[]);
-        assert!(operational_contract_fits(
-            &required,
-            &requirement(2, 20, &[])
-        ));
-        assert!(!operational_contract_fits(
-            &required,
-            &requirement(2, 20, &[20])
-        ));
-        assert!(operational_contract_fits(
-            &requirement(1, 10, &[20]),
-            &requirement(2, 20, &[20]),
-        ));
-        assert!(!operational_contract_fits(
-            &required,
-            &requirement(2, 20, &[30])
-        ));
-    }
-
-    // The required owner held only as catalogue ownership contributes
-    // nothing a narrower supply must match.
-    #[test]
-    fn required_owner_outside_its_ceiling_permits_nothing_extra() {
-        let required = requirement(1, 10, &[]);
-        assert!(!operational_contract_fits(
-            &required,
-            &requirement(2, 20, &[10])
-        ));
-    }
 }

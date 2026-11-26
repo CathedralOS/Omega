@@ -173,15 +173,10 @@ fn validate_call_source(
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
-            assumption,
             completion_claim_sources: claim_sources,
             completion_receipts: receipts,
         } => {
-            if assumption
-                .as_ref()
-                .map_or(provider.boundary != *boundary, |row| {
-                    !row.matches(*boundary, provider)
-                })
+            if provider.boundary != *boundary
                 || call.target.machine() != Some(provider.candidate)
             {
                 return Err(LegalizedCallSourceError::ProviderIdentityMismatch);

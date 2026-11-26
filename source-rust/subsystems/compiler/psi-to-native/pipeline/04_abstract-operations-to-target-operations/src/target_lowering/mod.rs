@@ -657,7 +657,6 @@ pub(crate) mod selected_boundary_calls {
                             NativeCallOrigin::InstalledProvider {
                                 boundary: *boundary,
                                 provider: call.provider.clone(),
-                                assumption: call.assumption.clone(),
                                 completion_claim_sources: completion_claim_sources.to_vec(),
                                 completion_receipts: completion_receipts.to_vec(),
                             },

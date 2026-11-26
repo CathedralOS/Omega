@@ -138,7 +138,6 @@ pub(crate) fn published_target(
         runtime_declarations: RuntimePermissionDeclarations {
             source: Arc::clone(&checked.program),
             root_grants: checked.grants.as_slice().into(),
-            has_assumed_bindings: !checked.declarations.assumed_bindings.is_empty(),
         },
     })
 }

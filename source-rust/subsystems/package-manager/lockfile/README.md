@@ -102,7 +102,7 @@ Acceptance children use:
 ```text
 acceptance_schema 11
 rows <count>
-row <callable|terminal_permission|external_supply|dangerous_capability|restricted_build_request|assumed_binding_contract|service_audit|native_binding|component_assumption>
+row <callable|terminal_permission|external_supply|dangerous_capability|restricted_build_request|service_audit|native_binding|component_assumption>
 key <SHA-256 of canonical row coordinate bytes>
 meaning <byte length>
 <complete canonical readable risk-row text>

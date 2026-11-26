@@ -25,7 +25,6 @@ pub struct TerminalTargetProviderProposal {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTargetProviderSelection {
     pub plans: Vec<ProviderPlan>,
-    pub assumed_bindings: Vec<selected_provider_plans::AssumedBindingContractSelection>,
     pub checked_candidates: Vec<psi_provider_selections::ProviderInstallationSelection>,
 }
 
@@ -175,7 +174,6 @@ impl TerminalTargetProviderSelection {
         let checked_candidates = checked_candidate_roster(&plans, artifact.module())?;
         Ok(Self {
             plans,
-            assumed_bindings: Vec::new(),
             checked_candidates,
         })
     }
@@ -197,8 +195,7 @@ impl TerminalTargetProviderSelection {
         }
         let selected = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(
             self.plans.clone(),
-        )?
-        .with_assumed_bindings(self.assumed_bindings.clone());
+        )?;
         admit_checked_roster(artifact, target, &selected, &supplied)
     }
 }
@@ -228,22 +225,11 @@ fn admit_checked_roster(
             return Err("selected provider plan belongs to another deployment target".into());
         }
     }
-    let module = artifact.module();
     let dependencies =
         matching_folded_constant_dependencies(artifact, target, selected.plans().iter())?;
     let installation = psi_provider_selections::admit_provider_installation(
         artifact,
         supplied,
-        &selected
-            .assumed_binding_coordinates(module)?
-            .into_iter()
-            .map(|(required, supplied_requirement)| {
-                psi_provider_selections::AssumedBindingSelection {
-                    required,
-                    supplied_requirement,
-                }
-            })
-            .collect::<Vec<_>>(),
     )
     .map_err(|error| format!("catalog admission rejected: {error:?}"))?;
     validate_synchronous_calls(artifact, selected)?;
@@ -285,19 +271,16 @@ fn validate_synchronous_calls(
                     .identities
                     .text(declaration.identity)
                     .ok_or_else(|| failure("invoked boundary has no canonical identity".into()))?;
-                let supplied = selected
-                    .assumed_supplier_identity(requirement)
-                    .map_err(&failure)?;
                 let mut slots = candidates
                     .iter()
                     .filter(|matched| {
                         matched.candidates.iter().any(|candidate| {
-                            module.identities.text(candidate.requirement_identity) == Some(supplied)
+                            module.identities.text(candidate.requirement_identity) == Some(requirement)
                         })
                     })
                     .map(|matched| matched.selected)
                     .collect::<Vec<_>>();
-                if let Some((plan, _)) = selected.selected_requirement_row(supplied) {
+                if let Some((plan, _)) = selected.selected_requirement_row(requirement) {
                     slots.push(plan);
                 }
                 slots.dedup();

@@ -698,7 +698,7 @@ pub(crate) mod errors {
         },
     }
 
-    pub use psi_provider_selections::{AssumedBindingRejection, ProviderInstallationError};
+    pub use psi_provider_selections::ProviderInstallationError;
 
     #[derive(Debug)]
     pub enum TerminalArtifactInterpretError {

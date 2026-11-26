@@ -638,25 +638,10 @@ pub(super) fn encode_call_source(
         NativeCallOrigin::InstalledProvider {
             boundary,
             provider,
-            assumption,
             completion_claim_sources,
             completion_receipts,
         } => {
-            bytes.push(if assumption.is_some() { 4 } else { 2 });
-            if let Some(row) = assumption {
-                for id in [
-                    row.required.get(),
-                    row.supplied_requirement.get(),
-                    row.selected_requirement.get(),
-                    row.implementation.get(),
-                ] {
-                    bytes.extend_from_slice(&id.to_le_bytes());
-                }
-                length(bytes, row.supply_path.len());
-                for id in &row.supply_path {
-                    bytes.extend_from_slice(&id.get().to_le_bytes());
-                }
-            }
+            bytes.push(2);
             push_encoded(bytes, boundary.get().to_le_bytes());
             encode_provider(bytes, provider, retain_projected_qualifications);
             length(bytes, completion_claim_sources.len());
@@ -675,7 +660,6 @@ pub(super) fn decode_call_source(
     cursor: &mut Cursor<'_>,
     retain_projected_qualifications: bool,
 ) -> Result<NativeCallOrigin, FixedViewCopyDecodeError> {
-    // Tag 3 belonged to retired target-family calls and remains unassigned.
     match cursor.byte()? {
         1 => Ok(NativeCallOrigin::Authored),
         5 => {
@@ -695,20 +679,7 @@ pub(super) fn decode_call_source(
                 completion_receipts,
             })
         }
-        tag @ (2 | 4) => {
-            let assumption = if tag == 4 {
-                Some(target_vocabulary::InstalledAssumedBindingEvidence {
-                    required: decode_id(cursor, BoundaryMachineId::new)?,
-                    supplied_requirement: decode_id(cursor, BoundaryMachineId::new)?,
-                    selected_requirement: decode_id(cursor, BoundaryMachineId::new)?,
-                    implementation: decode_id(cursor, MachineId::new)?,
-                    supply_path: decode_list(cursor, |cursor| {
-                        decode_id(cursor, BoundaryMachineId::new)
-                    })?,
-                })
-            } else {
-                None
-            };
+        2 => {
             let boundary = decode_id(cursor, BoundaryMachineId::new)?;
             let provider = decode_provider(cursor, retain_projected_qualifications)?;
             let completion_claim_sources = decode_list(cursor, decode_completion_claim_source)?;
@@ -716,7 +687,6 @@ pub(super) fn decode_call_source(
             Ok(NativeCallOrigin::InstalledProvider {
                 boundary,
                 provider,
-                assumption,
                 completion_claim_sources,
                 completion_receipts,
             })
@@ -1213,12 +1183,14 @@ mod call_source_tests {
     use super::{Cursor, FixedViewCopyDecodeError, decode_call_source};
 
     #[test]
-    fn retired_target_family_tag_rejects_before_reading_payload() {
-        for payload in [&[3][..], &[3, 0xff, 0xff, 0xff][..]] {
-            assert_eq!(
-                decode_call_source(&mut Cursor::new(payload), true),
-                Err(FixedViewCopyDecodeError::UnknownCallSource(3)),
-            );
+    fn retired_call_origins_reject_before_reading_payload() {
+        for tag in [3, 4] {
+            for payload in [&[tag][..], &[tag, 0xff, 0xff, 0xff][..]] {
+                assert_eq!(
+                    decode_call_source(&mut Cursor::new(payload), true),
+                    Err(FixedViewCopyDecodeError::UnknownCallSource(tag)),
+                );
+            }
         }
     }
 }

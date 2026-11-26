@@ -163,9 +163,7 @@ impl PreparedBuildMachineEntry {
         let program = TerminalProgram::borrow(produced.view());
         let unselected = psi_provider_selections::admit_provider_execution_installation(
             produced.view(),
-            &[],
-            &[],
-        )
+            &[])
         .map_err(|error| format!("source invocation provider admission: {error:?}"))?;
         let layouts = Self::layout_supplies(produced, &unselected, target)?;
         let requirements = program

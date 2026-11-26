@@ -557,14 +557,6 @@ mod native {
             self.optimization_input.context()
         }
 
-        pub(crate) fn retain_admitted_assumed_bindings(
-            &mut self,
-            calls: Vec<operation_evidence::provider_calls::InstalledAssumedBindingEvidence>,
-        ) {
-            self.optimization_input
-                .retain_admitted_assumed_bindings(calls);
-        }
-
         pub(crate) fn retain_admitted_native_callbacks(
             &mut self,
             callbacks: provider_admission::AdmittedNativeCallbackCohort,

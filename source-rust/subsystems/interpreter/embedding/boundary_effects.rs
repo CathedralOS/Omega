@@ -4499,9 +4499,7 @@ pub struct TerminalEffectRejection {
     sponsor_exhausted: bool,
 }
 
-pub use psi_provider_selections::{
-    AdmittedAssumedBinding, AssumedBindingSelection, ProviderInstallationSelection,
-};
+pub use psi_provider_selections::ProviderInstallationSelection;
 pub use psi_target_layouts::{
     AdmittedTargetLayouts, TerminalTargetContext, admit_target_layouts, terminal_target_context,
 };
@@ -4516,7 +4514,6 @@ pub struct TerminalRuntimeSupplies {
     pub(crate) entry: Option<terminal_psi::TargetMachineCallable>,
     pub(crate) code_identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) supplies: BTreeMap<BoundaryMachineId, AdmittedBoundarySupply>,
-    pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) folded_constant_target: Option<String>,
     pub(crate) target_machines: Option<TerminalTargetContext>,
     pub(crate) target_layouts: Option<std::sync::Arc<AdmittedTargetLayouts>>,
@@ -4562,14 +4559,8 @@ impl From<&psi_provider_selections::AdmittedProviderSelections> for TerminalRunt
                 .map(|(boundary, machine)| {
                     (boundary, AdmittedBoundarySupply::CheckedProvider(machine))
                 })
-                .chain(selected.assumed_bindings().iter().map(|relationship| {
-                    (
-                        relationship.required,
-                        AdmittedBoundarySupply::CheckedProvider(relationship.implementation),
-                    )
-                }))
+
                 .collect(),
-            assumed_bindings: selected.assumed_bindings().to_vec(),
             folded_constant_target: selected.folded_constant_target().map(str::to_owned),
             target_machines: None,
             target_layouts: None,
@@ -4657,9 +4648,6 @@ impl TerminalRuntimeSupplies {
         self.code_identity.semantic()
     }
 
-    pub fn assumed_bindings(&self) -> &[AdmittedAssumedBinding] {
-        &self.assumed_bindings
-    }
 }
 
 impl TerminalEffectRejection {

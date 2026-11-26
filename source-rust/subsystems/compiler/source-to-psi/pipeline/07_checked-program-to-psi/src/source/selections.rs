@@ -419,7 +419,7 @@ mod tests {
         let view = produced.view();
         let root = view.module().entry.unwrap();
         let providers =
-            psi_provider_selections::admit_provider_execution_installation(view, &[], &[]).unwrap();
+            psi_provider_selections::admit_provider_execution_installation(view, &[]).unwrap();
         let closure = evaluation_admission::admit_declaration_selections(
             view, None, root, &providers, None, None,
         )
