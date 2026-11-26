@@ -1,8 +1,7 @@
 //! Record one commit's compiler speed on this host.
 //!
 //! The owner runs `omega-bench progress` from a checkout on each test machine
-//! so speed can be charted per main commit; `cargo xtask sweep` measures how
-//! many programs pass. The workload set is frozen in `WORKLOADS` and versioned
+//! so speed can be charted per main commit. The workload set is frozen in `WORKLOADS` and versioned
 //! by `BENCHMARK_SET`: change either and bump the set version, because a
 //! dashboard only compares rows of one set.
 //! Every process observation becomes one row; summaries are derived from rows.
