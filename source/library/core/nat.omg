@@ -14,17 +14,17 @@ use algebra.omg;
 // Public surface:
 // - plain `terminates by value` resolves here when the value has an unambiguous
 //   natural-number ranking
-// - `terminates by value -> Nat::Descending` spells the ranking explicitly
+// - `terminates by value -> |nat|::Nat::Descending` spells the ranking explicitly
 // - custom numeric-like domains define their own named `measure` rankings
 //   instead of pretending every ordering belongs directly to the data type
 
-machine Nat::Descending(value: u64) -> u64;
+public machine Nat::Descending(value: u64) -> u64;
 
 // The distance is zero at or beyond the limit.
-machine Nat::BoundedDistance(lower: u64, upper: u64) -> u64;
+public machine Nat::BoundedDistance(lower: u64, upper: u64) -> u64;
 
 // The cursor approaches the same bound on every recursive transfer.
-machine Nat::IncreasingTo(cursor: u64, limit: u64) -> u64;
+public machine Nat::IncreasingTo(cursor: u64, limit: u64) -> u64;
 
 // The core algebraic conformance surface: Nat EARNS ring canonicalization
 // (rearrange-mode) by conforming `CommutativeSemiring` machine-by-machine
