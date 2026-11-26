@@ -37,7 +37,7 @@ fn successive_builds_select_the_final_native_and_psi_entry() {
         return;
     };
     let first = build(r#"Build::build_entry(builder, "stages/configure.omg");"#);
-    let middle = build(r#"Build::build_entry(builder, "release.omg");"#);
+    let middle = build(r#"Build::build_entry(builder, "release.lock.omg");"#);
     let last = format!(
         r#"machine build(builder: @mutable Build) {{
             Build::application(builder, "staged");
@@ -50,7 +50,7 @@ fn successive_builds_select_the_final_native_and_psi_entry() {
         &[
             ("build.omg", &first),
             ("stages/configure.omg", &middle),
-            ("release.omg", &last),
+            ("release.lock.omg", &last),
         ],
         &["run", "--both"],
     );
@@ -74,7 +74,7 @@ fn a_successor_must_be_one_canonical_file_in_the_frozen_source_view() {
         assert!(!status.success(), "{report}");
         assert!(report.contains(reason), "{report}");
         if name == "absent.omg" {
-            assert!(report.contains("/absent.omg:"), "{report}");
+            assert!(report.contains("absent.omg:"), "{report}");
         }
     }
 }
