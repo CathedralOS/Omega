@@ -44,7 +44,7 @@ machine main() crashes Trap {
 
 const BUILD: &str = "machine build(builder: @mutable Build) {
     Build::application(builder, \"binder_properties\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
 ";
 

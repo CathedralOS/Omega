@@ -76,8 +76,8 @@ fn every_row_with_a_provable_entry_checks() {
 
 const CYCLE_BUILD: &str = r#"machine build(builder: @mutable Build) {
     Build::application(builder, "row_provider_cycle");
-    Build::bind(builder, windows_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::select_provider::<Source, WindowsSource>(builder, windows_x86_64);
     Build::select_provider::<Source, LinuxSource>(builder, linux_x86_64);
 }

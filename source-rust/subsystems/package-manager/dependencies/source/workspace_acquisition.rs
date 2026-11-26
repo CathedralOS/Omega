@@ -11,7 +11,7 @@ use super::{
     AcquiredBuildSource, BuildSourceAcquisitions, GitPackageSourceRequest, PackageSourceNavigation,
     PackageSourceSelectionEvidence,
 };
-use crate::declarations::dependencies::read::PackageSelection;
+use crate::declarations::dependencies::read::{DependencyPurpose, DependencyUse, PackageSelection};
 use crate::resolution::graph::PackageRootSourceRequest;
 use build_declarations::{BuildDeclaration, WorkspaceMemberPath};
 use build_execution::SourceBuildDeclaration;
@@ -21,20 +21,37 @@ use source_acquisition::{GitCommitId, GitTreeId, ImmutableSourceResolution, Loca
 use std::path::Path;
 use std::sync::Arc;
 
+/// The registration belongs to the Build that chose this successor. A source
+/// file can run more than once with different admitted inputs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CatalogPreparation {
+    pub ordinal: usize,
+    pub successor: build_declarations::BuildEntryPath,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CatalogInput {
+    pub preparation: Option<CatalogPreparation>,
+    pub purpose: DependencyPurpose,
+    pub ordinal: usize,
+    pub request: DependencyUse,
+    pub graph: Arc<super::ResolvedBuildSources>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceMemberObservation {
     declaration: SourceBuildDeclaration,
     pub(crate) source: super::PackageSourceCustody,
-    pub(crate) selections: Vec<build_execution::BuildDependencySelection>,
-    dependencies: Vec<Arc<super::ResolvedBuildSources>>,
+    pub(crate) inputs: Vec<CatalogInput>,
 }
 
 impl WorkspaceMemberObservation {
-    pub fn new(
+    pub(crate) fn new(
         acquired: &AcquiredBuildSource,
         declaration: SourceBuildDeclaration,
         result: &build_execution::BuildSourceResult<'_>,
         dependencies: Vec<Arc<super::ResolvedBuildSources>>,
+        mut inputs: Vec<CatalogInput>,
     ) -> Result<Self, String> {
         if Some(declaration.declaration()) != result.declaration()
             || result.demanded_sources().len() != dependencies.len()
@@ -49,20 +66,29 @@ impl WorkspaceMemberObservation {
         if acquired.source_capture() != declaration.source_capture() {
             return Err("workspace observation belongs to another source capture".into());
         }
+        let source = acquired.declare_source_result(result)?.custody;
+        for (demand, graph) in result.demanded_sources().iter().zip(dependencies) {
+            let request = source
+                .dependency_requests(demand.purpose)
+                .get(demand.request_ordinal)
+                .ok_or("catalog provider has no issued request")?;
+            inputs.push(CatalogInput {
+                preparation: None,
+                purpose: demand.purpose,
+                ordinal: demand.request_ordinal,
+                request: request.clone(),
+                graph,
+            });
+        }
         Ok(Self {
             declaration,
-            source: acquired.declare_source_result(result)?.custody,
-            selections: result.demanded_sources().to_vec(),
-            dependencies,
+            source,
+            inputs,
         })
     }
 
     pub fn declaration(&self) -> &SourceBuildDeclaration {
         &self.declaration
-    }
-
-    pub fn dependency_graphs(&self) -> &[Arc<super::ResolvedBuildSources>] {
-        &self.dependencies
     }
 }
 
@@ -231,17 +257,14 @@ impl BuildSourceAcquisitions<'_> {
         let declarations = super::git::workspace::git_workspace_declaration_limits();
         let recorded = self
             .options
-            .recorded(request.acquisition())
+            .exact_revision(request.acquisition())
             .map_err(|error| error.to_string())?;
         let source = if let Some(recorded) = recorded {
-            let ImmutableSourceResolution::Git { commit, tree, .. } = recorded.resolution else {
-                return Err("recorded Git catalog has a non-Git resolution".into());
-            };
             GitWorkspaceSession::open_at_revision(
                 self.storage,
                 request.acquisition(),
-                commit,
-                tree,
+                &recorded.commit,
+                recorded.tree.as_ref(),
                 recorded.acquisition,
                 limits,
                 declarations,

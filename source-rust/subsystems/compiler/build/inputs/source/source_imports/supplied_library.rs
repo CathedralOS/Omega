@@ -51,6 +51,7 @@ impl SuppliedBuildLibrary {
         }
         let request = BuildRequest::Dependency {
             purpose: DependencyPurpose::Build,
+            max_reach: dependency.max_reach.clone(),
             alias: Some(ProjectName::parse(&dependency.alias)?),
             source,
         };
@@ -65,6 +66,19 @@ impl SuppliedBuildLibrary {
             .generated
             .as_ref()
             .expect("the supplied library retains its checked handoff")
+    }
+
+    /// Defaults from this prepared library and the Products it acquired.
+    pub fn provider_defaults(
+        &self,
+    ) -> Result<
+        Vec<retained_product_selections::RetainedProviderSelection>,
+        Vec<diagnostics::Diagnostic>,
+    > {
+        let inputs = &self.dependency.inputs;
+        let mut defaults = inputs.admitted_provider_defaults(self.handoff())?;
+        defaults.extend(inputs.admitted_package_provider_selections(DependencyPurpose::Product)?);
+        Ok(defaults)
     }
 
     /// A library's own source keeps its Product edges. Only the receiving
@@ -134,6 +148,34 @@ impl SuppliedBuildLibrary {
             );
         }
         Ok(())
+    }
+
+    pub fn attenuated(
+        &self,
+        max_reach: &semantic_vocabulary::dependency_reach::DependencyReach,
+    ) -> Result<Self, String> {
+        if !max_reach.is_subset_of(self.max_reach()) {
+            return Err(format!(
+                "forwarded binding `{}` exceeds its incoming reach ceiling",
+                self.dependency.alias
+            ));
+        }
+        let mut forwarded = self.clone();
+        if let BuildRequest::Dependency {
+            max_reach: retained,
+            ..
+        } = &mut forwarded.request
+        {
+            *retained = max_reach.clone();
+        }
+        forwarded.dependency.max_reach = max_reach.clone();
+        Ok(forwarded)
+    }
+    pub fn max_reach(&self) -> &semantic_vocabulary::dependency_reach::DependencyReach {
+        let BuildRequest::Dependency { max_reach, .. } = &self.request else {
+            unreachable!("a supplied library records a dependency")
+        };
+        max_reach
     }
 
     pub fn request(&self) -> &BuildRequest {

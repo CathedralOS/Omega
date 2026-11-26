@@ -21,6 +21,7 @@ impl SourceHost<'_, '_> {
             libraries: self.supplied_libraries(acquired, supplied)?,
         };
         let mut path = entry.to_path_buf();
+        let mut preparations = Vec::new();
         loop {
             let execution =
                 self.session
@@ -46,11 +47,17 @@ impl SourceHost<'_, '_> {
             )?;
             self.session
                 .record_source_completion(stage.source_completion_accounting().clone());
-            if stage.returned().successor_entry().is_none() {
-                return Ok(ExecutedBuild { stage, requests });
-            }
+            let Some(next_entry) = stage.returned().successor_entry().cloned() else {
+                return Ok(ExecutedBuild {
+                    stage,
+                    requests,
+                    preparations,
+                });
+            };
             self.acquisitions.admit_successor()?;
-            let libraries = self.successor_libraries(acquired, stage.returned(), requests)?;
+            let (libraries, inputs) =
+                self.successor_inputs(acquired, stage.returned(), requests)?;
+            preparations.push((next_entry, inputs));
             let successor = stage.finish_successor(source, libraries)?;
             path = successor.path().to_owned();
             sources = PlanningSources::Successor(successor);

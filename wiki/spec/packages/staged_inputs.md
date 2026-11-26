@@ -6,8 +6,8 @@ project is the root or a dependency. A consumer can build a board package
 without knowing which libraries the board uses to configure itself.
 
 This page specifies the source-based replacement for the [version 4 project lock](locks.md).
-The Rust tools currently use the lock workflow. Successor plans and their
-package and provider selections are implementation work. The [binding and
+The Rust driver follows authored successor entries and forwards explicitly
+registered package bindings. Install and update still use the lock workflow. The [binding and
 admission rules](#binding-identity-and-admission) govern the staged workflow.
 
 ## From source to the next stage
@@ -36,7 +36,7 @@ machine build(build: @mutable Build) {
         "board", "https://example.org/board.git", "refs/heads/stable",
         "72bc01f59de8a314c60155e8c3b7474b261490fe"
     );
-    |dependency|::add(build, board, max_reach: []);
+    _ = |dependency|::add(build, board);
 }
 ```
 
@@ -50,7 +50,8 @@ machine build(build: @mutable Build) {
         "layout", "https://example.org/layout.git", "refs/heads/stable",
         "8e76d2a18f2ecb674b75670ab380aa1cf32f9d44"
     );
-    |dependency|::add(build, layout, max_reach: []);
+    let service_free: [BoundaryServiceRef; 0] = [];
+    _ = |dependency|::add(build, layout, @service_free[..]);
     Build::build_entry(build, "configure.omg");
 }
 ```
@@ -72,7 +73,7 @@ that package, the configuration stage explicitly forwards it:
 ```omega
 // In configure.omg, with use {omega}/build/dependency.omg;
 let layout_input: PackageBinding = |dependency|::input(build, "layout");
-|dependency|::add(build, layout_input, max_reach: []);
+_ = |dependency|::add(build, layout_input);
 ```
 
 `input` looks up an alias in this invocation's frozen incoming bindings.
@@ -143,9 +144,20 @@ dependency's own Build, and its eventual product have distinct execution
 contexts. In particular the CRC code can be service-free even when fetching
 its source required networking.
 
-For example, the intended registration shape for a service-free library is
-`|dependency|::add(build, checksum, max_reach: [])` (schematic spelling).
-The array carries exact reflected service identities and uses set semantics.
+The two-argument `|dependency|::add(build, checksum)` registers an empty
+ceiling. A third positional argument supplies a shared view of service
+references. Both forms accept a dependency description or a binding obtained
+from `|dependency|::input`. A forwarded binding's ceiling must fit its incoming
+ceiling.
+
+```omega
+let allowed: [BoundaryServiceRef; 1] = [Build::service::<Sensor<17u32>>(build)];
+_ = |dependency|::add(build, telemetry, @allowed[..]);
+```
+
+`Build::service::<S>(build)` reflects the concrete boundary application
+selected in the current Build scope. Copies retain the application identity.
+The array uses set semantics.
 Admission checks that the transitive reach attributable to this use is a
 subset of the normalized allowed set. Updating a source literal leaves that
 array as the consuming author wrote it. A full report may still highlight

@@ -15,11 +15,12 @@ use super::requests::{
 };
 use super::source::{read_key, read_source, write_key, write_source};
 use crate::declarations::dependencies::read::{
-    DependencyProjections, DependencyPurpose, DependencySourceRequest, ProjectedDependencies,
+    DependencyProjections, DependencyPurpose, DependencyUse, ProjectedDependencies,
 };
+use semantic_vocabulary::dependency_reach::DependencyReach;
 use target::TargetProfile;
 
-const TEXT_VERSION: usize = 5;
+const TEXT_VERSION: usize = 7;
 
 impl CanonicalSourceClosureSubject {
     pub fn canonical_text(&self, limits: Limits) -> Result<String, Error> {
@@ -58,20 +59,15 @@ impl CanonicalSourceClosureSubject {
             writer.row("package", &[])?;
             write_source(writer, package)?;
             write_navigation(writer, navigation)?;
-            writer.number(
-                "authored",
-                projection.product().authored_dependencies().len(),
-            )?;
-            for request in projection.product().authored_dependencies() {
-                write_request(writer, Request::from(request))?;
-            }
-
-            writer.number(
-                "authored-build",
-                projection.build().authored_dependencies().len(),
-            )?;
-            for request in projection.build().authored_dependencies() {
-                write_request(writer, Request::from(request))?;
+            for (label, scope) in [
+                ("authored", projection.product()),
+                ("authored-build", projection.build()),
+            ] {
+                writer.number(label, scope.authored_dependencies().len())?;
+                for request in scope.authored_dependencies() {
+                    write_request(writer, Request::from(&request.source))?;
+                    write_reach(writer, &request.max_reach)?;
+                }
             }
         }
         writer.number("edges", self.dependency_requests().len())?;
@@ -92,9 +88,15 @@ impl CanonicalSourceClosureSubject {
             writer.row("catalog-dependency", &[])?;
             write_source(writer, &dependency.observer)?;
             write_navigation(writer, &dependency.navigation)?;
+            writer.number("preparing", usize::from(dependency.preparation.is_some()))?;
+            if let Some(stage) = &dependency.preparation {
+                writer.number("stage", stage.ordinal)?;
+                writer.row("successor", &[stage.successor.as_str().as_bytes()])?;
+            }
             writer.number("ordinal", dependency.ordinal)?;
             writer.row("purpose", &[dependency.purpose.name().as_bytes()])?;
             write_request(writer, Request::from(&dependency.request))?;
+            write_reach(writer, &dependency.max_reach)?;
             dependency.provider.write_text(writer)?;
         }
 
@@ -155,10 +157,7 @@ impl CanonicalSourceClosureSubject {
             navigations.push(read_navigation(reader, limits)?);
             let product = read_authored_scope(reader, "authored", limits, &mut total_authored)?;
             let build = read_authored_scope(reader, "authored-build", limits, &mut total_authored)?;
-            projections.push(DependencyProjections::new(
-                ProjectedDependencies::from(product),
-                ProjectedDependencies::from(build),
-            ));
+            projections.push(DependencyProjections::new(product, build));
         }
         reader.expect("edges")?;
         let count = reader.count(limits.maximum_dependency_requests)?;
@@ -196,17 +195,33 @@ impl CanonicalSourceClosureSubject {
             reader.expect("catalog-dependency")?;
             let observer = read_source(reader, limits)?;
             let navigation = read_navigation(reader, limits)?;
+            reader.expect("preparing")?;
+            let preparation = if reader.number(1)? == 1 {
+                reader.expect("stage")?;
+                let ordinal = reader.number(u32::MAX as usize)?;
+                reader.expect("successor")?;
+                let successor = build_declarations::BuildEntryPath::parse(
+                    reader.string(limits.maximum_request_bytes)?,
+                )
+                .map_err(Error::new)?;
+                Some(crate::resolution::source::CatalogPreparation { ordinal, successor })
+            } else {
+                None
+            };
             reader.expect("ordinal")?;
             let ordinal = reader.number(u32::MAX as usize)?;
             let purpose = read_purpose(reader)?;
             let request = read_request(reader, limits)?;
+            let max_reach = read_reach(reader, limits)?;
             let provider = Self::read_text(reader, limits, false)?;
             catalog_dependencies.push(super::super::CanonicalCatalogDependency {
                 observer,
                 navigation,
+                preparation,
                 purpose,
                 ordinal,
                 request,
+                max_reach,
                 provider,
             });
         }
@@ -237,7 +252,7 @@ fn read_authored_scope(
     label: &str,
     limits: Limits,
     total_authored: &mut usize,
-) -> Result<Vec<DependencySourceRequest>, Error> {
+) -> Result<ProjectedDependencies, Error> {
     reader.expect(label)?;
     let authored_count = reader.count(limits.maximum_dependency_requests - *total_authored)?;
     *total_authored = total_authored
@@ -248,9 +263,38 @@ fn read_authored_scope(
     }
     let mut authored = reader.budget.reserve(authored_count)?;
     for _ in 0..authored_count {
-        authored.push(into_authored(read_request(reader, limits)?));
+        let source = into_authored(read_request(reader, limits)?);
+        authored.push(DependencyUse {
+            source,
+            max_reach: read_reach(reader, limits)?,
+        });
     }
-    Ok(authored)
+    Ok(ProjectedDependencies::issued(authored))
+}
+
+fn write_reach(writer: &mut Writer, reach: &DependencyReach) -> Result<(), Error> {
+    writer.number("max-reach", reach.services().count())?;
+    for service in reach.services() {
+        writer.row("service", &[service.as_bytes()])?;
+    }
+    Ok(())
+}
+
+fn read_reach(reader: &mut Reader<'_>, limits: Limits) -> Result<DependencyReach, Error> {
+    reader.expect("max-reach")?;
+    let count = reader.count(limits.maximum_record_bytes)?;
+    let mut identities = reader.budget.reserve::<String>(count)?;
+    for _ in 0..count {
+        reader.expect("service")?;
+        let identity = reader.string(limits.maximum_identity_bytes)?;
+        if identity.is_empty() || identities.last().is_some_and(|prior| prior >= &identity) {
+            return Err(Error::new(
+                "ceiling services require distinct, ordered application identities",
+            ));
+        }
+        identities.push(identity);
+    }
+    Ok(DependencyReach::from_checked_services(identities))
 }
 
 fn read_purpose(reader: &mut Reader<'_>) -> Result<DependencyPurpose, Error> {

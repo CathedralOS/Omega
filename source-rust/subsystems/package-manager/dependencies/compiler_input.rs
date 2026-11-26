@@ -93,30 +93,45 @@ impl<'closure> PackageCompilationScope<'closure> {
             })
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| vec![error])?;
-        let dependencies = closure
+        let mut dependencies = Vec::new();
+        for package in closure
             .graph()
             .packages()
             .iter()
             .filter(|package| reachable.contains(package.source().key()))
-            .flat_map(|package| {
-                let requester = package.source().key().identity();
-                package
-                    .dependencies()
-                    .iter()
-                    .filter(move |dependency| {
-                        dependency.purpose().is_product() || requester == root.identity()
-                    })
-                    .map(move |dependency| {
-                        PackageDependencyBinding::for_purpose(
-                            requester,
-                            dependency.alias().as_str(),
-                            dependency.target().identity(),
-                            dependency.purpose(),
-                        )
-                    })
-            })
-            .collect();
-
+        {
+            let requester = package.source().key().identity();
+            let custody = closure.custody(package.source().key()).ok_or_else(|| {
+                vec![PackageCompilationInputError::InvalidDependencyAcquisition {
+                    root: requester,
+                    reason: "dependency requester has no captured source".into(),
+                }]
+            })?;
+            for edge in package
+                .dependencies()
+                .iter()
+                .filter(|edge| edge.purpose().is_product() || requester == root.identity())
+            {
+                let issued = custody
+                    .dependency_requests(edge.purpose())
+                    .get(edge.dependency_index())
+                    .ok_or_else(|| {
+                        vec![PackageCompilationInputError::InvalidDependencyAcquisition {
+                            root: requester,
+                            reason: "selected source has no originating dependency request".into(),
+                        }]
+                    })?;
+                dependencies.push(
+                    PackageDependencyBinding::for_purpose(
+                        requester,
+                        edge.alias().as_str(),
+                        edge.target().identity(),
+                        edge.purpose(),
+                    )
+                    .with_max_reach(issued.max_reach.clone()),
+                );
+            }
+        }
         let root_role = if root == closure.graph().root() {
             closure.root_role()
         } else {
@@ -147,7 +162,8 @@ impl<'closure> PackageCompilationScope<'closure> {
             acquisitions.push(PackageDependencyAcquisition {
                 request_ordinal: dependency.dependency_index(),
                 request: request
-                    .build_request(dependency.purpose())
+                    .source
+                    .build_request(dependency.purpose(), request.max_reach.clone())
                     .map_err(invalid)?,
                 package: dependency.target().identity(),
             });

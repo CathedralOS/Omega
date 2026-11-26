@@ -144,6 +144,7 @@ The [command-line contract](../../wiki/spec/build/command_line.md) owns
 ratified subsystem routing and public **Psi** naming; the spellings below follow
 it. Flat `install`/`update`, action-first `audit`, and
 `inspect-terminal` are rejected, not aliases.
+`omega source parse` checks one file through the lexer and parser. Imported files may be absent.
 `omega source rewrite` is specified but not implemented, so the parser rejects
 it. Kept file names such as
 `program.oterm` are internal artifact names and do not change.
@@ -183,6 +184,7 @@ omega [--check] [--offline] [--timings]
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
 omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name>] [(--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
 omega psi inspect --machine <qualified> [--target <name>] <root.omg>
+omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
 omega packages audit --kind <local|git> <locator> [--rev <rev>]
 omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...

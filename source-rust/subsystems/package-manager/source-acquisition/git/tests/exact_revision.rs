@@ -14,6 +14,45 @@ mod retry;
 use fixtures::Fixture;
 
 #[test]
+fn an_authored_commit_supplies_its_authenticated_tree_offline() {
+    let mut fixture = Fixture::new("authored-exact-commit-offline");
+    fixture.request = local_git_request(&fixture.repository, &fixture.commit.to_hex());
+    let recover = |fixture: &Fixture| {
+        resolve_git_source_at_revision_in_lane(
+            fixture.storage.primary_git().unwrap(),
+            &fixture.request,
+            &fixture.commit,
+            None,
+            GitExactRevisionAcquisition::Offline,
+            fixture.storage.git_sources(),
+            LocalSourceLimits::default(),
+        )
+    };
+    assert!(matches!(
+        recover(&fixture),
+        Err(SourceResolveError::GitExactRevisionUnavailable { .. })
+    ));
+    let fetched = resolve_git_source_at_revision_in_lane(
+        fixture.storage.primary_git().unwrap(),
+        &fixture.request,
+        &fixture.commit,
+        None,
+        GitExactRevisionAcquisition::AllowFetch,
+        fixture.storage.git_sources(),
+        LocalSourceLimits::default(),
+    )
+    .unwrap();
+    fixture.disconnect();
+    let rebuilt = recover(&fixture).unwrap();
+    assert_eq!(rebuilt.commit(), fetched.commit());
+    assert_eq!(rebuilt.tree(), fetched.tree());
+    assert_eq!(
+        std::fs::read(rebuilt.snapshot_root().join("main.omg")).unwrap(),
+        b"machine Main::main() {}\n"
+    );
+}
+
+#[test]
 fn persisted_sha256_objects_fetch_cold_without_discovering_the_authored_selector() {
     let mut fixture = Fixture::with_format("exact-revision-sha256", Some("sha256"));
     assert_eq!(fixture.commit.algorithm(), GitObjectIdAlgorithm::Sha256);
@@ -98,7 +137,7 @@ fn warm_exact_recovery_enforces_current_source_limits() {
         fixture.storage.primary_git().unwrap(),
         &fixture.request,
         &fixture.commit,
-        &fixture.tree,
+        Some(&fixture.tree),
         GitExactRevisionAcquisition::Offline,
         fixture.storage.git_sources(),
         LocalSourceLimits {

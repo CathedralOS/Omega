@@ -42,7 +42,7 @@ impl PlannedProduct {
         let packages = self.package_inputs();
         let (defaults, native) = match packages {
             Some(inputs) => (
-                inputs.admitted_package_provider_selections()?,
+                inputs.admitted_package_provider_selections(build_declarations::DependencyPurpose::Product)?,
                 inputs.product_native_bindings()?,
             ),
             None => (Vec::new(), Vec::new()),
@@ -256,6 +256,15 @@ impl ProductStage<'_> {
         StageSource {
             parsed: Box::new(source.parsed.clone()),
             product: ProductSourceInputs {
+                dependency_edges: self
+                    .product
+                    .package_inputs()
+                    .into_iter()
+                    .flat_map(|inputs| {
+                        inputs
+                            .execution_service_edges(build_declarations::DependencyPurpose::Product)
+                    })
+                    .collect(),
                 declaration_scope: self.scope.clone(),
                 build_host: self.build_host,
                 build_accounting: Some(&self.product.evaluated().source_completion_accounting),

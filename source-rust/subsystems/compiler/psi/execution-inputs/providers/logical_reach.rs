@@ -182,3 +182,75 @@ pub fn close_providers(
         bindings = next;
     }
 }
+
+/// Install the checked bodies the source chose for this interpreter invocation.
+/// Physical backings and independently produced components require their own admission.
+pub fn admit_interpreted_providers(
+    artifact: terminal_codec::TerminalExecutionView<'_>,
+) -> Result<crate::AdmittedProviderSelections, Vec<Diagnostic>> {
+    use semantic_vocabulary::source_selections::{CompositionMode, ProductTarget};
+    use terminal_semantics::logical_providers::LogicalRealization;
+    let module = artifact.module();
+    let target = ProductTarget::Interpreter.canonical_name();
+    let mut selections = Vec::new();
+    if module
+        .interfaces
+        .provider_selections
+        .iter()
+        .any(|row| row.target == target)
+    {
+        let Some(semantic_vocabulary::TargetMachineCallable::Machine(entry)) = module.entry else {
+            return Err(vec![Diagnostic::error(
+                "an interpreted Build requires a checked machine entry",
+            )]);
+        };
+        let closure = close_providers(module, target, Some(entry), &[])?;
+        for provider in closure.selection().providers() {
+            let name = module
+                .identities
+                .text(provider.choice.provider_declaration)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "interpreter provider lost its declaration",
+                    )]
+                })?;
+            if provider.choice.composition_mode == CompositionMode::Independent {
+                return Err(vec![Diagnostic::error(format!(
+                    "interpreter provider `{name}` requires an admitted independent component"
+                ))]);
+            }
+            for row in &provider.rows {
+                let LogicalRealization::Checked(positions) = &row.realization else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "interpreter provider `{name}` has no admitted external backing for `{}`",
+                        row.requirement
+                    ))]);
+                };
+                for &position in positions {
+                    let candidate = &module.interfaces.provider_candidates[position];
+                    let identity = module
+                        .identities
+                        .text(candidate.provider_identity)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "interpreter provider lost its checked implementation identity",
+                            )]
+                        })?;
+                    selections.push(crate::ProviderInstallationSelection {
+                        boundary: candidate.boundary,
+                        candidate: candidate.candidate,
+                        provider_declaration: name.to_owned(),
+                        provider_identity: identity.to_owned(),
+                    });
+                }
+            }
+        }
+        selections.sort_unstable();
+        selections.dedup();
+    }
+    crate::admit_provider_execution_installation(artifact, &selections, &[]).map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "interpreter provider installation: {error:?}"
+        ))]
+    })
+}

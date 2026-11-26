@@ -45,6 +45,7 @@ pub(crate) mod compile;
 pub(crate) mod inspect;
 pub(crate) mod packages;
 pub(crate) mod run;
+mod source;
 
 pub(crate) use audit::SourceArguments;
 pub(crate) use compile::CompileArguments;
@@ -63,6 +64,7 @@ pub(crate) const USAGE_ERROR_EXIT: u8 = 64;
 pub(crate) enum Invocation {
     Compile(CompileArguments),
     Run(RunArguments),
+    ParseSource(std::path::PathBuf),
     InspectTerminal(InspectTerminalArguments),
     Package {
         command: PackageCommand,
@@ -75,7 +77,20 @@ pub(crate) enum Invocation {
     Version,
 }
 
-const SOURCE_REWRITE_USAGE: &str = "usage: omega source rewrite <ExactRule>... [--check] <root.omg>\nSource rewriting is specified and not implemented by this compiler.";
+#[derive(Debug)]
+pub(crate) struct UsageError {
+    pub message: String,
+    pub exit: u8,
+}
+
+impl From<String> for UsageError {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            exit: USAGE_ERROR_EXIT,
+        }
+    }
+}
 
 struct Arguments {
     remaining: VecDeque<OsString>,
@@ -109,7 +124,7 @@ impl Arguments {
 
 pub(crate) fn parse(
     tokens: impl Iterator<Item = OsString>,
-) -> Result<(Invocation, DiagnosticOutput), String> {
+) -> Result<(Invocation, DiagnosticOutput), UsageError> {
     let mut arguments = Arguments::new(tokens);
     let command = parse_command(&mut arguments)?;
     Ok((
@@ -120,12 +135,12 @@ pub(crate) fn parse(
     ))
 }
 
-fn parse_command(arguments: &mut Arguments) -> Result<Invocation, String> {
+fn parse_command(arguments: &mut Arguments) -> Result<Invocation, UsageError> {
     let first = arguments.next_argument();
     match first.as_deref().and_then(std::ffi::OsStr::to_str) {
         Some("packages") => parse_packages_subsystem(arguments),
         Some("psi") => parse_psi_subsystem(arguments),
-        Some("source") => parse_source_subsystem(arguments),
+        Some("source") => return source::parse(arguments),
         Some("build") => finish_subcommand(
             compile::parse_arguments(arguments).and_then(|request| {
                 if request
@@ -150,7 +165,7 @@ fn parse_command(arguments: &mut Arguments) -> Result<Invocation, String> {
         Some("--help" | "-h" | "help") => Ok(Invocation::Help(compile::USAGE)),
         Some("--version" | "-V") => {
             if arguments.next_argument().is_some() {
-                return Err("omega --version takes no arguments".to_owned());
+                return Err("omega --version takes no arguments".to_owned().into());
             }
             Ok(Invocation::Version)
         }
@@ -165,6 +180,7 @@ fn parse_command(arguments: &mut Arguments) -> Result<Invocation, String> {
             )
         }
     }
+    .map_err(UsageError::from)
 }
 
 fn parse_trusted_artifact(
@@ -228,8 +244,11 @@ fn parse_package(
 }
 
 fn parse_packages_subsystem(arguments: &mut Arguments) -> Result<Invocation, String> {
-    let action = arguments.next_argument();
-    match action.as_deref().and_then(std::ffi::OsStr::to_str) {
+    let Some(action) = arguments.next_argument() else {
+        return Ok(Invocation::Help(packages::GUIDE));
+    };
+    match action.to_str() {
+        Some("help") => packages::guide(arguments).map(Invocation::Help),
         Some("install") => parse_package(PackageCommandKind::Install, arguments),
         Some("update") => parse_package(PackageCommandKind::Update, arguments),
         Some("audit") => {
@@ -244,11 +263,8 @@ fn parse_packages_subsystem(arguments: &mut Arguments) -> Result<Invocation, Str
         }
         Some("--help" | "-h") => Ok(Invocation::Help(packages::USAGE)),
         _ => {
-            let error = action.map_or_else(
-                || "missing packages command\n".to_owned(),
-                |action| format!("unknown packages command `{}`\n", action.to_string_lossy()),
-            );
-            Err(format!("{error}{}", packages::USAGE))
+            let name = action.to_string_lossy();
+            Err(format!("unknown packages command `{name}`\n{}", packages::USAGE))
         }
     }
 }
@@ -269,32 +285,6 @@ fn parse_psi_subsystem(arguments: &mut Arguments) -> Result<Invocation, String> 
             );
             Err(format!("{error}{}", inspect::USAGE))
         }
-    }
-}
-
-fn parse_source_subsystem(arguments: &mut Arguments) -> Result<Invocation, String> {
-    let mut help = false;
-    let mut action = None;
-    while let Some(argument) = arguments.next_argument() {
-        if argument == "--help" || argument == "-h" {
-            help = true;
-            continue;
-        }
-        if action.is_none() && !argument.as_encoded_bytes().starts_with(b"-") {
-            action = Some(argument);
-        }
-    }
-    if help {
-        return Ok(Invocation::Help(SOURCE_REWRITE_USAGE));
-    }
-    match action.as_deref().and_then(std::ffi::OsStr::to_str) {
-        Some("rewrite") => Err(format!(
-            "omega source rewrite is not implemented\n{SOURCE_REWRITE_USAGE}"
-        )),
-        Some(other) => Err(format!(
-            "unknown source command `{other}`\n{SOURCE_REWRITE_USAGE}"
-        )),
-        None => Err(format!("missing source command\n{SOURCE_REWRITE_USAGE}")),
     }
 }
 
@@ -369,7 +359,9 @@ mod tests {
     use std::ffi::OsString;
 
     fn parse_slice(arguments: &[&str]) -> Result<Invocation, String> {
-        parse(arguments.iter().map(OsString::from)).map(|(command, _)| command)
+        parse(arguments.iter().map(OsString::from))
+            .map(|(command, _)| command)
+            .map_err(|error| error.message)
     }
 
     #[test]
@@ -429,6 +421,9 @@ mod tests {
             &["psi", "-h"],
             &["psi", "inspect", "--help"],
             &["psi", "inspect", "-h"],
+            &["packages"],
+            &["packages", "help", "add"],
+            &["packages", "help", "update"],
             &["packages", "--help"],
             &["packages", "-h"],
             &["packages", "install", "--help"],

@@ -57,7 +57,7 @@ impl Fixture {
             self.storage.primary_git().unwrap(),
             &self.request,
             commit,
-            tree,
+            Some(tree),
             mode,
             self.storage.git_sources(),
             LocalSourceLimits::default(),

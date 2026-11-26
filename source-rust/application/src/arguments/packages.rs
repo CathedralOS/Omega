@@ -5,7 +5,41 @@ use package_compilation::BuildSourceCaptureRequest;
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
 use std::path::PathBuf;
 
-pub(super) const USAGE: &str = "usage: omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] ...\n       omega packages update [package-or-alias...] [--to <revision>] ...\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] ...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\nRun `omega packages <install|update|audit> --help` for that command's options.";
+pub(super) const USAGE: &str = "usage: omega packages help <add|update>\n       omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] ...\n       omega packages update [package-or-alias...] [--to <revision>] ...\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] ...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\nRun `omega packages <install|update|audit> --help` for that command's options.";
+
+pub(super) const GUIDE: &str = "Declare each direct dependency in the Build that consumes it.
+Run `omega packages help add` to add a dependency in source.
+Run `omega packages help update` to check a candidate and edit its revision.
+Run `omega packages --help` for audit and lock-based commands.";
+
+pub(super) fn guide(arguments: &mut super::Arguments) -> Result<&'static str, String> {
+    let Some(topic) = arguments.next_argument() else {
+        return Ok(GUIDE);
+    };
+    if arguments.next_argument().is_some() {
+        return Err("usage: omega packages help <add|update>".into());
+    }
+    match topic.to_str() {
+        Some("add") => Ok(r#"Choose the Build that supplies the dependency to its immediate product.
+For an interpreted helper, register it before Build::build_entry. For application code, register it in the Build that describes the application.
+
+use {omega}/build/dependencies/providers/git.omg as git;
+
+machine build(build: @mutable Build) {
+    Build::package(build, "board");
+    let layout: DependencyDescription = |git|::dependency(
+        "layout", "https://example.org/layout.git", "refs/heads/stable",
+        "8e76d2a18f2ecb674b75670ab380aa1cf32f9d44");
+    _ = Build::dependency(build, layout);
+}
+
+Replace the example repository and commit with the verified upstream revision. Import the library in that product with `use {layout}/api.omg;`. This example uses a service-free library."#),
+        Some("update") => Ok("Find the executed Git declaration in the consuming Build. Resolve its tracking reference with Git and verify the candidate commit. Replace the revision argument in that call, keeping the alias and reach ceiling intact.
+If several calls or branches match, show their filenames, locations and proposed edits so the author can choose the occurrence.
+Run `omega build build.omg` on the candidate. Use `omega packages audit` to inspect the selected project and target. A historical comparison requires the old inputs or a comparable recorded result."),
+        _ => Err("usage: omega packages help <add|update>".into()),
+    }
+}
 
 pub(super) fn usage(kind: &PackageCommandKind) -> &'static str {
     match kind {

@@ -698,7 +698,9 @@ mod calls {
         let operand_route = build_operand_route(symbols, target, target_symbol);
         for (index, argument) in machine_arguments.iter_mut().enumerate() {
             match operand_route {
-                Some(BuildOperation::ProviderReadiness) if index == 0 => {
+                Some(BuildOperation::ProviderReadiness | BuildOperation::ServiceDescription)
+                    if index == 0 =>
+                {
                     let mut application = argument.application.take();
                     assign_provider_selection_argument_symbol(symbols, argument, true);
                     if let Some(application) = &mut application {

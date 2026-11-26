@@ -1,6 +1,6 @@
 use crate::contracts::signatures::parse_signature_clauses;
+use crate::declarations::machine_bodies::parse_body;
 use crate::declarations::operators::parse_operator_spelling;
-use crate::machine_bodies::parse_body;
 use crate::parameters::callable::{parse_optional_return_type, parse_parameter};
 use crate::parameters::generics::GenericParameterSyntax;
 use crate::parameters::generics::parse_generic_parameters;

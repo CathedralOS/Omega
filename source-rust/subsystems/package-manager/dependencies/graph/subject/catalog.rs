@@ -11,11 +11,21 @@ use super::{
     CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,
 };
 use super::{request_view::Request, usage::Budget};
-use crate::declarations::BuildDeclarationKind;
-#[cfg(test)]
 use crate::declarations::dependencies::read::DependencyPurpose;
+use crate::declarations::{BuildDeclarationKind, PackageKey};
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceIdentity};
 use std::iter::once;
+
+impl CanonicalCatalogDependency {
+    fn coordinate(&self) -> (&PackageKey, Option<usize>, DependencyPurpose, usize) {
+        (
+            self.observer.key(),
+            self.preparation.as_ref().map(|stage| stage.ordinal),
+            self.purpose,
+            self.ordinal,
+        )
+    }
+}
 
 pub(super) fn project(
     target: &ExactTargetPackageSourceClosure<'_>,
@@ -28,16 +38,9 @@ pub(super) fn project(
         position += 1;
         for custody in closure.custodies() {
             for observation in custody.selection_evidence().observations() {
-                for (selection, graph) in observation
-                    .selections
-                    .iter()
-                    .zip(observation.dependency_graphs())
-                {
+                for input in &observation.inputs {
+                    let graph = &input.graph;
                     let observer = &observation.source;
-                    let request = observer
-                        .dependency_requests(selection.purpose)
-                        .get(selection.request_ordinal)
-                        .ok_or_else(|| Error::new("catalog provider has no issued request"))?;
                     let provider = CanonicalSourceClosureSubject::from_resolved_without_catalog(
                         &graph.closure.for_exact_target(target.target_profile()),
                         limits,
@@ -48,16 +51,17 @@ pub(super) fn project(
                             observer.resolution().clone(),
                         ),
                         navigation: observer.navigation().clone(),
-                        purpose: selection.purpose,
-                        ordinal: selection.request_ordinal,
-                        request: CanonicalDependencySourceRequest::from(request),
+                        preparation: input.preparation.clone(),
+                        purpose: input.purpose,
+                        ordinal: input.ordinal,
+                        request: CanonicalDependencySourceRequest::from(&input.request.source),
+                        max_reach: input.request.max_reach.clone(),
                         provider,
                     };
-                    if let Some(previous) = dependencies.iter().find(|previous| {
-                        previous.observer.key() == dependency.observer.key()
-                            && previous.purpose == dependency.purpose
-                            && previous.ordinal == dependency.ordinal
-                    }) {
+                    if let Some(previous) = dependencies
+                        .iter()
+                        .find(|previous| previous.coordinate() == dependency.coordinate())
+                    {
                         if previous != &dependency {
                             return Err(Error::new(
                                 "catalog observations disagree on executed source custody",
@@ -74,13 +78,7 @@ pub(super) fn project(
             }
         }
     }
-    dependencies.sort_by(|left, right| {
-        left.observer
-            .key()
-            .cmp(right.observer.key())
-            .then(left.purpose.cmp(&right.purpose))
-            .then(left.ordinal.cmp(&right.ordinal))
-    });
+    dependencies.sort_by(|left, right| left.coordinate().cmp(&right.coordinate()));
     Ok(dependencies)
 }
 
@@ -110,17 +108,21 @@ pub(super) fn validate(
             .checked_add(dependency.provider.dependency_requests.len() + 1)
             .filter(|count| *count <= limits.maximum_dependency_requests)
             .ok_or_else(|| Error::new("catalog execution exceeds its dependency limit"))?;
-        if previous.is_some_and(|previous| {
-            (previous.observer.key(), previous.purpose, previous.ordinal)
-                >= (
-                    dependency.observer.key(),
-                    dependency.purpose,
-                    dependency.ordinal,
-                )
-        }) {
-            return Err(Error::new(
-                "catalog dependencies are not in strict canonical order",
-            ));
+        if let Some(previous) = previous {
+            if previous.coordinate() >= dependency.coordinate() {
+                return Err(Error::new(
+                    "catalog dependencies are not in strict canonical order",
+                ));
+            }
+            if previous.observer.key() == dependency.observer.key()
+                && let (Some(left), Some(right)) = (&previous.preparation, &dependency.preparation)
+                && left.ordinal == right.ordinal
+                && left.successor != right.successor
+            {
+                return Err(Error::new(
+                    "the same catalog Build returned different successor entries",
+                ));
+            }
         }
         previous = Some(dependency);
         validate_source_identity(&dependency.observer, limits.maximum_identity_bytes)?;
@@ -143,8 +145,9 @@ pub(super) fn validate(
             selected: selected.clone(),
         };
         for graph in once(subject).chain(dependencies.iter().map(|entry| &entry.provider)) {
-            if ResolvedSourceIdentity::index_in(&graph.packages, dependency.observer.key())
-                .is_some()
+            if dependency.preparation.is_none()
+                && ResolvedSourceIdentity::index_in(&graph.packages, dependency.observer.key())
+                    .is_some()
                 && !graph
                     .dependency_requests
                     .iter()
@@ -257,8 +260,13 @@ mod tests {
             navigation: PackageSourceNavigation::Member(
                 source_acquisition::SourceRelativePath::parse("unselected").unwrap(),
             ),
+            preparation: None,
             purpose: DependencyPurpose::Build,
             ordinal: 0,
+            max_reach:
+                semantic_vocabulary::dependency_reach::DependencyReach::from_checked_services([
+                    "example::Telemetry".to_owned(),
+                ]),
             request: CanonicalDependencySourceRequest::Git {
                 explicit_alias: None,
                 repository: "https://catalog.invalid/helper.git".into(),
@@ -291,11 +299,18 @@ mod tests {
             )
             .unwrap();
         let text = subject.canonical_text(Limits::default()).unwrap();
-        assert!(text.starts_with("omega-source-closure 5\n"));
+        assert!(text.starts_with("omega-source-closure 7\n"));
         assert!(text.contains("ordinal 0\npurpose \"product\"\n"));
         let recovered =
             CanonicalSourceClosureSubject::recover_text(&text, Limits::default()).unwrap();
         assert_eq!(recovered, subject);
+        let mut narrowed = recovered.clone();
+        narrowed.catalog_dependencies[0].max_reach = Default::default();
+        assert!(!recovered.same_source_graph(&narrowed));
+        let narrowed_text = narrowed.canonical_text(Limits::default()).unwrap();
+        let narrowed =
+            CanonicalSourceClosureSubject::recover_text(&narrowed_text, Limits::default()).unwrap();
+        assert_ne!(recovered.fingerprint(), narrowed.fingerprint());
         assert_eq!(recovered.packages().len(), 1);
         assert_eq!(recovered.catalog_dependencies.len(), 2);
         assert!(!previous.same_source_graph(&subject));
@@ -307,7 +322,7 @@ mod tests {
         );
         assert!(
             CanonicalSourceClosureSubject::recover_text(
-                &text.replace("omega-source-closure 5", "omega-source-closure 3"),
+                &text.replace("omega-source-closure 7", "omega-source-closure 3"),
                 Limits::default()
             )
             .is_err()
@@ -318,10 +333,17 @@ mod tests {
     fn catalog_execution_roundtrip_preserves_product_roster_and_helper_pin() {
         let subject = catalog_graph();
         let text = subject.canonical_text(Limits::default()).unwrap();
-        assert!(text.starts_with("omega-source-closure 5\n"));
+        assert!(text.starts_with("omega-source-closure 7\n"));
         let recovered =
             CanonicalSourceClosureSubject::recover_text(&text, Limits::default()).unwrap();
         assert_eq!(recovered, subject);
+        let mut narrowed = recovered.clone();
+        narrowed.catalog_dependencies[0].max_reach = Default::default();
+        assert!(!recovered.same_source_graph(&narrowed));
+        let narrowed_text = narrowed.canonical_text(Limits::default()).unwrap();
+        let narrowed =
+            CanonicalSourceClosureSubject::recover_text(&narrowed_text, Limits::default()).unwrap();
+        assert_ne!(recovered.fingerprint(), narrowed.fingerprint());
         assert_eq!(
             recovered.packages().len(),
             1,
@@ -340,9 +362,9 @@ mod tests {
         let request =
             GitSourceRequest::new("https://catalog.invalid/helper.git", Some("main".into()))
                 .unwrap();
-        let recorded = options.recorded(&request).unwrap().unwrap();
+        let recorded = options.exact_revision(&request).unwrap().unwrap();
         assert_eq!(
-            recorded.resolution,
+            &ImmutableSourceResolution::git(recorded.commit, recorded.tree.unwrap()).unwrap(),
             subject.catalog_dependencies[0]
                 .provider
                 .root
@@ -385,15 +407,52 @@ mod tests {
     }
 
     #[test]
+    fn repeated_catalog_stages_keep_their_own_registration_ordinals() {
+        let first_graph = catalog_graph();
+        let mut first = first_graph.catalog_dependencies[0].clone();
+        let successor = build_declarations::BuildEntryPath::parse("step.omg".into()).unwrap();
+        first.preparation = Some(crate::resolution::source::CatalogPreparation {
+            ordinal: 0,
+            successor: successor.clone(),
+        });
+        let mut second = first.clone();
+        second.preparation = Some(crate::resolution::source::CatalogPreparation {
+            ordinal: 1,
+            successor,
+        });
+        let build = |requests| {
+            source_graph("selected", "https://catalog.invalid/workspace.git")
+                .with_catalog_dependencies(
+                    requests,
+                    Limits::default(),
+                    &mut Budget::new(usize::MAX),
+                )
+        };
+        let subject = build(vec![first.clone(), second.clone()]).unwrap();
+        let text = subject.canonical_text(Limits::default()).unwrap();
+        assert_eq!(
+            CanonicalSourceClosureSubject::recover_text(&text, Limits::default()).unwrap(),
+            subject
+        );
+        assert!(!subject.same_source_graph(&first_graph));
+        second.preparation.as_mut().unwrap().ordinal = 0;
+        assert!(build(vec![first.clone(), second.clone()]).is_err());
+        second.ordinal = 1;
+        second.preparation.as_mut().unwrap().successor =
+            build_declarations::BuildEntryPath::parse("other.omg".into()).unwrap();
+        assert!(build(vec![first, second]).is_err());
+    }
+
+    #[test]
     fn catalog_free_subject_uses_the_current_identity() {
         let subject = source_graph("selected", "https://catalog.invalid/workspace.git");
         let text = subject.canonical_text(Limits::default()).unwrap();
-        assert!(text.starts_with("omega-source-closure 5\n"));
+        assert!(text.starts_with("omega-source-closure 7\n"));
         assert!(text.contains("authored-build 0\n"));
         assert!(text.ends_with("catalog-dependencies 0\nend\n"));
-        for retired in 1..=4 {
+        for retired in 1..7 {
             let old = text.replacen(
-                "omega-source-closure 5",
+                "omega-source-closure 7",
                 &format!("omega-source-closure {retired}"),
                 1,
             );

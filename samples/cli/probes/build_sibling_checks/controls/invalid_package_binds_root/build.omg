@@ -3,5 +3,5 @@
 
 machine build(builder: @mutable Build) {
     Build::package(builder, "invalid_package_binds_root");
-    Build::bind(builder, linux_x86_64\ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
 }

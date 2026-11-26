@@ -4,7 +4,7 @@
 mod requests;
 #[path = "provider_declarations/retained.rs"]
 mod retained;
-pub(crate) use retained::{capture_provider_selection, rejoin_provider_defaults};
+pub(crate) use retained::{capture_provider_selection, rejoin_in_scope, rejoin_provider_defaults};
 #[cfg(test)]
 #[path = "provider_declarations/tests.rs"]
 mod tests;

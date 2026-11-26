@@ -241,10 +241,11 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         {
             return Err("issued Build requests exceed the package resolution limit".into());
         }
-        let request = projected
+        let request = &projected
             .requests(purpose)
             .get(ordinal)
-            .ok_or("Build dependency occurrence has not been issued")?;
+            .ok_or("Build dependency occurrence has not been issued")?
+            .source;
         let origin = requester.acquisition_origin();
         if let Some(subject) = self.locked_source {
             admit_locked_issued_source_request(subject, origin, purpose, ordinal, request)?;
@@ -365,7 +366,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         }
         let recorded = self
             .options
-            .recorded(request)
+            .exact_revision(request)
             .map_err(|error| error.to_string())?;
         self.storage
             .verify_path_identity()
@@ -375,14 +376,11 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             .primary_git()
             .map_err(|error| error.to_string())?;
         let source = if let Some(recorded) = recorded {
-            let ImmutableSourceResolution::Git { commit, tree, .. } = recorded.resolution else {
-                return Err("recorded Git source has a non-Git resolution".into());
-            };
             resolve_git_source_at_revision_in_lane(
                 primary_git,
                 request,
-                commit,
-                tree,
+                &recorded.commit,
+                recorded.tree.as_ref(),
                 recorded.acquisition,
                 self.storage.git_sources(),
                 limits,

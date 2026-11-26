@@ -5,7 +5,7 @@ the driver that reads one body statement by statement.
 */
 
 use crate::body::Qualification;
-use crate::selection_questions::TransitionRead;
+use crate::publication::selection_questions::TransitionRead;
 use crate::source_state::machine::{Machine, MachineBodyStatus, MachinePurpose};
 use crate::source_state::signature::{SignatureContractKind, StateParameter, StateSignature};
 use crate::source_state::state::State;
@@ -302,7 +302,7 @@ impl<'t> Program<'t> {
             return Err(invalid());
         }
         let lowered =
-            crate::declaration_references::LoweredSymbols::new(self.symbols.values().copied())
+            crate::declare::references::LoweredSymbols::new(self.symbols.values().copied())
                 .ok_or_else(invalid)?;
         // The closure and every witness of this program ask the same walk.
         let references = self.shared.declaration_references(self.typed);
@@ -4715,7 +4715,7 @@ impl<'t> Program<'t> {
                     let mut expression = self.expression(id, &slots, *expression, expected)?;
                     // The expression is the whole statement, or the machine's
                     // terminal expression: both are suspension positions.
-                    crate::operational::boundary(&mut expression);
+                    crate::lower::operational::boundary(&mut expression);
                     match (last, signature.result) {
                         (true, Some(result)) => {
                             if !self.agrees(expression.result, Some(result)) {

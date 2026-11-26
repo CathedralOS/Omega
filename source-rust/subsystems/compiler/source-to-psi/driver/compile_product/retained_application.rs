@@ -40,6 +40,32 @@ pub(super) fn capture(
     })
 }
 
+/// Find the declared file among the selected sources of the receiving program.
+/// A named package can supply its Product to an interpreted Build; the receiver
+/// checks that file again in its Build scope. Keep its owner, bytes, origin and
+/// location fixed across that transition.
+pub(super) fn receiving_file<'a>(
+    files: &'a crate::source_inputs::SourceMap,
+    original: &source_admission::SourceFile,
+    scope: source_provenance::DependencyScope,
+) -> Option<&'a source_admission::SourceFile> {
+    use source_provenance::DependencyScope;
+    let mut expected = original.clone();
+    if scope == DependencyScope::Build
+        && original.dependency_scope == DependencyScope::Product
+        && (original.package_identity.is_some() || original.origin.is_toolchain())
+    {
+        expected.dependency_scope = scope;
+    }
+    let mut matching = files
+        .selected_files()
+        .filter(|file| file.continues_capture_of(&expected));
+    match (matching.next(), matching.next()) {
+        (Some(file), None) => Some(file),
+        _ => None,
+    }
+}
+
 /// Use the receiving program's declaration locations to rebuild the application
 /// and check its identity.
 pub(super) fn prepare(
@@ -48,13 +74,14 @@ pub(super) fn prepare(
     role: ProductOperandRole,
     declaration: SymbolHandle,
     authored_path: &str,
+    scope: source_provenance::DependencyScope,
 ) -> Result<Handle<ProductOperandApplication>, Diagnostic> {
+    let files = program.symbols.source_map().ok_or_else(|| {
+        Diagnostic::error("retained application lost its receiving source inventory")
+    })?;
     let own = |span: source_text::SourceSpan| -> Option<source_text::SourceSpan> {
         let file = retained.sources.get(span.source_id)?;
-        let here = program
-            .symbols
-            .source_files()
-            .find(|own| own.path == file.path)?;
+        let here = receiving_file(&files, file, scope)?;
         Some(source_text::SourceSpan::new(here.source_id, span.span))
     };
     let mut graph = retained.graph.clone();

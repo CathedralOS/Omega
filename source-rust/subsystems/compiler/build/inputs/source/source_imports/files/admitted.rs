@@ -31,6 +31,7 @@ struct AdmittedFileAlias<'a> {
     source: SourceId,
     span: source_text::Span,
     alias: &'a str,
+    package_alias: Option<&'a str>,
     owner: FileOwner,
     filename: &'a str,
 }
@@ -136,20 +137,29 @@ fn bind_admitted(
             Some(files) => files.resolve(import, filesystem)?,
             None => None,
         };
+        let dependency = match &import.owner {
+            FileOwner::Package(package) => import
+                .package_alias
+                .filter(|alias| *alias != "omega")
+                .map(|alias| (alias, *package)),
+            FileOwner::Root(_) => None,
+        };
         match (target, &use_site) {
             (None, ImportUse::GeneratedProduct) => {
                 return Err(import.error(format!("no admitted logical file `{}`", import.filename)));
             }
             (None, ImportUse::BuildProductOperand) => continue,
-            (Some(target), ImportUse::BuildProductOperand) => {
-                bindings.push(SourceScopedTopLevelBinding::product_file_import(
+            (Some(target), ImportUse::BuildProductOperand) => bindings.push(
+                SourceScopedTopLevelBinding::product_file_import(
                     import.source,
                     target,
                     import.alias,
-                ))
-            }
+                )
+                .from_dependency(dependency),
+            ),
             (Some(target), ImportUse::GeneratedProduct) => bindings.push(
-                SourceScopedTopLevelBinding::file_import(import.source, target, import.alias),
+                SourceScopedTopLevelBinding::file_import(import.source, target, import.alias)
+                    .from_dependency(dependency),
             ),
         }
     }
@@ -185,6 +195,7 @@ pub(crate) fn generated_file_imports(
                 source: unit.source_id,
                 span: import.span,
                 alias: file.alias,
+                package_alias: file.root,
                 owner,
                 filename,
             });
@@ -217,7 +228,9 @@ pub(crate) fn build_product_file_imports(
                 continue;
             };
             // Build-only toolchain files are bound directly to their admitted prelude unit.
-            if !import.only_product_operands && build_declarations::build_file_namespace(root.as_deref(), path).is_some() {
+            if !import.only_product_operands
+                && build_declarations::build_file(root.as_deref(), path).is_some()
+            {
                 continue;
             }
             let (owner, filename) = match root.as_deref() {
@@ -245,6 +258,7 @@ pub(crate) fn build_product_file_imports(
                 source: roots.source_id,
                 span: import.span,
                 alias,
+                package_alias: root.as_deref(),
                 owner,
                 filename,
             });

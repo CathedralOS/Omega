@@ -515,7 +515,7 @@ fn git_object_authentication_rejects_mismatched_bytes_and_edges() {
     assert!(matches!(
         authenticate_git_commit_payload(
             "0000000000000000000000000000000000000000",
-            tree,
+            Some(tree),
             commit_payload.as_bytes()
         ),
         Err(SourceResolveError::GitObjectInvalid { .. })
@@ -523,7 +523,7 @@ fn git_object_authentication_rejects_mismatched_bytes_and_edges() {
     assert!(matches!(
         authenticate_git_commit_payload(
             commit,
-            "1111111111111111111111111111111111111111",
+            Some("1111111111111111111111111111111111111111"),
             commit_payload.as_bytes()
         ),
         Err(SourceResolveError::GitObjectInvalid { .. })

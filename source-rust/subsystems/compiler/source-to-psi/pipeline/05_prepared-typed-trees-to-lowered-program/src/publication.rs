@@ -1,5 +1,11 @@
 //! Source correspondence retained by the driver, outside Terminal judgments.
 
+pub(crate) mod calling;
+pub(crate) mod claims;
+pub(crate) mod proof_scope;
+pub(crate) mod reach;
+pub mod selection_questions;
+
 use crate::Elaboration;
 use semantic_vocabulary::MachineId;
 
@@ -10,7 +16,7 @@ pub use lowered_source_publication::{
 
 pub(crate) struct PreparedProgram<'source> {
     pub program: Elaboration,
-    pub outcomes: arena::IdTable<MachineId, crate::outcome::Outcome>,
+    pub outcomes: arena::IdTable<MachineId, crate::body::outcome::Outcome>,
     pub source: SourceFormCorrespondence,
     pub selected_calls: Vec<crate::compilation::SelectedSourceCall<'source>>,
     pub prepared_applications: Vec<(MachineId, crate::declare::PreparedApplication)>,
@@ -26,7 +32,7 @@ pub(crate) struct PendingSourcePublication<'source> {
         crate::read::calling::SourceCallingPolicies,
         crate::read::storage_metadata::PreparedCallingDescriptions,
     )>,
-    pub providers: Option<crate::provider_selections::SourceProviderSelections<'source>>,
+    pub providers: Option<crate::declare::provider_selections::SourceProviderSelections<'source>>,
 }
 
 impl PreparedProgram<'_> {
@@ -115,10 +121,10 @@ pub(crate) fn finalize_source(
             "pending source publication belongs to another frozen source owner",
         ));
     }
-    crate::proof_scope::declare(typed, program, selected_calls)?;
+    crate::publication::proof_scope::declare(typed, program, selected_calls)?;
     if let Some(pending) = pending {
         if let Some((policies, descriptions)) = pending.calling {
-            crate::calling_publication::publish(
+            crate::publication::calling::publish(
                 typed,
                 pending.context,
                 &policies,
@@ -127,7 +133,7 @@ pub(crate) fn finalize_source(
             )?;
         }
         if let Some(providers) = pending.providers {
-            crate::provider_selections::publish(pending.context, &providers, program)?;
+            crate::declare::provider_selections::publish(pending.context, &providers, program)?;
         }
     }
     Ok(())

@@ -24,7 +24,7 @@ fn generated_machine_bodies_go_through_product_resolution() {
         .replace(
             "Build::artifact_only(builder);",
             &format!(
-                "Build::bind(builder, {}\\ProgramEntry, main);",
+                "Build::bind(builder, {}::ProgramEntry, main);",
                 host.target_name()
             ),
         );

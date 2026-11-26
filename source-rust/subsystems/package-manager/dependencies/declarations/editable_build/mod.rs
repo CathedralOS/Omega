@@ -1,7 +1,9 @@
 //! Literal roles and dependency rows that package commands can edit in place.
 
 mod declaration_errors;
+mod dependency_import;
 mod dependency_rows;
+pub(crate) use dependency_import::{DependencyImport, helper as imported_dependency_helper};
 mod direct_build_call;
 mod role;
 #[cfg(test)]
@@ -9,8 +11,8 @@ mod tests;
 
 pub(crate) use declaration_errors::BuildDeclarationError;
 pub(crate) use dependency_rows::{
-    DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, DependencyRowError,
-    FROM_SOURCE_HELPER_NAME, WITH_ALIAS_HELPER_NAME, is_dependency_call, project_dependency_rows,
+    DEPENDENCY_DESCRIPTION_TYPE_NAME, DependencyRowError, FROM_SOURCE_HELPER_NAME,
+    WITH_ALIAS_HELPER_NAME, project_dependency_rows,
 };
 pub(crate) use role::{
     BuildEntrySyntaxProjection, package_authored_type_name, project_build_declaration_in_entry,

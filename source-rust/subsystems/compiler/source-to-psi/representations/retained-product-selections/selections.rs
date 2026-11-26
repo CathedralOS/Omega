@@ -121,5 +121,53 @@ impl RetainedProductApplication {
             .iter()
             .filter(|(_, name)| name.builtin_type.is_none() && name.builtin_function.is_none())
             .filter_map(|(_, name)| name.declaration)
+            .chain(self.graph.operands.iter().filter_map(|(_, operand)| {
+                let declaration = operand.declaration?;
+                // Written paths already contribute their non-builtin declarations above.
+                // A closed operand can also refer to a declaration without spelling its name.
+                let written = self.graph.names.span(operand.path).and_then(|path| path.last());
+                (written.and_then(|name| name.declaration) != Some(declaration))
+                    .then_some(declaration)
+            }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use source_declarations::declaration_selection::product_operands::{
+        ProductOperandName, ProductStaticOperand,
+    };
+    use source_text::{SourceId, SourceSpan, Span};
+
+    #[test]
+    fn mounted_declarations_include_an_operand_with_no_written_name() {
+        let anchored = SourceSpan::new(SourceId(23), Span::new(2, 6));
+        let mut graph = ProductStaticOperandGraph::default();
+        graph.root = graph.operands.insert(ProductStaticOperand {
+            declaration: Some(anchored),
+            ..Default::default()
+        });
+        let builtin = SourceSpan::new(SourceId(7), Span::new(0, 4));
+        let path = graph.names.insert_many([ProductOperandName {
+            text: "bool".into(),
+            declaration: Some(builtin),
+            builtin_type: Some(symbols::BuiltinTypeAtom::Bool),
+            ..Default::default()
+        }]);
+        graph.operands.insert(ProductStaticOperand {
+            path,
+            declaration: Some(builtin),
+            ..Default::default()
+        });
+        let application = RetainedProductApplication {
+            graph,
+            identity: String::new(),
+            sources: Arc::default(),
+        };
+        assert_eq!(
+            application.declaration_spans().collect::<Vec<_>>(),
+            [anchored]
+        );
     }
 }

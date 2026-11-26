@@ -4,8 +4,8 @@
 
 machine build(builder: @mutable Build) {
     Build::application(builder, "descent_measures");
-    Build::bind(builder, windows_x86_64\ProgramEntry, descent_measures);
-    Build::bind(builder, linux_x86_64\ProgramEntry, descent_measures);
-    Build::bind(builder, linux_arm64\ProgramEntry, descent_measures);
-    Build::bind(builder, macos_arm64\ProgramEntry, descent_measures);
+    Build::bind(builder, windows_x86_64::ProgramEntry, descent_measures);
+    Build::bind(builder, linux_x86_64::ProgramEntry, descent_measures);
+    Build::bind(builder, linux_arm64::ProgramEntry, descent_measures);
+    Build::bind(builder, macos_arm64::ProgramEntry, descent_measures);
 }

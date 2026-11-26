@@ -7,8 +7,8 @@ use super::construction::is_snake_case;
 use super::{PackageCompilationInputs, PackageCompilationSourceRecord, PackageDependencyBinding};
 use crate::BuildDeclarationKind;
 use build_declarations::DependencyPurpose;
-use semantic_vocabulary::PackageKeyIdentity;
 use declaration_scope::PackageDeclarationScope;
+use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,6 +109,72 @@ impl PackageDependencyClosure {
 }
 
 impl PackageCompilationInputs {
+    pub fn package_uses(
+        &self,
+        purpose: DependencyPurpose,
+    ) -> impl Iterator<Item = PackageDependencyBinding> {
+        self.source
+            .packages
+            .iter()
+            .flat_map(move |(&requester, record)| {
+                let edges = match purpose {
+                    DependencyPurpose::Build => &record.build_dependencies,
+                    DependencyPurpose::Product => &record.dependencies,
+                };
+                edges.iter().map(move |(alias, edge)| {
+                    PackageDependencyBinding::for_purpose(requester, alias, edge.target, purpose)
+                        .with_max_reach(edge.max_reach.clone())
+                })
+            })
+    }
+
+    /// Follow the edges this execution can use. A Build starts with its frozen
+    /// Build imports, while every supplied library imports its own Product dependencies.
+    pub fn execution_service_edges(
+        &self,
+        purpose: DependencyPurpose,
+    ) -> Vec<semantic_vocabulary::dependency_reach::DependencyServiceEdge> {
+        let mut edges = Vec::new();
+        let mut pending = vec![self.root()];
+        let mut visited = BTreeSet::new();
+        while let Some(requester) = pending.pop() {
+            if !visited.insert(requester) {
+                continue;
+            }
+            let record = &self.source.packages[&requester];
+            let dependencies = match self.declaration_selection_purpose(requester, purpose) {
+                DependencyPurpose::Build => &record.build_dependencies,
+                DependencyPurpose::Product => &record.dependencies,
+            };
+            for (alias, dependency) in dependencies {
+                edges.push(
+                    semantic_vocabulary::dependency_reach::DependencyServiceEdge {
+                        requester: Some(requester),
+                        package: dependency.target,
+                        alias: alias.clone(),
+                        max_reach: dependency.max_reach.clone(),
+                    },
+                );
+                pending.push(dependency.target);
+            }
+        }
+        edges
+    }
+
+    pub fn dependency_max_reach(
+        &self,
+        requester: PackageKeyIdentity,
+        purpose: DependencyPurpose,
+        alias: &str,
+    ) -> Option<&semantic_vocabulary::dependency_reach::DependencyReach> {
+        let record = self.source.packages.get(&requester)?;
+        let edges = match purpose {
+            DependencyPurpose::Build => &record.build_dependencies,
+            DependencyPurpose::Product => &record.dependencies,
+        };
+        edges.get(alias).map(|edge| &edge.max_reach)
+    }
+
     pub(crate) fn declaration_selection_purpose(
         &self,
         requester: PackageKeyIdentity,
@@ -134,7 +200,9 @@ impl PackageCompilationInputs {
                 DependencyPurpose::Build => &record.build_dependencies,
                 DependencyPurpose::Product => &record.dependencies,
             };
-            dependencies.values().map(move |&owner| (requester, owner))
+            dependencies
+                .values()
+                .map(move |edge| (requester, edge.target))
         });
         PackageDeclarationScope::from_direct_dependencies(packages.keys(), edges)
             .with_package_names(
@@ -159,7 +227,7 @@ impl PackageCompilationInputs {
                 };
                 dependencies
                     .iter()
-                    .map(|(alias, target)| (alias.as_str(), *target))
+                    .map(|(alias, target)| (alias.as_str(), target.target))
             })
     }
 
@@ -170,7 +238,7 @@ impl PackageCompilationInputs {
             record
                 .dependencies
                 .iter()
-                .map(|(alias, target)| (*requester, alias.as_str(), *target))
+                .map(|(alias, target)| (*requester, alias.as_str(), target.target))
         })
     }
 
@@ -181,7 +249,7 @@ impl PackageCompilationInputs {
             record
                 .build_dependencies
                 .iter()
-                .map(|(alias, target)| (*requester, alias.as_str(), *target))
+                .map(|(alias, target)| (*requester, alias.as_str(), target.target))
         })
     }
 
@@ -222,12 +290,9 @@ impl PackageCompilationInputs {
                 .filter(|package| reachable.contains(package))
                 .collect(),
             dependencies: self
-                .dependencies()
-                .filter(|(requester, _, target)| {
-                    reachable.contains(requester) && reachable.contains(target)
-                })
-                .map(|(requester, alias, target)| {
-                    PackageDependencyBinding::new(requester, alias, target)
+                .package_uses(DependencyPurpose::Product)
+                .filter(|edge| {
+                    reachable.contains(&edge.requester) && reachable.contains(&edge.target)
                 })
                 .collect(),
         }
@@ -245,13 +310,13 @@ impl PackageCompilationInputs {
             DependencyPurpose::Product => record.dependencies.get(alias),
             DependencyPurpose::Build => record.build_dependencies.get(alias),
         }
-        .copied()
+        .map(|edge| edge.target)
     }
 }
 
-fn reachable_packages<'inputs>(
+fn reachable_packages<'inputs, T: std::borrow::Borrow<PackageKeyIdentity> + 'inputs>(
     root: PackageKeyIdentity,
-    dependencies: impl Fn(PackageKeyIdentity) -> Option<&'inputs BTreeMap<String, PackageKeyIdentity>>,
+    dependencies: impl Fn(PackageKeyIdentity) -> Option<&'inputs BTreeMap<String, T>>,
 ) -> BTreeSet<PackageKeyIdentity> {
     let mut reachable = BTreeSet::new();
     let mut pending = vec![root];
@@ -260,7 +325,7 @@ fn reachable_packages<'inputs>(
             continue;
         }
         if let Some(targets) = dependencies(identity) {
-            pending.extend(targets.values().copied());
+            pending.extend(targets.values().map(|edge| *edge.borrow()));
         }
     }
     reachable
@@ -298,7 +363,7 @@ pub(super) fn dependency_cycle(
                 .dependencies
                 .values()
                 .chain(record.build_dependencies.values())
-                .copied()
+                .map(|edge| edge.target)
             {
                 if let Some(cycle) = visit(target, packages, states, stack) {
                     return Some(cycle);

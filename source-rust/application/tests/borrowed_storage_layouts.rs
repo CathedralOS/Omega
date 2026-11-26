@@ -58,7 +58,7 @@ fn psi_admission_retains_the_native_borrowed_storage_layouts() {
     let build = r#"machine build(builder: @mutable Build) {
     Build::application(builder, "checked_read_geometry");
     Build::select_provider::<ReadCell, Reader>(builder, TARGET);
-    Build::bind(builder, TARGET\ProgramEntry, main);
+    Build::bind(builder, TARGET::ProgramEntry, main);
 }
 "#
     .replace("TARGET", TargetProfile::host().target_name());

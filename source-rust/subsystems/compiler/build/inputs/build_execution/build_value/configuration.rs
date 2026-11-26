@@ -179,7 +179,7 @@ mod tests {
         )
         .expect("admit the fixture's actual sources");
         let (_, syntax) = checkpoint
-            .assemble(None, &mut timings, &mut catalogue)
+            .assemble(None, &Default::default(), &mut timings, &mut catalogue)
             .expect("assemble the real Build vocabulary");
         let profile = target::TargetProfile::host_if_supported().expect("supported Build host");
         let interval = syntax

@@ -29,9 +29,9 @@ use terminal_check_tables::{
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, Terminator};
 
 use super::{Evaluation, Lowering, Reached, Value};
+use crate::body::outcome::Outcome;
 use crate::body::{CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, ValueType};
 use crate::canonical;
-use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unserved, refuse};
 
 fn write_frame_problem(machine: MachineId, concerns: Construct, detail: String) -> Refusal {
@@ -815,7 +815,8 @@ impl Lowering<'_> {
         arguments: &Arguments,
     ) -> Checked<bool> {
         let signature = self.target_signature(callable, required_contract)?;
-        if crate::inhabitation::excludes_result(&self.records.inhabitation, signature.result) {
+        if crate::body::inhabitation::excludes_result(&self.records.inhabitation, signature.result)
+        {
             return Ok(false);
         }
         if self.published_postcondition_is_false(&signature, arguments)? {

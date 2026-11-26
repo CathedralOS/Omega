@@ -19,8 +19,8 @@ fn builds_and_reviews_ignore_the_old_compiler_directories() {
         r#"machine build(builder: @mutable Build) {
     Build::application(builder, "cache_probe");
     let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../kit" }));
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
-    Build::bind(builder, linux_arm64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
 }"#,
     )
     .unwrap();

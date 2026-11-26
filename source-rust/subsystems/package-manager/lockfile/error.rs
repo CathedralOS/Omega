@@ -8,6 +8,7 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PackageLockError {
     UnsupportedVersion,
+    MultipleBuildEntries,
     CompilerIdentity,
     NativeBindings(String),
     InvalidFraming,
@@ -33,6 +34,7 @@ pub(crate) enum PackageLockError {
 impl fmt::Display for PackageLockError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
+            Self::MultipleBuildEntries => "a version 4 package lock cannot record multiple Build entries for one package",
             Self::UnsupportedVersion => "unsupported package lock version; archive omega.lock and run omega packages update for a fresh review",
             Self::NativeBindings(reason) => return write!(formatter, "package native bindings: {reason}"),
             Self::CompilerIdentity => "package lock requires a nonzero SHA256 compiler input identity; run omega packages update",

@@ -629,13 +629,13 @@ impl Program<'_> {
         if !matches!(actual, ValueType::Record(..)) {
             return false;
         }
-        let contracts = crate::inhabitation::SourceContracts(&self.records);
+        let contracts = crate::body::inhabitation::SourceContracts(&self.records);
         if self.inhabitation.extend(&contracts).is_err() {
             // Missing type metadata supplies no coercion. Ordinary typing
             // will retain its exact-type rule and refuse a mismatch.
             return false;
         }
-        crate::inhabitation::excludes_result(&self.inhabitation, Some(actual))
+        crate::body::inhabitation::excludes_result(&self.inhabitation, Some(actual))
     }
 }
 

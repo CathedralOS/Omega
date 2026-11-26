@@ -49,7 +49,7 @@ for the six release gates (`repository`, `source semantics`, `build and packages
 `native matrix`, `diagnostics`, and `representative programs`) across all five
 hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`,
 `windows_arm64`). The owner added `windows_arm64` on 2026-11-23. Programs can
-bind `windows_arm64\ProgramEntry`; `TASKS.md` **WINDOWS-ARM64-TARGET** tracks
+bind `windows_arm64::ProgramEntry`; `TASKS.md` **WINDOWS-ARM64-TARGET** tracks
 its system providers and the first run on a Windows ARM64 host.
 
 Omega has one specification in [wiki/spec/](wiki/spec/). Describe

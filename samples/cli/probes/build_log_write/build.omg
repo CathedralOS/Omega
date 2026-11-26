@@ -5,5 +5,5 @@
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_log_write");
     BuildLog::write_line(@mutable builder.log, "omega build log witness");
-    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }

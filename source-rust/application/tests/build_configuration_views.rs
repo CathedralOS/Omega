@@ -33,7 +33,7 @@ fn check(name: &str, assignments: &str) -> (bool, String) {
         format!(
             "machine build(builder: @mutable Build) {{
     Build::application(builder, \"configured\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {assignments}}}
 "
         ),

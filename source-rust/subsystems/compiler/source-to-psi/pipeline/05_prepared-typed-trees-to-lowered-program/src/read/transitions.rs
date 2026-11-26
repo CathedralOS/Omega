@@ -374,7 +374,7 @@ impl Program<'_> {
                     if is_reflected {
                         let coverage = reflected_coverage.get_or_insert_with(|| {
                             terminal_semantics::inhabitation::Inhabitation::prepare(
-                                &crate::inhabitation::SourceContracts(&self.records),
+                                &crate::body::inhabitation::SourceContracts(&self.records),
                             )
                         });
                         if coverage.as_ref().is_ok_and(|coverage| {
@@ -579,11 +579,11 @@ impl Program<'_> {
                     )?;
                     self.retain_static_reach(id, call, static_reach_binding)?
                 };
-                crate::operational::retain(&mut call, *operational_acknowledgement, true);
+                crate::lower::operational::retain(&mut call, *operational_acknowledgement, true);
                 call
             }
         };
-        crate::operational::boundary(&mut target);
+        crate::lower::operational::boundary(&mut target);
         if !self.agrees(target.result, result) {
             return Err(self.mistyped(
                 id,

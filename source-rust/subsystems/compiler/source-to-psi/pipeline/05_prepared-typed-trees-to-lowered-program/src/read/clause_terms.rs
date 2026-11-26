@@ -1635,7 +1635,7 @@ impl Program<'_> {
                     // value.
                     let runs = parameter.is_none();
                     if (runs
-                        && (!matches!(envelope.service_reach, crate::static_contracts::SourceServiceCeiling::Closed(ref row) if row.is_empty())
+                        && (!matches!(envelope.service_reach, crate::callables::static_contracts::SourceServiceCeiling::Closed(ref row) if row.is_empty())
                             || !envelope.invocations.is_empty()
                             || !signature.declares_no_crash_route))
                         || !matches!(envelope.termination, terminal_psi::TerminalCallableTermination::Terminates { ref premises } if premises.is_empty())
@@ -1741,6 +1741,34 @@ impl Program<'_> {
                             Vec::new(),
                         ))
                     }
+                }
+                // Explicit dereference (`$a`) of a borrowed structural formal
+                // names the referent's value at that formal's place.
+                (ExpressionNode::Unary(unary), Some(expected))
+                    if !self.mathematical
+                        && matches!(unary.operator, UnaryOperator::Dereference)
+                        && let ExpressionNode::Name(path) = table.expression(unary.operand)
+                        && !path.static_application.is_valid()
+                        && !path.reserved_result_of.is_valid()
+                        && table.name_path_members(path.members).len() == 1 =>
+                {
+                    let (position, slot) = scope
+                        .slots
+                        .iter()
+                        .enumerate()
+                        .find(|(_, slot)| slot.symbol == path.symbol)
+                        .ok_or_else(|| unavailable("Identity operand has no bound formal"))?;
+                    if slot.value_type != expected || slot.borrowed.is_none() {
+                        return Err(unavailable(
+                            "Identity operand has no exact input observation",
+                        ));
+                    }
+                    let owner = self.contract_operator_owner(id, scope)?;
+                    self.complete_anonymous_operators(id, owner, &[expression])?;
+                    ClauseOperand::Input(semantic_vocabulary::StructuralCaseSubject::new(
+                        formal_place(id, scope.slots, position)?,
+                        Vec::new(),
+                    ))
                 }
                 // A value enters a quotient by `as`: its class is the
                 // quotient's declaration applied to it.

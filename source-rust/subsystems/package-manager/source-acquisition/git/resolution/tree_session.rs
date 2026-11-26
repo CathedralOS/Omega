@@ -11,7 +11,7 @@ use super::GitExactRevisionAcquisition;
 use super::acquisition::{
     resolve_git_source_from_retained_cache, with_git_repository_from_retained_cache,
 };
-use super::selection::{GitRevisionSelection, RecordedGitRevision};
+use super::selection::{GitRevisionSelection, ExactGitRevision};
 use super::workspace_member::{declarations, materialize_member};
 use crate::git::executable::selection::resolver_package_controlled_roots;
 use crate::git::objects::{AuthenticatedGitTreeInspection, inspect_git_tree_graph};
@@ -66,18 +66,18 @@ impl GitWorkspaceSession {
         storage: &SourceResolver,
         request: &GitSourceRequest,
         commit: &GitCommitId,
-        tree: &GitTreeId,
+        tree: Option<&GitTreeId>,
         acquisition: GitExactRevisionAcquisition,
         limits: LocalSourceLimits,
         declaration_limits: GitWorkspaceDeclarationLimits,
     ) -> Result<Self, SourceResolveError> {
-        let revision = RecordedGitRevision::new(request, commit, tree, acquisition)?;
+        let revision = ExactGitRevision::new(request, commit, tree, acquisition)?;
         Self::acquire(
             storage,
             request,
             limits,
             declaration_limits,
-            GitRevisionSelection::Recorded(&revision),
+            GitRevisionSelection::Exact(&revision),
         )
     }
 
@@ -165,7 +165,7 @@ impl GitWorkspaceSession {
             lane.path(),
             lane.directory(),
             self.limits,
-            GitRevisionSelection::Recorded(&revision),
+            GitRevisionSelection::Exact(&revision),
             |executor, repository, _commit, _tree, limits| {
                 declarations::open_members(
                     &self.inspection,
@@ -188,7 +188,7 @@ impl GitWorkspaceSession {
         })
     }
 
-    fn recorded_revision(&self) -> Result<RecordedGitRevision, SourceResolveError> {
+    fn recorded_revision(&self) -> Result<ExactGitRevision, SourceResolveError> {
         let commit = GitCommitId::parse_hex(&self.commit).map_err(|error| {
             SourceResolveError::GitObjectInvalid {
                 oid: self.commit.clone(),
@@ -201,10 +201,10 @@ impl GitWorkspaceSession {
                 message: error.to_string(),
             }
         })?;
-        RecordedGitRevision::new(
+        ExactGitRevision::new(
             &self.request,
             &commit,
-            &tree,
+            Some(&tree),
             GitExactRevisionAcquisition::Offline,
         )
     }
@@ -243,7 +243,7 @@ impl GitWorkspaceCatalog {
             &[git_lane, member_lane],
             &self.session.request,
             self.session.limits,
-            GitRevisionSelection::Recorded(&revision),
+            GitRevisionSelection::Exact(&revision),
             |executor, repository, _tree, limits| {
                 materialize_member(
                     &self.session.inspection,

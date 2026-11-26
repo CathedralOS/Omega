@@ -282,6 +282,7 @@ impl TerminalBuildHost {
             produced.build_requests(),
             original.clone(),
             Some(account),
+            requests.reflected_services(),
         )?;
         let filesystem = crate::host::filesystem::TerminalBuildFilesystemHost::new(
             &produced,
@@ -321,16 +322,24 @@ impl TerminalBuildHost {
             crate::CompileFailure,
         >,
     ) -> Result<TerminalBuildActivation, crate::CompileFailure> {
-        let refuse = |reason: String| vec![diagnostics::Diagnostic::error(reason)];
+        let refuse = |reason: String| {
+            let mut error = diagnostics::Diagnostic::error(reason);
+            error.source_span = self
+                .accepted
+                .source()
+                .symbols
+                .symbol_source_span(self.machine.symbol);
+            vec![error]
+        };
         if self.started.swap(true, std::sync::atomic::Ordering::AcqRel) {
             return Err(refuse("Build host has already started its activation".into()).into());
         }
         let ready_providers =
             provider_installation::check_backings(&self.accepted, &self.produced, provide)?;
-        artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
         let instance = self.instantiate().map_err(refuse)?;
         let work = evaluation_work::sponsored_meter(self.account.clone(), Some(0))
             .map_err(|error| refuse(describe(error)))?;
+        artifacts::compile_timings::counters::record_build_execution(self.execution_purpose);
         Ok(TerminalBuildActivation {
             history: Default::default(),
             instance,
@@ -367,47 +376,6 @@ impl TerminalBuildHost {
             .build_filesystem()
             .calls_for(artifact)
             .ok_or("Build filesystem calls lost their artifact custody")?;
-        let mut provider_slots = Vec::new();
-        for call in binding_calls.iter() {
-            if let source_compiler::representations::declaration_selection::BuildSelectionRequest::ProviderReadiness(request) = &call.request {
-                provider_slots.extend_from_slice(&request.requirement.boundaries);
-            }
-        }
-        provider_slots.sort_unstable();
-        provider_slots.dedup();
-        let mut host_imports = request_calls
-            .iter()
-            .map(|call| call.site.boundary)
-            .chain(binding_calls.iter().map(|call| call.site.boundary))
-            .chain(query_calls.iter().map(|call| call.site.boundary))
-            .chain(filesystem_calls.iter().map(|call| call.site.boundary))
-            .collect::<Vec<_>>();
-        let operations = self
-            .providers
-            .intrinsics
-            .operations_for(program.execution_identity())
-            .map_err(|reason| format!("Build selected intrinsic binding: {reason}"))?;
-        host_imports.extend(operations.iter().map(|(slot, _)| *slot));
-        host_imports.sort_unstable();
-        host_imports.dedup();
-        let mut supplies = program
-            .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
-                native_code_layouts: None,
-                host_imports: &host_imports,
-                external_completions: &[],
-                installation: Some(&self.providers.checked),
-                entry: None,
-                x86_flags: None,
-                memory_ordering: None,
-                target_machines: None,
-                target_layouts: None,
-            })
-            .map_err(describe)?;
-        for boundary in &provider_slots {
-            supplies = program
-                .defer_component(supplies, *boundary)
-                .map_err(describe)?;
-        }
         let output = self.output.binding();
         let mut instance = program
             .instantiate(TerminalInstantiation {
@@ -419,17 +387,13 @@ impl TerminalBuildHost {
                     zero_initialized_arguments: &[0],
                     ..Default::default()
                 },
-                installation: Some(&supplies),
+                installation: Some(&self.providers.supplies),
                 account: Some(&self.account),
                 ..Default::default()
             })
             .map_err(describe)?;
-        for &(slot, operation) in operations {
-            interpreter_numeric_imports::bind_numeric_import_slot(&mut instance, slot, operation)
-                .map_err(|reason| format!("Build selected intrinsic binding: {reason:?}"))?;
-        }
         for boundary in instance.unbound_imports().collect::<Vec<_>>() {
-            if provider_slots.contains(&boundary) {
+            if self.providers.awaited.binary_search(&boundary).is_ok() {
                 continue;
             }
             let declaration = artifact
@@ -467,8 +431,10 @@ impl TerminalBuildHost {
                     .bind_import(boundary, self.filesystem.adapter(declaration.into()))
                     .map_err(describe)?;
             } else {
+                let operation = artifact.module().identities.text(declaration.identity)
+                    .ok_or("Build import has no callable identity")?;
                 return Err(format!(
-                    "Build import {boundary:?} has no admitted host operation or installed provider"
+                    "Build import `{operation}` has no admitted host operation or installed provider"
                 ));
             }
         }

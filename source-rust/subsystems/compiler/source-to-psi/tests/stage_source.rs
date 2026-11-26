@@ -53,6 +53,7 @@ fn product<'a>(
             vec![],
         )?),
         product: ProductSourceInputs {
+            dependency_edges: Default::default(),
             build_accounting: None,
             declaration_scope: None,
             build_host: ProductTarget::LinuxX86_64,
@@ -674,6 +675,7 @@ fn a_projected_snapshot_cannot_supply_a_complete_build_invocation() {
         &[Some(package)],
         None,
         None,
+        &Default::default(),
     ) else {
         panic!("a partial snapshot supplied a complete Build invocation");
     };
@@ -702,6 +704,7 @@ fn publish_build(
         &[Some(package)],
         None,
         None,
+        &Default::default(),
     )
     .map_err(|failure| failure.diagnostics)?;
     judged

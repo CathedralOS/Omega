@@ -18,6 +18,7 @@ pub use source::assembly as source_assembly;
 pub use source::assembly::BuildSourceSelection;
 pub use source::source_imports;
 pub use source::toolchain_library;
+pub use source_compiler::InterpretedProviderSelections;
 #[path = "source/diagnostic_locations.rs"]
 mod diagnostic_locations;
 pub use diagnostic_locations::attribute_diagnostics;

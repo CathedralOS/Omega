@@ -72,13 +72,7 @@ pub fn admit_build_machine(
     let value_admission = BuildValueAdmission::admit(typed)?;
 
     let publication = invocation.prepare_publication()?;
-    let protocols = publication.build_protocol_use();
-    if protocols.reaches_outside {
-        return Err(vec![Diagnostic::error(format!(
-            "`{machine_name}` reaches a boundary outside the compiler-owned Build protocols"
-        ))]);
-    }
-    let filesystem_reachable = protocols.filesystem;
+    let filesystem_reachable = publication.uses_build_filesystem();
 
     let initial_build = value_admission.initial_value(filesystem_scope);
     let execution_mode = if !filesystem_reachable {

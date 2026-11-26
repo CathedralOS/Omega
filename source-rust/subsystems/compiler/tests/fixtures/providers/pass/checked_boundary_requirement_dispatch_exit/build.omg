@@ -1,14 +1,16 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "checked_boundary_requirement_dispatch_exit");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../../../../../source/library/system" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../../../../source/library/system" }));
     Build::select_provider::<CheckedMath, CheckedMathProvider>(builder, linux_arm64);
     Build::select_provider::<CheckedMath, CheckedMathProvider>(builder, linux_x86_64);
     Build::select_provider::<CheckedMath, CheckedMathProvider>(builder, macos_arm64);
     Build::select_provider::<CheckedMath, CheckedMathProvider>(builder, windows_x86_64);
-    Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);
-    Build::bind(builder, linux_arm64\ProgramEntry, entry_start);
-    Build::bind(builder, macos_arm64\ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }
