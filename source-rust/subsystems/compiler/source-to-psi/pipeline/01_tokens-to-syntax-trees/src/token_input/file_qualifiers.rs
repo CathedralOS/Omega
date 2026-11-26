@@ -13,6 +13,8 @@ use syntax_trees::{ParsedRootItems, SyntaxTrees};
 pub(crate) struct FileQualifiers<'source> {
     // Parsing can visit a name more than once. Its opening bar identifies one occurrence.
     uses: RefCell<BTreeMap<usize, (&'source str, QualifierUse)>>,
+    // The first `asm` instruction that needs core's packed-integer contracts.
+    packed_instruction: std::cell::Cell<Option<source_text::SourceSpan>>,
 }
 
 enum QualifierUse {
@@ -22,6 +24,21 @@ enum QualifierUse {
 }
 
 impl<'source> FileQualifiers<'source> {
+    pub(crate) fn record_packed_instruction(&self, site: source_text::SourceSpan) {
+        if self.packed_instruction.get().is_none() {
+            self.packed_instruction.set(Some(site));
+        }
+        // The desugared instruction names its contract through this alias.
+        self.record(
+            site.span.start,
+            language_core::inline_assembly::PACKED_INTEGER_CONTRACTS_ALIAS,
+        );
+    }
+
+    pub(crate) fn packed_instruction(&self) -> Option<source_text::SourceSpan> {
+        self.packed_instruction.get()
+    }
+
     pub(crate) fn record(&self, start: usize, alias: &'source str) {
         self.uses
             .borrow_mut()
