@@ -67,7 +67,8 @@ impl DeferredProductSources {
     /// A local interpreted product can name its real declarations only after
     /// the Build returned and every direct registration has an immutable resolution.
     /// Resolve the files first so only the toolchain inputs this product uses
-    /// enter its key. Retype the same captured selection under that identity.
+    /// enter its key. Issue those same occurrences under the completed owner
+    /// before the declaration checker runs.
     pub fn assemble_returned_successor(
         &self,
         inputs: &crate::source_imports::ProductQueryInputs,
