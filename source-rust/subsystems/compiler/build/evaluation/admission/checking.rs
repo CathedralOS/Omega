@@ -24,6 +24,7 @@ refused before an unsupported rejoin can be treated as settled.
 */
 pub fn settle_rejoined_build_slice(
     constants: &BuildConstants,
+    interpreter_providers: &source_compiler::InterpretedProviderSelections,
     rejoined: &source_compiler::representations::source_state::TypedTrees,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
@@ -59,6 +60,7 @@ pub fn settle_rejoined_build_slice(
         packages,
         anonymous_source,
         &Arc::default(),
+        interpreter_providers,
         subject_validation != BuildSubjectValidation::EntryOnly,
         timings,
     )?;
@@ -153,6 +155,7 @@ pub(crate) fn check_subject_before_execution(
     build_source: package_compilation::BuildSourceSelection,
     anonymous_source: &package_compilation::AnonymousSourceCapture,
     libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
+    interpreter_providers: &source_compiler::InterpretedProviderSelections,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<BuildConstants, CompileFailure> {
     let owner = anonymous_source
@@ -175,6 +178,7 @@ pub(crate) fn check_subject_before_execution(
                 &[Some(owner)],
                 scope,
                 None,
+                interpreter_providers,
             )
         })
         .map_err(|failure| CompileFailure::from(failure.diagnostics))?;
@@ -237,12 +241,13 @@ pub(crate) fn prepare_admitted_build(
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     libraries: &Arc<[package_compilation::source_imports::SuppliedBuildLibrary]>,
+    interpreter_providers: &source_compiler::InterpretedProviderSelections,
     check_subject: bool,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<
     (
         source_compiler::CheckedBuildInvocation,
-        super::provider_execution::BuildProviderPlans,
+        super::provider_execution::BuildProviderScope,
         BuildConstants,
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
     ),
@@ -258,7 +263,7 @@ pub(crate) fn prepare_admitted_build(
     }
     let subject = check_subject.then(|| packages.map(PackageCompilationInputs::root));
     let providers =
-        super::provider_execution::BuildProviderPlans::for_packages(packages, libraries);
+        super::provider_execution::BuildProviderScope::for_packages(packages, libraries);
     let judged = timings
         .record_result(BUILD_SOURCE_JUDGMENT, || {
             source_compiler::CheckedBuildInvocation::judge(
@@ -269,6 +274,7 @@ pub(crate) fn prepare_admitted_build(
                     .selection_scope(build_declarations::DependencyPurpose::Build)
                     .map(Arc::new),
                 anonymous_source.map(|capture| capture.invocation_consent(Arc::clone(libraries))),
+                interpreter_providers,
             )
         })
         .map_err(|failure| {
@@ -294,6 +300,7 @@ mod tests {
         let typed = source_compiler::representations::source_state::TypedTrees::default();
         settle_rejoined_build_slice(
             constants,
+            &Default::default(),
             &typed,
             symbols::SymbolHandle::invalid(),
             None,
@@ -474,6 +481,7 @@ mod tests {
             let entry = retyped.realized_machine_named("build").unwrap().symbol;
             let fresh = super::settle_rejoined_build_slice(
                 &old,
+                &Default::default(),
                 &retyped,
                 entry,
                 None,

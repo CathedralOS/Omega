@@ -76,19 +76,28 @@ impl PackageCompilationInputs {
 
     pub fn admitted_package_provider_selections(
         &self,
+        purpose: DependencyPurpose,
     ) -> Result<Vec<RetainedProviderSelection>, Vec<Diagnostic>> {
         let mut selections = Vec::new();
         for (scope, bundle) in self.dependency_build_handoff_instances() {
-            if scope != DependencyPurpose::Product {
+            if scope != purpose {
                 continue;
             }
-            if let Some(defaults) = CompletedProviderDefaults::from_package(bundle)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?
-            {
-                selections.extend(defaults.admit(self)?);
-            }
+            selections.extend(self.admitted_provider_defaults(bundle)?);
         }
         Ok(selections)
+    }
+
+    pub(crate) fn admitted_provider_defaults(
+        &self,
+        bundle: &PackageBuildHandoff,
+    ) -> Result<Vec<RetainedProviderSelection>, Vec<Diagnostic>> {
+        match CompletedProviderDefaults::from_package(bundle)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+        {
+            Some(defaults) => defaults.admit(self),
+            None => Ok(Vec::new()),
+        }
     }
 
     pub(super) fn admit_provider_activation(

@@ -42,6 +42,7 @@ impl DeferredProductSources {
         package_inputs: Option<&PackageCompilationInputs>,
         bindings: &[ProductEntryBinding],
         declarations: &[Arc<ProductDeclarationRequest>],
+        build_providers: &crate::InterpretedProviderSelections,
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
@@ -59,6 +60,7 @@ impl DeferredProductSources {
                 bindings,
                 declarations,
             }),
+            build_providers,
             timings,
             catalogue,
         )

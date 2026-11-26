@@ -83,7 +83,6 @@ pub use build::bindings::{
     TerminalBuildProviderRequirement, TerminalBuildSelectionRequest, TerminalBuildValueCase,
     TerminalBuildValueField, TerminalBuildValueShape,
 };
-pub use build::companions::BuildProtocolUse;
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
 };

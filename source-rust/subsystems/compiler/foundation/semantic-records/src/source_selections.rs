@@ -22,11 +22,12 @@ pub enum ProductTarget {
     LocalUnchecked,
     AlphaBootstrap,
     WindowsArm64,
+    Interpreter,
 }
 
 impl ProductTarget {
     /// A target's code is its position here, so new targets append.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::LinuxArm64,
         Self::LinuxX86_64,
         Self::MacosArm64,
@@ -37,6 +38,7 @@ impl ProductTarget {
         Self::LocalUnchecked,
         Self::AlphaBootstrap,
         Self::WindowsArm64,
+        Self::Interpreter,
     ];
 
     pub fn from_code(code: u64) -> Option<Self> {
@@ -71,6 +73,7 @@ impl ProductTarget {
             Self::LocalUnchecked => "local_unchecked",
             Self::AlphaBootstrap => "alpha_bootstrap",
             Self::WindowsArm64 => "windows_arm64",
+            Self::Interpreter => "interpreter",
         }
     }
 
@@ -86,6 +89,7 @@ impl ProductTarget {
             Self::LocalUnchecked => "LocalUnchecked",
             Self::AlphaBootstrap => "AlphaBootstrap",
             Self::WindowsArm64 => "WindowsArm64",
+            Self::Interpreter => "Interpreter",
         }
     }
 }
@@ -353,6 +357,8 @@ mod tests {
             (6, "cross_platform_cli"),
             (7, "local_unchecked"),
             (8, "alpha_bootstrap"),
+            (9, "windows_arm64"),
+            (10, "interpreter"),
         ] {
             let target = ProductTarget::from_code(code).unwrap();
             assert_eq!(target.canonical_name(), name);

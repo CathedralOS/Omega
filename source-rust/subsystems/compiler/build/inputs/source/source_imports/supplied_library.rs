@@ -68,6 +68,19 @@ impl SuppliedBuildLibrary {
             .expect("the supplied library retains its checked handoff")
     }
 
+    /// Defaults from this prepared library and the Products it acquired.
+    pub fn provider_defaults(
+        &self,
+    ) -> Result<
+        Vec<retained_product_selections::RetainedProviderSelection>,
+        Vec<diagnostics::Diagnostic>,
+    > {
+        let inputs = &self.dependency.inputs;
+        let mut defaults = inputs.admitted_provider_defaults(self.handoff())?;
+        defaults.extend(inputs.admitted_package_provider_selections(DependencyPurpose::Product)?);
+        Ok(defaults)
+    }
+
     /// A library's own source keeps its Product edges. Only the receiving
     /// Build's check-only owner, when present, gets the caller's direct grants.
     pub fn declaration_scope(

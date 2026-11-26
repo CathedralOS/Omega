@@ -562,8 +562,12 @@ machine watch() {{
         ))
         .unwrap()
     };
-    let unreached = program("").prepare_publication(None).unwrap();
-    assert!(!unreached.build_protocol_use().reaches_outside);
+    let unreached = program("");
+    let demand = |accepted: &AcceptedTerminalSource| {
+        accepted.boundary_calls_reached(accepted.entry().unwrap(), &[], None).unwrap().len()
+    };
+    assert_eq!(demand(&unreached), 1);
+    let unreached = unreached.prepare_publication(None).unwrap();
     // The helper is still part of the program: its call has no host row,
     // and the entry's and the called helper's requests have theirs.
     let produced = unreached
@@ -579,14 +583,7 @@ machine watch() {{
     );
     assert_eq!(published_boundary_calls(&produced).len(), 3);
     for reached in ["watch();", "watch()"] {
-        assert!(
-            program(reached)
-                .prepare_publication(None)
-                .unwrap()
-                .build_protocol_use()
-                .reaches_outside,
-            "{reached}"
-        );
+        assert_eq!(demand(&program(reached)), 2, "{reached}");
     }
 }
 
@@ -596,14 +593,12 @@ machine watch() {{
 /// `Probe` is declared in the prelude's own source and is still outside: a
 /// protocol is one of the four the toolchain names, not anything it ships.
 #[test]
-fn a_boundary_outside_the_build_protocols_is_reported_and_given_no_row() {
+fn a_boundary_outside_the_build_protocols_gets_no_host_row() {
     let inside = accepted(ONE_BINDING)
         .unwrap()
         .prepare_publication(None)
         .unwrap();
-    let asked = inside.build_protocol_use();
-    assert!(!asked.reaches_outside);
-    assert!(!asked.filesystem);
+    assert!(!inside.uses_build_filesystem());
 
     let outside = accepted(
         r#"
@@ -616,7 +611,6 @@ machine build(builder: @mutable Build) {
     .unwrap()
     .prepare_publication(None)
     .unwrap();
-    assert!(outside.build_protocol_use().reaches_outside);
     let program = outside
         .publish(&[], &mut CompileTimings::default())
         .unwrap();

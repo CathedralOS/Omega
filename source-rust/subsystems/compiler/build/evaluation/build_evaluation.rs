@@ -73,6 +73,7 @@ pub struct PreparedBuildEvaluation {
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
     constants: build_evaluation_result::BuildConstants,
+    interpreter_providers: source_compiler::InterpretedProviderSelections,
     source_completion_accounting:
         source_compiler::compile_time_invocations::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
@@ -168,6 +169,7 @@ impl PreparedBuildEvaluation {
             restricted_build_requests,
             base_source_consumption_commitment,
             constants,
+            interpreter_providers,
             source_completion_accounting,
             restricted_build_grants,
             subject_validation,
@@ -183,6 +185,7 @@ impl PreparedBuildEvaluation {
             restricted_build_requests,
             base_source_consumption_commitment,
             constants,
+            interpreter_providers,
             subject_validation,
             source_completion_accounting,
         })
@@ -217,6 +220,7 @@ pub fn prepare_build_evaluation(
         .into());
     }
     let BuildExecutionInputs {
+        interpreter_providers,
         profile: execution_profile,
         directory: build_directory,
         filesystem_sponsor,
@@ -298,6 +302,7 @@ pub fn prepare_build_evaluation(
             package_inputs,
             anonymous_source,
             &libraries,
+            &interpreter_providers,
             subject_validation == BuildSubjectValidation::Checked,
             timings,
         )?;
@@ -308,6 +313,7 @@ pub fn prepare_build_evaluation(
             build_source,
             capture,
             &libraries,
+            &interpreter_providers,
             timings,
         )
         .map_err(|failure| {
@@ -361,6 +367,7 @@ pub fn prepare_build_evaluation(
             restricted_build_requests,
             base_source_consumption_commitment,
             constants,
+            interpreter_providers,
             source_completion_accounting: source_completion_accounting.clone(),
             restricted_build_grants,
             subject_validation,

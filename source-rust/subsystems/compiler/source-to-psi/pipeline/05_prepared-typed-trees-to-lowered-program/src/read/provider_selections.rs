@@ -158,10 +158,7 @@ impl<'source> Program<'source> {
                 ));
             }
             let projected = projection::from_typed_application(
-                ProviderPlanningContext::new(
-                    typed,
-                    source_provenance::DependencyScope::Product,
-                ),
+                ProviderPlanningContext::new(typed, self.purpose),
                 scope.clone(),
             )
             .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;

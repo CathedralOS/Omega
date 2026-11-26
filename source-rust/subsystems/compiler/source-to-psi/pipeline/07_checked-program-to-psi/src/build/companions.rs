@@ -25,7 +25,6 @@ use language_core::build_protocol::SelectionProtocolOperation;
 use semantic_vocabulary::{BoundaryMachineId, InvocationSite, StructuralTypeId};
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use terminal_check_tables::program::Elaboration;
 use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
 
 #[derive(Default)]
@@ -36,20 +35,6 @@ pub(crate) struct BuildCompanions {
     pub requests: Vec<TerminalBuildRequestCall>,
     pub filesystem: Vec<TerminalBuildFilesystemCall>,
     pub native_formations: Vec<NativeBindingFormation>,
-    /// Boundary calls that are no operation of a toolchain Build protocol
-    /// and call no requirement the Build awaits a provider for, so have no
-    /// row and no slot: the Build host serves none of them.
-    pub unowned: usize,
-}
-
-/// What an accepted Build program asks of its host, for the admission that
-/// bounds the activation's authority before it runs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildProtocolUse {
-    /// Some boundary call is outside the toolchain's Build protocols.
-    pub reaches_outside: bool,
-    /// Some call is an operation of the Build filesystem protocol.
-    pub filesystem: bool,
 }
 
 /// One emitted boundary call of a toolchain Build protocol.
@@ -75,14 +60,7 @@ pub(crate) fn produce(
     let mut shapes = NativeLocatorShapes::new(module)?;
     let mut native_authors = None;
     let mut designated = 0;
-    // Retain every actual host call; only activated calls count against the
-    // Build's host authority. Readiness requests below account for installed slots.
-    let mut outside = Vec::new();
-    let activated = activated_machines(source, elaboration);
     for machine in &module.machines {
-        let counted = activated
-            .as_ref()
-            .is_none_or(|activated| activated.binary_search(&machine.id).is_ok());
         for invocation in machine.boundary_invocations() {
             let boundary = invocation.boundary;
             // A boundary this elaboration cannot name is no toolchain
@@ -99,7 +77,6 @@ pub(crate) fn produce(
                         source.trait_machine_signature(declaration)
                     })
             else {
-                companions.unowned += usize::from(counted);
                 continue;
             };
             let protocol =
@@ -113,9 +90,6 @@ pub(crate) fn produce(
             .into_iter()
             .any(protocol)
             {
-                if counted {
-                    outside.push(boundary);
-                }
                 continue;
             }
             let InvocationSite::Operation(operation) = invocation.site else {
@@ -262,29 +236,9 @@ pub(crate) fn produce(
                     result_shape: None,
                 };
                 companions.queries.push(row);
-            } else if counted {
-                outside.push(boundary);
             }
         }
     }
-    // scoped_execution.md, "Two checked contexts": a Build entry and its
-    // helpers reach "exact static provider slots installed through
-    // `Build::await_provider::<R, Backing>`". Such a call is served by the
-    // provider the host installs for the awaited requirement, so it is
-    // inside the Build's authority. Whether a provider is installed before
-    // the call runs is the host's to enforce where the call parks.
-    companions.unowned += outside
-        .iter()
-        .filter(|boundary| {
-            !companions.bindings.iter().any(|row| {
-                matches!(
-                    &row.request,
-                    BuildSelectionRequest::ProviderReadiness(request)
-                        if request.requirement.boundaries.contains(boundary)
-                )
-            })
-        })
-        .count();
     // Every reference the reader carried must have reached a selection call.
     let carried: usize = accepted
         .correspondence()
@@ -298,56 +252,6 @@ pub(crate) fn produce(
         ));
     }
     Ok(companions)
-}
-
-/// The machines of the module an activation of its entry can run, sorted,
-/// or `None` when that set cannot be read and every machine must count.
-///
-/// scoped_execution.md, "Two checked contexts", bounds what the "Build entry
-/// and transitive helpers" may select. A Build is checked as a whole package,
-/// so its module also holds helpers the entry never calls (a machine a test
-/// selects as its own entry, for one). Such a helper is checked like every
-/// other declaration, but no activation of this entry runs it, so a boundary
-/// it calls is nothing this Build asks of its host.
-///
-/// The set is what the entry's calls reach (`Elaboration::call_closure`),
-/// started from the entry and from every machine that is not an ordinary
-/// helper. A machine that realizes a requirement, or has a body per target,
-/// can be entered through the slot it fills with no call in the module naming
-/// it, and a machine whose declaration cannot be read is not known to be a
-/// helper; each of those counts whether or not the entry calls it.
-fn activated_machines(
-    source: &TypedTrees,
-    elaboration: &Elaboration,
-) -> Option<Vec<semantic_vocabulary::MachineId>> {
-    let module = &elaboration.module;
-    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
-        return None;
-    };
-    let ordinary_helper = |id| {
-        elaboration
-            .machines
-            .get(id)
-            .and_then(|symbol| source.machine_by_symbol(*symbol))
-            .is_some_and(|machine| {
-                machine.target.is_none()
-                    && crate::source_state::provider_declarations::satisfaction_provider_declaration(
-                        source, machine,
-                    )
-                    .is_none()
-                    && source.machine_trait_conformances(machine).is_empty()
-                    && source
-                        .owned_conformance_realization(machine.symbol)
-                        .is_none()
-            })
-    };
-    elaboration.call_closure(
-        module
-            .machines
-            .iter()
-            .map(|machine| machine.id)
-            .filter(|id| *id == entry || !ordinary_helper(*id)),
-    )
 }
 
 fn designated_selection<'a>(

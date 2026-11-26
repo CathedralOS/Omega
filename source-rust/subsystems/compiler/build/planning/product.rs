@@ -42,7 +42,7 @@ impl PlannedProduct {
         let packages = self.package_inputs();
         let (defaults, native) = match packages {
             Some(inputs) => (
-                inputs.admitted_package_provider_selections()?,
+                inputs.admitted_package_provider_selections(build_declarations::DependencyPurpose::Product)?,
                 inputs.product_native_bindings()?,
             ),
             None => (Vec::new(), Vec::new()),

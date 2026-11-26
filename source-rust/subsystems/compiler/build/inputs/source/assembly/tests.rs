@@ -51,7 +51,7 @@ fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
     )
     .expect("the existing program's source capture");
     let (_, mut build) = checkpoint
-        .assemble(None, &mut timings, &mut catalogue)
+        .assemble(None, &Default::default(), &mut timings, &mut catalogue)
         .expect("the initial Build source assembly");
     let build_source = collection_source(&build.parsed, source_provenance::DependencyScope::Build);
     assert!(!build.parsed.files.selected_files().any(|file| {
@@ -73,7 +73,14 @@ fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
         collection_source(query.parsed(), source_provenance::DependencyScope::Product);
     assert_ne!(build_source, query_source);
     let (_, product) = continuation
-        .assemble(None, &[], &[], &mut timings, &mut catalogue)
+        .assemble(
+            None,
+            &[],
+            &[],
+            &Default::default(),
+            &mut timings,
+            &mut catalogue,
+        )
         .expect("the final Product source assembly");
     for sources in [query.parsed(), &product.parsed] {
         assert!(
@@ -126,7 +133,7 @@ fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
     )
     .expect("the original program's source capture");
     let (_, assembled) = checkpoint
-        .assemble(None, &mut timings, &mut catalogue)
+        .assemble(None, &Default::default(), &mut timings, &mut catalogue)
         .expect("the ordinary Build source and real toolchain prelude");
     let sources = Arc::clone(&assembled.parsed.files);
     let interval = assembled
@@ -231,7 +238,7 @@ machine build(builder: @mutable Build) {
         &root, None, Some(&capture), &mut timings, &mut catalogue,
     ).unwrap();
     let (_, assembled) = checkpoint
-        .assemble(None, &mut timings, &mut catalogue)
+        .assemble(None, &Default::default(), &mut timings, &mut catalogue)
         .unwrap();
     let source = assembled.build_stage_source().unwrap();
     let [required] = source.pending_imports.as_slice() else {
@@ -308,7 +315,7 @@ machine build(builder: @mutable Build) {
         )
         .unwrap();
         let (_, assembled) = checkpoint
-            .assemble(None, &mut timings, &mut catalogue)
+            .assemble(None, &Default::default(), &mut timings, &mut catalogue)
             .unwrap();
         let source = assembled.build_stage_source().unwrap();
         if required {

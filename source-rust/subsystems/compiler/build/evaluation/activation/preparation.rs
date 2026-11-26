@@ -4,7 +4,7 @@ normal-return `ComputedBuildConfig` (`PreparedBuildExecution`).
 
 `PreparedBuildExecution::prepare` takes the one invocation-scoped program whose
 source selections were admitted by `admit_build_program`, admits its
-`BuildProviderPlans` against that same produced artifact view, and opens a
+`BuildProviderScope` against that same produced artifact view, and opens a
 `100,000`-work `EvaluationInvocationAccount` under the caller's
 `BuildEvaluationSponsor` (or a standalone per-invocation sponsor with Terminal
 measurement identity if none was supplied).
@@ -57,7 +57,14 @@ impl PreparedBuildExecution {
             default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
-        let providers = providers.admit(&produced)?;
+        let providers = providers.admit(&produced).map_err(|mut errors| {
+            if let Some(span) = prepared.source().symbols.symbol_source_span(machine.symbol) {
+                for error in &mut errors {
+                    error.source_span.get_or_insert(span);
+                }
+            }
+            errors
+        })?;
 
         let measurement = crate::activation::measurement();
         const INVOCATION_WORK: u64 = 100_000;
@@ -163,7 +170,7 @@ impl PreparedBuildExecution {
             .validate_successor_libraries(libraries)
             .map_err(|reason| self.refuse(&reason))?;
         if !completed.root_bindings.is_empty()
-            || !completed.product_selections.is_empty()
+            || completed.product_selections.iter().any(|event| event.request.operation != source_compiler::representations::declaration_selection::BuildOperation::ProviderSelection || event.test_group.is_some())
             || !completed.native_bindings.is_empty()
             || !completed.exclusions.is_empty()
             || completed.settings != Default::default()
