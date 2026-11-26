@@ -71,9 +71,7 @@ pub struct EstablishedErasedStructuralField {
     pub carrier_type_identity: TerminalIdentityIndex,
 }
 
-fn established_field_identity(
-    field: &StructuralFieldDeclaration,
-) -> Option<TerminalIdentityIndex> {
+fn established_field_identity(field: &StructuralFieldDeclaration) -> Option<TerminalIdentityIndex> {
     match &field.field_type {
         StructuralFieldType::Erased { type_identity, .. } if !type_identity.is_absent() => {
             Some(*type_identity)
@@ -198,7 +196,10 @@ impl<'types> ZeroedDeclarations<'types> for &StructuralTypeIndex<'types> {
     }
 }
 
-fn is_reference(declarations: impl ZeroedDeclarations<'_>, member: StructuralTypeId) -> bool {
+fn is_reference<'types>(
+    declarations: impl ZeroedDeclarations<'types>,
+    member: StructuralTypeId,
+) -> bool {
     declarations.any_with_id(member, |declaration| {
         matches!(declaration.shape, StructuralTypeShape::Reference { .. })
     })
@@ -377,7 +378,10 @@ pub fn zeroed_structural_storage<'types>(
     Some(ZeroedStructuralStorage { leaves, arrays })
 }
 
-fn is_byte_element(declarations: impl ZeroedDeclarations<'_>, element: StructuralTypeId) -> bool {
+fn is_byte_element<'types>(
+    declarations: impl ZeroedDeclarations<'types>,
+    element: StructuralTypeId,
+) -> bool {
     declarations.any_with_id(element, |declaration| {
         matches!(
             declaration.shape,
@@ -545,13 +549,11 @@ fn walk_zeroed_leaves<'types>(
                         })
                         .collect::<Option<Vec<_>>>()?;
                     field_path.push(field.identity);
-                    let (index, _) = exactly_one(
-                        established_fields.iter().enumerate(),
-                        |(_, established)| {
+                    let (index, _) =
+                        exactly_one(established_fields.iter().enumerate(), |(_, established)| {
                             established.field_path == field_path
                                 && established.carrier_type_identity == carrier
-                        },
-                    )?;
+                        })?;
                     if consumed[index] {
                         return None;
                     }
@@ -746,8 +748,7 @@ pub(crate) fn zeroed_byte_qualifications_hold<'a, 'path>(
                 }
             }
         }
-        let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, path)
-        else {
+        let Some(carrier) = crate::runtime_structural_path_tip(types.clone(), root, path) else {
             return false;
         };
         let Some(predicates) =

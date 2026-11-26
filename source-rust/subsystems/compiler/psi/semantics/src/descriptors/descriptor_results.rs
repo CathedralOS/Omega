@@ -833,7 +833,12 @@ impl DescriptorMachine {
             *self.place_types.get(&location.root)?,
             &location.path,
             |prefix, ty, index| {
-                self.sequence_element(|id| types.find(id), location, completed, (prefix, ty, index))
+                self.sequence_element(
+                    |id| types.find(id),
+                    location,
+                    completed,
+                    (prefix, ty, index),
+                )
             },
         )?
     }

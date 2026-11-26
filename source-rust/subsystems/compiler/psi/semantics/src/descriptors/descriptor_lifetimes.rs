@@ -868,9 +868,7 @@ fn final_view_reborrow(
     cutoff: Option<&DeadTailCutoff>,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
 ) -> Option<LocationsByPosition> {
-    let Some(formation) = steps.get(&birth) else {
-        return None;
-    };
+    let formation = steps.get(&birth)?;
     let [(source, child)] = formation.derivations.as_slice() else {
         return None;
     };
@@ -922,9 +920,7 @@ fn returns_with_previous_authority(
         if !visited.insert(position) {
             continue;
         }
-        let Some(step) = steps.get(&position) else {
-            return None;
-        };
+        let step = steps.get(&position)?;
         for edge in &step.successors {
             returns
                 .predecessors
@@ -934,9 +930,7 @@ fn returns_with_previous_authority(
             pending.push(edge.target);
         }
     }
-    let Some(arrivals) = returns.predecessors.get(&birth) else {
-        return None;
-    };
+    let arrivals = returns.predecessors.get(&birth)?;
     let mut permissions = transported_locations_with_predecessors(
         steps,
         Some(&returns),
