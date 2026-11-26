@@ -105,16 +105,27 @@ fn represented_result_fields_keep_the_domain_of_their_semantic_record() {
         public domain Other::Initialized;
         public data Holder { field: |c_layout|::CLayout<Fields> in Fields::Initialized; }
         public machine keep(holder: Holder) -> Holder
-        ensures result.field in Fields::Initialized { holder }"#;
-    for (source, accepted) in [
-        (source.to_owned(), true),
-        (source.replace("ensures result.field in Fields", "ensures result.field in Other"), false),
+        ensures result.field in Fields::Initialized { holder }
+        public machine initialized(holder: Holder) -> bool {
+            holder.field in Fields::Initialized
+        }"#;
+    for (program, refusal) in [
+        (source.to_owned(), None),
+        (
+            source.replace("result.field in Fields", "result.field in Other"),
+            Some("domain declared on another carrier"),
+        ),
+        (
+            source.replace("holder.field in Fields", "holder.field in Other"),
+            Some("requires carrier `Other`"),
+        ),
     ] {
-        std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-        let (output, report) = observations::run(&scratch, &["--check", "--target", "linux_x86_64"], INPUTS);
-        assert_eq!(output.status.success(), accepted, "{report}");
-        if !accepted {
-            assert!(report.contains("domain declared on another carrier"), "{report}");
+        std::fs::write(scratch.path().join("main.omg"), program).unwrap();
+        let (output, report) =
+            observations::run(&scratch, &["--check", "--target", "linux_x86_64"], INPUTS);
+        assert_eq!(output.status.success(), refusal.is_none(), "{report}");
+        if let Some(reason) = refusal {
+            assert!(report.contains(reason), "{report}");
         }
     }
 }

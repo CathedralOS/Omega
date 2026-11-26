@@ -1557,35 +1557,10 @@ impl Program<'_> {
         if required.policy.is_some() {
             return unserved("a domain declared on an arithmetic-policy-qualified carrier");
         }
-        if subject.qualified(Qualification::NONE) != Some(plain) {
-            // A domain on T can qualify LayoutStorage<T, L>. Recover the layout
-            // application from the value being tested, including a projected field.
-            // The domain declaration itself only identifies T.
-            let laid = match plain {
-                ValueType::Record(record, ..) => self
-                    .record_sources
-                    .get(record)
-                    .and_then(|source| source.application.as_ref())
-                    .and_then(|application| typed.layout_storage_arguments(application.reference)),
-                _ => None,
-            };
-            let Some(laid) = laid else {
-                return unserved("constrained by a domain declared on another carrier");
-            };
-            if self.value_type(id, laid.semantic_type)? != subject {
-                return unserved("constrained by a domain declared on another carrier");
-            }
-            if !required.domains.is_empty() {
-                return unserved("a qualified domain carrier on laid layout storage");
-            }
-            if !declaration.content_projections.is_empty() {
-                return unserved("a content projection on laid layout storage");
-            }
-            if definition.predicate_presence != language_core::DomainPredicatePresence::Absent
-                || !definition.facts.is_empty()
-            {
-                return unserved("a predicate domain on laid layout storage");
-            }
+        if subject.qualified(Qualification::NONE) != Some(plain)
+            && !self.represented_domain_carrier(id, plain, subject, definition)?
+        {
+            return unserved("constrained by a domain declared on another carrier");
         }
         if let Some(missing) = required
             .domains
@@ -1653,6 +1628,50 @@ impl Program<'_> {
             });
         }
         Ok(())
+    }
+
+    /// Domain formation and executable membership follow the same retained
+    /// LayoutStorage<T, L> to its exact semantic T, including after a projection.
+    pub(super) fn represented_domain_carrier(
+        &mut self,
+        id: MachineId,
+        actual: ValueType,
+        subject: ValueType,
+        definition: &crate::source_state::domain::DomainDefinition,
+    ) -> Checked<bool> {
+        let typed = self.typed;
+        let ValueType::Record(record, ..) = actual else {
+            return Ok(false);
+        };
+        let Some(layout) = self
+            .record_sources
+            .get(record)
+            .and_then(|source| source.application.as_ref())
+            .and_then(|application| typed.layout_storage_arguments(application.reference))
+        else {
+            return Ok(false);
+        };
+        if self.value_type(id, layout.semantic_type)? != subject {
+            return Ok(false);
+        }
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        if !subject.qualification().domains.is_empty()
+            || crate::source_state::domain::refinement_parent(typed, definition).is_some()
+        {
+            return unserved("a qualified domain carrier on laid layout storage");
+        }
+        let Some(declaration) = typed.domain_definition(definition.symbol) else {
+            return unserved("domain application lost its declaring family");
+        };
+        if !declaration.content_projections.is_empty() {
+            return unserved("a content projection on laid layout storage");
+        }
+        if definition.predicate_presence != language_core::DomainPredicatePresence::Absent
+            || !definition.facts.is_empty()
+        {
+            return unserved("a predicate domain on laid layout storage");
+        }
+        Ok(true)
     }
 
     /// Where `T in D` wrote the domain `domain`: the constraint typing
