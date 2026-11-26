@@ -559,10 +559,154 @@ pub enum AsmInstructionShape {
     DerivedExit,
 }
 
+/*
+Each instruction kind below names one source mnemonic, and its intrinsic is
+that mnemonic under the `asm#` prefix unless a row spells a distinct suffix
+(the AArch64 `dmb` options). One table per kind keeps the mnemonic, the
+intrinsic name and the reverse lookup from drifting apart.
+*/
+macro_rules! instruction_kinds {
+    ($kind:ident { $($variant:ident => $mnemonic:literal $(as $suffix:literal)?,)+ }) => {
+        impl $kind {
+            pub const ALL: [Self; [$(stringify!($variant)),+].len()] = [$(Self::$variant),+];
+
+            pub const fn mnemonic(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $mnemonic,)+
+                }
+            }
+
+            pub const fn intrinsic_name(self) -> &'static str {
+                match self {
+                    $(Self::$variant => intrinsic_name!($($suffix)? $mnemonic),)+
+                }
+            }
+
+            pub fn from_intrinsic_name(name: &str) -> Option<Self> {
+                Self::ALL
+                    .into_iter()
+                    .find(|kind| kind.intrinsic_name() == name)
+            }
+        }
+    };
+}
+
+macro_rules! intrinsic_name {
+    ($suffix:literal $mnemonic:literal) => {
+        concat!("asm#", $suffix)
+    };
+    ($mnemonic:literal) => {
+        concat!("asm#", $mnemonic)
+    };
+}
+
+macro_rules! some_or_none {
+    () => {
+        None
+    };
+    ($value:expr) => {
+        Some($value)
+    };
+}
+
+/*
+A register row names the register, its read mnemonic and, when source may
+write it, its write mnemonic. Intrinsics prefix those mnemonics with `asm#`,
+and the catalog operands carry the register name as the target register. A
+`via` variant forwards every query to the wrapped register family.
+*/
+macro_rules! register_table {
+    ($register:ident $(via $family:ident)? {
+        $($variant:ident: $name:literal, $read:literal $(, $write:literal)?;)+
+    }) => {
+        impl $register {
+            pub const fn name(self) -> &'static str {
+                match self {
+                    $(Self::$family(register) => register.name(),)?
+                    $(Self::$variant => $name,)+
+                }
+            }
+
+            pub const fn read_mnemonic(self) -> &'static str {
+                match self {
+                    $(Self::$family(register) => register.read_mnemonic(),)?
+                    $(Self::$variant => $read,)+
+                }
+            }
+
+            pub const fn write_mnemonic(self) -> Option<&'static str> {
+                match self {
+                    $(Self::$family(register) => register.write_mnemonic(),)?
+                    $(Self::$variant => some_or_none!($($write)?),)+
+                }
+            }
+
+            pub const fn read_intrinsic_name(self) -> &'static str {
+                match self {
+                    $(Self::$family(register) => register.read_intrinsic_name(),)?
+                    $(Self::$variant => concat!("asm#", $read),)+
+                }
+            }
+
+            pub const fn write_intrinsic_name(self) -> Option<&'static str> {
+                match self {
+                    $(Self::$family(register) => register.write_intrinsic_name(),)?
+                    $(Self::$variant => some_or_none!($(concat!("asm#", $write))?),)+
+                }
+            }
+
+            const fn read_operands(self) -> &'static [AsmOperandConstraint] {
+                match self {
+                    $(Self::$family(register) => register.read_operands(),)?
+                    $(Self::$variant => const { &[register_destination_operand($name)] },)+
+                }
+            }
+
+            const fn write_operands(self) -> &'static [AsmOperandConstraint] {
+                match self {
+                    $(Self::$family(register) => register.write_operands(),)?
+                    $(Self::$variant => const { &[register_value_operand($name)] },)+
+                }
+            }
+
+            pub fn from_read_mnemonic(name: &str) -> Option<Self> {
+                Self::ALL
+                    .into_iter()
+                    .find(|register| register.read_mnemonic() == name)
+            }
+
+            pub fn from_write_mnemonic(name: &str) -> Option<Self> {
+                Self::ALL
+                    .into_iter()
+                    .find(|register| register.write_mnemonic() == Some(name))
+            }
+
+            pub fn from_read_intrinsic_name(name: &str) -> Option<Self> {
+                Self::ALL
+                    .into_iter()
+                    .find(|register| register.read_intrinsic_name() == name)
+            }
+
+            pub fn from_write_intrinsic_name(name: &str) -> Option<Self> {
+                Self::ALL
+                    .into_iter()
+                    .find(|register| register.write_intrinsic_name() == Some(name))
+            }
+        }
+    };
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub enum AsmGlobalDescriptorTableOperation {
     Store,
     Load,
+}
+
+instruction_kinds! {
+    AsmGlobalDescriptorTableOperation {
+        Store => "sgdt",
+        Load => "lgdt",
+    }
 }
 
 impl AsmGlobalDescriptorTableOperation {
@@ -570,26 +714,6 @@ impl AsmGlobalDescriptorTableOperation {
     /// with the action so admission and operand effects agree.
     pub const fn writes_operand(self) -> bool {
         matches!(self, Self::Store)
-    }
-
-    pub const fn mnemonic(self) -> &'static str {
-        match self {
-            Self::Store => "sgdt",
-            Self::Load => "lgdt",
-        }
-    }
-    pub const fn intrinsic_name(self) -> &'static str {
-        match self {
-            Self::Store => "asm#sgdt",
-            Self::Load => "asm#lgdt",
-        }
-    }
-    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
-        match name {
-            "asm#sgdt" => Some(Self::Store),
-            "asm#lgdt" => Some(Self::Load),
-            _ => None,
-        }
     }
 }
 
@@ -605,25 +729,10 @@ pub enum AsmInstructionSerializationKind {
     InstructionSynchronizationBarrier, // AArch64 `isb`
 }
 
-impl AsmInstructionSerializationKind {
-    pub const fn mnemonic(self) -> &'static str {
-        match self {
-            Self::Serialize => "serialize",
-            Self::InstructionSynchronizationBarrier => "isb",
-        }
-    }
-
-    pub const fn intrinsic_name(self) -> &'static str {
-        match self {
-            Self::Serialize => "asm#serialize",
-            Self::InstructionSynchronizationBarrier => "asm#isb",
-        }
-    }
-
-    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
-        [Self::Serialize, Self::InstructionSynchronizationBarrier]
-            .into_iter()
-            .find(|kind| kind.intrinsic_name() == name)
+instruction_kinds! {
+    AsmInstructionSerializationKind {
+        Serialize => "serialize",
+        InstructionSynchronizationBarrier => "isb",
     }
 }
 
@@ -634,31 +743,11 @@ pub enum AsmCacheOperationKind {
     WriteBackNoInvalidate, // x86_64 `wbnoinvd`
 }
 
-impl AsmCacheOperationKind {
-    pub const fn mnemonic(self) -> &'static str {
-        match self {
-            Self::WriteBackInvalidate => "wbinvd",
-            Self::Invalidate => "invd",
-            Self::WriteBackNoInvalidate => "wbnoinvd",
-        }
-    }
-
-    pub const fn intrinsic_name(self) -> &'static str {
-        match self {
-            Self::WriteBackInvalidate => "asm#wbinvd",
-            Self::Invalidate => "asm#invd",
-            Self::WriteBackNoInvalidate => "asm#wbnoinvd",
-        }
-    }
-
-    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
-        [
-            Self::WriteBackInvalidate,
-            Self::Invalidate,
-            Self::WriteBackNoInvalidate,
-        ]
-        .into_iter()
-        .find(|kind| kind.intrinsic_name() == name)
+instruction_kinds! {
+    AsmCacheOperationKind {
+        WriteBackInvalidate => "wbinvd",
+        Invalidate => "invd",
+        WriteBackNoInvalidate => "wbnoinvd",
     }
 }
 
@@ -673,43 +762,15 @@ pub enum AsmSchedulingHintKind {
     SendEventLocal,   // AArch64 `sevl`
 }
 
-impl AsmSchedulingHintKind {
-    pub const fn mnemonic(self) -> &'static str {
-        match self {
-            Self::SpinPause => "pause",
-            Self::Yield => "yield",
-            Self::Nop => "nop",
-            Self::WaitForEvent => "wfe",
-            Self::WaitForInterrupt => "wfi",
-            Self::SendEvent => "sev",
-            Self::SendEventLocal => "sevl",
-        }
-    }
-
-    pub const fn intrinsic_name(self) -> &'static str {
-        match self {
-            Self::SpinPause => "asm#pause",
-            Self::Yield => "asm#yield",
-            Self::Nop => "asm#nop",
-            Self::WaitForEvent => "asm#wfe",
-            Self::WaitForInterrupt => "asm#wfi",
-            Self::SendEvent => "asm#sev",
-            Self::SendEventLocal => "asm#sevl",
-        }
-    }
-
-    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
-        [
-            Self::SpinPause,
-            Self::Yield,
-            Self::Nop,
-            Self::WaitForEvent,
-            Self::WaitForInterrupt,
-            Self::SendEvent,
-            Self::SendEventLocal,
-        ]
-        .into_iter()
-        .find(|kind| kind.intrinsic_name() == name)
+instruction_kinds! {
+    AsmSchedulingHintKind {
+        SpinPause => "pause",
+        Yield => "yield",
+        Nop => "nop",
+        WaitForEvent => "wfe",
+        WaitForInterrupt => "wfi",
+        SendEvent => "sev",
+        SendEventLocal => "sevl",
     }
 }
 
@@ -721,75 +782,17 @@ pub enum AsmControlRegister {
     Cr4,
 }
 
+register_table! {
+    AsmControlRegister {
+        Cr0: "cr0", "read_cr0", "write_cr0";
+        Cr2: "cr2", "read_cr2";
+        Cr3: "cr3", "read_cr3", "write_cr3";
+        Cr4: "cr4", "read_cr4", "write_cr4";
+    }
+}
+
 impl AsmControlRegister {
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Cr0 => "cr0",
-            Self::Cr2 => "cr2",
-            Self::Cr3 => "cr3",
-            Self::Cr4 => "cr4",
-        }
-    }
-
-    pub const fn read_mnemonic(self) -> &'static str {
-        match self {
-            Self::Cr0 => "read_cr0",
-            Self::Cr2 => "read_cr2",
-            Self::Cr3 => "read_cr3",
-            Self::Cr4 => "read_cr4",
-        }
-    }
-
-    pub const fn write_mnemonic(self) -> Option<&'static str> {
-        match self {
-            Self::Cr0 => Some("write_cr0"),
-            Self::Cr2 => None,
-            Self::Cr3 => Some("write_cr3"),
-            Self::Cr4 => Some("write_cr4"),
-        }
-    }
-
-    pub const fn read_intrinsic_name(self) -> &'static str {
-        match self {
-            Self::Cr0 => "asm#read_cr0",
-            Self::Cr2 => "asm#read_cr2",
-            Self::Cr3 => "asm#read_cr3",
-            Self::Cr4 => "asm#read_cr4",
-        }
-    }
-
-    pub const fn write_intrinsic_name(self) -> Option<&'static str> {
-        match self {
-            Self::Cr0 => Some("asm#write_cr0"),
-            Self::Cr2 => None,
-            Self::Cr3 => Some("asm#write_cr3"),
-            Self::Cr4 => Some("asm#write_cr4"),
-        }
-    }
-
-    pub fn from_read_mnemonic(name: &str) -> Option<Self> {
-        [Self::Cr0, Self::Cr2, Self::Cr3, Self::Cr4]
-            .into_iter()
-            .find(|register| register.read_mnemonic() == name)
-    }
-
-    pub fn from_write_mnemonic(name: &str) -> Option<Self> {
-        [Self::Cr0, Self::Cr3, Self::Cr4]
-            .into_iter()
-            .find(|register| register.write_mnemonic() == Some(name))
-    }
-
-    pub fn from_read_intrinsic_name(name: &str) -> Option<Self> {
-        [Self::Cr0, Self::Cr2, Self::Cr3, Self::Cr4]
-            .into_iter()
-            .find(|register| register.read_intrinsic_name() == name)
-    }
-
-    pub fn from_write_intrinsic_name(name: &str) -> Option<Self> {
-        [Self::Cr0, Self::Cr3, Self::Cr4]
-            .into_iter()
-            .find(|register| register.write_intrinsic_name() == Some(name))
-    }
+    const ALL: [Self; 4] = [Self::Cr0, Self::Cr2, Self::Cr3, Self::Cr4];
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
@@ -805,6 +808,21 @@ pub enum AsmSystemRegister {
     TpidrEl1,
     EsrEl1,
     FarEl1,
+}
+
+register_table! {
+    AsmSystemRegister via Control {
+        Rflags: "rflags", "pushfq", "popfq";
+        SctlrEl1: "sctlr_el1", "read_sctlr_el1", "write_sctlr_el1";
+        TcrEl1: "tcr_el1", "read_tcr_el1", "write_tcr_el1";
+        Ttbr0El1: "ttbr0_el1", "read_ttbr0_el1", "write_ttbr0_el1";
+        Ttbr1El1: "ttbr1_el1", "read_ttbr1_el1", "write_ttbr1_el1";
+        MairEl1: "mair_el1", "read_mair_el1", "write_mair_el1";
+        VbarEl1: "vbar_el1", "read_vbar_el1", "write_vbar_el1";
+        TpidrEl1: "tpidr_el1", "read_tpidr_el1", "write_tpidr_el1";
+        EsrEl1: "esr_el1", "read_esr_el1";
+        FarEl1: "far_el1", "read_far_el1";
+    }
 }
 
 impl AsmSystemRegister {
@@ -835,23 +853,14 @@ impl AsmSystemRegister {
     }
 
     pub const fn from_catalog_id(identity: u8) -> Option<Self> {
-        match identity {
-            10 => Some(Self::Control(AsmControlRegister::Cr0)),
-            11 => Some(Self::Control(AsmControlRegister::Cr2)),
-            12 => Some(Self::Control(AsmControlRegister::Cr3)),
-            13 => Some(Self::Control(AsmControlRegister::Cr4)),
-            0 => Some(Self::SctlrEl1),
-            1 => Some(Self::TcrEl1),
-            2 => Some(Self::Ttbr0El1),
-            3 => Some(Self::Ttbr1El1),
-            4 => Some(Self::MairEl1),
-            5 => Some(Self::VbarEl1),
-            6 => Some(Self::TpidrEl1),
-            7 => Some(Self::EsrEl1),
-            8 => Some(Self::FarEl1),
-            9 => Some(Self::Rflags),
-            _ => None,
+        let mut index = 0;
+        while index < Self::ALL.len() {
+            if Self::ALL[index].catalog_id() == identity {
+                return Some(Self::ALL[index]);
+            }
+            index += 1;
         }
+        None
     }
 
     const ALL: [Self; 14] = [
@@ -870,122 +879,6 @@ impl AsmSystemRegister {
         Self::EsrEl1,
         Self::FarEl1,
     ];
-
-    const WRITABLE: [Self; 11] = [
-        Self::Control(AsmControlRegister::Cr0),
-        Self::Control(AsmControlRegister::Cr3),
-        Self::Control(AsmControlRegister::Cr4),
-        Self::Rflags,
-        Self::SctlrEl1,
-        Self::TcrEl1,
-        Self::Ttbr0El1,
-        Self::Ttbr1El1,
-        Self::MairEl1,
-        Self::VbarEl1,
-        Self::TpidrEl1,
-    ];
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Control(register) => register.name(),
-            Self::SctlrEl1 => "sctlr_el1",
-            Self::TcrEl1 => "tcr_el1",
-            Self::Ttbr0El1 => "ttbr0_el1",
-            Self::Ttbr1El1 => "ttbr1_el1",
-            Self::MairEl1 => "mair_el1",
-            Self::VbarEl1 => "vbar_el1",
-            Self::TpidrEl1 => "tpidr_el1",
-            Self::EsrEl1 => "esr_el1",
-            Self::FarEl1 => "far_el1",
-            Self::Rflags => "rflags",
-        }
-    }
-
-    pub const fn read_mnemonic(self) -> &'static str {
-        match self {
-            Self::Control(register) => register.read_mnemonic(),
-            Self::SctlrEl1 => "read_sctlr_el1",
-            Self::TcrEl1 => "read_tcr_el1",
-            Self::Ttbr0El1 => "read_ttbr0_el1",
-            Self::Ttbr1El1 => "read_ttbr1_el1",
-            Self::MairEl1 => "read_mair_el1",
-            Self::VbarEl1 => "read_vbar_el1",
-            Self::TpidrEl1 => "read_tpidr_el1",
-            Self::EsrEl1 => "read_esr_el1",
-            Self::FarEl1 => "read_far_el1",
-            Self::Rflags => "pushfq",
-        }
-    }
-
-    pub const fn write_mnemonic(self) -> Option<&'static str> {
-        match self {
-            Self::Control(register) => register.write_mnemonic(),
-            Self::SctlrEl1 => Some("write_sctlr_el1"),
-            Self::TcrEl1 => Some("write_tcr_el1"),
-            Self::Ttbr0El1 => Some("write_ttbr0_el1"),
-            Self::Ttbr1El1 => Some("write_ttbr1_el1"),
-            Self::MairEl1 => Some("write_mair_el1"),
-            Self::VbarEl1 => Some("write_vbar_el1"),
-            Self::TpidrEl1 => Some("write_tpidr_el1"),
-            Self::Rflags => Some("popfq"),
-            Self::EsrEl1 | Self::FarEl1 => None,
-        }
-    }
-
-    pub const fn read_intrinsic_name(self) -> &'static str {
-        match self {
-            Self::Control(register) => register.read_intrinsic_name(),
-            Self::SctlrEl1 => "asm#read_sctlr_el1",
-            Self::TcrEl1 => "asm#read_tcr_el1",
-            Self::Ttbr0El1 => "asm#read_ttbr0_el1",
-            Self::Ttbr1El1 => "asm#read_ttbr1_el1",
-            Self::MairEl1 => "asm#read_mair_el1",
-            Self::VbarEl1 => "asm#read_vbar_el1",
-            Self::TpidrEl1 => "asm#read_tpidr_el1",
-            Self::EsrEl1 => "asm#read_esr_el1",
-            Self::FarEl1 => "asm#read_far_el1",
-            Self::Rflags => "asm#pushfq",
-        }
-    }
-
-    pub const fn write_intrinsic_name(self) -> Option<&'static str> {
-        match self {
-            Self::Control(register) => register.write_intrinsic_name(),
-            Self::SctlrEl1 => Some("asm#write_sctlr_el1"),
-            Self::TcrEl1 => Some("asm#write_tcr_el1"),
-            Self::Ttbr0El1 => Some("asm#write_ttbr0_el1"),
-            Self::Ttbr1El1 => Some("asm#write_ttbr1_el1"),
-            Self::MairEl1 => Some("asm#write_mair_el1"),
-            Self::VbarEl1 => Some("asm#write_vbar_el1"),
-            Self::TpidrEl1 => Some("asm#write_tpidr_el1"),
-            Self::Rflags => Some("asm#popfq"),
-            Self::EsrEl1 | Self::FarEl1 => None,
-        }
-    }
-
-    pub fn from_read_mnemonic(name: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|register| register.read_mnemonic() == name)
-    }
-
-    pub fn from_write_mnemonic(name: &str) -> Option<Self> {
-        Self::WRITABLE
-            .into_iter()
-            .find(|register| register.write_mnemonic() == Some(name))
-    }
-
-    pub fn from_read_intrinsic_name(name: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|register| register.read_intrinsic_name() == name)
-    }
-
-    pub fn from_write_intrinsic_name(name: &str) -> Option<Self> {
-        Self::WRITABLE
-            .into_iter()
-            .find(|register| register.write_intrinsic_name() == Some(name))
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
@@ -1035,42 +928,18 @@ pub enum AsmFenceKind {
     Aarch64Full,
 }
 
+instruction_kinds! {
+    AsmFenceKind {
+        Load => "lfence",
+        Store => "sfence",
+        Full => "mfence",
+        Aarch64Load => "dmb" as "dmb_ld",
+        Aarch64Store => "dmb" as "dmb_st",
+        Aarch64Full => "dmb" as "dmb_sy",
+    }
+}
+
 impl AsmFenceKind {
-    pub const fn mnemonic(self) -> &'static str {
-        match self {
-            Self::Load => "lfence",
-            Self::Store => "sfence",
-            Self::Full => "mfence",
-            Self::Aarch64Load | Self::Aarch64Store | Self::Aarch64Full => "dmb",
-        }
-    }
-
-    pub const fn intrinsic_name(self) -> &'static str {
-        match self {
-            Self::Load => "asm#lfence",
-            Self::Store => "asm#sfence",
-            Self::Full => "asm#mfence",
-            Self::Aarch64Load => "asm#dmb_ld",
-            Self::Aarch64Store => "asm#dmb_st",
-            Self::Aarch64Full => "asm#dmb_sy",
-        }
-    }
-
-    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|kind| kind.intrinsic_name() == name)
-    }
-
-    pub const ALL: [Self; 6] = [
-        Self::Load,
-        Self::Store,
-        Self::Full,
-        Self::Aarch64Load,
-        Self::Aarch64Store,
-        Self::Aarch64Full,
-    ];
-
     pub const fn target(self) -> AsmTargetApplicability {
         match self {
             Self::Load | Self::Store | Self::Full => AsmTargetApplicability::X86_64,
@@ -1100,25 +969,10 @@ pub enum AsmInterruptControlKind {
     Enable,
 }
 
-impl AsmInterruptControlKind {
-    pub const fn mnemonic(self) -> &'static str {
-        match self {
-            Self::Disable => "cli",
-            Self::Enable => "sti",
-        }
-    }
-
-    pub const fn intrinsic_name(self) -> &'static str {
-        match self {
-            Self::Disable => "asm#cli",
-            Self::Enable => "asm#sti",
-        }
-    }
-
-    pub fn from_intrinsic_name(name: &str) -> Option<Self> {
-        [Self::Disable, Self::Enable]
-            .into_iter()
-            .find(|kind| kind.intrinsic_name() == name)
+instruction_kinds! {
+    AsmInterruptControlKind {
+        Disable => "cli",
+        Enable => "sti",
     }
 }
 
@@ -1325,33 +1179,6 @@ const fn register_value_operand(target_register: &'static str) -> AsmOperandCons
     AsmOperandConstraint::read("value", target_register, "u64", u64::MAX)
 }
 
-const CR0_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr0")];
-const CR2_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr2")];
-const CR3_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr3")];
-const CR4_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("cr4")];
-const CR0_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("cr0")];
-const CR3_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("cr3")];
-const CR4_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("cr4")];
-const SCTLR_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
-    &[register_destination_operand("sctlr_el1")];
-const TCR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("tcr_el1")];
-const TTBR0_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
-    &[register_destination_operand("ttbr0_el1")];
-const TTBR1_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
-    &[register_destination_operand("ttbr1_el1")];
-const MAIR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("mair_el1")];
-const VBAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("vbar_el1")];
-const TPIDR_EL1_READ_OPERANDS: &[AsmOperandConstraint] =
-    &[register_destination_operand("tpidr_el1")];
-const ESR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("esr_el1")];
-const FAR_EL1_READ_OPERANDS: &[AsmOperandConstraint] = &[register_destination_operand("far_el1")];
-const SCTLR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("sctlr_el1")];
-const TCR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("tcr_el1")];
-const TTBR0_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("ttbr0_el1")];
-const TTBR1_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("ttbr1_el1")];
-const MAIR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("mair_el1")];
-const VBAR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("vbar_el1")];
-const TPIDR_EL1_WRITE_OPERANDS: &[AsmOperandConstraint] = &[register_value_operand("tpidr_el1")];
 const NO_CLOBBERS: &[&str] = &[];
 const PORT_OUT_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r11", "r15"];
 const PORT_IN_CLOBBERS: &[&str] = &["rax", "rdx", "r10", "r15"];
@@ -1463,30 +1290,18 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmTargetApplicability::{Aarch64, Any, X86_64};
 
     if let Some(register) = AsmControlRegister::from_read_mnemonic(mnemonic) {
-        let operands = match register {
-            AsmControlRegister::Cr0 => CR0_READ_OPERANDS,
-            AsmControlRegister::Cr2 => CR2_READ_OPERANDS,
-            AsmControlRegister::Cr3 => CR3_READ_OPERANDS,
-            AsmControlRegister::Cr4 => CR4_READ_OPERANDS,
-        };
         return Some(Contract(AsmInstructionContract::machine_authority(
             AsmInstructionShape::ControlRegisterRead(register),
             X86_64,
-            operands,
+            register.read_operands(),
             CONTROL_REGISTER_READ_CLOBBERS,
         )));
     }
     if let Some(register) = AsmControlRegister::from_write_mnemonic(mnemonic) {
-        let operands = match register {
-            AsmControlRegister::Cr0 => CR0_WRITE_OPERANDS,
-            AsmControlRegister::Cr2 => unreachable!("CR2 has no source write form"),
-            AsmControlRegister::Cr3 => CR3_WRITE_OPERANDS,
-            AsmControlRegister::Cr4 => CR4_WRITE_OPERANDS,
-        };
         return Some(Contract(AsmInstructionContract::machine_authority(
             AsmInstructionShape::ControlRegisterWrite(register),
             X86_64,
-            operands,
+            register.write_operands(),
             CONTROL_REGISTER_WRITE_CLOBBERS,
         )));
     }
@@ -1504,50 +1319,27 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
                 clobbers: FLAGS_OPERAND_CLOBBERS,
             }));
         }
-
-        let operands = match register {
-            AsmSystemRegister::SctlrEl1 => SCTLR_EL1_READ_OPERANDS,
-            AsmSystemRegister::TcrEl1 => TCR_EL1_READ_OPERANDS,
-            AsmSystemRegister::Ttbr0El1 => TTBR0_EL1_READ_OPERANDS,
-            AsmSystemRegister::Ttbr1El1 => TTBR1_EL1_READ_OPERANDS,
-            AsmSystemRegister::MairEl1 => MAIR_EL1_READ_OPERANDS,
-            AsmSystemRegister::VbarEl1 => VBAR_EL1_READ_OPERANDS,
-            AsmSystemRegister::TpidrEl1 => TPIDR_EL1_READ_OPERANDS,
-            AsmSystemRegister::EsrEl1 => ESR_EL1_READ_OPERANDS,
-            AsmSystemRegister::FarEl1 => FAR_EL1_READ_OPERANDS,
-            AsmSystemRegister::Rflags | AsmSystemRegister::Control(_) => return None,
-        };
+        if let AsmSystemRegister::Control(_) = register {
+            return None;
+        }
         return Some(Contract(AsmInstructionContract::machine_authority(
             AsmInstructionShape::SystemRegisterRead(register),
             Aarch64,
-            operands,
+            register.read_operands(),
             SYSTEM_REGISTER_READ_CLOBBERS,
         )));
     }
+    // The popfq row below owns the rflags restore contract.
     if let Some(register) = AsmSystemRegister::from_write_mnemonic(mnemonic)
         && register != AsmSystemRegister::Rflags
     {
-        let operands = match register {
-            AsmSystemRegister::SctlrEl1 => SCTLR_EL1_WRITE_OPERANDS,
-            AsmSystemRegister::TcrEl1 => TCR_EL1_WRITE_OPERANDS,
-            AsmSystemRegister::Ttbr0El1 => TTBR0_EL1_WRITE_OPERANDS,
-            AsmSystemRegister::Ttbr1El1 => TTBR1_EL1_WRITE_OPERANDS,
-            AsmSystemRegister::MairEl1 => MAIR_EL1_WRITE_OPERANDS,
-            AsmSystemRegister::VbarEl1 => VBAR_EL1_WRITE_OPERANDS,
-            AsmSystemRegister::TpidrEl1 => TPIDR_EL1_WRITE_OPERANDS,
-            AsmSystemRegister::Rflags => {
-                unreachable!("rflags restore keeps the popfq contract")
-            }
-            AsmSystemRegister::EsrEl1
-            | AsmSystemRegister::FarEl1
-            | AsmSystemRegister::Control(_) => {
-                return None;
-            }
-        };
+        if let AsmSystemRegister::Control(_) = register {
+            return None;
+        }
         return Some(Contract(AsmInstructionContract::machine_authority(
             AsmInstructionShape::SystemRegisterWrite(register),
             Aarch64,
-            operands,
+            register.write_operands(),
             SYSTEM_REGISTER_WRITE_CLOBBERS,
         )));
     }
@@ -2142,10 +1934,10 @@ mod tests {
             assert_eq!(read.clobbers, &["x9", "x15"]);
         }
 
-        for register in AsmSystemRegister::WRITABLE
-            .into_iter()
-            .filter(|register| register.target_applicability() == AsmTargetApplicability::Aarch64)
-        {
+        for register in AsmSystemRegister::ALL.into_iter().filter(|register| {
+            register.target_applicability() == AsmTargetApplicability::Aarch64
+                && register.write_mnemonic().is_some()
+        }) {
             let mnemonic = register.write_mnemonic().expect("writable system register");
             let AsmCatalogEntry::Contract(write) =
                 asm_catalog_entry(mnemonic).expect("system-register write contract")
