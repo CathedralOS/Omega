@@ -520,7 +520,7 @@ machine main() {{ let valid: bool = checked("Room A1"); }}
                         terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
                     ) && failure
                         .statement
-                        .contains("result == byte_observation::ascii_only(bytes)")
+                        .contains("result == |byte_observation|::ascii_only(bytes)")
                 }),
                 "{unproved:?}"
             );
