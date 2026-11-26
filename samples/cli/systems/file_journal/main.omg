@@ -1,70 +1,69 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/process_exit.omg as process;
+use {system}/filesystem.omg as fs;
+use {system}/filesystem_host.omg as paths;
+
 // A portable filesystem journal: create a directory, write a 17-byte file,
 // inspect it, read its bytes back, rename it, and remove the file/directory.
 // Each successful step increments the tally; partial completion returns fewer
-// than seven. The application calls Filesystem directly and holds no raw OS role.
+// than seven. The application calls the portable filesystem directly.
 // Expected exit: 7.
-use system\File;
-use system\IoResult;
-use system\Metadata;
-use system\MetadataResult;
-use system\OpenResult;
-use system\UnitResult;
-use system\Filesystem;
 
 data Main {
-    result: UnitResult;
-    opened: OpenResult;
-    transferred: IoResult;
-    metadata: MetadataResult;
+    result: |fs|::UnitResult;
+    opened: |fs|::OpenResult;
+    transferred: |fs|::IoResult;
+    metadata: |fs|::MetadataResult;
     passed: i32 in Wrapping;
     buffer: [u8; 64];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine main(main: @mutable Main)
+blocks
+reaches |process|::ProcessExit + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemMetadataQuery + |authority|::FilesystemNamespaceMutation {
     // The sample owns these paths. Remove its prior interrupted run first.
-    main.result = block Filesystem::remove("/tmp/omega_journal_dir/note.txt");
-    main.result = block Filesystem::remove("/tmp/omega_journal_dir/renamed.txt");
-    main.result = block Filesystem::remove_dir("/tmp/omega_journal_dir");
-    main.result = block Filesystem::create_dir("/tmp/omega_journal_dir");
-    transition main.result { UnitResult::Ok -> block made_directory(main), _ -> done(main) }
+    main.result = block |fs|::Filesystem::remove("/tmp/omega_journal_dir/note.txt" as + |paths|::Path);
+    main.result = block |fs|::Filesystem::remove("/tmp/omega_journal_dir/renamed.txt" as + |paths|::Path);
+    main.result = block |fs|::Filesystem::remove_dir("/tmp/omega_journal_dir" as + |paths|::Path);
+    main.result = block |fs|::Filesystem::create_dir("/tmp/omega_journal_dir" as + |paths|::Path);
+    transition main.result { |fs|::UnitResult::Ok -> block made_directory(main), _ -> done(main) }
 
     machine made_directory(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.opened = block Filesystem::create("/tmp/omega_journal_dir/note.txt");
-        transition main.opened { OpenResult::Ok { file } -> block write(main, file), _ -> done(main) }
+        main.opened = block |fs|::Filesystem::create("/tmp/omega_journal_dir/note.txt" as + |paths|::Path);
+        transition main.opened { |fs|::OpenResult::Ok { file } -> block write(main, file), _ -> done(main) }
     }
-    machine write(main: @mutable Main, file: File) {
-        main.transferred = block Filesystem::write(file, "omega fs journal\n");
-        main.result = block Filesystem::close(file);
-        transition main.result { UnitResult::Ok -> block written(main), _ -> done(main) }
+    machine write(main: @mutable Main, file: |fs|::File) {
+        main.transferred = block |fs|::Filesystem::write(file, "omega fs journal\n");
+        main.result = block |fs|::Filesystem::close(file);
+        transition main.result { |fs|::UnitResult::Ok -> block written(main), _ -> done(main) }
     }
     machine written(main: @mutable Main) {
-        transition main.transferred { IoResult::Ok { count } -> block count_written(main, count), _ -> done(main) }
+        transition main.transferred { |fs|::IoResult::Ok { count } -> block count_written(main, count), _ -> done(main) }
     }
     machine count_written(main: @mutable Main, count: u64) {
         transition count == 17 { true -> block inspect(main), false -> done(main) }
     }
     machine inspect(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.metadata = block Filesystem::metadata_path("/tmp/omega_journal_dir/note.txt");
-        transition main.metadata { MetadataResult::Ok { meta } -> block inspected(main, meta), _ -> done(main) }
+        main.metadata = block |fs|::Filesystem::metadata_path("/tmp/omega_journal_dir/note.txt" as + |paths|::Path);
+        transition main.metadata { |fs|::MetadataResult::Ok { meta } -> block inspected(main, meta), _ -> done(main) }
     }
-    machine inspected(main: @mutable Main, metadata: Metadata) {
+    machine inspected(main: @mutable Main, metadata: |fs|::Metadata) {
         transition metadata.length == 17 { true -> block open_for_read(main), false -> done(main) }
     }
     machine open_for_read(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.opened = block Filesystem::open("/tmp/omega_journal_dir/note.txt");
-        transition main.opened { OpenResult::Ok { file } -> block read(main, file), _ -> done(main) }
+        main.opened = block |fs|::Filesystem::open("/tmp/omega_journal_dir/note.txt" as + |paths|::Path);
+        transition main.opened { |fs|::OpenResult::Ok { file } -> block read(main, file), _ -> done(main) }
     }
-    machine read(main: @mutable Main, file: File) {
-        main.transferred = block Filesystem::read(file, @mutable main.buffer[..], 17);
-        main.result = block Filesystem::close(file);
-        transition main.result { UnitResult::Ok -> block read_complete(main), _ -> done(main) }
+    machine read(main: @mutable Main, file: |fs|::File) {
+        main.transferred = block |fs|::Filesystem::read(file, @mutable main.buffer[..], 17);
+        main.result = block |fs|::Filesystem::close(file);
+        transition main.result { |fs|::UnitResult::Ok -> block read_complete(main), _ -> done(main) }
     }
     machine read_complete(main: @mutable Main) {
-        transition main.transferred { IoResult::Ok { count } -> block count_read(main, count), _ -> done(main) }
+        transition main.transferred { |fs|::IoResult::Ok { count } -> block count_read(main, count), _ -> done(main) }
     }
     machine count_read(main: @mutable Main, count: u64) {
         transition count == 17 { true -> block bytes_read(main), false -> done(main) }
@@ -82,28 +81,30 @@ machine main(main: @mutable Main) reaches ProcessExit + FilesystemContentRead + 
     }
     machine rename(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.result = block Filesystem::rename("/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
-        transition main.result { UnitResult::Ok -> block renamed(main), _ -> done(main) }
+        main.result = block |fs|::Filesystem::rename("/tmp/omega_journal_dir/note.txt" as + |paths|::Path, "/tmp/omega_journal_dir/renamed.txt" as + |paths|::Path);
+        transition main.result { |fs|::UnitResult::Ok -> block renamed(main), _ -> done(main) }
     }
     machine renamed(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.result = block Filesystem::remove("/tmp/omega_journal_dir/renamed.txt");
-        transition main.result { UnitResult::Ok -> block removed_file(main), _ -> done(main) }
+        main.result = block |fs|::Filesystem::remove("/tmp/omega_journal_dir/renamed.txt" as + |paths|::Path);
+        transition main.result { |fs|::UnitResult::Ok -> block removed_file(main), _ -> done(main) }
     }
     machine removed_file(main: @mutable Main) {
         main.passed = main.passed + 1;
-        main.result = block Filesystem::remove_dir("/tmp/omega_journal_dir");
-        transition main.result { UnitResult::Ok -> removed_directory(main), _ -> done(main) }
+        main.result = block |fs|::Filesystem::remove_dir("/tmp/omega_journal_dir" as + |paths|::Path);
+        transition main.result { |fs|::UnitResult::Ok -> removed_directory(main), _ -> done(main) }
     }
     machine removed_directory(main: @mutable Main) {
         main.passed = main.passed + 1;
         transition { _ -> done(main) }
     }
-    machine done(main: @mutable Main) { ProcessExit::exit_process(main.passed as i32); }
+    machine done(main: @mutable Main) { |process|::ProcessExit::exit_process(main.passed as i32); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine entry_start()
+blocks
+reaches |process|::ProcessExit + |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemMetadataQuery + |authority|::FilesystemNamespaceMutation {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }
