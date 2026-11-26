@@ -23,6 +23,7 @@ pub use completed_outputs::RetainedBuildOutputs;
 pub use execution_inputs::{BuildExecutionContract, BuildExecutionInputs};
 pub use filesystem_scope::preparation::prepare_filesystem_scope;
 pub use filesystem_scope::runtime::{BuildFilesystemEffects, BuildFilesystemRuntime};
+pub use filesystem_scope::runtime_directory::{BuildDirectory, BuildDirectoryMappings};
 pub use filesystem_scope::successor_directory::SuccessorDirectory;
 pub use filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineCapturedFilesystemRoot,
@@ -30,6 +31,7 @@ pub use filesystem_scope::{
 };
 pub use observation_identity::BuildObservationIdentity;
 pub use observations::*;
+pub use platform_custody::directory_mappings::DirectoryAccess;
 pub use restricted_requests::{
     ProgramDeclarationOwner, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
     RestrictedBuildGrants, RestrictedBuildOperation, RestrictedBuildRequest, RestrictedBuildSite,

@@ -178,6 +178,7 @@ struct BuildPreparations {
 
 /// Only the Build that returned this entry can issue its source view and incoming bindings.
 pub struct PreparedSuccessor {
+    directories: package_compilation::build_execution::BuildDirectoryMappings,
     issuer: package_compilation::CapturedLocalSource,
     enabled_unsafe_atoms: std::collections::BTreeSet<language_core::core_vocabulary::UnsafeAtom>,
     source_owner: Option<package_compilation::CompletedAnonymousSource>,
@@ -211,6 +212,7 @@ impl ReturnedPlanningStage {
         libraries: Vec<package_compilation::source_imports::SuppliedBuildLibrary>,
     ) -> Result<PreparedSuccessor, CompileFailure> {
         let directory = self.returned.successor_directory().cloned();
+        let directories = self.returned.successor_directories.clone();
         let (entry, capture) = self.returned.successor_source().map_err(refusal)?;
         let entry = entry.clone();
         let capture = capture.clone();
@@ -273,6 +275,7 @@ impl ReturnedPlanningStage {
             .entries
             .push((path.clone(), identity.clone(), libraries.clone(), providers.clone(), enabled_unsafe_atoms.clone()));
         Ok(PreparedSuccessor {
+            directories,
             issuer,
             enabled_unsafe_atoms,
             source_owner,

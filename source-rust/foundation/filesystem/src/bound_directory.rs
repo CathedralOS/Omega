@@ -24,6 +24,15 @@ impl BoundDirectory {
         )?)))
     }
 
+    /// Retain this directory or one of its children without reopening a host pathname.
+    pub fn subtree(&self, path: &[u8]) -> io::Result<Self> {
+        if path.is_empty() {
+            return Ok(self.clone());
+        }
+        let (parent, leaf) = self.parent(path)?;
+        Ok(Self(Arc::new(parent.open_dir_nofollow(leaf)?)))
+    }
+
     fn parent<'path>(&self, path: &'path [u8]) -> io::Result<(Dir, &'path str)> {
         let spelling = std::str::from_utf8(path)
             .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "file path is not UTF-8"))?;

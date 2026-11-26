@@ -25,6 +25,7 @@ Provenance:
 use platform_custody::bound_directory;
 pub mod preparation;
 pub mod runtime;
+pub(super) mod runtime_directory;
 pub(super) mod successor_directory;
 
 use super::observations::{
@@ -100,7 +101,7 @@ pub struct BuildMachineFilesystemScope {
     captured_source_input: Option<CapturedBuildSourceInput>, // Immutable captured Source inventory.
     pub(super) product_source_directory: Option<Vec<u8>>,
     required_outputs: BTreeSet<Vec<u8>>, // Declared required sealed output paths in canonical order.
-    directories: platform_custody::directory_mappings::DirectoryMappings,
+    directories: runtime_directory::BuildDirectoryMappings,
     named_inputs: Vec<NamedBuildInput>, // Assigned named input roots (`3..`).
 }
 

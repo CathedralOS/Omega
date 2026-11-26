@@ -12,18 +12,47 @@ pub enum DirectoryAccess {
     ReadWrite,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct DirectoryMappings(BTreeMap<String, DirectoryMapping>);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DirectoryMappings<B = BoundDirectory>(BTreeMap<String, DirectoryMapping<B>>);
+
+impl<B> Default for DirectoryMappings<B> {
+    fn default() -> Self {
+        Self(BTreeMap::new())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DirectoryMapping {
-    backing: BoundDirectory,
+pub struct DirectoryMapping<B = BoundDirectory> {
+    backing: B,
     access: DirectoryAccess,
 }
 
 impl DirectoryMappings {
     /// Bind the host directory now. A subsequent rename cannot redirect the grant.
     pub fn grant(&mut self, host: &Path, guest: &str, access: DirectoryAccess) -> io::Result<()> {
+        self.insert(guest, BoundDirectory::bind(host)?, access)
+    }
+}
+
+impl<B> DirectoryMappings<B> {
+    pub fn map_backings<C>(self, mut convert: impl FnMut(B) -> C) -> DirectoryMappings<C> {
+        DirectoryMappings(
+            self.0
+                .into_iter()
+                .map(|(guest, mapping)| {
+                    (
+                        guest,
+                        DirectoryMapping {
+                            backing: convert(mapping.backing),
+                            access: mapping.access,
+                        },
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    pub fn insert(&mut self, guest: &str, backing: B, access: DirectoryAccess) -> io::Result<()> {
         let guest_path = guest.strip_prefix('/').ok_or(io::ErrorKind::InvalidInput)?;
         if !guest_path.is_empty() && !valid_components(guest_path) {
             return Err(io::Error::new(
@@ -38,7 +67,7 @@ impl DirectoryMappings {
             ));
         };
         slot.insert(DirectoryMapping {
-            backing: BoundDirectory::bind(host)?,
+            backing,
             access,
         });
         Ok(())
@@ -51,7 +80,7 @@ impl DirectoryMappings {
     pub fn resolve_file<'path>(
         &self,
         path: &'path [u8],
-    ) -> io::Result<(&DirectoryMapping, &'path [u8])> {
+    ) -> io::Result<(&DirectoryMapping<B>, &'path [u8])> {
         let (mapping, relative) = self.resolve_entry(path)?;
         if relative.is_empty() {
             return Err(io::ErrorKind::IsADirectory.into());
@@ -63,7 +92,7 @@ impl DirectoryMappings {
     pub fn resolve_entry<'path>(
         &self,
         path: &'path [u8],
-    ) -> io::Result<(&DirectoryMapping, &'path [u8])> {
+    ) -> io::Result<(&DirectoryMapping<B>, &'path [u8])> {
         let path = std::str::from_utf8(path).map_err(|_| io::ErrorKind::InvalidInput)?;
         let relative = path.strip_prefix('/').ok_or(io::ErrorKind::InvalidInput)?;
         if !relative.is_empty() && !valid_components(relative) {
@@ -82,11 +111,17 @@ impl DirectoryMappings {
     }
 }
 
-impl DirectoryMapping {
+impl<B> DirectoryMapping<B> {
+    pub fn backing(&self) -> &B {
+        &self.backing
+    }
+
     pub fn access(&self) -> DirectoryAccess {
         self.access
     }
+}
 
+impl DirectoryMapping {
     /// Hand the matching-host filesystem adapter a retained parent and one leaf.
     /// The adapter must enforce this mapping's access and avoid following the leaf.
     #[cfg(target_os = "linux")]

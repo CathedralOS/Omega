@@ -160,6 +160,30 @@ pub(super) fn successor_directory(
     }
 }
 
+pub(super) fn successor_directories(
+    instance: &TerminalInstance<'_, '_>,
+    machine: &SelectedBuildMachine,
+    host: &crate::host::filesystem::TerminalBuildFilesystemHost,
+) -> Result<package_compilation::build_execution::BuildDirectoryMappings, String> {
+    let program = instance.program();
+    let receiver = machine.receiver_for(program.module())?;
+    let plan = program
+        .structural_type(receiver.structural_type)
+        .ok_or("BuildPlan has no declaration")?;
+    let field = plan
+        .shape
+        .fields()
+        .find(|field| program.module().identities.text(field.identity) == Some("directories"))
+        .ok_or("BuildPlan has no directories field")?;
+    let marker = instance
+        .borrowed_entry_host_atom(
+            0,
+            &[terminal_psi::StructuralPathSegment::Field(field.identity)],
+        )
+        .map_err(|reason| format!("cannot read returned directory list: {reason:?}"))?;
+    host.successor_directories(marker.as_ref())
+}
+
 fn field_value(
     fields: Vec<(String, BuildTimeValue)>,
     expected: &str,

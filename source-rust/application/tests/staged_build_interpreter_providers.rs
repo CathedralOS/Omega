@@ -622,3 +622,141 @@ machine build(plan: @mutable BuildPlan) blocks {
     );
     assert!(!ok && report.contains("issued"), "{report}");
 }
+
+#[test]
+fn successor_runtime_directories_are_narrowed_and_end_at_the_next_build() {
+    let sandbox = TemporaryDirectory::create("successor-runtime-directories", false).unwrap();
+    let root = sandbox.path();
+    let sdk = std::env::var_os("OMEGA_LIBRARY_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| support::repository_root().join("source/library"));
+    let package = root.join("package");
+    fs::create_dir_all(package.join("sdk/headers")).unwrap();
+    fs::write(package.join("sdk/headers/input"), b"R").unwrap();
+    fs::write(package.join("sdk/secret"), b"S").unwrap();
+    prepare_stock_filesystem(&package, &sdk.join("system"));
+    let preparing = fs::read_to_string(package.join("build.omg")).unwrap();
+    let choose = r#"let headers: BuildPath = BuildSource::resolve(@plan.source, "sdk/headers");
+    let out: BuildPath = BuildOutput::resolve(@plan.output, "");
+    plan.directories = Build::map_readonly(plan.directories, headers, "/sdk");
+    plan.directories = Build::map_readwrite(plan.directories, out, "/out");"#;
+    fs::write(
+        package.join("build.omg"),
+        preparing.replace("    plan.product", &format!("{choose}\n    plan.product")),
+    )
+    .unwrap();
+
+    let imports =
+        "use {system}/filesystem.omg as files;\nuse {system}/filesystem_host.omg as paths;\n";
+    let helpers = r#"
+machine failed() { crash Trap; }
+machine passed() {}
+machine expect(value: bool) { transition value { true -> passed(), false -> failed() } }
+machine expect_byte(result: |files|::IoResult, actual: u8, expected: u8) {
+    transition result { |files|::IoResult::Ok { count } -> expect(count == 1u64 && actual == expected), _ -> failed() }
+}
+machine expect_denied(kind: |files|::ErrorKind) {
+    transition kind { |files|::ErrorKind::PermissionDenied -> passed(), _ -> failed() }
+}
+machine expect_write_denied(result: |files|::UnitResult) {
+    transition result { |files|::UnitResult::Error { kind } -> expect_denied(kind), _ -> failed() }
+}
+machine expect_write(result: |files|::UnitResult) {
+    transition result { |files|::UnitResult::Ok -> passed(), _ -> failed() }
+}
+machine expect_missing(result: |files|::IoResult) {
+    transition result { |files|::IoResult::Error { kind } -> expect_missing_kind(kind), _ -> failed() }
+}
+machine expect_missing_kind(kind: |files|::ErrorKind) {
+    transition kind { |files|::ErrorKind::NotFound -> passed(), _ -> failed() }
+}
+"#;
+    let checks = r#"
+    let mutable byte: [u8; 1] = [0u8];
+    let read: |files|::IoResult = block |files|::Filesystem::read_all("/sdk/input" as + |paths|::Path, @mutable byte[..], 1u64);
+    expect_byte(read, byte[0], 82u8);
+    let sibling: |files|::IoResult = block |files|::Filesystem::read_all("/sdk/secret" as + |paths|::Path, @mutable byte[..], 1u64);
+    expect_missing(sibling);
+    let refused: |files|::UnitResult = block |files|::Filesystem::write_all("/sdk/input" as + |paths|::Path, "X");
+    expect_write_denied(refused);
+    let written: |files|::UnitResult = block |files|::Filesystem::write_all("/out/test" as + |paths|::Path, "W");
+    expect_write(written);
+    let copied: |files|::IoResult = block |files|::Filesystem::read_all("/out/test" as + |paths|::Path, @mutable byte[..], 1u64);
+    expect_byte(copied, byte[0], 87u8);
+"#;
+    let next = preparing
+        .replace(
+            "machine build(plan: @mutable BuildPlan) {",
+            "machine build(plan: @mutable BuildPlan) blocks crashes Trap {",
+        )
+        .replace("    plan.product", &format!("{checks}\n    plan.product"))
+        .replace("configure.omg", "last.omg");
+    fs::write(
+        package.join("configure.omg"),
+        format!("{imports}{next}{helpers}"),
+    )
+    .unwrap();
+    fs::write(package.join("last.omg"), format!("{imports}{}", r#"machine build(plan: @mutable BuildPlan) blocks crashes Trap {
+    let mutable bytes: [u8; 1] = [0u8];
+    let missing: |files|::IoResult = block |files|::Filesystem::read_all("/out/test" as + |paths|::Path, @mutable bytes[..], 1u64);
+    transition missing { |files|::IoResult::Error { kind } -> check_kind(plan, kind), _ -> failed() }
+}
+machine check_kind(plan: @mutable BuildPlan, kind: |files|::ErrorKind) {
+    transition kind { |files|::ErrorKind::PermissionDenied -> { plan.product = BuildProduct::Package { name: "checked_directories" }; }, _ -> failed() }
+}
+machine failed() { crash Trap; }"#)).unwrap();
+    let check = || {
+        Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args([
+                "--check",
+                "--build-input",
+                "build.omg",
+                "--build-input",
+                "configure.omg",
+                "--build-input",
+                "last.omg",
+                "--build-input",
+                "sdk",
+                "build.omg",
+            ])
+            .current_dir(&package)
+            .output()
+            .unwrap()
+    };
+    let result = check();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert_eq!(fs::read(package.join("sdk/headers/input")).unwrap(), b"R");
+    assert!(!package.join("test").exists());
+
+    for (selection, expected) in [
+        (
+            choose.replace("map_readonly", "map_readwrite"),
+            "cannot be delegated read-write",
+        ),
+        (
+            choose.replace("\"/out\"", "\"/sdk\""),
+            "duplicate guest directory",
+        ),
+        (
+            choose.replace("sdk/headers", "sdk/headers/input"),
+            "directory",
+        ),
+    ] {
+        fs::write(
+            package.join("build.omg"),
+            preparing.replace(
+                "    plan.product",
+                &format!("{selection}\n    plan.product"),
+            ),
+        )
+        .unwrap();
+        let result = check();
+        assert!(!result.status.success());
+        let error = String::from_utf8_lossy(&result.stderr);
+        assert!(error.contains(expected), "{error}");
+    }
+}

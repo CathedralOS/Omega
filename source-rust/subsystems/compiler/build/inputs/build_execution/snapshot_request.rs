@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSnapshotRequest {
-    directories: platform_custody::directory_mappings::DirectoryMappings,
+    directories: super::BuildDirectoryMappings,
     required_outputs: Vec<Vec<u8>>,
     product_source_directory: Option<Vec<u8>>,
     capture: BuildSnapshotCapture,
@@ -60,11 +60,19 @@ impl BuildSnapshotRequest {
         mut self,
         directories: platform_custody::directory_mappings::DirectoryMappings,
     ) -> Self {
+        self.directories = directories.map_backings(super::BuildDirectory::caller);
+        self
+    }
+
+    pub fn with_successor_directories(
+        mut self,
+        directories: super::BuildDirectoryMappings,
+    ) -> Self {
         self.directories = directories;
         self
     }
 
-    pub fn directories(&self) -> &platform_custody::directory_mappings::DirectoryMappings {
+    pub fn directories(&self) -> &super::BuildDirectoryMappings {
         &self.directories
     }
 
