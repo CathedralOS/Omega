@@ -11,23 +11,24 @@ use std::path::PathBuf;
 pub(super) struct DeclarationLookup {
     author: SourceFile,
     span: Span,
-    alias: String,
+    alias: Option<String>,
     members: Vec<String>,
 }
 
 impl ProductQueryInputs {
     pub fn with_declaration_path(mut self, author: &SourceFile, span: Span, path: &[u8]) -> Self {
-        // The semantic selector diagnoses malformed paths and handles ordinary local names.
-        if let Ok(name) = std::str::from_utf8(path)
-            && let Some((alias, path)) = name.split_once("::")
-            && !alias.is_empty()
-            && path.split("::").all(|member| !member.is_empty())
-        {
+        // A file-qualified operand can be resolved entirely from its actual import.
+        // An unqualified operand can also name a declaration in the successor entry.
+        if let Ok(name) = std::str::from_utf8(path) {
+            let (alias, members) = match name.split_once("::") {
+                Some((alias, members)) => (Some(alias.to_owned()), members),
+                None => (None, name),
+            };
             self.declarations.push(DeclarationLookup {
                 author: author.clone(),
                 span,
-                alias: alias.to_owned(),
-                members: path.split("::").map(str::to_owned).collect(),
+                alias,
+                members: members.split("::").map(str::to_owned).collect(),
             });
         }
         self
@@ -70,8 +71,17 @@ impl DeclarationLookup {
                     "Product query author lost its admitted source correspondence",
                 )]
             })?;
-        if let Some(alias) = self
-            .alias
+        let local_entry = || {
+            inputs
+                .successor_entry()
+                .map(|entry| storage.default_package_root().join(entry.as_str()))
+                .into_iter()
+                .collect()
+        };
+        let Some(qualifier) = &self.alias else {
+            return Ok(local_entry());
+        };
+        if let Some(alias) = qualifier
             .strip_prefix('|')
             .and_then(|name| name.strip_suffix('|'))
         {
@@ -84,9 +94,9 @@ impl DeclarationLookup {
         }
         let Some(package) = storage
             .sources
-            .product_dependency_at(SourceSpan::new(author, self.span), &self.alias)
+            .product_dependency_at(SourceSpan::new(author, self.span), qualifier)
         else {
-            return Ok(Vec::new());
+            return Ok(local_entry());
         };
         let root = inputs
             .graphs()

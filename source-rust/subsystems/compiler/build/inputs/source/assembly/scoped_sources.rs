@@ -77,10 +77,9 @@ impl DeferredProductSources {
             build_source,
             generated: _,
         } = checkpoint.reselect(inputs, timings, catalogue)?;
-        if let Some(entry) = inputs.successor_entry() {
-            let path = storage.default_package_root().join(entry.as_str());
-            imports.seed(path, source_provenance::DependencyScope::Product);
-        } else if let Some(roots) = &checkpoint.product_roots {
+        if inputs.successor_entry().is_none()
+            && let Some(roots) = &checkpoint.product_roots
+        {
             for root in roots.iter() {
                 imports.seed(root.clone(), source_provenance::DependencyScope::Product);
             }
