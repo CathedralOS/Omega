@@ -1,41 +1,35 @@
-use targets/windows_x86_64/windows_filesystem_paths.omg as windows_filesystem_paths;
-use targets/windows_x86_64/filesystem_removal/completion.omg as removal_completion;
 use filesystem_host.omg as paths;
+use targets/windows_x86_64/filesystem_removal/completion.omg as removal_completion;
 use targets/windows_x86_64/filesystem_removal/native.omg as removal_io;
 use targets/windows_x86_64/windows_filesystem_directory_native.omg as directory_io;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
-use system;
-use targets\windows_x86_64\windows_wide_path;
-use targets\windows_x86_64;
+use targets/windows_x86_64/windows_filesystem_paths.omg as windows_filesystem_paths;
+use targets/windows_x86_64/windows_filesystem_private_handles.omg as private_handle;
+use {omega}/language/core/filesystem_authority.omg as authority;
+
 // Root acquisition uses one fresh synchronous no-follow file object. Children
 // open one validated native component relative to its retained parent handle;
 // no pathname is reconstructed, case-folded, or reopened after classification.
 // Enumeration attributes select requested rights only. The opened object's
 // actual attributes, not that hint, decide whether traversal can descend.
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\DirectoryEnumeration;
-use omega\language\core\FilesystemNamespaceMutation;
 
-machine windows_removal_open_root(path: @[u8] in |paths|::Path) -> i64 in WindowsPrivateNonalertFileOrAbsent
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+machine windows_removal_open_root(path: @[u8] in |paths|::Path) -> i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation {
     let handle: i64 = block windows_removal_acquire_root(path);
-    handle as +WindowsPrivateNonalertFileOrAbsent
+    handle as + |private_handle|::WindowsPrivateNonalertFileOrAbsent
 }
 
 machine windows_removal_acquire_root(path: @[u8] in |paths|::Path) -> i64
 ensures result != -1
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation {
     let mutable wide: [u16; 32768];
     let units: i64 = |windows_filesystem_paths|::windows_wide_path(path as - |paths|::Path, @mutable wide);
     wide[32767] = 0;
-    transition units > 0 { true -> block open(wide as +WindowsNativePath), false -> invalid() }
+    transition units > 0 { true -> block open(wide as + |win_io|::WindowsNativePath), false -> invalid() }
     machine invalid() -> i64
     ensures result != -1
     { |win_io|::WindowsFilesystemIo::c_set_last_error(87); 0 }
-    machine open(path: [u16; 32768] in WindowsNativePath) -> i64
+    machine open(path: [u16; 32768] in |win_io|::WindowsNativePath) -> i64
     ensures result != -1
     {
         // SYNCHRONIZE|DELETE|READ_ATTRIBUTES|LIST_DIRECTORY; shared delete;
@@ -75,19 +69,19 @@ requires length > 0 && length < 4096 {
     }
 }
 
-machine windows_removal_open_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
-    entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo, length: u64) -> i64 in WindowsPrivateNonalertFileOrAbsent
-requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
-reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
+machine windows_removal_open_child(parent: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent,
+    entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo, length: u64) -> i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent
+requires (parent as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemMetadataQuery + |authority|::DirectoryEnumeration {
     let handle: i64 = block windows_removal_acquire_child(parent, entry, length);
-    handle as +WindowsPrivateNonalertFileOrAbsent
+    handle as + |private_handle|::WindowsPrivateNonalertFileOrAbsent
 }
 
-machine windows_removal_acquire_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+machine windows_removal_acquire_child(parent: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent,
     entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo, length: u64) -> i64
-requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
+requires (parent as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
 ensures result != -1
-reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemMetadataQuery + |authority|::DirectoryEnumeration {
     transition windows_removal_component(@entry.characters, length) {
         true -> block access(parent, entry, length),
         false -> invalid()
@@ -95,19 +89,19 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     machine invalid() -> i64
     ensures result != -1
     { |win_io|::WindowsFilesystemIo::c_set_last_error(87); 0 }
-    machine access(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+    machine access(parent: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent,
         entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo, length: u64) -> i64
     ensures result != -1
-    requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096 {
+    requires (parent as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096 {
         transition (entry.attributes & 16) != 0 {
             true -> block open(parent, entry, length, 1114241),
             false -> block open(parent, entry, length, 1114240)
         }
     }
-    machine open(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
+    machine open(parent: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent,
         entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo, length: u64, access: u32) -> i64
     ensures result != -1
-    requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
+    requires (parent as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
         && (access == 1114240 || access == 1114241) {
         entry.characters[4095] = 0;
         // The terminated copy carries `WindowsNativeComponent`; a domain cannot be

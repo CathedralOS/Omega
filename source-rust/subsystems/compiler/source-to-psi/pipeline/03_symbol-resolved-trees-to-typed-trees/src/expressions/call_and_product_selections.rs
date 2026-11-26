@@ -1503,7 +1503,11 @@ pub(crate) mod construction_destinations {
                                     if program.symbols.fixed_core_declaration_for_symbol(actual.target_symbol)
                                         == Some(symbols::FixedCoreDeclaration::Identity)
                                         || (program.symbols.symbols().nodes().is_valid(actual.target_symbol)
-                                            && program.symbols.get(actual.target_symbol).kind == symbols::SymbolKind::MathematicalDefinition))
+                                            && matches!(
+                                                program.symbols.get(actual.target_symbol).kind,
+                                                symbols::SymbolKind::MathematicalDefinition
+                                                    | symbols::SymbolKind::Proposition
+                                            )))
                         })
                         {
                             deferred

@@ -195,7 +195,7 @@ impl PreparedPackageInspection<'_> {
             .map(|snapshot| snapshot.capture())
         {
             Some(BuildSnapshotCapture::Scoped(selected)) => selected,
-            Some(BuildSnapshotCapture::PackageInventory) | None => &entire,
+            Some(BuildSnapshotCapture::PackageInventory | BuildSnapshotCapture::RequiredSources) | None => &entire,
         };
         let acquired = AcquiredBuildSource::capture_selected_local(
             self.transaction.project_root(),

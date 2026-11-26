@@ -300,9 +300,43 @@ impl Program<'_> {
             .equivalence
             .as_ref()
             .ok_or_else(|| unserved("quotient that selects no equivalence of its relation"))?;
+        if selection.relation_symbol != quotient.relation_symbol {
+            return Err(unserved(
+                "quotient equivalence selection names a different relation",
+            ));
+        }
         let conformance = typed
             .conformance_by_symbol(selection.conformance_symbol)
             .ok_or_else(|| unserved("quotient's equivalence is no declared conformance"))?;
+        if conformance.trait_symbol != selection.trait_symbol
+            || conformance.trait_name.as_str() != "MereEquivalence"
+        {
+            return Err(unserved(
+                "quotient must select a closed MereEquivalence conformance",
+            ));
+        }
+        let conformance_args = typed
+            .type_reference_table
+            .type_reference_handles(conformance.arguments);
+        let [arg_carrier, arg_relation] = conformance_args else {
+            return Err(unserved(
+                "quotient MereEquivalence conformance must apply to carrier and relation",
+            ));
+        };
+        let named_symbol = |handle| match typed.type_reference_table.type_reference(handle) {
+            crate::source_state::types::TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+            _ => None,
+        };
+        if named_symbol(*arg_carrier) != Some(carrier_declared) {
+            return Err(unserved(
+                "quotient selects a MereEquivalence conformance proved for a different carrier",
+            ));
+        }
+        if named_symbol(*arg_relation) != Some(quotient.relation_symbol) {
+            return Err(unserved(
+                "quotient selects a MereEquivalence conformance proved for a different relation",
+            ));
+        }
         let rows = conformance
             .rows
             .iter()

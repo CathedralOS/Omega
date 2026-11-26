@@ -235,6 +235,8 @@ pub enum NormalizedForeignCallMechanism {
     Table {
         target: target::TargetProfile,
         byte_offset: u32,
+        /// The supplied table's position among all operands, including private callbacks.
+        table_operand: u32,
         dispatch_only: bool,
         same_stack_contribution: provider_stack_contribution::AdmittedSameStackContribution,
     },
@@ -339,6 +341,7 @@ impl NormalizedForeignCallBinding {
         let dispatch = match &self.mechanism {
             NormalizedForeignCallMechanism::Table {
                 target,
+                table_operand,
                 dispatch_only: true,
                 ..
             } => {
@@ -346,14 +349,17 @@ impl NormalizedForeignCallBinding {
                     target::Architecture::X86_64 => MachineRegister::X86R11,
                     target::Architecture::Aarch64 => MachineRegister::Aarch64X(16),
                 };
-                Some(ValuePlacement {
-                    shape: ValueShape::integer(8, 8),
-                    locations: vec![ValueLocation::Register {
-                        register,
-                        byte_size: 8,
-                        value_byte_offset: 0,
-                    }],
-                })
+                Some((
+                    *table_operand as usize,
+                    ValuePlacement {
+                        shape: ValueShape::integer(8, 8),
+                        locations: vec![ValueLocation::Register {
+                            register,
+                            byte_size: 8,
+                            value_byte_offset: 0,
+                        }],
+                    },
+                ))
             }
             _ => None,
         };
@@ -363,8 +369,42 @@ impl NormalizedForeignCallBinding {
         }
     }
 
-    pub fn dispatch_operand_count(&self) -> usize {
-        usize::from(matches!(self.table_dispatch(), Some((_, true))))
+    pub fn table_operand_index(&self) -> Option<usize> {
+        match self.mechanism {
+            NormalizedForeignCallMechanism::Table { table_operand, .. } => {
+                Some(table_operand as usize)
+            }
+            _ => None,
+        }
+    }
+
+    fn dispatch_only_operand(&self) -> Option<usize> {
+        match self.mechanism {
+            NormalizedForeignCallMechanism::Table {
+                table_operand,
+                dispatch_only: true,
+                ..
+            } => Some(table_operand as usize),
+            _ => None,
+        }
+    }
+
+    pub fn operand_for_native_ordinal(&self, ordinal: usize) -> usize {
+        ordinal.saturating_add(usize::from(
+            self.dispatch_only_operand()
+                .is_some_and(|table| table <= ordinal),
+        ))
+    }
+
+    pub fn passed_operands<T>(
+        &self,
+        operands: impl IntoIterator<Item = T>,
+    ) -> impl Iterator<Item = T> {
+        let dispatch = self.dispatch_only_operand();
+        operands
+            .into_iter()
+            .enumerate()
+            .filter_map(move |(index, operand)| (Some(index) != dispatch).then_some(operand))
     }
 
     pub fn native_target(&self) -> Option<target::NativeTarget> {
@@ -469,6 +509,9 @@ impl NormalizedForeignCallBinding {
             | NormalizedForeignCallMechanism::Table { .. } => {
                 call.policy == CallingPolicy::native_for_target(target)
                     && call.entry_control == EntryControl::CallReturn
+                    && self
+                        .table_operand_index()
+                        .is_none_or(|index| index < self.operand_placements().len())
             }
             NormalizedForeignCallMechanism::SystemCall(binding) => {
                 let Some(policy) = CallingPolicy::native_syscall_for_target(target) else {
@@ -585,7 +628,7 @@ impl NormalizedForeignCallBinding {
 }
 
 pub struct ForeignCallOperands<'plan> {
-    dispatch: Option<calling_conventions::ValuePlacement>,
+    dispatch: Option<(usize, calling_conventions::ValuePlacement)>,
     parameters: &'plan [calling_conventions::ValuePlacement],
 }
 
@@ -599,15 +642,83 @@ impl ForeignCallOperands<'_> {
     }
 
     pub fn get(&self, operand_index: usize) -> Option<&calling_conventions::ValuePlacement> {
-        match (&self.dispatch, operand_index) {
-            (Some(dispatch), 0) => Some(dispatch),
-            (Some(_), operand_index) => self.parameters.get(operand_index - 1),
-            (None, operand_index) => self.parameters.get(operand_index),
+        match &self.dispatch {
+            Some((index, dispatch)) if operand_index == *index => Some(dispatch),
+            Some((index, _)) if operand_index > *index => self.parameters.get(operand_index - 1),
+            _ => self.parameters.get(operand_index),
+        }
+    }
+
+    /// Map semantic formals to their full operand positions. Private callback
+    /// positions already include all earlier callbacks and any dispatch slot.
+    pub fn semantic_positions(&self, private: &[usize]) -> Option<Vec<usize>> {
+        if private.windows(2).any(|pair| pair[0] >= pair[1])
+            || private
+                .iter()
+                .any(|&index| index >= self.len() || self.native_ordinal(index).is_none())
+        {
+            return None;
+        }
+        Some(
+            (0..self.len())
+                .filter(|index| private.binary_search(index).is_err())
+                .collect(),
+        )
+    }
+
+    pub fn native_ordinal(&self, operand_index: usize) -> Option<usize> {
+        match self.dispatch.as_ref().map(|(index, _)| *index) {
+            Some(index) if index == operand_index => None,
+            Some(index) if index < operand_index => Some(operand_index - 1),
+            _ => Some(operand_index),
         }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &calling_conventions::ValuePlacement> {
-        self.dispatch.iter().chain(self.parameters.iter())
+        (0..self.len()).filter_map(|index| self.get(index))
+    }
+}
+
+#[cfg(test)]
+mod operand_tests {
+    use super::ForeignCallOperands;
+    use calling_conventions::{ValuePlacement, ValueShape};
+
+    #[test]
+    fn the_table_keeps_its_position_among_semantic_and_private_arguments() {
+        let placement = |width| ValuePlacement {
+            shape: ValueShape::integer(width, 1),
+            locations: Vec::new(),
+        };
+        let parameters = [placement(1), placement(2), placement(4), placement(8)];
+        let dispatch = placement(8);
+        let placements = ForeignCallOperands {
+            dispatch: Some((2, dispatch.clone())),
+            parameters: &parameters,
+        };
+        assert_eq!(
+            placements.iter().collect::<Vec<_>>(),
+            [
+                &parameters[0],
+                &parameters[1],
+                &dispatch,
+                &parameters[2],
+                &parameters[3]
+            ]
+        );
+        assert_eq!(placements.native_ordinal(2), None);
+        assert_eq!(placements.native_ordinal(3), Some(2));
+        assert_eq!(placements.semantic_positions(&[0, 1, 4]), Some(vec![2, 3]));
+        assert!(placements.semantic_positions(&[2]).is_none());
+        assert!(placements.semantic_positions(&[0, 0]).is_none());
+        assert!(placements.semantic_positions(&[5]).is_none());
+
+        let passed = ForeignCallOperands {
+            dispatch: None,
+            parameters: &parameters,
+        };
+        assert_eq!(passed.semantic_positions(&[0, 1]), Some(vec![2, 3]));
+        assert_eq!(passed.native_ordinal(2), Some(2));
     }
 }
 

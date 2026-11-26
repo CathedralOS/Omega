@@ -1089,14 +1089,17 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 143 | PackedIntegerUnary | selector byte, optional shift count, source structural argument |
 
 Tag 142 selects wrapping 16-bit addition (0), wrapping 16-bit subtraction
-(1), or a two-input shuffle (2). A shuffle encodes eight index bytes in
-result order. Indices 0 through 7 select from the left input and indices 8
-through 15 select from the right. Tag 143 selects arithmetic right shift
-(0, followed by a count byte from 0 through 15), 8-byte widening (1),
-8-byte saturating narrowing (2), zero-extended 4-word load (3), 4-byte
-widening (4), or 4-byte saturating narrowing (5). Selectors 0 through 4
-produce eight 16-bit lanes and selector 2 produces eight unsigned bytes;
-selector 5 produces four unsigned bytes.
+(1), a two-input shuffle (2), wrapping 16-byte unsigned addition (3),
+signed 16-bit minimum (4), signed 16-bit greater-than mask (5), bitwise
+128-bit and (6), or bitwise 128-bit and-not (7, computing `(!left) & right`).
+A shuffle encodes eight index bytes in result order. Indices 0 through 7
+select from the left input and indices 8 through 15 select from the right.
+Tag 143 selects arithmetic right shift (0, followed by a count byte from 0
+through 15), 8-byte widening (1), 8-byte saturating narrowing (2),
+zero-extended 4-word load (3), 4-byte widening (4), 4-byte saturating
+narrowing (5), or 8-word saturating/wrapping absolute value (6). Selectors
+0, 1, 3, 4, and 6 produce eight 16-bit lanes and selector 2 produces eight
+unsigned bytes; selector 5 produces four unsigned bytes.
 
 An element descriptor source in tags 81 and 92 is encoded as the existing
 nonzero place ID when selecting a whole descriptor. A zero `u64` introduces

@@ -80,6 +80,24 @@ action-first audit and hyphenated inspection commands are not compatibility
 aliases. The implementation migration must update callers, diagnostics, tests,
 guides and command examples together.
 
+## Local Build inputs
+
+By default, a local Build can read its entry and the package-local source files
+admitted to compile it. To read an asset, include it in the invocation inventory.
+For example, a package with a Build entry, one helper, and a lookup table can use the following invocation.
+
+```text
+omega build --build-input build.omg --build-input helper.omg --build-input table.txt build.omg
+```
+
+Each `--build-input` names a required file or subtree. An
+`--optional-build-input` records whether that path exists. An explicit inventory
+must include all required source files. Without that list, the compiler retains
+the local package snapshot for resolution and its package capture limits apply.
+A dependency receives its sealed package snapshot unless its caller supplies
+another filesystem view. [Build source capture](scoped_execution.md#snapshot-and-staging-protocol)
+and [local package capture](../packages/sources.md#local-source-capture).
+
 ## Build-first entry selection
 
 `omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in `omega\core`.

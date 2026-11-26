@@ -299,6 +299,14 @@ mod constraint_keys {
                 MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating => {
                     return self.rows.packed_narrow_i16x8_to_u8x4_saturating;
                 }
+                MachineSemanticKind::PackedAddU8x16 => return self.rows.packed_add_u8x16,
+                MachineSemanticKind::PackedMinI16x8 => return self.rows.packed_min_i16x8,
+                MachineSemanticKind::PackedCmpGtI16x8 => return self.rows.packed_cmpgt_i16x8,
+                MachineSemanticKind::PackedBitAndI16x8 => return self.rows.packed_bit_and_i16x8,
+                MachineSemanticKind::PackedBitAndNotI16x8 => {
+                    return self.rows.packed_bit_andnot_i16x8;
+                }
+                MachineSemanticKind::PackedAbsI16x8 => return self.rows.packed_abs_i16x8,
                 MachineSemanticKind::PackedLoad128 => return self.rows.packed_load_128,
                 MachineSemanticKind::PackedStore128 => return self.rows.packed_store_128,
                 MachineSemanticKind::PackedLoad64ZeroExtend => {
@@ -332,6 +340,18 @@ mod constraint_keys {
                 MachineSemanticKind::PackedNarrowI16x8ToU8x8SaturatingReg => {
                     return self.rows.packed_narrow_i16x8_to_u8x8_saturating_reg;
                 }
+                MachineSemanticKind::PackedAddU8x16Reg => return self.rows.packed_add_u8x16_reg,
+                MachineSemanticKind::PackedMinI16x8Reg => return self.rows.packed_min_i16x8_reg,
+                MachineSemanticKind::PackedCmpGtI16x8Reg => {
+                    return self.rows.packed_cmpgt_i16x8_reg;
+                }
+                MachineSemanticKind::PackedBitAndI16x8Reg => {
+                    return self.rows.packed_bit_and_i16x8_reg;
+                }
+                MachineSemanticKind::PackedBitAndNotI16x8Reg => {
+                    return self.rows.packed_bit_andnot_i16x8_reg;
+                }
+                MachineSemanticKind::PackedAbsI16x8Reg => return self.rows.packed_abs_i16x8_reg,
                 MachineSemanticKind::CopyBytes => return self.rows.copy_bytes,
                 MachineSemanticKind::ZeroBytes => return self.rows.zero_bytes,
                 MachineSemanticKind::ScanByteSequence => return self.rows.scan_byte_sequence,
@@ -648,6 +668,12 @@ machine_semantic_kinds! {
     { fixed PackedLoadI16x4ZeroExtend },
     { fixed PackedWidenU8x4ToI16x8 },
     { fixed PackedNarrowI16x8ToU8x4Saturating },
+    { fixed PackedAddU8x16 },
+    { fixed PackedMinI16x8 },
+    { fixed PackedCmpGtI16x8 },
+    { fixed PackedBitAndI16x8 },
+    { fixed PackedBitAndNotI16x8 },
+    { fixed PackedAbsI16x8 },
     { fixed PackedLoad128 },
     { fixed PackedStore128 },
     { fixed PackedLoad64ZeroExtend },
@@ -663,6 +689,12 @@ machine_semantic_kinds! {
     { fixed PackedShuffleI16x8Reg },
     { fixed PackedWidenU8x8ToI16x8Reg },
     { fixed PackedNarrowI16x8ToU8x8SaturatingReg },
+    { fixed PackedAddU8x16Reg },
+    { fixed PackedMinI16x8Reg },
+    { fixed PackedCmpGtI16x8Reg },
+    { fixed PackedBitAndI16x8Reg },
+    { fixed PackedBitAndNotI16x8Reg },
+    { fixed PackedAbsI16x8Reg },
     { fixed CopyBytes },
     { fixed BitwiseAndI64 },
     { fixed BitwiseXorI64 },
@@ -898,6 +930,12 @@ pub enum MachineAlternativeFamily {
     PackedLoadI16x4ZeroExtend,
     PackedWidenU8x4ToI16x8,
     PackedNarrowI16x8ToU8x4Saturating,
+    PackedAddU8x16,
+    PackedMinI16x8,
+    PackedCmpGtI16x8,
+    PackedBitAndI16x8,
+    PackedBitAndNotI16x8,
+    PackedAbsI16x8,
     PackedLoad128,
     PackedStore128,
     PackedLoad64ZeroExtend,
@@ -913,6 +951,12 @@ pub enum MachineAlternativeFamily {
     PackedShuffleI16x8Reg,
     PackedWidenU8x8ToI16x8Reg,
     PackedNarrowI16x8ToU8x8SaturatingReg,
+    PackedAddU8x16Reg,
+    PackedMinI16x8Reg,
+    PackedCmpGtI16x8Reg,
+    PackedBitAndI16x8Reg,
+    PackedBitAndNotI16x8Reg,
+    PackedAbsI16x8Reg,
     CopyBytes,
     BitwiseAndI64,
     BitwiseXorI64,
@@ -1054,6 +1098,12 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::PackedNarrowI16x8ToU8x4Saturating => {
                 Self::PackedNarrowI16x8ToU8x4Saturating
             }
+            MachineSemanticKind::PackedAddU8x16 => Self::PackedAddU8x16,
+            MachineSemanticKind::PackedMinI16x8 => Self::PackedMinI16x8,
+            MachineSemanticKind::PackedCmpGtI16x8 => Self::PackedCmpGtI16x8,
+            MachineSemanticKind::PackedBitAndI16x8 => Self::PackedBitAndI16x8,
+            MachineSemanticKind::PackedBitAndNotI16x8 => Self::PackedBitAndNotI16x8,
+            MachineSemanticKind::PackedAbsI16x8 => Self::PackedAbsI16x8,
             MachineSemanticKind::PackedLoad128 => Self::PackedLoad128,
             MachineSemanticKind::PackedStore128 => Self::PackedStore128,
             MachineSemanticKind::PackedLoad64ZeroExtend => Self::PackedLoad64ZeroExtend,
@@ -1073,6 +1123,12 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::PackedNarrowI16x8ToU8x8SaturatingReg => {
                 Self::PackedNarrowI16x8ToU8x8SaturatingReg
             }
+            MachineSemanticKind::PackedAddU8x16Reg => Self::PackedAddU8x16Reg,
+            MachineSemanticKind::PackedMinI16x8Reg => Self::PackedMinI16x8Reg,
+            MachineSemanticKind::PackedCmpGtI16x8Reg => Self::PackedCmpGtI16x8Reg,
+            MachineSemanticKind::PackedBitAndI16x8Reg => Self::PackedBitAndI16x8Reg,
+            MachineSemanticKind::PackedBitAndNotI16x8Reg => Self::PackedBitAndNotI16x8Reg,
+            MachineSemanticKind::PackedAbsI16x8Reg => Self::PackedAbsI16x8Reg,
             MachineSemanticKind::CopyBytes => Self::CopyBytes,
             MachineSemanticKind::BitwiseAndI64 => Self::BitwiseAndI64,
             MachineSemanticKind::BitwiseXorI64 => Self::BitwiseXorI64,

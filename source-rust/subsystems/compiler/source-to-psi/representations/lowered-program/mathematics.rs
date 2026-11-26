@@ -270,6 +270,9 @@ pub enum SignatureEntryKind {
         declaration: SymbolHandle,
         carrier: u32,
         relation: u32,
+        /// Statement entries for the four selected `MereEquivalence` laws:
+        /// `[propositional, reflexive, symmetric, transitive]`.
+        laws: [u32; 4],
         type_identity: String,
     },
 }

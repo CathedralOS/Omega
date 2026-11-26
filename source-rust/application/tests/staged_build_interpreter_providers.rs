@@ -1,4 +1,7 @@
 //! The preparing Build chooses which package implementation the next Build calls.
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::fs;
 use std::process::{Command, Output, Stdio};
@@ -187,4 +190,95 @@ fn a_shared_product_entry_cannot_use_the_builds_meter_dependency() {
         report.contains("dependency `meter` is unavailable in the product scope"),
         "{report}"
     );
+    assert!(report.contains("configure.omg:1:5"), "{report}");
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn sandbox_standard_output_and_system_editor_guide() {
+    use package_manager::operations::begin_local_project_preparation;
+    use target::TargetProfile;
+
+    let target = TargetProfile::LinuxX64;
+    let root = support::repository_root();
+    package_compilation::toolchain_library::configure(&root.join("source/library")).unwrap();
+    let work = TemporaryDirectory::create("stock-successor-console", false).unwrap();
+    let project = work.path().join("editor");
+    let vendor = project.join("vendor/system");
+    fs::create_dir_all(&vendor).unwrap();
+    let system = begin_local_project_preparation(
+        &root.join("source/library/system/build.omg"),
+        &[target],
+        true,
+    )
+    .unwrap()
+    .acquire_root()
+    .unwrap();
+    let captured = system.source_capture().tree();
+    for (path, _) in captured
+        .entries()
+        .filter(|(p, _)| p.extension().is_some_and(|e| e == "omg"))
+    {
+        let destination = vendor.join(path);
+        fs::create_dir_all(destination.parent().unwrap()).unwrap();
+        fs::write(
+            destination,
+            captured.read_to_string(path).unwrap().as_bytes(),
+        )
+        .unwrap();
+    }
+    let guide = fs::read_to_string(root.join("wiki/language_guide/packages.md")).unwrap();
+    let (_, guide) = guide
+        .split_once("## Using the same console in a Build and an application")
+        .expect("the packages guide contains the staged editor");
+    for filename in ["build.omg", "build_0.omg", "generated.omg", "main.omg"] {
+        let opening = format!("```omega\n// {filename}");
+        let (_, example) = guide
+            .split_once(&opening)
+            .expect("the guide names its source file");
+        let (_, source) = example.split_once('\n').unwrap();
+        let (source, _) = source.split_once("\n```").unwrap();
+        fs::write(project.join(filename), source).unwrap();
+    }
+
+    let outputs = work.path().join("outputs");
+    fs::create_dir(&outputs).unwrap();
+    let product = package_manager::project::open_product(
+        &project.join("build.omg"),
+        target,
+        true,
+        &outputs,
+        None,
+    )
+    .expect("run the staged guide under the package driver");
+    assert_eq!(product.evaluated().preparations.len(), 1);
+    let summary = product
+        .evaluated()
+        .configuration
+        .observation_summary
+        .as_ref()
+        .unwrap();
+    assert_eq!(summary.build_log(), b"configuring editor\n");
+
+    let plan = product.product_stage(&[target]).unwrap();
+    let program = plan.program(target, Vec::new()).unwrap();
+    let compiler::Artifact::Native(output) = compiler::compile(
+        compiler::CompileRequest::Native {
+            program,
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .expect("compile the editor using the stock native provider")
+    .artifact
+    else {
+        panic!("expected a native application");
+    };
+    let file = work.path().join("editor.elf");
+    let artifact = output.retained_native_artifact().unwrap();
+    fs::write(&file, &artifact.image().output().bytes).unwrap();
+    platform_custody::file_publication::make_executable(&file).unwrap();
+    let execution = Command::new(file).output().unwrap();
+    assert!(execution.status.success(), "{execution:?}");
+    assert_eq!(execution.stdout, b"editor started\n");
 }

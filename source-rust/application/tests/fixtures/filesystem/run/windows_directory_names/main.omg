@@ -1,21 +1,17 @@
 use native_record.omg as directory_io;
-use omega\language\core\DirectoryEnumeration;
 use windows_filesystem_host.omg as win_fs;
 use filesystem_host.omg as paths;
 use control.omg as control;
-use omega\language\core\narrow_i64_to_u64_wrapping;
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\FilesystemNamespaceMutation;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+use private_handle.omg;
 
 // The handles select deterministic native name streams. The production scan,
 // dot filter, status conversion and native record declaration are supplied
 // by portable_filesystem_values.rs.
-domain i64::WindowsPrivateNonalertFileOrAbsent requires self != -1;
 
-machine windows_directory_next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: @mutable |directory_io|::WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep
-reaches DirectoryEnumeration {
+machine windows_directory_next(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, output: @mutable |directory_io|::WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep
+reaches |authority|::DirectoryEnumeration {
     transition output.control {
         0 -> dot(output),
         1 -> parent(output),
@@ -32,8 +28,8 @@ reaches DirectoryEnumeration {
         output.characters[1] = 46;
         WindowsDirectoryStep::Name { length: 2 }
     }
-    machine first(handle: i64 in WindowsPrivateNonalertFileOrAbsent, output: @mutable |directory_io|::WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep {
-        transition (handle as -WindowsPrivateNonalertFileOrAbsent) == 1 {
+    machine first(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, output: @mutable |directory_io|::WindowsNativeDirectoryNameInfo) -> WindowsDirectoryStep {
+        transition (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) == 1 {
             true -> WindowsDirectoryStep::End,
             false -> ordinary(output)
         }
@@ -44,8 +40,8 @@ reaches DirectoryEnumeration {
         output.characters[0] = 55296;
         WindowsDirectoryStep::Name { length: 1 }
     }
-    machine following(handle: i64 in WindowsPrivateNonalertFileOrAbsent) -> WindowsDirectoryStep {
-        transition (handle as -WindowsPrivateNonalertFileOrAbsent) == 2 {
+    machine following(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> WindowsDirectoryStep {
+        transition (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) == 2 {
             true -> WindowsDirectoryStep::Error { code: 5 },
             false -> WindowsDirectoryStep::End
         }
@@ -55,13 +51,13 @@ reaches DirectoryEnumeration {
 // Both path-based scans use the stream whose second record fails with code 5.
 // The close hook fails with code 6, so the successful first-only scan reports 6
 // and the full scan retains the earlier enumeration error.
-machine windows_directory_open(path: @[u8] in |paths|::Path) -> i64 in WindowsPrivateNonalertFileOrAbsent {
-    2 as +WindowsPrivateNonalertFileOrAbsent
+machine windows_directory_open(path: @[u8] in |paths|::Path) -> i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent {
+    2 as + |private_handle|::WindowsPrivateNonalertFileOrAbsent
 }
 
-machine scan(handle: i64 in WindowsPrivateNonalertFileOrAbsent, count: u64, first_only: bool) -> |win_fs|::WindowsDirectoryCountResult
-requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
-reaches DirectoryEnumeration {
+machine scan(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, count: u64, first_only: bool) -> |win_fs|::WindowsDirectoryCountResult
+requires (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0
+reaches |authority|::DirectoryEnumeration {
     let mutable record: |directory_io|::WindowsNativeDirectoryNameInfo;
     block windows_directory_scan_names(handle, @mutable record, count, first_only)
 }
@@ -81,11 +77,11 @@ machine has_error(result: |win_fs|::WindowsDirectoryCountResult, expected: u32) 
 }
 
 machine main() crashes Trap {
-    let empty: |win_fs|::WindowsDirectoryCountResult = block scan(1 as +WindowsPrivateNonalertFileOrAbsent, 0, true);
-    let first: |win_fs|::WindowsDirectoryCountResult = block scan(2 as +WindowsPrivateNonalertFileOrAbsent, 0, true);
-    let counted: |win_fs|::WindowsDirectoryCountResult = block scan(3 as +WindowsPrivateNonalertFileOrAbsent, 9223372036854775807, false);
-    let full: |win_fs|::WindowsDirectoryCountResult = block scan(1 as +WindowsPrivateNonalertFileOrAbsent, 18446744073709551615, false);
-    let overflow: |win_fs|::WindowsDirectoryCountResult = block scan(3 as +WindowsPrivateNonalertFileOrAbsent, 18446744073709551615, false);
+    let empty: |win_fs|::WindowsDirectoryCountResult = block scan(1 as + |private_handle|::WindowsPrivateNonalertFileOrAbsent, 0, true);
+    let first: |win_fs|::WindowsDirectoryCountResult = block scan(2 as + |private_handle|::WindowsPrivateNonalertFileOrAbsent, 0, true);
+    let counted: |win_fs|::WindowsDirectoryCountResult = block scan(3 as + |private_handle|::WindowsPrivateNonalertFileOrAbsent, 9223372036854775807, false);
+    let full: |win_fs|::WindowsDirectoryCountResult = block scan(1 as + |private_handle|::WindowsPrivateNonalertFileOrAbsent, 18446744073709551615, false);
+    let overflow: |win_fs|::WindowsDirectoryCountResult = block scan(3 as + |private_handle|::WindowsPrivateNonalertFileOrAbsent, 18446744073709551615, false);
     let close_error: |win_fs|::WindowsDirectoryCountResult = block windows_directory_count_names("." as + |paths|::Path, true);
     let earlier_error: |win_fs|::WindowsDirectoryCountResult = block windows_directory_count_names("." as + |paths|::Path, false);
     transition has_count(empty, 0) && has_count(first, 1) && has_count(counted, 9223372036854775808)

@@ -1,9 +1,7 @@
 use native.omg as path_io;
 use native.omg as control;
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\widen_u32_to_u64;
-use omega\language\core\narrow_u64_to_i32_exact;
-use omega\language\core\narrow_i32_to_u64_exact;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/numeric_conversion.omg as numeric;
 
 // Run the real canonical query and copy with a 5,000-unit resolved name. The
 // last byte of short buffers distinguishes refusal from a partial write.

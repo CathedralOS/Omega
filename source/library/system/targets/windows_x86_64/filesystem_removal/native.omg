@@ -1,6 +1,7 @@
-use targets/windows_x86_64/windows_filesystem_private_handles.omg as private_handle;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
-use targets\windows_x86_64;
+use targets/windows_x86_64/windows_filesystem_private_handles.omg as private_handle;
+use {omega}/language/core/filesystem_authority.omg as authority;
+
 // Handle-relative, no-follow opens and object-bound removal. The synchronous
 // nonalert NtOpenFile request completes before these nested input loans and
 // output slots return. Do not replace the references with numerical pointers.
@@ -9,10 +10,6 @@ use targets\windows_x86_64;
 // https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntopenfile
 // https://learn.microsoft.com/windows/win32/api/ntdef/ns-ntdef-_unicode_string
 // https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\DirectoryEnumeration;
-use omega\language\core\FilesystemNamespaceMutation;
 
 // A child is opened relative to its directory handle. Its terminated name
 // stays in the 4096-WCHAR array supplied by the native directory record.
@@ -47,14 +44,14 @@ boundary trait WindowsFilesystemRemovalIo {
     machine open<'scope>(output: @mutable i64, access: u32, attributes: @WindowsNativeObjectAttributes<'scope>,
         status: @mutable |win_io|::WindowsFilesystemIoStatus, sharing: u32, options: u32) -> i32
     requires (access == 1114240 || access == 1114241) && sharing == 7 && options == 2113568
-    reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration blocks
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemMetadataQuery + |authority|::DirectoryEnumeration blocks
     crashes none;
     machine dispose(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, information_class: u32, input: @WindowsNativeFileDisposition, size: u32) -> i32
     requires (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 && information_class == 4 && input.delete == 1 && size == 1
-    reaches FilesystemNamespaceMutation blocks
+    reaches |authority|::FilesystemNamespaceMutation blocks
     crashes none;
     machine close(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent) -> i32
     requires (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0
-    reaches FilesystemNamespaceMutation blocks
+    reaches |authority|::FilesystemNamespaceMutation blocks
     crashes none;
 }

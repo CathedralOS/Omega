@@ -1465,6 +1465,32 @@ pub(crate) mod mathematical {
                         })?,
                     )
                 }
+                resolved::mathematical::MathematicalBody::DependentArrow { binders, body } => {
+                    let mut arrow_binders = Vec::new();
+                    for binder in lowerer
+                        .source_trees
+                        .tables
+                        .declarations
+                        .mathematical_parameters
+                        .span_or_empty(*binders)
+                    {
+                        let ty = lower_mathematical_type(lowerer, binder.ty)?;
+                        arrow_binders.push(typed::mathematical::MathematicalParameter {
+                            symbol: binder.symbol,
+                            name: lower_name(&binder.name),
+                            relevance: binder.relevance,
+                            ty,
+                        });
+                    }
+                    let binders = lowerer
+                        .typed_trees
+                        .mathematical_parameters
+                        .insert_many(arrow_binders);
+                    let body = lowerer.admitting_contract_policy_operators(|lowerer| {
+                        lower_expression_handle(lowerer, *body)
+                    })?;
+                    typed::mathematical::MathematicalBody::DependentArrow { binders, body }
+                }
             },
         };
 

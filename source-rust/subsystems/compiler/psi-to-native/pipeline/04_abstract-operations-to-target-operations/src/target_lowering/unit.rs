@@ -174,12 +174,15 @@ pub(crate) mod boundary_call {
                 })
                 .map(|callback| {
                     usize::try_from(callback.application.native_ordinal)
-                        .map(|ordinal| ordinal + binding.dispatch_operand_count())
+                        .map(|ordinal| binding.operand_for_native_ordinal(ordinal))
                 })
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
             let mut sorted_ordinals = callback_ordinals;
             sorted_ordinals.sort_unstable();
+            let positions = operands
+                .semantic_positions(&sorted_ordinals)
+                .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
             if structural_arguments.len() != declaration.structural_parameters.len()
                 || !declaration.has_valid_parameter_order()
                 || operands.len() != declaration.parameter_order.len() + sorted_ordinals.len()
@@ -202,11 +205,8 @@ pub(crate) mod boundary_call {
                         .parameter_positions(terminal_psi::BoundaryParameterKind::Structural),
                 )
                 .map(|((index, (argument, parameter)), semantic_position)| {
-                    let native_position = semantic_position
-                        + sorted_ordinals
-                            .iter()
-                            .filter(|ordinal| semantic_position >= **ordinal)
-                            .count();
+                    let native_position = *positions.get(semantic_position)
+                        .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
                     let established = crate::target_lowering::control_flow::borrowed_calls::established_view_source(
                         argument, function, prepared, live, structural_types,
                     )?;
@@ -587,7 +587,7 @@ pub(crate) mod boundary_call {
                 })
                 .map(|callback| {
                     usize::try_from(callback.application.native_ordinal)
-                        .map(|ordinal| (ordinal + binding.dispatch_operand_count(), callback))
+                        .map(|ordinal| (binding.operand_for_native_ordinal(ordinal), callback))
                 })
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
@@ -606,18 +606,14 @@ pub(crate) mod boundary_call {
                     .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            for (index, (ordinal, callback)) in callback_inserts.iter().enumerate() {
-                let insertion = ordinal + index;
+            for &(insertion, callback) in &callback_inserts {
                 if insertion > parameter_shapes.len() {
                     return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                 }
                 parameter_shapes.insert(insertion, callback.application.shape);
             }
             let signature = CallSignature {
-                parameters: parameter_shapes
-                    .into_iter()
-                    .skip(binding.dispatch_operand_count())
-                    .collect(),
+                parameters: binding.passed_operands(parameter_shapes).collect(),
                 result: result_shape,
             };
             let validated = match native_callbacks.first() {
@@ -653,10 +649,6 @@ pub(crate) mod boundary_call {
             {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
-            let inserted_ordinals = callback_inserts
-                .iter()
-                .map(|(ordinal, _)| *ordinal)
-                .collect::<Vec<_>>();
             arguments
                 .iter()
                 .zip(&declaration.scalar_parameters)
@@ -665,9 +657,9 @@ pub(crate) mod boundary_call {
                 .map(
                     |(((source_value, parameter), shape), semantic_parameter_index)| {
                         let parameter_index = semantic_parameter_index
-                            + inserted_ordinals
+                            + callback_inserts
                                 .iter()
-                                .filter(|ordinal| semantic_parameter_index >= **ordinal)
+                                .filter(|(ordinal, _)| semantic_parameter_index >= *ordinal)
                                 .count();
                         let placement = operands
                             .get(parameter_index)

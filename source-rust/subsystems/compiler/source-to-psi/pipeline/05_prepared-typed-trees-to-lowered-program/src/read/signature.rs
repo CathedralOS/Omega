@@ -784,30 +784,46 @@ impl<'p> Converter<'p, '_> {
                 declaration: quotient.declaration,
                 carrier,
                 relation,
+                laws: [0; 4],
                 type_identity: quotient.identity.clone(),
             },
             self.name(quotient.declaration),
         );
         self.data.push((quotient.record, entry));
-        self.equivalence(id, quotient, carrier, relation)?;
+        let laws = self.equivalence(id, quotient, carrier, relation)?;
+        if let SignatureEntryKind::Quotient { laws: stored, .. } =
+            &mut self.signature.entries[entry as usize].kind
+        {
+            *stored = laws;
+        }
         Ok(entry)
     }
 
-    /// The three laws of the equivalence a quotient selects. Each row's
+    /// The four laws of the `MereEquivalence` a quotient selects. Each row's
     /// machine must have proved exactly the sealed statement of its law
     /// about this relation: for all values of the carrier, `R a a`; from
-    /// `R a b`, `R b a`; from `R a b` and `R b c`, `R a c`. Stage 06 checks
-    /// the proved statement against it, so a row that asks for more, or
-    /// proves something else, is refused.
+    /// `R a b`, `R b a`; from `R a b` and `R b c`, `R a c`; and for all
+    /// `a, b` and `p, q: R a b`, `Id (R a b) p q` (`IsMere(R(a, b))`).
+    /// Returns `[propositional, reflexive, symmetric, transitive]` statement
+    /// entry indices for effectivity.
     fn equivalence(
         &mut self,
         id: MachineId,
         quotient: &super::quotients::QuotientRecord,
         carrier: u32,
         relation: u32,
-    ) -> Checked<()> {
+    ) -> Checked<[u32; 4]> {
         let program = self.program;
-        for (name, count) in [("reflexive", 1u32), ("symmetric", 2), ("transitive", 3)] {
+        let mut entries = [0u32; 4];
+        for (slot, (name, count)) in [
+            ("proofs_agree", 2u32),
+            ("reflexive", 1),
+            ("symmetric", 2),
+            ("transitive", 3),
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let row = quotient
                 .rows
                 .iter()
@@ -841,6 +857,7 @@ impl<'p> Converter<'p, '_> {
                     "row of a quotient's equivalence over other than values of its carrier",
                 ));
             }
+            entries[slot] = stated.statement;
             let related = self.constant(relation);
             let holds = |converter: &mut Self, left: u32, right: u32| {
                 let left = converter.variable(count - 1 - left);
@@ -850,9 +867,31 @@ impl<'p> Converter<'p, '_> {
                     .arena
                     .apply_arguments(related, &[left, right])
             };
-            let (premises, goal) = match count {
-                1 => (Vec::new(), holds(self, 0, 0)),
-                2 => (vec![holds(self, 0, 1)], holds(self, 1, 0)),
+            let (premises, goal) = match name {
+                "proofs_agree" => {
+                    let prop = holds(self, 0, 1);
+                    let arena = &mut self.signature.arena;
+                    let prop_1 = mathematical_kernel::shift(arena, prop, 0, 1);
+                    let prop_2 = mathematical_kernel::shift(arena, prop, 0, 2);
+                    let p = arena.insert(Term::Variable(1));
+                    let q = arena.insert(Term::Variable(0));
+                    let eq = arena.insert(Term::Id {
+                        ty: prop_2,
+                        left: p,
+                        right: q,
+                    });
+                    let inner_pi = arena.insert(Term::Pi {
+                        domain: prop_1,
+                        codomain: eq,
+                    });
+                    let is_mere = arena.insert(Term::Pi {
+                        domain: prop,
+                        codomain: inner_pi,
+                    });
+                    (Vec::new(), is_mere)
+                }
+                "reflexive" => (Vec::new(), holds(self, 0, 0)),
+                "symmetric" => (vec![holds(self, 0, 1)], holds(self, 1, 0)),
                 _ => (
                     vec![holds(self, 0, 1), holds(self, 1, 2)],
                     holds(self, 0, 2),
@@ -869,7 +908,7 @@ impl<'p> Converter<'p, '_> {
                 refusal,
             });
         }
-        Ok(())
+        Ok(entries)
     }
 
     /// Judges a machine whose body is one `Quotient::lift` or
@@ -3777,6 +3816,27 @@ impl<'p> Converter<'p, '_> {
         formals: &[TermHandle],
         satisfaction: Option<&Satisfaction>,
     ) -> Checked<TermHandle> {
+        if let Proposition::IsMere(inner) = proposition {
+            let prop = self.equality(id, inner, formals, satisfaction)?;
+            let arena = &mut self.signature.arena;
+            let prop_1 = mathematical_kernel::shift(arena, prop, 0, 1);
+            let prop_2 = mathematical_kernel::shift(arena, prop, 0, 2);
+            let p = arena.insert(Term::Variable(1));
+            let q = arena.insert(Term::Variable(0));
+            let eq = arena.insert(Term::Id {
+                ty: prop_2,
+                left: p,
+                right: q,
+            });
+            let inner_pi = arena.insert(Term::Pi {
+                domain: prop_1,
+                codomain: eq,
+            });
+            return Ok(arena.insert(Term::Pi {
+                domain: prop,
+                codomain: inner_pi,
+            }));
+        }
         let Proposition::DeclarationIdentity(clause) = proposition else {
             return Err(unserved(id, "law guarantee other than an Identity"));
         };

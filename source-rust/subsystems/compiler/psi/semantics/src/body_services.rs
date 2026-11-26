@@ -155,7 +155,10 @@ pub fn body_service_reaches(
                     union(&mut rows[position], &contract.envelope.service_reach);
                 }
                 CallableInvocationTarget::Opaque => {
-                    let boundary=invocation.boundary.and_then(|id|module.boundary_machine(id)).ok_or("body service invocation has opaque code without a retained boundary contract")?;
+                    let boundary = invocation
+                        .boundary
+                        .and_then(|id| module.boundary_machine(id))
+                        .ok_or("body service invocation has opaque code without a retained boundary contract")?;
                     if boundary.scalar_parameters.len() != invocation.scalar_arguments.len()
                         || boundary.structural_parameters.len()
                             != invocation.structural_arguments.len()
@@ -169,7 +172,10 @@ pub fn body_service_reaches(
                             .iter()
                             .zip(&invocation.structural_actual_types)
                             .all(|(expected, actual)| {
-                                (expected.structural_type, expected.access) == *actual
+                                program.structural_actual_matches(
+                                    *actual,
+                                    (expected.structural_type, expected.access),
+                                )
                             })
                     {
                         return Err(

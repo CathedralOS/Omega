@@ -1,15 +1,13 @@
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\narrow_u16_to_u8_exact;
-use omega\language\core\narrow_i32_to_u64_exact;
-use omega\language\core\narrow_u64_to_i32_exact;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/numeric_conversion.omg as numeric;
 
 trait FinalPath {
     machine final_path(handle: i64, output: @mutable [u16; 32768], capacity: u32, flags: u32) -> u32
-    reaches FilesystemMetadataQuery;
+    reaches |authority|::FilesystemMetadataQuery;
 }
 WindowsFilesystemPathIo satisfies FinalPath {
     machine final_path(handle: i64, output: @mutable [u16; 32768], capacity: u32, flags: u32) -> u32
-    reaches FilesystemMetadataQuery {
+    reaches |authority|::FilesystemMetadataQuery {
         transition handle == 1 && capacity == 32768 && flags == 0 {
             true -> name(output, 0),
             false -> 32769
@@ -44,7 +42,7 @@ WindowsFilesystemUtf8Io satisfies Utf8 {
         output: @mutable [u8; Bytes], capacity: i32, default_character: u64, used_default: u64) -> i32 {
         transition page == 65001 && flags == 128 && characters > 0 && characters <= capacity
             && default_character == 0 && used_default == 0 {
-            true -> ascii(@source[..], @mutable output[..], narrow_i32_to_u64_exact(characters)),
+            true -> ascii(@source[..], @mutable output[..], |numeric|::narrow_i32_to_u64_exact(characters)),
             false -> 0
         }
     }
@@ -56,7 +54,7 @@ machine ascii(source: @[u16], output: @mutable [u8], count: u64) -> i32 {
     }
     machine copy(source: @[u16], output: @mutable [u8], count: u64, position: u64) -> i32
     requires count <= source.length && count <= output.length && count <= 2147483647 {
-        transition position < count { true -> character(source, output, count, position), false -> (narrow_u64_to_i32_exact(count)) }
+        transition position < count { true -> character(source, output, count, position), false -> (|numeric|::narrow_u64_to_i32_exact(count)) }
     }
     machine character(source: @[u16], output: @mutable [u8], count: u64, position: u64) -> i32
     requires count <= source.length && count <= output.length && count <= 2147483647 && position < count {
@@ -65,7 +63,7 @@ machine ascii(source: @[u16], output: @mutable [u8], count: u64) -> i32 {
     }
     machine store(source: @[u16], output: @mutable [u8], count: u64, position: u64, code: u16) -> i32
     requires count <= source.length && count <= output.length && count <= 2147483647 && position < count && code <= 127 {
-        output[position] = narrow_u16_to_u8_exact(code);
+        output[position] = |numeric|::narrow_u16_to_u8_exact(code);
         transition { _ -> copy(source, output, count, position + 1) }
     }
 }

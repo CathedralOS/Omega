@@ -29,6 +29,7 @@ pub enum PackageReviewDangerousAuthorityClass {
     RootMemory,
     Process,
     ConsumerAudit,
+    Network,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

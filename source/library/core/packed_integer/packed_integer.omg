@@ -52,3 +52,33 @@ public machine narrow_i16x8_to_u8x4_saturating<'input>(source: @'input [i16; 8])
 reaches none
 crashes none
 terminates;
+
+public machine wrapping_add_u8x16<'left, 'right>(left: @'left [u8; 16], right: @'right [u8; 16]) -> [u8; 16]
+reaches none
+crashes none
+terminates;
+
+public machine min_i16x8<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine cmpgt_i16x8<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine bit_and_i16x8<'left, 'right>(left: @'left [i16; 8], right: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine bit_andnot_i16x8<'left, 'right>(mask: @'left [i16; 8], value: @'right [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;
+
+public machine abs_i16x8<'input>(source: @'input [i16; 8]) -> [i16; 8]
+reaches none
+crashes none
+terminates;

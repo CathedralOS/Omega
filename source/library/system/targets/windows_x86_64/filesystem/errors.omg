@@ -1,69 +1,66 @@
-use ErrorKind;
-use IoResult;
-use UnitResult;
+use filesystem.omg;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // Portable translation of real Win32 failures. Unknown codes remain Other;
 // neither a zero last-error nor a malformed raw status can manufacture success.
 // Numeric identities: Microsoft WinError.h, system-error-codes--0-499-.
-use omega\language\core\widen_i32_to_i64;
-use omega\language\core\narrow_i64_to_u32_exact;
-use omega\language\core\narrow_i64_to_u64_exact;
 
-machine windows_filesystem_error(code: u32) -> ErrorKind {
+machine windows_filesystem_error(code: u32) -> |filesystem|::ErrorKind {
     transition code {
-        1 -> ErrorKind::Unsupported,
-        2 -> ErrorKind::NotFound,
-        3 -> ErrorKind::NotFound,
-        5 -> ErrorKind::PermissionDenied,
-        6 -> ErrorKind::BadDescriptor,
-        15 -> ErrorKind::NotFound,
-        19 -> ErrorKind::PermissionDenied,
-        32 -> ErrorKind::PermissionDenied,
-        33 -> ErrorKind::WouldBlock,
-        50 -> ErrorKind::Unsupported,
-        53 -> ErrorKind::NotFound,
-        65 -> ErrorKind::PermissionDenied,
-        67 -> ErrorKind::NotFound,
-        80 -> ErrorKind::AlreadyExists,
-        87 -> ErrorKind::InvalidInput,
-        111 -> ErrorKind::InvalidInput,
-        120 -> ErrorKind::Unsupported,
-        123 -> ErrorKind::InvalidInput,
-        161 -> ErrorKind::InvalidInput,
-        183 -> ErrorKind::AlreadyExists,
-        206 -> ErrorKind::InvalidInput,
-        267 -> ErrorKind::InvalidInput,
-        _ -> ErrorKind::Other
+        1 -> |filesystem|::ErrorKind::Unsupported,
+        2 -> |filesystem|::ErrorKind::NotFound,
+        3 -> |filesystem|::ErrorKind::NotFound,
+        5 -> |filesystem|::ErrorKind::PermissionDenied,
+        6 -> |filesystem|::ErrorKind::BadDescriptor,
+        15 -> |filesystem|::ErrorKind::NotFound,
+        19 -> |filesystem|::ErrorKind::PermissionDenied,
+        32 -> |filesystem|::ErrorKind::PermissionDenied,
+        33 -> |filesystem|::ErrorKind::WouldBlock,
+        50 -> |filesystem|::ErrorKind::Unsupported,
+        53 -> |filesystem|::ErrorKind::NotFound,
+        65 -> |filesystem|::ErrorKind::PermissionDenied,
+        67 -> |filesystem|::ErrorKind::NotFound,
+        80 -> |filesystem|::ErrorKind::AlreadyExists,
+        87 -> |filesystem|::ErrorKind::InvalidInput,
+        111 -> |filesystem|::ErrorKind::InvalidInput,
+        120 -> |filesystem|::ErrorKind::Unsupported,
+        123 -> |filesystem|::ErrorKind::InvalidInput,
+        161 -> |filesystem|::ErrorKind::InvalidInput,
+        183 -> |filesystem|::ErrorKind::AlreadyExists,
+        206 -> |filesystem|::ErrorKind::InvalidInput,
+        267 -> |filesystem|::ErrorKind::InvalidInput,
+        _ -> |filesystem|::ErrorKind::Other
     }
 }
 
-machine windows_filesystem_status_error(status: i64) -> ErrorKind {
+machine windows_filesystem_status_error(status: i64) -> |filesystem|::ErrorKind {
     transition status < 0 && status >= -4294967295 {
         true -> native(status),
-        false -> ErrorKind::Other
+        false -> |filesystem|::ErrorKind::Other
     }
-    machine native(status: i64) -> ErrorKind
+    machine native(status: i64) -> |filesystem|::ErrorKind
     requires status < 0 && status >= -4294967295 {
-        windows_filesystem_error(narrow_i64_to_u32_exact(0 - status))
+        windows_filesystem_error(|numeric|::narrow_i64_to_u32_exact(0 - status))
     }
 }
 
-machine windows_filesystem_unit(status: i32) -> UnitResult {
+machine windows_filesystem_unit(status: i32) -> |filesystem|::UnitResult {
     transition status == 0 {
-        true -> UnitResult::Ok,
-        false -> (UnitResult::Error { kind: windows_filesystem_status_error(widen_i32_to_i64(status)) })
+        true -> |filesystem|::UnitResult::Ok,
+        false -> (|filesystem|::UnitResult::Error { kind: windows_filesystem_status_error(|numeric|::widen_i32_to_i64(status)) })
     }
 }
 
-machine windows_filesystem_transferred(status: i64, requested: u64) -> IoResult {
+machine windows_filesystem_transferred(status: i64, requested: u64) -> |filesystem|::IoResult {
     transition status >= 0 {
         true -> nonnegative(status, requested),
-        false -> (IoResult::Error { kind: windows_filesystem_status_error(status) })
+        false -> (|filesystem|::IoResult::Error { kind: windows_filesystem_status_error(status) })
     }
-    machine nonnegative(status: i64, requested: u64) -> IoResult requires status >= 0 {
-        let count: u64 = narrow_i64_to_u64_exact(status);
+    machine nonnegative(status: i64, requested: u64) -> |filesystem|::IoResult requires status >= 0 {
+        let count: u64 = |numeric|::narrow_i64_to_u64_exact(status);
         transition count <= requested {
-            true -> (IoResult::Ok { count: count }),
-            false -> (IoResult::Error { kind: ErrorKind::Other })
+            true -> (|filesystem|::IoResult::Ok { count: count }),
+            false -> (|filesystem|::IoResult::Error { kind: |filesystem|::ErrorKind::Other })
         }
     }
 }
