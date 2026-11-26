@@ -8,7 +8,7 @@ use source_compiler::{InterpretedProviderSelections, compile_product::ProductPol
 use std::sync::Arc;
 
 impl PlanningSource {
-    pub(super) fn successor_provider_selections(
+    pub(crate) fn successor_provider_selections(
         &mut self,
         entry: &BuildEntryPath,
         libraries: &[SuppliedBuildLibrary],
