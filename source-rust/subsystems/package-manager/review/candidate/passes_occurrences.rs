@@ -17,8 +17,7 @@ use crate::resolution::source::PackageSourceCustody;
 use diagnostics::Diagnostic;
 use package_compilation::{
     ConsumedSourceUnit, IndependentComponentDescription, PackageCompilationInputError,
-    PackageCompilationInputs,
-    derive_source_consumption_commitment,
+    PackageCompilationInputs, derive_source_consumption_commitment,
 };
 use provider_acceptance::AcceptedSemanticBinding;
 use std::collections::BTreeMap;

@@ -152,19 +152,30 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
     ];
     let fixture = fixture_repository::root()
         .join("tests/fixtures/calls/run/scalar_contract_route_exit");
-    let temp = platform_custody::temporary_directory::TemporaryDirectory::create("entry-contract-collision", false).unwrap();
+    let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "entry-contract-collision",
+        false,
+    )
+    .unwrap();
     let root = temp.path();
     for name in ["build.omg", "main.omg"] {
         std::fs::copy(fixture.join(name), root.join(name)).unwrap();
     }
     // The application owns an unrelated source at the exact relative path of
     // the Linux contract. It remains an ordinary declaration of this package.
-    let linux = TargetProfile::LinuxX64.program_entry_slot().physical_contract_package.unwrap();
+    let linux = TargetProfile::LinuxX64
+        .program_entry_slot()
+        .physical_contract_package
+        .unwrap();
     let relative = linux.package_relative_source();
     let other = root.join(relative);
     std::fs::create_dir_all(other.parent().unwrap()).unwrap();
     std::fs::write(other, "public data UnrelatedEntry {}").unwrap();
-    let (returned, inputs) = run_project_build_with_sources(&root.join("main.omg"), &targets, &["main.omg", "build.omg", relative]);
+    let (returned, inputs) = run_project_build_with_sources(
+        &root.join("main.omg"),
+        &targets,
+        &["main.omg", "build.omg", relative],
+    );
     let project = returned.open_product(Some(&inputs)).unwrap();
     let firmware = TargetProfile::UefiX64
         .program_entry_slot()

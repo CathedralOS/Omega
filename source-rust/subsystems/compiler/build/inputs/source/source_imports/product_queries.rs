@@ -636,18 +636,9 @@ impl ProductQueryInputs {
 
     pub(crate) fn validate_frontier(
         &self,
-        frontier: Vec<(
-            PathBuf,
-            source_provenance::DependencyScope,
-        )>,
+        frontier: Vec<(PathBuf, source_provenance::DependencyScope)>,
         storage: &SourceStorage,
-    ) -> Result<
-        Vec<(
-            PathBuf,
-            source_provenance::DependencyScope,
-        )>,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<Vec<(PathBuf, source_provenance::DependencyScope)>, Vec<Diagnostic>> {
         let core = super::bundled_core_root()?;
         let mut validated = Vec::with_capacity(frontier.len());
         for (path, scope) in frontier {
