@@ -1,127 +1,70 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
 // Expected exit: 0. Expected streams are frozen from original-storage oracles.
 // Captured native and Terminal values must agree with expected_stdout.txt.
-use omega\language\core\Access;
-use omega\language\core\Access::view_mut;
-use omega\language\core\AccessPlan;
-use omega\language\core\AccessPlan::inaccessible;
-use omega\language\core\AccessPlan::with;
-use omega\language\core\AccessPlan::with_reach;
-use omega\language\core\BoundaryReach;
-use omega\language\core\Exposure;
-use omega\language\core\ExternalRead;
-use omega\language\core\FieldAccess;
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\LayoutPlan;
-use omega\language\core\Schema;
-use omega\language\core\read;
-use omega\language\core\write;
+use {omega}/language/core/access/access.omg;
+use {omega}/language/core/layout.omg;
+use {omega}/language/core/reflect/reflect.omg;
+use {system}/console.omg;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
 
 public data Registers {
     status: u32;
     transmit: u8;
 }
 
-public data RegPlacement {}
+public domain Registers::Placed access RegisterAccess;
+public data RegisterStorage = |layout|::LayoutStorage<Registers, RegisterLayout>;
 
-machine RegPlacement::plan(schema: Schema) -> AccessPlan {
-    let mutable entries: [FieldEntry; 64];
-    entries[0] = FieldEntry {
-        key: schema.fields[0].key,
-        representation: FieldPlan::At { offset: 0 },
-    };
-    entries[1] = FieldEntry {
-        key: schema.fields[1].key,
-        representation: FieldPlan::At { offset: 4 },
-    };
-    let layout: LayoutPlan = LayoutPlan {
-            entries: entries,
-            entry_count: 2,
-            size_fixed: 8,
-            size_is_dynamic: false,
-            align: 4,
-        };
-    let access: AccessPlan = AccessPlan::inaccessible(layout);
-    transition { _ -> place_status(schema, access) }
-
-    machine place_status(
-        schema: Schema,
-        access: AccessPlan
-    ) -> AccessPlan {
-        transition { _ -> place_transmit(
-            schema,
-            AccessPlan::with(
-                access,
-                schema.fields[0].key,
-                FieldAccess::External {
-                    read: ExternalRead::Read,
-                    write: false,
-                    exposure: Exposure::Exported,
-                },
-            )) }
+public RegisterLayout satisfies |layout|::FixedLayout<Registers> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
+    reaches none crashes none terminates {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry { key: schema.fields[0].key, representation: |layout|::FieldPlan::At { offset: 0 } };
+        entries[1] = |layout|::FieldEntry { key: schema.fields[1].key, representation: |layout|::FieldPlan::At { offset: 4 } };
+        |layout|::LayoutPlan { entries: entries, entry_count: 2, size_fixed: 8, size_is_dynamic: false, align: 4 }
     }
+}
 
-    machine place_transmit(
-        schema: Schema,
-        access: AccessPlan
-    ) -> AccessPlan {
-        transition { _ -> finish(
-            AccessPlan::with(
-                access,
-                schema.fields[1].key,
-                FieldAccess::External {
-                    read: ExternalRead::None,
-                    write: true,
-                    exposure: Exposure::Exported,
-                },
-            )) }
-    }
-
-    machine finish(
-        access: AccessPlan
-    ) -> AccessPlan {
-        let mutable services: [u64; 32];
-        services[0] = 7;
-        AccessPlan::with_reach(
-            access,
-            BoundaryReach {
-                services: services,
-                service_count: 0,
-            }
-        )
+public RegisterAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan
+    reaches none crashes none terminates {
+        let mutable plan: |layout|::AccessPlan = |access|::new_plan(@schema, |layout|::Issuance::Unrestricted);
+        |access|::observe(@mutable plan, |reflect|::field(Registers::status),
+            |layout|::FieldAccess::External { read: |layout|::ExternalRead::Read, write: false, exposure: |layout|::Exposure::Exported });
+        |access|::observe(@mutable plan, |reflect|::field(Registers::transmit),
+            |layout|::FieldAccess::External { read: |layout|::ExternalRead::None, write: true, exposure: |layout|::Exposure::Exported });
+        plan
     }
 }
 
 // The host establishes the backing and binds these exact generated accessors.
 // Delegation retains the original backing; neither wrapper stages contents.
-machine observe(view: @Access<RegPlacement, Registers>) -> u32 {
-    view.status.read(@view.status)
+machine observe(view: @RegisterStorage in Registers::Placed) -> u32 {
+    |layout|::read::<|layout|::Accessor<u32>, u32>(@view.status)
 }
 
-machine delegate(view: @Access<RegPlacement, Registers>) -> u32 { observe(view) }
+machine delegate(view: @RegisterStorage in Registers::Placed) -> u32 { observe(view) }
 
-machine mutate(view: @mutable Access<RegPlacement, Registers>) -> u32 {
-    view.transmit.write(@mutable view.transmit, 9);
-    view.status.read(@view.status)
+machine mutate(view: @mutable RegisterStorage in Registers::Placed) -> u32 {
+    |layout|::write::<|layout|::Accessor<u8>, u8>(@mutable view.transmit, 9u8);
+    |layout|::read::<|layout|::Accessor<u32>, u32>(@view.status)
 }
 
-machine delegate_mutable(view: @mutable Access<RegPlacement, Registers>) -> u32 { mutate(view) }
+machine delegate_mutable(view: @mutable RegisterStorage in Registers::Placed) -> u32 { mutate(view) }
 
-machine forward(view: @mutable Access<RegPlacement, Registers>) -> u32 { delegate_mutable(view) }
+machine forward(view: @mutable RegisterStorage in Registers::Placed) -> u32 { delegate_mutable(view) }
 
-machine ordered(first: @Access<RegPlacement, Registers>, second: @Access<RegPlacement, Registers>) -> u64 {
+machine ordered(first: @RegisterStorage in Registers::Placed, second: @RegisterStorage in Registers::Placed) -> u64 {
     let first_status: u32 = observe(first);
     let second_status: u32 = observe(second);
     (first_status as u64) * 1000 + (second_status as u64)
 }
 
-machine reordered(left: @Access<RegPlacement, Registers>, right: @Access<RegPlacement, Registers>) -> u64 {
+machine reordered(left: @RegisterStorage in Registers::Placed, right: @RegisterStorage in Registers::Placed) -> u64 {
     ordered(right, left)
 }
 
-machine alias_entry(shared: @Access<RegPlacement, Registers>, exclusive: @mutable Access<RegPlacement, Registers>) -> u64 {
+machine alias_entry(shared: @RegisterStorage in Registers::Placed, exclusive: @mutable RegisterStorage in Registers::Placed) -> u64 {
     let first: u32 = observe(shared);
     let second: u32 = mutate(exclusive);
     (first as u64) + (second as u64)
@@ -129,27 +72,27 @@ machine alias_entry(shared: @Access<RegPlacement, Registers>, exclusive: @mutabl
 
 public data Plain { value: u32; }
 
-machine mixed(seed: u32, plain: @Plain, view: @mutable Access<RegPlacement, Registers>) -> u64 {
+machine mixed(seed: u32, plain: @Plain, view: @mutable RegisterStorage in Registers::Placed) -> u64 {
     let status: u32 = delegate_mutable(view);
     (seed as u64) + (plain.value as u64) + (status as u64)
 }
 
-machine ordinary_alias(view: @Access<RegPlacement, Registers>, storage: @mutable Plain) -> u32 {
+machine ordinary_alias(view: @RegisterStorage in Registers::Placed, storage: @mutable Plain) -> u32 {
     observe(view)
 }
 
-machine later(view: @mutable Access<RegPlacement, Registers>) -> u32 {
+machine later(view: @mutable RegisterStorage in Registers::Placed) -> u32 {
     transition { _ -> next(view) }
-    machine next(view: @mutable Access<RegPlacement, Registers>) -> u32 {
+    machine next(view: @mutable RegisterStorage in Registers::Placed) -> u32 {
         delegate_mutable(view)
     }
 }
 
 // Unit-returning helpers use the same structural telescope and occurrence.
-machine write_only(view: @mutable Access<RegPlacement, Registers>) {
-    view.transmit.write(@mutable view.transmit, 9);
+machine write_only(view: @mutable RegisterStorage in Registers::Placed) {
+    |layout|::write::<|layout|::Accessor<u8>, u8>(@mutable view.transmit, 9u8);
 }
-machine unit_delegate(view: @mutable Access<RegPlacement, Registers>) -> u32 {
+machine unit_delegate(view: @mutable RegisterStorage in Registers::Placed) -> u32 {
     write_only(view);
     observe(view)
 }
@@ -158,7 +101,7 @@ machine unit_delegate(view: @mutable Access<RegPlacement, Registers>) -> u32 {
 // Runtime acceptance is 41 with transmit changed to 9 in the same backing.
 machine ram_borrow() -> u32 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers);
     let observed: u32 = mutate(view);
     observed
 }
@@ -166,7 +109,7 @@ machine ram_borrow() -> u32 {
 machine ram_descriptor() -> u32 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
     let source: @mutable Registers = @mutable registers;
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(source);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(source);
     mutate(view)
 }
 
@@ -187,7 +130,7 @@ machine ram_indexed() -> u64 {
         Registers { status: 73, transmit: 5 }
     ];
     let mutable counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers[choose_register(@mutable counter)]);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers[choose_register(@mutable counter)]);
     let observed: u32 = mutate(view);
     (observed as u64) * 100 + (counter.count as u64)
 }
@@ -196,18 +139,18 @@ machine ram_indexed() -> u64 {
 // Frozen interpreter result: 41 from the original storage after retirement.
 machine ram_capture_only() -> u32 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers);
     registers.status
 }
 
-machine retain_ram(view: @mutable Access<RegPlacement, Registers>, counter: @mutable SelectionCounter)
+machine retain_ram(view: @mutable RegisterStorage in Registers::Placed, counter: @mutable SelectionCounter)
 requires counter.count < 1
 ensures counter.count <= 1
 {
     counter.count = counter.count + 1;
 }
 
-machine return_ram<'a>(view: @'a mutable Access<RegPlacement, Registers>, counter: @mutable SelectionCounter) -> @'a mutable Access<RegPlacement, Registers>
+machine return_ram<'a>(view: @'a mutable RegisterStorage in Registers::Placed, counter: @mutable SelectionCounter) -> @'a mutable RegisterStorage in Registers::Placed
 requires counter.count < 1
 ensures counter.count <= 1
 {
@@ -219,7 +162,7 @@ ensures counter.count <= 1
 machine ram_capture_helper() -> u64 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
     let mutable counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers);
     retain_ram(view, @mutable counter);
     (registers.status as u64) * 100 + (counter.count as u64)
 }
@@ -227,67 +170,65 @@ machine ram_capture_helper() -> u64 {
 machine ram_capture_return() -> u64 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
     let mutable counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers);
-    let returned: @mutable Access<RegPlacement, Registers> = return_ram(view, @mutable counter);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers);
+    let returned: @mutable RegisterStorage in Registers::Placed = return_ram(view, @mutable counter);
     (registers.status as u64) * 100 + (counter.count as u64)
 }
 
 // Frozen result4109 observes the original RAM after the write/read pair.
 machine ram_original_backing() -> u64 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers);
     let observed: u32 = mutate(view);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 
-
 // Whole returned/stored views retain the original loan through scalar calls.
-data SavedView<'a> { view: @'a mutable Access<RegPlacement, Registers>; }
-machine extract<'a>(saved: SavedView<'a>) -> @'a mutable Access<RegPlacement, Registers> { saved.view }
+data SavedView<'a> { view: @'a mutable RegisterStorage in Registers::Placed; }
+machine extract<'a>(saved: SavedView<'a>) -> @'a mutable RegisterStorage in Registers::Placed { saved.view }
 machine ram_stored_return() -> u64 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
-    let saved: SavedView = SavedView { view: Access::view_mut::<RegPlacement, Registers>(@mutable registers) };
-    let returned: @mutable Access<RegPlacement, Registers> = extract(saved);
+    let saved: SavedView = SavedView { view: |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers) };
+    let returned: @mutable RegisterStorage in Registers::Placed = extract(saved);
     let observed: u32 = mutate(returned);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 machine ram_stored_access() -> u64 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
-    let mutable saved: SavedView = SavedView { view: Access::view_mut::<RegPlacement, Registers>(@mutable registers) };
-    saved.view.transmit.write(@mutable saved.view.transmit, 9);
-    let observed: u32 = saved.view.status.read(@saved.view.status);
+    let mutable saved: SavedView = SavedView { view: |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers) };
+    |layout|::write::<|layout|::Accessor<u8>, u8>(@mutable saved.view.transmit, 9u8);
+    let observed: u32 = |layout|::read::<|layout|::Accessor<u32>, u32>(@saved.view.status);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 machine ram_return_access() -> u64 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
     let mutable counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers);
-    let returned: @mutable Access<RegPlacement, Registers> = return_ram(view, @mutable counter);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers);
+    let returned: @mutable RegisterStorage in Registers::Placed = return_ram(view, @mutable counter);
     let observed: u32 = mutate(returned);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 machine ram_forwarded() -> u64 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers);
     let observed: u32 = forward(view);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 machine ram_state_access() -> u64 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers);
     let observed: u32 = later(view);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 machine ram_unit_write() -> u64 {
     let mutable registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mutable Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mutable registers);
+    let view: @mutable RegisterStorage in Registers::Placed = |access|::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mutable registers);
     let observed: u32 = unit_delegate(view);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 
-use system\Console;
 data Main { }
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     Main::number(main, ram_capture_only() as u64 +Wrapping);
     Main::number(main, ram_capture_helper() as u64 +Wrapping);
     Main::number(main, ram_capture_return() as u64 +Wrapping);
@@ -301,18 +242,18 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     Main::number(main, ram_forwarded() as u64 +Wrapping);
     Main::number(main, ram_state_access() as u64 +Wrapping);
     Main::number(main, ram_unit_write() as u64 +Wrapping);
-    ProcessExit::exit_process(0);
+    |process_exit|::ProcessExit::exit_process(0);
 }
-machine Main::number(main: @mutable Main, value: u64 in Wrapping) reaches StandardOutput {
-    Console::write_byte((((value / 1000) % 10) as i32) + 48);
-    Console::write_byte((((value / 100) % 10) as i32) + 48);
-    Console::write_byte((((value / 10) % 10) as i32) + 48);
-    Console::write_byte(((value % 10) as i32) + 48);
-    Console::write_byte(10);
+machine Main::number(main: @mutable Main, value: u64 in Wrapping) reaches |process_authority|::StandardOutput {
+    |console|::Console::write_byte((((value / 1000) % 10) as i32) + 48);
+    |console|::Console::write_byte((((value / 100) % 10) as i32) + 48);
+    |console|::Console::write_byte((((value / 10) % 10) as i32) + 48);
+    |console|::Console::write_byte(((value % 10) as i32) + 48);
+    |console|::Console::write_byte(10);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }
