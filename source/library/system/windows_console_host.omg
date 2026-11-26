@@ -1,5 +1,4 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
+use {omega}/language/core/process_authority.omg as process;
 
 // The MSVCRT descriptor calls behind the Windows console, as one requirement
 // both Windows targets share. Each target places the same C call differently,
@@ -10,25 +9,25 @@ public boundary trait WindowsConsoleHost {
     //   `int _write(int fd, const void *buffer, unsigned int count)`
     machine write(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
     requires descriptor == 1 && count <= 4
-    reaches StandardOutput
+    reaches |process|::StandardOutput
     crashes none;
 
     // A console read waits for host input, so the import publishes `blocks`.
     //   `int _read(int fd, void *buffer, unsigned int count)`
     machine read(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
     requires descriptor == 0 && count <= 4
-    reaches StandardInput
+    reaches |process|::StandardInput
     blocks
     crashes none;
 
     //   `int _setmode(int fd, int mode)`
     machine set_input_mode(descriptor: i32, mode: i32) -> i32
     requires descriptor == 0 && mode == 32768
-    reaches StandardInput
+    reaches |process|::StandardInput
     crashes none;
 
     machine set_output_mode(descriptor: i32, mode: i32) -> i32
     requires descriptor == 1 && mode == 32768
-    reaches StandardOutput
+    reaches |process|::StandardOutput
     crashes none;
 }

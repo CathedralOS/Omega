@@ -1,42 +1,40 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use ByteRead;
-use ConsoleByteOperations;
-use omega\language\core\narrow_i32_to_u8_wrapping;
+use console.omg;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+use {omega}/language/core/process_authority.omg as process;
 
 // The Alpha target environment supplies these two scalar stream operations.
 // The tape reader supplies 0..255 or -1 at EOF. Any other word is an input
 // error. A write consumes one byte.
 boundary trait AlphaConsoleIo {
-    machine read() -> i32 reaches StandardInput blocks crashes none;
-    machine write(byte: u8) reaches StandardOutput crashes none;
+    machine read() -> i32 reaches |process|::StandardInput blocks crashes none;
+    machine write(byte: u8) reaches |process|::StandardOutput crashes none;
 }
 
-AlphaConsoleBytes satisfies ConsoleByteOperations {
-    machine read_byte() -> ByteRead reaches StandardInput blocks crashes none {
+AlphaConsoleBytes satisfies |console|::ConsoleByteOperations {
+    machine read_byte() -> |console|::ByteRead reaches |process|::StandardInput blocks crashes none {
         let word: i32 = block AlphaConsoleIo::read();
         alpha_console_read_result(word)
     }
 
-    machine write_byte(byte: i32) reaches StandardOutput crashes none {
-        AlphaConsoleIo::write(narrow_i32_to_u8_wrapping(byte));
+    machine write_byte(byte: i32) reaches |process|::StandardOutput crashes none {
+        AlphaConsoleIo::write(|numeric|::narrow_i32_to_u8_wrapping(byte));
     }
 }
 
-machine alpha_console_read_result(word: i32) -> ByteRead crashes none {
+machine alpha_console_read_result(word: i32) -> |console|::ByteRead crashes none {
     transition word == -1 {
         true -> eof(),
         _ -> decode(word)
     }
-    machine eof() -> ByteRead { ByteRead::Eof }
-    machine decode(word: i32) -> ByteRead {
+    machine eof() -> |console|::ByteRead { |console|::ByteRead::Eof }
+    machine decode(word: i32) -> |console|::ByteRead {
         transition word >= 0 && word <= 255 {
             true -> byte(word),
             _ -> invalid()
         }
     }
-    machine byte(word: i32) -> ByteRead
+    machine byte(word: i32) -> |console|::ByteRead
     requires word >= 0 && word <= 255
-    { ByteRead::Byte { value: word } }
-    machine invalid() -> ByteRead { ByteRead::Error }
+    { |console|::ByteRead::Byte { value: word } }
+    machine invalid() -> |console|::ByteRead { |console|::ByteRead::Error }
 }
