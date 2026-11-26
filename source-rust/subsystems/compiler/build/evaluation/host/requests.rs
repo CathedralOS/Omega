@@ -553,9 +553,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .forward_program(program, result.structural_type, self.host.account.as_ref())
                 .map(TerminalEffectResult::Structural);
         }
-        // A registration returns the marker that names it; every other
-        // request returns nothing.
-        let registers = matches!(
+        let returns_structural = matches!(
             call.action,
             Operation::PathDependency
                 | Operation::GitDependency
@@ -563,12 +561,14 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 | Operation::AddBinding
                 | Operation::ExtendReach
                 | Operation::ExtendWorkspace
+                | Operation::CopyBytes
         );
         if structural_arguments.first() != Some(&self.host.original)
             || byte_sequence_arguments.first() != Some(&None)
             || structural_arguments.len() != byte_sequence_arguments.len()
-            || registers != matches!(result, terminal_psi::BoundaryMachineResult::Structural(_))
-            || (!registers && *result != terminal_psi::BoundaryMachineResult::Unit)
+            || returns_structural
+                != matches!(result, terminal_psi::BoundaryMachineResult::Structural(_))
+            || (!returns_structural && *result != terminal_psi::BoundaryMachineResult::Unit)
         {
             return Err(refuse(
                 "project requests require the original compiler-issued Build receiver",
@@ -595,7 +595,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 return Err(refuse("program call lost its borrowed argument list"));
             }
             Operation::ArtifactOnly => (0, 1),
-            Operation::InputBinding | Operation::ValidateBinding => (0, 2),
+            Operation::InputBinding | Operation::ValidateBinding | Operation::CopyBytes => (0, 2),
             Operation::AddBinding => (0, 3),
             Operation::ExtendReach | Operation::ExtendWorkspace => (0, 3),
             Operation::PathDependency => (1, 4),
@@ -614,6 +614,17 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             return Err(refuse(
                 "Build request argument roster differs from its protocol",
             ));
+        }
+        if call.action == Operation::CopyBytes {
+            let bytes = byte_sequence_arguments[1]
+                .as_deref()
+                .ok_or_else(|| refuse("Build byte storage requires a byte view"))?;
+            return terminal_interpreter::TerminalByteSequenceValue::copy(
+                bytes,
+                self.host.account.as_ref(),
+            )
+            .map(TerminalEffectResult::ByteSequence)
+            .map_err(|error| TerminalEffectRejection::new(format!("Build byte storage: {error}")));
         }
         if call.action == Operation::ValidateBinding {
             if byte_sequence_arguments[1].is_some() {
@@ -802,6 +813,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
             Operation::InputBinding
             | Operation::ValidateBinding
+            | Operation::CopyBytes
             | Operation::ExtendWorkspace
             | Operation::ExtendReach
             | Operation::ForwardProgram { .. } => {

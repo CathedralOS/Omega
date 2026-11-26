@@ -405,6 +405,7 @@ pub(crate) mod build_requests {
         AddBinding,
         ExtendReach,
         ExtendWorkspace,
+        CopyBytes,
         PrepareDependency,
         ValidateDependency,
         ValidateBinding,

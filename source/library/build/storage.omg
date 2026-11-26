@@ -1,0 +1,6 @@
+// Copy bytes into immutable storage held through this Build's return.
+public machine copy<'storage>(plan: @BuildPlan<'storage>, bytes: @[u8]) -> @'storage [u8]
+reaches BuildRequestOperations
+{
+    BuildRequestOperations::copy_bytes(plan, bytes)
+}

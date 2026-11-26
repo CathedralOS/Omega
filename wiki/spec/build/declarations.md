@@ -100,6 +100,14 @@ Name and entry views must live through that return. A helper can accept
 `plan: @mutable BuildPlan<'s>` and `name: @'s [u8]` to assign a name with
 the plan's storage lifetime. Borrowing an array local to the Build cannot
 establish that lifetime. [Stored views](../language/lifetimes.md)
+
+A Build can keep bytes it computes locally by explicitly copying them into its
+invocation's immutable storage. Import `use {omega}/build/storage.omg;` and
+call `|storage|::copy(plan, @bytes[..])`. Its result has the plan's storage
+lifetime and can initialize any shared byte view with that lifetime, including
+a Product name or successor entry. The source buffer can be reused immediately.
+The Build's evaluation storage allowance covers the copy.
+
 An authored Build that returns an unselected product, an invalid name or
 path, an empty workspace, or a repeated member rejects. The `with_member(plan, catalog, path)` operation in
 `{omega}/build/workspace.omg` returns a new `WorkspaceMembers` value with
