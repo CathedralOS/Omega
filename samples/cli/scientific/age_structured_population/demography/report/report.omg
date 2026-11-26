@@ -1,16 +1,13 @@
-use omega\language\core\StandardOutput;
-use system\Console;
-use demography\model;
-use demography\model\Census;
-use demography\model\Balance;
-use demography\model\total;
-use omega\language\core\narrow_i64_to_i32_wrapping;
+use demography/model/model.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 // Decimal output uses no allocation and includes a sign for net emigration.
-public machine number(value: i64 in Wrapping) reaches StandardOutput
-invokes Console
+public machine number(value: i64 in Wrapping) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
     transition value < 0 { true -> negative(value), false -> begin(value) }
-    machine negative(value: i64 in Wrapping) { Console::write_byte(45); transition { _ -> begin(0 - value) } }
+    machine negative(value: i64 in Wrapping) { |console|::Console::write_byte(45); transition { _ -> begin(0 - value) } }
     machine begin(value: i64 in Wrapping) { transition { _ -> digit(value, 10000000000, false) } }
     machine digit(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
         transition divisor > 0 { true -> choose(value, divisor, started), false -> done() }
@@ -27,16 +24,16 @@ invokes Console
     machine emit(value: i64 in Wrapping, divisor: i64 in Wrapping, quotient: i64 in Wrapping)
     requires divisor > 0
     {
-        Console::write_byte(narrow_i64_to_i32_wrapping((quotient + 48) as i64));
+        |console|::Console::write_byte(|numeric_conversion|::narrow_i64_to_i32_wrapping((quotient + 48) as i64));
         transition { _ -> digit(value % divisor, divisor / 10, true) }
     }
     machine done() {}
 }
-public machine row(year: i64 in Wrapping, census: @Census, balance: @Balance) reaches StandardOutput
-invokes Console
+public machine row(year: i64 in Wrapping, census: @|model|::Census, balance: @|model|::Balance) reaches |process_authority|::StandardOutput
+invokes |console|::Console
 {
-    number(year); Console::write(","); number(census.newborn); Console::write(",");
-    number(census.juvenile); Console::write(","); number(census.adult); Console::write(",");
-    number(total(census)); Console::write(","); number(balance.births); Console::write(",");
-    number(balance.deaths); Console::write(","); number(balance.migration); Console::write_line("");
+    number(year); |console|::Console::write(","); number(census.newborn); |console|::Console::write(",");
+    number(census.juvenile); |console|::Console::write(","); number(census.adult); |console|::Console::write(",");
+    number(|model|::total(census)); |console|::Console::write(","); number(balance.births); |console|::Console::write(",");
+    number(balance.deaths); |console|::Console::write(","); number(balance.migration); |console|::Console::write_line("");
 }

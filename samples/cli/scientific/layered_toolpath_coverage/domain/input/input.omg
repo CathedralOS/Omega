@@ -1,17 +1,15 @@
-use omega\language\core\StandardInput;
-use domain\model;
-use domain\model\Job;
-use system\ByteRead;
-use system\Console;
+use domain/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 // A digit is one token. Whitespace is optional; EOF and other bytes are errors.
-machine digit() -> i32 in Wrapping reaches StandardInput {
+machine digit() -> i32 in Wrapping reaches |process_authority|::StandardInput {
     transition { _ -> read() }
     machine read() -> i32 in Wrapping {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> (0 - 1),
-            ByteRead::Eof -> (0 - 1),
-            ByteRead::Byte { value } -> classify(value)
+            |console|::ByteRead::Error -> (0 - 1),
+            |console|::ByteRead::Eof -> (0 - 1),
+            |console|::ByteRead::Byte { value } -> classify(value)
         }
     }
     machine classify(value: i32) -> i32 in Wrapping {
@@ -28,14 +26,14 @@ machine digit() -> i32 in Wrapping reaches StandardInput {
         }
     }
 }
-machine input_end() -> bool reaches StandardInput {
+machine input_end() -> bool reaches |process_authority|::StandardInput {
     transition { _ -> read() }
     machine read() -> bool {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> false,
-            ByteRead::Eof -> true,
-            ByteRead::Byte { value } -> classify(value)
+            |console|::ByteRead::Error -> false,
+            |console|::ByteRead::Eof -> true,
+            |console|::ByteRead::Byte { value } -> classify(value)
         }
     }
     machine classify(value: i32) -> bool {
@@ -46,7 +44,7 @@ machine input_end() -> bool reaches StandardInput {
     }
     machine again() -> bool { transition { _ -> read() } }
 }
-public machine load(job: @mutable Job) -> bool reaches StandardInput {
+public machine load(job: @mutable |model|::Job) -> bool reaches |process_authority|::StandardInput {
     job.width = block digit();
     job.height = block digit();
     job.layers = block digit();
@@ -58,18 +56,18 @@ public machine load(job: @mutable Job) -> bool reaches StandardInput {
         true -> clear(job, 0),
         _ -> false
     }
-    machine clear(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine clear(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 256 {
             true -> zero(job, index),
             _ -> cell(job, 0)
         }
     }
-    machine zero(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine zero(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         job.mask[index] = 0;
         job.covered[index] = 0;
         transition { _ -> clear(job, index + 1) }
     }
-    machine cell(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine cell(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         transition index < job.width * job.height * job.layers {
             true -> bounds(job, index),
             _ -> finish()
@@ -79,20 +77,20 @@ public machine load(job: @mutable Job) -> bool reaches StandardInput {
         let complete: bool = block input_end();
         complete
     }
-    machine bounds(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine bounds(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 256 {
             true -> read(job, index),
             _ -> false
         }
     }
-    machine read(job: @mutable Job, index: i32 in Wrapping) -> bool {
+    machine read(job: @mutable |model|::Job, index: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = block digit();
         transition value == 0 || value == 1 {
             true -> store(job, index, value),
             _ -> false
         }
     }
-    machine store(job: @mutable Job, index: i32 in Wrapping, value: i32 in Wrapping) -> bool {
+    machine store(job: @mutable |model|::Job, index: i32 in Wrapping, value: i32 in Wrapping) -> bool {
         job.mask[index] = value as i32;
         transition { _ -> cell(job, index + 1) }
     }

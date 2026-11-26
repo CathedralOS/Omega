@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Event log: case-payload events updating nested struct state across multiple
 // sub-machine calls.
 //
@@ -31,7 +31,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use system\Console;
 
 data Event {
     case Deposit(amount: i32 in Saturating);
@@ -81,8 +80,8 @@ machine apply(main: @mutable Main, event: Event) {
     machine done() {}
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
     apply(main, Event::Deposit { amount: 100 as +Saturating });
     apply(main, Event::Deposit { amount: 50 as +Saturating });
     apply(main, Event::Withdraw { amount: 30 as +Saturating });
@@ -96,10 +95,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_balance(main: @mutable Main) {
-        Console::write_line("FAIL: wrong final balance (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: wrong final balance (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 
     machine check_deposits(main: @mutable Main) {
@@ -110,10 +109,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_deposits(main: @mutable Main) {
-        Console::write_line("FAIL: wrong deposit count (exit 72)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(72);
+        |console|::Console::write_line("FAIL: wrong deposit count (exit 72)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(72);
     }
 
     machine check_withdrawals(main: @mutable Main) {
@@ -124,10 +123,10 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_withdrawals(main: @mutable Main) {
-        Console::write_line("FAIL: wrong withdrawal count (exit 73)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(73);
+        |console|::Console::write_line("FAIL: wrong withdrawal count (exit 73)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(73);
     }
 
     machine check_count(main: @mutable Main) {
@@ -138,22 +137,22 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine bad_count(main: @mutable Main) {
-        Console::write_line("FAIL: wrong event count (exit 74)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(74);
+        |console|::Console::write_line("FAIL: wrong event count (exit 74)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(74);
     }
 
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: balance=70, deposits=3, withdrawals=2, events=5 (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: balance=70, deposits=3, withdrawals=2, events=5 (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(70);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

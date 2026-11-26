@@ -1,53 +1,38 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/input/input.omg;
+use domain/ledger/ledger.omg;
+use domain/normalization/normalization.omg;
+use domain/report/report.omg;
+use domain/sequence/sequence.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Complete streamed synthetic variant-normalization application.
-use system\Console;
-use system\LineReadResult;
-use domain\sequence;
-use domain\sequence\Sequence;
-use domain\input;
-use domain\input\Input;
-use domain\input\parse;
-use domain\normalization;
-use domain\normalization\Variant;
-use domain\normalization\Normalization;
-use domain\normalization\normalize;
-use domain\ledger;
-use domain\ledger\Ledger;
-use domain\ledger\source_mask;
-use domain\ledger\add;
-use domain\report;
-use domain\report\number;
-use domain\report\separator;
-use domain\report\newline;
-use domain\report\variant_row;
 
 data Main { }
 data Application {
-    first_reference: Sequence;
-    second_reference: Sequence;
+    first_reference: |sequence|::Sequence;
+    second_reference: |sequence|::Sequence;
     first_defined: bool;
     second_defined: bool;
     locked: bool;
-    ledger: Ledger;
+    ledger: |ledger|::Ledger;
     line_number: u64 in Wrapping;
     rejected: u64 in Wrapping;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable application: Application;
-    Console::write_line("VARIANT_NORMALIZATION|1");
+    |console|::Console::write_line("VARIANT_NORMALIZATION|1");
     transition { _ -> read(@mutable application) }
     machine read(application: @mutable Application) {
         let mutable line: [u8; 64];
-        let result: LineReadResult = block Console::read_line(@mutable line[..]);
+        let result: |console|::LineReadResult = block |console|::Console::read_line(@mutable line[..]);
         transition result {
-            LineReadResult::Error { count } -> exit(74),
-            LineReadResult::LineComplete { count } -> process(application, @line, count, false),
-            LineReadResult::EndOfInput { count } -> eof(application, @line, count),
-            LineReadResult::Full { count } -> overflow(application),
-            LineReadResult::Invalid -> overflow(application)
+            |console|::LineReadResult::Error { count } -> exit(74),
+            |console|::LineReadResult::LineComplete { count } -> process(application, @line, count, false),
+            |console|::LineReadResult::EndOfInput { count } -> eof(application, @line, count),
+            |console|::LineReadResult::Full { count } -> overflow(application),
+            |console|::LineReadResult::Invalid -> overflow(application)
         }
     }
     machine eof(application: @mutable Application, line: @[u8; 64], count: u64 in Wrapping) {
@@ -64,13 +49,13 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine record_capacity(application: @mutable Application) {
         application.rejected = application.rejected + 1;
-        Console::write_line("FATAL|record_capacity");
+        |console|::Console::write_line("FATAL|record_capacity");
         transition { _ -> finish(application) }
     }
     machine bounded_process(application: @mutable Application, line: @[u8; 64], count: u64 in Wrapping, last: bool) {
         application.line_number = application.line_number + 1;
-        let mutable input: Input;
-        parse(line, count, @mutable input);
+        let mutable input: |input|::Input;
+        |input|::parse(line, count, @mutable input);
         let reason: u64 in Wrapping = consume(application, @input);
         transition reason == 0 {
             true -> next(application, last),
@@ -79,7 +64,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine reject(application: @mutable Application, last: bool, reason: u64 in Wrapping) {
         application.rejected = application.rejected + 1;
-        Console::write("REJECT|"); number(application.line_number); separator(); number(reason); newline();
+        |console|::Console::write("REJECT|"); |report|::number(application.line_number); |report|::separator(); |report|::number(reason); |report|::newline();
         transition { _ -> next(application, last) }
     }
     machine next(application: @mutable Application, last: bool) {
@@ -90,97 +75,97 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine overflow(application: @mutable Application) {
         application.rejected = application.rejected + 1;
-        Console::write_line("FATAL|line_capacity");
+        |console|::Console::write_line("FATAL|line_capacity");
         transition { _ -> finish(application) }
     }
     machine finish(application: @mutable Application) {
         render_ledger(@application.ledger);
-        Console::write("SUMMARY|"); number(application.ledger.count); separator();
-        number(application.ledger.merged); separator(); number(application.ledger.conflicts); separator();
-        number(application.rejected); newline();
+        |console|::Console::write("SUMMARY|"); |report|::number(application.ledger.count); |report|::separator();
+        |report|::number(application.ledger.merged); |report|::separator(); |report|::number(application.ledger.conflicts); |report|::separator();
+        |report|::number(application.rejected); |report|::newline();
         transition application.rejected == 0 {
             true -> exit(0),
             _ -> exit(2)
         }
     }
-    machine exit(code: i32) { ProcessExit::exit_process(code); }
+    machine exit(code: i32) { |process_exit|::ProcessExit::exit_process(code); }
 }
 
-machine consume(application: @mutable Application, input: @Input) -> u64 in Wrapping reaches ProcessExit + StandardOutput {
+machine consume(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition input.valid {
         true -> select(application, input),
         _ -> 1
     }
-    machine select(application: @mutable Application, input: @Input) -> u64 in Wrapping {
+    machine select(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
         transition input.kind == 0 {
             true -> reference(application, input),
             _ -> variant(application, input)
         }
     }
-    machine reference(application: @mutable Application, input: @Input) -> u64 in Wrapping {
+    machine reference(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
         transition application.locked {
             true -> 2,
             _ -> contig_reference(application, input)
         }
     }
-    machine contig_reference(application: @mutable Application, input: @Input) -> u64 in Wrapping {
+    machine contig_reference(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
         transition input.contig == 0 {
             true -> first_reference(application, input),
             _ -> second_reference(application, input)
         }
     }
-    machine first_reference(application: @mutable Application, input: @Input) -> u64 in Wrapping {
+    machine first_reference(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
         transition application.first_defined {
             true -> 2,
             _ -> store_first(application, input)
         }
     }
-    machine store_first(application: @mutable Application, input: @Input) -> u64 in Wrapping {
+    machine store_first(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
         application.first_reference = input.removed;
         application.first_defined = true;
         (0)
     }
-    machine second_reference(application: @mutable Application, input: @Input) -> u64 in Wrapping {
+    machine second_reference(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
         transition application.second_defined {
             true -> 2,
             _ -> store_second(application, input)
         }
     }
-    machine store_second(application: @mutable Application, input: @Input) -> u64 in Wrapping {
+    machine store_second(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
         application.second_reference = input.removed;
         application.second_defined = true;
         (0)
     }
-    machine variant(application: @mutable Application, input: @Input) -> u64 in Wrapping {
+    machine variant(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
         application.locked = true;
         transition input.contig == 0 {
             true -> first(application, input),
             _ -> second(application, input)
         }
     }
-    machine first(application: @mutable Application, input: @Input) -> u64 in Wrapping {
+    machine first(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
         transition application.first_defined {
             true -> first_run(application, input),
             _ -> 2
         }
     }
-    machine second(application: @mutable Application, input: @Input) -> u64 in Wrapping {
+    machine second(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
         transition application.second_defined {
             true -> second_run(application, input),
             _ -> 2
         }
     }
-    machine first_run(application: @mutable Application, input: @Input) -> u64 in Wrapping {
-        let reference: Sequence = application.first_reference;
+    machine first_run(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
+        let reference: |sequence|::Sequence = application.first_reference;
         transition { _ -> run(application, input, @reference) }
     }
-    machine second_run(application: @mutable Application, input: @Input) -> u64 in Wrapping {
-        let reference: Sequence = application.second_reference;
+    machine second_run(application: @mutable Application, input: @|input|::Input) -> u64 in Wrapping {
+        let reference: |sequence|::Sequence = application.second_reference;
         transition { _ -> run(application, input, @reference) }
     }
-    machine run(application: @mutable Application, input: @Input, reference: @Sequence) -> u64 in Wrapping {
-        let mutable result: Normalization;
-        normalize(reference, input.position, @input.removed, @input.inserted, @mutable result);
+    machine run(application: @mutable Application, input: @|input|::Input, reference: @|sequence|::Sequence) -> u64 in Wrapping {
+        let mutable result: |normalization|::Normalization;
+        |normalization|::normalize(reference, input.position, @input.removed, @input.inserted, @mutable result);
         transition result.status {
             0 -> accepted(application, input, @mutable result),
             1 -> 3,
@@ -188,57 +173,57 @@ machine consume(application: @mutable Application, input: @Input) -> u64 in Wrap
             _ -> 5
         }
     }
-    machine accepted(application: @mutable Application, input: @Input, result: @mutable Normalization) -> u64 in Wrapping {
+    machine accepted(application: @mutable Application, input: @|input|::Input, result: @mutable |normalization|::Normalization) -> u64 in Wrapping {
         result.canonical.contig = input.contig;
-        result.canonical.provenance = source_mask(input.source);
-        let action: u64 in Wrapping = add(@mutable application.ledger, @result.canonical);
+        result.canonical.provenance = |ledger|::source_mask(input.source);
+        let action: u64 in Wrapping = |ledger|::add(@mutable application.ledger, @result.canonical);
         transition action < 2 {
             true -> emit(input, result, action),
             _ -> 6
         }
     }
-    machine emit(input: @Input, result: @Normalization, action: u64 in Wrapping) -> u64 in Wrapping {
-        Console::write("CANON|"); variant_row(@result.canonical); separator(); number(action); newline();
+    machine emit(input: @|input|::Input, result: @|normalization|::Normalization, action: u64 in Wrapping) -> u64 in Wrapping {
+        |console|::Console::write("CANON|"); |report|::variant_row(@result.canonical); |report|::separator(); |report|::number(action); |report|::newline();
         (0)
     }
 }
 
-machine render_ledger(ledger: @Ledger) reaches ProcessExit + StandardOutput {
+machine render_ledger(ledger: @|ledger|::Ledger) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     transition { _ -> row(ledger, 0) }
-    machine row(ledger: @Ledger, index: u64 in Wrapping) {
+    machine row(ledger: @|ledger|::Ledger, index: u64 in Wrapping) {
         transition index < ledger.count && index < 32 {
             true -> read(ledger, index),
             _ -> stop()
         }
     }
-    machine read(ledger: @Ledger, index: u64 in Wrapping) {
-        let variant: Variant = ledger.variants[index];
-        Console::write("MERGE|"); number(index); separator(); variant_row(@variant); newline();
+    machine read(ledger: @|ledger|::Ledger, index: u64 in Wrapping) {
+        let variant: |normalization|::Variant = ledger.variants[index];
+        |console|::Console::write("MERGE|"); |report|::number(index); |report|::separator(); |report|::variant_row(@variant); |report|::newline();
         transition { _ -> pairs(ledger, index, @variant, 0) }
     }
-    machine pairs(ledger: @Ledger, index: u64 in Wrapping, variant: @Variant, previous: u64 in Wrapping) {
+    machine pairs(ledger: @|ledger|::Ledger, index: u64 in Wrapping, variant: @|normalization|::Variant, previous: u64 in Wrapping) {
         transition previous < index && previous < 32 {
             true -> compare(ledger, index, variant, previous),
             _ -> row(ledger, index + 1)
         }
     }
-    machine compare(ledger: @Ledger, index: u64 in Wrapping, variant: @Variant, previous: u64 in Wrapping) {
-        let other: Variant = ledger.variants[previous];
+    machine compare(ledger: @|ledger|::Ledger, index: u64 in Wrapping, variant: @|normalization|::Variant, previous: u64 in Wrapping) {
+        let other: |normalization|::Variant = ledger.variants[previous];
         transition other.contig == variant.contig && other.position <= variant.position + variant.removed
             && variant.position <= other.position + other.removed {
             true -> emit(ledger, index, variant, previous),
             _ -> pairs(ledger, index, variant, previous + 1)
         }
     }
-    machine emit(ledger: @Ledger, index: u64 in Wrapping, variant: @Variant, previous: u64 in Wrapping) {
-        Console::write("CONFLICT|"); number(previous); separator(); number(index); newline();
+    machine emit(ledger: @|ledger|::Ledger, index: u64 in Wrapping, variant: @|normalization|::Variant, previous: u64 in Wrapping) {
+        |console|::Console::write("CONFLICT|"); |report|::number(previous); |report|::separator(); |report|::number(index); |report|::newline();
         transition { _ -> pairs(ledger, index, variant, previous + 1) }
     }
     machine stop() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

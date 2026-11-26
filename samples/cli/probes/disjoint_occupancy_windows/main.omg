@@ -1,16 +1,16 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Two resource windows of one occupancy row, lent across a state edge.
 // The field pair leaves main; the later state builds its own row and lends
 // that too. Writes through either window are the row's own cells.
 // Expected exit: 0
 // Expected output contains: 3 9 5 7
-use system\Console;
 
 data Occupancy { cells: [i32 in Wrapping; 4]; }
 data Main { }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable occupancy: Occupancy;
     occupancy.cells = [0, 0, 0, 0];
     let ready: bool = true;
@@ -23,10 +23,10 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     {
         left[0] = 3;
         right[0] = 9;
-        Console::write_byte((48 + left[0]) as i32);
-        Console::write(" ");
-        Console::write_byte((48 + right[0]) as i32);
-        Console::write(" ");
+        |console|::Console::write_byte((48 + left[0]) as i32);
+        |console|::Console::write(" ");
+        |console|::Console::write_byte((48 + right[0]) as i32);
+        |console|::Console::write(" ");
         transition { _ -> build(main) }
     }
     machine build(main: @mutable Main) {
@@ -38,20 +38,20 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     {
         left[0] = 5;
         right[0] = 7;
-        Console::write_byte((48 + left[0]) as i32);
-        Console::write(" ");
-        Console::write_byte((48 + right[0]) as i32);
-        Console::write_line("");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_byte((48 + left[0]) as i32);
+        |console|::Console::write(" ");
+        |console|::Console::write_byte((48 + right[0]) as i32);
+        |console|::Console::write_line("");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("BAD");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("BAD");
+        |process_exit|::ProcessExit::exit_process(2);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

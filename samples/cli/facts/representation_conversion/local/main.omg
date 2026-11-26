@@ -1,40 +1,37 @@
 // Fact: Explicit fallible representation conversions preserve the semantic byte across two selected formats, and malformed input never yields a destination.
 // Expected exit: 0
-use omega\language\core\Result;
-use omega\language\core\TryFrom;
-use omega\language\core\compose;
-use omega\language\core\convert;
+use {omega}/language/core/conversion.omg;
 
 data FirstFrame [copy] { tag: u8; bits: u8; }
 data SecondFrame [copy] { tag: u8; bits: u8; }
 data Failure { case Invalid; }
 
-ReadFirst satisfies TryFrom<FirstFrame, u8, Failure> {
-    machine try_from(source: FirstFrame) -> Result<u8, Failure> {
+ReadFirst satisfies |conversion|::TryFrom<FirstFrame, u8, Failure> {
+    machine try_from(source: FirstFrame) -> |conversion|::Result<u8, Failure> {
         transition source.tag == 165u8 {
-            true -> Result::Ok { value: source.bits ^ 255u8 },
-            false -> Result::Err { error: Failure::Invalid }
+            true -> |conversion|::Result::Ok { value: source.bits ^ 255u8 },
+            false -> |conversion|::Result::Err { error: Failure::Invalid }
         }
     }
 }
-WriteSecond satisfies TryFrom<u8, SecondFrame, Failure> {
-    machine try_from(source: u8) -> Result<SecondFrame, Failure> {
-        Result::Ok { value: SecondFrame { tag: 90u8, bits: source ^ 128u8 } }
+WriteSecond satisfies |conversion|::TryFrom<u8, SecondFrame, Failure> {
+    machine try_from(source: u8) -> |conversion|::Result<SecondFrame, Failure> {
+        |conversion|::Result::Ok { value: SecondFrame { tag: 90u8, bits: source ^ 128u8 } }
     }
 }
-ReadSecond satisfies TryFrom<SecondFrame, u8, Failure> {
-    machine try_from(source: SecondFrame) -> Result<u8, Failure> {
+ReadSecond satisfies |conversion|::TryFrom<SecondFrame, u8, Failure> {
+    machine try_from(source: SecondFrame) -> |conversion|::Result<u8, Failure> {
         transition source.tag == 90u8 {
-            true -> Result::Ok { value: source.bits ^ 128u8 },
-            false -> Result::Err { error: Failure::Invalid }
+            true -> |conversion|::Result::Ok { value: source.bits ^ 128u8 },
+            false -> |conversion|::Result::Err { error: Failure::Invalid }
         }
     }
 }
 
-machine observe<Reader satisfies TryFrom<FirstFrame, u8, Failure>>(source: FirstFrame) -> u64 {
-    transition compose::<FirstFrame, u8, SecondFrame, Failure, Reader, WriteSecond>(source) {
-        Result::Err { error as failure } -> 0u64,
-        Result::Ok { value as frame } -> inspect(frame)
+machine observe<Reader satisfies |conversion|::TryFrom<FirstFrame, u8, Failure>>(source: FirstFrame) -> u64 {
+    transition |conversion|::compose::<FirstFrame, u8, SecondFrame, Failure, Reader, WriteSecond>(source) {
+        |conversion|::Result::Err { error as failure } -> 0u64,
+        |conversion|::Result::Ok { value as frame } -> inspect(frame)
     }
     machine inspect(frame: SecondFrame) -> u64 {
         transition frame.tag == 90u8 && frame.bits == 171u8 {
@@ -43,9 +40,9 @@ machine observe<Reader satisfies TryFrom<FirstFrame, u8, Failure>>(source: First
         }
     }
     machine decoded(frame: SecondFrame) -> u64 {
-        transition convert::<SecondFrame, u8, Failure, ReadSecond>(frame) {
-            Result::Err { error as failure } -> 2u64,
-            Result::Ok { value as byte } -> byte as u64
+        transition |conversion|::convert::<SecondFrame, u8, Failure, ReadSecond>(frame) {
+            |conversion|::Result::Err { error as failure } -> 2u64,
+            |conversion|::Result::Ok { value as byte } -> byte as u64
         }
     }
 }

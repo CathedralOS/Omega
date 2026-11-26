@@ -1,5 +1,6 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Exact Bareiss update after a mutable array store cites its ensures.
 //
 // metabolic_flux_analysis writes minors through `@mutable [i64 in Wrapping; N]`
@@ -13,7 +14,6 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0
 // Expected output contains: exact=6
 
-use system\Console;
 
 data Main {
     cells: [i64; 5];
@@ -38,7 +38,7 @@ ensures cells[index] >= 1 && cells[index] <= 12
     cells[index] = value;
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput crashes Trap {
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput crashes Trap {
     store(@mutable main.cells);
     store_at(@mutable main.extra, 0, 6);
     transition { _ -> reduce(main) }
@@ -57,17 +57,17 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput cra
         }
     }
     machine report() {
-        Console::write_line("exact=6");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("exact=6");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad() {
-        Console::write_line("exact=miss");
-        ProcessExit::exit_process(2);
+        |console|::Console::write_line("exact=miss");
+        |process_exit|::ProcessExit::exit_process(2);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

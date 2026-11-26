@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 70.
 // Minimal miscompile probe: 5-arm case dispatch with payload variants first,
 // then no-payload variants. Tests that the no-payload Trigger arm (position 3)
@@ -9,7 +9,6 @@ use omega\language\core\ProcessExit;
 // Expected: fire_count = 2 after two Trigger dispatches -> exit 70.
 // If Trigger arm is unreachable or silently dropped: exit 71.
 
-use system\Console;
 
 data AlarmEvent {
     case Set(hour: i32 in Saturating, minute: i32 in Saturating);
@@ -42,8 +41,8 @@ machine Main::dispatch(main: @mutable Main, event: AlarmEvent) {
     machine done() {}
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("alarm_probe: no-payload case arm after payload arms -- Trigger must fire twice");
+machine Main::main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("alarm_probe: no-payload case arm after payload arms -- Trigger must fire twice");
     Main::dispatch(main, AlarmEvent::Trigger);
     Main::dispatch(main, AlarmEvent::Trigger);
 
@@ -52,21 +51,21 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + St
         _ -> bad(main)
     }
     machine good(main: @mutable Main) {
-        Console::write_line("PASS: fire_count == 2 after two Trigger dispatches (exit 70)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(70);
+        |console|::Console::write_line("PASS: fire_count == 2 after two Trigger dispatches (exit 70)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(70);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: fire_count != 2 -- Trigger arm dropped or unreachable (exit 71)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause);
-        ProcessExit::exit_process(71);
+        |console|::Console::write_line("FAIL: fire_count != 2 -- Trigger arm dropped or unreachable (exit 71)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause);
+        |process_exit|::ProcessExit::exit_process(71);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

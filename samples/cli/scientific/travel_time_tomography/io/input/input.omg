@@ -1,16 +1,13 @@
 // Exactly 13 unsigned decimal integers in [0,99], separated by ASCII whitespace.
 // Consume at most 256 bytes, including trailing whitespace. No decimal syntax,
 // signs, partial records, extra tokens, or silent buffer truncation.
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-use domain\model;
-use domain\model\Ray;
-use domain\model\Problem;
+use domain/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 public data Input { tokens: [i32; 13]; valid: bool; }
-public machine read_input(input: @mutable Input) reaches StandardInput
-invokes Console
+public machine read_input(input: @mutable Input) reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
@@ -22,11 +19,11 @@ crashes Trap
     }
     machine read(input: @mutable Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64)
     requires count <= 13 requires value >= 0 requires value <= 99 requires digits <= 2 requires bytes < 256 {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> bad(),
-            ByteRead::Eof -> eof(input, count, value, pending),
-            ByteRead::Byte { value as byte } -> classify(input, count, value, digits, pending, bytes + 1, byte)
+            |console|::ByteRead::Error -> bad(),
+            |console|::ByteRead::Eof -> eof(input, count, value, pending),
+            |console|::ByteRead::Byte { value as byte } -> classify(input, count, value, digits, pending, bytes + 1, byte)
         }
     }
     machine classify(input: @mutable Input, count: u64, value: i32, digits: u64, pending: bool, bytes: u64, byte: i32)
@@ -83,14 +80,14 @@ crashes Trap
     }
     machine bad() {}
 }
-public machine problem_from_input(input: @Input) -> Problem {
-    Problem {
+public machine problem_from_input(input: @Input) -> |model|::Problem {
+    |model|::Problem {
         low_first: input.tokens[0] as f64, high_first: input.tokens[1] as f64,
         low_second: input.tokens[2] as f64, high_second: input.tokens[3] as f64,
         rays: [
-            Ray { first: input.tokens[4] as f64, second: input.tokens[5] as f64, time: input.tokens[6] as f64 },
-            Ray { first: input.tokens[7] as f64, second: input.tokens[8] as f64, time: input.tokens[9] as f64 },
-            Ray { first: input.tokens[10] as f64, second: input.tokens[11] as f64, time: input.tokens[12] as f64 }
+            |model|::Ray { first: input.tokens[4] as f64, second: input.tokens[5] as f64, time: input.tokens[6] as f64 },
+            |model|::Ray { first: input.tokens[7] as f64, second: input.tokens[8] as f64, time: input.tokens[9] as f64 },
+            |model|::Ray { first: input.tokens[10] as f64, second: input.tokens[11] as f64, time: input.tokens[12] as f64 }
         ]
     }
 }

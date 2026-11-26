@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // The entity/particle-list pattern: an array of structs `[Monster; N]` updated by a
 // runtime-indexed loop -- the shape every simulation and game needs. Each pass reads
 // a field of `monsters[i]`, transforms it, and writes it back.
@@ -16,7 +16,6 @@ use omega\language\core\ProcessExit;
 // then their HP is summed: 20 + 2 + 15 + (-2) = 35. Exit: 35.
 // Expected exit: 35.
 
-use system\Console;
 
 data Monster {
     hp: i32 in Wrapping;
@@ -30,8 +29,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("entity_list: [Monster; 4] -- deal 10 damage to each, then sum HP");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("entity_list: [Monster; 4] -- deal 10 damage to each, then sum HP");
     main.monsters[0].hp = 30i32 as +Wrapping;
     main.monsters[1].hp = 12i32 as +Wrapping;
     main.monsters[2].hp = 25i32 as +Wrapping;
@@ -66,15 +65,15 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine done(main: @mutable Main) {
-        Console::write_line("result: total remaining HP is the exit code (35)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(main.total as i32);
+        |console|::Console::write_line("result: total remaining HP is the exit code (35)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(main.total as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

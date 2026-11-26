@@ -1,4 +1,4 @@
-use omega\language\core\F64::from_i32;
+use {omega}/language/core/float_operations.omg;
 // Input is deliberately small and exact: C d q r\n then P +/-n\n, V +/-n\n
 // or M\n. Single digit fields bound resources and reject ambiguous parsing.
 public machine digit(value: u8) -> bool {
@@ -16,7 +16,7 @@ public machine reading(line: @[u8; 16], count: u64) -> bool {
         && digit(line[3]) && line[4] == 10) }
 }
 public machine unsigned_value(value: u8) -> f64 {
-    transition { _ -> (F64::from_i32((value as i32) - 48)) }
+    transition { _ -> (|float_operations|::F64::from_i32((value as i32) - 48)) }
 }
 public machine measured_value(line: @[u8; 16]) -> f64 {
     let magnitude: f64 = unsigned_value(line[3]);

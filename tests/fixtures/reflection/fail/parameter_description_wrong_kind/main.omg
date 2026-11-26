@@ -2,9 +2,7 @@
 // The table follows a scalar argument. Reflection must retain its exact
 // formal identity and distinguish it from the address field it will read.
 
-use omega\language\core\reflect;
-use omega\language\core\reflect\ParameterInfo;
-use omega\language\core\reflect\FieldInfo;
+use {omega}/language/core/reflect/reflect.omg;
 
 data Table { padding: u64; invoke: address; }
 boundary trait Query {
@@ -13,8 +11,8 @@ boundary trait Query {
 machine complete() { }
 machine fail() crashes Trap { crash Trap; }
 machine main() crashes Trap {
-    let parameter: ParameterInfo = reflect\parameter(Table::invoke);
-    let field: FieldInfo = reflect\field(Table::invoke);
+    let parameter: |reflect|::ParameterInfo = |reflect|::parameter(Table::invoke);
+    let field: |reflect|::FieldInfo = |reflect|::field(Table::invoke);
     transition parameter.declaration_position == 1u64 && field.declaration_position == 1u64 {
         true -> complete(),
         false -> fail()

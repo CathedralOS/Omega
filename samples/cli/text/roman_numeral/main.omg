@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 70.
 // Roman numeral -> integer. Scan left to right, adding each symbol's value.
 // When a symbol exceeds its predecessor, subtract the predecessor twice:
@@ -14,7 +14,6 @@ requires
 domain [u8; 7]::Utf8
 requires
     valid_utf8(self);
-use system\Console;
 
 data RomanParse {
     case Invalid;
@@ -92,8 +91,8 @@ machine parse_roman(text: @[u8; 7] in Utf8) -> RomanParse {
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
     let text: [u8; 7] in Utf8 = "MCMXCIV";
     transition parse_roman(@text) {
         RomanParse::Parsed { total } -> block check(total),
@@ -104,27 +103,27 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition total == 1994 { true -> block ok(), false -> block mismatch() }
     }
     machine ok() {
-        Console::write_line("PASS: MCMXCIV parsed to 1994 (exit 70)");
+        |console|::Console::write_line("PASS: MCMXCIV parsed to 1994 (exit 70)");
         transition { _ -> block finish(70) }
     }
     machine mismatch() {
-        Console::write_line("FAIL: parse total did not equal 1994 (exit 71)");
+        |console|::Console::write_line("FAIL: parse total did not equal 1994 (exit 71)");
         transition { _ -> block finish(71) }
     }
     machine bad() {
-        Console::write_line("FAIL: unknown symbol or index guard tripped (exit 99)");
+        |console|::Console::write_line("FAIL: unknown symbol or index guard tripped (exit 99)");
         transition { _ -> block finish(99) }
     }
     machine finish(code: i32) {
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(code);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(code);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

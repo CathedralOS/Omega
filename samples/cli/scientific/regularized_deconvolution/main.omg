@@ -1,48 +1,40 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/convolution/convolution.omg;
+use domain/input/input.omg;
+use domain/report/report.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 0.
-use domain\input;
-use domain\input\Reader;
-use domain\input\Number;
-use domain\input\number;
-use domain\input\ended;
-use domain\report;
-use domain\report\field;
-use domain\convolution;
-use domain\convolution\convolve;
-use omega\language\core\F64::from_i32;
-use omega\language\core\I32::from_f64;
-use omega\language\core\sqrt_f64;
-use system\Console;
 
 data Application {
-    reader: Reader; kernel: [f64; 5]; measurements: [f64; 32];
+    reader: |input|::Reader; kernel: [f64; 5]; measurements: [f64; 32];
     solution: [f64; 32]; residual: [f64; 32]; direction: [f64; 32]; product: [f64; 32]; temporary: [f64; 32]; right: [f64; 32];
     length: i32 in Wrapping; width: i32 in Wrapping; index: i32 in Wrapping; iterations: i32 in Wrapping;
     regularization: f64; kernel_sum: f64; sum: f64; squared: f64; previous: f64; scale: f64; residual_norm: f64; roughness: f64;
 }
-machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
-    let length: Number = block number(@mutable application.reader);
-    let width: Number = block number(@mutable application.reader);
-    let regularization: Number = block number(@mutable application.reader);
+machine main(application: @mutable Application) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
+    let length: |input|::Number = block |input|::number(@mutable application.reader);
+    let width: |input|::Number = block |input|::number(@mutable application.reader);
+    let regularization: |input|::Number = block |input|::number(@mutable application.reader);
     transition length.valid && width.valid && regularization.valid && length.value >= 8.0 && length.value <= 32.0 && (width.value == 1.0 || width.value == 3.0 || width.value == 5.0) && regularization.value >= 0.0001 && regularization.value <= 100.0 {
         true -> block configure(application, length.value, width.value, regularization.value),
         _ -> invalid(application)
     }
     machine configure(application: @mutable Application, length: f64, width: f64, regularization: f64) {
-        let count: i32 in Saturating = I32::from_f64(length);
-        let taps: i32 in Saturating = I32::from_f64(width);
+        let count: i32 in Saturating = |float_operations|::I32::from_f64(length);
+        let taps: i32 in Saturating = |float_operations|::I32::from_f64(width);
         application.length = count as -Saturating +Wrapping; application.width = taps as -Saturating +Wrapping; application.regularization = regularization;
         application.index = 0; application.kernel_sum = 0.0;
-        let recovered: f64 = F64::from_i32(count as i32);
+        let recovered: f64 = |float_operations|::F64::from_i32(count as i32);
         transition recovered == length { true -> block kernel(application), _ -> invalid(application) }
     }
     machine kernel(application: @mutable Application) {
         transition application.index >= 0 && application.index < application.width && application.index < 5 { true -> block read_kernel(application), _ -> block normalized(application) }
     }
     machine read_kernel(application: @mutable Application) {
-        let value: Number = block number(@mutable application.reader);
+        let value: |input|::Number = block |input|::number(@mutable application.reader);
         transition value.valid && value.value >= 0.0 && value.value <= 1.0 { true -> block store_kernel(application, value.value), _ -> invalid(application) }
     }
     machine store_kernel(application: @mutable Application, value: f64) {
@@ -57,7 +49,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> block read_measurement(application), _ -> block complete(application) }
     }
     machine read_measurement(application: @mutable Application) {
-        let value: Number = block number(@mutable application.reader);
+        let value: |input|::Number = block |input|::number(@mutable application.reader);
         transition value.valid && value.value >= 0.0 { true -> block store_measurement(application, value.value), _ -> invalid(application) }
     }
     machine store_measurement(application: @mutable Application, value: f64) {
@@ -66,11 +58,11 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition { _ -> block measurement(application) }
     }
     machine complete(application: @mutable Application) {
-        let end: bool = block ended(@mutable application.reader);
+        let end: bool = block |input|::ended(@mutable application.reader);
         transition end { true -> prepare(application), _ -> invalid(application) }
     }
     machine prepare(application: @mutable Application) {
-        convolve(@application.measurements, @mutable application.right, @application.kernel, application.length, application.width, true);
+        |convolution|::convolve(@application.measurements, @mutable application.right, @application.kernel, application.length, application.width, true);
         application.index = 0; application.squared = 0.0; application.iterations = 0;
         transition { _ -> initialize(application) }
     }
@@ -78,7 +70,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> initial_value(application), _ -> iterate_start(application) }
     }
     machine initial_value(application: @mutable Application) {
-        let mean: f64 = application.sum / F64::from_i32(application.length as i32) / (application.kernel_sum * application.kernel_sum);
+        let mean: f64 = application.sum / |float_operations|::F64::from_i32(application.length as i32) / (application.kernel_sum * application.kernel_sum);
         let value: f64 = application.right[application.index] - mean * application.kernel_sum * application.kernel_sum;
         application.solution[application.index] = mean; application.residual[application.index] = value; application.direction[application.index] = value;
         application.squared = application.squared + value * value; application.index = application.index + 1;
@@ -92,8 +84,8 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.squared > 0.00000000000000000000000001 * application.scale && application.iterations < 256 { true -> apply(application), _ -> reconstruction(application) }
     }
     machine apply(application: @mutable Application) {
-        convolve(@application.direction, @mutable application.temporary, @application.kernel, application.length, application.width, false);
-        convolve(@application.temporary, @mutable application.product, @application.kernel, application.length, application.width, true);
+        |convolution|::convolve(@application.direction, @mutable application.temporary, @application.kernel, application.length, application.width, false);
+        |convolution|::convolve(@application.temporary, @mutable application.product, @application.kernel, application.length, application.width, true);
         application.index = 0; application.previous = 0.0;
         transition { _ -> penalty(application) }
     }
@@ -144,7 +136,7 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         transition application.iterations < 256 { true -> reconvolve(application), _ -> failed(application) }
     }
     machine reconvolve(application: @mutable Application) {
-        convolve(@application.solution, @mutable application.temporary, @application.kernel, application.length, application.width, false);
+        |convolution|::convolve(@application.solution, @mutable application.temporary, @application.kernel, application.length, application.width, false);
         application.index = 0; application.residual_norm = 0.0; application.roughness = 0.0;
         transition { _ -> report(application) }
     }
@@ -158,8 +150,8 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
     }
     machine report_value(application: @mutable Application, after: i32 in Wrapping)
     requires after >= 0 && after < 32 {
-        field(@mutable application.reader, "reconstruction=", application.solution[application.index]);
-        field(@mutable application.reader, "reconvolution=", application.temporary[application.index]);
+        |report|::field(@mutable application.reader, "reconstruction=", application.solution[application.index]);
+        |report|::field(@mutable application.reader, "reconvolution=", application.temporary[application.index]);
         let error: f64 = application.temporary[application.index] - application.measurements[application.index];
         let difference: f64 = application.solution[after] - application.solution[application.index];
         application.residual_norm = application.residual_norm + error * error;
@@ -167,17 +159,17 @@ machine main(application: @mutable Application) reaches ProcessExit + StandardIn
         application.index = application.index + 1; transition { _ -> report(application) }
     }
     machine totals(application: @mutable Application) {
-        field(@mutable application.reader, "residual_norm=", sqrt_f64(application.residual_norm));
-        field(@mutable application.reader, "roughness=", sqrt_f64(application.roughness));
-        field(@mutable application.reader, "objective=", application.residual_norm + application.regularization * application.roughness);
-        ProcessExit::exit_process(0);
+        |report|::field(@mutable application.reader, "residual_norm=", |math|::sqrt_f64(application.residual_norm));
+        |report|::field(@mutable application.reader, "roughness=", |math|::sqrt_f64(application.roughness));
+        |report|::field(@mutable application.reader, "objective=", application.residual_norm + application.regularization * application.roughness);
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine invalid(application: @mutable Application) { Console::write_line("ERROR malformed input, measurements, kernel or lambda"); ProcessExit::exit_process(2); }
-    machine failed(application: @mutable Application) { Console::write_line("ERROR numerical convergence"); ProcessExit::exit_process(3); }
+    machine invalid(application: @mutable Application) { |console|::Console::write_line("ERROR malformed input, measurements, kernel or lambda"); |process_exit|::ProcessExit::exit_process(2); }
+    machine failed(application: @mutable Application) { |console|::Console::write_line("ERROR numerical convergence"); |process_exit|::ProcessExit::exit_process(3); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap {
     let mutable entry_storage: Application;
     block main(@mutable entry_storage);
 }

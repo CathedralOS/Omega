@@ -1,109 +1,106 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Console;
-use design\model;
-use design\model\Request;
-use design\model\Allocation;
-use design\model\treatment;
+use design/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
-machine digit(value: i32 in Wrapping) reaches StandardOutput {
+machine digit(value: i32 in Wrapping) reaches |process_authority|::StandardOutput {
     transition value {
         0 -> zero(), 1 -> one(), 2 -> two(), 3 -> three(),
         4 -> four(), 5 -> five(), 6 -> six(), _ -> invalid()
     }
-    machine zero() { Console::write("0"); }
-    machine one() { Console::write("1"); }
-    machine two() { Console::write("2"); }
-    machine three() { Console::write("3"); }
-    machine four() { Console::write("4"); }
-    machine five() { Console::write("5"); }
-    machine six() { Console::write("6"); }
-    machine invalid() { Console::write("?"); }
+    machine zero() { |console|::Console::write("0"); }
+    machine one() { |console|::Console::write("1"); }
+    machine two() { |console|::Console::write("2"); }
+    machine three() { |console|::Console::write("3"); }
+    machine four() { |console|::Console::write("4"); }
+    machine five() { |console|::Console::write("5"); }
+    machine six() { |console|::Console::write("6"); }
+    machine invalid() { |console|::Console::write("?"); }
 }
 
-public machine emit(request: @Request, allocation: @Allocation) reaches ProcessExit + StandardOutput {
-    Console::write_line("FEASIBLE: allocation (treatments A=0 B=1 C=2)");
+public machine emit(request: @|model|::Request, allocation: @|model|::Allocation) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
+    |console|::Console::write_line("FEASIBLE: allocation (treatments A=0 B=1 C=2)");
     transition { _ -> scan_row(request, allocation, 0) }
-    machine scan_row(request: @Request, allocation: @Allocation, subject: i32 in Wrapping) {
+    machine scan_row(request: @|model|::Request, allocation: @|model|::Allocation, subject: i32 in Wrapping) {
         transition subject >= 0 && subject < 6 && subject < request.subjects {
             true -> row_start(request, allocation, subject),
             false -> period_start(request, allocation)
         }
     }
-    machine row_start(request: @Request, allocation: @Allocation, subject: i32 in Wrapping) {
-        Console::write("subject "); digit(subject); Console::write(":");
+    machine row_start(request: @|model|::Request, allocation: @|model|::Allocation, subject: i32 in Wrapping) {
+        |console|::Console::write("subject "); digit(subject); |console|::Console::write(":");
         transition { _ -> cell(request, allocation, subject, 0) }
     }
-    machine cell(request: @Request, allocation: @Allocation, subject: i32 in Wrapping, period: i32 in Wrapping) {
+    machine cell(request: @|model|::Request, allocation: @|model|::Allocation, subject: i32 in Wrapping, period: i32 in Wrapping) {
         transition period >= 0 && period < 3 && period < request.treatments {
             true -> cell_index(request, allocation, subject, period, subject * 3 + period),
             false -> row_end(request, allocation, subject)
         }
     }
-    machine cell_index(request: @Request, allocation: @Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) {
+    machine cell_index(request: @|model|::Request, allocation: @|model|::Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) {
         transition index >= 0 && index < 18 {
             true -> cell_write(request, allocation, subject, period, index),
             false -> done()
         }
     }
-    machine cell_write(request: @Request, allocation: @Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) {
-        Console::write(" "); digit(allocation.cells[index]);
+    machine cell_write(request: @|model|::Request, allocation: @|model|::Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) {
+        |console|::Console::write(" "); digit(allocation.cells[index]);
         transition { _ -> cell(request, allocation, subject, period + 1) }
     }
-    machine row_end(request: @Request, allocation: @Allocation, subject: i32 in Wrapping) {
-        Console::write_line("");
+    machine row_end(request: @|model|::Request, allocation: @|model|::Allocation, subject: i32 in Wrapping) {
+        |console|::Console::write_line("");
         transition { _ -> scan_row(request, allocation, subject + 1) }
     }
-    machine period_start(request: @Request, allocation: @Allocation) {
-        Console::write_line("PERIOD COUNTS (rows=period, columns=treatment)");
+    machine period_start(request: @|model|::Request, allocation: @|model|::Allocation) {
+        |console|::Console::write_line("PERIOD COUNTS (rows=period, columns=treatment)");
         transition { _ -> matrix_scan_row(request, allocation, 0, false) }
     }
-    machine matrix_scan_row(request: @Request, allocation: @Allocation, row: i32 in Wrapping, carry: bool) {
+    machine matrix_scan_row(request: @|model|::Request, allocation: @|model|::Allocation, row: i32 in Wrapping, carry: bool) {
         transition row >= 0 && row < 3 && row < request.treatments {
             true -> matrix_column(request, allocation, row, 0, carry),
             false -> next_matrix(request, allocation, carry)
         }
     }
-    machine matrix_column(request: @Request, allocation: @Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool) {
+    machine matrix_column(request: @|model|::Request, allocation: @|model|::Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool) {
         transition column >= 0 && column < 3 && column < request.treatments {
             true -> matrix_index(request, allocation, row, column, carry, row * 3 + column),
             false -> matrix_end(request, allocation, row, carry)
         }
     }
-    machine matrix_index(request: @Request, allocation: @Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
+    machine matrix_index(request: @|model|::Request, allocation: @|model|::Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
         transition index >= 0 && index < 9 {
             true -> matrix_value(request, allocation, row, column, carry, index),
             false -> done()
         }
     }
-    machine matrix_value(request: @Request, allocation: @Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
+    machine matrix_value(request: @|model|::Request, allocation: @|model|::Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
         transition carry {
             true -> carry_write(request, allocation, row, column, carry, index),
             false -> period_write(request, allocation, row, column, carry, index)
         }
     }
-    machine carry_write(request: @Request, allocation: @Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
-        digit(allocation.carryover[index]); Console::write(" ");
+    machine carry_write(request: @|model|::Request, allocation: @|model|::Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
+        digit(allocation.carryover[index]); |console|::Console::write(" ");
         transition { _ -> matrix_column(request, allocation, row, column + 1, carry) }
     }
-    machine period_write(request: @Request, allocation: @Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
-        digit(allocation.periods[index]); Console::write(" ");
+    machine period_write(request: @|model|::Request, allocation: @|model|::Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
+        digit(allocation.periods[index]); |console|::Console::write(" ");
         transition { _ -> matrix_column(request, allocation, row, column + 1, carry) }
     }
-    machine matrix_end(request: @Request, allocation: @Allocation, row: i32 in Wrapping, carry: bool) {
-        Console::write_line("");
+    machine matrix_end(request: @|model|::Request, allocation: @|model|::Allocation, row: i32 in Wrapping, carry: bool) {
+        |console|::Console::write_line("");
         transition { _ -> matrix_scan_row(request, allocation, row + 1, carry) }
     }
-    machine next_matrix(request: @Request, allocation: @Allocation, carry: bool) {
+    machine next_matrix(request: @|model|::Request, allocation: @|model|::Allocation, carry: bool) {
         transition carry {
             true -> complete(),
             false -> carry_start(request, allocation)
         }
     }
-    machine carry_start(request: @Request, allocation: @Allocation) {
-        Console::write_line("CARRYOVER COUNTS (rows=previous, columns=next)");
+    machine carry_start(request: @|model|::Request, allocation: @|model|::Allocation) {
+        |console|::Console::write_line("CARRYOVER COUNTS (rows=previous, columns=next)");
         transition { _ -> matrix_scan_row(request, allocation, 0, true) }
     }
-    machine complete() { Console::write_line("CERTIFIED: subject permutations; exact period balance; carryover cap; forbidden edge"); }
-    machine done() { ProcessExit::exit_process(70); }
+    machine complete() { |console|::Console::write_line("CERTIFIED: subject permutations; exact period balance; carryover cap; forbidden edge"); }
+    machine done() { |process_exit|::ProcessExit::exit_process(70); }
 }

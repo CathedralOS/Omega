@@ -1,17 +1,14 @@
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-use domain\model;
-use domain\model\Pedigree;
-use domain\model\valid;
+use domain/model/model.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // Deliberately small wire format: whitespace separated single decimal digits.
 // Parse to an independent token buffer before touching pedigree storage.
 data Tokens { values: [i32; 19]; count: i32 in Wrapping; separated: bool; }
 
-public machine read(pedigree: @mutable Pedigree) -> bool
-reaches StandardInput
-invokes Console
+public machine read(pedigree: @mutable |model|::Pedigree) -> bool
+reaches |process_authority|::StandardInput
+invokes |console|::Console
 blocks
 crashes Trap
 {
@@ -22,7 +19,7 @@ crashes Trap
         true -> header(pedigree, @tokens),
         _ -> false
     }
-    machine header(pedigree: @mutable Pedigree, tokens: @Tokens) -> bool {
+    machine header(pedigree: @mutable |model|::Pedigree, tokens: @Tokens) -> bool {
         pedigree.count = tokens.values[0] as i32 +Wrapping;
         transition pedigree.count >= 1 && pedigree.count <= 6 &&
                    tokens.count == 1 + 3 * pedigree.count {
@@ -30,22 +27,22 @@ crashes Trap
             _ -> false
         }
     }
-    machine row(pedigree: @mutable Pedigree, tokens: @Tokens, index: i32 in Wrapping) -> bool {
+    machine row(pedigree: @mutable |model|::Pedigree, tokens: @Tokens, index: i32 in Wrapping) -> bool {
         let position: i32 in Wrapping = 1 + 3 * index;
         transition index >= 0 && index < pedigree.count && index < 6 &&
                    position >= 1 && position + 2 < 19 {
             true -> copy(pedigree, tokens, index, position, position + 1, position + 2),
-            _ -> valid(pedigree)
+            _ -> |model|::valid(pedigree)
         }
     }
-    machine copy(pedigree: @mutable Pedigree, tokens: @Tokens, index: i32 in Wrapping,
+    machine copy(pedigree: @mutable |model|::Pedigree, tokens: @Tokens, index: i32 in Wrapping,
                first: i32 in Wrapping, second: i32 in Wrapping, third: i32 in Wrapping) -> bool {
         transition first >= 0 && first < 19 && second >= 0 && second < 19 && third >= 0 && third < 19 {
             true -> store(pedigree, tokens, index, first, second, third),
             _ -> false
         }
     }
-    machine store(pedigree: @mutable Pedigree, tokens: @Tokens, index: i32 in Wrapping,
+    machine store(pedigree: @mutable |model|::Pedigree, tokens: @Tokens, index: i32 in Wrapping,
                 first: i32 in Wrapping, second: i32 in Wrapping, third: i32 in Wrapping) -> bool {
         pedigree.father[index] = tokens.values[first];
         pedigree.mother[index] = tokens.values[second];
@@ -54,14 +51,14 @@ crashes Trap
     }
 }
 
-machine scan(tokens: @mutable Tokens) -> bool reaches StandardInput {
+machine scan(tokens: @mutable Tokens) -> bool reaches |process_authority|::StandardInput {
     transition { _ -> byte(tokens) }
     machine byte(tokens: @mutable Tokens) -> bool {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> false,
-            ByteRead::Eof -> true,
-            ByteRead::Byte { value } -> classify(tokens, value)
+            |console|::ByteRead::Error -> false,
+            |console|::ByteRead::Eof -> true,
+            |console|::ByteRead::Byte { value } -> classify(tokens, value)
         }
     }
     machine classify(tokens: @mutable Tokens, value: i32) -> bool {

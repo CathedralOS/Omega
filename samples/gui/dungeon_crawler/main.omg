@@ -1,33 +1,17 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use system\Window;
-use system\macos_key_state;
-use system\macos_sleep;
-use system\macos_window_create;
-use system\macos_window_destroy;
-use system\macos_window_foreground_window;
-use system\macos_window_is_window;
-use system\macos_window_msg_dispatch;
-use system\macos_window_msg_peek;
-use system\macos_window_present;
-use system\Console;
-use dungeon_core\simulation\game\Game;
-use dungeon_core\presentation\frame\Frame;
-use dungeon_core\render;
-use dungeon_core\configuration\FRAME_WIDTH;
-use dungeon_core\configuration\FRAME_HEIGHT;
-use dungeon_core\configuration\FRAME_PIXELS;
-use dungeon_core\configuration\WINDOW_WIDTH;
-use dungeon_core\configuration\WINDOW_HEIGHT;
-use dungeon_core\configuration\FRAME_DELAY_MILLISECONDS;
-use dungeon_core\configuration\EVENT_BUDGET;
+use {dungeon_core}/configuration/configuration.omg;
+use {dungeon_core}/presentation/frame/frame.omg;
+use {dungeon_core}/render.omg;
+use {dungeon_core}/simulation/game/game.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
+use {system}/macos_gui.omg;
 
 data Main
-requires cursor <= FRAME_PIXELS, pumped <= EVENT_BUDGET, direction >= -1 && direction < 4 {
-    game: Game;
-    frame: Frame;
-    pixels: [i32; FRAME_PIXELS];
+requires cursor <= |configuration|::FRAME_PIXELS, pumped <= |configuration|::EVENT_BUDGET, direction >= -1 && direction < 4 {
+    game: |game|::Game;
+    frame: |frame|::Frame;
+    pixels: [i32; |configuration|::FRAME_PIXELS];
     cursor: u64;
     pumped: u32;
     direction: i32;
@@ -39,123 +23,123 @@ machine Main::main(main: @mutable Main) reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit {
-    let verified: bool = Game::verify(@mutable main.game);
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
+    let verified: bool = |game|::Game::verify(@mutable main.game);
     transition verified { true -> start(main), _ -> failed() }
 
     machine failed() {
-        Console::write_line("FAIL: dungeon gameplay self-test");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: dungeon gameplay self-test");
+        |process_exit|::ProcessExit::exit_process(1);
     }
 
     machine start(main: @mutable Main) {
-        Game::reset(@mutable main.game);
+        |game|::Game::reset(@mutable main.game);
         let class_name: [u8; 7] = "#32770\0";
         let title: [u8; 16] = "HOLLOW / OMEGA\0\0";
-        let mutable window: Window = macos_window_create::<16>(class_name, @title, 0, 0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        let mutable window: |macos_gui|::Window = |macos_gui|::macos_window_create::<16>(class_name, @title, 0, 0, 0, |configuration|::WINDOW_WIDTH, |configuration|::WINDOW_HEIGHT);
         transition window.window != 0 { true -> frame(main, window), _ -> close(main, window) }
     }
 
-    machine render(main: @mutable Main, window: Window) {
-        main.frame = Game::capture(@main.game);
+    machine render(main: @mutable Main, window: |macos_gui|::Window) {
+        main.frame = |game|::Game::capture(@main.game);
         main.cursor = 0;
         transition { _ -> fill(main, window) }
     }
-    machine fill(main: @mutable Main, window: Window) {
-        transition main.cursor < FRAME_PIXELS { true -> pixel(main, window), _ -> draw(main, window) }
+    machine fill(main: @mutable Main, window: |macos_gui|::Window) {
+        transition main.cursor < |configuration|::FRAME_PIXELS { true -> pixel(main, window), _ -> draw(main, window) }
     }
-    machine pixel(main: @mutable Main, window: Window) requires main.cursor < FRAME_PIXELS {
-        let x: i32 = (main.cursor % (FRAME_WIDTH as u64)) as i32;
-        let y: i32 = (main.cursor / (FRAME_WIDTH as u64)) as i32;
-        main.pixels[main.cursor] = Art::pixel(@main.frame, x, y);
+    machine pixel(main: @mutable Main, window: |macos_gui|::Window) requires main.cursor < |configuration|::FRAME_PIXELS {
+        let x: i32 = (main.cursor % (|configuration|::FRAME_WIDTH as u64)) as i32;
+        let y: i32 = (main.cursor / (|configuration|::FRAME_WIDTH as u64)) as i32;
+        main.pixels[main.cursor] = |render|::Art::pixel(@main.frame, x, y);
         main.cursor = main.cursor + 1;
         transition { _ -> fill(main, window) }
     }
-    machine frame(main: @mutable Main, window: Window) {
+    machine frame(main: @mutable Main, window: |macos_gui|::Window) {
         main.pumped = 0;
         transition { _ -> pump(main, window) }
     }
-    machine pump(main: @mutable Main, mutable window: Window) {
-        let available: u32 = macos_window_msg_peek(@mutable window, [0, 0, 0, 0, 0, 0]);
-        transition available > 0 && main.pumped < EVENT_BUDGET { true -> dispatch(main, window), _ -> visible(main, window) }
+    machine pump(main: @mutable Main, mutable window: |macos_gui|::Window) {
+        let available: u32 = |macos_gui|::macos_window_msg_peek(@mutable window, [0, 0, 0, 0, 0, 0]);
+        transition available > 0 && main.pumped < |configuration|::EVENT_BUDGET { true -> dispatch(main, window), _ -> visible(main, window) }
     }
-    machine dispatch(main: @mutable Main, window: Window)
-    requires main.pumped < EVENT_BUDGET {
-        let dispatched: u64 = macos_window_msg_dispatch(@window, [0, 0, 0, 0, 0, 0]);
+    machine dispatch(main: @mutable Main, window: |macos_gui|::Window)
+    requires main.pumped < |configuration|::EVENT_BUDGET {
+        let dispatched: u64 = |macos_gui|::macos_window_msg_dispatch(@window, [0, 0, 0, 0, 0, 0]);
         main.pumped = main.pumped + 1;
         transition { _ -> pump(main, window) }
     }
-    machine visible(main: @mutable Main, window: Window) {
-        let alive: u32 = macos_window_is_window(@window, window.window);
+    machine visible(main: @mutable Main, window: |macos_gui|::Window) {
+        let alive: u32 = |macos_gui|::macos_window_is_window(@window, window.window);
         transition alive > 0 { true -> focus(main, window), _ -> close(main, window) }
     }
-    machine focus(main: @mutable Main, window: Window) {
-        let focused: u64 = macos_window_foreground_window(@window);
+    machine focus(main: @mutable Main, window: |macos_gui|::Window) {
+        let focused: u64 = |macos_gui|::macos_window_foreground_window(@window);
         transition focused == window.window { true -> escape(main, window), _ -> render(main, window) }
     }
-    machine escape(main: @mutable Main, window: Window) {
-        let escape: u64 = macos_key_state(27);
+    machine escape(main: @mutable Main, window: |macos_gui|::Window) {
+        let escape: u64 = |macos_gui|::macos_key_state(27);
         transition escape > 0 { true -> close(main, window), _ -> restart(main, window) }
     }
-    machine restart(main: @mutable Main, window: Window) {
-        let restart: u64 = macos_key_state(82);
+    machine restart(main: @mutable Main, window: |macos_gui|::Window) {
+        let restart: u64 = |macos_gui|::macos_key_state(82);
         transition restart > 0 { true -> reset(main, window), _ -> input(main, window) }
     }
-    machine reset(main: @mutable Main, window: Window) {
-        Game::reset(@mutable main.game);
+    machine reset(main: @mutable Main, window: |macos_gui|::Window) {
+        |game|::Game::reset(@mutable main.game);
         transition { _ -> input(main, window) }
     }
-    machine input(main: @mutable Main, window: Window) {
+    machine input(main: @mutable Main, window: |macos_gui|::Window) {
         main.direction = -1;
-        let attack: u64 = macos_key_state(32);
+        let attack: u64 = |macos_gui|::macos_key_state(32);
         main.swing = attack > 0;
-        let up: u64 = macos_key_state(38);
-        let north: u64 = macos_key_state(87);
+        let up: u64 = |macos_gui|::macos_key_state(38);
+        let north: u64 = |macos_gui|::macos_key_state(87);
         transition up > 0 || north > 0 { true -> north(main, window), _ -> east_input(main, window) }
     }
-    machine north(main: @mutable Main, window: Window) {
+    machine north(main: @mutable Main, window: |macos_gui|::Window) {
         main.direction = 0;
         transition { _ -> update(main, window) }
     }
-    machine east_input(main: @mutable Main, window: Window) {
-        let right: u64 = macos_key_state(39);
-        let east: u64 = macos_key_state(68);
+    machine east_input(main: @mutable Main, window: |macos_gui|::Window) {
+        let right: u64 = |macos_gui|::macos_key_state(39);
+        let east: u64 = |macos_gui|::macos_key_state(68);
         transition right > 0 || east > 0 { true -> east(main, window), _ -> south_input(main, window) }
     }
-    machine east(main: @mutable Main, window: Window) {
+    machine east(main: @mutable Main, window: |macos_gui|::Window) {
         main.direction = 1;
         transition { _ -> update(main, window) }
     }
-    machine south_input(main: @mutable Main, window: Window) {
-        let down: u64 = macos_key_state(40);
-        let south: u64 = macos_key_state(83);
+    machine south_input(main: @mutable Main, window: |macos_gui|::Window) {
+        let down: u64 = |macos_gui|::macos_key_state(40);
+        let south: u64 = |macos_gui|::macos_key_state(83);
         transition down > 0 || south > 0 { true -> south(main, window), _ -> west_input(main, window) }
     }
-    machine south(main: @mutable Main, window: Window) {
+    machine south(main: @mutable Main, window: |macos_gui|::Window) {
         main.direction = 2;
         transition { _ -> update(main, window) }
     }
-    machine west_input(main: @mutable Main, window: Window) {
-        let left: u64 = macos_key_state(37);
-        let west: u64 = macos_key_state(65);
+    machine west_input(main: @mutable Main, window: |macos_gui|::Window) {
+        let left: u64 = |macos_gui|::macos_key_state(37);
+        let west: u64 = |macos_gui|::macos_key_state(65);
         transition left > 0 || west > 0 { true -> west(main, window), _ -> update(main, window) }
     }
-    machine west(main: @mutable Main, window: Window) {
+    machine west(main: @mutable Main, window: |macos_gui|::Window) {
         main.direction = 3;
         transition { _ -> update(main, window) }
     }
-    machine update(main: @mutable Main, window: Window) {
-        Game::tick(@mutable main.game, main.direction, main.swing);
+    machine update(main: @mutable Main, window: |macos_gui|::Window) {
+        |game|::Game::tick(@mutable main.game, main.direction, main.swing);
         transition { _ -> render(main, window) }
     }
-    machine draw(main: @mutable Main, window: Window) {
-        let copied: u32 = macos_window_present(@window, FRAME_WIDTH, FRAME_HEIGHT, @main.pixels[..FRAME_PIXELS]);
-        macos_sleep(FRAME_DELAY_MILLISECONDS);
-        transition copied == FRAME_HEIGHT { true -> frame(main, window), _ -> close(main, window) }
+    machine draw(main: @mutable Main, window: |macos_gui|::Window) {
+        let copied: u32 = |macos_gui|::macos_window_present(@window, |configuration|::FRAME_WIDTH, |configuration|::FRAME_HEIGHT, @main.pixels[..FRAME_PIXELS]);
+        |macos_gui|::macos_sleep(|configuration|::FRAME_DELAY_MILLISECONDS);
+        transition copied == |configuration|::FRAME_HEIGHT { true -> frame(main, window), _ -> close(main, window) }
     }
-    machine close(main: @mutable Main, window: Window) {
-        macos_window_destroy(window);
+    machine close(main: @mutable Main, window: |macos_gui|::Window) {
+        |macos_gui|::macos_window_destroy(window);
     }
 }
 // The entry owns ordinary local state; selection supplies no context.
@@ -164,8 +148,8 @@ machine entry_start() reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
-    StandardOutput + ProcessExit {
+    DirectoryEnumeration + FilesystemNamespaceMutation + |process_authority|::StandardInput +
+    |process_authority|::StandardOutput + |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

@@ -13,19 +13,19 @@
 //   terms 1..8 consumed via Optional::Some in order
 //   sum lands in (2.71, 2.72)
 //   an Optional::None term contributes 0.0
-use omega\language\core\Optional;
+use {omega}/language/core/option.omg;
 
-machine term(n: i32) -> Optional<f64> {
+machine term(n: i32) -> |option|::Optional<f64> {
     transition n {
-        1 -> Optional::Some { value: 1.0 },
-        2 -> Optional::Some { value: 0.5 },
-        3 -> Optional::Some { value: 0.3333333333333333 },
-        4 -> Optional::Some { value: 0.25 },
-        5 -> Optional::Some { value: 0.2 },
-        6 -> Optional::Some { value: 0.16666666666666666 },
-        7 -> Optional::Some { value: 0.14285714285714285 },
-        8 -> Optional::Some { value: 0.125 },
-        _ -> Optional::None
+        1 -> |option|::Optional::Some { value: 1.0 },
+        2 -> |option|::Optional::Some { value: 0.5 },
+        3 -> |option|::Optional::Some { value: 0.3333333333333333 },
+        4 -> |option|::Optional::Some { value: 0.25 },
+        5 -> |option|::Optional::Some { value: 0.2 },
+        6 -> |option|::Optional::Some { value: 0.16666666666666666 },
+        7 -> |option|::Optional::Some { value: 0.14285714285714285 },
+        8 -> |option|::Optional::Some { value: 0.125 },
+        _ -> |option|::Optional::None
     }
 }
 
@@ -33,10 +33,10 @@ machine optional_float_accumulator() {
     transition { _ -> fold(1, 0.0) }
 
     machine fold(n: i32, sum: f64) {
-        let t: Optional<f64> = term(n);
+        let t: |option|::Optional<f64> = term(n);
         transition t {
-            Optional::Some { value } -> step(n, sum, value),
-            Optional::None -> judge(sum)
+            |option|::Optional::Some { value } -> step(n, sum, value),
+            |option|::Optional::None -> judge(sum)
         }
     }
 

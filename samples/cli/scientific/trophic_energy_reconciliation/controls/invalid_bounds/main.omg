@@ -1,14 +1,14 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Complete source control: source=3 is outside the three-node array.
 data Main { outgoing: [i32; 3]; }
-machine main(main: @mutable Main) reaches ProcessExit {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     let source: u64 = 3;
     main.outgoing[source] = 10;
-    ProcessExit::exit_process(0);
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

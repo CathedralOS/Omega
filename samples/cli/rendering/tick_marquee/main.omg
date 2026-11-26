@@ -1,6 +1,9 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
+use {system}/console.omg;
+use {system}/time.omg;
+use {system}/time_host.omg;
 // A tick-PACED marquee -- the first render loop verified against REAL elapsed time. A '#'
 // sweeps across a carrier line for 24 frames at ~15ms each (write_line + Clock.sleep), and
 // the loop's wall-clock cost is then ASSERTED through system `elapsed_since`: elapsed >=
@@ -10,23 +13,16 @@ use omega\language\core\ProcessExit;
 // runtime index, and per-frame host output.
 // Expected exit: 0.
 // Expected output contains: #
-use system\Console;
-use system\Clock;
-use system\Duration;
-use system\Instant;
-use system\TimeHost;
-use system\elapsed_since;
-use system\instant_now;
 data Main {
     line: [u8; 12];
     frame: u32 in Wrapping;
     pos: u32 in Wrapping;
-    t_start: Instant;
+    t_start: |time|::Instant;
     pause: [u8; 256];
 }
-machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput + TimeHost {
-    Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
-    main.t_start = instant_now();
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput + |time_host|::TimeHost {
+    |console|::Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
+    main.t_start = |time|::instant_now();
     main.frame = 0u32 as +Wrapping;
     transition { _ -> block frame_loop(main) }
     machine frame_loop(main: @mutable Main) {
@@ -41,13 +37,13 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     requires main.pos < 12
     {
         main.line[main.pos] = 35;
-        Console::write_line(@main.line[..]);
-        block Clock::sleep(15);
+        |console|::Console::write_line(@main.line[..]);
+        block |clock|::Clock::sleep(15);
         main.frame = main.frame + 1;
         transition { _ -> block frame_loop(main) }
     }
     machine finish(main: @mutable Main) {
-        let elapsed: Duration = elapsed_since(main.t_start);
+        let elapsed: |time|::Duration = |time|::elapsed_since(main.t_start);
         transition elapsed.seconds == 0 {
             true -> block check_subsecond(main, elapsed.subsecond_nanoseconds),
             false -> block ok(main)
@@ -57,21 +53,21 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition subsecond_nanoseconds >= 100000000 { true -> block ok(main), _ -> block bad(main) }
     }
     machine ok(main: @mutable Main)  {
-        Console::write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: elapsed time came in under 100ms (exit 1)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: elapsed time came in under 100ms (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput + TimeHost {
+machine entry_start() reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput + |time_host|::TimeHost {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

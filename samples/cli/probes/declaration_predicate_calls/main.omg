@@ -1,18 +1,19 @@
 // Expected exit: 0. Domain and data predicates select the same compiler proof
 // functions as machine contracts; qualification carries no runtime payload.
-use helpers;
-let small(value: u64): core\Strict<0> = embed(value) <= 100;
+use helpers/helpers.omg;
+use {omega}/language/core/foundation.omg as proof;
+let small(value: u64): |proof|::Strict<0> = embed(value) <= 100;
 data Bounded [copy] { amount: u64; }
 domain Bounded::Small requires embed(self.amount) <= 100;
 domain Bounded::NamedSmall requires small(self.amount);
 
 data Nested [copy] { payload: Bounded; }
-domain Nested::Small requires helpers\within_hundred(self.payload.amount);
+domain Nested::Small requires |helpers|::within_hundred(self.payload.amount);
 data Envelope<T [copy]> [copy] { payload: T; }
 data Narrow [copy] { envelope: Envelope<u8>; }
-domain Narrow::Small requires helpers\small_byte(self.envelope.payload);
+domain Narrow::Small requires |helpers|::small_byte(self.envelope.payload);
 data Wide [copy] { envelope: Envelope<u64>; }
-domain Wide::Small requires helpers\within_hundred(self.envelope.payload);
+domain Wide::Small requires |helpers|::within_hundred(self.envelope.payload);
 
 data Ordered [copy] requires embed(lower) <= embed(upper) {
     lower: u64;
@@ -37,7 +38,7 @@ data Text [copy] { bytes: [u8; 3]; tag: u8; }
 domain Text::Ready requires ascii_only(self.bytes) && self.tag == 1;
 domain Mixed::Valid
 requires self.child in Bounded::Small, self.tag == 1;
-domain<T> T::Accepted requires core\Identity::<T>(self, self);
+domain<T> T::Accepted requires |proof|::Identity::<T>(self, self);
 data Counter { value: u64; }
 data CounterResult [copy] { value: u64; }
 domain CounterResult::One requires self.value == 1;

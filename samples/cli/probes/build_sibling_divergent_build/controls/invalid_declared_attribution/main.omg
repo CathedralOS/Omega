@@ -1,6 +1,6 @@
-use a;
-use c;
+use {a}/main.omg as a;
+use {c}/main.omg as c;
 
 machine entry() -> i64 {
-    a\a_value() + c\c_value()
+    |a|::a_value() + |c|::c_value()
 }

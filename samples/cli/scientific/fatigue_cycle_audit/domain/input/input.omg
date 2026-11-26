@@ -1,6 +1,5 @@
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 // The parser bounds bytes, tokens and magnitudes before arithmetic/storage.
 public data Input {
@@ -13,7 +12,7 @@ public data Input {
     index: u64;
 }
 
-public machine read(input: @mutable Input) reaches StandardInput {
+public machine read(input: @mutable Input) reaches |process_authority|::StandardInput {
     input.count = 0;
     input.bytes = 0;
     input.number = 0;
@@ -27,10 +26,10 @@ public machine read(input: @mutable Input) reaches StandardInput {
         }
     }
     machine receive(input: @mutable Input) {
-        transition block Console::read_byte() {
-            ByteRead::Error -> invalid(input),
-            ByteRead::Eof -> finish(input),
-            ByteRead::Byte { value } -> classify(input, value)
+        transition block |console|::Console::read_byte() {
+            |console|::ByteRead::Error -> invalid(input),
+            |console|::ByteRead::Eof -> finish(input),
+            |console|::ByteRead::Byte { value } -> classify(input, value)
         }
     }
     machine classify(input: @mutable Input, value: i32) {

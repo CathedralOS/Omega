@@ -1,27 +1,20 @@
-use omega\language\core\FieldEntry;
-use omega\language\core\FieldPlan;
-use omega\language\core\FixedLayout;
-use omega\language\core\IntegerInterpretation;
-use omega\language\core\LayoutPlan;
-use omega\language\core\LayoutStorage;
-use omega\language\core\LayoutTarget;
-use omega\language\core\Schema;
+use {omega}/language/core/layout.omg;
 // The selected signed-byte layout shares the original scalar storage. Writes
 // through the view must preserve the neighboring byte and the same backing.
 // This remains a checking probe; it has no process-exit oracle.
-SignedByte satisfies FixedLayout<PortableByte> {
-    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+SignedByte satisfies |layout|::FixedLayout<PortableByte> {
+    machine plan(schema: |layout|::Schema, target: |layout|::LayoutTarget) -> |layout|::LayoutPlan
     reaches none terminates {
-        let mutable entries: [FieldEntry; 64];
-        entries[0] = FieldEntry {
+        let mutable entries: [|layout|::FieldEntry; 64];
+        entries[0] = |layout|::FieldEntry {
             key: schema.fields[0].key,
-            representation: FieldPlan::IntegerAt {
+            representation: |layout|::FieldPlan::IntegerAt {
                 offset: 0,
                 stored_width: 8,
-                interpretation: IntegerInterpretation::Signed,
+                interpretation: |layout|::IntegerInterpretation::Signed,
             },
         };
-        LayoutPlan {
+        |layout|::LayoutPlan {
             entries: entries,
             entry_count: 1,
             size_fixed: 1,
@@ -33,7 +26,7 @@ SignedByte satisfies FixedLayout<PortableByte> {
 
 data PortableByte [copy] { value: i64; }
 
-data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
+data RawView { value: |layout|::LayoutStorage<PortableByte, SignedByte>; }
 
 data ForeignByte { value: i8; }
 

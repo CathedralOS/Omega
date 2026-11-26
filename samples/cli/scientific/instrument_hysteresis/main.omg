@@ -1,43 +1,31 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use omega\language\core\max_i32;
+use domain/calibration/calibration.omg;
+use domain/trace/trace.omg;
+use io/input/input.omg;
+use io/report/report.omg;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 
 // Expected exit: 0.
 // Expected output contains: trace rows ambiguous plateaus reversals max_width 0 0 0 0 0
-use system\Console;
-use system\LineReadResult;
-use domain\calibration;
-use domain\calibration\Calibration;
-use domain\calibration\initialize;
-use domain\calibration\interpolate;
-use domain\trace;
-use domain\trace\Trace;
-use domain\trace\identify;
-use domain\trace\residual_statistics;
-use io\input;
-use io\input\Input;
-use io\input\parse_line;
-use io\report;
-use io\report\number;
-use io\report\field;
 
 data Instrument {
     buffer: [u8; 64];
-    calibration: Calibration;
-    trace: Trace;
+    calibration: |calibration|::Calibration;
+    trace: |trace|::Trace;
 }
 // One finite record per iteration. Invalid records never mutate history.
 // The 256-row bound keeps counts and residual sums within signed i32.
-machine run(instrument: @mutable Instrument) reaches ProcessExit + StandardInput + StandardOutput {
-    initialize(@mutable instrument.calibration);
-    Console::write_line("row stimulus branch prediction observed residual width (response milliunits)");
+machine run(instrument: @mutable Instrument) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |calibration|::initialize(@mutable instrument.calibration);
+    |console|::Console::write_line("row stimulus branch prediction observed residual width (response milliunits)");
     transition { _ -> block read(instrument) }
     machine read(instrument: @mutable Instrument) {
-        let input: LineReadResult = block Console::read_line(@mutable instrument.buffer[..]);
+        let input: |console|::LineReadResult = block |console|::Console::read_line(@mutable instrument.buffer[..]);
         transition input {
-            LineReadResult::LineComplete { count } -> block bounded(instrument, count),
-            LineReadResult::EndOfInput { count } -> end_of_input(instrument, count),
+            |console|::LineReadResult::LineComplete { count } -> block bounded(instrument, count),
+            |console|::LineReadResult::EndOfInput { count } -> end_of_input(instrument, count),
             _ -> invalid(instrument)
         }
     }
@@ -54,10 +42,10 @@ machine run(instrument: @mutable Instrument) reaches ProcessExit + StandardInput
         }
     }
     machine parse(instrument: @mutable Instrument, count: u64) requires count <= 64 {
-        let parsed: Input = parse_line(@instrument.buffer[0..count]);
+        let parsed: |input|::Input = |input|::parse_line(@instrument.buffer[0..count]);
         transition parsed {
-            Input::Sample { stimulus, observed } -> block validate(instrument, stimulus, observed),
-            Input::Invalid -> invalid(instrument)
+            |input|::Input::Sample { stimulus, observed } -> block validate(instrument, stimulus, observed),
+            |input|::Input::Invalid -> invalid(instrument)
         }
     }
     machine validate(instrument: @mutable Instrument, stimulus: i32 in Wrapping, observed: i32 in Wrapping) {
@@ -67,13 +55,13 @@ machine run(instrument: @mutable Instrument) reaches ProcessExit + StandardInput
         }
     }
     machine analyze(instrument: @mutable Instrument, stimulus: i32 in Wrapping, observed: i32 in Wrapping) {
-        let forward: i32 in Wrapping = interpolate(@instrument.calibration.forward, stimulus);
-        let reverse: i32 in Wrapping = interpolate(@instrument.calibration.reverse, stimulus);
+        let forward: i32 in Wrapping = |calibration|::interpolate(@instrument.calibration.forward, stimulus);
+        let reverse: i32 in Wrapping = |calibration|::interpolate(@instrument.calibration.reverse, stimulus);
         let width: i32 in Wrapping = reverse - forward;
-        identify(@mutable instrument.trace, stimulus);
-        instrument.trace.width_max = max_i32(instrument.trace.width_max as i32, width as i32) as i32 +Wrapping;
-        number(instrument.trace.rows);
-        field(stimulus);
+        |trace|::identify(@mutable instrument.trace, stimulus);
+        instrument.trace.width_max = |math|::max_i32(instrument.trace.width_max as i32, width as i32) as i32 +Wrapping;
+        |report|::number(instrument.trace.rows);
+        |report|::field(stimulus);
         transition instrument.trace.branch {
             1 -> block calibrated(instrument, forward, observed, width, "forward"),
             2 -> block calibrated(instrument, reverse, observed, width, "reverse"),
@@ -82,56 +70,56 @@ machine run(instrument: @mutable Instrument) reaches ProcessExit + StandardInput
     }
     machine calibrated(instrument: @mutable Instrument, prediction: i32 in Wrapping, observed: i32 in Wrapping, width: i32 in Wrapping, branch: @[u8]) {
         let residual: i32 in Wrapping = observed - prediction;
-        residual_statistics(@mutable instrument.trace, residual);
-        Console::write(" ");
-        Console::write(branch);
-        field(prediction);
-        field(observed);
-        field(residual);
-        field(width);
-        Console::write_line("");
+        |trace|::residual_statistics(@mutable instrument.trace, residual);
+        |console|::Console::write(" ");
+        |console|::Console::write(branch);
+        |report|::field(prediction);
+        |report|::field(observed);
+        |report|::field(residual);
+        |report|::field(width);
+        |console|::Console::write_line("");
         transition { _ -> block read(instrument) }
     }
     machine ambiguous(instrument: @mutable Instrument, observed: i32 in Wrapping, width: i32 in Wrapping) {
-        Console::write(" ambiguous NA");
-        field(observed);
-        Console::write(" NA");
-        field(width);
-        Console::write_line("");
+        |console|::Console::write(" ambiguous NA");
+        |report|::field(observed);
+        |console|::Console::write(" NA");
+        |report|::field(width);
+        |console|::Console::write_line("");
         transition { _ -> block read(instrument) }
     }
     machine summary(instrument: @mutable Instrument) {
-        Console::write("forward count sum_abs max_abs");
-        field(instrument.trace.forward_count);
-        field(instrument.trace.forward_sum);
-        field(instrument.trace.forward_max);
-        Console::write_line("");
-        Console::write("reverse count sum_abs max_abs");
-        field(instrument.trace.reverse_count);
-        field(instrument.trace.reverse_sum);
-        field(instrument.trace.reverse_max);
-        Console::write_line("");
-        Console::write("trace rows ambiguous plateaus reversals max_width");
-        field(instrument.trace.rows);
-        field(instrument.trace.ambiguous);
-        field(instrument.trace.plateaus);
-        field(instrument.trace.reversals);
-        field(instrument.trace.width_max);
-        Console::write_line("");
-        ProcessExit::exit_process(0);
+        |console|::Console::write("forward count sum_abs max_abs");
+        |report|::field(instrument.trace.forward_count);
+        |report|::field(instrument.trace.forward_sum);
+        |report|::field(instrument.trace.forward_max);
+        |console|::Console::write_line("");
+        |console|::Console::write("reverse count sum_abs max_abs");
+        |report|::field(instrument.trace.reverse_count);
+        |report|::field(instrument.trace.reverse_sum);
+        |report|::field(instrument.trace.reverse_max);
+        |console|::Console::write_line("");
+        |console|::Console::write("trace rows ambiguous plateaus reversals max_width");
+        |report|::field(instrument.trace.rows);
+        |report|::field(instrument.trace.ambiguous);
+        |report|::field(instrument.trace.plateaus);
+        |report|::field(instrument.trace.reversals);
+        |report|::field(instrument.trace.width_max);
+        |console|::Console::write_line("");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine invalid(instrument: @mutable Instrument) {
-        Console::write_line("ERROR malformed input: expected stimulus response LF");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("ERROR malformed input: expected stimulus response LF");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine range_error(instrument: @mutable Instrument) {
-        Console::write_line("ERROR range: stimulus 0..100, response 0..200000, at most 256 rows");
-        ProcessExit::exit_process(65);
+        |console|::Console::write_line("ERROR range: stimulus 0..100, response 0..200000, at most 256 rows");
+        |process_exit|::ProcessExit::exit_process(65);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Instrument;
     block run(@mutable entry_storage);
 }

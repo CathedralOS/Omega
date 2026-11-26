@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/math.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Clamp a series of raw sensor readings into a valid band and sum the results.
 // Each reading is clamped to [0, 60] via the standard idiom `max(lo, min(v, hi))`,
 // This composes the ordinary integer min/max helper contracts. For readings [80, -5, 50, 200, 30] the clamped values
@@ -11,14 +12,11 @@ use omega\language\core\ProcessExit;
 // the running sum is provable (each clamped step is bounded, the count is not).
 // Expected exit: 200.
 
-use system\Console;
-use omega\language\core\max_i32;
-use omega\language\core\min_i32;
 
 // Wrapping DECLARED: the accumulator sums an unbounded number of clamped steps.
 machine clamp_sum(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
     transition s.length > 0 {
-        true -> clamp_sum(s[1..], acc + (max_i32(0, min_i32(s[0] as i32, 60)) as i32 +Wrapping)),
+        true -> clamp_sum(s[1..], acc + (|math|::max_i32(0, |math|::min_i32(s[0] as i32, 60)) as i32 +Wrapping)),
         false -> (acc)
     }
 }
@@ -26,21 +24,21 @@ machine clamp_sum(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrappin
 data Main {
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
+machine main(context: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
     let values: [i32 in Wrapping; 5] = [80i32 as +Wrapping, (-5i32) as +Wrapping, 50i32 as +Wrapping, 200i32 as +Wrapping, 30i32 as +Wrapping];
 
     let slice: @[i32 in Wrapping] = @values[..];
     let total: i32 = clamp_sum(slice, 0i32 as +Wrapping) as i32;
-    Console::write_line("result: the clamped sum, 200 for these readings (the exit code)");
-    Console::write_line("[press Enter to close]");
+    |console|::Console::write_line("result: the clamped sum, 200 for these readings (the exit code)");
+    |console|::Console::write_line("[press Enter to close]");
     let mutable pause: [u8; 256];
-    _ = block Console::read_line(@mutable pause[..]);
-    ProcessExit::exit_process(total);
+    _ = block |console|::Console::read_line(@mutable pause[..]);
+    |process_exit|::ProcessExit::exit_process(total);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

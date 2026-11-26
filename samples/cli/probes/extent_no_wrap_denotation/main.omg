@@ -1,4 +1,4 @@
-// `core\extent` supplies `no_wrap(base, length)` — an
+// `{omega}/language/core/extent.omg` supplies `no_wrap(base, length)` — an
 // address-arithmetic denotation usable directly as a
 // machine `requires`. The caller must prove base + length
 // does not wrap the address space.
@@ -19,14 +19,14 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega\language\core\no_wrap;
+use {omega}/language/core/extent.omg;
 
 machine geometry(base: address, length: u64)
-requires no_wrap(base, length)
+requires |extent|::no_wrap(base, length)
 {}
 
 machine forwarded(base: address, length: u64)
-requires no_wrap(base, length)
+requires |extent|::no_wrap(base, length)
 {
     geometry(base, length);
 }

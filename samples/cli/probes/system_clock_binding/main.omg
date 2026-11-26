@@ -1,12 +1,12 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
 // The canonical system `Clock` provider: a `reaches ProcessExit + Clock`
 // multi-service ceiling, and `block Clock::sleep(200)` waits through the
 // selected provider.
 //
 // Expected exit: 70
-use system\Clock;
 
-machine entry_start() reaches ProcessExit + Clock {
-    block Clock::sleep(200);
-    ProcessExit::exit_process(70);
+machine entry_start() reaches |process_exit|::ProcessExit + |clock|::Clock {
+    block |clock|::Clock::sleep(200);
+    |process_exit|::ProcessExit::exit_process(70);
 }

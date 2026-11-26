@@ -1,22 +1,13 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/inference/inference.omg;
+use domain/viterbi/viterbi.omg;
+use io/trace/trace.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 64 (empty stdin is invalid).
 // Expected numerical outputs are frozen independently in expected.json.
-use system\Console;
-use system\LineReadResult;
-use omega\language\core\F64::from_i64;
-use domain\inference;
-use domain\inference\Model;
-use domain\inference\Inference;
-use domain\inference\infer;
-use domain\viterbi;
-use domain\viterbi\Paths;
-use domain\viterbi\viterbi;
-use io\trace;
-use io\trace\print_integer;
-use io\trace\print_number;
-data Main { model: Model; result: Inference; paths: Paths; line: [u8; 64]; path_bytes: [u8; 32]; }
+data Main { model: |inference|::Model; result: |inference|::Inference; paths: |viterbi|::Paths; line: [u8; 64]; path_bytes: [u8; 32]; }
 // Both lanes hold the observation count. Lane 0 is the printed path; lane 1
 // keeps an equal-length spare so the match publishes that shared runtime length.
 data DigitWindow<'storage> { digits: @'storage mutable [u8]; }
@@ -52,12 +43,12 @@ requires count >= 1 requires count <= 16 requires window.length == count {
     }
     machine filled() { }
 }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     transition { _ -> block probability(main, 0) }
     machine probability(main: @mutable Main, field: u64) requires field < 10 {
-        let read: LineReadResult = block Console::read_line(@mutable main.line[..]);
+        let read: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.line[..]);
         transition read {
-            LineReadResult::LineComplete { count } -> block probability_line(main, field, count),
+            |console|::LineReadResult::LineComplete { count } -> block probability_line(main, field, count),
             _ -> invalid(main)
         }
     }
@@ -86,7 +77,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine store(main: @mutable Main, field: u64, value: u64) requires field < 10 requires value <= 1000000 {
         main.model.units[field] = value;
-        main.model.probabilities[field] = F64::from_i64(value as i64) / 1000000.0;
+        main.model.probabilities[field] = |float_operations|::F64::from_i64(value as i64) / 1000000.0;
         transition field < 9 { true -> block probability(main, field + 1), false -> block distributions(main, 0) }
     }
     machine distributions(main: @mutable Main, row: u64) requires row < 5 {
@@ -106,9 +97,9 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition row < 4 { true -> block distributions(main, row + 1), false -> block observations(main) }
     }
     machine observations(main: @mutable Main) {
-        let read: LineReadResult = block Console::read_line(@mutable main.line[..]);
+        let read: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.line[..]);
         transition read {
-            LineReadResult::LineComplete { count } -> block observation_line(main, count),
+            |console|::LineReadResult::LineComplete { count } -> block observation_line(main, count),
             _ -> invalid(main)
         }
     }
@@ -130,39 +121,39 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition index < 15 { true -> block symbols(main, index + 1), false -> invalid(main) }
     }
     machine end_input(main: @mutable Main) {
-        let read: LineReadResult = block Console::read_line(@mutable main.line[..]);
-        transition read { LineReadResult::EndOfInput { count } -> ended(main, count), _ -> invalid(main) }
+        let read: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.line[..]);
+        transition read { |console|::LineReadResult::EndOfInput { count } -> ended(main, count), _ -> invalid(main) }
     }
     machine ended(main: @mutable Main, count: u64) {
         transition count == 0 && main.model.count >= 1 && main.model.count <= 16 { true -> compute(main), false -> invalid(main) }
     }
     machine compute(main: @mutable Main) requires main.model.count >= 1 requires main.model.count <= 16 {
-        let possible: bool = infer(@main.model, @mutable main.result);
+        let possible: bool = |inference|::infer(@main.model, @mutable main.result);
         transition possible { true -> report(main), false -> impossible(main) }
     }
     machine report(main: @mutable Main) requires main.model.count >= 1 requires main.model.count <= 16 {
-        viterbi(@main.model, @mutable main.paths, @mutable main.result);
-        Console::write_line("OK trillionths");
-        Console::write("LOG");
-        print_number(main.result.log_likelihood);
-        Console::write_line("");
+        |viterbi|::viterbi(@main.model, @mutable main.paths, @mutable main.result);
+        |console|::Console::write_line("OK trillionths");
+        |console|::Console::write("LOG");
+        |trace|::print_number(main.result.log_likelihood);
+        |console|::Console::write_line("");
         transition { _ -> posterior(main, 0) }
     }
     machine posterior(main: @mutable Main, index: u64) requires index < 16 {
         let zero: f64 = main.result.forward[2 * index] * main.result.backward[2 * index];
         let one: f64 = main.result.forward[2 * index + 1] * main.result.backward[2 * index + 1];
-        Console::write("POST");
-        print_integer(index as i64);
-        print_number(zero / (zero + one));
-        print_number(one / (zero + one));
-        Console::write_line("");
+        |console|::Console::write("POST");
+        |trace|::print_integer(index as i64);
+        |trace|::print_number(zero / (zero + one));
+        |trace|::print_number(one / (zero + one));
+        |console|::Console::write_line("");
         transition index + 1 < main.model.count { true -> next_posterior(main, index), false -> path_start(main) }
     }
     machine next_posterior(main: @mutable Main, index: u64) requires index < 16 {
         transition index < 15 { true -> posterior(main, index + 1), false -> invalid(main) }
     }
     machine path_start(main: @mutable Main) {
-        Console::write("PATH ");
+        |console|::Console::write("PATH ");
         let count: u64 = main.model.count;
         transition count >= 1 && count <= 16 { true -> path_window(main, count), false -> invalid(main) }
     }
@@ -178,16 +169,16 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
     machine path_byte(main: @mutable Main, count: u64, index: u64)
     requires count >= 1 requires count <= 16 requires index < count {
-        Console::write_byte(main.path_bytes[index] as i32);
+        |console|::Console::write_byte(main.path_bytes[index] as i32);
         transition { _ -> path_emit(main, count, index + 1) }
     }
-    machine success(main: @mutable Main) { Console::write_line(""); ProcessExit::exit_process(0); }
-    machine invalid(main: @mutable Main) { Console::write_line("INVALID"); ProcessExit::exit_process(64); }
-    machine impossible(main: @mutable Main) { Console::write_line("IMPOSSIBLE"); ProcessExit::exit_process(65); }
+    machine success(main: @mutable Main) { |console|::Console::write_line(""); |process_exit|::ProcessExit::exit_process(0); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("INVALID"); |process_exit|::ProcessExit::exit_process(64); }
+    machine impossible(main: @mutable Main) { |console|::Console::write_line("IMPOSSIBLE"); |process_exit|::ProcessExit::exit_process(65); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

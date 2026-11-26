@@ -1,5 +1,5 @@
-use fixtures;
-use geometry;
+use fixtures/fixtures.omg;
+use geometry/geometry.omg;
 public data Planner {
     weights: [i64 in Wrapping; 36];
     clearances: [i64 in Wrapping; 36];
@@ -13,22 +13,22 @@ public data Planner {
 }
 // Negative means invalid edge. Walls are convex, so endpoint minima suffice for
 // wall clearance; every circular obstacle uses the whole segment projection.
-public machine edge(scene: @fixtures\Scene, from: i32 in Wrapping, to: i32 in Wrapping,
+public machine edge(scene: @|fixtures|::Scene, from: i32 in Wrapping, to: i32 in Wrapping,
                  radius: i64 in Wrapping) -> i64 in Wrapping
 requires from >= 0 && from < 6 && to >= 0 && to < 6
 {
-    let wall: i64 in Wrapping = geometry\minimum(
-        geometry\minimum(scene.x[from] + 5, 15 - scene.x[from]),
-        geometry\minimum(scene.y[from] + 5, 15 - scene.y[from]));
-    let other_wall: i64 in Wrapping = geometry\minimum(
-        geometry\minimum(scene.x[to] + 5, 15 - scene.x[to]),
-        geometry\minimum(scene.y[to] + 5, 15 - scene.y[to]));
-    let clearance: i64 in Wrapping = geometry\minimum(wall, other_wall);
+    let wall: i64 in Wrapping = |geometry|::minimum(
+        |geometry|::minimum(scene.x[from] + 5, 15 - scene.x[from]),
+        |geometry|::minimum(scene.y[from] + 5, 15 - scene.y[from]));
+    let other_wall: i64 in Wrapping = |geometry|::minimum(
+        |geometry|::minimum(scene.x[to] + 5, 15 - scene.x[to]),
+        |geometry|::minimum(scene.y[to] + 5, 15 - scene.y[to]));
+    let clearance: i64 in Wrapping = |geometry|::minimum(wall, other_wall);
     transition clearance >= radius {
         true -> obstacle(scene, from, to, radius, 0, clearance * 1000),
         false -> -1
     }
-    machine obstacle(scene: @fixtures\Scene, from: i32 in Wrapping, to: i32 in Wrapping,
+    machine obstacle(scene: @|fixtures|::Scene, from: i32 in Wrapping, to: i32 in Wrapping,
                    radius: i64 in Wrapping, index: i32 in Wrapping,
                    clearance: i64 in Wrapping) -> i64 in Wrapping
     requires from >= 0 && from < 6 && to >= 0 && to < 6
@@ -38,35 +38,35 @@ requires from >= 0 && from < 6 && to >= 0 && to < 6
             false -> clearance
         }
     }
-    machine measure(scene: @fixtures\Scene, from: i32 in Wrapping, to: i32 in Wrapping,
+    machine measure(scene: @|fixtures|::Scene, from: i32 in Wrapping, to: i32 in Wrapping,
                   radius: i64 in Wrapping, index: i32 in Wrapping,
                   clearance: i64 in Wrapping) -> i64 in Wrapping
     requires from >= 0 && from < 6 && to >= 0 && to < 6 && index >= 0 && index < 2
     {
-        let distance: geometry\Fraction = geometry\distance(scene.x[from], scene.y[from],
+        let distance: |geometry|::Fraction = |geometry|::distance(scene.x[from], scene.y[from],
             scene.x[to], scene.y[to], scene.obstacle_x[index], scene.obstacle_y[index]);
         transition distance.numerator >= (radius + 1) * (radius + 1) * distance.denominator {
             true -> obstacle(scene, from, to, radius, index + 1,
-                geometry\minimum(clearance, geometry\root_milli(distance.numerator, distance.denominator) - 1000)),
+                |geometry|::minimum(clearance, |geometry|::root_milli(distance.numerator, distance.denominator) - 1000)),
             false -> -1
         }
     }
 }
-public machine build(planner: @mutable Planner, scene: @fixtures\Scene, radius: i64 in Wrapping) {
+public machine build(planner: @mutable Planner, scene: @|fixtures|::Scene, radius: i64 in Wrapping) {
     planner.weights = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; planner.clearances = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     planner.distances = [-1, -1, -1, -1, -1, -1]; planner.parents = [-1, -1, -1, -1, -1, -1];
     planner.settled = [false, false, false, false, false, false]; planner.route = [0, 0, 0, 0, 0, 0];
     planner.route_count = 0; planner.clearance = 30000; planner.witness = 0;
     planner.distances[0] = 0;
     transition { _ -> row(planner, scene, radius, 0) }
-    machine row(planner: @mutable Planner, scene: @fixtures\Scene, radius: i64 in Wrapping,
+    machine row(planner: @mutable Planner, scene: @|fixtures|::Scene, radius: i64 in Wrapping,
               from: i32 in Wrapping) {
         transition from >= 0 && from < 6 {
             true -> column(planner, scene, radius, from, 0),
             false -> done()
         }
     }
-    machine column(planner: @mutable Planner, scene: @fixtures\Scene, radius: i64 in Wrapping,
+    machine column(planner: @mutable Planner, scene: @|fixtures|::Scene, radius: i64 in Wrapping,
                  from: i32 in Wrapping, to: i32 in Wrapping)
     requires from >= 0 && from < 6
     {
@@ -75,7 +75,7 @@ public machine build(planner: @mutable Planner, scene: @fixtures\Scene, radius: 
             false -> row(planner, scene, radius, from + 1)
         }
     }
-    machine fill(planner: @mutable Planner, scene: @fixtures\Scene, radius: i64 in Wrapping,
+    machine fill(planner: @mutable Planner, scene: @|fixtures|::Scene, radius: i64 in Wrapping,
                from: i32 in Wrapping, to: i32 in Wrapping)
     requires from >= 0 && from < 6 && to >= 0 && to < 6
     {
@@ -84,11 +84,11 @@ public machine build(planner: @mutable Planner, scene: @fixtures\Scene, radius: 
         let dy: i64 in Wrapping = scene.y[from] - scene.y[to];
         transition clearance >= 0 && from != to {
             true -> store(planner, scene, radius, from, to, from * 6 + to,
-                clearance, geometry\root_milli(dx * dx + dy * dy, 1)),
+                clearance, |geometry|::root_milli(dx * dx + dy * dy, 1)),
             false -> column(planner, scene, radius, from, to + 1)
         }
     }
-    machine store(planner: @mutable Planner, scene: @fixtures\Scene, radius: i64 in Wrapping,
+    machine store(planner: @mutable Planner, scene: @|fixtures|::Scene, radius: i64 in Wrapping,
                 from: i32 in Wrapping, to: i32 in Wrapping, position: i32 in Wrapping,
                 clearance: i64 in Wrapping, weight: i64 in Wrapping)
     requires from >= 0 && from < 6 && to >= 0 && to < 6 && position >= 0 && position < 36
@@ -191,7 +191,7 @@ public machine solve(planner: @mutable Planner) -> bool {
                     previous: i32 in Wrapping, count: i32 in Wrapping) -> bool
     requires position >= 0 && position < 36
     {
-        planner.clearance = geometry\minimum(planner.clearance, planner.clearances[position]);
+        planner.clearance = |geometry|::minimum(planner.clearance, planner.clearances[position]);
         transition { _ -> trace(planner, previous, count + 1) }
     }
 }

@@ -2,13 +2,13 @@
 // counted arrival, and an observation-free predicate. The match arm exits.
 // The fallback traps.
 // Expected exit: 0
-use dependency;
+use {dependency}/main.omg as dependency;
 
-machine require_equal(value: u64) requires equal(value) { }
+machine require_equal(value: u64) requires |dependency|::equal(value) { }
 machine main() crashes Trap {
-    let cell: Cell = Cell { value: 19u64 };
-    let view: @u64 = project(@cell);
-    let observed: u64 = count(19u64);
+    let cell: |dependency|::Cell = |dependency|::Cell { value: 19u64 };
+    let view: @u64 = |dependency|::project(@cell);
+    let observed: u64 = |dependency|::count(19u64);
     let difference: u64 = observed - 19u64;
     require_equal(19u64);
     transition $view == 19u64 && difference == 0u64 { true -> done(), false -> wrong() }

@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
+use {system}/console.omg;
 // A bubble-sort VISUALIZER: eight values drawn as horizontal bars (a row of '#' whose
 // length is the value), re-rendered in place after every pass so you watch the array
 // settle from jumbled into an ascending staircase. The first ALGORITHM-in-motion sample
@@ -12,8 +13,6 @@ use omega\language\core\ProcessExit;
 // stdout + Clock.sleep; no new compiler features.
 // Expected exit: 0.
 // Expected output contains: #
-use system\Console;
-use system\Clock;
 
 domain [u8]::Utf8
 requires
@@ -52,8 +51,8 @@ requires
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
-    Console::write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
     main.arr = [5, 2, 8, 1, 7, 3, 6, 4];
     main.home = "XXX";
     main.home[0] = 27;
@@ -65,7 +64,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
 
     // --- render the array as bars, in place ---
     machine show(main: @mutable Main) {
-        Console::write(main.home);
+        |console|::Console::write(main.home);
         main.ry = 0;
         transition { _ -> block show_row(main) }
     }
@@ -104,7 +103,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     // write_line is a CALL, so re-guard `ry < 8` afterwards to carry the bound on
     // the direct edge into the increment (ry < 8 always holds inside the row loop).
     machine emit_row(main: @mutable Main) {
-        Console::write_line(main.line);
+        |console|::Console::write_line(main.line);
         transition main.ry < 8 { true -> block row_bump(main), _ -> block show_done(main) }
     }
     machine row_bump(main: @mutable Main) {
@@ -112,7 +111,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition { _ -> block show_row(main) }
     }
     machine show_done(main: @mutable Main) {
-        block Clock::sleep(180);
+        block |clock|::Clock::sleep(180);
         transition { _ -> block step(main) }
     }
 
@@ -165,15 +164,15 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     }
 
     machine finish(main: @mutable Main) {
-        Console::write_line("PASS: 7 bubble-sort passes rendered, array sorted (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("PASS: 7 bubble-sort passes rendered, array sorted (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

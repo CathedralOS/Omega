@@ -1,4 +1,4 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Two invocation-local instances of Counter<T>: Counter<i32> records a score
 // and Counter<bool> latches a flag. Static machines take explicit borrowed
 // counters; each instance retains its own value and write count. Only the
@@ -23,7 +23,7 @@ machine current_counter<T [copy]>(counter: @Counter<T>) -> T {
 machine counter_count<T>(counter: @Counter<T>) -> i32 in Wrapping {
     transition { _ -> (counter.times) }
 }
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable score: Counter<i32>;
     let mutable flag: Counter<bool>;
     record_counter(@mutable score, 30);
@@ -37,9 +37,9 @@ machine entry_start() reaches ProcessExit {
         true -> tally(total, times_score, times_flag),
         false -> wrong()
     }
-    machine tally(total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) reaches ProcessExit {
+    machine tally(total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) reaches |process_exit|::ProcessExit {
         let code: i32 in Wrapping = (total as +Wrapping) + times_score + 1 + times_flag;
-        ProcessExit::exit_process(code as i32);
+        |process_exit|::ProcessExit::exit_process(code as i32);
     }
-    machine wrong() reaches ProcessExit { ProcessExit::exit_process(3); }
+    machine wrong() reaches |process_exit|::ProcessExit { |process_exit|::ProcessExit::exit_process(3); }
 }

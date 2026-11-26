@@ -1,10 +1,10 @@
 // Module-qualified domain paths: `units` (sibling file) declares
 // `u64::Distance` and the operator home `u64::Distance::add`; a
 // broad `use units;` exposes the carrier-qualified spelling
-// `u64 in units\u64::Distance` as a type constraint on
+// `u64 in |units|::u64::Distance` as a type constraint on
 // parameters.
 //
-//   * `measure(a: u64 in units\u64::Distance, ...)` — the domain
+//   * `measure(a: u64 in |units|::u64::Distance, ...)` — the domain
 //     is spelled through the module path, in the parameter type and
 //     in the caller's explicit `as` qualification.
 //   * `hits` records the reached arm.
@@ -12,9 +12,9 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-use units;
+use units/units.omg;
 
-machine measure(a: u64 in units\u64::Distance, b: u64 in units\u64::Distance) -> bool {
+machine measure(a: u64 in |units|::u64::Distance, b: u64 in |units|::u64::Distance) -> bool {
     true
 }
 
@@ -24,7 +24,7 @@ data Main {
 
 machine Main::main(main: @mutable Main) {
     main.hits = 0;
-    transition measure(3 as u64 +units\u64::Distance, 4) {
+    transition measure(3 as u64 + |units|::u64::Distance, 4) {
         true -> pass(main),
         _ -> fail(main)
     }

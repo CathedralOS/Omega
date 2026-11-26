@@ -1,17 +1,17 @@
 // The bounded count and address ceiling justify an exact split with disjoint content equal to the original interval.
 // Intended rejection. Address/count partition preserves exact disjoint interval content.
 // Numeric interval partition only: this local carrier grants no storage rights.
-use omega\language\core\Content;
-use omega\language\core\IntervalSet;
-use omega\language\core\Nat;
+use {omega}/language/core/content.omg;
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/nat.omg;
 data Region [linear] dropped by drop_region { base: address; length: u64; }
 machine drop_region(region: @mutable Region) {}
 domain Region::Owned;
-machine Owned::content(region: @Region) -> IntervalSet<Nat>
-satisfies Content<Region, IntervalSet<Nat>>::project {
-    IntervalSet {
-        start: embed(region.base) as Nat,
-        end: (embed(region.base) + embed(region.length)) as Nat
+machine Owned::content(region: @Region) -> |content|::IntervalSet<|nat|::Nat>
+satisfies |content|::Content<Region, |content|::IntervalSet<|nat|::Nat>>::project {
+    |content|::IntervalSet {
+        start: embed(region.base) as |nat|::Nat,
+        end: (embed(region.base) + embed(region.length)) as |nat|::Nat
     }
 }
 machine boundary(base: address, count: u64, ceiling: address) -> address
@@ -21,7 +21,7 @@ ensures embed(result) == embed(base) + embed(count)
 data Pieces { left: Region in Owned; right: Region in Owned; }
 machine split(whole: Region in Owned, length: u64, ceiling: address) -> Pieces
 requires embed(whole.base) + embed(whole.length) <= embed(ceiling)
-ensures core\Identity::<IntervalSet<Nat>>(
+ensures |proof|::Identity::<|content|::IntervalSet<|nat|::Nat>>(
     Owned::content(old(@whole)),
     separate(
         Owned::content(@result.right), Owned::content(@result.left))

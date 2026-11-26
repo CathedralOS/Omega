@@ -1,33 +1,26 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use format/format.omg;
+use kinetics/kinetics.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 2 (EOF).
 // Expected output contains: invalid input: one digit 0..9 and LF required
-use system\ByteRead;
-use system\Console;
-use omega\language\core\narrow_i64_to_u64_saturating;
-use kinetics;
-use kinetics\Model;
-use kinetics\advance;
-use kinetics\valid;
-use format;
-use format\integer;
-use format\number;
 data Main {
-    model: Model; mode: u64; initial_x: i64;
+    model: |kinetics|::Model; mode: u64; initial_x: i64;
     replicate: u64; sum_x: u64; sum_x2: u64; sum_y: u64; sum_y2: u64;
     zero: u64; one: u64; two: u64; three_plus: u64;
 }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let first: ByteRead = block Console::read_byte();
-    transition first { ByteRead::Byte { value } -> digit(main, value), _ -> invalid(main) }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let first: |console|::ByteRead = block |console|::Console::read_byte();
+    transition first { |console|::ByteRead::Byte { value } -> digit(main, value), _ -> invalid(main) }
     machine digit(main: @mutable Main, value: i32) {
         transition value >= 48 && value <= 57 { true -> newline(main, value), _ -> invalid(main) }
     }
     machine newline(main: @mutable Main, value: i32) requires value >= 48 && value <= 57 {
         main.mode = (value - 48) as u64;
-        let ending: ByteRead = block Console::read_byte();
-        transition ending { ByteRead::Byte { value } -> ending(main, value), _ -> invalid(main) }
+        let ending: |console|::ByteRead = block |console|::Console::read_byte();
+        transition ending { |console|::ByteRead::Byte { value } -> ending(main, value), _ -> invalid(main) }
     }
     machine ending(main: @mutable Main, value: i32) {
         transition value == 10 { true -> configure(main), _ -> invalid(main) }
@@ -60,11 +53,11 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine budget_case(main: @mutable Main) { main.model.budget = 0; main.model.seed = 100000; transition { _ -> begin(main) } }
     machine alternate_seed(main: @mutable Main) { main.model.seed = 314159; transition { _ -> begin(main) } }
     machine begin(main: @mutable Main) {
-        let accepted: bool = valid(@main.model, main.initial_x);
+        let accepted: bool = |kinetics|::valid(@main.model, main.initial_x);
         transition accepted { true -> initialize(main), _ -> invalid_model(main) }
     }
     machine initialize(main: @mutable Main) {
-        main.model.x = narrow_i64_to_u64_saturating(main.initial_x);
+        main.model.x = |numeric_conversion|::narrow_i64_to_u64_saturating(main.initial_x);
         transition { _ -> select(main) }
     }
     machine select(main: @mutable Main) {
@@ -74,28 +67,28 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition main.mode == 5 || main.mode == 6 { true -> single_step(main), _ -> ensemble(main) }
     }
     machine single_step(main: @mutable Main) {
-        advance(@mutable main.model);
+        |kinetics|::advance(@mutable main.model);
         transition main.model.status {
             2 -> exhausted(main),
             3 -> overflow(main),
             _ -> failed(main)
         }
     }
-    machine failed(main: @mutable Main) { Console::write_line("unexpected control result"); ProcessExit::exit_process(5); }
+    machine failed(main: @mutable Main) { |console|::Console::write_line("unexpected control result"); |process_exit|::ProcessExit::exit_process(5); }
     machine trace(main: @mutable Main) {
         main.model.budget = 20; main.model.seed = 100000;
         transition main.mode == 8 { true -> gene_header(main), _ -> immigration_header(main) }
     }
     machine gene_header(main: @mutable Main) {
-        Console::write_line("trajectory seed=100000 model=gene_expression");
+        |console|::Console::write_line("trajectory seed=100000 model=gene_expression");
         transition { _ -> trace_step(main) }
     }
     machine immigration_header(main: @mutable Main) {
-        Console::write_line("trajectory seed=100000 model=immigration_death");
+        |console|::Console::write_line("trajectory seed=100000 model=immigration_death");
         transition { _ -> trace_step(main) }
     }
     machine trace_step(main: @mutable Main) {
-        advance(@mutable main.model);
+        |kinetics|::advance(@mutable main.model);
         transition main.model.status {
             0 -> trace_event(main),
             1 -> trace_done(main),
@@ -104,18 +97,18 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine trace_event(main: @mutable Main) {
-        Console::write("event="); integer(main.model.events);
-        Console::write(" time="); number(main.model.time);
-        Console::write(" channel="); integer(main.model.channel);
-        Console::write(" x="); integer(main.model.x);
-        Console::write(" y="); integer(main.model.y);
-        Console::write_line("");
+        |console|::Console::write("event="); |format|::integer(main.model.events);
+        |console|::Console::write(" time="); |format|::number(main.model.time);
+        |console|::Console::write(" channel="); |format|::integer(main.model.channel);
+        |console|::Console::write(" x="); |format|::integer(main.model.x);
+        |console|::Console::write(" y="); |format|::integer(main.model.y);
+        |console|::Console::write_line("");
         transition { _ -> trace_step(main) }
     }
     machine trace_done(main: @mutable Main) {
-        Console::write("final time="); number(main.model.time);
-        Console::write(" x="); integer(main.model.x);
-        Console::write_line(""); ProcessExit::exit_process(0);
+        |console|::Console::write("final time="); |format|::number(main.model.time);
+        |console|::Console::write(" x="); |format|::integer(main.model.x);
+        |console|::Console::write_line(""); |process_exit|::ProcessExit::exit_process(0);
     }
     machine ensemble(main: @mutable Main) { transition { _ -> replicate(main) } }
     machine replicate(main: @mutable Main) {
@@ -127,7 +120,7 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         transition { _ -> step(main) }
     }
     machine step(main: @mutable Main) {
-        advance(@mutable main.model);
+        |kinetics|::advance(@mutable main.model);
         transition main.model.status {
             0 -> step(main),
             1 -> collect(main),
@@ -153,29 +146,29 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     machine bucket_three(main: @mutable Main) { let three_plus_next: u64 in Saturating = (main.three_plus as u64 +Saturating) + 1; main.three_plus = three_plus_next as u64; transition { _ -> next(main) } }
     machine next(main: @mutable Main) { let replicate_next: u64 in Saturating = (main.replicate as u64 +Saturating) + 1; main.replicate = replicate_next as u64; transition { _ -> replicate(main) } }
     machine summarize(main: @mutable Main) {
-        Console::write("ensemble n="); integer(main.replicate);
-        Console::write(" seed_end="); integer(main.model.seed);
-        Console::write_line("");
-        Console::write("sum_x="); integer(main.sum_x);
-        Console::write(" sum_x2="); integer(main.sum_x2);
-        Console::write(" sum_y="); integer(main.sum_y);
-        Console::write(" sum_y2="); integer(main.sum_y2);
-        Console::write_line("");
-        Console::write("hist_x 0="); integer(main.zero);
-        Console::write(" 1="); integer(main.one);
-        Console::write(" 2="); integer(main.two);
-        Console::write(" 3plus="); integer(main.three_plus);
-        Console::write_line("");
-        ProcessExit::exit_process(0);
+        |console|::Console::write("ensemble n="); |format|::integer(main.replicate);
+        |console|::Console::write(" seed_end="); |format|::integer(main.model.seed);
+        |console|::Console::write_line("");
+        |console|::Console::write("sum_x="); |format|::integer(main.sum_x);
+        |console|::Console::write(" sum_x2="); |format|::integer(main.sum_x2);
+        |console|::Console::write(" sum_y="); |format|::integer(main.sum_y);
+        |console|::Console::write(" sum_y2="); |format|::integer(main.sum_y2);
+        |console|::Console::write_line("");
+        |console|::Console::write("hist_x 0="); |format|::integer(main.zero);
+        |console|::Console::write(" 1="); |format|::integer(main.one);
+        |console|::Console::write(" 2="); |format|::integer(main.two);
+        |console|::Console::write(" 3plus="); |format|::integer(main.three_plus);
+        |console|::Console::write_line("");
+        |process_exit|::ProcessExit::exit_process(0);
     }
-    machine invalid(main: @mutable Main) { Console::write_line("invalid input: one digit 0..9 and LF required"); ProcessExit::exit_process(2); }
-    machine invalid_model(main: @mutable Main) { Console::write_line("invalid model: nonnegative rates and populations, bounded seed required"); ProcessExit::exit_process(2); }
-    machine exhausted(main: @mutable Main) { Console::write_line("event budget exhausted"); ProcessExit::exit_process(3); }
-    machine overflow(main: @mutable Main) { Console::write_line("population overflow"); ProcessExit::exit_process(4); }
+    machine invalid(main: @mutable Main) { |console|::Console::write_line("invalid input: one digit 0..9 and LF required"); |process_exit|::ProcessExit::exit_process(2); }
+    machine invalid_model(main: @mutable Main) { |console|::Console::write_line("invalid model: nonnegative rates and populations, bounded seed required"); |process_exit|::ProcessExit::exit_process(2); }
+    machine exhausted(main: @mutable Main) { |console|::Console::write_line("event budget exhausted"); |process_exit|::ProcessExit::exit_process(3); }
+    machine overflow(main: @mutable Main) { |console|::Console::write_line("population overflow"); |process_exit|::ProcessExit::exit_process(4); }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

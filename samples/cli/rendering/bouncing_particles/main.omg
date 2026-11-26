@@ -1,6 +1,7 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/clock.omg;
+use {system}/console.omg;
 // A multi-particle bouncing simulation: four particles, each an entry in an ARRAY OF
 // STRUCTS (position + velocity), bounce around a 20x10 box, animated in place. Distinct
 // from bouncing_ball_2d (a single ball under float gravity) -- this is an ENTITY SYSTEM,
@@ -16,8 +17,6 @@ use omega\language\core\ProcessExit;
 // Pure compute + stdout + Clock.sleep; no new compiler features.
 // Expected exit: 0.
 // Expected output contains: *
-use system\Console;
-use system\Clock;
 
 
 data Particle {
@@ -45,8 +44,8 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
-    Console::write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
     main.ps[0].x = 2 as +Wrapping;  main.ps[0].y = 2 as +Wrapping;  main.ps[0].vx = 1 as +Wrapping;  main.ps[0].vy = 1 as +Wrapping;
     main.ps[1].x = 17 as +Wrapping; main.ps[1].y = 3 as +Wrapping;  main.ps[1].vx = (0i32 - 1) as +Wrapping; main.ps[1].vy = 1 as +Wrapping;
     main.ps[2].x = 8 as +Wrapping;  main.ps[2].y = 8 as +Wrapping;  main.ps[2].vx = 1 as +Wrapping;  main.ps[2].vy = (0i32 - 1) as +Wrapping;
@@ -99,7 +98,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
 
     // --- render the grid in place ---
     machine render_init(main: @mutable Main) {
-        Console::write(@main.home[..]);
+        |console|::Console::write(@main.home[..]);
         main.ry = 0 as +Wrapping;
         transition { _ -> block render_row(main) }
     }
@@ -127,12 +126,12 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
         transition { _ -> block render_col(main) }
     }
     machine emit_row(main: @mutable Main) {
-        Console::write_line(@main.line[..]);
+        |console|::Console::write_line(@main.line[..]);
         main.ry = main.ry + 1;
         transition { _ -> block render_row(main) }
     }
     machine after_render(main: @mutable Main) {
-        block Clock::sleep(70);
+        block |clock|::Clock::sleep(70);
         transition { _ -> block update_init(main) }
     }
 
@@ -205,21 +204,21 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + 
     }
 
     machine finish(main: @mutable Main) {
-        Console::write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine bad(main: @mutable Main) {
-        Console::write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
-        Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(@mutable main.pause[..]);
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
+        |console|::Console::write_line("[press Enter to close]");
+        _ = block |console|::Console::read_line(@mutable main.pause[..]);
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |clock|::Clock + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

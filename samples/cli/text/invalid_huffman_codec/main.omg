@@ -1,4 +1,4 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Complete intended-invalid control: emitting a symbol ('Z' == 90) absent
 // from the Huffman table (`u8::HuffmanSymbol` requires 'A'..'D' or 'R')
 // must be rejected at compile time.
@@ -29,18 +29,18 @@ data Main {
     alphabet: [u8; 5];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     main.alphabet[0] = 65;
     main.alphabet[1] = 66;
     main.alphabet[2] = 67;
     main.alphabet[3] = 68;
     main.alphabet[4] = 82;
     let slot: u64 = lookup_symbol(@main.alphabet, 90 as +HuffmanSymbol);
-    ProcessExit::exit_process(slot as i32);
+    |process_exit|::ProcessExit::exit_process(slot as i32);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

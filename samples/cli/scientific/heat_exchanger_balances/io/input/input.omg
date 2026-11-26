@@ -1,9 +1,8 @@
 // Bounded decimal tokens. No allocation, wrapping or unbounded token storage.
-use omega\language\core\StandardInput;
-use system\ByteRead;
-use system\Console;
-use omega\language\core\narrow_i32_to_u32_trapping;
-use omega\language\core\F64::from_u32;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {system}/console.omg;
 
 public data Raw { values: [u32; 16]; count: u32; }
 public data Input {
@@ -15,7 +14,7 @@ public data Input {
     conductance: [f64; 8];
 }
 
-public machine parse(raw: @mutable Raw) -> bool reaches StandardInput invokes Console blocks crashes Trap {
+public machine parse(raw: @mutable Raw) -> bool reaches |process_authority|::StandardInput invokes |console|::Console blocks crashes Trap {
     transition { _ -> read(raw, 0, false, 0) }
     machine read(raw: @mutable Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         transition bytes < 256 {
@@ -24,11 +23,11 @@ public machine parse(raw: @mutable Raw) -> bool reaches StandardInput invokes Co
         }
     }
     machine receive(raw: @mutable Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
-        let observed: ByteRead = block Console::read_byte();
+        let observed: |console|::ByteRead = block |console|::Console::read_byte();
         transition observed {
-            ByteRead::Error -> bad(),
-            ByteRead::Byte { value } -> classify(raw, accumulator, active, bytes, value),
-            ByteRead::Eof -> finish(raw, accumulator, active)
+            |console|::ByteRead::Error -> bad(),
+            |console|::ByteRead::Byte { value } -> classify(raw, accumulator, active, bytes, value),
+            |console|::ByteRead::Eof -> finish(raw, accumulator, active)
         }
     }
     machine classify(raw: @mutable Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
@@ -38,7 +37,7 @@ public machine parse(raw: @mutable Raw) -> bool reaches StandardInput invokes Co
         }
     }
     machine digit(raw: @mutable Raw, accumulator: u32 in Saturating, bytes: u32, character: i32) -> bool {
-        let digit: u32 in Saturating = narrow_i32_to_u32_trapping(character) as u32 +Saturating;
+        let digit: u32 in Saturating = |numeric_conversion|::narrow_i32_to_u32_trapping(character) as u32 +Saturating;
         let next: u32 in Saturating = accumulator * 10 + digit - 48;
         transition next <= 200 {
             true -> read(raw, next, true, bytes + 1),
@@ -103,10 +102,10 @@ public machine validate(raw: @Raw, input: @mutable Input) -> bool {
     }
     machine initialize(raw: @Raw, input: @mutable Input) -> bool {
         input.stages = raw.values[1];
-        input.hot_capacity = F64::from_u32(raw.values[2]) * F64::from_u32(raw.values[3]);
-        input.cold_capacity = F64::from_u32(raw.values[4]) * F64::from_u32(raw.values[5]);
-        input.hot_in = F64::from_u32(raw.values[6]);
-        input.cold_in = F64::from_u32(raw.values[7]);
+        input.hot_capacity = |float_operations|::F64::from_u32(raw.values[2]) * |float_operations|::F64::from_u32(raw.values[3]);
+        input.cold_capacity = |float_operations|::F64::from_u32(raw.values[4]) * |float_operations|::F64::from_u32(raw.values[5]);
+        input.hot_in = |float_operations|::F64::from_u32(raw.values[6]);
+        input.cold_in = |float_operations|::F64::from_u32(raw.values[7]);
         transition { _ -> scan(raw, input, 0) }
     }
     machine scan(raw: @Raw, input: @mutable Input, position: u32) -> bool {
@@ -116,7 +115,7 @@ public machine validate(raw: @Raw, input: @mutable Input) -> bool {
         }
     }
     machine load(raw: @Raw, input: @mutable Input, position: u32) -> bool requires position < 8 {
-        let conductance: f64 = F64::from_u32(raw.values[position + 8]);
+        let conductance: f64 = |float_operations|::F64::from_u32(raw.values[position + 8]);
         transition conductance <= input.hot_capacity && conductance <= input.cold_capacity {
             true -> store(input, raw, position, conductance),
             false -> bad()

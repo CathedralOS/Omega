@@ -1,6 +1,6 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Digital root: repeatedly sum a number's decimal digits until a single digit
 // remains. For 12345 -> 1+2+3+4+5 = 15 -> 1+5 = 6. (It equals 1 + (n-1) mod 9, the
 // basis of casting out nines.) Showcases nested state-transition loops -- an outer
@@ -9,11 +9,10 @@ use omega\language\core\ProcessExit;
 // receives only the values it needs; the intermediate digits are local values.
 // Expected exit: 6.
 
-use system\Console;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    Console::write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    |console|::Console::write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
 
     transition {
         _ -> block collapse(12345 as +Wrapping)
@@ -44,16 +43,16 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
     }
 
     machine done(result: i32 in Wrapping) {
-        Console::write_line("result: the digital root, 6 for 12345 (the exit code)");
-        Console::write_line("[press Enter to close]");
+        |console|::Console::write_line("result: the digital root, 6 for 12345 (the exit code)");
+        |console|::Console::write_line("[press Enter to close]");
         let mutable pause: [u8; 256];
-        _ = block Console::read_line(@mutable pause[..]);
-        ProcessExit::exit_process(result as i32);
+        _ = block |console|::Console::read_line(@mutable pause[..]);
+        |process_exit|::ProcessExit::exit_process(result as i32);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

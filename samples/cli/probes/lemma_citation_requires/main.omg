@@ -1,22 +1,23 @@
-use omega\language\core\Nat;
+use {omega}/language/core/foundation.omg as proof;
+use {omega}/language/core/nat.omg;
 // Citing a REQUIRES-bearing lemma works when the citer's own hypotheses
 // establish the instantiated requires verbatim.
-machine minus(a: Nat, b: Nat) -> Nat {
+machine minus(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat {
     transition { _ -> (a) }
 }
-machine cancel(a: Nat, b: Nat) -> Nat
+machine cancel(a: |nat|::Nat, b: |nat|::Nat) -> |nat|::Nat
 requires
-    core\Identity::<Nat>(a, b)
+    |proof|::Identity::<|nat|::Nat>(a, b)
 ensures
-    core\Identity::<Nat>(minus(a, b), minus(a, b))
+    |proof|::Identity::<|nat|::Nat>(minus(a, b), minus(a, b))
 {
     transition { _ -> (minus(a, b)) }
 }
-machine cite_with_requires(x: Nat, y: Nat) -> Nat
+machine cite_with_requires(x: |nat|::Nat, y: |nat|::Nat) -> |nat|::Nat
 requires
-    core\Identity::<Nat>(x, y)
+    |proof|::Identity::<|nat|::Nat>(x, y)
 ensures
-    core\Identity::<Nat>(minus(x, x), minus(x, y))
+    |proof|::Identity::<|nat|::Nat>(minus(x, x), minus(x, y))
 {
     _ = cancel(x, y);
     transition { _ -> (minus(x, x)) }

@@ -1,9 +1,10 @@
+use {omega}/language/core/foundation.omg as proof;
 // Expected exit: 0
 // An admitted no-wrap domain predicate proves base + requested fits address when requested < length.
 // Geometry is numeric evidence, not a storage claim.
 // Constants require a copy-eligible carrier; this changes no geometry fact.
 data Region [copy] { base: address; length: u64; }
-let no_wrap(base: address, length: u64): core\Strict<0> =
+let no_wrap(base: address, length: u64): |proof|::Strict<0> =
     embed(base) + embed(length) <= address::Bound;
 domain Region::Bounded
 requires no_wrap(self.base, self.length);

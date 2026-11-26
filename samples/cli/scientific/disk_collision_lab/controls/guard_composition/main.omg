@@ -1,17 +1,17 @@
-use omega\language\core\abs_f64;
+use {omega}/language/core/math.omg;
 
 // Complete reduced source for a checked call composed with IEEE comparisons.
 data Probe { reading:f64; selected:i32; observed:i32; }
 machine accepted(probe:@Probe,choice:i32)->bool {
  transition choice {0 -> test(probe), _ -> rejected()}
- machine test(probe:@Probe)->bool {abs_f64(probe.reading-1.0) <= 0.000000001}
+ machine test(probe:@Probe)->bool {|math|::abs_f64(probe.reading-1.0) <= 0.000000001}
  machine rejected()->bool {false}
 }
 machine main(probe:@mutable Probe) {
  probe.reading=1.0;probe.selected=0;
  transition { _ -> check(probe) }
  machine check(probe:@mutable Probe) {
-  transition accepted(probe,probe.selected) && abs_f64(probe.reading-1.0) <= 0.000000001 {
+  transition accepted(probe,probe.selected) && |math|::abs_f64(probe.reading-1.0) <= 0.000000001 {
    true -> passed(probe), _ -> failed(probe)
   }
  }

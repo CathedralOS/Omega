@@ -1,7 +1,7 @@
 // Scientific sample model: unit mass, gravity 9.81, dt=0.01 seconds.
 // Cartesian constrained kick/drift followed by radial and tangent projections.
 // Projection is dissipative; energy drift is measured, never called conservation.
-use omega\language\core\F64::square_root;
+use {omega}/language/core/float_operations.omg;
 
 public data Pendulum {
     length: f64;
@@ -18,7 +18,7 @@ public data Pendulum {
 public machine pendulum_project(pendulum: @mutable Pendulum) {
     let radius_squared: f64 = pendulum.x * pendulum.x + pendulum.y * pendulum.y;
     pendulum.raw_drift = radius_squared - pendulum.length * pendulum.length;
-    let radius: f64 = F64::square_root(radius_squared);
+    let radius: f64 = |float_operations|::F64::square_root(radius_squared);
     let scale: f64 = pendulum.length / radius;
     pendulum.x = pendulum.x * scale;
     pendulum.y = pendulum.y * scale;

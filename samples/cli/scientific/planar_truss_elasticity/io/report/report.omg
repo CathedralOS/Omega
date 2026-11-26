@@ -1,29 +1,27 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/model/model.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Decimal output separates the integer part from twelve fractional digits.
 // This retains picounit resolution for small displacements without overflowing
 // a scaled i64 when strain energy or work is large.
-use system\Console;
-use omega\language\core\I64::from_f64;
-use domain\model;
-use domain\model\Truss;
-use domain\model\Solution;
 public data Output { }
-public machine write_scaled(output: @mutable Output, value: f64) reaches ProcessExit + StandardOutput invokes Console {
+public machine write_scaled(output: @mutable Output, value: f64) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
     transition value > -1000000000000.0 && value < 1000000000000.0 { true -> sign(output, value), false -> overflow(output) }
-    machine overflow(output: @mutable Output) { Console::write_line("ERROR numerical output range"); ProcessExit::exit_process(66); }
+    machine overflow(output: @mutable Output) { |console|::Console::write_line("ERROR numerical output range"); |process_exit|::ProcessExit::exit_process(66); }
     machine sign(output: @mutable Output, value: f64) {
         transition value < 0.0 { true -> negative(output, value), false -> positive(output, value) }
     }
-    machine negative(output: @mutable Output, value: f64) { Console::write("-"); transition { _ -> positive(output, -value) } }
+    machine negative(output: @mutable Output, value: f64) { |console|::Console::write("-"); transition { _ -> positive(output, -value) } }
     machine positive(output: @mutable Output, value: f64) {
-        let converted: i64 in Saturating = I64::from_f64(value);
+        let converted: i64 in Saturating = |float_operations|::I64::from_f64(value);
         let integral: i64 = converted as i64;
         transition integral >= 0 && integral < 1000000000000 { true -> parts(output, value, integral), false -> overflow(output) }
     }
     machine parts(output: @mutable Output, value: f64, integral: i64) requires integral >= 0 requires integral < 1000000000000 {
         let fraction: f64 = (value - (integral as f64)) * 1000000000000.0;
-        let converted_fraction: i64 in Saturating = I64::from_f64(fraction);
+        let converted_fraction: i64 in Saturating = |float_operations|::I64::from_f64(fraction);
         let fractional: i64 = converted_fraction as i64;
         transition integral >= 0 && integral < 1000000000000 && fractional >= 0 && fractional < 1000000000000 {
             true -> digits(output, integral, fractional, 100000000000, false),
@@ -37,7 +35,7 @@ public machine write_scaled(output: @mutable Output, value: f64) reaches Process
     }
     machine emit(output: @mutable Output, integral: i64, fractional: i64, divisor: i64, digit: i64)
     requires integral >= 0 requires integral < 1000000000000 requires fractional >= 0 requires fractional < 1000000000000 requires divisor >= 1 requires divisor <= 100000000000 requires digit >= 0 requires digit <= 9 {
-        Console::write_byte((digit as i32) + 48);
+        |console|::Console::write_byte((digit as i32) + 48);
         transition { _ -> advance(output, integral, fractional, divisor, true) }
     }
     machine advance(output: @mutable Output, integral: i64, fractional: i64, divisor: i64, started: bool)
@@ -45,41 +43,41 @@ public machine write_scaled(output: @mutable Output, value: f64) reaches Process
         transition divisor >= 10 { true -> digits(output, integral, fractional, divisor / 10, started), false -> point(output, fractional) }
     }
     machine point(output: @mutable Output, fractional: i64) requires fractional >= 0 requires fractional < 1000000000000 {
-        Console::write("."); transition { _ -> fraction_digits(output, fractional, 100000000000) }
+        |console|::Console::write("."); transition { _ -> fraction_digits(output, fractional, 100000000000) }
     }
     machine fraction_digits(output: @mutable Output, fractional: i64, divisor: i64)
     requires fractional >= 0 requires fractional < 1000000000000 requires divisor >= 1 requires divisor <= 100000000000 {
         let digit: i64 = (fractional / divisor) % 10;
-        Console::write_byte((digit as i32) + 48);
+        |console|::Console::write_byte((digit as i32) + 48);
         transition divisor >= 10 { true -> fraction_digits(output, fractional, divisor / 10), false -> done() }
     }
     machine done() {}
 }
-public machine report(output: @mutable Output, truss: @Truss, result: @Solution) reaches ProcessExit + StandardOutput invokes Console {
-    Console::write_line("planar_truss_elasticity; numeric values in consistent input units");
+public machine report(output: @mutable Output, truss: @|model|::Truss, result: @|model|::Solution) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput invokes |console|::Console {
+    |console|::Console::write_line("planar_truss_elasticity; numeric values in consistent input units");
     transition { _ -> node(output, truss, result, 0) }
-    machine node(output: @mutable Output, truss: @Truss, result: @Solution, index: u64) {
+    machine node(output: @mutable Output, truss: @|model|::Truss, result: @|model|::Solution, index: u64) {
         transition index < truss.nodes && index < 8 { true -> node_row(output, truss, result, index), false -> bar(output, truss, result, 0) }
     }
-    machine node_row(output: @mutable Output, truss: @Truss, result: @Solution, index: u64) requires index < 8 {
-        Console::write("N,"); write_scaled(output, index as f64); Console::write(",");
-        write_scaled(output, result.displacement[2 * index]); Console::write(",");
-        write_scaled(output, result.displacement[2 * index + 1]); Console::write(",");
-        write_scaled(output, result.reaction[2 * index]); Console::write(",");
-        write_scaled(output, result.reaction[2 * index + 1]); Console::write_line("");
+    machine node_row(output: @mutable Output, truss: @|model|::Truss, result: @|model|::Solution, index: u64) requires index < 8 {
+        |console|::Console::write("N,"); write_scaled(output, index as f64); |console|::Console::write(",");
+        write_scaled(output, result.displacement[2 * index]); |console|::Console::write(",");
+        write_scaled(output, result.displacement[2 * index + 1]); |console|::Console::write(",");
+        write_scaled(output, result.reaction[2 * index]); |console|::Console::write(",");
+        write_scaled(output, result.reaction[2 * index + 1]); |console|::Console::write_line("");
         transition { _ -> node(output, truss, result, index + 1) }
     }
-    machine bar(output: @mutable Output, truss: @Truss, result: @Solution, index: u64) {
+    machine bar(output: @mutable Output, truss: @|model|::Truss, result: @|model|::Solution, index: u64) {
         transition index < truss.bars && index < 16 { true -> bar_row(output, truss, result, index), false -> totals(output, result) }
     }
-    machine bar_row(output: @mutable Output, truss: @Truss, result: @Solution, index: u64) requires index < 16 {
-        Console::write("B,"); write_scaled(output, index as f64); Console::write(",");
-        write_scaled(output, result.extension[index]); Console::write(","); write_scaled(output, result.force[index]); Console::write_line("");
+    machine bar_row(output: @mutable Output, truss: @|model|::Truss, result: @|model|::Solution, index: u64) requires index < 16 {
+        |console|::Console::write("B,"); write_scaled(output, index as f64); |console|::Console::write(",");
+        write_scaled(output, result.extension[index]); |console|::Console::write(","); write_scaled(output, result.force[index]); |console|::Console::write_line("");
         transition { _ -> bar(output, truss, result, index + 1) }
     }
-    machine totals(output: @mutable Output, result: @Solution) {
-        Console::write("S,"); write_scaled(output, result.energy); Console::write(","); write_scaled(output, result.work);
-        Console::write(","); write_scaled(output, result.residual); Console::write(","); write_scaled(output, result.balance_x);
-        Console::write(","); write_scaled(output, result.balance_y); Console::write(","); write_scaled(output, result.moment); Console::write_line("");
+    machine totals(output: @mutable Output, result: @|model|::Solution) {
+        |console|::Console::write("S,"); write_scaled(output, result.energy); |console|::Console::write(","); write_scaled(output, result.work);
+        |console|::Console::write(","); write_scaled(output, result.residual); |console|::Console::write(","); write_scaled(output, result.balance_x);
+        |console|::Console::write(","); write_scaled(output, result.balance_y); |console|::Console::write(","); write_scaled(output, result.moment); |console|::Console::write_line("");
     }
 }

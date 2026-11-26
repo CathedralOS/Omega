@@ -1,5 +1,7 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/numeric_conversion.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Fixed-limb unsigned bignum arithmetic (8 x u32 little-endian limbs in a record).
 //
 // Exercises per-node arithmetic-policy semantics (Wrapping limb arithmetic,
@@ -26,10 +28,6 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: PASS
 
-use system\Console;
-use omega\language\core\narrow_u32_to_u8_wrapping;
-use omega\language\core\narrow_u64_to_u32_wrapping;
-use omega\language\core\widen_u32_to_u64;
 
 data Bignum [copy] {
     limbs: [u32; 8] in Wrapping;
@@ -168,9 +166,9 @@ machine bignum_sub(left: @Bignum, right: @Bignum, out: @mutable Bignum) -> u32 {
         let low_diff: u32 in Wrapping = l_wrap - r_wrap - b_wrap;
         out.limbs[index] = low_diff;
 
-        let l64: u64 in Wrapping = widen_u32_to_u64(l_wrap as u32) as u64 +Wrapping;
-        let r64: u64 in Wrapping = widen_u32_to_u64(r_wrap as u32) as u64 +Wrapping;
-        let b64: u64 in Wrapping = widen_u32_to_u64(borrow) as u64 +Wrapping;
+        let l64: u64 in Wrapping = |numeric_conversion|::widen_u32_to_u64(l_wrap as u32) as u64 +Wrapping;
+        let r64: u64 in Wrapping = |numeric_conversion|::widen_u32_to_u64(r_wrap as u32) as u64 +Wrapping;
+        let b64: u64 in Wrapping = |numeric_conversion|::widen_u32_to_u64(borrow) as u64 +Wrapping;
         let need64: u64 in Wrapping = r64 + b64;
         transition (l64 as u64) < (need64 as u64) {
             true -> loop_(left, right, out, index + 1, 1),
@@ -259,7 +257,7 @@ requires
         let combined: u64 = (rem << 32) | limb64;
         let q_limb64: u64 = combined / d64;
         let next_rem: u64 = combined % d64;
-        let q_limb32: u32 = narrow_u64_to_u32_wrapping(q_limb64);
+        let q_limb32: u32 = |numeric_conversion|::narrow_u64_to_u32_wrapping(q_limb64);
         quotient.limbs[index] = q_limb32 as +Wrapping;
         transition { _ -> loop_(dividend, d64, quotient, index, next_rem) }
     }
@@ -305,7 +303,7 @@ machine bignum_render_decimal(value: @Bignum, digits: @mutable [u8; 40]) {
         let rem: u32 = bignum_divmod_small(work, 10, next_work);
         bignum_copy(next_work, work);
         let ascii_u32: u32 in Wrapping = (rem as u32 +Wrapping) + 48;
-        digits[pos] = narrow_u32_to_u8_wrapping(ascii_u32 as u32);
+        digits[pos] = |numeric_conversion|::narrow_u32_to_u8_wrapping(ascii_u32 as u32);
         transition { _ -> loop_(work, next_work, digits, pos) }
     }
 
@@ -350,7 +348,7 @@ data Main {
     digits: [u8; 40];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     // A = 2^65 - 1 = [0xFFFFFFFF, 0xFFFFFFFF, 1, 0, 0, 0, 0, 0]
     main.a = Bignum {
         limbs: [
@@ -460,18 +458,18 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     }
 
     machine pass() {
-        Console::write_line("PASS: fixed_limb_bignum compare, add, sub, schoolbook mul, divmod, and decimal render verified");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("PASS: fixed_limb_bignum compare, add, sub, schoolbook mul, divmod, and decimal render verified");
+        |process_exit|::ProcessExit::exit_process(0);
     }
 
     machine fail() {
-        Console::write_line("FAIL: fixed_limb_bignum verification mismatch");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: fixed_limb_bignum verification mismatch");
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

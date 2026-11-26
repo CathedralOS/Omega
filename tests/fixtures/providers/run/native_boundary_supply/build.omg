@@ -1,21 +1,22 @@
+use main.omg as product;
 use {omega}/language/core/external_binding.omg as native;
 machine build(builder: @mutable Build) {
     Build::application(builder, "native_boundary_supply");
-    Build::bind(builder, alpha_bootstrap\ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind_native::<HostProcessId::get>(builder, windows_x86_64,
+    Build::bind(builder, alpha_bootstrap::ProgramEntry, |product|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |product|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |product|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |product|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |product|::main);
+    Build::bind_native::<|product|::HostProcessId::get>(builder, windows_x86_64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
             library: "msvcrt.dll", export: "_getpid"
         } });
-    Build::bind_native::<HostProcessId::get>(builder, macos_arm64,
+    Build::bind_native::<|product|::HostProcessId::get>(builder, macos_arm64,
         |native|::ForeignBinding::DllImport { import: |native|::DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_getpid"
         } });
-    Build::bind_native::<HostProcessId::get>(builder, linux_x86_64,
+    Build::bind_native::<|product|::HostProcessId::get>(builder, linux_x86_64,
         |native|::ForeignBinding::Syscall { number: 39 });
-    Build::bind_native::<HostProcessId::get>(builder, linux_arm64,
+    Build::bind_native::<|product|::HostProcessId::get>(builder, linux_arm64,
         |native|::ForeignBinding::Syscall { number: 172 });
 }

@@ -1,18 +1,18 @@
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
 // Complete intended-invalid source: unchecked period directly indexes storage.
 // Rejection must name the index obligation; unrelated package rejection is red.
 machine unchecked_period(cells: @[i32; 3], period: u64) -> i32 {
     transition { _ -> (cells[period]) }
 }
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit {
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit {
     let cells: [i32; 3] = [0, 1, 2];
     let observed: i32 = unchecked_period(@cells, 4);
-    ProcessExit::exit_process(observed);
+    |process_exit|::ProcessExit::exit_process(observed);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

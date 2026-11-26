@@ -1,9 +1,9 @@
 // Expected rejection: a negative radius operand is disproved.
-use omega\language\core\F64::square_root_toward_zero;
+use {omega}/language/core/float_operations.omg;
 
 machine radius(value: f64) -> f64
 requires value == value && value >= 0.0 {
-    F64::square_root_toward_zero(value)
+    |float_operations|::F64::square_root_toward_zero(value)
 }
 
 data Control { observed: f64; }

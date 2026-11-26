@@ -1,18 +1,16 @@
 // Normal-incidence sample model: each layer contributes floor(2000*d/v)
 // nanoseconds. Enumerate primary, double and triple round trips at each
 // boundary. A match window is inclusive; overlapping paths retain all matches.
-use model\records;
-use model\records\Acquisition;
-use model\records\EchoResult;
-public machine build_boundaries(acquisition: @mutable Acquisition) {
+use model/records/records.omg;
+public machine build_boundaries(acquisition: @mutable |records|::Acquisition) {
     transition { _ -> step(acquisition, 0, 0) }
-    machine step(acquisition: @mutable Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating) {
+    machine step(acquisition: @mutable |records|::Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating) {
         transition layer < acquisition.layers && layer < 4 {
             true -> store(acquisition, layer, cumulative),
             false -> done()
         }
     }
-    machine store(acquisition: @mutable Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating)
+    machine store(acquisition: @mutable |records|::Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating)
     requires layer < 4 {
         let speed: i64 in Saturating = acquisition.speeds[layer];
         transition speed > 0 {
@@ -20,7 +18,7 @@ public machine build_boundaries(acquisition: @mutable Acquisition) {
             false -> done()
         }
     }
-    machine calculate(acquisition: @mutable Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating, speed: i64 in Saturating)
+    machine calculate(acquisition: @mutable |records|::Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating, speed: i64 in Saturating)
     requires layer < 4
     requires speed > 0 {
         let duration: i64 in Saturating = acquisition.thicknesses[layer] * 2000 / speed;
@@ -30,17 +28,17 @@ public machine build_boundaries(acquisition: @mutable Acquisition) {
     }
     machine done() {}
 }
-public machine match_echo(acquisition: @Acquisition, arrival: i64 in Saturating) -> EchoResult {
-    let result: EchoResult = EchoResult { matches: 0, layer: 0, order: 0, thickness: 0 };
+public machine match_echo(acquisition: @|records|::Acquisition, arrival: i64 in Saturating) -> |records|::EchoResult {
+    let result: |records|::EchoResult = |records|::EchoResult { matches: 0, layer: 0, order: 0, thickness: 0 };
     let relative: i64 in Saturating = arrival - acquisition.reference;
     transition { _ -> boundary(acquisition, relative, 0, 0, result) }
-    machine boundary(acquisition: @Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, result: EchoResult) -> EchoResult {
+    machine boundary(acquisition: @|records|::Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, result: |records|::EchoResult) -> |records|::EchoResult {
         transition layer < acquisition.layers && layer < 4 {
             true -> path(acquisition, relative, layer, previous, 1, result),
             false -> (result)
         }
     }
-    machine path(acquisition: @Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, order: i64 in Saturating, result: EchoResult) -> EchoResult
+    machine path(acquisition: @|records|::Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, order: i64 in Saturating, result: |records|::EchoResult) -> |records|::EchoResult
     requires layer < 4 {
         let predicted: i64 in Saturating = acquisition.boundaries[layer] * order;
         let residual: i64 in Saturating = relative - predicted;
@@ -49,15 +47,15 @@ public machine match_echo(acquisition: @Acquisition, arrival: i64 in Saturating)
             false -> advance(acquisition, relative, layer, previous, order, result)
         }
     }
-    machine matched(acquisition: @Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, order: i64 in Saturating, result: EchoResult) -> EchoResult
+    machine matched(acquisition: @|records|::Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, order: i64 in Saturating, result: |records|::EchoResult) -> |records|::EchoResult
     requires layer < 4 {
         // A unique primary has nonnegative delta: any arrival before the
         // previous boundary would also match that earlier primary path.
         let estimate: i64 in Saturating = (relative - previous) * acquisition.speeds[layer] / 2000;
-        let next: EchoResult = EchoResult { matches: result.matches + 1, layer: (layer as i64 +Saturating) + 1, order: order, thickness: estimate };
+        let next: |records|::EchoResult = |records|::EchoResult { matches: result.matches + 1, layer: (layer as i64 +Saturating) + 1, order: order, thickness: estimate };
         transition { _ -> advance(acquisition, relative, layer, previous, order, next) }
     }
-    machine advance(acquisition: @Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, order: i64 in Saturating, result: EchoResult) -> EchoResult
+    machine advance(acquisition: @|records|::Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, order: i64 in Saturating, result: |records|::EchoResult) -> |records|::EchoResult
     requires layer < 4 {
         transition order < 3 {
             true -> path(acquisition, relative, layer, previous, order + 1, result),

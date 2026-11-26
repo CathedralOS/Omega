@@ -1,4 +1,4 @@
-use omega\language\core\widen_u8_to_i32;
+use {omega}/language/core/numeric_conversion.omg;
 
 // A complete newline-terminated packet of at most 26 signed decimal integers.
 // Magnitudes are checked before multiplication, so hostile input cannot wrap.
@@ -20,7 +20,7 @@ public machine parse(packet: @mutable Packet, bytes: @[u8; 256]) {
     }
     machine byte(packet: @mutable Packet, bytes: @[u8; 256], cursor: i32 in Wrapping,
                value: i32 in Wrapping, negative: bool, started: bool) {
-        let character: i32 = widen_u8_to_i32(bytes[cursor]);
+        let character: i32 = |numeric_conversion|::widen_u8_to_i32(bytes[cursor]);
         transition character {
             10 -> finish(packet, value, negative, started),
             32 -> separate(packet, bytes, cursor, value, negative, started),

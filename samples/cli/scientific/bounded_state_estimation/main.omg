@@ -1,49 +1,36 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use domain/filter/filter.omg;
+use domain/matrix/matrix.omg;
+use io/input/input.omg;
+use io/trace/trace.omg;
+use {omega}/language/core/float_operations.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // Expected exit: 64 (empty stdin is a missing configuration).
 // A complete stream application.
-use system\Console;
-use system\LineReadResult;
-use omega\language\core\F64::is_finite;
-use domain\matrix;
-use domain\matrix\covariance_valid;
-use domain\filter;
-use domain\filter\Filter;
-use domain\filter\initialize;
-use domain\filter\predict;
-use domain\filter\observe;
-use io\input;
-use io\input\digit;
-use io\input\configuration;
-use io\input\reading;
-use io\input\unsigned_value;
-use io\input\measured_value;
-use io\trace;
-use io\trace\emit;
-data Main { filter: Filter; line: [u8; 16]; }
-machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
-    let result: LineReadResult = block Console::read_line(@mutable main.line[..]);
+data Main { filter: |filter|::Filter; line: [u8; 16]; }
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
+    let result: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.line[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> block header(main, count),
+        |console|::LineReadResult::LineComplete { count } -> block header(main, count),
         _ -> bad_input(main)
     }
     machine header(main: @mutable Main, count: u64) {
-        transition configuration(@main.line, count) {
+        transition |input|::configuration(@main.line, count) {
             true -> block configure(main),
             false -> bad_input(main)
         }
     }
     machine configure(main: @mutable Main) {
-        initialize(@mutable main.filter, unsigned_value(main.line[2]), unsigned_value(main.line[4]), unsigned_value(main.line[6]));
-        Console::write_line("IND06 millionths: step position velocity p00 p01 p10 p11 innovation variance policy");
+        |filter|::initialize(@mutable main.filter, |input|::unsigned_value(main.line[2]), |input|::unsigned_value(main.line[4]), |input|::unsigned_value(main.line[6]));
+        |console|::Console::write_line("IND06 millionths: step position velocity p00 p01 p10 p11 innovation variance policy");
         transition { _ -> block read(main, 0) }
     }
     machine read(main: @mutable Main, step: u64) requires step <= 8 {
-        let result: LineReadResult = block Console::read_line(@mutable main.line[..]);
+        let result: |console|::LineReadResult = block |console|::Console::read_line(@mutable main.line[..]);
         transition result {
-            LineReadResult::LineComplete { count } -> block capacity(main, step, count),
-            LineReadResult::EndOfInput { count } -> end(main, step, count),
+            |console|::LineReadResult::LineComplete { count } -> block capacity(main, step, count),
+            |console|::LineReadResult::EndOfInput { count } -> end(main, step, count),
             _ -> bad_input(main)
         }
     }
@@ -66,56 +53,56 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardInput + Standard
         }
     }
     machine measurement(main: @mutable Main, step: u64, count: u64) requires step <= 8 {
-        transition reading(@main.line, count) {
+        transition |input|::reading(@main.line, count) {
             true -> block numeric(main, step),
             false -> bad_input(main)
         }
     }
     machine numeric(main: @mutable Main, step: u64) requires step <= 8 {
-        predict(@mutable main.filter);
-        let accepted: bool = observe(@mutable main.filter, measured_value(@main.line), main.line[0] == 80);
+        |filter|::predict(@mutable main.filter);
+        let accepted: bool = |filter|::observe(@mutable main.filter, |input|::measured_value(@main.line), main.line[0] == 80);
         transition accepted { true -> block checked(main, step), false -> singular(main, step) }
     }
     machine missing(main: @mutable Main, step: u64) requires step <= 8 {
-        predict(@mutable main.filter);
+        |filter|::predict(@mutable main.filter);
         transition { _ -> block checked(main, step) }
     }
     machine checked(main: @mutable Main, step: u64) requires step <= 8 {
-        transition covariance_valid(main.filter.covariance)
-            && F64::is_finite(main.filter.estimate.position) && F64::is_finite(main.filter.estimate.velocity) {
+        transition |matrix|::covariance_valid(main.filter.covariance)
+            && |float_operations|::F64::is_finite(main.filter.estimate.position) && |float_operations|::F64::is_finite(main.filter.estimate.velocity) {
             true -> block output(main, step),
             false -> invariant(main)
         }
     }
     machine output(main: @mutable Main, step: u64) requires step <= 8 {
-        emit(@main.filter, step);
+        |trace|::emit(@main.filter, step);
         transition { _ -> block read(main, step) }
     }
     machine singular(main: @mutable Main, step: u64) requires step <= 8 {
-        emit(@main.filter, step);
-        Console::write_line("ERROR singular innovation covariance");
-        ProcessExit::exit_process(65);
+        |trace|::emit(@main.filter, step);
+        |console|::Console::write_line("ERROR singular innovation covariance");
+        |process_exit|::ProcessExit::exit_process(65);
     }
     machine bad_input(main: @mutable Main) {
-        Console::write_line("ERROR input: expected C [1..3] [0..3] [0..3], then P/V signed digit or M; LF required");
-        ProcessExit::exit_process(64);
+        |console|::Console::write_line("ERROR input: expected C [1..3] [0..3] [0..3], then P/V signed digit or M; LF required");
+        |process_exit|::ProcessExit::exit_process(64);
     }
     machine limit(main: @mutable Main) {
-        Console::write_line("ERROR capacity: at most eight observations");
-        ProcessExit::exit_process(66);
+        |console|::Console::write_line("ERROR capacity: at most eight observations");
+        |process_exit|::ProcessExit::exit_process(66);
     }
     machine invariant(main: @mutable Main) {
-        Console::write_line("ERROR covariance or estimate invariant");
-        ProcessExit::exit_process(67);
+        |console|::Console::write_line("ERROR covariance or estimate invariant");
+        |process_exit|::ProcessExit::exit_process(67);
     }
     machine success(main: @mutable Main) {
-        Console::write_line("DONE covariance symmetric and positive semidefinite");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("DONE covariance symmetric and positive semidefinite");
+        |process_exit|::ProcessExit::exit_process(0);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

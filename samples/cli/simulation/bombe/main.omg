@@ -1,5 +1,6 @@
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {system}/console.omg;
 // bombe: a Turing/Welchman Bombe attack on an Enigma I crib, table-driven.
 // The program first encrypts the demo plaintext KEINEBESONDERENEREIGNISSE at
 // start REL under plugboard AW ER MT CQ IK, producing the ciphertext
@@ -57,7 +58,6 @@ use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: verified
 
-use system\Console;
 
 data Main {
     fwd_left: [i32; 26];   // rotor I    "EKMFLGDQVZNTOWYHXUSPAIBRCJ"
@@ -384,7 +384,7 @@ machine build_edges(main: @mutable Main) {
 
 // Demo phase: encrypt the plaintext at REL under AW ER MT CQ IK and check it
 // against the known ciphertext.
-machine demo_press(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine demo_press(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     main.plug[0] = 22;   // A <-> W
     main.plug[22] = 0;
     main.plug[4] = 17;   // E <-> R
@@ -399,7 +399,7 @@ machine demo_press(main: @mutable Main) reaches ProcessExit + StandardOutput {
     main.m = 4;
     main.r = 11;
     main.i = 0;
-    Console::write_line("demo: KEINEBESONDERENEREIGNISSE at REL, plug AW ER MT CQ IK");
+    |console|::Console::write_line("demo: KEINEBESONDERENEREIGNISSE at REL, plug AW ER MT CQ IK");
     transition { _ -> dp_letter(main) }
 
     machine dp_letter(main: @mutable Main) {
@@ -453,31 +453,31 @@ machine demo_press(main: @mutable Main) reaches ProcessExit + StandardOutput {
     }
     machine dp_emit_go(main: @mutable Main) {
         main.cipher[main.i] = main.eout;
-        Console::write_byte(main.eout + 65);
+        |console|::Console::write_byte(main.eout + 65);
         main.i = main.i + 1;
         transition { _ -> dp_letter(main) }
     }
     machine dp_cmp_init(main: @mutable Main) {
-        Console::write_byte(10);
+        |console|::Console::write_byte(10);
     }
     // Unreachable guard fails -- the demo tables hold only letter values.
     // Each exits through its own state so no merge join forms.
     machine dp_bad(main: @mutable Main) {
-        Console::write_line("FAIL: an index left its guarded range (exit 4)");
-        ProcessExit::exit_process(4);
+        |console|::Console::write_line("FAIL: an index left its guarded range (exit 4)");
+        |process_exit|::ProcessExit::exit_process(4);
     }
     machine dp_bad2(main: @mutable Main) {
-        Console::write_line("FAIL: an index left its guarded range (exit 4)");
-        ProcessExit::exit_process(4);
+        |console|::Console::write_line("FAIL: an index left its guarded range (exit 4)");
+        |process_exit|::ProcessExit::exit_process(4);
     }
     machine dp_bad3(main: @mutable Main) {
-        Console::write_line("FAIL: an index left its guarded range (exit 4)");
-        ProcessExit::exit_process(4);
+        |console|::Console::write_line("FAIL: an index left its guarded range (exit 4)");
+        |process_exit|::ProcessExit::exit_process(4);
     }
 }
 
 // Compare the produced ciphertext against the expected vector.
-machine check_demo(main: @mutable Main) reaches ProcessExit + StandardOutput {
+machine check_demo(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     main.i = 0;
     transition { _ -> dp_cmp(main) }
 
@@ -498,8 +498,8 @@ machine check_demo(main: @mutable Main) reaches ProcessExit + StandardOutput {
         transition { _ -> dp_cmp(main) }
     }
     machine dp_fail(main: @mutable Main) {
-        Console::write_line("FAIL: ciphertext differs from the expected vector (exit 1)");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: ciphertext differs from the expected vector (exit 1)");
+        |process_exit|::ProcessExit::exit_process(1);
     }
     machine dp_done(main: @mutable Main) {}
 }
@@ -852,13 +852,13 @@ machine clear_wires(main: @mutable Main) {
 // printed and the first 64 recorded. The odometer advances r, carrying into
 // m and l on wrap; when l would leave 25 the scan is done -- 25,25,25 is the
 // last position processed.
-machine scan(main: @mutable Main) reaches StandardOutput {
+machine scan(main: @mutable Main) reaches |process_authority|::StandardOutput {
     main.l = 0;
     main.m = 0;
     main.r = 0;
     main.stop_count = 0;
     main.stop_used = 0;
-    Console::write_line("scan: 17576 positions, test letter E, seed E->A");
+    |console|::Console::write_line("scan: 17576 positions, test letter E, seed E->A");
     transition { _ -> sc_pos(main) }
 
     machine sc_pos(main: @mutable Main) {
@@ -911,19 +911,19 @@ machine scan(main: @mutable Main) reaches StandardOutput {
         }
     }
     machine sc_prt(main: @mutable Main) {
-        Console::write_line("stop:");
-        Console::write_byte(main.l + 65);
-        Console::write_byte(main.m + 65);
-        Console::write_byte(main.r + 65);
-        Console::write_byte(10);
+        |console|::Console::write_line("stop:");
+        |console|::Console::write_byte(main.l + 65);
+        |console|::Console::write_byte(main.m + 65);
+        |console|::Console::write_byte(main.r + 65);
+        |console|::Console::write_byte(10);
         transition { _ -> sc_next(main) }
     }
     machine sc_prt2(main: @mutable Main) {
-        Console::write_line("stop:");
-        Console::write_byte(main.l + 65);
-        Console::write_byte(main.m + 65);
-        Console::write_byte(main.r + 65);
-        Console::write_byte(10);
+        |console|::Console::write_line("stop:");
+        |console|::Console::write_byte(main.l + 65);
+        |console|::Console::write_byte(main.m + 65);
+        |console|::Console::write_byte(main.r + 65);
+        |console|::Console::write_byte(10);
         transition { _ -> sc_next(main) }
     }
     machine sc_next(main: @mutable Main) {
@@ -959,7 +959,7 @@ machine scan(main: @mutable Main) reaches StandardOutput {
         transition { _ -> sc_pos(main) }
     }
     machine sc_done(main: @mutable Main) {
-        Console::write_line("scan complete; verifying recorded stops");
+        |console|::Console::write_line("scan complete; verifying recorded stops");
     }
 }
 
@@ -1388,7 +1388,7 @@ machine verify_stop(main: @mutable Main) {
 // a non-flooded register deduce the board and decrypt the crib. The caller
 // records the seed-0 test row (main.srow) itself when k == 0.
 machine try_hypothesis(main: @mutable Main)
-    reaches StandardOutput
+    reaches |process_authority|::StandardOutput
 {
     transition { _ -> th_prop(main) }
 
@@ -1442,11 +1442,11 @@ machine try_hypothesis(main: @mutable Main)
     }
     machine th_hgo(main: @mutable Main) {
         main.verified = main.verified + 1;
-        Console::write_line("verified:");
-        Console::write_byte(main.vl + 65);
-        Console::write_byte(main.vm + 65);
-        Console::write_byte(main.vr + 65);
-        Console::write_byte(10);
+        |console|::Console::write_line("verified:");
+        |console|::Console::write_byte(main.vl + 65);
+        |console|::Console::write_byte(main.vm + 65);
+        |console|::Console::write_byte(main.vr + 65);
+        |console|::Console::write_byte(10);
         transition main.vl == 18 && main.vm == 5 && main.vr == 12 {
             true -> th_sfm(main),
             _ -> th_drop6(main)
@@ -1480,8 +1480,8 @@ machine load_consts(main: @mutable Main) {
     main.cseg = [25, 14, 25, 25, 14, 6, 1, 12, 10, 5, 21, 22, 20, 21, 13, 18, 10];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
-    Console::write_line("bombe: Turing/Welchman attack on Enigma I, rotors I II III, reflector B");
+machine main(main: @mutable Main) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
+    |console|::Console::write_line("bombe: Turing/Welchman attack on Enigma I, rotors I II III, reflector B");
     transition { _ -> m_load(main) }
 
     machine m_load(main: @mutable Main) {
@@ -1514,17 +1514,17 @@ machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
         }
     }
     machine m_pass(main: @mutable Main) {
-        Console::write_line("bombe: position SFM recovered with plugboard from the menu (exit 0)");
-        ProcessExit::exit_process(0);
+        |console|::Console::write_line("bombe: position SFM recovered with plugboard from the menu (exit 0)");
+        |process_exit|::ProcessExit::exit_process(0);
     }
     machine m_fail(main: @mutable Main) {
-        Console::write_line("FAIL: the true setting was not among the verified stops (exit 1)");
-        ProcessExit::exit_process(1);
+        |console|::Console::write_line("FAIL: the true setting was not among the verified stops (exit 1)");
+        |process_exit|::ProcessExit::exit_process(1);
     }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + StandardOutput {
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }
