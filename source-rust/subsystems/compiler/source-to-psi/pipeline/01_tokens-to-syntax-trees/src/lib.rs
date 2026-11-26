@@ -87,6 +87,10 @@ pub fn parse_into(
         input = rest;
     }
 
+    crate::declarations::imports::reject_packed_contract_imports(syntax_trees, &roots)?;
+    if let Some(site) = qualifiers.packed_instruction() {
+        crate::declarations::imports::import_packed_contracts(syntax_trees, &mut roots, site);
+    }
     crate::declarations::imports::check_file_aliases(syntax_trees, &roots, tokens.source_text())?;
     crate::declarations::imports::mark_product_operand_imports(syntax_trees, &roots, &qualifiers);
     Ok(roots)

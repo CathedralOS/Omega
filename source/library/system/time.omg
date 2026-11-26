@@ -1,7 +1,7 @@
 use time_host.omg as time_host;
 use {omega}/language/core/numeric_conversion.omg as numeric;
 
-// system\time — Duration pure-value core (rung 3) + Instant and clock reads over the
+// {system}/time.omg — Duration pure-value core (rung 3) + Instant and clock reads over the
 // TimeHost seam (rung 6) per TASKS_TIME.md D1-D7/D9/D13.
 //
 // `Duration` is a normalized span: whole seconds plus subsecond nanoseconds,

@@ -1,4 +1,5 @@
 // An issued required-output path survives ordinary byte-view transport, so Build seals that exact reserved member and selects the product from its observed bytes.
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "required_output_path_parameter" };
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "answer.dat");
@@ -18,16 +19,16 @@ machine select_entry(builder: @mutable BuildPlan, first: u8) {
     transition first == 97 { true -> correct(builder), false -> wrong(builder) }
 }
 machine correct(builder: @mutable BuildPlan) {
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
 }
 machine wrong(builder: @mutable BuildPlan) {
-    Build::bind(builder, linux_x86_64::ProgramEntry, wrong_entry);
-    Build::bind(builder, linux_arm64::ProgramEntry, wrong_entry);
-    Build::bind(builder, macos_arm64::ProgramEntry, wrong_entry);
-    Build::bind(builder, windows_x86_64::ProgramEntry, wrong_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::wrong_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::wrong_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::wrong_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::wrong_entry);
 }
 machine settle(builder: @mutable BuildPlan, settled: OutputCompletion) {
     transition settled {

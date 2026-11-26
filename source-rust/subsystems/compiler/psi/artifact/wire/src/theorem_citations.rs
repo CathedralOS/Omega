@@ -495,9 +495,8 @@ fn validate_application_subjects(
     if declarations.windows(2).any(|pair| pair[0].0 == pair[1].0) {
         return Err("logical subjects have ambiguous scalar declarations");
     }
-    terminal_semantics::control_graph::validate_control_graph(machine)
+    let dominators = terminal_semantics::control_graph::checked_dominators(machine)
         .map_err(|_| "logical application has a malformed control graph")?;
-    let dominators = terminal_semantics::control_graph::dominators(machine);
     for application in applications {
         let source = machine
             .blocks

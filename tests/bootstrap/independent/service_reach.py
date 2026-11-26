@@ -17,9 +17,9 @@ from independent.byte_input_cases import byte_input_cases
 def cases():
     encode = runpy.run_path(str(ROOT / 'source/application/construction/construct.py'))['encode']
     core = ROOT / 'source/library/core'
-    app_import = b'use dep\\read_value;\n'
-    core_import = b'use omega\\language\\core\\StandardOutput;\n'
-    helper = core_import + b'public machine read_value()->u8 reaches StandardOutput {42}'
+    app_import = b'use {dep}/read.omg;\n'
+    core_import = b'use {omega}/language/core/process_authority.omg;\n'
+    helper = core_import + b'public machine read_value()->u8 reaches |process_authority|::StandardOutput {42}'
     packages = [('app', 0), ('provider_free_library', 0), ('omega_language_core', 1)]
     sites = [(0, 1, 'dep')]
 
@@ -33,37 +33,35 @@ def cases():
         coordinate = units[unit][1] + rows[unit][1].rindex(token)
         return name, packet, b'\0' + struct.pack('<II', 1, coordinate)
 
-    relay = b'machine relay()->u8 {read_value()}\n'
-    main = b'machine main()->u8 reaches StandardOutput + StandardOutput {relay()}'
+    relay = b'machine relay()->u8 {|read|::read_value()}\n'
+    main = b'machine main()->u8 reaches |process_authority|::StandardOutput + |process_authority|::StandardOutput {relay()}'
     app = app_import + core_import + relay + main
     yield trial('same-service', app)
-    yield trial('inferred', app.replace(b' reaches StandardOutput + StandardOutput', b''))
-    yield trial('separate-ceilings', app.replace(b'StandardOutput + StandardOutput',
-                b'StandardInput reaches StandardOutput').replace(relay,
-                b'use omega\\language\\core\\StandardInput;\n' + relay))
-    yield trial('pure', app.replace(b'StandardOutput + StandardOutput', b'none'),
-                helper_source=helper.replace(b'reaches StandardOutput', b'reaches none'))
-    yield trial('empty', app.replace(b'StandardOutput + StandardOutput', b'none'), (0, b'relay()'))
-    yield trial('wrong-service', app.replace(b'machine main', b'use omega\\language\\core\\StandardInput;\nmachine main')
-                .replace(b'StandardOutput + StandardOutput', b'StandardInput'), (0, b'relay()'))
-    yield trial('same-spelling-other-owner', app.replace(core_import, b'boundary trait StandardOutput {}\n'),
+    yield trial('inferred', app.replace(b' reaches |process_authority|::StandardOutput + |process_authority|::StandardOutput', b''))
+    yield trial('separate-ceilings', app.replace(b'|process_authority|::StandardOutput + |process_authority|::StandardOutput',
+                b'|process_authority|::StandardInput reaches |process_authority|::StandardOutput'))
+    yield trial('pure', app.replace(b'|process_authority|::StandardOutput + |process_authority|::StandardOutput', b'none'),
+                helper_source=helper.replace(b'reaches |process_authority|::StandardOutput', b'reaches none'))
+    yield trial('empty', app.replace(b'|process_authority|::StandardOutput + |process_authority|::StandardOutput', b'none'), (0, b'relay()'))
+    yield trial('wrong-service', app.replace(b'|process_authority|::StandardOutput + |process_authority|::StandardOutput', b'|process_authority|::StandardInput'), (0, b'relay()'))
+    yield trial('same-spelling-other-owner', app.replace(core_import, b'boundary trait StandardOutput {}\n').replace(b'|process_authority|::StandardOutput', b'StandardOutput'),
                 (0, b'relay()'))
-    yield trial('absent-edge', app, (0, b'use dep'), edges=[])
-    yield trial('untrusted-core', app, (0, b'use omega'), roles=[*packages[:2], ('omega_language_core', 0)])
-    yield trial('ordinary-name', app.replace(b'StandardOutput + StandardOutput', b'read_value'),
+    yield trial('absent-edge', app, (0, b'use {dep}'), edges=[])
+    yield trial('untrusted-core', app, (0, b'use {omega}'), roles=[*packages[:2], ('omega_language_core', 0)])
+    yield trial('ordinary-name', app.replace(b'|process_authority|::StandardOutput + |process_authority|::StandardOutput', b'read_value'),
                 (0, b'read_value'))
-    yield trial('mixed-empty', app.replace(b'StandardOutput + StandardOutput', b'none + StandardOutput'),
+    yield trial('mixed-empty', app.replace(b'|process_authority|::StandardOutput + |process_authority|::StandardOutput', b'none + |process_authority|::StandardOutput'),
                 (0, b'none'))
     yield trial('duplicate-declaration', app.replace(relay, b'boundary trait A {} boundary trait A {} ' + relay),
                 (0, b'A {}'))
     yield trial('reserved-type', app.replace(relay, b'boundary trait u97 {} ' + relay), (0, b'u97'))
     yield trial('retired-marker', app.replace(relay, b'boundary trait Block {} ' + relay)
-                .replace(b'StandardOutput + StandardOutput', b'Block'), (0, b'Block'))
-    yield trial('private-import', app, (0, b'use dep'), helper_source=helper.replace(b'public machine', b'machine'))
+                .replace(b'|process_authority|::StandardOutput + |process_authority|::StandardOutput', b'Block'), (0, b'Block'))
+    yield trial('private-import', app, (0, b'|read|::read_value'), helper_source=helper.replace(b'public machine', b'machine'))
 
     # A compiler role and an explicit reach ceiling cannot install ProcessExit.
-    terminal = (b'use omega\\language\\core\\ProcessExit; machine main()->u8 reaches ProcessExit '
-                b'{ ProcessExit::exit_process(253); }')
+    terminal = (b'use {omega}/language/core/process_exit.omg; machine main()->u8 reaches |process_exit|::ProcessExit '
+                b'{ |process_exit|::ProcessExit::exit_process(253); }')
     declaration = (core / 'process_exit.omg').read_bytes()
     units = [(0, terminal), (1, declaration), (1, (core / 'never.omg').read_bytes())]
     packet, _, _, rows = encode([('app', 0), ('omega_language_core', 1)], [], units, 0, b'main',
@@ -90,9 +88,9 @@ def terminal_cases():
             outcome = b'\0' + struct.pack('<II', code, source_coordinate)
         return name, packet, outcome
 
-    import_exit = b'use omega\\language\\core\\ProcessExit;\n'
-    import_never = b'use omega\\language\\core\\Never;\n'
-    marker = b'machine main()->u8 reaches ProcessExit {42}'
+    import_exit = b'use {omega}/language/core/process_exit.omg;\n'
+    import_never = b'use {omega}/language/core/never.omg;\n'
+    marker = b'machine main()->u8 reaches |process_exit|::ProcessExit {42}'
     # Empty-brace arms complete a Unit result. Calling both choices makes
     # an accidental write on the early-return path observable.
     empty_arm = (b'data Cell [copy] {n:u8;} '
@@ -119,8 +117,8 @@ def terminal_cases():
                 (2, 1, b'boundary trait ProcessExit'), service=terminal.replace(b'return_code: i32', b'return_code: u32'))
     yield trial('missing-requirement-reach', import_exit + marker, (2, 1, b'boundary trait ProcessExit'),
                 service=terminal.replace(b'reaches\n        ProcessExit', b'reaches none'))
-    stop = b'machine stop()->Never crashes Trap {crash Trap;}\n'
-    relay = b'machine relay()->Never crashes Trap {stop();}\n'
+    stop = b'machine stop()->|never|::Never crashes Trap {crash Trap;}\n'
+    relay = b'machine relay()->|never|::Never crashes Trap {stop();}\n'
     dispatch = (b'machine choose(stop_now:bool)->u8 crashes Trap {'
                 b'transition stop_now {true -> stopped(), _ -> ordinary()} '
                 b'machine stopped()->u8 crashes Trap {relay();} machine ordinary()->u8{42}}\n')
@@ -130,25 +128,25 @@ def terminal_cases():
     yield trial('uninhabited-value-context', import_never + stop + b'machine main()->u8 crashes Trap {stop()}', 'trap')
     yield trial('uninhabited-unrelated-name', b'data Void requires false {}\nmachine fail()->Void crashes Trap '
                 b'{crash Trap;} machine main()->u8 crashes Trap {fail();}', 'trap')
-    yield trial('zero-uninhabited', import_never + b'machine main()->u8 {let mutable value:Never;42}', (1, 0, b'let'))
-    yield trial('construct-uninhabited', import_never + b'machine wrong()->Never {Never {}} machine main()->u8{42}',
-                (1, 0, b'Never {}'))
+    yield trial('zero-uninhabited', import_never + b'machine main()->u8 {let mutable value:|never|::Never;42}', (1, 0, b'let'))
+    yield trial('construct-uninhabited', import_never + b'machine wrong()->|never|::Never {|never|::Never {}} machine main()->u8{42}',
+                (1, 0, b'|never|::Never {}'))
     yield trial('normal-result-lookalike', b'data Never [copy] {} machine fake()->Never {Never {}} '
                 b'machine main()->u8 {fake()}', (1, 0, b'fake()'))
 
 
-    call = import_exit + b'machine main()->u8 reaches ProcessExit {ProcessExit::exit_process('
+    call = import_exit + b'machine main()->u8 reaches |process_exit|::ProcessExit {|process_exit|::ProcessExit::exit_process('
     yield trial('terminal-argument-type', call + b'true);}', (1, 0, b'true'))
     yield trial('terminal-argument-carrier', call + b'255u32);}', (1, 0, b'255u32'))
-    yield trial('terminal-missing-argument', call + b');}', (1, 0, b'ProcessExit::exit_process'))
-    yield trial('terminal-extra-argument', call + b'0, 1);}', (1, 0, b'ProcessExit::exit_process'))
+    yield trial('terminal-missing-argument', call + b');}', (1, 0, b'|process_exit|::ProcessExit::exit_process'))
+    yield trial('terminal-extra-argument', call + b'0, 1);}', (1, 0, b'|process_exit|::ProcessExit::exit_process'))
     yield trial('terminal-valid-negative', call + b'-2147483648i32);}', (2, 1, b'boundary trait ProcessExit'))
     yield trial('terminal-expression-type', call + b'false)}', (1, 0, b'false'))
 
     yield trial('pure-unit-entry', b'machine main(){}', 0, standalone=True)
     yield trial('unit-entry-calls-helper', b'machine helper(){} machine main(){helper();}', 0)
     yield trial('unit-entry-trap', b'machine main() crashes Trap {crash Trap;}', 'trap')
-    yield trial('unit-entry-uninstalled', import_exit + b'machine main() reaches ProcessExit {ProcessExit::exit_process(16);}',
+    yield trial('unit-entry-uninstalled', import_exit + b'machine main() reaches |process_exit|::ProcessExit {|process_exit|::ProcessExit::exit_process(16);}',
                 (2, 1, b'boundary trait ProcessExit'))
     yield trial('entry-requires-parameter', b'machine main(value:u8){}', (2, 0, b'machine main'))
     yield trial('entry-unsupported-result', b'machine main()->i32{42}', (2, 0, b'machine main'))
@@ -163,7 +161,7 @@ def provider_cases():
     provider = (ROOT / 'source/library/system/process_exit.omg').read_bytes()
     packages = [('app', 0), ('omega_language_core', 1), ('system', 2)]
     paths = ['main.omg', 'process_exit.omg', 'never.omg', 'process_exit_native.omg', 'process_exit.omg']
-    marker = b'use omega\\language\\core\\ProcessExit; machine main()->u8 reaches ProcessExit {42}'
+    marker = b'use {omega}/language/core/process_exit.omg; machine main()->u8 reaches |process_exit|::ProcessExit {42}'
 
     def trial(name, app=marker, outcome=None, *, boundary=primitive, wrapper=provider, result=bottom):
         units = [(0, app), (1, service), (1, result), (1, boundary), (2, wrapper)]
@@ -176,25 +174,26 @@ def provider_cases():
 
     yield trial('unselected-provider')
     yield trial('forwarded-name', wrapper=provider.replace(b'return_code', b'status'))
-    body = b'{ProcessExit::exit_process(253);}'
+    body = b'{|process_exit|::ProcessExit::exit_process(253);}'
     yield trial('provider-does-not-install', marker.replace(b'{42}', body), (2, 1, b'boundary trait ProcessExit'))
-    direct = b'use omega\\language\\core\\ProcessExitPrimitive; machine main()->u8 {ProcessExitPrimitive(253);}'
+    direct = b'use {omega}/language/core/process_exit_native.omg; machine main()->u8 {|process_exit_native|::ProcessExitPrimitive(253);}'
     yield trial('primitive-does-not-install', direct, (2, 3, b'public boundary machine'))
-    selected = b'use stdlib\\NativeProcessExit; machine main()->u8 {NativeProcessExit::exit_process(253);}'
+    selected = b'use {stdlib}/process_exit.omg; machine main()->u8 {|process_exit|::NativeProcessExit::exit_process(253);}'
     yield trial('implementation-does-not-install', selected, (2, 4, b'NativeProcessExit satisfies'))
     yield trial('member-is-owned', b'machine main()->u8 {exit_process(253);}', (1, 0, b'exit_process'))
     yield trial('wrong-forwarded-value', outcome=(2, 4, b'exit_process(return_code'),
                 wrapper=provider.replace(b'ProcessExitPrimitive(return_code)', b'ProcessExitPrimitive(7)'))
     yield trial('shadowed-forwarding-call', outcome=(2, 4, b'exit_process(return_code'),
-                wrapper=provider.replace(b'public NativeProcessExit satisfies', b'machine ProcessExitPrimitive(x:i32)->i32{x}\npublic NativeProcessExit satisfies'))
+                wrapper=provider.replace(b'public NativeProcessExit satisfies', b'machine ProcessExitPrimitive(x:i32)->i32{x}\npublic NativeProcessExit satisfies')
+                .replace(b'|exit_primitive|::ProcessExitPrimitive(return_code)', b'ProcessExitPrimitive(return_code)'))
     yield trial('wrong-forwarded-place', outcome=(2, 4, b'exit_process(return_code'),
                 wrapper=provider.replace(b'ProcessExitPrimitive(return_code)', b'ProcessExitPrimitive(other)'))
     yield trial('wrong-primitive-requirement', outcome=(1, 3, b'ProcessExitPrimitive('),
-                boundary=primitive.replace(b'satisfies ProcessExit::exit_process', b'satisfies ProcessExit::other'))
+                boundary=primitive.replace(b'satisfies |process_exit|::ProcessExit::exit_process', b'satisfies |process_exit|::ProcessExit::other'))
     yield trial('wrong-provider-result', outcome=(1, 4, b'exit_process(return_code'),
-                wrapper=provider.replace(b') -> Never', b') -> u8'))
+                wrapper=provider.replace(b') -> |never|::Never', b') -> u8'))
     yield trial('wrong-provider-owner', outcome=(2, 4, b'NativeProcessExit satisfies'),
-                wrapper=provider.replace(b'public NativeProcessExit satisfies ProcessExit',
+                wrapper=provider.replace(b'public NativeProcessExit satisfies |process_exit|::ProcessExit',
                                          b'boundary trait Other {} public NativeProcessExit satisfies Other'))
     # An ordinary local machine with the primitive's spelling has no physical identity.
     yield trial('ordinary-primitive-spelling',
@@ -269,7 +268,7 @@ def build_scope_cases():
     product = [(0, b'machine main()->u8{42}'), (1, b'public machine value()->u8{9}')]
     paths = ['main.omg', 'nested/value.omg']
     default = (ROOT / 'source/library/core/defaults/build.omg').read_bytes()
-    authored = b'machine build(builder:@mutable Build){Build::application(builder,"application");}'
+    authored = b'machine build(builder:@mutable BuildPlan){builder.product=BuildProduct::Application{name:"application"};}'
     builds = [(2, 'defaults/build.omg', default), (0, 'build.omg', authored), (0, 'm/extra.omg', b'')]
     selected = [(0, 1), (1, 0), (2, 0)]
     wire, _, _, _ = encode(packages, [], product, 0, b'main', paths=paths,
@@ -321,12 +320,12 @@ def rooted_application_cases():
     product_core = [(1, service), (1, (core / 'never.omg').read_bytes()),
                     (1, (core / 'process_exit_native.omg').read_bytes())]
     paths = ['main.omg', 'process_exit.omg', 'never.omg', 'process_exit_native.omg']
-    bind = b'Build::bind(builder, alpha_bootstrap\\ProgramEntry, entry_start);'
-    selection = b'Build::select_provider::<ProcessExit,NativeProcessExit>(builder,alpha_bootstrap);'
-    config = (b'use omega\\language\\core\\ProcessExit; machine build(builder:@mutable Build){'
-              b'Build::application(builder,"app");' + bind + selection + b'}')
+    bind = b'Build::bind(builder, alpha_bootstrap::ProgramEntry, |main_file|::entry_start);'
+    selection = b'Build::select_provider::<|process_exit|::ProcessExit,|main_file|::NativeProcessExit>(builder,alpha_bootstrap);'
+    config = (b'use main.omg as main_file;use {omega}/language/core/process_exit.omg; machine build(builder:@mutable BuildPlan){'
+              b'builder.product=BuildProduct::Application{name:"app"};' + bind + selection + b'}')
     pure = b'public machine entry_start()->u8 {42}'
-    effect = b'public machine entry_start() reaches ProcessExit {ProcessExit::exit_process(-257i32);}'
+    effect = b'public machine entry_start() reaches |process_exit|::ProcessExit {|process_exit|::ProcessExit::exit_process(-257i32);}'
 
     def trial(name, build=config, entry=pure, outcome='root', *, fallback=default, extra=(), entry_unit=0):
         product = [(0, wrapper + b'\n' + entry), *product_core]
@@ -347,19 +346,19 @@ def rooted_application_cases():
     yield trial('build-selection-grants-no-domain', entry=effect, outcome='service')
     yield trial('build-missing-provider-no-domain', config.replace(selection, b''), effect, 'service')
     yield trial('build-unknown-provider', config.replace(b'NativeProcessExit>', b'NoSuchProvider>'))
-    yield trial('build-handle-shadows-entry', config.replace(b'builder', b'entry_start'))
+    yield trial('build-handle-shadows-file-alias', config.replace(b'builder', b'main_file'))
     yield trial('build-handle-shadows-target', config.replace(b'builder', b'alpha_bootstrap'))
-    yield trial('build-other-receiver', config.replace(b'Build::application', b'Other::application'))
-    yield trial('build-bare-operation', config.replace(b'Build::application', b'application'))
+    yield trial('build-other-receiver', config.replace(b'builder.product', b'other.product'))
+    yield trial('build-bare-operation', config.replace(b'builder.product', b'product'))
     yield trial('build-wrong-entry-file', entry_unit=1)
     yield trial('build-wrong-role-name', config.replace(b'"app"', b'"other"'))
-    yield trial('build-other-target', config.replace(b'alpha_bootstrap\\ProgramEntry', b'other\\ProgramEntry'))
-    yield trial('build-unresolved-entry', config.replace(b', entry_start)', b', absent)'))
-    yield trial('build-unresolved-import', config.replace(b'use omega\\language\\core\\ProcessExit;', b''))
+    yield trial('build-other-target', config.replace(b'alpha_bootstrap::ProgramEntry', b'other::ProgramEntry'))
+    yield trial('build-unresolved-entry', config.replace(b'|main_file|::entry_start)', b'|main_file|::absent)'))
+    yield trial('build-unresolved-import', config.replace(b'use {omega}/language/core/process_exit.omg;', b''))
     yield trial('build-unfinished', config[:-1] + b'Build::unknown(builder);}')
     # The same local helper and declaration can appear in three deployments.
     # Only execution of its Alpha selection supplies this target's provider.
-    helper = b'machine configure(handle: @mutable Build){' + selection.replace(b'builder', b'handle') + b'}'
+    helper = b'machine configure(handle: @mutable BuildPlan){' + selection.replace(b'builder', b'handle') + b'}'
     hosted = selection.replace(b'alpha_bootstrap', b'linux_x86_64').replace(b'builder', b'handle')
     called = config.replace(selection, b'configure(builder);') + helper[:-1] + hosted + b'}'
     yield trial('build-called-helper', called, effect, 'service')
@@ -374,7 +373,7 @@ def rooted_application_cases():
     yield trial('build-ill-typed-unreached-helper', called.replace(b'configure(builder);', b'').replace(
         hosted, hosted.replace(b'NativeProcessExit', b'Missing')))
 
-    yield trial('build-nonempty-default', fallback=b'machine build(builder:@mutable Build){Build::unknown(builder);}')
+    yield trial('build-nonempty-default', fallback=b'machine build(builder:@mutable BuildPlan){Build::unknown(builder);}')
     yield trial('build-additional-unit', extra=[(0, 'helper.omg', b'machine helper(){}')])
 
 

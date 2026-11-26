@@ -216,12 +216,9 @@ pub(crate) fn selection_for_operands(
     else {
         return Ok(None);
     };
-    let application = if form.indexed {
-        crate::source_state::operator::closed_indexed_operator_application_for_operands
-    } else {
-        crate::source_state::operator::closed_operator_application_for_operands
-    };
-    let Some(arguments) = application(program, selected.operator, operands) else {
+    let Some(arguments) =
+        crate::source_state::operator::operator_call_arguments(program, selected.operator, operands)
+    else {
         return Ok(None);
     };
     let collection_borrow = if form.indexed {

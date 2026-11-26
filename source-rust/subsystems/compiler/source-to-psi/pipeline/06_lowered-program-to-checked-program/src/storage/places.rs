@@ -4095,6 +4095,43 @@ impl<'a> Storage<'a> {
         )
     }
 
+    /// A partial replacement can preserve an existing whole-array proof. It
+    /// cannot establish the other elements. A transfer preserves availability
+    /// only if every leaf it supplies was available immediately before it.
+    fn partial_write_preserves_initialization(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        row: &Logged,
+        concerns: Construct,
+    ) -> Checked<bool> {
+        match &row.stored {
+            Stored::Value(_) | Stored::Zeroed | Stored::Established => Ok(true),
+            Stored::Moved(source) => {
+                let before = (row.block, row.position - 1);
+                let missing = self.any_leaf(
+                    source,
+                    concerns,
+                    references,
+                    |_, _| false,
+                    |references, leaf| {
+                        let mut budget = self.initialization_budget();
+                        Ok(self.reaching(
+                            references,
+                            tables,
+                            Asked::Contents(leaf),
+                            before,
+                            &mut budget,
+                            concerns,
+                        )? == Reached::Unestablished)
+                    },
+                )?;
+                Ok(!missing)
+            }
+            _ => Ok(false),
+        }
+    }
+
     fn reaching_backing_supply(
         &self,
         references: &mut DescriptorAnalysis<'a>,
@@ -4183,13 +4220,11 @@ impl<'a> Storage<'a> {
                         budget.scanned_rows += 1;
                     }
                     if !asked.ended_by(resolved, row, &budget.crossed_entries)
-                        // Installing a scalar, zero or established value in
-                        // part of an already live array preserves initialization
-                        // of every other element. Such a write cannot prove
-                        // the whole; keep looking for an independent origin.
                         || budget.initialization == Initialization::WholeArray
-                            && matches!(row.stored, Stored::Value(_) | Stored::Zeroed | Stored::Established)
                             && !row.backing.definitely_contains(resolved)
+                            && self.partial_write_preserves_initialization(
+                                references, tables, row, concerns,
+                            )?
                         || self.call_preserves_extent(references, asked, row, concerns)?
                     {
                         continue;
@@ -9305,6 +9340,7 @@ mod observation_tests {
             "data Kind [copy] { case Empty; case Entry(value: u64); }
              data Cell [copy] { kind: Kind; value: u64; }
              machine entry(cells: @mutable [Cell; 4], spare: @mutable [Cell; 4], index: u64) -> u64 requires index < 4 {
+                 cells[2].kind = Kind::Entry { value: 3 };
                  cells[1].value = 5;
                  cells[index].value = 7;
                  cells[2].value
@@ -9434,6 +9470,36 @@ mod observation_tests {
         }
         assert!(available(&storage, &mut references, tables, &array, point).is_ok());
 
+        // Transfer an initialized cell from another lender. Its descendants
+        // remain available, including unmodified neighbors in the destination.
+        let mut source_cell = storage.log[*first].destination.clone();
+        source_cell.root = machine.structural_parameters[1].place;
+        let scalar_store =
+            std::mem::replace(&mut storage.log[*second].stored, Stored::Moved(source_cell));
+        fn whole<'a>(
+            storage: &Storage<'a>,
+            references: &mut DescriptorAnalysis<'a>,
+            tables: &MachineTables,
+            array: &Lineage,
+            point: ProgramPoint,
+        ) -> bool {
+            let mut budget = storage.initialization_budget();
+            budget.initialization = Initialization::WholeArray;
+            budget.used = Some(point);
+            storage
+                .reaching(
+                    references,
+                    tables,
+                    Asked::Contents(array),
+                    storage.graph.locate(point).unwrap(),
+                    &mut budget,
+                    Construct::Machine,
+                )
+                .unwrap()
+                != Reached::Unestablished
+        }
+        assert!(whole(&storage, &mut references, tables, &array, point));
+
         // One cell is moved out. A write through another evaluated index
         // cannot re-establish all cells of the array unless it names that cell.
         let mut moved = storage.log[*first].destination.clone();
@@ -9441,6 +9507,21 @@ mod observation_tests {
         storage.log[*first].backing = Backing::direct(moved.clone());
         storage.log[*first].destination = moved.clone();
         storage.log[*first].stored = Stored::Vacated;
+        // The independent whole-array origin is insufficient after a vacancy,
+        // even when a later transfer has an available source.
+        assert!(!whole(&storage, &mut references, tables, &array, point));
+        storage.log[*second].stored = Stored::Moved(moved.clone());
+        assert!(
+            !storage
+                .partial_write_preserves_initialization(
+                    &mut references,
+                    tables,
+                    &storage.log[*second],
+                    Construct::Machine,
+                )
+                .unwrap()
+        );
+        storage.log[*second].stored = scalar_store;
         let refused = available(&storage, &mut references, tables, &array, point).unwrap_err();
         assert_eq!(refused.reason, RefusalReason::Unestablished);
 

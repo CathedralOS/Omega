@@ -1,6 +1,7 @@
 // Laws that require an equality. The proof holds the premise as a hypothesis,
 // and a law cited with a premise must have it proved at the cited arguments.
-use omega\language\core\ProcessExit;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
 
 data Peano {
     case Zero;
@@ -23,9 +24,9 @@ terminates by a
 machine plus_cancel(c: Peano, a: Peano, b: Peano)
 terminates by c
 requires
-    core\Identity::<Peano>(plus(c, a), plus(c, b))
+    |proof|::Identity::<Peano>(plus(c, a), plus(c, b))
 ensures
-    core\Identity::<Peano>(a, b)
+    |proof|::Identity::<Peano>(a, b)
 {
     transition c {
         Peano::Zero -> base(),
@@ -42,19 +43,19 @@ ensures
 // of whatever it states.
 machine never_zero(a: Peano, b: Peano)
 requires
-    core\Identity::<Peano>(Peano::Succ { pred: a }, Peano::Zero)
+    |proof|::Identity::<Peano>(Peano::Succ { pred: a }, Peano::Zero)
 ensures
-    core\Identity::<Peano>(a, b)
+    |proof|::Identity::<Peano>(a, b)
 {
 }
 
 data Main { }
-machine exit_with_status(main: @mutable Main) reaches ProcessExit {
-    ProcessExit::exit_process(0);
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
+machine entry_start() reaches |process_exit|::ProcessExit {
     let mutable entry_storage: Main;
     block exit_with_status(@mutable entry_storage);
 }

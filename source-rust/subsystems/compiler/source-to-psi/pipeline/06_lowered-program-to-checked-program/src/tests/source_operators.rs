@@ -384,6 +384,38 @@ fn declared_index_lends_the_collection_and_returns_the_selected_value() {
 }
 
 #[test]
+fn a_borrowed_index_result_uses_the_collection_argument_lifetime() {
+    let source = r#"
+data Buffer { value: u64; }
+machine [] slot<'buffer>(buffer: @'buffer mutable Buffer, index: u64) -> @'buffer mutable u64 {
+    @mutable buffer.value
+}
+machine entry() -> bool {
+    let mutable buffer: Buffer = Buffer { value: 4u64 };
+    let element: @mutable u64 = buffer[0u64];
+    $element = 8u64;
+    buffer.value == 8u64
+}
+"#;
+    let check = |source| {
+        let typed = super::boundary_calls::typed(source);
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        operator_program(prepared.trees())
+    };
+    assert_operator_value(check(source), true);
+    let overlapping = source.replace(
+        "$element = 8u64;",
+        "let observed: u64 = buffer.value; $element = observed;",
+    );
+    let refused = check(&overlapping).unwrap();
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { ref conflicts, .. }
+            if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::ObserveWhileExclusive)),
+        "{refused:?}"
+    );
+}
+
+#[test]
 fn exclusive_index_evaluates_the_selector_once_and_lends_the_original_collection() {
     let source = r#"
 data Buffer { value: u64; }

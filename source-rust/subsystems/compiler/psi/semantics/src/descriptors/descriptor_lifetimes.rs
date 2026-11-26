@@ -109,6 +109,9 @@ impl DescriptorFlowStep {
 
 #[derive(Clone)]
 pub struct DescriptorFlowEdge {
+    /// A fully restored block borrow can stop naming its captured address on
+    /// this edge. Loans stored in its fields keep their own coordinates.
+    pub borrowed_header_ends: Box<[semantic_vocabulary::PlaceId]>,
     /// Sources consumed on this selected edge. Destination parameters
     /// remain a separate roster, so swaps capture every old value before
     /// any source or destination is retired.
@@ -170,11 +173,16 @@ impl DescriptorFlowEdge {
             .filter_map(DescriptorFlowBinding::locations)
     }
 
+    fn ends_address(&self, name: &DescriptorLocation) -> bool {
+        name.path.is_empty() && self.borrowed_header_ends.contains(&name.root)
+    }
+
     /// Move the available names across this exact successor. Cleanup
     /// affects names that remain in storage. A block argument instead
     /// keeps the value captured before running the cleanup.
     pub(crate) fn is_plain_fallthrough(&self) -> bool {
-        self.parameters.is_empty()
+        self.borrowed_header_ends.is_empty()
+            && self.parameters.is_empty()
             && self.definitions.is_empty()
             && self.effects.is_empty()
             && self.bindings.is_empty()
@@ -219,6 +227,7 @@ impl DescriptorFlowEdge {
             invalidate_containers,
             may,
         );
+        transported.retain(|name| !self.ends_address(name));
         let captured = if invalidate_containers {
             transport_authority(
                 before,
@@ -281,6 +290,7 @@ impl DescriptorFlowEdge {
         }
         names
             .into_iter()
+            .filter(|name| !self.ends_address(name))
             .filter(|name| {
                 !self
                     .parameters

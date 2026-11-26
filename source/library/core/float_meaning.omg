@@ -1,3 +1,5 @@
+use {omega}/language/core/foundation.omg as proof;
+
 // Core proof meaning for floating-point values.
 //
 // Runtime float carriers retain their exact target-format bits. This sum is
@@ -20,7 +22,7 @@ public data Sign [copy] {
 // fact; no compiler-known float or rational predicate is involved.
 public domain Rat::NonZero
 requires
-    !core\Identity::<Nat>(self.num.pos, self.num.neg);
+    !|proof|::Identity::<Nat>(self.num.pos, self.num.neg);
 
 public data FloatMeaning {
     case FiniteNonZero(value: Rat in NonZero);
@@ -38,8 +40,8 @@ machine nonzero_rat(
     denominator: Nat
 ) -> Rat in NonZero
 requires
-    !core\Identity::<Nat>(positive, negative),
-    core\Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, denominator), Nat::Zero)
+    !|proof|::Identity::<Nat>(positive, negative),
+    |proof|::Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, denominator), Nat::Zero)
 {
     Rat {
         num: IntPair {

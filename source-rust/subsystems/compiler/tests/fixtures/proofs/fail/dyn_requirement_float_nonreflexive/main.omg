@@ -1,3 +1,5 @@
-public let reflexive(value: f64): core\Strict<0> = value == value;
+use {omega}/language/core/foundation.omg as proof;
+
+public let reflexive(value: f64): |proof|::Strict<0> = value == value;
 machine claim(value: f64) ensures reflexive(value) {}
 machine main() {}

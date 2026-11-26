@@ -74,7 +74,7 @@ def check_build_source_ownership(encode, runner, work, seconds):
     packages = [("app", 0), ("core", 1), ("library", 0)]
     entries = [(0, 0), (1, 1), (2, 1)]
     default = (ROOT / "source/library/core/defaults/build.omg").read_bytes()
-    files = [(0, "build.omg", b"machine build(builder: @mutable Build) {}"), (1, "defaults/build.omg", default)]
+    files = [(0, "build.omg", b"machine build(builder: @mutable BuildPlan) {}"), (1, "defaults/build.omg", default)]
     wire, _, _, _ = encode(packages, [], [(0, b"machine main() -> u8 {42}")], 0, b"main",
                             paths=["main.omg"], build_sources=files, build_entries=entries)
     # Mutate already encoded words to reach the Omega reader past the host's
@@ -120,12 +120,12 @@ def main():
 
     codec = (ROOT / "source/foundation/wire/codec.omg").read_bytes()
     word_cases = ROOT / "tests/bootstrap/conformance/omega/wire_word.omg"
-    caller = b"use wire\\u32_from_le_bytes;\n" + word_cases.read_bytes()
+    caller = b"use {wire}/codec.omg;\n" + word_cases.read_bytes().replace(b"u32_from_le_bytes(", b"|codec|::u32_from_le_bytes(")
     encode = runpy.run_path(str(ROOT / "source/application/construction/construct.py"))["encode"]
     packages = [("app", 0), ("wire", 0)]
     units = [(0, caller), (1, codec)]
-    linked, _, _, _ = encode(packages, [(0, 1, "wire")], units, 0, b"main")
-    unlinked, _, _, unit_rows = encode(packages, [], units, 0, b"main")
+    linked, _, _, _ = encode(packages, [(0, 1, "wire")], units, 0, b"main", paths=["main.omg", "codec.omg"])
+    unlinked, _, _, unit_rows = encode(packages, [], units, 0, b"main", paths=["main.omg", "codec.omg"])
 
     inputs = {"linked": linked, "missing-edge": unlinked, "trailing-byte": linked + b"\0"}
     if args.constructor or args.evaluator:
@@ -168,7 +168,7 @@ def main():
             ("trap", trapped, -signal.SIGILL),
             ("quiet", b"machine main() crashes none {}", 0),
         ):
-            request, _, _, _ = encode(packages, [(0, 1, "wire")], [(0, source), (1, codec)], 0, b"main")
+            request, _, _, _ = encode(packages, [(0, 1, "wire")], [(0, source), (1, codec)], 0, b"main", paths=["main.omg", "codec.omg"])
             (work / f"{name}.stdin").write_bytes(request)
             status, tape = execute(runner, request, args.seconds)
             if status:
@@ -181,7 +181,7 @@ def main():
             ("mixed-none-first", unit_caller.replace(b"main() crashes Trap", b"main() crashes none crashes Trap"), 250),
             ("mixed-none-last", unit_caller.replace(b"main() crashes Trap", b"main() crashes Trap crashes none"), 250),
         ):
-            request, _, _, _ = encode(packages, [(0, 1, "wire")], [(0, source), (1, codec)], 0, b"main")
+            request, _, _, _ = encode(packages, [(0, 1, "wire")], [(0, source), (1, codec)], 0, b"main", paths=["main.omg", "codec.omg"])
             (work / f"{name}.stdin").write_bytes(request)
             if execute(runner, request, args.seconds) != (expected, b""):
                 raise SystemExit(f"{name}: expected exit {expected} with empty stdout")
@@ -192,18 +192,18 @@ def main():
         edges = [(0, 1, "wire"), (0, 2, "service")]
         for name, entry_source, service_source, expected in (
             ("marker", service_entry, marker, 0),
-            ("excess-service", service_entry.replace(b"main() reaches Input", b"main() reaches Other"), marker, 247),
-            ("empty-service", service_entry.replace(b"main() reaches Input", b"main() reaches none"), marker, 247),
+            ("excess-service", service_entry.replace(b"main() reaches |ground|::Input", b"main() reaches |ground|::Other"), marker, 247),
+            ("empty-service", service_entry.replace(b"main() reaches |ground|::Input", b"main() reaches none"), marker, 247),
             ("uninstalled-operation",
-             service_entry.replace(b"_ = u32_from_le_bytes(42, 0, 0, 0);", b"_ = Input::read();"),
+             service_entry.replace(b"_ = |codec|::u32_from_le_bytes(42, 0, 0, 0);", b"_ = |ground|::Input::read();"),
              marker.replace(b"Input {}", b"Input { machine read() -> u8 reaches Input crashes none; }"), 246),
-            ("unresolved-service", service_entry.replace(b"reaches Input", b"reaches Missing"), marker, 248),
+            ("unresolved-service", service_entry.replace(b"reaches |ground|::Input", b"reaches Missing"), marker, 248),
             ("ordinary-trait", service_entry, marker.replace(b"boundary trait", b"trait"), 248),
             ("unapplied-service", service_entry, marker.replace(b"Input {}", b"Input<T> {}"), 248),
-            ("bare-reaches", service_entry.replace(b"reaches Input", b"reaches"), marker, 250),
+            ("bare-reaches", service_entry.replace(b"reaches |ground|::Input", b"reaches"), marker, 250),
         ):
             units = [(0, entry_source), (1, codec), (2, service_source)]
-            request, _, _, _ = encode(service_packages, edges, units, 0, b"main")
+            request, _, _, _ = encode(service_packages, edges, units, 0, b"main", paths=["main.omg", "codec.omg", "ground.omg"])
             (work / f"{name}.stdin").write_bytes(request)
             status, tape = execute(runner, request, args.seconds)
             if status != expected or (status and tape):
@@ -250,7 +250,7 @@ def main():
 
     # The first source unit starts with the unresolved import. A compiler
     # refusal publishes its coordinate; malformed transport publishes none.
-    _, caller_start, _ = unit_rows[0]
+    caller_start = unit_rows[0][1]
     refusal = evaluate("missing-edge")
     if refusal != b"\x00" + struct.pack("<II", 1, caller_start):
         raise SystemExit(f"missing edge: expected refusal at {caller_start}, got {refusal[:40].hex()}")

@@ -172,6 +172,7 @@ fn scalar_formal_renews_on_arrival_not_between_operations_in_its_block() {
         successors: target
             .into_iter()
             .map(|target| DescriptorFlowEdge {
+                borrowed_header_ends: Box::default(),
                 edge: None,
                 effects: Vec::new(),
                 definitions: Vec::new(),
@@ -542,6 +543,7 @@ fn completed_shared_observation_preserves_existing_storage_not_replacements() {
         .unwrap()
         .successors
         .push(DescriptorFlowEdge {
+            borrowed_header_ends: Box::default(),
             edge: None,
             effects: Vec::new(),
             definitions: Vec::new(),
@@ -565,6 +567,7 @@ fn flow(edges: &[(u64, &[u64])]) -> BTreeMap<DescriptorPosition, DescriptorFlowS
                     successors: targets
                         .iter()
                         .map(|target| DescriptorFlowEdge {
+                            borrowed_header_ends: Box::default(),
                             edge: None,
                             effects: Vec::new(),
                             definitions: Vec::new(),

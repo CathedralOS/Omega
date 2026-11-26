@@ -2,10 +2,11 @@
 // standard-library package, so no ProcessExit authority; compile-checked
 // only (same posture as cli/basics/standalone).
 
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
     builder.product = BuildProduct::Application { name: "copy_const_shadow" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, copy_const_shadow);
-    Build::bind(builder, linux_x86_64::ProgramEntry, copy_const_shadow);
-    Build::bind(builder, linux_arm64::ProgramEntry, copy_const_shadow);
-    Build::bind(builder, macos_arm64::ProgramEntry, copy_const_shadow);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::copy_const_shadow);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::copy_const_shadow);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::copy_const_shadow);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::copy_const_shadow);
 }

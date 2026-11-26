@@ -96,13 +96,17 @@ impl<'a> FileImport<'a> {
         relative: &str,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
-        let path = captured_file(root, Path::new(relative), filesystem)?.ok_or_else(|| {
-            self.error(format!(
+        let Some(path) = captured_file(root, Path::new(relative), filesystem)? else {
+            if self.source.scope == DependencyScope::Build && !self.import.requires_build_binding()
+            {
+                return Ok(FileSelection::Unbound);
+            }
+            return Err(self.error(format!(
                 "no admitted logical file `{}` in {}",
                 relative,
                 root.display()
-            ))
-        })?;
+            )));
+        };
         Ok(FileSelection::Selected(ResolvedSourceImport {
             occurrence: self.occurrence(),
             path,
@@ -162,9 +166,7 @@ impl<'a> FileImport<'a> {
         mounted: Option<&PackageCompilationInputs>,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
-        if self.source.scope == DependencyScope::Build
-            && self.import.only_product_operands
-        {
+        if !self.import.used_in(self.source.scope) {
             return Ok(FileSelection::Unbound);
         }
         if self.root == Some("omega") {
@@ -194,9 +196,7 @@ impl<'a> FileImport<'a> {
         contract_root: Option<&Path>,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
-        if self.source.scope == DependencyScope::Build
-            && self.import.only_product_operands
-        {
+        if !self.import.used_in(self.source.scope) {
             return Ok(FileSelection::Unbound);
         }
         if self.root == Some("omega") {
@@ -267,7 +267,7 @@ impl super::SourceStorage {
     ) -> Result<(), Vec<Diagnostic>> {
         if parsed.sources.span_or_empty(parsed.batch).iter().any(|unit| {
             unit.scope == DependencyScope::Build && unit.imports.iter().any(|import| {
-                !import.only_product_operands && matches!(&import.target,
+                import.used_in(DependencyScope::Build) && matches!(&import.target,
                     SourceImportTarget::File { root, path, .. } if is_build_file(root.as_deref(), path))
             })
         }) {

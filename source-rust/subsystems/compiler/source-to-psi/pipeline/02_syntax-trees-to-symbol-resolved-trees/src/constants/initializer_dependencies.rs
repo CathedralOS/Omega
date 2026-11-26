@@ -495,9 +495,11 @@ pub(crate) struct AuthoredCallDependency {
 */
 #[derive(Debug, Default)]
 pub struct ResolvedMachineBodyDemand {
-    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
+    #[allow(dead_code)]
     pub machines: Vec<SymbolHandle>,
     pub deferred_machines: Vec<SymbolHandle>,
+    pub traits: Vec<SymbolHandle>,
+    pub type_declarations: Vec<SymbolHandle>,
 }
 
 pub(crate) fn collect_machine_body_demand(
@@ -551,6 +553,16 @@ pub(crate) fn collect_machine_body_demand(
         availability.collect()?;
         visited.extend(availability.visited_machines);
         pending.extend(availability.available_machines);
+        for trait_symbol in availability.visited_traits {
+            if !collector.visited_traits.contains(&trait_symbol) {
+                collector.visited_traits.push(trait_symbol);
+            }
+        }
+        for declaration in availability.visited_type_declarations {
+            if !collector.visited_type_declarations.contains(&declaration) {
+                collector.visited_type_declarations.push(declaration);
+            }
+        }
         let deferred = collector
             .deferred_machines
             .as_mut()
@@ -562,8 +574,10 @@ pub(crate) fn collect_machine_body_demand(
         }
     }
     Ok(ResolvedMachineBodyDemand {
-        machines: collector.visited_machines,
+        machines: visited,
         deferred_machines: collector.deferred_machines.unwrap_or_default(),
+        traits: collector.visited_traits,
+        type_declarations: collector.visited_type_declarations,
     })
 }
 
@@ -762,6 +776,7 @@ struct Collector<'program, 'selection> {
     types: Vec<DependencyWork<&'program TypeReference>>,
     visited_type_children: Vec<(arena::Handle<TypeReference>, SymbolHandle)>,
     visited_type_declarations: Vec<SymbolHandle>,
+    visited_traits: Vec<SymbolHandle>,
     expanded_constants: Vec<SymbolHandle>,
     visited_expressions: Vec<DependencyWork<ExpressionHandle>>,
     visited_initializer_expressions: Vec<DependencyWork<ExpressionHandle>>,
@@ -798,6 +813,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             types: Vec::new(),
             visited_type_children: Vec::new(),
             visited_type_declarations: Vec::new(),
+            visited_traits: Vec::new(),
             expanded_constants: Vec::new(),
             visited_expressions: Vec::new(),
             visited_initializer_expressions: Vec::new(),
@@ -892,6 +908,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                         .any(|requirement| requirement.symbol == target)
             });
         if trait_requirement {
+            if !self.visited_traits.contains(&symbol.parent) {
+                self.visited_traits.push(symbol.parent);
+            }
             self.dependencies.pending_target_observation = true;
             return self.record_logical_call(target, reference);
         }

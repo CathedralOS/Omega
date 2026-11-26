@@ -1,9 +1,10 @@
+use {omega}/language/core/foundation.omg as proof;
 use {omega}/language/core/content.omg as algebra;
 use {omega}/language/core/extent.omg as extent;
 use {omega}/language/core/nat.omg as nat;
 
 machine shrink(storage: |extent|::Extent in |extent|::Extent::Granted) -> |extent|::Extent
-ensures core\Identity::<|algebra|::IntervalSet<|nat|::Nat>>(
+ensures |proof|::Identity::<|algebra|::IntervalSet<|nat|::Nat>>(
     |extent|::Granted::content(old(@storage)), |extent|::Granted::content(@result))
 {
     let { base, length } = storage;

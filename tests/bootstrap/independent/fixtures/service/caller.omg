@@ -1,11 +1,10 @@
-use service\Input;
-use service\Other;
-use wire\u32_from_le_bytes;
+use {service}/ground.omg;
+use {wire}/codec.omg;
 
-machine main() reaches Input crashes none { forward(); }
+machine main() reaches |ground|::Input crashes none { forward(); }
 
 machine forward() { decode(); }
 
-machine decode() reaches Input crashes none {
-    _ = u32_from_le_bytes(42, 0, 0, 0);
+machine decode() reaches |ground|::Input crashes none {
+    _ = |codec|::u32_from_le_bytes(42, 0, 0, 0);
 }

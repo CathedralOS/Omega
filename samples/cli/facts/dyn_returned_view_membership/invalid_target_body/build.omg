@@ -1,13 +1,14 @@
+use main.omg as app;
 machine build(builder: @mutable BuildPlan) {
-    Build::select_provider::<Reader, Selected>(builder, windows_x86_64);
-    Build::select_provider::<Reader, Selected>(builder, linux_x86_64);
-    Build::select_provider::<Reader, Selected>(builder, linux_arm64);
-    Build::select_provider::<Reader, Selected>(builder, macos_arm64);
-    Build::select_provider::<Reader, Selected>(builder, macos_x86_64);
+    Build::select_provider::<|app|::Reader, |app|::Selected>(builder, windows_x86_64);
+    Build::select_provider::<|app|::Reader, |app|::Selected>(builder, linux_x86_64);
+    Build::select_provider::<|app|::Reader, |app|::Selected>(builder, linux_arm64);
+    Build::select_provider::<|app|::Reader, |app|::Selected>(builder, macos_arm64);
+    Build::select_provider::<|app|::Reader, |app|::Selected>(builder, macos_x86_64);
     builder.product = BuildProduct::Application { name: "dyn_returned_view_membership_target_body" };
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_x86_64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+    Build::bind(builder, macos_x86_64::ProgramEntry, |app|::main);
 }

@@ -70,7 +70,9 @@ impl PlanningSource {
             .and_then(|inputs| inputs.with_named_source(named))
             .map_err(refusal)?;
         let inputs = match query.operation {
-            TerminalBuildQueryOperation::Entry
+            TerminalBuildQueryOperation::Parameter
+            | TerminalBuildQueryOperation::Field
+            | TerminalBuildQueryOperation::Entry
             | TerminalBuildQueryOperation::Schema
             | TerminalBuildQueryOperation::Provider => {
                 let author = self.query_authors.as_ref()
@@ -80,7 +82,7 @@ impl PlanningSource {
                     })?;
                 inputs.with_declaration_path(author, query.occurrence.span, &query.path)
             }
-            _ => inputs,
+            TerminalBuildQueryOperation::SchemaPath | TerminalBuildQueryOperation::ProviderPath => inputs,
         };
         if self
             .query_declarations
@@ -103,7 +105,7 @@ impl PlanningSource {
             )?;
             self.query_declarations = Some((inputs, source));
         }
-        let (_, source) = self
+        let (inputs, source) = self
             .query_declarations
             .as_ref()
             .expect("the Product declarations were prepared");
@@ -111,6 +113,9 @@ impl PlanningSource {
             refusal("Product query lost its authored source occurrence".into())
         })?;
         let description = describe(source, authors, query).map_err(refusal)?;
+        for (issuer, alias) in inputs.queried_file_aliases() {
+            self.file_imports.use_queried_file(issuer, alias);
+        }
         Ok((description, selections))
     }
 }

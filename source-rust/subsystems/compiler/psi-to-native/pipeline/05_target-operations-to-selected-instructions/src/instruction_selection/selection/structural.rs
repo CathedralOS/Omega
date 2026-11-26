@@ -1524,6 +1524,50 @@ pub(crate) mod local_storage {
     use crate::instruction_selection::selection::construction::scalar_graph::structural::transport_register;
     use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
 
+    /// Reserve the operation's one `Boundary` local slot and return a pointer
+    /// to it. `duplicate` is the refusal when the slot is empty or already
+    /// reserved by this operation.
+    pub(crate) fn boundary_scratch(
+        builder: &mut Builder<'_>,
+        row: &legalized_operations::LegalizedScalarInstruction,
+        anchor: PlaceId,
+        byte_size: u32,
+        alignment: u16,
+        duplicate: &'static str,
+    ) -> Result<(LocalStorageSlotId, VirtualRegisterId), SelectedInstructionError> {
+        let slot = LocalStorageSlotId::Boundary {
+            operation: row.operation,
+        };
+        if byte_size == 0
+            || builder
+                .transport
+                .local_slots
+                .iter()
+                .any(|item| item.id == slot)
+        {
+            return Err(SelectedInstructionError::custody_because(duplicate));
+        }
+        builder
+            .transport
+            .local_slots
+            .push(selected_instructions::SelectedLocalStorageSlot {
+                id: slot,
+                byte_size,
+                alignment,
+            });
+        let pointer = transport_register(builder, anchor, 0)?;
+        memory(
+            builder,
+            row,
+            anchor,
+            0,
+            byte_size,
+            SelectedMemoryAccessRole::AddressLocal { slot },
+        )?;
+        builder.emit_frame_address(FrameStorageSlotId::Local(slot), pointer, provenance(row))?;
+        Ok((slot, pointer))
+    }
+
     fn storage_origin_place(
         row: &impl crate::instruction_selection::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         slot: LocalStorageSlotId,
@@ -1806,26 +1850,13 @@ pub(crate) mod activation_storage {
             storage_shape.alignment,
         );
         let pointer = super::local_storage::address(builder, row, slot, 0, total, true)?;
-        let count = transport_register(builder, result.place, 0)?;
-        builder.emit_materialize_i64(
-            IntegerValue::Unsigned(u128::from(total)),
-            count,
-            provenance(row),
-        )?;
-        let cursor = super::byte_field_store::scratch(builder, 2)?;
-        memory(
+        super::zero_fill::whole_home(
             builder,
             row,
             result.place,
-            0,
+            pointer,
             total,
             SelectedMemoryAccessRole::WriteLocal { slot },
-        )?;
-        builder.emit(
-            SelectedInstructionKind::ZeroBytes,
-            builder.constraints.keys.zero_bytes.ok_or_else(invalid)?,
-            &[pointer, count, cursor],
-            provenance(row),
         )?;
         let (_, committed_register, _, committed_type) =
             builder.resolve(*committed).ok_or_else(invalid)?;
@@ -2335,7 +2366,6 @@ pub(crate) mod descriptor_tables {
     }
 }
 pub(in crate::instruction_selection) use crate::instruction_selection::selection_views_and_bytes::element_establishment;
-pub(in crate::instruction_selection) use crate::instruction_selection::selection_views_and_bytes::element_subslice;
 pub(in crate::instruction_selection) use crate::instruction_selection::selection_views_and_bytes::element_view_write;
 pub(in crate::instruction_selection) use crate::instruction_selection::selection_views_and_bytes::element_views;
 pub(crate) mod primitive_locals {
@@ -3079,7 +3109,14 @@ pub(crate) mod record {
             return Ok(pointer);
         }
         if shape.byte_size > super::zero_fill::INLINE_HOME_MAX_BYTES {
-            super::zero_fill::whole_home(builder, row, destination, pointer, shape.byte_size)?;
+            super::zero_fill::whole_home(
+                builder,
+                row,
+                destination,
+                pointer,
+                shape.byte_size,
+                SelectedMemoryAccessRole::WritePlace,
+            )?;
             return Ok(pointer);
         }
         let zero = transport_register(builder, destination, 0)?;
@@ -4089,20 +4126,14 @@ pub(crate) mod packed_integer {
                 .constraint(key)
                 .ok_or(SelectedInstructionError::MissingConstraint(key))?;
             let scratch =
-                VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-            builder.registers.push(VirtualRegister {
-                id: scratch,
-                scalar_type: ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
-                ),
-                class: constraint_row.operands[3].class,
-                origin: VirtualRegisterOrigin::InstructionScratch {
+                crate::instruction_selection::selection::construction::scalar_graph::push_scratch(
+                    &mut builder.registers,
+                    constraint_row.operands[3].class,
+                    IntegerSign::Unsigned,
                     instruction,
-                    operand: 3,
-                },
-                definition_site: None,
-                entry_fixed_view: None,
-            });
+                    3,
+                )
+                .ok_or_else(invalid)?;
             operands.push(scratch);
         }
         for (place, offset, bytes) in reads {
@@ -4225,6 +4256,7 @@ pub(crate) mod zero_fill {
         place: PlaceId,
         pointer: VirtualRegisterId,
         byte_size: u32,
+        role: SelectedMemoryAccessRole,
     ) -> Result<(), SelectedInstructionError> {
         let count = transport_register(builder, place, 0)?;
         builder.emit_materialize_i64(
@@ -4233,14 +4265,7 @@ pub(crate) mod zero_fill {
             provenance(row),
         )?;
         let cursor = super::byte_field_store::scratch(builder, 2)?;
-        memory(
-            builder,
-            row,
-            place,
-            0,
-            byte_size,
-            SelectedMemoryAccessRole::WritePlace,
-        )?;
+        memory(builder, row, place, 0, byte_size, role)?;
         builder.emit(
             SelectedInstructionKind::ZeroBytes,
             builder
@@ -4295,6 +4320,7 @@ pub(crate) mod zeroed {
                     established.place,
                     pointer,
                     shape.byte_size,
+                    SelectedMemoryAccessRole::WritePlace,
                 )?,
             }
         }
@@ -5628,13 +5654,18 @@ pub(crate) mod subslice {
     use crate::instruction_selection::selection::construction::scalar_graph::structural::ByteViewHomes;
     use crate::instruction_selection::selection::construction::scalar_graph::structural::invalid;
     use crate::instruction_selection::selection::construction::scalar_graph::structural::transport_register;
+    use crate::instruction_selection::selection::element_view_homes::ElementViewHomes;
+    use semantic_vocabulary::IntegerValue;
 
+    /// Select a byte-sequence or element-view subslice `source[start..end]`.
+    /// Both views keep a backing pointer, a byte offset into it and a length;
+    /// an element view scales `start` by its element stride first.
     pub(crate) fn create(
         function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
-        let LegalizedScalarInstructionKind::ByteSequenceSubslice {
+        let (LegalizedScalarInstructionKind::ByteSequenceSubslice {
             result,
             source,
             indices,
@@ -5643,32 +5674,82 @@ pub(crate) mod subslice {
             length,
             obligation,
             accepted_fact,
-        } = &row.kind
+        }
+        | LegalizedScalarInstructionKind::ElementViewSubslice {
+            result,
+            source,
+            indices,
+            start,
+            end,
+            length,
+            obligation,
+            accepted_fact,
+        }) = &row.kind
         else {
             return Err(invalid());
         };
-        if row.result.is_some()
-            || super::descriptor_operands::source_geometry(function, source).map(|(_, shape)| {
-                matches!(shape, terminal_psi::StructuralTypeShape::ByteSequence(_))
-            }) != Some(true)
+        let elements = matches!(
+            row.kind,
+            LegalizedScalarInstructionKind::ElementViewSubslice { .. }
+        );
+        if elements {
+            let signature = function.structural.as_ref().ok_or_else(|| invalid())?;
+            let (geometry, _) = super::descriptor_operands::source_geometry(function, source)
+                .ok_or_else(|| invalid())?;
+            let shape = |id| signature.structural_types.iter().find(|row| row.id == id);
+            let same_element = shape(geometry.selected)
+                .zip(shape(result.structural_type))
+                .is_some_and(|(source, result)| {
+                    matches!((&source.shape, &result.shape),
+                (terminal_psi::StructuralTypeShape::ElementView { element: source, .. },
+                 terminal_psi::StructuralTypeShape::ElementView { element: result, .. }) if source == result)
+                });
+            if crate::instruction_selection::selection::established_view_input::view_access(
+                function,
+                result.place,
+            )
+            .is_none()
+            {
+                return Err(SelectedInstructionError::custody_because(
+                    "element subslice does not retain readable source descriptor access",
+                ));
+            }
+            if !same_element
+                || result.projected_qualifications.iter().any(|row| {
+                    !matches!(
+                        row.path.first(),
+                        Some(terminal_psi::StructuralPathSegment::AllElements)
+                    )
+                })
+                || builder.transport.element_view(result.place).is_some()
+            {
+                return Err(invalid());
+            }
+        } else if super::descriptor_operands::source_geometry(function, source)
+            .map(|(_, shape)| matches!(shape, terminal_psi::StructuralTypeShape::ByteSequence(_)))
+            != Some(true)
             || crate::instruction_selection::selection::established_view_input::view_access(
                 function,
                 result.place,
             )
             .is_none()
-            || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
+            || builder
+                .transport
+                .views
+                .iter()
+                .any(|view| view.place == result.place)
+        {
+            return Err(invalid());
+        }
+        if row.result.is_some()
+            || !result.qualifications.is_empty()
             || !result.claims.is_empty()
             || builder
                 .transport
                 .pointers
                 .iter()
                 .any(|(place, _)| *place == result.place)
-            || builder
-                .transport
-                .views
-                .iter()
-                .any(|view| view.place == result.place)
         {
             return Err(invalid());
         }
@@ -5685,16 +5766,61 @@ pub(crate) mod subslice {
         {
             return Err(invalid());
         }
-        let parent = source
-            .path
-            .is_empty()
-            .then(|| builder.transport.view(source.place).copied())
-            .flatten();
+        let stride = if elements {
+            Some(
+                super::descriptor_operands::element_stride(function, source)
+                    .ok_or_else(|| invalid())?,
+            )
+        } else {
+            None
+        };
+        // A subslice of an established view of the same kind offsets into
+        // that view's backing instead of re-deriving it from the source.
+        let parent = if !source.path.is_empty() {
+            None
+        } else if elements {
+            builder.transport.element_view(source.place).map(|parent| {
+                (
+                    parent.backing_pointer,
+                    parent.byte_offset,
+                    parent.root_length,
+                    None,
+                )
+            })
+        } else {
+            builder.transport.view(source.place).map(|parent| {
+                (
+                    parent.backing_pointer,
+                    parent.byte_offset,
+                    parent.root_length,
+                    Some(parent.root),
+                )
+            })
+        };
         let backing = match parent {
-            Some(parent) => parent.backing_pointer,
+            Some((backing, ..)) => backing,
             None => super::descriptor_operands::backing(function, builder, row, source, indices)?,
         };
-        let (byte_offset, root_length) = if let Some(parent) = parent {
+        let start_offset = match stride {
+            Some(stride) => {
+                let stride_register = transport_register(builder, result.place, 0)?;
+                let scaled_start = transport_register(builder, result.place, 0)?;
+                builder.emit_materialize_i64(
+                    IntegerValue::Unsigned(u128::from(stride)),
+                    stride_register,
+                    obligation_provenance(row, &[*start, *end, *length], &[*obligation]),
+                )?;
+                builder.emit(
+                    SelectedInstructionKind::WrappingMultiplyI64,
+                    builder.constraints.keys.multiply_i64,
+                    &[start_register, stride_register, scaled_start],
+                    obligation_provenance(row, &[*start, *end, *length], &[*obligation]),
+                )?;
+                scaled_start
+            }
+            None => start_register,
+        };
+        let (byte_offset, root_length) = if let Some((_, parent_offset, root_length, _)) = parent {
             let byte_offset = transport_register(builder, result.place, 0)?;
             builder.emit(
                 SelectedInstructionKind::ExactAddI64 {
@@ -5702,25 +5828,21 @@ pub(crate) mod subslice {
                     accepted_fact: *accepted_fact,
                 },
                 builder.constraints.keys.add_i64,
-                &[parent.byte_offset, start_register, byte_offset],
-                obligation_provenance(
-                    row,
-                    &[*start, *end, *length, parent.root_length],
-                    &[*obligation],
-                ),
+                &[parent_offset, start_offset, byte_offset],
+                obligation_provenance(row, &[*start, *end, *length, root_length], &[*obligation]),
             )?;
-            (byte_offset, parent.root_length)
+            (byte_offset, root_length)
         } else {
-            (start_register, *length)
+            (start_offset, *length)
         };
-        let byte_length = transport_register(builder, result.place, 8)?;
+        let view_length = transport_register(builder, result.place, 8)?;
         builder.emit(
             SelectedInstructionKind::ExactSubtractI64 {
                 obligation: *obligation,
                 accepted_fact: *accepted_fact,
             },
             builder.constraints.keys.subtract_i64,
-            &[end_register, start_register, byte_length],
+            &[end_register, start_register, view_length],
             SelectedInstructionProvenance {
                 operations: vec![row.operation],
                 values: vec![*start, *end, *length],
@@ -5729,22 +5851,33 @@ pub(crate) mod subslice {
                 ..Default::default()
             },
         )?;
-        builder.transport.views.push(ByteViewHomes {
-            place: result.place,
-            source: source.place,
-            root: if let Some(parent) = parent {
-                parent.root
-            } else {
-                crate::instruction_selection::selection::byte_view_homes::own_view_root(
-                    function,
-                    source.place,
-                )
-            },
-            backing_pointer: backing,
-            byte_offset,
-            byte_length,
-            root_length,
-        });
+        match stride {
+            Some(element_stride) => builder.transport.element_views.push(ElementViewHomes {
+                place: result.place,
+                backing_pointer: backing,
+                byte_offset,
+                element_length: view_length,
+                root_length,
+                element_stride,
+            }),
+            None => builder.transport.views.push(ByteViewHomes {
+                place: result.place,
+                source: source.place,
+                root: match parent {
+                    Some((.., root)) => root.flatten(),
+                    None => {
+                        crate::instruction_selection::selection::byte_view_homes::own_view_root(
+                            function,
+                            source.place,
+                        )
+                    }
+                },
+                backing_pointer: backing,
+                byte_offset,
+                byte_length: view_length,
+                root_length,
+            }),
+        }
         if crate::instruction_selection::selection::established_view_input::requires_descriptor(
             function,
             result.place,
@@ -5761,7 +5894,7 @@ pub(crate) mod subslice {
                 obligation_provenance(row, &[*start, *end, *length, root_length], &[*obligation]),
             )?;
             super::local_storage::store(builder, row, slot, 0, pointer)?;
-            super::local_storage::store(builder, row, slot, 8, byte_length)?;
+            super::local_storage::store(builder, row, slot, 8, view_length)?;
             let descriptor = super::local_storage::address(builder, row, slot, 0, 16, false)?;
             builder.transport.pointers.push((result.place, descriptor));
         }
@@ -6111,18 +6244,13 @@ pub(crate) fn operation(
     );
     dispatch_kind!(
         row,
-        Kind::ByteSequenceSubslice { .. },
+        Kind::ByteSequenceSubslice { .. } | Kind::ElementViewSubslice { .. },
         subslice::create(source, builder, row)
     );
     dispatch_kind!(
         row,
         Kind::EstablishElementView { .. },
         element_establishment::establish(source, builder, row)
-    );
-    dispatch_kind!(
-        row,
-        Kind::ElementViewSubslice { .. },
-        element_subslice::create(source, builder, row)
     );
     dispatch_kind!(
         row,

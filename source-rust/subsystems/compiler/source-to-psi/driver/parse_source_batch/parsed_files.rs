@@ -222,7 +222,38 @@ pub struct SourceImport {
     pub ordinal: usize,
     pub span: source_text::Span,
     pub target: SourceImportTarget,
-    pub only_product_operands: bool,
+    pub qualifiers: Vec<syntax_trees::item::FileQualifier>,
+}
+
+impl SourceImport {
+    /// A symbolic operand of core field/parameter reflection may be a Product
+    /// query. Only an ordinary Build reference makes a host binding mandatory.
+    pub fn requires_build_binding(&self) -> bool {
+        matches!(&self.target, SourceImportTarget::Namespace(_))
+            || self
+                .qualifiers
+                .iter()
+                .any(|usage| usage.role == syntax_trees::item::FileQualifierRole::Code)
+    }
+
+    pub fn used_in(&self, scope: source_provenance::DependencyScope) -> bool {
+        use syntax_trees::item::FileQualifierRole;
+        match (&self.target, scope) {
+            (SourceImportTarget::Namespace(_), _) => true,
+            (SourceImportTarget::File { .. }, source_provenance::DependencyScope::Product) => {
+                !self.qualifiers.is_empty()
+            }
+            (SourceImportTarget::File { root, .. }, source_provenance::DependencyScope::Build) => {
+                self.qualifiers.iter().any(|usage| match usage.role {
+                    FileQualifierRole::Code => true,
+                    FileQualifierRole::Product => false,
+                    // A supplied Build package can own an ordinarily reflected declaration.
+                    // A Product description alone does not import a local file into Build.
+                    FileQualifierRole::Description => root.is_some(),
+                })
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, record_storage::Record)]
@@ -304,8 +335,8 @@ impl ParsedSourceBatch {
                                         })
                                     }
                                 };
-                                let only_product_operands = matches!(import, UseItem::File { only_product_operands: true, .. });
-                                Some(SourceImport { only_product_operands, ordinal: unit.import_root_range.start + offset, span, target })
+                                let qualifiers = match import { UseItem::File { qualifiers, .. } => qualifiers.clone(), UseItem::Namespace { .. } => Vec::new() };
+                                Some(SourceImport { qualifiers, ordinal: unit.import_root_range.start + offset, span, target })
                             }
                             _ => None,
                         })

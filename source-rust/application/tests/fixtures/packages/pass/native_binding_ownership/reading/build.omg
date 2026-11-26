@@ -1,9 +1,10 @@
+use {omega}/language/core/external_binding.omg as native;
 use main.omg as app;
 
 machine build(builder: @mutable Build) {
     Build::package(builder, "reading");
     Build::bind_native::<|app|::ReadProcess::read>(builder, linux_x86_64,
-        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::ElfVersioned {
             object: "libc.so.6", symbol: "getpid", version: "GLIBC_2.2.5"
         } });
 }

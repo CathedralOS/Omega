@@ -22,6 +22,7 @@ fn step(targets: &[u64]) -> DescriptorFlowStep {
         successors: targets
             .iter()
             .map(|target| DescriptorFlowEdge {
+                borrowed_header_ends: Box::default(),
                 edge: None,
                 effects: Vec::new(),
                 definitions: Vec::new(),
@@ -109,6 +110,7 @@ fn pre_definition_and_post_definition_queries_observe_different_instances() {
     let after = (before.0, 1);
     let mut operation = step(&[]);
     operation.successors.push(DescriptorFlowEdge {
+        borrowed_header_ends: Box::default(),
         edge: None,
         effects: Vec::new(),
         definitions: Vec::new(),

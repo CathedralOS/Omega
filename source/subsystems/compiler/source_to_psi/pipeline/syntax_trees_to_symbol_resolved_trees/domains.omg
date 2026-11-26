@@ -182,8 +182,8 @@ public machine domain_admits(resolver: @|resolution_state|::Resolver, sources: @
 crashes Trap
 {
     let item: |syntax_trees|::DomainItem = |syntax_trees|::syntax_trees_domain_item(syntax, index);
-    let named: bool = |source|::spans_equal(sources, item.name.source_span, name);
-    let visible: bool = |imports|::visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
+    let named: bool = |source|::spans_equal(sources, item.name.source_span, |imports|::member_spelling(syntax, name));
+    let visible: bool = |imports|::visible_if(sources, syntax, named, name, item.name.source_span.source, item.is_public);
     transition visible {
         true -> carried(resolver, sources, syntax, item, row),
         _ -> no()
@@ -516,8 +516,8 @@ machine domain_head_admits(
 crashes Trap
 {
     let item: |syntax_trees|::DomainItem = |syntax_trees|::syntax_trees_domain_item(syntax, index);
-    let named: bool = |source|::spans_equal(sources, item.name.source_span, name);
-    let visible: bool = |imports|::visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
+    let named: bool = |source|::spans_equal(sources, item.name.source_span, |imports|::member_spelling(syntax, name));
+    let visible: bool = |imports|::visible_if(sources, syntax, named, carrier, item.name.source_span.source, item.is_public);
     transition visible {
         true -> head(resolver, sources, syntax, item, scope, carrier),
         _ -> answer(false)
@@ -539,7 +539,8 @@ crashes Trap
     }
 
     machine builtin_carrier(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, carrier: |source|::SourceSpan, own: |symbol_resolved_trees|::BuiltinType) -> bool {
-        let named: |symbol_resolved_trees|::TypeBinding = |type_names|::type_binding(sources, syntax, scope, carrier);
+        let spelling: |source|::SourceSpan = |imports|::member_spelling(syntax, carrier);
+        let named: |symbol_resolved_trees|::TypeBinding = |type_names|::type_binding(sources, syntax, scope, spelling);
         transition named {
             |symbol_resolved_trees|::TypeBinding::Builtin { builtin } -> answer(own == builtin),
             _ -> answer(false)
@@ -547,6 +548,45 @@ crashes Trap
     }
 
     machine data_carrier(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, carrier: |source|::SourceSpan, own: u64 in Trapping) -> bool {
+        let selector: u64 in Trapping = |syntax_trees|::file_selector_at(syntax, carrier);
+        transition selector > 0 {
+            true -> attached(sources, syntax, carrier, own),
+            false -> ordinary(sources, syntax, scope, carrier, own)
+        }
+    }
+
+    // A file prefix selects the declaration of the domain. Its bound
+    // carrier may itself have been imported from a different file.
+    machine attached(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, carrier: |source|::SourceSpan, own: u64 in Trapping) -> bool {
+        let data: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, own);
+        let spelling: |source|::SourceSpan = |imports|::member_spelling(syntax, carrier);
+        let named: bool = |source|::spans_equal(sources, spelling, data.name.source_span);
+        let requester: u64 in Trapping = |source|::unit_package(sources, carrier.source.value as -Trapping as u64 +Trapping);
+        let package: u64 in Trapping = |source|::unit_package(sources, data.name.source_span.source.value as -Trapping as u64 +Trapping);
+        transition {
+            !named -> false,
+            requester == package -> true,
+            data.is_public -> dependency(sources, requester, package, 0 as +Trapping),
+            _ -> false
+        }
+    }
+
+    machine dependency(sources: @|source|::SourceSet, requester: u64 in Trapping, package: u64 in Trapping, index: u64 in Trapping) -> bool {
+        transition index < sources.dependency_count {
+            true -> edge(sources, requester, package, index),
+            false -> false
+        }
+    }
+
+    machine edge(sources: @|source|::SourceSet, requester: u64 in Trapping, package: u64 in Trapping, index: u64 in Trapping) -> bool {
+        let row: |source|::DependencyRow = |source|::dependency_row(sources, index);
+        transition row.requester == requester && row.target == package && row.scope == |source|::DependencyScope::Product {
+            true -> true,
+            false -> dependency(sources, requester, package, index + 1)
+        }
+    }
+
+    machine ordinary(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, scope: |symbol_resolved_trees|::TypeScope, carrier: |source|::SourceSpan, own: u64 in Trapping) -> bool {
         let named: |symbol_resolved_trees|::TypeBinding = |type_names|::type_binding(sources, syntax, scope, carrier);
         transition named {
             |symbol_resolved_trees|::TypeBinding::Data { item } -> answer(own == item),
@@ -575,8 +615,8 @@ crashes Trap
 
     machine candidate(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, name: |source|::SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         let item: |syntax_trees|::DomainItem = |syntax_trees|::syntax_trees_domain_item(syntax, index);
-        let named: bool = |source|::spans_equal(sources, item.name.source_span, name);
-        let visible: bool = |imports|::visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
+        let named: bool = |source|::spans_equal(sources, item.name.source_span, |imports|::member_spelling(syntax, name));
+        let visible: bool = |imports|::visible_if(sources, syntax, named, name, item.name.source_span.source, item.is_public);
         transition visible {
             true -> rival(sources, syntax, name, index, index + 1),
             _ -> next(sources, syntax, name, index + 1)
@@ -592,8 +632,8 @@ crashes Trap
 
     machine rival_candidate(sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, name: |source|::SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         let item: |syntax_trees|::DomainItem = |syntax_trees|::syntax_trees_domain_item(syntax, index);
-        let named: bool = |source|::spans_equal(sources, item.name.source_span, name);
-        let visible: bool = |imports|::visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
+        let named: bool = |source|::spans_equal(sources, item.name.source_span, |imports|::member_spelling(syntax, name));
+        let visible: bool = |imports|::visible_if(sources, syntax, named, name, item.name.source_span.source, item.is_public);
         transition visible {
             true -> ambiguous(),
             _ -> rival(sources, syntax, name, found, index + 1)

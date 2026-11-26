@@ -256,14 +256,11 @@ data OmegaSourceDependency {
 }
 
 data OmegaSourceUnit {
-    has_file_import: i32;
     package: i32;
     start: i32;
     end: i32;
     path: OmegaRelativeSpan;
-    first_module_member: i32;
-    module_end: i32;
-    module_member_count: i32;
+    is_root_file: i32;
 }
 
 data OmegaSourceSet {
@@ -281,26 +278,6 @@ data OmegaDeclarationKind {
     case Service;
     case BoundaryMachine;
     case Implementation;
-}
-
-data OmegaImportBindingKind {
-    case Namespace;
-    case Data;
-    case Machine;
-    case Service;
-    case BoundaryMachine;
-    case Implementation;
-    case File;
-}
-
-data OmegaImportBinding {
-    kind: OmegaImportBindingKind;
-    target: i32;
-}
-
-data OmegaNamePath {
-    members: [OmegaRelativeSpan; 16384];
-    count: i32;
 }
 
 data OmegaRootKind {
@@ -410,11 +387,6 @@ data OmegaTypeConsumer {
     case Cast;
     case DomainCarrier;
     case TraitStaticParameter;
-}
-
-data OmegaPathDestination {
-    case Use;
-    case Machine;
 }
 
 data OmegaTypeReferenceKind {
@@ -1290,7 +1262,6 @@ data OmegaParser {
     cursor: i32;
     item_start: i32;
     first_member: i32;
-    path_destination: OmegaPathDestination;
     first_data_lifetime: i32;
     data_first_lifetime: i32;
     data_lifetime_count: i32;

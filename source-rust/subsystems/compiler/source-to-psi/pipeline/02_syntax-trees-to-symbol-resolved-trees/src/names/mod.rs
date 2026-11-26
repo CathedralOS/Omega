@@ -80,7 +80,8 @@ pub(crate) struct NamespaceDeclarations {
 /// An authored `use path.omg as alias;`, kept for callers that admit sources
 /// without the compiler's file loader.
 struct FileImport {
-    source: source_text::SourceId,
+    span: source_text::SourceSpan,
+    has_code: bool,
     root: Option<String>,
     path: String,
     alias: String,
@@ -96,22 +97,30 @@ impl NamespaceDeclarations {
     pub(crate) fn record_import(
         &mut self,
         syntax: &syntax_trees::SyntaxTrees,
-        path: arena::HandleSpan<syntax_trees::identifier::Identifier>,
+        import: &syntax_trees::item::UseItem,
     ) {
-        self.text.retain_from(&syntax.text);
-        self.imports
-            .push(syntax.items.identifier_path_members(path).to_vec());
-    }
-
-    /// Keep a file import with its filename spelled as the loader spells it.
-    pub(crate) fn record_file_import(
-        &mut self,
-        syntax: &syntax_trees::SyntaxTrees,
-        root: Option<&syntax_trees::identifier::Identifier>,
-        components: arena::HandleSpan<syntax_trees::identifier::Identifier>,
-        alias: &syntax_trees::identifier::Identifier,
-        span: source_text::SourceSpan,
-    ) {
+        use syntax_trees::item::{FileQualifierRole, UseItem};
+        let (root, components, alias, span, qualifiers) = match import {
+            UseItem::Namespace { path } => {
+                self.text.retain_from(&syntax.text);
+                self.imports
+                    .push(syntax.items.identifier_path_members(*path).to_vec());
+                return;
+            }
+            UseItem::File {
+                root,
+                components,
+                alias,
+                span,
+                qualifiers,
+            } if qualifiers
+                .iter()
+                .any(|usage| usage.role != FileQualifierRole::Product) =>
+            {
+                (root.as_ref(), *components, alias, *span, qualifiers)
+            }
+            UseItem::File { .. } => return,
+        };
         let mut path = syntax
             .items
             .identifier_path_members(components)
@@ -121,7 +130,8 @@ impl NamespaceDeclarations {
             .join("/");
         path.push_str(".omg");
         self.file_imports.push(FileImport {
-            source: span.source_id,
+            span,
+            has_code: qualifiers.iter().any(|usage| usage.role == FileQualifierRole::Code),
             root: root.map(|name| name.as_str(syntax).to_owned()),
             path,
             alias: alias.as_str(syntax).to_owned(),
@@ -192,8 +202,14 @@ impl NamespaceDeclarations {
             symbols.register_source_import(first.source_span().source_id, &name);
         }
         for import in &self.file_imports {
+            if !import.has_code && symbols.source_file(import.span)
+                .is_some_and(|file| file.dependency_scope == source_provenance::DependencyScope::Build) {
+                // Only an explicitly supplied host file can be used for ordinary reflection.
+                // A similarly named Product file already in the forest is not a host binding.
+                continue;
+            }
             symbols.register_source_file_import(
-                import.source,
+                import.span.source_id,
                 import.root.as_deref(),
                 &import.path,
                 &import.alias,

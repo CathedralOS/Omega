@@ -1605,19 +1605,57 @@ machine build(builder: @mutable BuildPlan) suspends {
 }
 
 #[test]
-fn an_unused_unbound_import_is_refused_at_the_authored_name() {
-    let build = "use main.omg as app;\nuse {absent}/helper.omg as missing;\nmachine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: \"never_used\" }; Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main); }\n";
-    let (compiled, report) = check_project(
-        "unused-deferred",
-        build,
-        7,
-        "",
-        &["--check", "main.omg", "--target", "linux_x86_64"],
-    );
+fn reflection_can_describe_a_product_file_without_a_host_import() {
+    let build = r#"use {kit}/main.omg as api;
+use {omega}/language/core/reflect/reflect.omg as describe;
+use {omega}/build/dependency.omg;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "query" };
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
+    _ = Build::dependency(builder, request);
+    let field: |describe|::FieldInfo = |describe|::field(|api|::Number::value);
+    transition field.name == "value" && field.declaration_position == 0u64 {
+        true -> done(), false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}"#;
+    let args = [
+        "--check",
+        "--build-input",
+        "build.omg",
+        "--build-input",
+        "main.omg",
+        "build.omg",
+    ];
+    let (ok, report) = check_project("described-product-file", build, 7, "", &args);
+    assert!(ok, "{report}");
+    let host = build.replace("    let field:", "    _ = |api|::v();\n    let field:");
+    let (ok, report) = check_project("described-file-is-not-host-code", &host, 7, "", &args);
     assert!(
-        !compiled
-            && report.contains("Build import `{absent}/helper.omg as missing` has no supplied source")
-            && report.contains("build.omg:2:5"),
+        !ok && report.contains("Build import `{kit}/main.omg as api` has no supplied source"),
+        "{report}"
+    );
+}
+
+#[test]
+fn an_unused_unbound_import_warns_once_at_the_authored_name() {
+    let build = "use {absent}/helper.omg as missing;\nuse later.omg;\nuse main.omg as present;\nuse main.omg as entry;\nmachine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Application { name: \"never_used\" }; Build::bind(builder, linux_x86_64::ProgramEntry, |entry|::main); }\n";
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create("unused-file-import", false).unwrap();
+    std::fs::write(project.path().join("main.omg"), "machine main() {}").unwrap();
+    std::fs::write(project.path().join("build.omg"), build).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["--check", "--target", "linux_x86_64", "build.omg"])
+        .current_dir(project.path()).output().unwrap();
+    let report = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success()
+            && report.matches("unused file import `missing`").count() == 1
+            && report.matches("unused file import `later`").count() == 1
+            && report.matches("unused file import `present`").count() == 1
+            && !report.contains("unused file import `entry`")
+            && report.contains("build.omg:1:5"),
         "{report}"
     );
 }
@@ -1727,8 +1765,7 @@ machine build(builder: @mutable BuildPlan) suspends {
         let with_unused = format!("use {{absent}}/other.omg as unused;\n{build}");
         let (ok, report) = invoke(&with_unused, &["--check", "build.omg"]);
         assert!(
-            !ok && report
-                .contains("Build import `{absent}/other.omg as unused` has no supplied source")
+            ok && report.matches("unused file import `unused`").count() == 1
                 && !report
                     .contains("Build import `{kit}/entry.omg as selected` has no supplied source"),
             "{report}"

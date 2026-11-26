@@ -145,7 +145,7 @@ crashes Trap
     machine satisfied_trait(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner) {
         parser.clause_first_argument = parser.output.type_argument_count as +Trapping;
         parser.clause_argument_count = 0 as +Trapping;
-        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedSatisfiesTrait);
+        |input|::expect_path_head(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedSatisfiesTrait);
         transition parser.output.accepted {
             true -> satisfied_member(parser, input, owner),
             _ -> done()
@@ -518,7 +518,7 @@ crashes Trap
     }
 
     machine service(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner) {
-        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedReachService);
+        |input|::expect_path_head(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedReachService);
         transition parser.output.accepted {
             true -> service_member(parser, input, owner),
             _ -> done()
@@ -590,7 +590,7 @@ crashes Trap
     }
 
     machine invokes_binding(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, owner: |syntax_trees|::ClauseOwner) {
-        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedInvokesBinding);
+        |input|::expect_path_head(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedInvokesBinding);
         transition parser.output.accepted {
             true -> invokes_member(parser, input, owner),
             _ -> done()
