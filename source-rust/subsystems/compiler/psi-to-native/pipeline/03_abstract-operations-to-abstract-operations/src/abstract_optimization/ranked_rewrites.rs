@@ -395,14 +395,16 @@ pub(crate) mod loop_invariant_scalar_motion {
             session: &VerifiedPsiOptimizationSession,
         ) -> Result<(), LoopInvariantScalarMotionError> {
             if !session.ranking_certificates().certificates().is_empty() {
-                session
-                    .counted_loop_analysis()
+                use crate::abstract_optimization::{
+                    analyze_countdown_invariant_constant_placement,
+                    analyze_countdown_invariant_constants, analyze_counted_loops,
+                };
+                let (unit, cycles) = (session.unit(), session.cycle_components());
+                let counted = analyze_counted_loops(unit, cycles)
                     .map_err(LoopInvariantScalarMotionError::CountedLoop)?;
-                session
-                    .countdown_invariant_constant_analysis()
+                let invariants = analyze_countdown_invariant_constants(unit, cycles, &counted)
                     .map_err(LoopInvariantScalarMotionError::InvariantConstant)?;
-                session
-                    .countdown_invariant_constant_placement_analysis()
+                analyze_countdown_invariant_constant_placement(unit, cycles, &counted, &invariants)
                     .map_err(LoopInvariantScalarMotionError::ReconstructedPlacement)?;
             }
             Ok(())
