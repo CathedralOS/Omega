@@ -461,7 +461,7 @@ public machine answer() -> i32 { |layout|::answer() }"#,
 }
 
 #[test]
-fn package_bindings_require_an_incoming_alias_and_issued_value() {
+fn package_bindings_and_service_references_require_values_issued_by_the_build() {
     configure();
     let temp = TemporaryDirectory::create("absent-build-input", false).unwrap();
     let root = temp.path().join("project");
@@ -473,6 +473,12 @@ fn package_bindings_require_an_incoming_alias_and_issued_value() {
         (
             r#"let edge: DependencyRegistration = |dep|::add(builder, PackageBinding {});"#,
             "requires a PackageBinding this activation issued",
+        ),
+        (
+            r#"let dependency: DependencyDescription = |dep|::from_source(Source::Path { location: "unread" });
+              let forged: [BoundaryServiceRef; 1] = [BoundaryServiceRef {}];
+              _ = |dep|::add(builder, dependency, @forged[..]);"#,
+            "requires a service reference this Build issued",
         ),
     ] {
         write_package(
