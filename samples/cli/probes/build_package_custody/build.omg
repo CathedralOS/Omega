@@ -8,17 +8,18 @@
 // kit edge, and `main.omg` calls the same machine through the product edge;
 // both routes must see the source the dependency published.
 
+use {omega}/build/dependency.omg;
 use {kit}/generated.omg as kit;
 
 machine build(builder: @mutable Build)
 suspends
 {
     Build::application(builder, "build_package_custody");
-    let mutable kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dependency" });
-    dependency\with_alias(@mutable kit_dependency, "kit");
+    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
+    |dependency|::with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::build_dependency(builder, kit_dependency);
-    let mutable product_kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dependency" });
-    dependency\with_alias(@mutable product_kit_dependency, "product_kit");
+    let mutable product_kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
+    |dependency|::with_alias(@mutable product_kit_dependency, "product_kit");
     let product_kit_registration: DependencyRegistration = Build::dependency(builder, product_kit_dependency);
     suspend Build::prepare_dependency(builder, kit_registration);
     let observed: i32 = |kit|::value();

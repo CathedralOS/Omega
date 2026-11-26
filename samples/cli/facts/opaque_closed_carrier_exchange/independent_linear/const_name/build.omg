@@ -1,7 +1,9 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
  Build::application(builder, "independent_linear_opaque_const_name");
- let mutable producer_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "../producer" });
- dependency\with_alias(@mutable producer_dependency, "producer");
+ let mutable producer_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../producer" });
+ |dependency|::with_alias(@mutable producer_dependency, "producer");
  let producer_registration: DependencyRegistration = Build::dependency(builder, producer_dependency);
  Build::select_representation::<producer\InternetAddress, producer\AddressRepresentation>(builder);
  Build::select_provider::<producer\AddressBridge, producer\AddressBridgeProvider>(builder, linux_arm64, CompositionMode::Independent);

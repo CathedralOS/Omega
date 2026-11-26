@@ -1,9 +1,11 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_alias_multi");
-    let mutable kit1_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable kit1_dependency, "kit1");
+    let mutable kit1_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable kit1_dependency, "kit1");
     let kit1_registration: DependencyRegistration = Build::dependency(builder, kit1_dependency);
-    let mutable kit2_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable kit2_dependency, "kit2");
+    let mutable kit2_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable kit2_dependency, "kit2");
     let kit2_registration: DependencyRegistration = Build::dependency(builder, kit2_dependency);
 }

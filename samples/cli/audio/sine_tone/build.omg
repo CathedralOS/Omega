@@ -1,14 +1,16 @@
 // sine_tone build manifest.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "sine_tone");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../source/library/system"
     }));
-    let wav_output_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let wav_output_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../wav_output"
     }));
-    let audio_playback_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let audio_playback_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../audio_playback"
     }));
     Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);

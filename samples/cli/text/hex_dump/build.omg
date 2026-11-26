@@ -1,9 +1,11 @@
 // hex_dump build sketch -- console-only subject; cross-platform providers map
 // stdout/exit to OS calls on each hosted target.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "hex_dump");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../source/library/system"
     }));
     Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);

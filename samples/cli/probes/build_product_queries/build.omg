@@ -3,9 +3,11 @@
 // Every query on a row this package never declares must reject — the
 // three unrequested-row rejections are pinned under controls/.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "build_product_queries");
-    let mutable kit_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dependency" });
-    dependency\with_alias(@mutable kit_dependency, "kit");
+    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dependency" });
+    |dependency|::with_alias(@mutable kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
 }
