@@ -195,3 +195,38 @@ fn an_array_of_empty_arrays_is_one_zeroed_leaf() {
     assert!(walked(&types, root, id(TOO_MANY)).is_empty());
     assert!(zeroed_case_predicates(&types, root, id(TOO_MANY)).is_empty());
 }
+
+#[test]
+fn selected_case_byte_storage_uses_the_same_empty_value_as_a_record_field() {
+    use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+
+    let case = StructuralCaseId::new(1).unwrap();
+    for (access, allowed) in [
+        (Some(StructuralAccess::SharedBorrow), true),
+        (Some(StructuralAccess::MutableBorrow), false),
+    ] {
+        let mut payload = field(3, SCALAR);
+        payload.field_type =
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView { access });
+        let choice = declaration(
+            CHOICE,
+            StructuralTypeShape::Sum {
+                cases: vec![StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
+                    id: case,
+                    identity: TerminalIdentityIndex(1),
+                    fields: vec![payload.clone()],
+                }],
+            },
+        );
+        let leaves = crate::zeroed_structural_leaves(std::iter::once(&choice), id(CHOICE));
+        assert_eq!(leaves.is_some(), allowed);
+        if let Some(leaves) = leaves {
+            assert!(leaves.contains(&crate::ZeroedStructuralLeaf::EmptyView {
+                path: vec![StructuralPathSegment::Case(case)],
+                field: Some(payload.id),
+                carrier: payload.field_type,
+            }));
+        }
+    }
+}
