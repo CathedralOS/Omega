@@ -22,6 +22,62 @@ fn write_package(root: &Path, build: &str, main: &str) {
 }
 
 #[test]
+fn workspace_members_resolve_sibling_dependencies_from_the_catalog_capture() {
+    configure();
+    let temp = TemporaryDirectory::create("workspace-sibling-custody", false).unwrap();
+    let catalog = temp.path().join("catalog");
+    let consumer = catalog.join("consumer");
+    let provider = catalog.join("provider");
+    write_package(
+        &consumer,
+        r#"use {omega}/build/dependency.omg;
+machine build(b: @mutable Build) {
+    Build::package(b, "consumer");
+    _ = Build::dependency(b, |dependency|::from_source(Source::Path { location: "../provider" }));
+}"#,
+        "public machine consume() {}",
+    );
+    write_package(
+        &provider,
+        r#"machine build(b: @mutable Build) { Build::package(b, "original"); }"#,
+        "public machine serve() {}",
+    );
+    let entry = catalog.join("build.omg");
+    fs::write(
+        &entry,
+        r#"machine build(b: @mutable Build) { Build::member(b, "consumer"); Build::member(b, "provider"); }"#,
+    )
+    .unwrap();
+    let targets = [TargetProfile::LinuxX64];
+    let out = temp.path().join("out");
+    let mut subjects =
+        package_manager::project::open_check_subjects(&entry, &targets, true, false, &out, None)
+            .unwrap();
+    // Both the provider's own subject and the consumer's authored request must keep
+    // the declaration captured before either member Build runs.
+    fs::write(provider.join("build.omg"), "invalid replacement").unwrap();
+    let first = subjects.next().unwrap();
+    assert_eq!(first.entry, consumer.join("build.omg"));
+    let products = first.products.unwrap();
+    let selected = products.select(targets[0]).unwrap();
+    let inputs = selected.package_inputs().unwrap();
+    let dependency = inputs
+        .dependency_target_for_purpose(inputs.root(), DependencyPurpose::Product, "original")
+        .unwrap();
+    assert_eq!(inputs.package_name(dependency), Some("original"));
+    products.settle_rechecks(targets[0]).unwrap();
+
+    let second = subjects.next().unwrap();
+    assert_eq!(second.entry, provider.join("build.omg"));
+    let products = second.products.unwrap();
+    let selected = products.select(targets[0]).unwrap();
+    let inputs = selected.package_inputs().unwrap();
+    assert_eq!(inputs.package_name(inputs.root()), Some("original"));
+    products.settle_rechecks(targets[0]).unwrap();
+    assert!(subjects.next().is_none());
+}
+
+#[test]
 fn build_dependencies_use_the_host_and_product_dependencies_use_the_requested_target() {
     configure();
     let temp = TemporaryDirectory::create("project-targets", false).unwrap();
