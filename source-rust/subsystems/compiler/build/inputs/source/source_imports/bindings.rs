@@ -385,7 +385,7 @@ mod tests {
     fn a_build_file_alias_selects_separate_build_and_product_dependencies() {
         use semantic_vocabulary::PackageKeyIdentity;
         use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
-        use source_compiler::{SourceImport, SourceImportTarget};
+        use source_compiler::{SourceInput, SourceSyntax};
 
         let [app, build, product] =
             [41, 42, 43].map(|byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap());
@@ -412,16 +412,20 @@ mod tests {
             product,
             DependencyScope::Product,
         );
-        let import = SourceImport {
-            qualifiers: Vec::new(),
-            ordinal: 0,
-            span: Default::default(),
-            target: SourceImportTarget {
-                root: Some("kit".into()),
-                path: "api.omg".into(),
-                alias: "chosen".into(),
-            },
-        };
+        let parsed = SourceInput(
+            [source_admission::LoadedSource {
+                source_id: author,
+                path: "/app/build.omg".into(),
+                source: "use {kit}/api.omg as chosen; machine build() { |chosen|::run(); }".into(),
+                scope: DependencyScope::Build,
+                ..Default::default()
+            }]
+            .into_iter()
+            .collect(),
+        )
+        .append(&mut SourceSyntax::default(), &mut Default::default())
+        .unwrap();
+        let import = parsed.sources.span_or_empty(parsed.batch)[0].imports[0].clone();
         for source_id in [author, build_target, product_target] {
             storage.source_roots.append(SourceRoots {
                 source_id,
