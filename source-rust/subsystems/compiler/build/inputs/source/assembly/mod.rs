@@ -338,9 +338,8 @@ impl ImmutableSourceParseCheckpoint {
             );
         }
         load_phase!(PackageImportPhase::ExactTarget(None))?;
-        if deferred_product.is_none()
-            && let Some(loaded) = source_storage.seal_product_owner(catalogue)?
-        {
+        if deferred_product.is_none() && source_storage.seal_product_owner()? {
+            let loaded = source_storage.reselect_current_sources(catalogue)?;
             if let Some(inputs) = package_inputs {
                 source_storage
                     .sources

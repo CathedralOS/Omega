@@ -203,6 +203,10 @@ fn git_content_identity_is_derived_only_from_the_authenticated_root_tree() {
             .unwrap();
 
     assert_eq!(first.content(), second.content());
+    assert_ne!(first.identity_digest(), second.identity_digest());
+    let local = ImmutableSourceResolution::external_local(first.content().clone());
+    let workspace = ImmutableSourceResolution::workspace(first.content().clone());
+    assert_ne!(local.identity_digest(), workspace.identity_digest());
 }
 
 #[test]

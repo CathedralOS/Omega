@@ -20,6 +20,8 @@ use std::path::{Path, PathBuf};
 
 #[derive(Clone, Default, record_storage::Record)]
 pub(crate) struct SourceStorage {
+    // A successor can execute under its predecessor's completed Product owner.
+    pub(crate) build_owner: Option<PackageKeyIdentity>,
     pub(crate) entry: Option<crate::source::entry::NamedSource>,
     pub filesystem: source_capture::SourceFileSystem, // Captured virtual source filesystem.
     pub source_roots: Arena<SourceRoots>,             // Per-source parsed root `ItemHandle` lists.
@@ -64,39 +66,40 @@ impl RegisteredPackageRoot {
 }
 
 impl SourceStorage {
-    pub(crate) fn seal_product_owner(
-        &mut self,
-        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
-    ) -> Result<Option<Vec<source_admission::LoadedSource>>, Vec<Diagnostic>> {
+    pub(crate) fn seal_product_owner(&mut self) -> Result<bool, Vec<Diagnostic>> {
         let Some(capture) = self.retain_anonymous_owner(&[])? else {
-            return Ok(None);
+            return Ok(false);
         };
-        if !capture.sources().selected_files().any(|file| {
+        let local = capture.sources().selected_files().any(|file| {
             file.origin == SourceOrigin::User && file.package_root == self.default_package_root
-        }) {
-            self.sources = std::sync::Arc::unwrap_or_clone(capture.sources);
-            return Ok(None);
+        });
+        let owner = local.then(|| capture.completed_owner([])).transpose()?;
+        self.sources = std::sync::Arc::unwrap_or_clone(capture.sources);
+        if let Some(owner) = owner {
+            self.bind_product_owner(owner)?;
         }
-        let sealed = capture.complete_without_dependencies()?;
-        let identity = sealed
-            .selected_files()
-            .find(|file| {
-                file.origin == SourceOrigin::User && file.package_root == self.default_package_root
-            })
-            .and_then(|file| file.package_identity)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "completed Build lost its derived source owner",
-                )]
-            })?;
-        self.sources = std::sync::Arc::unwrap_or_clone(sealed);
-        self.default_package_identity = Some(identity);
+        Ok(owner.is_some())
+    }
+
+    pub(crate) fn bind_returned_product(
+        &mut self,
+        source: &crate::CompletedAnonymousSource,
+    ) -> Result<(), Vec<Diagnostic>> {
+        source.require_capture(self.unbound_acquisition.as_ref())?;
+        self.bind_product_owner(source.owner)
+    }
+
+    fn bind_product_owner(&mut self, owner: PackageKeyIdentity) -> Result<(), Vec<Diagnostic>> {
+        self.sources
+            .bind_anonymous_owner(&self.default_package_root, owner)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        self.default_package_identity = Some(owner);
         for root in &mut self.package_roots {
             if root.root == self.default_package_root && root.identity.is_none() {
-                root.identity = Some(identity);
+                root.identity = Some(owner);
             }
         }
-        self.reselect_current_sources(catalogue).map(Some)
+        Ok(())
     }
 
     // Package sources and core have separate suppliers. Mount the captured
@@ -352,7 +355,11 @@ impl SourceStorage {
             if file.package_root == self.default_package_root
                 && file
                     .package_identity
-                    .is_some_and(|owner| owner != inputs.root())
+                    .is_some_and(|owner| {
+                        owner != inputs.root()
+                            && !(file.dependency_scope == source_provenance::DependencyScope::Build
+                                && Some(owner) == self.build_owner)
+                    })
             {
                 return Err(refuse(
                     "Build source has another named owner at Product join".to_owned(),
@@ -384,6 +391,10 @@ impl SourceStorage {
     ) -> Result<Vec<source_admission::LoadedSource>, Vec<Diagnostic>> {
         let primary_source = self.syntax_trees.primary_source();
         let previous = std::mem::replace(&mut self.sources, catalogue.begin_selection());
+        if let (Some(build), Some(product)) = (self.build_owner, self.default_package_identity) {
+            self.sources
+                .retain_returned_product(self.default_package_root.clone(), build, product);
+        }
         let mut admitted = Vec::new();
         let mut correspondence = Vec::new();
         for file in previous.selected_files() {
@@ -497,6 +508,7 @@ impl SourceStorage {
                 .filter(|file| file.package_root != core.canonical_live_root()),
         )?;
         Ok(Some(crate::AnonymousSourceCapture {
+            build_owner: self.build_owner,
             root: self.default_package_root.clone(),
             capture: capture.clone(),
             acquisition: self.unbound_acquisition.clone(),
@@ -657,8 +669,14 @@ impl SourceStorage {
         resolution_stratum: source_admission::SourceResolutionStratum,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<source_admission::LoadedSource, Vec<Diagnostic>> {
-        let (package_root, package_identity, origin) =
+        let (package_root, mut package_identity, origin) =
             self.source_metadata(&contents.path, origin_override);
+        if origin == SourceOrigin::User
+            && package_root == self.default_package_root
+            && contents.scope == source_provenance::DependencyScope::Build
+        {
+            package_identity = self.build_owner.or(package_identity);
+        }
         let admitted = catalogue
             .admit_checked_instance(
                 &mut self.sources,
@@ -849,9 +867,9 @@ pub(crate) fn validate_package_source_frontier(
 #[cfg(test)]
 mod tests {
     use super::SourceStorage;
-    use source_provenance::DependencyScope;
     use source_admission::SourceOrigin;
     use source_admission::SourceResolutionStratum;
+    use source_provenance::DependencyScope;
     use source_compiler::{ParsedSourceBatch, ParsedSourceSummary};
     use source_text::{SourceId, SourceSpan, Span};
     use std::{path::PathBuf, sync::Arc};

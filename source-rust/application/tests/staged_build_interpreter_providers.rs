@@ -18,6 +18,12 @@ public TwentyThree satisfies |api|::Meter {
 const PRODUCT_ENTRIES: &str = r#"public machine return_normally() {}
 public machine trap() crashes Trap { crash Trap; }"#;
 
+#[derive(Clone, Copy)]
+enum ProviderSource {
+    Dependency,
+    Local,
+}
+
 enum ProductEntries {
     Separate,
     SharedWithBuild,
@@ -26,30 +32,42 @@ enum ProductEntries {
 fn project(
     target: &str,
     provider: Option<&str>,
+    source: ProviderSource,
     before_read: &str,
     entries: ProductEntries,
 ) -> TemporaryDirectory {
     let sandbox = TemporaryDirectory::create("staged-build-providers", false).unwrap();
     let app = sandbox.path().join("app");
-    let meter = sandbox.path().join("meter");
     fs::create_dir(&app).unwrap();
-    fs::create_dir(&meter).unwrap();
-    fs::write(
-        meter.join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "meter"); }"#,
-    )
-    .unwrap();
+    let (meter, import_root, registration) = match source {
+        ProviderSource::Local => (app.clone(), "", ""),
+        ProviderSource::Dependency => {
+            let meter = sandbox.path().join("meter");
+            fs::create_dir(&meter).unwrap();
+            fs::write(
+                meter.join("build.omg"),
+                r#"machine build(builder: @mutable Build) { Build::package(builder, "meter"); }"#,
+            )
+            .unwrap();
+            (
+                meter,
+                "{meter}/",
+                r#"let source: DependencyDescription = |dependency|::from_source(Source::Path { location: "../meter" });
+    _ = Build::dependency(builder, source);"#,
+            )
+        }
+    };
     fs::write(meter.join("main.omg"), SERVICE).unwrap();
     fs::write(meter.join("backings.omg"), BACKINGS).unwrap();
 
     let (provider_files, selection) = match provider {
         Some(name) => (
-            "use {meter}/main.omg as api; use {meter}/backings.omg;",
+            format!("use {import_root}main.omg as api; use {import_root}backings.omg;"),
             format!(
                 "Build::select_provider::<|api|::Meter, |backings|::{name}>(builder, interpreter);"
             ),
         ),
-        None => ("", String::new()),
+        None => (String::new(), String::new()),
     };
     fs::write(
         app.join("build.omg"),
@@ -57,8 +75,7 @@ fn project(
             r#"use {{omega}}/build/dependency.omg;
 {provider_files}
 machine build(builder: @mutable Build) {{
-    let source: DependencyDescription = |dependency|::from_source(Source::Path {{ location: "../meter" }});
-    _ = Build::dependency(builder, source);
+    {registration}
     Build::build_entry(builder, "configure.omg");
     {selection}
 }}"#
@@ -75,7 +92,7 @@ machine build(builder: @mutable Build) {{
     fs::write(
         app.join("configure.omg"),
         format!(
-            r#"use {{meter}}/main.omg as api;
+            r#"use {import_root}main.omg as api;
 {product_import}
 machine build(builder: @mutable Build) {{
     {before_read}
@@ -109,6 +126,10 @@ fn run(project: &TemporaryDirectory, engine: &str) -> (Output, String) {
             "configure.omg",
             "--optional-build-input",
             "product.omg",
+            "--optional-build-input",
+            "main.omg",
+            "--optional-build-input",
+            "backings.omg",
             "build.omg",
         ])
         .stdin(Stdio::null())
@@ -127,13 +148,16 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
         return;
     };
-    for (provider, psi_termination, native_trap) in [
-        ("Seventeen", "psi\treturn", false),
-        ("TwentyThree", "psi\tcrash\tTrap", true),
+    for (provider, source, psi_termination, native_trap) in [
+        ("Seventeen", ProviderSource::Dependency, "psi\treturn", false),
+        ("TwentyThree", ProviderSource::Dependency, "psi\tcrash\tTrap", true),
+        ("Seventeen", ProviderSource::Local, "psi\treturn", false),
+        ("TwentyThree", ProviderSource::Local, "psi\tcrash\tTrap", true),
     ] {
         let fixture = project(
             host.target_name(),
             Some(provider),
+            source,
             "",
             ProductEntries::Separate,
         );
@@ -160,7 +184,13 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
 #[test]
 fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
     let poison = r#"Build::build_entry(builder, "../successor-started.omg");"#;
-    let fixture = project("linux_x86_64", None, poison, ProductEntries::Separate);
+    let fixture = project(
+        "linux_x86_64",
+        None,
+        ProviderSource::Dependency,
+        poison,
+        ProductEntries::Separate,
+    );
     let (output, report) = run(&fixture, "psi");
     assert!(!output.status.success(), "{report}");
     assert!(
@@ -178,6 +208,7 @@ fn a_shared_product_entry_cannot_use_the_builds_meter_dependency() {
     let fixture = project(
         "linux_x86_64",
         Some("Seventeen"),
+        ProviderSource::Dependency,
         "",
         ProductEntries::SharedWithBuild,
     );

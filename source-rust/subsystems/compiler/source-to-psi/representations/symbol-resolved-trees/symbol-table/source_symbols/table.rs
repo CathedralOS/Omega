@@ -2366,7 +2366,8 @@ mod source_queries {
             let Some(sources) = self.sources.as_deref() else {
                 return true;
             };
-            sources.same_package(reference, declaration)
+            (sources.same_package(reference, declaration)
+                || sources.describes_own_product(reference, declaration))
                 && sources.file_at(declaration).is_none_or(|file| {
                     file.dependency_scope
                         == source_provenance::DependencyScope::Product

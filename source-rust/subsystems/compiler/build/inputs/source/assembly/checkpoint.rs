@@ -367,6 +367,9 @@ impl ImmutableSourceParseCheckpoint {
         let root_path = entry.path();
         let mut source_storage =
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
+        if let CapturedBuildEntry::Successor { source_owner, .. } = entry {
+            source_storage.build_owner = source_owner.map(|source| source.owner());
+        }
         let project = StageRoots::prepare(entry, &mut source_storage)?;
         let predecessors = match entry {
             CapturedBuildEntry::Initial(_) => &[][..],

@@ -64,6 +64,48 @@ impl super::ImmutableSourceParseCheckpoint {
 }
 
 impl DeferredProductSources {
+    /// A local interpreted product can name its real declarations only after
+    /// the Build returned and every direct registration has an immutable resolution.
+    /// Resolve the files first so only the toolchain inputs this product uses
+    /// enter its key. Retype the same captured selection under that identity.
+    pub fn assemble_returned_successor(
+        &self,
+        inputs: &crate::source_imports::ProductQueryInputs,
+        timings: &mut CompileTimings,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
+    ) -> Result<
+        (
+            source_compiler::ProductDeclarationSource,
+            Option<crate::CompletedAnonymousSource>,
+        ),
+        Vec<Diagnostic>,
+    > {
+        let projected = self.assemble_query(inputs, timings, catalogue)?;
+        let checkpoint = &self.checkpoint;
+        let selected = &projected.parsed().files;
+        if !selected.selected_files().any(|file| {
+            file.origin == source_admission::SourceOrigin::User
+                && file.package_identity.is_none()
+                && file.dependency_scope == source_provenance::DependencyScope::Product
+                && file.package_root == checkpoint.source_storage.default_package_root()
+        }) {
+            return Ok((projected, None));
+        }
+        let mut storage = checkpoint.source_storage.as_ref().clone();
+        storage.sources = selected.as_ref().clone();
+        let capture = storage.retain_anonymous_owner(&[])?.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "unowned successor declarations require their original source capture",
+            )]
+        })?;
+        let sealed = capture.complete_product(inputs.resolved_edges()?)?;
+        let mut returned = self.clone();
+        let storage = Arc::make_mut(&mut returned.checkpoint.source_storage);
+        storage.bind_returned_product(&sealed)?;
+        let projected = returned.assemble_query(inputs, timings, catalogue)?;
+        Ok((projected, Some(sealed)))
+    }
+
     pub fn assemble_query(
         &self,
         inputs: &crate::source::source_imports::ProductQueryInputs,

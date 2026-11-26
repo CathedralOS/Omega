@@ -39,6 +39,14 @@ pub struct SourceMap {
     source_rejoins: Vec<(SourceId, SourceId)>, // Producer-issued correspondence when an anonymous Build capture becomes a Product instance.
     product_dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>, // Authorized `DependencyPurpose::Product` alias edges by requester.
     query_dependencies: Option<(PathBuf, BTreeMap<String, PackageKeyIdentity>)>, // Invocation-local routing before Build has a final declaration owner.
+    returned_product: Option<ReturnedBuildProduct>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+struct ReturnedBuildProduct {
+    root: PathBuf,
+    build: PackageKeyIdentity,
+    product: PackageKeyIdentity,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
@@ -75,6 +83,7 @@ impl SourceCatalogue {
             source_rejoins: Vec::new(),
             product_dependencies: BTreeMap::new(),
             query_dependencies: None,
+            returned_product: None,
         }
     }
 
@@ -210,6 +219,7 @@ impl SourceMap {
             source_rejoins: Vec::new(),
             product_dependencies: BTreeMap::new(),
             query_dependencies: None,
+            returned_product: None,
         }
     }
 
@@ -308,7 +318,21 @@ impl SourceMap {
         other: &Self,
         requester: PackageKeyIdentity,
     ) -> bool {
-        self.product_dependencies.get(&requester) == other.product_dependencies.get(&requester)
+        fn scope(
+            sources: &SourceMap,
+            requester: PackageKeyIdentity,
+        ) -> (
+            Option<&ReturnedBuildProduct>,
+            Option<&BTreeMap<String, PackageKeyIdentity>>,
+        ) {
+            let returned = sources
+                .returned_product
+                .as_ref()
+                .filter(|r| r.build == requester);
+            let product = returned.map_or(requester, |r| r.product);
+            (returned, sources.product_dependencies.get(&product))
+        }
+        scope(self, requester) == scope(other, requester)
     }
 
     pub fn retains_source_storage(&self, predecessor: &Self) -> bool {
@@ -403,6 +427,50 @@ impl SourceMap {
             .copied()
     }
 
+    /// The source issuer closed a different Build and Product owner for the same
+    /// acquired root. Only designated references authored in that Build may
+    /// use the returned Product's declaration and dependency scope.
+    pub fn retain_returned_product(
+        &mut self,
+        root: PathBuf,
+        build: PackageKeyIdentity,
+        product: PackageKeyIdentity,
+    ) {
+        self.returned_product = Some(ReturnedBuildProduct {
+            root,
+            build,
+            product,
+        });
+    }
+
+    fn returned_product_of(&self, occurrence: SourceSpan) -> Option<&ReturnedBuildProduct> {
+        let file = self.file_at(occurrence)?;
+        self.returned_product.as_ref().filter(|returned| {
+            self.source_is_selected(file.source_id)
+                && file.origin == SourceOrigin::User
+                && file.dependency_scope == DependencyScope::Build
+                && file.package_root == returned.root
+                && file.package_identity == Some(returned.build)
+        })
+    }
+
+    pub(super) fn describes_own_product(
+        &self,
+        reference: SourceSpan,
+        declaration: SourceSpan,
+    ) -> bool {
+        let Some(returned) = self.returned_product_of(reference) else {
+            return false;
+        };
+        self.file_at(declaration).is_some_and(|file| {
+            self.source_is_selected(file.source_id)
+                && file.origin == SourceOrigin::User
+                && file.dependency_scope == DependencyScope::Product
+                && file.package_root == returned.root
+                && file.package_identity == Some(returned.product)
+        })
+    }
+
     pub fn retain_query_dependencies(
         &mut self,
         root: PathBuf,
@@ -421,6 +489,13 @@ impl SourceMap {
         Ok(())
     }
 
+    pub fn product_owner_at(&self, occurrence: SourceSpan) -> Option<PackageKeyIdentity> {
+        let file = self.file_at(occurrence)?;
+        self.returned_product_of(occurrence)
+            .map(|returned| returned.product)
+            .or(file.package_identity)
+    }
+
     pub fn product_dependency_at(
         &self,
         occurrence: SourceSpan,
@@ -436,7 +511,7 @@ impl SourceMap {
         occurrence: SourceSpan,
     ) -> Option<&BTreeMap<String, PackageKeyIdentity>> {
         let file = self.file_at(occurrence)?;
-        if let Some(owner) = file.package_identity {
+        if let Some(owner) = self.product_owner_at(occurrence) {
             return self.product_dependencies.get(&owner);
         }
         let (root, dependencies) = self.query_dependencies.as_ref()?;
@@ -745,6 +820,58 @@ mod tests {
         );
         sources.retain_selected_sources(|file| file.resolution_stratum == Base);
         sources.validate_logical_filenames().unwrap();
+    }
+
+    #[test]
+    fn only_the_issuing_build_describes_its_returned_product() {
+        use DependencyScope::{Build, Product};
+        let mut sources = SourceMap::default();
+        let owner = |byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap();
+        let build_owner = owner(1);
+        let product_owner = owner(2);
+        let dep = owner(3);
+        let root = PathBuf::from("project");
+        let mut add = |root: &PathBuf, name: &str, owner, scope| {
+            let id = sources
+                .add_checked_instance(
+                    root.join(name),
+                    "",
+                    root.clone(),
+                    Some(owner),
+                    SourceOrigin::User,
+                    SourceResolutionStratum::Base,
+                    scope,
+                )
+                .source_id;
+            SourceSpan::new(id, Span::default())
+        };
+        let build = add(&root, "build.omg", build_owner, Build);
+        let product = add(&root, "main.omg", product_owner, Product);
+        let foreign = add(&root, "other.omg", dep, Product);
+        let other_root = add(
+            &PathBuf::from("elsewhere"),
+            "main.omg",
+            product_owner,
+            Product,
+        );
+        let other_build = add(&root, "other_build.omg", product_owner, Build);
+        sources.retain_product_dependency_scope([(product_owner, "dep", dep)]);
+        let without_receipt = sources.clone();
+        assert!(!sources.describes_own_product(build, product));
+        sources.retain_returned_product(root, build_owner, product_owner);
+        assert!(sources.describes_own_product(build, product));
+        assert!(!sources.same_package(build, product));
+        assert!(!sources.same_checked_instance(build, product));
+        for other in [foreign, other_root, other_build] {
+            assert!(!sources.describes_own_product(build, other));
+        }
+        assert!(!sources.describes_own_product(other_build, product));
+        assert_eq!(sources.product_dependency_at(build, "dep"), Some(dep));
+        assert_eq!(without_receipt.product_dependency_at(build, "dep"), None);
+        assert!(!sources.same_product_dependency_scope(&without_receipt, build_owner));
+        assert!(sources.same_product_dependency_scope(&without_receipt, product_owner));
+        sources.retain_selected_sources(|file| file.source_id != product.source_id);
+        assert!(!sources.describes_own_product(build, product));
     }
 
     #[test]

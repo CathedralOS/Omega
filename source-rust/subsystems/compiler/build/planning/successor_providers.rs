@@ -13,7 +13,13 @@ impl PlanningSource {
         entry: &BuildEntryPath,
         libraries: &[SuppliedBuildLibrary],
         evaluated: &EvaluatedBuild,
-    ) -> Result<InterpretedProviderSelections, CompileFailure> {
+    ) -> Result<
+        (
+            InterpretedProviderSelections,
+            Option<package_compilation::CompletedAnonymousSource>,
+        ),
+        CompileFailure,
+    > {
         let build = &evaluated.configuration;
         let mut events = build
             .product_selection_requests
@@ -26,7 +32,7 @@ impl PlanningSource {
             .cloned()
             .collect::<Vec<_>>();
         if events.is_empty() {
-            return Ok(Default::default());
+            return Ok((Default::default(), None));
         }
         let authors = self.query_authors.as_ref().ok_or_else(|| {
             refusal("the preparing Build has no recorded selection authors".into())
@@ -57,12 +63,17 @@ impl PlanningSource {
                 operand.path.as_bytes(),
             );
         }
-        let assembled = self.deferred.assemble_query(
+        let (assembled, completed) = self.deferred.assemble_returned_successor(
             &inputs,
             &mut self.timings,
             &mut *self.preparation.catalogue()?,
         )?;
         let projected = &assembled.parsed().files;
+        let activation_owner = build
+            .selected_build_declaration()
+            .and_then(|entry| projected.rejoined_source_id(entry.source()))
+            .and_then(|id| projected.get(id))
+            .and_then(|file| file.package_identity);
         let mut failure = None;
         let mut rejoin = |span: source_text::SourceSpan| match authors
             .file_at(span)
@@ -86,21 +97,24 @@ impl PlanningSource {
         if let Some(failure) = failure {
             return Err(failure);
         }
-        let scope = SuppliedBuildLibrary::declaration_scope(libraries, None).map(Arc::new);
+        let subject = completed.as_ref().map(|source| source.owner());
+        let scope = SuppliedBuildLibrary::declaration_scope(libraries, subject).map(Arc::new);
         let declarations =
             assembled.prepare(&self.preparation, self.profile.target_name(), scope)?;
         let declared = events
             .iter()
             .map(|event| Arc::clone(&event.request))
             .collect::<Vec<_>>();
-        Ok(declarations.interpreted_provider_selections(
+        let choices = declarations.interpreted_provider_selections(
             ProductPolicyInputs {
+                activation_owner,
                 activation: build.selected_build_declaration(),
                 declared: &declared,
                 executed: &events,
                 ..Default::default()
             },
-            None,
-        )?)
+            subject,
+        )?;
+        Ok((choices, completed))
     }
 }

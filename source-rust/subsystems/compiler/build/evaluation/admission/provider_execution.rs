@@ -20,6 +20,7 @@ impl BuildProviderScope {
     pub(crate) fn for_packages(
         packages: Option<&package_compilation::PackageCompilationInputs>,
         libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
+        owner: Option<semantic_vocabulary::PackageKeyIdentity>,
     ) -> Self {
         use build_declarations::DependencyPurpose;
         let mut dependency_edges = packages
@@ -29,7 +30,7 @@ impl BuildProviderScope {
             let dependency = library.dependency();
             dependency_edges.push(
                 semantic_vocabulary::dependency_reach::DependencyServiceEdge {
-                    requester: packages.map(|inputs| inputs.root()),
+                    requester: owner,
                     package: dependency.inputs.root(),
                     alias: dependency.alias.clone(),
                     max_reach: library.max_reach().clone(),
@@ -46,7 +47,7 @@ impl BuildProviderScope {
             dependency_edges,
             supplied_scope:
                 package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
-                    libraries, None,
+                    libraries, owner,
                 ),
         }
     }

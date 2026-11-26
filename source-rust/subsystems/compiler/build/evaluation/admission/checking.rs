@@ -29,6 +29,7 @@ pub fn settle_rejoined_build_slice(
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
+    libraries: &Arc<[package_compilation::source_imports::SuppliedBuildLibrary]>,
     subject_validation: BuildSubjectValidation,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<source_compiler::compile_time_invocations::SourceCompletionAccounting, CompileFailure> {
@@ -59,7 +60,7 @@ pub fn settle_rejoined_build_slice(
         entry,
         packages,
         anonymous_source,
-        &Arc::default(),
+        libraries,
         interpreter_providers,
         subject_validation != BuildSubjectValidation::EntryOnly,
         timings,
@@ -261,9 +262,16 @@ pub(crate) fn prepare_admitted_build(
             Default::default(),
         ));
     }
-    let subject = check_subject.then(|| packages.map(PackageCompilationInputs::root));
+    let owner = packages.map(PackageCompilationInputs::root).or_else(|| {
+        typed
+            .symbols
+            .symbol_source_span(entry)
+            .and_then(|span| typed.symbols.source_file(span))
+            .and_then(|file| file.package_identity)
+    });
+    let subject = check_subject.then_some(owner);
     let providers =
-        super::provider_execution::BuildProviderScope::for_packages(packages, libraries);
+        super::provider_execution::BuildProviderScope::for_packages(packages, libraries, owner);
     let judged = timings
         .record_result(BUILD_SOURCE_JUDGMENT, || {
             source_compiler::CheckedBuildInvocation::judge(
@@ -305,6 +313,7 @@ mod tests {
             symbols::SymbolHandle::invalid(),
             None,
             None,
+            &Default::default(),
             BuildSubjectValidation::Checked,
             &mut artifacts::compile_timings::CompileTimings::default(),
         )
@@ -533,6 +542,7 @@ mod tests {
             Err(failure) => failure,
             Ok(_) => panic!("a retyped value is not a receipt"),
         };
+        use build_evaluation_result::CompileFailure;
         assert!(diagnostics::join_messages(&failure.diagnostics).contains("receipt"));
         assert!(failure.accounting.receipts().is_empty());
     }
@@ -542,7 +552,6 @@ mod tests {
         use package_compilation::build_execution::{
             RestrictedBuildBounds, RestrictedBuildOperation, RestrictedBuildRequest,
         };
-        use build_evaluation_result::CompileFailure;
         let prepared = prepare(source(
             "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}",
         ))

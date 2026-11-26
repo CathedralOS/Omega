@@ -70,6 +70,7 @@ pub enum CapturedBuildEntry<'a> {
     Successor {
         path: &'a Path,
         previous_build_files: &'a [PathBuf],
+        source_owner: Option<&'a crate::CompletedAnonymousSource>,
     },
 }
 
@@ -85,9 +86,15 @@ impl<'a> CapturedBuildEntry<'a> {
         package_inputs: Option<&crate::PackageCompilationInputs>,
         source_capture: Option<&crate::CapturedLocalSource>,
     ) -> Result<(), Vec<Diagnostic>> {
-        let Self::Successor { path, .. } = self else {
+        let Self::Successor {
+            path, source_owner, ..
+        } = self
+        else {
             return Ok(());
         };
+        if let Some(owner) = source_owner {
+            owner.require_capture(source_capture)?;
+        }
         let package_root = source_capture
             .map(|capture| capture.canonical_live_root())
             .or_else(|| {
