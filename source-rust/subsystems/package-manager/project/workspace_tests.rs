@@ -87,7 +87,7 @@ fn check_catalog(directory: &Path, fixture: &Path) {
     let recovered = CanonicalSourceClosureSubject::recover_text(&text, Default::default()).unwrap();
     assert_eq!(review, recovered);
     assert_eq!(
-        dependency.observer.key().name().as_str(),
+        dependency.observer.member().unwrap().key().name().as_str(),
         "workspace_unselected"
     );
     assert_eq!(
@@ -415,6 +415,7 @@ fn check_root_catalog(directory: &Path, _: &Path) {
         input.provider.root().selected().key().name().as_str(),
         "roster"
     );
+    assert!(input.observer.member().is_none());
     let preparation = input.preparation.as_ref().unwrap();
     assert_eq!(
         (preparation.ordinal, preparation.successor.as_str()),

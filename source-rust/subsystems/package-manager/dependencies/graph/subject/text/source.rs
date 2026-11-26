@@ -18,7 +18,14 @@ pub(super) fn write_source(
 ) -> Result<(), Error> {
     writer.row("source", &[])?;
     write_key(writer, source.key())?;
-    match source.resolution() {
+    write_resolution(writer, source.resolution())
+}
+
+pub(super) fn write_resolution(
+    writer: &mut Writer,
+    resolution: &ImmutableSourceResolution,
+) -> Result<(), Error> {
+    match resolution {
         ImmutableSourceResolution::Git {
             commit,
             tree,
@@ -53,8 +60,14 @@ pub(super) fn read_source(
 ) -> Result<ResolvedSourceIdentity, Error> {
     reader.expect("source")?;
     let key = read_key(reader, limits)?;
+    let resolution = read_resolution(reader)?;
+    ResolvedSourceIdentity::new(key, resolution)
+        .map_err(|_| Error::new("text resolution disagrees with its lineage"))
+}
+
+pub(super) fn read_resolution(reader: &mut Reader<'_>) -> Result<ImmutableSourceResolution, Error> {
     reader.expect("resolution")?;
-    let resolution = match reader.atom()? {
+    Ok(match reader.atom()? {
         "git" => {
             let commit = GitCommitId::parse_hex(&reader.hex_string(64)?)
                 .map_err(|_| Error::new("invalid text Git commit"))?;
@@ -74,9 +87,7 @@ pub(super) fn read_source(
         "workspace" => ImmutableSourceResolution::workspace(read_content(reader)?),
         "external-local" => ImmutableSourceResolution::external_local(read_content(reader)?),
         _ => return Err(Error::new("unknown text source resolution")),
-    };
-    ResolvedSourceIdentity::new(key, resolution)
-        .map_err(|_| Error::new("text resolution disagrees with its lineage"))
+    })
 }
 
 fn read_content(reader: &mut Reader<'_>) -> Result<SourceContentDigest, Error> {

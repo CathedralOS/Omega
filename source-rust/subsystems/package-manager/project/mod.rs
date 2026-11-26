@@ -142,11 +142,10 @@ struct ExecutedBuild {
 }
 
 impl ExecutedBuild {
-    fn observe(
+    fn catalog_inputs(
         &mut self,
-        source: &AcquiredBuildSource,
         settled: &[SettledSource],
-    ) -> Result<WorkspaceMemberObservation, PackageCommandError> {
+    ) -> Result<Vec<CatalogInput>, PackageCommandError> {
         let mut inputs = Vec::new();
         for (ordinal, (successor, dependencies)) in self.preparations.iter().enumerate() {
             for dependency in dependencies {
@@ -167,9 +166,11 @@ impl ExecutedBuild {
                 });
             }
         }
-        let declaration = self.stage.observe_source_declaration()?;
         let result = self.stage.source_result()?;
-        let mut graphs = Vec::with_capacity(result.demanded_sources().len());
+        let issued =
+            crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
+                result.requests(),
+            )?;
         for demand in result.demanded_sources() {
             let request = self
                 .requests
@@ -178,17 +179,42 @@ impl ExecutedBuild {
                     "workspace member demanded a dependency that was never prepared".to_owned()
                 })?;
             let provider = &settled[request.settled];
-            graphs.push(Arc::new(
-                provider
-                    .graph
-                    .rooted_at(&provider.declaration, &request.acquisition)?,
-            ));
+            if provider.declaration.identity() != demand.package {
+                return Err("workspace catalog demanded another dependency instance"
+                    .to_owned()
+                    .into());
+            }
+            let registration = issued
+                .requests(demand.purpose)
+                .get(demand.request_ordinal)
+                .ok_or("catalog provider has no issued request".to_owned())?;
+            inputs.push(CatalogInput {
+                preparation: None,
+                purpose: demand.purpose,
+                ordinal: demand.request_ordinal,
+                request: registration.clone(),
+                graph: Arc::new(
+                    provider
+                        .graph
+                        .rooted_at(&provider.declaration, &request.acquisition)?,
+                ),
+            });
         }
+        Ok(inputs)
+    }
+
+    fn observe(
+        &mut self,
+        source: &AcquiredBuildSource,
+        settled: &[SettledSource],
+    ) -> Result<WorkspaceMemberObservation, PackageCommandError> {
+        let inputs = self.catalog_inputs(settled)?;
+        let declaration = self.stage.observe_source_declaration()?;
+        let result = self.stage.source_result()?;
         Ok(WorkspaceMemberObservation::new(
             source,
             declaration,
             &result,
-            graphs,
             inputs,
         )?)
     }
@@ -354,17 +380,18 @@ impl SourceHost<'_, '_> {
         &mut self,
         workspace: AcquiredWorkspaceBuild,
     ) -> Result<AcquiredBuildSource, PackageCommandError> {
-        let root = self.execute(
+        let mut root = self.execute(
             &workspace.entry_path(),
             workspace.acquired_source(),
             None,
             true,
             &[],
         )?;
+        let inputs = root.catalog_inputs(&self.settled)?;
         let declaration = root.stage.settle_workspace_declaration()?;
         let members = self
             .acquisitions
-            .workspace_members(workspace, declaration)?;
+            .workspace_members(workspace, declaration, inputs)?;
         let mut observations = Vec::new();
         for source in members.sources() {
             let mut member = self.member_or_execute(source)?;

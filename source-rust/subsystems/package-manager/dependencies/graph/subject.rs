@@ -40,7 +40,7 @@ use crate::resolution::source::PackageSourceNavigation;
 use encoding::encode_hex;
 
 pub(super) const SOURCE_CLOSURE_SUBJECT_MAGIC: &[u8] = b"OMEGA-SOURCE-CLOSURE-SUBJECT\0";
-pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 12;
+pub(crate) const SOURCE_CLOSURE_SUBJECT_ENCODING_VERSION: u16 = 13;
 pub(super) const SOURCE_CLOSURE_SUBJECT_FINGERPRINT_DOMAIN: &[u8] =
     b"OMEGA-SOURCE-CLOSURE-SUBJECT-FINGERPRINT\0";
 
@@ -138,10 +138,41 @@ impl CanonicalSourceClosureSubject {
     }
 }
 
+/// A workspace root computes the member roster before a package can be named.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CatalogObserver {
+    Workspace {
+        lineage: SourceLineage,
+        resolution: source_acquisition::ImmutableSourceResolution,
+    },
+    Member(ResolvedSourceIdentity),
+}
+
+impl CatalogObserver {
+    pub(crate) fn member(&self) -> Option<&ResolvedSourceIdentity> {
+        match self {
+            Self::Member(source) => Some(source),
+            Self::Workspace { .. } => None,
+        }
+    }
+    pub(crate) fn lineage(&self) -> &SourceLineage {
+        match self {
+            Self::Member(source) => source.key().source_lineage(),
+            Self::Workspace { lineage, .. } => lineage,
+        }
+    }
+    pub(crate) fn resolution(&self) -> &source_acquisition::ImmutableSourceResolution {
+        match self {
+            Self::Member(source) => source.resolution(),
+            Self::Workspace { resolution, .. } => resolution,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CanonicalCatalogDependency {
     pub(crate) preparation: Option<crate::resolution::source::CatalogPreparation>,
-    pub(crate) observer: ResolvedSourceIdentity,
+    pub(crate) observer: CatalogObserver,
     pub(crate) navigation: PackageSourceNavigation,
     pub(crate) purpose: DependencyPurpose,
     pub(crate) ordinal: usize,

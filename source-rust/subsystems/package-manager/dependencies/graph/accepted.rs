@@ -58,7 +58,7 @@ pub(crate) fn admit_locked_issued_source_request(
             .catalog_dependencies()
             .iter()
             .find(|dependency| {
-                dependency.observer.key().source_lineage() == origin.lineage
+                dependency.observer.lineage() == origin.lineage
                     && &dependency.navigation == origin.navigation
                     && dependency.ordinal == ordinal
             })

@@ -9,6 +9,7 @@ use super::{
     CanonicalCatalogDependency, CanonicalDependencySourceRequest,
     CanonicalDependencySourceSelection, CanonicalSourceClosureSubject,
     CanonicalSourceClosureSubjectError as Error, CanonicalSourceClosureSubjectLimits as Limits,
+    CatalogObserver,
 };
 use super::{request_view::Request, usage::Budget};
 use crate::declarations::dependencies::read::DependencyPurpose;
@@ -17,9 +18,20 @@ use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedSourceId
 use std::iter::once;
 
 impl CanonicalCatalogDependency {
-    fn coordinate(&self) -> (&PackageKey, Option<usize>, DependencyPurpose, usize) {
+    fn coordinate(
+        &self,
+    ) -> (
+        Option<&PackageKey>,
+        &source_acquisition::SourceLineage,
+        &source_acquisition::ImmutableSourceResolution,
+        Option<usize>,
+        DependencyPurpose,
+        usize,
+    ) {
         (
-            self.observer.key(),
+            self.observer.member().map(ResolvedSourceIdentity::key),
+            self.observer.lineage(),
+            self.observer.resolution(),
             self.preparation.as_ref().map(|stage| stage.ordinal),
             self.purpose,
             self.ordinal,
@@ -37,20 +49,36 @@ pub(super) fn project(
     while let Some(closure) = pending.get(position).copied() {
         position += 1;
         for custody in closure.custodies() {
-            for observation in custody.selection_evidence().observations() {
-                for input in &observation.inputs {
+            let evidence = custody.selection_evidence();
+            let root_observer = CatalogObserver::Workspace {
+                lineage: custody.key().source_lineage().clone(),
+                resolution: custody.resolution().clone(),
+            };
+            let observations = once((
+                root_observer,
+                crate::resolution::source::PackageSourceNavigation::Root,
+                evidence.root_inputs(),
+            ))
+            .chain(evidence.observations().iter().map(|member| {
+                (
+                    CatalogObserver::Member(ResolvedSourceIdentity::from_validated_parts(
+                        member.source.key().clone(),
+                        member.source.resolution().clone(),
+                    )),
+                    member.source.navigation().clone(),
+                    member.inputs.as_slice(),
+                )
+            }));
+            for (observer, navigation, inputs) in observations {
+                for input in inputs {
                     let graph = &input.graph;
-                    let observer = &observation.source;
                     let provider = CanonicalSourceClosureSubject::from_resolved_without_catalog(
                         &graph.closure.for_exact_target(target.target_profile()),
                         limits,
                     )?;
                     let dependency = CanonicalCatalogDependency {
-                        observer: ResolvedSourceIdentity::from_validated_parts(
-                            observer.key().clone(),
-                            observer.resolution().clone(),
-                        ),
-                        navigation: observer.navigation().clone(),
+                        observer: observer.clone(),
+                        navigation: navigation.clone(),
                         preparation: input.preparation.clone(),
                         purpose: input.purpose,
                         ordinal: input.ordinal,
@@ -114,7 +142,7 @@ pub(super) fn validate(
                     "catalog dependencies are not in strict canonical order",
                 ));
             }
-            if previous.observer.key() == dependency.observer.key()
+            if previous.observer == dependency.observer
                 && let (Some(left), Some(right)) = (&previous.preparation, &dependency.preparation)
                 && left.ordinal == right.ordinal
                 && left.successor != right.successor
@@ -125,37 +153,69 @@ pub(super) fn validate(
             }
         }
         previous = Some(dependency);
-        validate_source_identity(&dependency.observer, limits.maximum_identity_bytes)?;
-        validate_package_navigation(&dependency.observer, &dependency.navigation)?;
+        if let Some(member) = dependency.observer.member() {
+            validate_source_identity(member, limits.maximum_identity_bytes)?;
+            validate_package_navigation(member, &dependency.navigation)?;
+        } else {
+            super::validation::validate_source_lineage(
+                dependency.observer.lineage(),
+                limits.maximum_identity_bytes,
+            )?;
+            let anchored = once(subject)
+                .chain(dependencies.iter().map(|row| &row.provider))
+                .any(|graph| {
+                    graph.packages.iter().zip(&graph.package_navigations).any(
+                        |(member, navigation)| {
+                            matches!(
+                                navigation,
+                                crate::resolution::source::PackageSourceNavigation::Member(_)
+                            ) && member.key().source_lineage() == dependency.observer.lineage()
+                                && member.resolution() == dependency.observer.resolution()
+                        },
+                    )
+                });
+            if dependency.navigation != crate::resolution::source::PackageSourceNavigation::Root
+                || !matches!(
+                    dependency.observer.resolution(),
+                    source_acquisition::ImmutableSourceResolution::Git { .. }
+                )
+                || !anchored
+            {
+                return Err(Error::new(
+                    "catalog root has no selected member at its Git resolution",
+                ));
+            }
+        }
         super::validation::validate_dependency_request(
             Request::from(&dependency.request),
             limits.maximum_request_bytes,
         )?;
         let selected = dependency.provider.root().selected();
-        let alias = match dependency.request.explicit_alias() {
-            Some(alias) => alias.clone(),
-            None => selected.key().name().default_alias(),
-        };
-        let edge = CanonicalDependencySourceSelection {
-            requester: dependency.observer.key().clone(),
-            purpose: dependency.purpose,
-            dependency_index: dependency.ordinal,
-            request: dependency.request.clone(),
-            alias,
-            selected: selected.clone(),
-        };
-        for graph in once(subject).chain(dependencies.iter().map(|entry| &entry.provider)) {
-            if dependency.preparation.is_none()
-                && ResolvedSourceIdentity::index_in(&graph.packages, dependency.observer.key())
-                    .is_some()
-                && !graph
-                    .dependency_requests
-                    .iter()
-                    .any(|recorded| recorded == &edge)
-            {
-                return Err(Error::new(
-                    "catalog execution disagrees with the same package's complete dependency ledger",
-                ));
+        if let Some(member) = dependency.observer.member() {
+            let alias = match dependency.request.explicit_alias() {
+                Some(alias) => alias.clone(),
+                None => selected.key().name().default_alias(),
+            };
+            let edge = CanonicalDependencySourceSelection {
+                requester: member.key().clone(),
+                purpose: dependency.purpose,
+                dependency_index: dependency.ordinal,
+                request: dependency.request.clone(),
+                alias,
+                selected: selected.clone(),
+            };
+            for graph in once(subject).chain(dependencies.iter().map(|entry| &entry.provider)) {
+                if dependency.preparation.is_none()
+                    && ResolvedSourceIdentity::index_in(&graph.packages, member.key()).is_some()
+                    && !graph
+                        .dependency_requests
+                        .iter()
+                        .any(|recorded| recorded == &edge)
+                {
+                    return Err(Error::new(
+                        "catalog execution disagrees with the same package's complete dependency ledger",
+                    ));
+                }
             }
         }
         let navigation = dependency
@@ -163,9 +223,10 @@ pub(super) fn validate(
             .package_navigation(selected.key())
             .ok_or_else(|| Error::new("catalog provider root has no navigation"))?;
         super::validation::validate_dependency_selection_kind(
-            &edge,
-            &dependency.observer,
-            &dependency.navigation,
+            &dependency.request,
+            dependency.observer.lineage(),
+            dependency.observer.resolution(),
+            selected,
             navigation,
             budget,
         )?;
@@ -183,7 +244,9 @@ pub(super) fn validate(
     let mut sources = budget.reserve(packages)?;
     sources.extend(subject.packages.iter().zip(&subject.package_navigations));
     for dependency in dependencies {
-        sources.push((&dependency.observer, &dependency.navigation));
+        if let Some(member) = dependency.observer.member() {
+            sources.push((member, &dependency.navigation));
+        }
         sources.extend(
             dependency
                 .provider
@@ -249,14 +312,16 @@ mod tests {
         let root = source_graph("selected", "https://catalog.invalid/workspace.git");
         let provider = source_graph("helper", "https://catalog.invalid/helper.git");
         let dependency = CanonicalCatalogDependency {
-            observer: ResolvedSourceIdentity::new(
-                PackageKey::new(
-                    PackageName::parse("unselected").unwrap(),
-                    root.root.selected.key().source_lineage().clone(),
-                ),
-                root.root.selected.resolution().clone(),
-            )
-            .unwrap(),
+            observer: CatalogObserver::Member(
+                ResolvedSourceIdentity::new(
+                    PackageKey::new(
+                        PackageName::parse("unselected").unwrap(),
+                        root.root.selected.key().source_lineage().clone(),
+                    ),
+                    root.root.selected.resolution().clone(),
+                )
+                .unwrap(),
+            ),
             navigation: PackageSourceNavigation::Member(
                 source_acquisition::SourceRelativePath::parse("unselected").unwrap(),
             ),

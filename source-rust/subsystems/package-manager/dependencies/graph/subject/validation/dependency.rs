@@ -3,8 +3,8 @@
 // navigation.
 
 use super::super::{
-    CanonicalDependencySourceRequest, CanonicalDependencySourceSelection,
-    CanonicalSourceClosureSubjectError, request_view::Request, usage::Budget,
+    CanonicalDependencySourceRequest, CanonicalSourceClosureSubjectError, request_view::Request,
+    usage::Budget,
 };
 use super::source::{validate_git_selection, validate_request_bytes};
 use crate::declarations::AliasName;
@@ -13,34 +13,33 @@ use crate::resolution::source::PackageSourceNavigation;
 use source_acquisition::{ImmutableSourceResolution, SourceLineage};
 
 pub(in super::super) fn validate_dependency_selection_kind(
-    selection: &CanonicalDependencySourceSelection,
-    requester: &ResolvedSourceIdentity,
-    _requester_navigation: &PackageSourceNavigation,
+    request: &CanonicalDependencySourceRequest,
+    requester_lineage: &SourceLineage,
+    requester_resolution: &ImmutableSourceResolution,
+    selected: &ResolvedSourceIdentity,
     selected_navigation: &PackageSourceNavigation,
     budget: &mut Budget,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
-    match &selection.request {
-        CanonicalDependencySourceRequest::Path { .. } => {
-            match selection.selected.key().source_lineage() {
-                SourceLineage::Workspace(_) | SourceLineage::ExternalLocal(_) => {
-                    if selected_navigation != &PackageSourceNavigation::Root {
-                        return Err(CanonicalSourceClosureSubjectError::new(
-                            "path request selected invalid package navigation",
-                        ));
-                    }
-                }
-                SourceLineage::GitHub(_) | SourceLineage::GitLab(_) | SourceLineage::Git(_) => {
-                    if requester.key().source_lineage() != selection.selected.key().source_lineage()
-                        || requester.resolution() != selection.selected.resolution()
-                        || !matches!(selected_navigation, PackageSourceNavigation::Member(_))
-                    {
-                        return Err(CanonicalSourceClosureSubjectError::new(
-                            "Git member path request escaped its repository resolution",
-                        ));
-                    }
+    match request {
+        CanonicalDependencySourceRequest::Path { .. } => match selected.key().source_lineage() {
+            SourceLineage::Workspace(_) | SourceLineage::ExternalLocal(_) => {
+                if selected_navigation != &PackageSourceNavigation::Root {
+                    return Err(CanonicalSourceClosureSubjectError::new(
+                        "path request selected invalid package navigation",
+                    ));
                 }
             }
-        }
+            SourceLineage::GitHub(_) | SourceLineage::GitLab(_) | SourceLineage::Git(_) => {
+                if requester_lineage != selected.key().source_lineage()
+                    || requester_resolution != selected.resolution()
+                    || !matches!(selected_navigation, PackageSourceNavigation::Member(_))
+                {
+                    return Err(CanonicalSourceClosureSubjectError::new(
+                        "Git member path request escaped its repository resolution",
+                    ));
+                }
+            }
+        },
         CanonicalDependencySourceRequest::Git {
             repository,
             revision,
@@ -48,17 +47,14 @@ pub(in super::super) fn validate_dependency_selection_kind(
             ..
         } => {
             let request = super::source::git_request(repository, revision, budget)?;
-            if request.lineage() != selection.selected.key().source_lineage()
-                || !matches!(
-                    selection.selected.resolution(),
-                    ImmutableSourceResolution::Git { .. }
-                )
+            if request.lineage() != selected.key().source_lineage()
+                || !matches!(selected.resolution(), ImmutableSourceResolution::Git { .. })
             {
                 return Err(CanonicalSourceClosureSubjectError::new(
                     "dependency Git request disagrees with its selected source",
                 ));
             }
-            validate_git_selection(package_selection, &selection.selected, selected_navigation)?;
+            validate_git_selection(package_selection, selected, selected_navigation)?;
         }
     }
     Ok(())
