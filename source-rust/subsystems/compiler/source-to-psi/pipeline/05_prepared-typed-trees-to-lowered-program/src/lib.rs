@@ -1130,6 +1130,7 @@ fn finish_logical_witness<'source>(
         &bodies,
         &components,
         body::Signatures {
+            inferred_inputs: None,
             theorems: &program.theorem_parameters,
             machines: &program.signatures,
             boundaries: &program.boundaries,
@@ -1352,6 +1353,7 @@ fn finish_reading_into<'source>(
         &bodies,
         &components,
         body::Signatures {
+            inferred_inputs: Some(&private_inputs),
             theorems: &program.theorem_parameters,
             machines: &program.signatures,
             boundaries: &program.boundaries,
@@ -1632,6 +1634,7 @@ pub fn lower_generic(
         Some(entry),
         bodies,
         body::Signatures {
+            inferred_inputs: None,
             theorems: &[],
             declarations: &IdTable::default(),
             declaration_aliases: None,
@@ -2535,6 +2538,7 @@ mod publication_scope_tests {
                 &bodies,
                 &components,
                 body::Signatures {
+                    inferred_inputs: None,
                     theorems: &[],
                     declarations: &IdTable::default(),
                     declaration_aliases: None,

@@ -314,6 +314,7 @@ fn callable_header(
         context,
         signature,
         Signatures {
+            inferred_inputs: None,
             theorems: &[],
             machines: signatures,
             declarations: &declarations,
