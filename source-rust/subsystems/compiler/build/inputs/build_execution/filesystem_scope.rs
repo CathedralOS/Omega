@@ -30,11 +30,10 @@ pub(super) mod successor_directory;
 
 use super::observations::{
     BuildActivation, BuildCapturedSourceInventory, BuildNamedInputInventory,
+    BuildRequiredOutputSettlement,
 };
 use crate::BuildCanonicalSourceMetadataIdentity;
-use build_output::{
-    BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture, empty,
-};
+use build_output::{BuildStagedOutputTree, CapturedBuildSourceInput, capture, empty};
 use diagnostics::Diagnostic;
 use filesystem_authority::{
     FilesystemGrantRoot, FilesystemGrantRootIdentity, FilesystemMetadataLayout, FilesystemSponsor,
@@ -637,32 +636,15 @@ impl BuildMachineFilesystemScope {
 
     pub(crate) fn verify_required_outputs(
         &self,
-        staged_output_tree: Option<&BuildStagedOutputTree>,
+        completed: &[BuildRequiredOutputSettlement],
         machine_name: &str,
     ) -> Result<(), Vec<Diagnostic>> {
-        if self.required_outputs.is_empty() {
-            return Ok(());
-        }
-        let Some(tree) = staged_output_tree else {
-            return Err(vec![Diagnostic::error(format!(
-                "build-time evaluation of `{machine_name}` cannot complete its required outputs without staged-output custody"
-            ))]);
-        };
         for name in &self.required_outputs {
-            match tree.sealed_entry(name) {
-                Some(entry) if matches!(entry.kind(), BuildStagedOutputEntryKind::File { .. }) => {}
-                Some(_) => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "required build output `{}` of `{machine_name}` is not a sealed regular file",
-                        String::from_utf8_lossy(name)
-                    ))]);
-                }
-                None => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "required build output `{}` of `{machine_name}` was omitted from the sealed staged-output tree",
-                        String::from_utf8_lossy(name)
-                    ))]);
-                }
+            if !completed.iter().any(|file| file.relative_path() == name) {
+                return Err(vec![Diagnostic::error(format!(
+                    "required build output `{}` of `{machine_name}` has no completed obligation",
+                    String::from_utf8_lossy(name)
+                ))]);
             }
         }
         Ok(())

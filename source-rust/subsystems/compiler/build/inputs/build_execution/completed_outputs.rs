@@ -23,18 +23,23 @@ pub struct RetainedBuildOutputs {
 
 impl RetainedBuildOutputs {
     pub fn from_observation(observation: &BuildObservationSummary) -> Result<Option<Self>, String> {
-        let names = observation
+        let files = observation
             .required_output_settlements()
             .iter()
-            .map(|settlement| settlement.relative_path())
+            .map(|settlement| {
+                (
+                    settlement.relative_path(),
+                    settlement.staged_file.as_slice(),
+                )
+            })
             .collect::<Vec<_>>();
-        if names.is_empty() {
+        if files.is_empty() {
             return Ok(None);
         }
         let tree = observation
             .staged_output_tree()
             .ok_or("completed build outputs have no retained staged content")?
-            .select_files(&names)
+            .select_files(&files)
             .map_err(|diagnostics| {
                 diagnostics
                     .into_iter()
@@ -46,7 +51,7 @@ impl RetainedBuildOutputs {
         let mut manifest = b"OMEGA-COMPLETED-BUILD-OUTPUTS-V1\0".to_vec();
         manifest.extend_from_slice(observation.as_bytes());
         manifest.extend_from_slice(&tree.digest());
-        crate::codec_bytes::push_encoded(&mut manifest, (names.len() as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(&mut manifest, (files.len() as u64).to_le_bytes());
         for entry in tree.entries() {
             if let BuildStagedOutputEntryKind::File { bytes, .. } = entry.kind() {
                 crate::codec_bytes::push_encoded(

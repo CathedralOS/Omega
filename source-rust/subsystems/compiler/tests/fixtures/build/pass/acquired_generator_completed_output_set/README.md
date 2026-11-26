@@ -1,10 +1,14 @@
 # Acquired dependency and completed output set
 
-The first Build gives the second Build access to the generator package. The
-second Build checks the generator’s value and reads six captured bytes from
-`template.txt`. A local helper uses the bytes to produce a companion file and
-emits an Omega declaration. The Build completes both files as one output set.
-The application calls its registered dependency and checks that it returns 7.
+The first Build supplies the generator and the installed system filesystem to
+the second Build. The filesystem receives the content-read, content-write,
+metadata-mutation and namespace-mutation authorities used by its two operations.
+
+The second Build reads the first six captured template bytes, checks the acquired
+generator returns 7, and uses a local helper to generate a declaration and a
+companion file. It writes private staging files and completes them under the
+public names `generated.omg` and `companion.txt`. It forwards the generator
+to the application, which calls the package and checks its result.
 
 Run this command from the fixture directory. Use `--engine native` to run the
 same program natively.
@@ -15,6 +19,8 @@ omega run --engine psi \
     --build-input build_support --build-input generator --build-input template.txt build.omg
 ```
 
-The program returns with empty output. Running `omega build --build-dir out`
-with the same input arguments exports exactly `companion.txt` and
-`generated.omg`. Product source comes from its selected package.
+Run `omega build --build-dir out` with the same input arguments to export the
+two completed files. Compare `files/companion.txt` with `template.txt` and
+`files/generated.omg` with `public const GENERATED: u32 = 73;` followed by a
+newline. A short template or a generator that returns another value fails both
+obligations before publication.
