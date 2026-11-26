@@ -1,3 +1,5 @@
+use main.omg as app;
+use {backing}/main.omg as backing;
 use {omega}/build/dependency.omg;
 use {omega}/language/core/program_image.omg as image;
 
@@ -8,7 +10,7 @@ requires address::Bound == 18446744073709551616 {
     |dependency|::with_alias(@mutable backing_dependency, "backing");
     let backing_registration: DependencyRegistration = Build::build_dependency(builder, backing_dependency);
     BuildLog::write_line(@mutable builder.log, "root before");
-    suspend Build::await_provider::<|image|::ProgramImage, backing\TestImage>(builder);
+    suspend Build::await_provider::<|image|::ProgramImage, |backing|::TestImage>(builder);
     let observed: address = |image|::ProgramImage::retained_suffix_start();
     transition observed == 64 {
         true -> finish(builder),
@@ -16,10 +18,10 @@ requires address::Bound == 18446744073709551616 {
     }
     machine finish(builder: @mutable Build) {
         BuildLog::write_line(@mutable builder.log, "root after");
-        Build::bind(builder, windows_x86_64::ProgramEntry, main);
-        Build::bind(builder, linux_x86_64::ProgramEntry, main);
-        Build::bind(builder, macos_arm64::ProgramEntry, main);
-        Build::bind(builder, linux_arm64::ProgramEntry, main);
+        Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
+        Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+        Build::bind(builder, macos_arm64::ProgramEntry, |app|::main);
+        Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
     }
     machine wrong(builder: @mutable Build) {
         Build::application(builder, "wrong_root_backing");
