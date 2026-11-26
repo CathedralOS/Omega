@@ -37,7 +37,6 @@ pub(crate) mod contract_wire {
 pub(crate) use psi_declaration_encoding::terms::integer as integer_math_term_wire;
 
 pub(crate) mod mathematical_certificate_wire {
-
     use std::collections::HashMap;
 
     use mathematical_kernel::{
@@ -47,6 +46,7 @@ pub(crate) mod mathematical_certificate_wire {
 
     use super::CodecError;
     use super::wire::{Reader, Writer, bounded_count, decode_canonical, decode_counted};
+    use super::wire_fields::{Field, U32, wire_enum};
 
     const MAGIC: &[u8; 8] = b"PSICORE\0";
     const FORMAT_MARKER: u16 = 5;
@@ -54,6 +54,121 @@ pub(crate) mod mathematical_certificate_wire {
     pub struct DecodedMathematicalCertificate {
         pub arena: TermArena,
         pub certificate: MathematicalCertificate,
+    }
+
+    wire_enum! {
+        DeclKind: DeclarationKind, "declaration kind" {
+            0 => Ordinary,
+            1 => Inductive { num_mutual: U32, mutual_index: U32, num_params: U32, num_constructors: U32 },
+            2 => Constructor { inductive: U32, constructor_index: U32 },
+            3 => Recursor { inductive: U32 },
+        }
+    }
+
+    /// Single table for all handle-only and unit `Term` constructors, generating
+    /// `children`, row encoding, and row decoding from one definition.
+    macro_rules! simple_math_terms {
+        (
+            unit: [$($u_tag:literal => $u_var:ident),* $(,)?],
+            handles: [$($h_tag:literal => $h_var:ident { $($field:ident),+ }),* $(,)?],
+        ) => {
+            fn simple_children(term: &Term) -> Vec<TermHandle> {
+                match *term {
+                    $(Term::$h_var { $($field),+ } => vec![$($field),+],)*
+                    _ => Vec::new(),
+                }
+            }
+
+            fn encode_term_row(
+                term: Term,
+                index_of: impl Fn(TermHandle) -> u32,
+                node: &mut Writer,
+            ) -> Result<(), CodecError> {
+                match term {
+                    Term::Dummy => {
+                        return Err(CodecError::MalformedMathematicalCertificate(
+                            "dummy term cannot be certified",
+                        ));
+                    }
+                    Term::Variable(index) => {
+                        node.u8(1);
+                        node.u32(index);
+                    }
+                    Term::Sort(sort) => {
+                        node.u8(2);
+                        encode_sort(node, sort)?;
+                    }
+                    Term::Constant { declaration, levels } => {
+                        node.u8(20);
+                        node.u32(declaration);
+                        node.len("constant level arguments", levels.len())?;
+                        for level in levels {
+                            encode_level(node, level)?;
+                        }
+                    }
+                    $(Term::$u_var => node.u8($u_tag),)*
+                    $(Term::$h_var { $($field),+ } => {
+                        node.u8($h_tag);
+                        $(node.u32(index_of($field));)+
+                    })*
+                }
+                Ok(())
+            }
+
+            pub(crate) fn decode_term(
+                reader: &mut Reader<'_>,
+                handles: &[TermHandle],
+            ) -> Result<Term, CodecError> {
+                let child = |reader: &mut Reader<'_>| -> Result<TermHandle, CodecError> {
+                    let index = usize::try_from(reader.u32()?).map_err(|_| {
+                        CodecError::MalformedMathematicalCertificate("term child index too large")
+                    })?;
+                    handles.get(index).copied().ok_or(
+                        CodecError::MalformedMathematicalCertificate(
+                            "term child does not precede its parent",
+                        ),
+                    )
+                };
+                Ok(match reader.u8()? {
+                    1 => Term::Variable(reader.u32()?),
+                    2 => Term::Sort(decode_sort(reader)?),
+                    20 => Term::Constant {
+                        declaration: reader.u32()?,
+                        levels: decode_counted(reader, decode_level)?,
+                    },
+                    $($u_tag => Term::$u_var,)*
+                    $($h_tag => {
+                        $(let $field = child(reader)?;)+
+                        Term::$h_var { $($field),+ }
+                    })*
+                    tag => return Err(CodecError::InvalidTag("MathematicalTerm", tag)),
+                })
+            }
+        };
+    }
+
+    simple_math_terms! {
+        unit: [10 => Two, 11 => TwoZero, 12 => TwoOne, 21 => Empty],
+        handles: [
+            3 => Pi { domain, codomain },
+            4 => Lambda { domain, body },
+            5 => Apply { function, argument },
+            6 => Sigma { domain, codomain },
+            7 => Pair { first, second },
+            8 => Fst { pair },
+            9 => Snd { pair },
+            13 => CaseTwo { motive, zero_branch, one_branch, scrutinee },
+            14 => Id { ty, left, right },
+            15 => Refl { ty, value },
+            16 => IdElim { motive, base, endpoint, proof },
+            22 => EmptyElim { ty, scrutinee },
+            23 => Squash { ty },
+            24 => SquashIntro { ty, value },
+            25 => SquashElim { proposition, function, scrutinee },
+            26 => Box { ty },
+            27 => BoxIntro { ty, value },
+            28 => BoxElim { motive, body, scrutinee },
+        ],
     }
 
     pub fn encode_mathematical_certificate(
@@ -77,7 +192,6 @@ pub(crate) mod mathematical_certificate_wire {
         let MathematicalTermWriter {
             nodes,
             by_handle,
-            by_bytes: _by_bytes,
             count,
             ..
         } = term_writer;
@@ -94,40 +208,11 @@ pub(crate) mod mathematical_certificate_wire {
         for declaration in &certificate.signature {
             writer.u32(declaration.level_arity);
             writer.u32(by_handle[&declaration.ty]);
-            match declaration.body {
-                Some(body) => {
-                    writer.u8(1);
-                    writer.u32(by_handle[&body]);
-                }
-                None => writer.u8(0),
+            writer.boolean(declaration.body.is_some());
+            if let Some(body) = declaration.body {
+                writer.u32(by_handle[&body]);
             }
-            match declaration.kind {
-                DeclarationKind::Ordinary => writer.u8(0),
-                DeclarationKind::Inductive {
-                    num_mutual,
-                    mutual_index,
-                    num_params,
-                    num_constructors,
-                } => {
-                    writer.u8(1);
-                    writer.u32(num_mutual);
-                    writer.u32(mutual_index);
-                    writer.u32(num_params);
-                    writer.u32(num_constructors);
-                }
-                DeclarationKind::Constructor {
-                    inductive,
-                    constructor_index,
-                } => {
-                    writer.u8(2);
-                    writer.u32(inductive);
-                    writer.u32(constructor_index);
-                }
-                DeclarationKind::Recursor { inductive } => {
-                    writer.u8(3);
-                    writer.u32(inductive);
-                }
-            }
+            DeclKind::write(&mut writer, &declaration.kind)?;
         }
         writer.len(
             "mathematical certificate context",
@@ -165,35 +250,15 @@ pub(crate) mod mathematical_certificate_wire {
                 let signature_count = bounded_count(reader, 1)?;
                 let mut signature = Vec::with_capacity(signature_count);
                 for _ in 0..signature_count {
-                    let level_arity = reader.u32()?;
-                    let ty = decode_root(reader, &handles)?;
-                    let body = if reader.boolean()? {
-                        Some(decode_root(reader, &handles)?)
-                    } else {
-                        None
-                    };
-                    let kind = match reader.u8()? {
-                        0 => DeclarationKind::Ordinary,
-                        1 => DeclarationKind::Inductive {
-                            num_mutual: reader.u32()?,
-                            mutual_index: reader.u32()?,
-                            num_params: reader.u32()?,
-                            num_constructors: reader.u32()?,
-                        },
-                        2 => DeclarationKind::Constructor {
-                            inductive: reader.u32()?,
-                            constructor_index: reader.u32()?,
-                        },
-                        3 => DeclarationKind::Recursor {
-                            inductive: reader.u32()?,
-                        },
-                        tag => return Err(CodecError::InvalidTag("declaration kind", tag)),
-                    };
                     signature.push(Declaration {
-                        level_arity,
-                        ty,
-                        body,
-                        kind,
+                        level_arity: reader.u32()?,
+                        ty: decode_root(reader, &handles)?,
+                        body: if reader.boolean()? {
+                            Some(decode_root(reader, &handles)?)
+                        } else {
+                            None
+                        },
+                        kind: DeclKind::read(reader)?,
                     });
                 }
                 let context_count = bounded_count(reader, 1)?;
@@ -203,14 +268,16 @@ pub(crate) mod mathematical_certificate_wire {
                 }
                 let term = decode_root(reader, &handles)?;
                 let expected = decode_root(reader, &handles)?;
-                let certificate = MathematicalCertificate {
-                    signature,
-                    level_arity,
-                    context,
-                    term,
-                    expected,
-                };
-                Ok(DecodedMathematicalCertificate { arena, certificate })
+                Ok(DecodedMathematicalCertificate {
+                    arena,
+                    certificate: MathematicalCertificate {
+                        signature,
+                        level_arity,
+                        context,
+                        term,
+                        expected,
+                    },
+                })
             },
             |decoded| encode_mathematical_certificate(&decoded.arena, &decoded.certificate),
         )
@@ -235,49 +302,6 @@ pub(crate) mod mathematical_certificate_wire {
             }
         }
 
-        /// The term's children in the order its row names them.
-        fn children(term: &Term) -> Vec<TermHandle> {
-            match *term {
-                Term::Pi { domain, codomain } => vec![domain, codomain],
-                Term::Lambda { domain, body } => vec![domain, body],
-                Term::Apply { function, argument } => vec![function, argument],
-                Term::Sigma { domain, codomain } => vec![domain, codomain],
-                Term::Pair { first, second } => vec![first, second],
-                Term::Fst { pair } => vec![pair],
-                Term::Snd { pair } => vec![pair],
-                Term::CaseTwo {
-                    motive,
-                    zero_branch,
-                    one_branch,
-                    scrutinee,
-                } => vec![motive, zero_branch, one_branch, scrutinee],
-                Term::Id { ty, left, right } => vec![ty, left, right],
-                Term::Refl { ty, value } => vec![ty, value],
-                Term::IdElim {
-                    motive,
-                    base,
-                    endpoint,
-                    proof,
-                } => vec![motive, base, endpoint, proof],
-                Term::EmptyElim { ty, scrutinee } => vec![ty, scrutinee],
-                Term::Squash { ty } => vec![ty],
-                Term::SquashIntro { ty, value } => vec![ty, value],
-                Term::SquashElim {
-                    proposition,
-                    function,
-                    scrutinee,
-                } => vec![proposition, function, scrutinee],
-                Term::Box { ty } => vec![ty],
-                Term::BoxIntro { ty, value } => vec![ty, value],
-                Term::BoxElim {
-                    motive,
-                    body,
-                    scrutinee,
-                } => vec![motive, body, scrutinee],
-                _ => Vec::new(),
-            }
-        }
-
         /// Appends `handle` and every term it reaches, children before parents,
         /// with an explicit stack; returns `handle`'s row index.
         fn encode_term(&mut self, handle: TermHandle) -> Result<u32, CodecError> {
@@ -299,7 +323,7 @@ pub(crate) mod mathematical_certificate_wire {
                             ));
                         }
                         pending.push(Step::Emit(handle));
-                        pending.extend(Self::children(&term).into_iter().rev().map(Step::Visit));
+                        pending.extend(simple_children(&term).into_iter().rev().map(Step::Visit));
                     }
                     Step::Emit(handle) => {
                         if !self.by_handle.contains_key(&handle) {
@@ -314,194 +338,11 @@ pub(crate) mod mathematical_certificate_wire {
         /// Writes one row whose children already have rows.
         fn emit(&mut self, handle: TermHandle) -> Result<(), CodecError> {
             let mut node = self.nodes.nested();
-            match self.arena.get(handle) {
-                Term::Dummy => {
-                    return Err(CodecError::MalformedMathematicalCertificate(
-                        "dummy term cannot be certified",
-                    ));
-                }
-                Term::Variable(index) => {
-                    node.u8(1);
-                    node.u32(index);
-                }
-                Term::Sort(sort) => {
-                    node.u8(2);
-                    encode_sort(&mut node, sort)?;
-                }
-                Term::Pi { domain, codomain } => {
-                    let domain = self.by_handle[&domain];
-                    let codomain = self.by_handle[&codomain];
-                    node.u8(3);
-                    node.u32(domain);
-                    node.u32(codomain);
-                }
-                Term::Lambda { domain, body } => {
-                    let domain = self.by_handle[&domain];
-                    let body = self.by_handle[&body];
-                    node.u8(4);
-                    node.u32(domain);
-                    node.u32(body);
-                }
-                Term::Apply { function, argument } => {
-                    let function = self.by_handle[&function];
-                    let argument = self.by_handle[&argument];
-                    node.u8(5);
-                    node.u32(function);
-                    node.u32(argument);
-                }
-                Term::Sigma { domain, codomain } => {
-                    let domain = self.by_handle[&domain];
-                    let codomain = self.by_handle[&codomain];
-                    node.u8(6);
-                    node.u32(domain);
-                    node.u32(codomain);
-                }
-                Term::Pair { first, second } => {
-                    let first = self.by_handle[&first];
-                    let second = self.by_handle[&second];
-                    node.u8(7);
-                    node.u32(first);
-                    node.u32(second);
-                }
-                Term::Fst { pair } => {
-                    let pair = self.by_handle[&pair];
-                    node.u8(8);
-                    node.u32(pair);
-                }
-                Term::Snd { pair } => {
-                    let pair = self.by_handle[&pair];
-                    node.u8(9);
-                    node.u32(pair);
-                }
-                Term::Two => {
-                    node.u8(10);
-                }
-                Term::TwoZero => {
-                    node.u8(11);
-                }
-                Term::TwoOne => {
-                    node.u8(12);
-                }
-                Term::CaseTwo {
-                    motive,
-                    zero_branch,
-                    one_branch,
-                    scrutinee,
-                } => {
-                    let motive = self.by_handle[&motive];
-                    let zero_branch = self.by_handle[&zero_branch];
-                    let one_branch = self.by_handle[&one_branch];
-                    let scrutinee = self.by_handle[&scrutinee];
-                    node.u8(13);
-                    node.u32(motive);
-                    node.u32(zero_branch);
-                    node.u32(one_branch);
-                    node.u32(scrutinee);
-                }
-                Term::Id { ty, left, right } => {
-                    let ty = self.by_handle[&ty];
-                    let left = self.by_handle[&left];
-                    let right = self.by_handle[&right];
-                    node.u8(14);
-                    node.u32(ty);
-                    node.u32(left);
-                    node.u32(right);
-                }
-                Term::Refl { ty, value } => {
-                    let ty = self.by_handle[&ty];
-                    let value = self.by_handle[&value];
-                    node.u8(15);
-                    node.u32(ty);
-                    node.u32(value);
-                }
-                Term::IdElim {
-                    motive,
-                    base,
-                    endpoint,
-                    proof,
-                } => {
-                    let motive = self.by_handle[&motive];
-                    let base = self.by_handle[&base];
-                    let endpoint = self.by_handle[&endpoint];
-                    let proof = self.by_handle[&proof];
-                    node.u8(16);
-                    node.u32(motive);
-                    node.u32(base);
-                    node.u32(endpoint);
-                    node.u32(proof);
-                }
-                Term::Constant {
-                    declaration,
-                    levels,
-                } => {
-                    node.u8(20);
-                    node.u32(declaration);
-                    node.len("constant level arguments", levels.len())?;
-                    for level in levels {
-                        encode_level(&mut node, level)?;
-                    }
-                }
-                Term::Empty => {
-                    node.u8(21);
-                }
-                Term::EmptyElim { ty, scrutinee } => {
-                    let ty = self.by_handle[&ty];
-                    let scrutinee = self.by_handle[&scrutinee];
-                    node.u8(22);
-                    node.u32(ty);
-                    node.u32(scrutinee);
-                }
-                Term::Squash { ty } => {
-                    let ty = self.by_handle[&ty];
-                    node.u8(23);
-                    node.u32(ty);
-                }
-                Term::SquashIntro { ty, value } => {
-                    let ty = self.by_handle[&ty];
-                    let value = self.by_handle[&value];
-                    node.u8(24);
-                    node.u32(ty);
-                    node.u32(value);
-                }
-                Term::SquashElim {
-                    proposition,
-                    function,
-                    scrutinee,
-                } => {
-                    let proposition = self.by_handle[&proposition];
-                    let function = self.by_handle[&function];
-                    let scrutinee = self.by_handle[&scrutinee];
-                    node.u8(25);
-                    node.u32(proposition);
-                    node.u32(function);
-                    node.u32(scrutinee);
-                }
-                Term::Box { ty } => {
-                    let ty = self.by_handle[&ty];
-                    node.u8(26);
-                    node.u32(ty);
-                }
-                Term::BoxIntro { ty, value } => {
-                    let ty = self.by_handle[&ty];
-                    let value = self.by_handle[&value];
-                    node.u8(27);
-                    node.u32(ty);
-                    node.u32(value);
-                }
-                Term::BoxElim {
-                    motive,
-                    body,
-                    scrutinee,
-                } => {
-                    let motive = self.by_handle[&motive];
-                    let body = self.by_handle[&body];
-                    let scrutinee = self.by_handle[&scrutinee];
-                    node.u8(28);
-                    node.u32(motive);
-                    node.u32(body);
-                    node.u32(scrutinee);
-                }
-            }
+            encode_term_row(
+                self.arena.get(handle),
+                |child| self.by_handle[&child],
+                &mut node,
+            )?;
             let bytes = node.finish();
             if let Some(&index) = self.by_bytes.get(&bytes) {
                 self.by_handle.insert(handle, index);
@@ -517,11 +358,10 @@ pub(crate) mod mathematical_certificate_wire {
     }
 
     fn encode_sort(writer: &mut Writer, sort: Sort) -> Result<(), CodecError> {
-        let tag = match sort {
+        writer.u8(match sort {
             Sort::Type(_) => 1,
             Sort::Strict(_) => 2,
-        };
-        writer.u8(tag);
+        });
         encode_level(writer, sort.level())
     }
 
@@ -550,151 +390,6 @@ pub(crate) mod mathematical_certificate_wire {
             }
         }
         Ok(())
-    }
-
-    pub(crate) fn decode_term(
-        reader: &mut Reader<'_>,
-        handles: &[TermHandle],
-    ) -> Result<Term, CodecError> {
-        let child = |reader: &mut Reader<'_>| -> Result<TermHandle, CodecError> {
-            let index = usize::try_from(reader.u32()?).map_err(|_| {
-                CodecError::MalformedMathematicalCertificate("term child index too large")
-            })?;
-            if index >= handles.len() {
-                return Err(CodecError::MalformedMathematicalCertificate(
-                    "term child does not precede its parent",
-                ));
-            }
-            Ok(handles[index])
-        };
-        Ok(match reader.u8()? {
-            1 => Term::Variable(reader.u32()?),
-            2 => Term::Sort(decode_sort(reader)?),
-            3 => {
-                let domain = child(reader)?;
-                let codomain = child(reader)?;
-                Term::Pi { domain, codomain }
-            }
-            4 => {
-                let domain = child(reader)?;
-                let body = child(reader)?;
-                Term::Lambda { domain, body }
-            }
-            5 => {
-                let function = child(reader)?;
-                let argument = child(reader)?;
-                Term::Apply { function, argument }
-            }
-            6 => {
-                let domain = child(reader)?;
-                let codomain = child(reader)?;
-                Term::Sigma { domain, codomain }
-            }
-            7 => {
-                let first = child(reader)?;
-                let second = child(reader)?;
-                Term::Pair { first, second }
-            }
-            8 => {
-                let pair = child(reader)?;
-                Term::Fst { pair }
-            }
-            9 => {
-                let pair = child(reader)?;
-                Term::Snd { pair }
-            }
-            10 => Term::Two,
-            11 => Term::TwoZero,
-            12 => Term::TwoOne,
-            13 => {
-                let motive = child(reader)?;
-                let zero_branch = child(reader)?;
-                let one_branch = child(reader)?;
-                let scrutinee = child(reader)?;
-                Term::CaseTwo {
-                    motive,
-                    zero_branch,
-                    one_branch,
-                    scrutinee,
-                }
-            }
-            14 => {
-                let ty = child(reader)?;
-                let left = child(reader)?;
-                let right = child(reader)?;
-                Term::Id { ty, left, right }
-            }
-            15 => {
-                let ty = child(reader)?;
-                let value = child(reader)?;
-                Term::Refl { ty, value }
-            }
-            16 => {
-                let motive = child(reader)?;
-                let base = child(reader)?;
-                let endpoint = child(reader)?;
-                let proof = child(reader)?;
-                Term::IdElim {
-                    motive,
-                    base,
-                    endpoint,
-                    proof,
-                }
-            }
-            20 => {
-                let declaration = reader.u32()?;
-                let levels = decode_counted(reader, decode_level)?;
-                Term::Constant {
-                    declaration,
-                    levels,
-                }
-            }
-            21 => Term::Empty,
-            22 => {
-                let ty = child(reader)?;
-                let scrutinee = child(reader)?;
-                Term::EmptyElim { ty, scrutinee }
-            }
-            23 => {
-                let ty = child(reader)?;
-                Term::Squash { ty }
-            }
-            24 => {
-                let ty = child(reader)?;
-                let value = child(reader)?;
-                Term::SquashIntro { ty, value }
-            }
-            25 => {
-                let proposition = child(reader)?;
-                let function = child(reader)?;
-                let scrutinee = child(reader)?;
-                Term::SquashElim {
-                    proposition,
-                    function,
-                    scrutinee,
-                }
-            }
-            26 => {
-                let ty = child(reader)?;
-                Term::Box { ty }
-            }
-            27 => {
-                let ty = child(reader)?;
-                let value = child(reader)?;
-                Term::BoxIntro { ty, value }
-            }
-            28 => {
-                let motive = child(reader)?;
-                let body = child(reader)?;
-                let scrutinee = child(reader)?;
-                Term::BoxElim {
-                    motive,
-                    body,
-                    scrutinee,
-                }
-            }
-            tag => return Err(CodecError::InvalidTag("MathematicalTerm", tag)),
-        })
     }
 
     pub(crate) fn decode_sort(reader: &mut Reader<'_>) -> Result<Sort, CodecError> {
@@ -750,9 +445,12 @@ pub(crate) mod mathematical_certificate_wire {
     ) -> Result<TermHandle, CodecError> {
         let index = usize::try_from(reader.u32()?)
             .map_err(|_| CodecError::MalformedMathematicalCertificate("root index too large"))?;
-        handles.get(index).copied().ok_or({
-            CodecError::MalformedMathematicalCertificate("root index outside the term table")
-        })
+        handles
+            .get(index)
+            .copied()
+            .ok_or(CodecError::MalformedMathematicalCertificate(
+                "root index outside the term table",
+            ))
     }
 
     #[cfg(test)]
@@ -799,13 +497,14 @@ pub(crate) mod mathematical_certificate_wire {
 pub(crate) use psi_callable_encoding::proof_declarations as proof_declaration_wire;
 
 pub(crate) mod proof_term_wire {
-
     use semantic_vocabulary::{MathematicalArgument, ProofFormalScope, ProofTerm, ProofTermField};
 
     use super::CodecError;
-    use super::scalar_term_wire::{decode_scalar_term, encode_scalar_term};
     use super::wire::{Reader, Writer, bounded_count, decode_bytes, decode_counted};
+    use super::wire_fields::{Field, List, Optional, ScalarTermField, Text, wire_enum};
     use crate::term_table::{TableChildren, TermEncoding, decode_term_table, encode_term_table};
+
+    pub(crate) use psi_callable_encoding::contracts::{decode_proof_formals, encode_proof_formals};
 
     const PROOF_TERM_CONSTRUCTION: u8 = 1;
     const PROOF_TERM_FORMAL: u8 = 2;
@@ -817,15 +516,24 @@ pub(crate) mod proof_term_wire {
     const PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION: u8 = 8;
     const PROOF_TERM_PROJECTION: u8 = 9;
 
+    wire_enum! {
+        FormalScope: ProofFormalScope, "proof formal scope" {
+            0 => Block,
+            1 => Invocation,
+        }
+    }
+
     pub(crate) fn encode_proof_terms(
         writer: &mut Writer,
         terms: &[ProofTerm],
     ) -> Result<(), CodecError> {
-        writer.len("proof terms", terms.len())?;
-        for term in terms {
-            encode_term_table::<ProofTermTable>(writer, term)?;
-        }
-        Ok(())
+        writer.counted("proof terms", terms, encode_term_table::<ProofTermTable>)
+    }
+
+    pub(crate) fn decode_proof_terms(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<ProofTerm>, CodecError> {
+        decode_counted(reader, decode_term_table::<ProofTermTable>)
     }
 
     struct ProofTermTable;
@@ -889,10 +597,7 @@ pub(crate) mod proof_term_wire {
                 writer.string("proof term type identity", type_identity)?;
                 writer.len("mathematical function certificate", certificate.len())?;
                 writer.bytes(certificate);
-                writer.u8(match formal_scope {
-                    ProofFormalScope::Block => 0,
-                    ProofFormalScope::Invocation => 1,
-                });
+                FormalScope::write(writer, formal_scope)?;
                 writer.len("mathematical function arguments", arguments.len())?;
                 for argument in arguments {
                     match argument {
@@ -908,7 +613,7 @@ pub(crate) mod proof_term_wire {
                         } => {
                             writer.u8(1);
                             writer.string("mathematical scalar source carrier", type_identity)?;
-                            encode_scalar_term(writer, term)?;
+                            ScalarTermField::write(writer, term)?;
                         }
                     }
                 }
@@ -920,10 +625,7 @@ pub(crate) mod proof_term_wire {
             } => {
                 writer.u8(PROOF_TERM_CONSTRUCTION);
                 writer.string("proof term type identity", type_identity)?;
-                writer.boolean(case_identity.is_some());
-                if let Some(case_identity) = case_identity {
-                    writer.string("proof term case identity", case_identity)?;
-                }
+                Optional::<Text>::write(writer, case_identity)?;
                 writer.len("proof term fields", fields.len())?;
                 for field in fields {
                     writer.string("proof term field identity", &field.field_identity)?;
@@ -947,7 +649,7 @@ pub(crate) mod proof_term_wire {
             }
             ProofTerm::Scalar(scalar) => {
                 writer.u8(PROOF_TERM_SCALAR);
-                encode_scalar_term(writer, scalar)?;
+                ScalarTermField::write(writer, scalar)?;
             }
             ProofTerm::Projection {
                 type_identity,
@@ -957,37 +659,27 @@ pub(crate) mod proof_term_wire {
                 writer.u8(PROOF_TERM_PROJECTION);
                 writer.string("proof term type identity", type_identity)?;
                 writer.u32(*formal_position);
-                writer.len("proof projection fields", fields.len())?;
-                for field in fields {
-                    writer.string("proof projection field", field)?;
-                }
+                List::<Text>::write(writer, fields)?;
             }
         }
         Ok(())
-    }
-
-    pub(crate) fn decode_proof_terms(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<ProofTerm>, CodecError> {
-        decode_counted(reader, decode_term_table::<ProofTermTable>)
     }
 
     fn read_proof_row(
         reader: &mut Reader<'_>,
         children: &mut TableChildren<'_, ProofTerm>,
     ) -> Result<ProofTerm, CodecError> {
-        match reader.u8()? {
+        Ok(match reader.u8()? {
             PROOF_TERM_MATHEMATICAL => {
                 let type_identity = reader.string("proof term type identity")?;
                 let certificate = decode_bytes(reader)?;
                 super::mathematical_certificate_wire::decode_mathematical_certificate(
                     &certificate,
                 )?;
-                let term = ProofTerm::Mathematical {
+                ProofTerm::Mathematical {
                     type_identity,
                     certificate,
-                };
-                Ok(term)
+                }
             }
             tag @ (PROOF_TERM_MATHEMATICAL_APPLICATION
             | PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION) => {
@@ -996,54 +688,36 @@ pub(crate) mod proof_term_wire {
                 super::mathematical_certificate_wire::decode_mathematical_certificate(
                     &certificate,
                 )?;
-                let formal_scope = match reader.u8()? {
-                    0 => ProofFormalScope::Block,
-                    1 => ProofFormalScope::Invocation,
-                    tag => return Err(CodecError::InvalidTag("proof formal scope", tag)),
-                };
-                let minimum_argument_bytes = if tag == PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION {
-                    5
-                } else {
-                    4
-                };
-                let count = bounded_count(reader, minimum_argument_bytes)?;
+                let formal_scope = FormalScope::read(reader)?;
+                let mixed = tag == PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION;
+                let count = bounded_count(reader, if mixed { 5 } else { 4 })?;
                 let mut arguments = Vec::with_capacity(count);
                 for _ in 0..count {
-                    let kind = if tag == PROOF_TERM_MIXED_MATHEMATICAL_APPLICATION {
-                        reader.u8()?
-                    } else {
-                        0
-                    };
+                    let kind = if mixed { reader.u8()? } else { 0 };
                     arguments.push(match kind {
                         0 => MathematicalArgument::Formal {
                             position: reader.u32()?,
                         },
                         1 => MathematicalArgument::Scalar {
                             type_identity: reader.string("mathematical scalar source carrier")?,
-                            term: decode_scalar_term(reader)?,
+                            term: ScalarTermField::read(reader)?,
                         },
                         tag => {
                             return Err(CodecError::InvalidTag("mathematical argument kind", tag));
                         }
                     });
                 }
-                let term = ProofTerm::MathematicalApplication {
+                ProofTerm::MathematicalApplication {
                     type_identity,
                     certificate,
                     arguments,
                     formal_scope,
-                };
-                Ok(term)
+                }
             }
             PROOF_TERM_CONSTRUCTION => {
                 let type_identity = reader.string("proof term type identity")?;
-                let case_identity = if reader.boolean()? {
-                    Some(reader.string("proof term case identity")?)
-                } else {
-                    None
-                };
-                let identities =
-                    decode_counted(reader, |reader| reader.string("proof term field identity"))?;
+                let case_identity = Optional::<Text>::read(reader)?;
+                let identities = List::<Text>::read(reader)?;
                 let terms = children.take(reader, identities.len())?;
                 let fields = identities
                     .into_iter()
@@ -1053,50 +727,35 @@ pub(crate) mod proof_term_wire {
                         term,
                     })
                     .collect();
-                let term = ProofTerm::Construction {
+                ProofTerm::Construction {
                     type_identity,
                     case_identity,
                     fields,
-                };
-                Ok(term)
+                }
             }
             PROOF_TERM_ARRAY => {
                 let type_identity = reader.string("proof term type identity")?;
                 let count = bounded_count(reader, 4)?;
-                let elements = children.take(reader, count)?;
-                let term = ProofTerm::Array {
+                ProofTerm::Array {
                     type_identity,
-                    elements,
-                };
-                Ok(term)
+                    elements: children.take(reader, count)?,
+                }
             }
-            PROOF_TERM_FORMAL => Ok(ProofTerm::Formal {
+            PROOF_TERM_FORMAL => ProofTerm::Formal {
                 position: reader.u32()?,
-            }),
-            PROOF_TERM_INVOCATION_FORMAL => Ok(ProofTerm::InvocationFormal {
+            },
+            PROOF_TERM_INVOCATION_FORMAL => ProofTerm::InvocationFormal {
                 position: reader.u32()?,
-            }),
-            PROOF_TERM_SCALAR => {
-                let term = ProofTerm::Scalar(decode_scalar_term(reader)?);
-                Ok(term)
-            }
-            PROOF_TERM_PROJECTION => {
-                let type_identity = reader.string("proof term type identity")?;
-                let formal_position = reader.u32()?;
-                let fields =
-                    decode_counted(reader, |reader| reader.string("proof projection field"))?;
-                let term = ProofTerm::Projection {
-                    type_identity,
-                    formal_position,
-                    fields,
-                };
-                Ok(term)
-            }
-            tag => Err(CodecError::InvalidTag("proof term", tag)),
-        }
+            },
+            PROOF_TERM_SCALAR => ProofTerm::Scalar(ScalarTermField::read(reader)?),
+            PROOF_TERM_PROJECTION => ProofTerm::Projection {
+                type_identity: reader.string("proof term type identity")?,
+                formal_position: reader.u32()?,
+                fields: List::<Text>::read(reader)?,
+            },
+            tag => return Err(CodecError::InvalidTag("proof term", tag)),
+        })
     }
-
-    pub(crate) use psi_callable_encoding::contracts::{decode_proof_formals, encode_proof_formals};
 
     #[cfg(test)]
     mod mathematical_tests {
@@ -1243,223 +902,129 @@ pub(crate) mod proof_term_wire {
 pub(crate) use psi_declaration_encoding::terms::proposition as proposition_wire;
 
 pub(crate) mod scalar_qualification_wire {
+    use super::CodecError;
     use super::module_wire::declaration_wire::{
         decode_establishment_routes, decode_required_memberships, encode_establishment_routes,
         encode_required_memberships,
     };
-    use super::wire::{require_increasing, strictly_increasing};
-    use super::{
-        CodecError, decode_counted,
-        scalar_wire::{
-            decode_ieee_float_value, decode_integer_type, decode_integer_value, decode_scalar_type,
-            encode_ieee_float_value, encode_integer_type, encode_integer_value, encode_scalar_type,
-        },
-        wire::{Reader, Writer, decode_ids},
+    use super::wire::{Reader, Writer, require_increasing, strictly_increasing};
+    use super::wire_fields::{
+        Field, Flag, Float, Id, Ids, Index, Integer, IntegerTypeField, List, Optional, Proposition,
+        Scalar, U32, delegated_fields, wire_enum, wire_record,
     };
-    use semantic_vocabulary::ScalarQualificationSetId;
+    use semantic_vocabulary::{QualifiedScalarType, ScalarQualificationSetId};
     use terminal_psi::{
-        ScalarDomainDeclaration, ScalarDomainPredicate, ScalarFloatRange, ScalarIntegerRange,
-        ScalarQualificationCatalog, ScalarQualificationCoercion, ScalarQualificationSet,
-        ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite, TerminalIdentityIndex,
+        ScalarDomainDeclaration, ScalarDomainPredicate, ScalarFieldQualification, ScalarFloatRange,
+        ScalarIntegerRange, ScalarPrimitiveQualification, ScalarQualificationCatalog,
+        ScalarQualificationCoercion, ScalarQualificationSet, ScalarReturnOrigin,
+        ScalarReturnQualification, ScalarReturnSite,
     };
+
+    struct SetId;
+    impl Field<ScalarQualificationSetId> for SetId {
+        fn write(writer: &mut Writer, value: &ScalarQualificationSetId) -> Result<(), CodecError> {
+            writer.u64(value.get());
+            Ok(())
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<ScalarQualificationSetId, CodecError> {
+            Ok(ScalarQualificationSetId::new(reader.u64()?))
+        }
+    }
+
+    #[cfg(test)]
+    use terminal_psi::TerminalIdentityIndex;
+
+    delegated_fields! {
+        RequiredMemberships: Option<Vec<semantic_vocabulary::DomainSemanticId>>
+            => encode_required_memberships, decode_required_memberships;
+        EstablishmentRoutes: Option<Vec<terminal_psi::ScalarDomainEstablishmentRoute>>
+            => encode_establishment_routes, decode_establishment_routes;
+    }
+
+    wire_enum! {
+        ReturnSite: ScalarReturnSite, "ScalarReturnSite" {
+            0 => NormalExit,
+            1 => Completion { argument_ordinal: U32 },
+        }
+        ReturnOrigin: ScalarReturnOrigin, "ScalarReturnOrigin" {
+            0 => Forwarded,
+            1 => Established { route: U32 },
+            2 => Vacuous,
+            3 => Proved,
+        }
+    }
+
+    wire_record! {
+        DomainPredicate: ScalarDomainPredicate { subject: Id, proposition: Proposition }
+        Domain: ScalarDomainDeclaration {
+            id: Id,
+            semantic_domain: Id,
+            required_memberships: RequiredMemberships,
+            identity: Index,
+            carrier: Scalar,
+            predicate: Optional<DomainPredicate>,
+            establishment_routes: EstablishmentRoutes,
+        }
+        ReturnQualification: ScalarReturnQualification {
+            machine: Id,
+            edge: Id,
+            source: Id,
+            result: Id,
+            site: ReturnSite,
+            domain: Id,
+            origins: List<ReturnOrigin>,
+        }
+        QualificationSet: ScalarQualificationSet { id: SetId, domains: Ids }
+        QualifiedScalar: QualifiedScalarType { scalar_type: Scalar, qualifications: SetId }
+        FieldQualification: ScalarFieldQualification { field: Id, value_type: QualifiedScalar }
+        PrimitiveQualification: ScalarPrimitiveQualification {
+            structural_type: Id,
+            value_type: QualifiedScalar,
+        }
+        Coercion: ScalarQualificationCoercion {
+            machine: Id,
+            edge: Id,
+            argument_ordinal: U32,
+            source: Id,
+            destination: Id,
+        }
+        FloatRange: ScalarFloatRange {
+            machine: Id,
+            parameter: Id,
+            minimum: Float,
+            maximum: Float,
+            maximum_inclusive: Flag,
+        }
+        IntegerRange: ScalarIntegerRange {
+            machine: Id,
+            parameter: Id,
+            integer_type: IntegerTypeField,
+            minimum: Integer,
+            maximum: Integer,
+        }
+        Catalog: ScalarQualificationCatalog {
+            domains: List<Domain>,
+            returns: List<ReturnQualification>,
+            sets: List<QualificationSet>,
+            fields: List<FieldQualification>,
+            primitives: List<PrimitiveQualification>,
+            coercions: List<Coercion>,
+            float_entry_ranges: List<FloatRange>,
+            integer_entry_ranges: List<IntegerRange>,
+        }
+    }
 
     pub(crate) fn encode(
         writer: &mut Writer,
         catalog: &ScalarQualificationCatalog,
     ) -> Result<(), CodecError> {
-        writer.len("scalar domains", catalog.domains.len())?;
-        for domain in &catalog.domains {
-            writer.id(domain.id);
-            writer.id(domain.semantic_domain);
-            encode_required_memberships(writer, &domain.required_memberships)?;
-            writer.u32(domain.identity.0);
-            encode_scalar_type(writer, domain.carrier)?;
-            writer.boolean(domain.predicate.is_some());
-            if let Some(predicate) = &domain.predicate {
-                writer.id(predicate.subject);
-                super::encode_proposition(writer, &predicate.proposition)?;
-            }
-            encode_establishment_routes(writer, &domain.establishment_routes)?;
-        }
-        writer.len("scalar return qualifications", catalog.returns.len())?;
-        for returned in &catalog.returns {
-            writer.id(returned.machine);
-            writer.id(returned.edge);
-            writer.id(returned.source);
-            writer.id(returned.result);
-            match returned.site {
-                ScalarReturnSite::NormalExit => writer.u8(0),
-                ScalarReturnSite::Completion { argument_ordinal } => {
-                    writer.u8(1);
-                    writer.u32(argument_ordinal);
-                }
-            }
-            writer.id(returned.domain);
-            writer.len("scalar return origins", returned.origins.len())?;
-            for origin in &returned.origins {
-                match origin {
-                    ScalarReturnOrigin::Forwarded => writer.u8(0),
-                    ScalarReturnOrigin::Vacuous => writer.u8(2),
-                    ScalarReturnOrigin::Proved => writer.u8(3),
-                    ScalarReturnOrigin::Established { route } => {
-                        writer.u8(1);
-                        writer.u32(*route);
-                    }
-                }
-            }
-        }
-        writer.len("scalar qualification sets", catalog.sets.len())?;
-        for set in &catalog.sets {
-            writer.u64(set.id.get());
-            writer.len("scalar qualification members", set.domains.len())?;
-            for domain in &set.domains {
-                writer.id(*domain);
-            }
-        }
-        writer.len("scalar field qualifications", catalog.fields.len())?;
-        for field in &catalog.fields {
-            writer.id(field.field);
-            encode_scalar_type(writer, field.value_type.scalar_type)?;
-            writer.u64(field.value_type.qualifications.get());
-        }
-        writer.len("scalar primitive qualifications", catalog.primitives.len())?;
-        for primitive in &catalog.primitives {
-            writer.id(primitive.structural_type);
-            encode_scalar_type(writer, primitive.value_type.scalar_type)?;
-            writer.u64(primitive.value_type.qualifications.get());
-        }
-        writer.len("scalar qualification coercions", catalog.coercions.len())?;
-        for coercion in &catalog.coercions {
-            writer.id(coercion.machine);
-            writer.id(coercion.edge);
-            writer.u32(coercion.argument_ordinal);
-            writer.id(coercion.source);
-            writer.id(coercion.destination);
-        }
-        writer.len(
-            "scalar float entry ranges",
-            catalog.float_entry_ranges.len(),
-        )?;
-        for range in &catalog.float_entry_ranges {
-            writer.id(range.machine);
-            writer.id(range.parameter);
-            encode_ieee_float_value(writer, range.minimum);
-            encode_ieee_float_value(writer, range.maximum);
-            writer.boolean(range.maximum_inclusive);
-        }
-        writer.len(
-            "scalar integer entry ranges",
-            catalog.integer_entry_ranges.len(),
-        )?;
-        for range in &catalog.integer_entry_ranges {
-            writer.id(range.machine);
-            writer.id(range.parameter);
-            encode_integer_type(writer, range.integer_type)?;
-            encode_integer_value(writer, range.minimum);
-            encode_integer_value(writer, range.maximum);
-        }
-        Ok(())
+        Catalog::write(writer, catalog)
     }
 
     pub(crate) fn decode(
         reader: &mut Reader<'_>,
     ) -> Result<ScalarQualificationCatalog, CodecError> {
-        Ok(ScalarQualificationCatalog {
-            domains: decode_counted(reader, |reader| {
-                Ok(ScalarDomainDeclaration {
-                    id: reader.id("ScalarDomainId")?,
-                    semantic_domain: reader.id("DomainSemanticId")?,
-                    required_memberships: decode_required_memberships(reader)?,
-                    identity: TerminalIdentityIndex(reader.u32()?),
-                    carrier: decode_scalar_type(reader)?,
-                    predicate: if reader.boolean()? {
-                        Some(ScalarDomainPredicate {
-                            subject: reader.id("ValueId")?,
-                            proposition: super::decode_proposition(reader)?,
-                        })
-                    } else {
-                        None
-                    },
-                    establishment_routes: decode_establishment_routes(reader)?,
-                })
-            })?,
-            returns: decode_counted(reader, |reader| {
-                Ok(ScalarReturnQualification {
-                    machine: reader.id("MachineId")?,
-                    edge: reader.id("EdgeId")?,
-                    source: reader.id("ValueId")?,
-                    result: reader.id("ValueId")?,
-                    site: match reader.u8()? {
-                        0 => ScalarReturnSite::NormalExit,
-                        1 => ScalarReturnSite::Completion {
-                            argument_ordinal: reader.u32()?,
-                        },
-                        tag => return Err(CodecError::InvalidTag("ScalarReturnSite", tag)),
-                    },
-                    domain: reader.id("ScalarDomainId")?,
-                    origins: decode_counted(reader, |reader| match reader.u8()? {
-                        0 => Ok(ScalarReturnOrigin::Forwarded),
-                        2 => Ok(ScalarReturnOrigin::Vacuous),
-                        3 => Ok(ScalarReturnOrigin::Proved),
-                        1 => Ok(ScalarReturnOrigin::Established {
-                            route: reader.u32()?,
-                        }),
-                        tag => Err(CodecError::InvalidTag("ScalarReturnOrigin", tag)),
-                    })?,
-                })
-            })?,
-            sets: decode_counted(reader, |reader| {
-                Ok(ScalarQualificationSet {
-                    id: ScalarQualificationSetId::new(reader.u64()?),
-                    domains: decode_ids(reader, "ScalarDomainId")?,
-                })
-            })?,
-            fields: decode_counted(reader, |reader| {
-                Ok(terminal_psi::ScalarFieldQualification {
-                    field: reader.id("StructuralFieldId")?,
-                    value_type: semantic_vocabulary::QualifiedScalarType {
-                        scalar_type: decode_scalar_type(reader)?,
-                        qualifications: ScalarQualificationSetId::new(reader.u64()?),
-                    },
-                })
-            })?,
-            primitives: decode_counted(reader, |reader| {
-                Ok(terminal_psi::ScalarPrimitiveQualification {
-                    structural_type: reader.id("StructuralTypeId")?,
-                    value_type: semantic_vocabulary::QualifiedScalarType {
-                        scalar_type: decode_scalar_type(reader)?,
-                        qualifications: ScalarQualificationSetId::new(reader.u64()?),
-                    },
-                })
-            })?,
-            coercions: decode_counted(reader, |reader| {
-                Ok(ScalarQualificationCoercion {
-                    machine: reader.id("MachineId")?,
-                    edge: reader.id("EdgeId")?,
-                    argument_ordinal: reader.u32()?,
-                    source: reader.id("ValueId")?,
-                    destination: reader.id("ValueId")?,
-                })
-            })?,
-            float_entry_ranges: decode_counted(reader, |reader| {
-                Ok(ScalarFloatRange {
-                    machine: reader.id("MachineId")?,
-                    parameter: reader.id("ValueId")?,
-                    minimum: decode_ieee_float_value(reader)?,
-                    maximum: decode_ieee_float_value(reader)?,
-                    maximum_inclusive: reader.boolean()?,
-                })
-            })?,
-            integer_entry_ranges: decode_counted(reader, |reader| {
-                Ok(ScalarIntegerRange {
-                    machine: reader.id("MachineId")?,
-                    parameter: reader.id("ValueId")?,
-                    integer_type: decode_integer_type(reader)?,
-                    minimum: decode_integer_value(reader)?,
-                    maximum: decode_integer_value(reader)?,
-                })
-            })?,
-        })
+        Catalog::read(reader)
     }
 
     pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), CodecError> {

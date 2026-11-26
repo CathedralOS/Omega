@@ -5,312 +5,145 @@ terminator edges.
 */
 
 pub(crate) mod atomic_operations {
-
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer};
-    use super::operation_tags;
-    use crate::sections::semantic_module::structural_place_wire::{
-        decode_structural_path, encode_structural_path,
-    };
+    use super::super::wire_fields::{Field, Id, Path, wire_enum, wire_record};
     use language_core::atomic::{
         AtomicCompareExchangeAttemptAxis, AtomicCompareExchangeObservationAxis,
         AtomicCompareExchangeOnceResultCustody, AtomicCompareExchangeOutcomeIdentity,
     };
-    use semantic_vocabulary::PlaceId;
     use terminal_psi::{
-        AtomicAccessEvent, AtomicReadModifyWrite, MemoryOrdering, OperationKind,
-        StructuralPathSegment,
+        AtomicAccessEvent, AtomicReadModifyWrite, FenceOrdering, MemoryOrdering, OperationKind,
     };
 
-    const LOAD: u8 = 1;
-    const STORE: u8 = 2;
-    const READ_MODIFY_WRITE: u8 = 3;
-    const SWAP: u8 = 4;
-    const COMPARE_EXCHANGE: u8 = 5;
-    const COMPARE_EXCHANGE_ONCE: u8 = 6;
+    wire_enum! {
+        ReadModifyWrite: AtomicReadModifyWrite, "AtomicReadModifyWrite" {
+            1 => FetchAdd, 2 => FetchSub, 3 => FetchAnd, 4 => FetchOr, 5 => FetchXor,
+        }
+        AttemptAxis: AtomicCompareExchangeAttemptAxis, "AtomicCompareExchangeAttemptAxis" {
+            1 => Decisive, 2 => SingleAttempt,
+        }
+        ObservationAxis: AtomicCompareExchangeObservationAxis, "AtomicCompareExchangeObservationAxis" {
+            1 => Observing, 2 => NonObserving,
+        }
+        OutcomeIdentity: AtomicCompareExchangeOutcomeIdentity, "AtomicCompareExchangeOutcomeIdentity" {
+            1 => AtomicCompareExchangeOutcome,
+            2 => AtomicCompareExchangeOnceOutcome,
+            3 => AtomicTryExchangeOutcome,
+            4 => AtomicTryExchangeOnceOutcome,
+        }
+        Ordering: MemoryOrdering, "MemoryOrdering" {
+            1 => NoOrdering, 2 => Receive, 3 => Publish, 4 => ReceivePublish, 5 => GlobalOrder,
+        }
+        Fence: FenceOrdering, "FenceOrdering" {
+            1 => Receive, 2 => Publish, 3 => ReceivePublish,
+        }
+        Event: AtomicAccessEvent, "AtomicAccessEvent" {
+            1 => Load { ordering: Ordering },
+            2 => Store { value: Id, ordering: Ordering },
+            3 => ReadModifyWrite { operation: ReadModifyWrite, operand: Id, ordering: Ordering },
+            4 => Swap { value: Id, ordering: Ordering },
+            5 => CompareExchange { expected: Id, replacement: Id, success: Ordering, failure: Ordering },
+            6 => CompareExchangeOnce {
+                custody: OnceCustody,
+                expected: Id,
+                replacement: Id,
+                success: Ordering,
+                failure: Ordering,
+            },
+        }
+    }
+
+    wire_record! {
+        RawOnceCustody: AtomicCompareExchangeOnceResultCustody {
+            attempt: AttemptAxis,
+            observation: ObservationAxis,
+            outcome_identity: OutcomeIdentity,
+        }
+    }
+
+    pub(crate) struct OnceCustody;
+    impl Field<AtomicCompareExchangeOnceResultCustody> for OnceCustody {
+        fn write(
+            writer: &mut Writer,
+            custody: &AtomicCompareExchangeOnceResultCustody,
+        ) -> Result<(), CodecError> {
+            if !custody.is_canonical() {
+                return crate::codec_error::malformed(
+                    "atomic attempt has inconsistent result custody",
+                );
+            }
+            RawOnceCustody::write(writer, custody)
+        }
+        fn read(
+            reader: &mut Reader<'_>,
+        ) -> Result<AtomicCompareExchangeOnceResultCustody, CodecError> {
+            let custody = RawOnceCustody::read(reader)?;
+            if !custody.is_canonical() {
+                return crate::codec_error::malformed(
+                    "atomic attempt has inconsistent result custody",
+                );
+            }
+            Ok(custody)
+        }
+    }
 
     pub(crate) fn encode_atomic_access(
         writer: &mut Writer,
-        place: PlaceId,
-        path: &[StructuralPathSegment],
+        place: semantic_vocabulary::PlaceId,
+        path: &Vec<terminal_psi::StructuralPathSegment>,
         event: AtomicAccessEvent,
         resident_obligation: Option<semantic_vocabulary::ObligationId>,
     ) -> Result<(), CodecError> {
         writer.u8(if resident_obligation.is_some() {
-            operation_tags::RESTRICTED_ATOMIC_ACCESS
+            131
         } else {
-            operation_tags::ATOMIC_ACCESS
+            93
         });
         if let Some(obligation) = resident_obligation {
             writer.id(obligation);
         }
         writer.id(place);
-        encode_structural_path(writer, "atomic access path", path)?;
-        match event {
-            AtomicAccessEvent::Load { ordering } => {
-                writer.u8(LOAD);
-                encode_ordering(writer, ordering);
-            }
-            AtomicAccessEvent::Store { value, ordering } => {
-                writer.u8(STORE);
-                writer.id(value);
-                encode_ordering(writer, ordering);
-            }
-            AtomicAccessEvent::ReadModifyWrite {
-                operation,
-                operand,
-                ordering,
-            } => {
-                writer.u8(READ_MODIFY_WRITE);
-                writer.u8(match operation {
-                    AtomicReadModifyWrite::FetchAdd => 1,
-                    AtomicReadModifyWrite::FetchSub => 2,
-                    AtomicReadModifyWrite::FetchAnd => 3,
-                    AtomicReadModifyWrite::FetchOr => 4,
-                    AtomicReadModifyWrite::FetchXor => 5,
-                });
-                writer.id(operand);
-                encode_ordering(writer, ordering);
-            }
-            AtomicAccessEvent::Swap { value, ordering } => {
-                writer.u8(SWAP);
-                writer.id(value);
-                encode_ordering(writer, ordering);
-            }
-            AtomicAccessEvent::CompareExchange {
-                expected,
-                replacement,
-                success,
-                failure,
-            } => {
-                writer.u8(COMPARE_EXCHANGE);
-                writer.id(expected);
-                writer.id(replacement);
-                encode_ordering(writer, success);
-                encode_ordering(writer, failure);
-            }
-            AtomicAccessEvent::CompareExchangeOnce {
-                custody,
-                expected,
-                replacement,
-                success,
-                failure,
-            } => {
-                writer.u8(COMPARE_EXCHANGE_ONCE);
-                encode_once_custody(writer, custody)?;
-                writer.id(expected);
-                writer.id(replacement);
-                encode_ordering(writer, success);
-                encode_ordering(writer, failure);
-            }
-        }
-        Ok(())
+        Path::<false>::write(writer, path)?;
+        Event::write(writer, &event)
     }
 
     pub(crate) fn decode_atomic_access(
         reader: &mut Reader<'_>,
         restricted: bool,
     ) -> Result<OperationKind, CodecError> {
-        let resident_obligation = if restricted {
-            Some(reader.id("ObligationId")?)
-        } else {
-            None
-        };
-        let place = reader.id("PlaceId")?;
-        let path = decode_structural_path(reader)?;
-        let event = match reader.u8()? {
-            LOAD => AtomicAccessEvent::Load {
-                ordering: decode_ordering(reader)?,
-            },
-            STORE => AtomicAccessEvent::Store {
-                value: reader.id("ValueId")?,
-                ordering: decode_ordering(reader)?,
-            },
-            READ_MODIFY_WRITE => {
-                let operation = match reader.u8()? {
-                    1 => AtomicReadModifyWrite::FetchAdd,
-                    2 => AtomicReadModifyWrite::FetchSub,
-                    3 => AtomicReadModifyWrite::FetchAnd,
-                    4 => AtomicReadModifyWrite::FetchOr,
-                    5 => AtomicReadModifyWrite::FetchXor,
-                    tag => return Err(CodecError::InvalidTag("AtomicReadModifyWrite", tag)),
-                };
-                AtomicAccessEvent::ReadModifyWrite {
-                    operation,
-                    operand: reader.id("ValueId")?,
-                    ordering: decode_ordering(reader)?,
-                }
-            }
-            SWAP => AtomicAccessEvent::Swap {
-                value: reader.id("ValueId")?,
-                ordering: decode_ordering(reader)?,
-            },
-            COMPARE_EXCHANGE => AtomicAccessEvent::CompareExchange {
-                expected: reader.id("ValueId")?,
-                replacement: reader.id("ValueId")?,
-                success: decode_ordering(reader)?,
-                failure: decode_ordering(reader)?,
-            },
-            COMPARE_EXCHANGE_ONCE => AtomicAccessEvent::CompareExchangeOnce {
-                custody: decode_once_custody(reader)?,
-                expected: reader.id("ValueId")?,
-                replacement: reader.id("ValueId")?,
-                success: decode_ordering(reader)?,
-                failure: decode_ordering(reader)?,
-            },
-            tag => return Err(CodecError::InvalidTag("AtomicAccessEvent", tag)),
-        };
         Ok(OperationKind::AtomicAccess {
-            place,
-            path,
-            event,
-            resident_obligation,
+            resident_obligation: restricted.then(|| reader.id("ObligationId")).transpose()?,
+            place: reader.id("PlaceId")?,
+            path: Path::<false>::read(reader)?,
+            event: Event::read(reader)?,
         })
-    }
-
-    fn encode_once_custody(
-        writer: &mut Writer,
-        custody: AtomicCompareExchangeOnceResultCustody,
-    ) -> Result<(), CodecError> {
-        if !custody.is_canonical() {
-            return Err(CodecError::MalformedStructuralFoundation(
-                "atomic attempt has inconsistent result custody",
-            ));
-        }
-        writer.u8(match custody.attempt {
-            AtomicCompareExchangeAttemptAxis::Decisive => 1,
-            AtomicCompareExchangeAttemptAxis::SingleAttempt => 2,
-        });
-        writer.u8(match custody.observation {
-            AtomicCompareExchangeObservationAxis::Observing => 1,
-            AtomicCompareExchangeObservationAxis::NonObserving => 2,
-        });
-        writer.u8(match custody.outcome_identity {
-            AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOutcome => 1,
-            AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOnceOutcome => 2,
-            AtomicCompareExchangeOutcomeIdentity::AtomicTryExchangeOutcome => 3,
-            AtomicCompareExchangeOutcomeIdentity::AtomicTryExchangeOnceOutcome => 4,
-        });
-        Ok(())
-    }
-
-    fn decode_once_custody(
-        reader: &mut Reader<'_>,
-    ) -> Result<AtomicCompareExchangeOnceResultCustody, CodecError> {
-        let attempt = match reader.u8()? {
-            1 => AtomicCompareExchangeAttemptAxis::Decisive,
-            2 => AtomicCompareExchangeAttemptAxis::SingleAttempt,
-            tag => {
-                return Err(CodecError::InvalidTag(
-                    "AtomicCompareExchangeAttemptAxis",
-                    tag,
-                ));
-            }
-        };
-        let observation = match reader.u8()? {
-            1 => AtomicCompareExchangeObservationAxis::Observing,
-            2 => AtomicCompareExchangeObservationAxis::NonObserving,
-            tag => {
-                return Err(CodecError::InvalidTag(
-                    "AtomicCompareExchangeObservationAxis",
-                    tag,
-                ));
-            }
-        };
-        let outcome_identity = match reader.u8()? {
-            1 => AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOutcome,
-            2 => AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOnceOutcome,
-            3 => AtomicCompareExchangeOutcomeIdentity::AtomicTryExchangeOutcome,
-            4 => AtomicCompareExchangeOutcomeIdentity::AtomicTryExchangeOnceOutcome,
-            tag => {
-                return Err(CodecError::InvalidTag(
-                    "AtomicCompareExchangeOutcomeIdentity",
-                    tag,
-                ));
-            }
-        };
-        let custody = AtomicCompareExchangeOnceResultCustody {
-            attempt,
-            observation,
-            outcome_identity,
-        };
-        if !custody.is_canonical() {
-            return Err(CodecError::MalformedStructuralFoundation(
-                "atomic attempt has inconsistent result custody",
-            ));
-        }
-        Ok(custody)
-    }
-
-    fn encode_ordering(writer: &mut Writer, ordering: MemoryOrdering) {
-        writer.u8(match ordering {
-            MemoryOrdering::NoOrdering => 1,
-            MemoryOrdering::Receive => 2,
-            MemoryOrdering::Publish => 3,
-            MemoryOrdering::ReceivePublish => 4,
-            MemoryOrdering::GlobalOrder => 5,
-        });
-    }
-
-    fn decode_ordering(reader: &mut Reader<'_>) -> Result<MemoryOrdering, CodecError> {
-        Ok(match reader.u8()? {
-            1 => MemoryOrdering::NoOrdering,
-            2 => MemoryOrdering::Receive,
-            3 => MemoryOrdering::Publish,
-            4 => MemoryOrdering::ReceivePublish,
-            5 => MemoryOrdering::GlobalOrder,
-            tag => return Err(CodecError::InvalidTag("MemoryOrdering", tag)),
-        })
-    }
-
-    pub(crate) fn encode_atomic_fence(writer: &mut Writer, ordering: terminal_psi::FenceOrdering) {
-        use terminal_psi::FenceOrdering;
-        writer.u8(operation_tags::ATOMIC_FENCE);
-        writer.u8(match ordering {
-            FenceOrdering::Receive => 1,
-            FenceOrdering::Publish => 2,
-            FenceOrdering::ReceivePublish => 3,
-        });
-    }
-
-    pub(crate) fn decode_atomic_fence(
-        reader: &mut Reader<'_>,
-    ) -> Result<OperationKind, CodecError> {
-        use terminal_psi::FenceOrdering;
-        let ordering = match reader.u8()? {
-            1 => FenceOrdering::Receive,
-            2 => FenceOrdering::Publish,
-            3 => FenceOrdering::ReceivePublish,
-            tag => return Err(CodecError::InvalidTag("FenceOrdering", tag)),
-        };
-        Ok(OperationKind::AtomicFence { ordering })
     }
 }
-pub(crate) mod call_operations {
 
+pub(crate) mod call_operations {
     use super::super::CodecError;
     use super::super::wire::{Reader, Writer};
-    use super::operation_tags;
     use semantic_vocabulary::ServiceId;
-    use terminal_psi::OperationKind;
+    use terminal_psi::{OperationKind, RegisterAccessEvent, RegisterOperation};
 
     pub(crate) fn encode_register_access(
         writer: &mut Writer,
         service: Option<ServiceId>,
-        event: terminal_psi::RegisterAccessEvent,
+        event: RegisterAccessEvent,
     ) -> Result<(), CodecError> {
         if !event.operation().is_admitted()
             || service.is_some() != event.operation().requires_service_authority()
         {
-            return Err(CodecError::MalformedStructuralFoundation(
+            return crate::codec_error::malformed(
                 "register access disagrees with its catalog service authority",
-            ));
+            );
         }
         if let Some(service) = service {
-            writer.u8(operation_tags::REGISTER_ACCESS);
+            writer.u8(121);
             writer.id(service);
         } else {
-            writer.u8(operation_tags::REGISTER_OBSERVATION);
+            writer.u8(126);
         }
         writer.u16(event.operation().catalog_tag());
         for value in event.inputs() {
@@ -323,385 +156,107 @@ pub(crate) mod call_operations {
         reader: &mut Reader<'_>,
         requires_service: bool,
     ) -> Result<OperationKind, CodecError> {
-        let service = if requires_service {
-            Some(reader.id("ServiceId")?)
-        } else {
-            None
-        };
-        let tag = reader.u16()?;
-        let operation = terminal_psi::RegisterOperation::from_catalog_tag(tag).ok_or(
+        let service = requires_service
+            .then(|| reader.id("ServiceId"))
+            .transpose()?;
+        let operation = RegisterOperation::from_catalog_tag(reader.u16()?).ok_or(
             CodecError::MalformedStructuralFoundation("unknown register access catalog identity"),
         )?;
         if service.is_some() != operation.requires_service_authority() {
-            return Err(CodecError::MalformedStructuralFoundation(
+            return crate::codec_error::malformed(
                 "register access wire tag disagrees with catalog service authority",
-            ));
+            );
         }
         let event = match operation {
-            terminal_psi::RegisterOperation::GlobalDescriptorTable(_)
-            | terminal_psi::RegisterOperation::TaskRegisterActivate
-            | terminal_psi::RegisterOperation::TaskRegisterRead
-            | terminal_psi::RegisterOperation::SegmentReload(_)
-            | terminal_psi::RegisterOperation::SegmentRead(_) => {
-                return Err(CodecError::MalformedStructuralFoundation(
+            RegisterOperation::GlobalDescriptorTable(_)
+            | RegisterOperation::TaskRegisterActivate
+            | RegisterOperation::TaskRegisterRead
+            | RegisterOperation::SegmentReload(_)
+            | RegisterOperation::SegmentRead(_) => {
+                return crate::codec_error::malformed(
                     "descriptor-table operations require a checked structural operand",
-                ));
+                );
             }
-            terminal_psi::RegisterOperation::MemoryFence(kind) => {
-                terminal_psi::RegisterAccessEvent::MemoryFence { kind }
+            RegisterOperation::MemoryFence(kind) => RegisterAccessEvent::MemoryFence { kind },
+            RegisterOperation::ProcessorHalt => RegisterAccessEvent::ProcessorHalt,
+            RegisterOperation::InterruptControl(kind) => {
+                RegisterAccessEvent::InterruptControl { kind }
             }
-            terminal_psi::RegisterOperation::ProcessorHalt => {
-                terminal_psi::RegisterAccessEvent::ProcessorHalt
-            }
-            terminal_psi::RegisterOperation::InterruptControl(kind) => {
-                terminal_psi::RegisterAccessEvent::InterruptControl { kind }
-            }
-            terminal_psi::RegisterOperation::SystemRead(register) => {
-                terminal_psi::RegisterAccessEvent::Read { register }
-            }
-            terminal_psi::RegisterOperation::SystemWrite(register) => {
-                terminal_psi::RegisterAccessEvent::Write {
-                    register,
-                    value: reader.id("ValueId")?,
-                }
-            }
-            terminal_psi::RegisterOperation::PortRead => {
-                terminal_psi::RegisterAccessEvent::PortRead {
-                    port: reader.id("ValueId")?,
-                }
-            }
-            terminal_psi::RegisterOperation::PortWrite => {
-                terminal_psi::RegisterAccessEvent::PortWrite {
-                    port: reader.id("ValueId")?,
-                    value: reader.id("ValueId")?,
-                }
-            }
-            terminal_psi::RegisterOperation::ModelSpecificRead => {
-                terminal_psi::RegisterAccessEvent::ModelSpecificRead {
-                    index: reader.id("ValueId")?,
-                }
-            }
-            terminal_psi::RegisterOperation::ModelSpecificWrite => {
-                terminal_psi::RegisterAccessEvent::ModelSpecificWrite {
-                    index: reader.id("ValueId")?,
-                    value: reader.id("ValueId")?,
-                }
-            }
+            RegisterOperation::SystemRead(register) => RegisterAccessEvent::Read { register },
+            RegisterOperation::SystemWrite(register) => RegisterAccessEvent::Write {
+                register,
+                value: reader.id("ValueId")?,
+            },
+            RegisterOperation::PortRead => RegisterAccessEvent::PortRead {
+                port: reader.id("ValueId")?,
+            },
+            RegisterOperation::PortWrite => RegisterAccessEvent::PortWrite {
+                port: reader.id("ValueId")?,
+                value: reader.id("ValueId")?,
+            },
+            RegisterOperation::ModelSpecificRead => RegisterAccessEvent::ModelSpecificRead {
+                index: reader.id("ValueId")?,
+            },
+            RegisterOperation::ModelSpecificWrite => RegisterAccessEvent::ModelSpecificWrite {
+                index: reader.id("ValueId")?,
+                value: reader.id("ValueId")?,
+            },
         };
         Ok(OperationKind::RegisterAccess { service, event })
     }
 }
-pub(crate) mod operation_tags {
 
-    pub(crate) const INTEGER_CONSTANT: u8 = 1;
-    pub(crate) const BOOLEAN_CONSTANT: u8 = 2;
-    pub(crate) const WRAPPING_INTEGER_ADD: u8 = 3;
-    pub(crate) const SATURATING_INTEGER_ADD: u8 = 4;
-    pub(crate) const WRAPPING_INTEGER_SUBTRACT: u8 = 5;
-    pub(crate) const SATURATING_INTEGER_SUBTRACT: u8 = 6;
-    pub(crate) const WRAPPING_INTEGER_MULTIPLY: u8 = 7;
-    pub(crate) const SATURATING_INTEGER_MULTIPLY: u8 = 8;
-    pub(crate) const BOOLEAN_NOT: u8 = 9;
-    pub(crate) const BOOLEAN_EQUAL: u8 = 10;
-    pub(crate) const INTEGER_EQUAL: u8 = 11;
-    pub(crate) const INTEGER_LESS_THAN: u8 = 12;
-    pub(crate) const INTEGER_LESS_OR_EQUAL: u8 = 13;
-    pub(crate) const INTEGER_BITWISE_AND: u8 = 14;
-    pub(crate) const INTEGER_BITWISE_OR: u8 = 15;
-    pub(crate) const INTEGER_BITWISE_XOR: u8 = 16;
-    pub(crate) const WRAPPING_INTEGER_SHIFT_LEFT: u8 = 17;
-    pub(crate) const WRAPPING_INTEGER_SHIFT_RIGHT: u8 = 18;
-    pub(crate) const INTEGER_BITWISE_NOT: u8 = 19;
-    pub(crate) const INTEGER_WIDEN: u8 = 20;
-    pub(crate) const INTEGER_EXACT_CAST: u8 = 21;
-    pub(crate) const EXACT_INTEGER_SHIFT_RIGHT: u8 = 22;
-    pub(crate) const EXACT_INTEGER_SHIFT_LEFT: u8 = 23;
-    pub(crate) const EXACT_INTEGER_ADD: u8 = 24;
-    pub(crate) const EXACT_INTEGER_SUBTRACT: u8 = 25;
-    pub(crate) const EXACT_INTEGER_MULTIPLY: u8 = 26;
-    pub(crate) const EXACT_INTEGER_DIVIDE: u8 = 27;
-    pub(crate) const EXACT_INTEGER_REMAINDER: u8 = 28;
-    pub(crate) const WRAPPING_INTEGER_DIVIDE: u8 = 29;
-    pub(crate) const WRAPPING_INTEGER_REMAINDER: u8 = 30;
-    pub(crate) const SATURATING_INTEGER_DIVIDE: u8 = 31;
-    pub(crate) const SATURATING_INTEGER_REMAINDER: u8 = 32;
-    pub(crate) const CALL: u8 = 33;
-    pub(crate) const CALL_UNIT: u8 = 34;
-    pub(crate) const BOUNDARY_CALL: u8 = 35;
-    pub(crate) const PORT_WRITE: u8 = 36;
-    pub(crate) const ESTABLISH_TRIVIAL_AFFINE_LOCAL: u8 = 37;
-    pub(crate) const BOOLEAN_STRUCTURAL_FIELD: u8 = 38;
-    pub(crate) const CALL_STRUCTURAL_SCALAR: u8 = 39;
-    pub(crate) const ESTABLISH_BYTE_SEQUENCE_LITERAL: u8 = 40;
-    pub(crate) const CALL_STRUCTURAL: u8 = 41;
-    pub(crate) const ESTABLISH_SCALAR_CASE: u8 = 42;
-    pub(crate) const WRITE_ONLY_PRIMITIVE_STORE: u8 = 43;
-    pub(crate) const IEEE_FLOAT_CONSTANT: u8 = 44;
-    pub(crate) const NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD: u8 = 45;
-    pub(crate) const STRUCTURAL_SCALAR_FIELD_STORE: u8 = 46;
-    pub(crate) const SCALAR_STRUCTURAL_FIELD: u8 = 47;
-    pub(crate) const CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS: u8 = 50;
-    pub(crate) const BYTE_SEQUENCE_LENGTH: u8 = 115;
-    pub(crate) const BYTE_SEQUENCE_READ: u8 = 56;
-    pub(crate) const BYTE_SEQUENCE_SUBSLICE: u8 = 113;
-    pub(crate) const STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE: u8 = 58;
-    pub(crate) const STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH: u8 = 59;
-    pub(crate) const STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE: u8 = 60;
-    pub(crate) const ESTABLISH_PRIMITIVE_LOCAL: u8 = 117;
-    pub(crate) const PRIMITIVE_SCALAR_READ: u8 = 62;
-    pub(crate) const BYTE_SEQUENCE_WRITE: u8 = 63;
-    pub(crate) const ESTABLISH_SCALAR_ARRAY: u8 = 64;
-    pub(crate) const IEEE_FLOAT_COMPARE: u8 = 65;
-    pub(crate) const STRUCTURAL_CASE_MEMBERSHIP: u8 = 66;
-    pub(crate) const ESTABLISH_RECORD: u8 = 68;
-    pub(crate) const ESTABLISH_REFERENCE: u8 = 69;
-    pub(crate) const RELEASE_REFERENCE: u8 = 70;
-    pub(crate) const RANGE_CHECKED_STRUCTURAL_SCALAR_FIELD_STORE: u8 = 75;
-    pub(crate) const MOVE_STRUCTURAL_FIELD: u8 = 77;
-    pub(crate) const STORE_STRUCTURAL_FIELD: u8 = 78;
-    pub(crate) const ESTABLISH_ELEMENT_VIEW: u8 = 79;
-    pub(crate) const ELEMENT_VIEW_READ: u8 = 81;
-    pub(crate) const ELEMENT_VIEW_SUBSLICE: u8 = 114;
-    pub(crate) const ESTABLISH_STRUCTURAL_CASE: u8 = 83;
-    pub(crate) const STRUCTURAL_LEAF_COPY: u8 = 84;
-
-    pub(crate) const STRUCTURAL_CASE_LEAF_COPY: u8 = 85;
-
-    pub(crate) const STRUCTURAL_BYTE_SEQUENCE_FIELD_READ: u8 = 86;
-
-    pub(crate) const PROJECTED_PRIMITIVE_SCALAR_READ: u8 = 89;
-
-    pub(crate) const PROJECTED_WRITE_ONLY_PRIMITIVE_STORE: u8 = 90;
-
-    pub(crate) const TRAPPING_INTEGER: u8 = 91;
-
-    pub(crate) const PROJECTED_ELEMENT_VIEW_READ: u8 = 92;
-
-    pub(crate) const ATOMIC_ACCESS: u8 = 93;
-
-    pub(crate) const ESTABLISH_ZEROED_STRUCTURAL: u8 = 94;
-
-    pub(crate) const ESTABLISH_BYTE_SEQUENCE_CONCATENATION: u8 = 95;
-
-    pub(crate) const BYTE_SEQUENCE_STORE: u8 = 96;
-
-    pub(crate) const ELEMENT_VIEW_WRITE: u8 = 97;
-
-    pub(crate) const ESTABLISH_MUTABLE_ELEMENT_VIEW: u8 = 98;
-
-    pub(crate) const FLOAT_RESULT_POLICY: u8 = 99;
-
-    pub(crate) const STRUCTURAL_BYTE_VIEW_FIELD_STORE: u8 = 100;
-
-    pub(crate) const SCALAR_REPRESENTATION_VIEW: u8 = 101;
-
-    pub(crate) const LANDED_SCALAR_REPRESENTATION_VIEW: u8 = 102;
-
-    pub(crate) const ESTABLISH_STRUCTURAL_LOCAL: u8 = 103;
-    pub(crate) const BYTE_SEQUENCE_PREDICATE: u8 = 104;
-
-    pub(crate) const BYTE_SEQUENCE_EQUAL: u8 = 105;
-    pub(crate) const PREDICATE_CHECKED_STRUCTURAL_BYTE_VIEW_FIELD_STORE: u8 = 106;
-
-    pub(crate) const ESTABLISH_STRUCTURAL_ARRAY: u8 = 107;
-
-    pub(crate) const PROJECTED_RELEASE_REFERENCE: u8 = 108;
-
-    pub(crate) const SELECT_IMPLEMENTATION: u8 = 109;
-    pub(crate) const SELECT_MACHINE: u8 = 138;
-    pub(crate) const CALL_DYNAMIC: u8 = 110;
-    pub(crate) const CALL_MACHINE: u8 = 139;
-
-    pub(crate) const ESTABLISH_STORAGE_VIEW_REFERENCE: u8 = 111;
-
-    pub(crate) const ELEMENT_VIEW_LENGTH: u8 = 112;
-    pub(crate) const RESTRICTED_WRITE_ONLY_PRIMITIVE_STORE: u8 = 116;
-
-    pub(crate) const REPLACE_DISCARDABLE_STRUCTURAL_FIELD: u8 = 118;
-
-    pub(crate) const ATOMIC_FENCE: u8 = 119;
-
-    pub(crate) const ESTABLISH_ACCESS_REFERENCE: u8 = 120;
-
-    pub(crate) const REGISTER_ACCESS: u8 = 121;
-
-    pub(crate) const ESTABLISH_NATIVE_CODE_LAYOUT: u8 = 122;
-    pub(crate) const STORAGE_ADDRESS: u8 = 123;
-
-    pub(crate) const MOVE_STRUCTURAL_VALUE: u8 = 124;
-
-    pub(crate) const TRANSFORM_CONTENT: u8 = 125;
-
-    pub(crate) const REGISTER_OBSERVATION: u8 = 126;
-    pub(crate) const ESTABLISH_ACTIVATION_CLAIM: u8 = 127;
-    pub(crate) const RELEASE_ACTIVATION_CLAIM: u8 = 128;
-    pub(crate) const SPLIT_ACTIVATION_CLAIM: u8 = 129;
-    pub(crate) const MERGE_ACTIVATION_CLAIM: u8 = 130;
-
-    pub(crate) const RESTRICTED_ATOMIC_ACCESS: u8 = 131;
-
-    pub(crate) const READ_SCALAR_APPLICATION: u8 = 132;
-
-    pub(crate) const GLOBAL_DESCRIPTOR_TABLE: u8 = 133;
-
-    pub(crate) const ACTIVATE_TASK_REGISTER: u8 = 134;
-    pub(crate) const READ_TASK_REGISTER: u8 = 135;
-
-    pub(crate) const RELOAD_SEGMENT_DESCRIPTORS: u8 = 136;
-    pub(crate) const READ_SEGMENT_SELECTOR: u8 = 137;
-
-    pub(crate) const DECOMPOSE_STRUCTURAL_VALUE: u8 = 140;
-    pub(crate) const STORAGE_ALIGNMENT: u8 = 141;
-    pub(crate) const PACKED_INTEGER_BINARY: u8 = 142;
-    pub(crate) const PACKED_INTEGER_UNARY: u8 = 143;
-}
 pub(crate) mod scalar_operations {
+    use super::super::wire_fields::{Id, wire_enum};
+    use terminal_psi::{FloatResultPolicy, TrappingIntegerOperation};
 
-    use super::super::CodecError;
-    use super::super::wire::{Reader, Writer};
-    use super::operation_tags;
-    use semantic_vocabulary::ValueId;
-    use terminal_psi::FloatResultPolicy;
-    use terminal_psi::{OperationKind, TrappingIntegerOperation};
-
-    pub(crate) fn encode_trapping_integer(
-        writer: &mut Writer,
-        operation: TrappingIntegerOperation,
-    ) -> Result<(), CodecError> {
-        writer.u8(operation_tags::TRAPPING_INTEGER);
-        let (primitive, operands): (u8, &[ValueId]) = match &operation {
-            TrappingIntegerOperation::Add { left, right } => (1, &[*left, *right]),
-            TrappingIntegerOperation::Subtract { left, right } => (2, &[*left, *right]),
-            TrappingIntegerOperation::Multiply { left, right } => (3, &[*left, *right]),
-            TrappingIntegerOperation::Divide { left, right } => (4, &[*left, *right]),
-            TrappingIntegerOperation::Remainder { left, right } => (5, &[*left, *right]),
-            TrappingIntegerOperation::ShiftLeft { value, count } => (6, &[*value, *count]),
-            TrappingIntegerOperation::ShiftRight { value, count } => (7, &[*value, *count]),
-            TrappingIntegerOperation::Convert { operand } => (8, &[*operand]),
-        };
-        writer.u8(primitive);
-        for operand in operands {
-            writer.id(*operand);
+    wire_enum! {
+        TrappingInteger: TrappingIntegerOperation, "TrappingIntegerOperation" {
+            1 => Add { left: Id, right: Id },
+            2 => Subtract { left: Id, right: Id },
+            3 => Multiply { left: Id, right: Id },
+            4 => Divide { left: Id, right: Id },
+            5 => Remainder { left: Id, right: Id },
+            6 => ShiftLeft { value: Id, count: Id },
+            7 => ShiftRight { value: Id, count: Id },
+            8 => Convert { operand: Id },
         }
-        Ok(())
-    }
-
-    pub(crate) fn decode_trapping_integer(
-        reader: &mut Reader<'_>,
-    ) -> Result<OperationKind, CodecError> {
-        let primitive = reader.u8()?;
-        let binary = |reader: &mut Reader<'_>| -> Result<(ValueId, ValueId), CodecError> {
-            Ok((reader.id("ValueId")?, reader.id("ValueId")?))
-        };
-        let operation = match primitive {
-            1 => {
-                let (left, right) = binary(reader)?;
-                TrappingIntegerOperation::Add { left, right }
-            }
-            2 => {
-                let (left, right) = binary(reader)?;
-                TrappingIntegerOperation::Subtract { left, right }
-            }
-            3 => {
-                let (left, right) = binary(reader)?;
-                TrappingIntegerOperation::Multiply { left, right }
-            }
-            4 => {
-                let (left, right) = binary(reader)?;
-                TrappingIntegerOperation::Divide { left, right }
-            }
-            5 => {
-                let (left, right) = binary(reader)?;
-                TrappingIntegerOperation::Remainder { left, right }
-            }
-            6 => {
-                let (value, count) = binary(reader)?;
-                TrappingIntegerOperation::ShiftLeft { value, count }
-            }
-            7 => {
-                let (value, count) = binary(reader)?;
-                TrappingIntegerOperation::ShiftRight { value, count }
-            }
-            8 => TrappingIntegerOperation::Convert {
-                operand: reader.id("ValueId")?,
-            },
-            tag => return Err(CodecError::InvalidTag("TrappingIntegerOperation", tag)),
-        };
-        Ok(OperationKind::TrappingInteger { operation })
-    }
-
-    pub(crate) fn encode_float_result_policy(
-        writer: &mut Writer,
-        policy: &FloatResultPolicy,
-    ) -> Result<(), CodecError> {
-        writer.u8(operation_tags::FLOAT_RESULT_POLICY);
-        match policy {
-            FloatResultPolicy::Trapping { raw_result } => {
-                writer.u8(1);
-                writer.id(*raw_result);
-            }
-            FloatResultPolicy::Saturating {
-                raw_result,
-                eligible,
-            } => {
-                writer.u8(4);
-                writer.id(*raw_result);
-                writer.id(*eligible);
-            }
+        FloatPolicy: FloatResultPolicy, "FloatResultPolicy" {
+            1 => Trapping { raw_result: Id },
+            4 => Saturating { raw_result: Id, eligible: Id },
         }
-        Ok(())
-    }
-    pub(crate) fn decode_float_result_policy(
-        reader: &mut Reader<'_>,
-    ) -> Result<OperationKind, CodecError> {
-        let policy = match reader.u8()? {
-            1 => FloatResultPolicy::Trapping {
-                raw_result: reader.id("ValueId")?,
-            },
-            4 => FloatResultPolicy::Saturating {
-                raw_result: reader.id("ValueId")?,
-                eligible: reader.id("ValueId")?,
-            },
-            tag => return Err(CodecError::InvalidTag("FloatResultPolicy", tag)),
-        };
-        Ok(OperationKind::FloatResultPolicy { policy })
     }
 }
-pub(crate) mod storage_operations {
 
+pub(crate) mod storage_operations {
     use super::super::CodecError;
-    use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
     use super::super::wire::{Reader, Writer};
-    use super::super::wire_fields::{Argument, Field, OptionalField};
-    use super::operation_tags;
-    use crate::sections::semantic_module::structural_place_wire::{
-        decode_structural_path, encode_structural_path,
+    use super::super::wire_fields::{
+        Argument, Field, Id, Optional, OptionalField, Path, Scalar, wire_record,
     };
-    use semantic_vocabulary::CanonicalStructuralPathSegment;
+    use crate::sections::semantic_module::structural_place_wire::{
+        decode_structural_arguments, decode_structural_path, encode_structural_arguments,
+        encode_structural_path,
+    };
     use semantic_vocabulary::{ObligationId, PlaceId, StructuralFieldId, ValueId};
-    use terminal_psi::OperationKind;
-    use terminal_psi::ReferenceStorageView;
-    use terminal_psi::{StructuralArgument, StructuralPathSegment};
+    use terminal_psi::{
+        OperationKind, ReferenceStorageView, StructuralAccess, StructuralArgument,
+        StructuralPathSegment, StructuralStoreDisposition,
+    };
+
+    wire_record! {
+        ReferenceStorage: ReferenceStorageView { byte_offset: Id, stored_scalar: Optional<Scalar> }
+    }
 
     pub(crate) fn encode_establish_reference(
         writer: &mut Writer,
         source: StructuralArgument,
         storage: Option<ReferenceStorageView>,
     ) -> Result<(), CodecError> {
-        writer.u8(if storage.is_some() {
-            operation_tags::ESTABLISH_STORAGE_VIEW_REFERENCE
-        } else {
-            operation_tags::ESTABLISH_REFERENCE
-        });
-        writer.id(source.place);
-        super::super::structural_signature_wire::encode_structural_access(writer, source.access);
-        encode_structural_path(writer, "reference source path", &source.path)?;
+        writer.u8(if storage.is_some() { 111 } else { 69 });
+        Argument::write(writer, &source)?;
         if let Some(storage) = storage {
-            writer.id(storage.byte_offset);
-            writer.boolean(storage.stored_scalar.is_some());
-            if let Some(stored_scalar) = storage.stored_scalar {
-                encode_scalar_type(writer, stored_scalar)?;
-            }
+            ReferenceStorage::write(writer, &storage)?;
         }
         Ok(())
     }
@@ -711,127 +266,63 @@ pub(crate) mod storage_operations {
         has_storage_view: bool,
     ) -> Result<OperationKind, CodecError> {
         Ok(OperationKind::EstablishReference {
-            source: terminal_psi::StructuralArgument {
-                place: reader.id("PlaceId")?,
-                access: super::super::structural_signature_wire::decode_structural_access(reader)?,
-                path: decode_structural_path(reader)?,
-            },
-            storage: if has_storage_view {
-                Some(ReferenceStorageView {
-                    byte_offset: reader.id("ValueId")?,
-                    stored_scalar: if reader.boolean()? {
-                        Some(decode_scalar_type(reader)?)
-                    } else {
-                        None
-                    },
-                })
-            } else {
-                None
-            },
+            source: Argument::read(reader)?,
+            storage: has_storage_view
+                .then(|| ReferenceStorage::read(reader))
+                .transpose()?,
         })
     }
 
-    pub(crate) fn encode_release_reference(
+    pub(crate) fn encode_optional_path_op(
         writer: &mut Writer,
-        source: PlaceId,
-        path: Vec<StructuralPathSegment>,
+        unprojected_tag: u8,
+        projected_tag: u8,
+        place: PlaceId,
+        path: &[StructuralPathSegment],
     ) -> Result<(), CodecError> {
         writer.u8(if path.is_empty() {
-            operation_tags::RELEASE_REFERENCE
+            unprojected_tag
         } else {
-            operation_tags::PROJECTED_RELEASE_REFERENCE
+            projected_tag
         });
-        writer.id(source);
+        writer.id(place);
         if !path.is_empty() {
-            encode_structural_path(writer, "reference release path", &path)?;
+            encode_structural_path(writer, "operation path", path)?;
         }
         Ok(())
     }
 
-    pub(crate) fn decode_release_reference(
+    pub(crate) fn decode_nonempty_path(
         reader: &mut Reader<'_>,
-        projected: bool,
-    ) -> Result<OperationKind, CodecError> {
-        let source = reader.id("PlaceId")?;
-        let path = if projected {
-            decode_structural_path(reader)?
-        } else {
-            Vec::new()
-        };
-        if projected && path.is_empty() {
-            return crate::codec_error::malformed("projected release requires a nonempty path");
-        }
-        Ok(OperationKind::ReleaseReference { source, path })
-    }
-
-    pub(crate) fn encode_primitive_scalar_read(
-        writer: &mut Writer,
-        source: PlaceId,
-        path: Vec<StructuralPathSegment>,
-    ) -> Result<(), CodecError> {
-        if path.is_empty() {
-            writer.u8(operation_tags::PRIMITIVE_SCALAR_READ);
-            writer.id(source);
-        } else {
-            writer.u8(operation_tags::PROJECTED_PRIMITIVE_SCALAR_READ);
-            writer.id(source);
-            encode_structural_path(writer, "primitive source path", &path)?;
-        }
-        Ok(())
-    }
-
-    pub(crate) fn decode_projected_primitive_scalar_read(
-        reader: &mut Reader<'_>,
-    ) -> Result<OperationKind, CodecError> {
-        let source = reader.id("PlaceId")?;
+        empty_reason: &'static str,
+    ) -> Result<Vec<StructuralPathSegment>, CodecError> {
         let path = decode_structural_path(reader)?;
         if path.is_empty() {
-            return Err(CodecError::MalformedStructuralFoundation(
-                "empty projected primitive path",
-            ));
+            return crate::codec_error::malformed(empty_reason);
         }
-        Ok(OperationKind::PrimitiveScalarRead { source, path })
-    }
-
-    pub(crate) fn encode_structural_case_leaf_copy(
-        writer: &mut Writer,
-        source: PlaceId,
-        path: &[CanonicalStructuralPathSegment],
-    ) -> Result<(), CodecError> {
-        writer.u8(operation_tags::STRUCTURAL_CASE_LEAF_COPY);
-        super::super::structural_field_wire::encode_canonical_structural_field(
-            writer,
-            source,
-            path,
-            "case leaf copy path",
-        )
+        Ok(path)
     }
 
     pub(crate) fn encode_element_view_read(
         writer: &mut Writer,
-        source: terminal_psi::StructuralArgument,
+        source: StructuralArgument,
         index: ValueId,
         length: ValueId,
         obligation: ObligationId,
         path: Vec<StructuralPathSegment>,
     ) -> Result<(), CodecError> {
-        use terminal_psi::StructuralAccess;
         if source.access != StructuralAccess::SharedBorrow {
-            return Err(CodecError::MalformedStructuralFoundation(
+            return crate::codec_error::malformed(
                 "element-view read requires shared observation access",
-            ));
+            );
         }
-        writer.u8(if path.is_empty() {
-            operation_tags::ELEMENT_VIEW_READ
-        } else {
-            operation_tags::PROJECTED_ELEMENT_VIEW_READ
-        });
+        writer.u8(if path.is_empty() { 81 } else { 92 });
         // Nonzero place IDs keep the existing whole-descriptor encodings.
         if source.path.is_empty() {
             writer.id(source.place);
         } else {
             writer.u64(0);
-            super::super::structural_place_wire::encode_structural_arguments(writer, &[source])?;
+            encode_structural_arguments(writer, &[source])?;
         }
         writer.id(index);
         writer.id(length);
@@ -846,18 +337,20 @@ pub(crate) mod storage_operations {
         reader: &mut Reader<'_>,
         projected_element: bool,
     ) -> Result<OperationKind, CodecError> {
-        use terminal_psi::{StructuralAccess, StructuralArgument};
         let source = if let Some(place) = PlaceId::new(reader.u64()?) {
             StructuralArgument::whole(place, StructuralAccess::SharedBorrow)
         } else {
-            let sources = super::super::structural_place_wire::decode_structural_arguments(reader)?;
-            let [source]: [StructuralArgument; 1] = sources.try_into().map_err(|_| {
-                CodecError::MalformedStructuralFoundation("element-view read needs one descriptor")
-            })?;
+            let [source]: [StructuralArgument; 1] = decode_structural_arguments(reader)?
+                .try_into()
+                .map_err(|_| {
+                    CodecError::MalformedStructuralFoundation(
+                        "element-view read needs one descriptor",
+                    )
+                })?;
             if source.path.is_empty() || source.access != StructuralAccess::SharedBorrow {
-                return Err(CodecError::MalformedStructuralFoundation(
+                return crate::codec_error::malformed(
                     "noncanonical projected element-view descriptor",
-                ));
+                );
             }
             source
         };
@@ -865,13 +358,7 @@ pub(crate) mod storage_operations {
         let length = reader.id("ValueId")?;
         let obligation = reader.id("ObligationId")?;
         let path = if projected_element {
-            let path = decode_structural_path(reader)?;
-            if path.is_empty() {
-                return Err(CodecError::MalformedStructuralFoundation(
-                    "empty projected element view read path",
-                ));
-            }
-            path
+            decode_nonempty_path(reader, "empty projected element view read path")?
         } else {
             Vec::new()
         };
@@ -892,68 +379,39 @@ pub(crate) mod storage_operations {
         range_obligation: Option<ObligationId>,
     ) -> Result<(), CodecError> {
         if let Some(obligation) = range_obligation {
-            writer.u8(operation_tags::RESTRICTED_WRITE_ONLY_PRIMITIVE_STORE);
+            writer.u8(116);
             writer.id(destination);
             encode_structural_path(writer, "restricted primitive destination path", &path)?;
             writer.id(value);
             writer.id(obligation);
             return Ok(());
         }
-        if path.is_empty() {
-            writer.u8(operation_tags::WRITE_ONLY_PRIMITIVE_STORE);
-            writer.id(destination);
-        } else {
-            writer.u8(operation_tags::PROJECTED_WRITE_ONLY_PRIMITIVE_STORE);
-            writer.id(destination);
-            encode_structural_path(writer, "primitive destination path", &path)?;
-        }
+        encode_optional_path_op(writer, 43, 90, destination, &path)?;
         writer.id(value);
         Ok(())
-    }
-
-    pub(crate) fn decode_projected_write_only_primitive_store(
-        reader: &mut Reader<'_>,
-    ) -> Result<OperationKind, CodecError> {
-        let destination = reader.id("PlaceId")?;
-        let path = decode_structural_path(reader)?;
-        if path.is_empty() {
-            return Err(CodecError::MalformedStructuralFoundation(
-                "empty projected primitive path",
-            ));
-        }
-        Ok(OperationKind::WriteOnlyPrimitiveStore {
-            destination,
-            path,
-            value: reader.id("ValueId")?,
-            range_obligation: None,
-        })
     }
 
     pub(crate) fn encode_store_structural_field(
         writer: &mut Writer,
         destination: PlaceId,
-        disposition: terminal_psi::StructuralStoreDisposition,
+        disposition: StructuralStoreDisposition,
         path: Vec<StructuralPathSegment>,
         field: Option<StructuralFieldId>,
         value: StructuralArgument,
     ) -> Result<(), CodecError> {
         writer.u8(match disposition {
-            terminal_psi::StructuralStoreDisposition::Vacant => {
-                operation_tags::STORE_STRUCTURAL_FIELD
-            }
-            terminal_psi::StructuralStoreDisposition::ReplaceDiscardable => {
-                operation_tags::REPLACE_DISCARDABLE_STRUCTURAL_FIELD
-            }
+            StructuralStoreDisposition::Vacant => 78,
+            StructuralStoreDisposition::ReplaceDiscardable => 118,
         });
         writer.id(destination);
-        encode_structural_path(writer, "structural field store path", &path)?;
+        Path::<false>::write(writer, &path)?;
         OptionalField::write(writer, &field)?;
         Argument::write(writer, &value)
     }
 
     pub(crate) fn decode_store_structural_field(
         reader: &mut Reader<'_>,
-        disposition: terminal_psi::StructuralStoreDisposition,
+        disposition: StructuralStoreDisposition,
     ) -> Result<OperationKind, CodecError> {
         Ok(OperationKind::StoreStructuralField {
             disposition,
@@ -1274,7 +732,7 @@ mod owned_value_tests {
             let mut writer = Writer::default();
             super::encode_operation_kind(&mut writer, kind.clone()).unwrap();
             let bytes = writer.finish();
-            assert_eq!(bytes[0], super::operation_tags::ESTABLISH_ACCESS_REFERENCE);
+            assert_eq!(bytes[0], 120);
             let mut reader = Reader::new(&bytes);
             assert_eq!(super::decode_operation_kind(&mut reader).unwrap(), kind);
             assert_eq!(reader.remaining(), 0);
@@ -1302,7 +760,7 @@ mod owned_value_tests {
             let mut writer = Writer::default();
             super::encode_operation_kind(&mut writer, kind.clone()).unwrap();
             let bytes = writer.finish();
-            assert_eq!(bytes[0], super::operation_tags::DECOMPOSE_STRUCTURAL_VALUE);
+            assert_eq!(bytes[0], 140);
             let mut reader = Reader::new(&bytes);
             assert_eq!(super::decode_operation_kind(&mut reader).unwrap(), kind);
             assert_eq!(reader.remaining(), 0);
@@ -1375,7 +833,7 @@ mod owned_value_tests {
 mod unknown_tag_tests {
 
     use super::super::entry_tests::unit_machine;
-    use super::{Writer, encode_operation, operation_tags};
+    use super::{Writer, encode_operation};
     use crate::{CodecError, decode_module, encode_module};
     use semantic_vocabulary::{
         MachineId, OperationId, ScalarQualificationSetId, ScalarType, ValueId,
@@ -1412,7 +870,7 @@ mod unknown_tag_tests {
             .position(|window| window == row.as_slice())
             .expect("the encoded module contains the operation row");
         let tag_offset = start + row.len() - 3;
-        assert_eq!(bytes[tag_offset], operation_tags::BOOLEAN_CONSTANT);
+        assert_eq!(bytes[tag_offset], 2);
         (module, bytes, tag_offset)
     }
 
@@ -1451,120 +909,99 @@ mod unknown_tag_tests {
 use terminal_psi::{Block, Operation, OperationKind, OperationResult};
 
 use super::CodecError;
-use super::machine_wire::{
-    decode_declaration, decode_declarations, encode_declaration, encode_declarations,
-};
+use super::machine_wire::{decode_declaration, encode_declaration};
 use super::proof_term_wire::{decode_proof_formals, encode_proof_formals};
 use super::structural_result_wire::{decode_operation_result, encode_operation_result};
-use super::structural_signature_wire::{
-    decode_structural_parameters, encode_structural_parameters,
-};
+use super::structural_signature_wire::StructuralParameter;
 use super::wire::{Reader, Writer};
-use super::wire_fields;
-use crate::sections::semantic_module::wire::decode_counted;
+use super::wire_fields::{
+    self, Field, Id, List, Optional, U32, delegated_fields, wire_enum, wire_record,
+};
 
-pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
-    writer.id(block.id);
-    encode_declarations(writer, "block parameters", &block.parameters)?;
-    encode_declarations(
-        writer,
-        "block erased scalar formals",
-        &block.erased_scalar_formals,
-    )?;
-    encode_proof_formals(writer, &block.erased_proof_formals)?;
-    encode_structural_parameters(writer, &block.structural_parameters)?;
-    writer.counted("operations", &block.operations, encode_operation)?;
-    terminator_wire::encode_terminator(writer, &block.terminator)
+struct ValueDeclarationField;
+impl Field<terminal_psi::ValueDeclaration> for ValueDeclarationField {
+    fn write(
+        writer: &mut Writer,
+        value: &terminal_psi::ValueDeclaration,
+    ) -> Result<(), CodecError> {
+        encode_declaration(writer, *value)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<terminal_psi::ValueDeclaration, CodecError> {
+        decode_declaration(reader)
+    }
 }
 
-fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), CodecError> {
-    writer.id(operation.id);
-    writer.boolean(operation.static_reach_binding.is_some());
-    if let Some(binder) = operation.static_reach_binding {
-        writer.u32(binder);
+delegated_fields! {
+    StructuralResultField: terminal_psi::StructuralOperationResult
+        => encode_operation_result, decode_operation_result;
+    ProofFormalsField: Vec<terminal_psi::ErasedProofFormal>
+        => encode_proof_formals, decode_proof_formals;
+    TerminatorField: terminal_psi::Terminator
+        => terminator_wire::encode_terminator, terminator_wire::decode_terminator;
+}
+
+struct OperationKindField;
+impl Field<OperationKind> for OperationKindField {
+    fn write(writer: &mut Writer, kind: &OperationKind) -> Result<(), CodecError> {
+        encode_operation_kind(writer, kind.clone())
     }
-    writer.boolean(operation.required_contract.is_some());
-    if let Some(contract) = operation.required_contract {
-        writer.id(contract);
+    fn read(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
+        decode_operation_kind(reader)
     }
-    match &operation.result {
-        OperationResult::Unit => writer.u8(0),
-        OperationResult::Scalar(result) => {
-            writer.u8(1);
-            encode_declaration(writer, *result)?;
-        }
-        OperationResult::Structural(result) => {
-            writer.u8(2);
-            encode_operation_result(writer, result)?;
-        }
+}
+
+wire_enum! {
+    OperationResultField: OperationResult, "OperationResult" {
+        0 => Unit,
+        1 => Scalar(value: ValueDeclarationField),
+        2 => Structural(value: StructuralResultField),
     }
-    encode_operation_kind(writer, operation.kind.clone())?;
-    writer.boolean(operation.suspension_crossing.is_some());
-    if let Some(crossing) = operation.suspension_crossing {
-        writer.id(crossing);
+}
+
+wire_record! {
+    OperationRow: Operation {
+        id: Id,
+        static_reach_binding: Optional<U32>,
+        required_contract: Optional<Id>,
+        result: OperationResultField,
+        kind: OperationKindField,
+        suspension_crossing: Optional<Id>,
     }
-    Ok(())
+    BlockRow: Block {
+        id: Id,
+        parameters: List<ValueDeclarationField>,
+        erased_scalar_formals: List<ValueDeclarationField>,
+        erased_proof_formals: ProofFormalsField,
+        structural_parameters: List<StructuralParameter>,
+        operations: List<OperationRow>,
+        terminator: TerminatorField,
+    }
+}
+
+pub(crate) fn encode_block(writer: &mut Writer, block: &Block) -> Result<(), CodecError> {
+    BlockRow::write(writer, block)
 }
 
 pub(crate) fn decode_block(reader: &mut Reader<'_>) -> Result<Block, CodecError> {
-    let id = reader.id("BlockId")?;
-    let parameters = decode_declarations(reader)?;
-    let erased_scalar_formals = decode_declarations(reader)?;
-    let erased_proof_formals = decode_proof_formals(reader)?;
-    let structural_parameters = decode_structural_parameters(reader)?;
-    let operations = decode_counted(reader, decode_operation)?;
-    let terminator = terminator_wire::decode_terminator(reader)?;
-    Ok(Block {
-        id,
-        parameters,
-        erased_scalar_formals,
-        erased_proof_formals,
-        structural_parameters,
-        operations,
-        terminator,
-    })
+    BlockRow::read(reader)
 }
 
+#[cfg(test)]
+fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), CodecError> {
+    OperationRow::write(writer, operation)
+}
+
+#[cfg(test)]
 pub(crate) fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
-    let operation_id = reader.id("OperationId")?;
-    let static_reach_binding = if reader.boolean()? {
-        Some(reader.u32()?)
-    } else {
-        None
-    };
-    let required_contract = if reader.boolean()? {
-        Some(reader.id("ContractId")?)
-    } else {
-        None
-    };
-    let result = match reader.u8()? {
-        0 => OperationResult::Unit,
-        1 => OperationResult::Scalar(decode_declaration(reader)?),
-        2 => OperationResult::Structural(decode_operation_result(reader)?),
-        tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
-    };
-    let kind = decode_operation_kind(reader)?;
-    let suspension_crossing = if reader.boolean()? {
-        Some(reader.id("SuspensionCrossingId")?)
-    } else {
-        None
-    };
-    Ok(Operation {
-        static_reach_binding,
-        required_contract,
-        suspension_crossing,
-        id: operation_id,
-        result,
-        kind,
-    })
+    OperationRow::read(reader)
 }
 
 macro_rules! operation_wire {
     (
-        rows { $($tag:ident => $variant:ident { $($field:ident: $kind:ident),* $(,)? }),* $(,)? }
+        rows { $($tag:literal => $variant:ident { $($field:ident: $kind:ty),* $(,)? }),* $(,)? }
         paired {
-            $($absent:ident | $present:ident => $paired:ident {
-                $($paired_field:ident: $paired_kind:ident),* ; $optional:ident
+            $($absent:literal | $present:literal => $paired:ident {
+                $($paired_field:ident: $paired_kind:ty),* ; $optional:ident
             }),* $(,)?
         }
         encode($writer:ident) { $($encode_pattern:pat => $encode_body:expr),* $(,)? }
@@ -1574,21 +1011,15 @@ macro_rules! operation_wire {
             $writer: &mut Writer,
             kind: OperationKind,
         ) -> Result<(), CodecError> {
+            use wire_fields::*;
             match kind {
                 $(OperationKind::$variant { $($field),* } => {
-                    $writer.u8(operation_tags::$tag);
-                    $(<wire_fields::$kind as wire_fields::Field<_>>::write($writer, &$field)?;)*
+                    $writer.u8($tag);
+                    $(<$kind as Field<_>>::write($writer, &$field)?;)*
                 })*
                 $(OperationKind::$paired { $($paired_field,)* $optional } => {
-                    $writer.u8(if $optional.is_some() {
-                        operation_tags::$present
-                    } else {
-                        operation_tags::$absent
-                    });
-                    $(<wire_fields::$paired_kind as wire_fields::Field<_>>::write(
-                        $writer,
-                        &$paired_field,
-                    )?;)*
+                    $writer.u8(if $optional.is_some() { $present } else { $absent });
+                    $(<$paired_kind as Field<_>>::write($writer, &$paired_field)?;)*
                     if let Some(obligation) = $optional {
                         $writer.id(obligation);
                     }
@@ -1601,16 +1032,17 @@ macro_rules! operation_wire {
         }
 
         pub(crate) fn decode_operation_kind($reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
+            use wire_fields::*;
             Ok(match $reader.u8()? {
-                $(operation_tags::$tag => OperationKind::$variant {
-                    $($field: <wire_fields::$kind as wire_fields::Field<_>>::read($reader)?),*
+                $($tag => OperationKind::$variant {
+                    $($field: <$kind as Field<_>>::read($reader)?),*
                 },)*
-                $(operation_tags::$absent => OperationKind::$paired {
-                    $($paired_field: <wire_fields::$paired_kind as wire_fields::Field<_>>::read($reader)?,)*
+                $($absent => OperationKind::$paired {
+                    $($paired_field: <$paired_kind as Field<_>>::read($reader)?,)*
                     $optional: None,
                 },
-                operation_tags::$present => OperationKind::$paired {
-                    $($paired_field: <wire_fields::$paired_kind as wire_fields::Field<_>>::read($reader)?,)*
+                $present => OperationKind::$paired {
+                    $($paired_field: <$paired_kind as Field<_>>::read($reader)?,)*
                     $optional: Some($reader.id("ObligationId")?),
                 },)*
                 $($decode_tag => $decode_body,)*
@@ -1622,163 +1054,39 @@ macro_rules! operation_wire {
 
 operation_wire! {
     rows {
-        READ_SCALAR_APPLICATION => ReadScalarApplication { application: Id },
-        ESTABLISH_NATIVE_CODE_LAYOUT => EstablishNativeCodeLayout { machine: Id },
-        STORAGE_ADDRESS => StorageAddress { source: Argument },
-        STORAGE_ALIGNMENT => StorageAlignment { source: Argument },
-        ACTIVATE_TASK_REGISTER => ActivateTaskRegister { service: Id, entries: U16, gdt: Argument, task_state: Argument, selector: Id, scratch: Argument },
-        READ_TASK_REGISTER => ReadTaskRegister { service: Id },
-        RELOAD_SEGMENT_DESCRIPTORS => ReloadSegmentDescriptors { service: Id, entries: U16, kind: SegmentReloadKind, gdt: Argument, selector: Id, scratch: Argument },
-        READ_SEGMENT_SELECTOR => ReadSegmentSelector { service: Id, register: SegmentSelectorRegister },
-        GLOBAL_DESCRIPTOR_TABLE => GlobalDescriptorTable { service: Id, operation: GlobalDescriptorTable, source: Argument },
-        ESTABLISH_ACCESS_REFERENCE => EstablishAccessReference {
-            source: Argument,
-            resident: Resident,
-        },
-        ESTABLISH_PRIMITIVE_LOCAL => EstablishPrimitiveLocal {
-            value: Id,
-            range_obligation: OptionalId,
-        },
-        STRUCTURAL_CASE_MEMBERSHIP => StructuralCaseMembership { source: Id, path: Path, case: Id },
-        STRUCTURAL_LEAF_COPY => StructuralLeafCopy { source: Id, path: Path },
-        MOVE_STRUCTURAL_VALUE => MoveStructuralValue { source: Argument },
-        DECOMPOSE_STRUCTURAL_VALUE => DecomposeStructuralValue { subject: Argument },
-        BYTE_SEQUENCE_SUBSLICE => ByteSequenceSubslice {
-            source: Argument,
-            start: Id,
-            end: Id,
-            length: Id,
-            obligation: Id,
-        },
-        BYTE_SEQUENCE_WRITE => ByteSequenceWrite {
-            destination: Id,
-            index: Id,
-            value: Id,
-            length: Id,
-            obligation: Id,
-        },
-        ELEMENT_VIEW_WRITE => ElementViewWrite {
-            destination: Argument,
-            path: Path,
-            index: Id,
-            value: Id,
-            length: Id,
-            obligation: Id,
-        },
-        BYTE_SEQUENCE_READ => ByteSequenceRead {
-            source: Id,
-            index: Id,
-            length: Id,
-            obligation: Id,
-        },
-        BYTE_SEQUENCE_LENGTH => ByteSequenceLength { source: Argument },
-        BYTE_SEQUENCE_STORE => ByteSequenceStore {
-            destination: Id,
-            source: Id,
-            length: Id,
-            obligation: Id,
-        },
-        STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE => StructuralByteSequenceFieldStore {
-            destination: Id,
-            path: Path,
-            field: Id,
-            source: Id,
-            length: Id,
-            obligation: Id,
-        },
-        STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH => StructuralByteSequenceFieldLength {
-            source: Id,
-            path: Path,
-            field: Id,
-        },
-        STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE => StructuralByteSequenceFieldByteStore {
-            destination: Id,
-            path: Path,
-            field: Id,
-            index: Id,
-            value: Id,
-            length: Id,
-            obligation: Id,
-        },
-        STRUCTURAL_BYTE_SEQUENCE_FIELD_READ => StructuralByteSequenceFieldRead {
-            source: Id,
-            path: Path,
-            field: Id,
-            index: Id,
-            length: Id,
-            obligation: Id,
-        },
-        MOVE_STRUCTURAL_FIELD => MoveStructuralField { source: Id, path: Path, field: OptionalField },
-        ESTABLISH_STRUCTURAL_ARRAY => EstablishStructuralArray { elements: Arguments },
-        ESTABLISH_ACTIVATION_CLAIM => EstablishActivationClaim {
-            bound: U64,
-            committed: Id,
-            backing_type: Id,
-            established_case: Id,
-            rejected_case: Id,
-        },
-        SPLIT_ACTIVATION_CLAIM => SplitActivationClaim {
-            source: Argument,
-            claim: Id,
-            bound_at: U64,
-            committed_at: Id,
-            covered_case: Id,
-            rejected_case: Id,
-        },
-        MERGE_ACTIVATION_CLAIM => MergeActivationClaim {
-            lower: Argument,
-            upper: Argument,
-            lower_claim: Id,
-            upper_claim: Id,
-            covered_case: Id,
-            rejected_case: Id,
-        },
-        RELEASE_ACTIVATION_CLAIM => ReleaseActivationClaim { source: Argument, claim: Id },
-        PACKED_INTEGER_UNARY => PackedIntegerUnary { operation: PackedIntegerUnary, source: Argument },
-        PACKED_INTEGER_BINARY => PackedIntegerBinary { operation: PackedIntegerBinary, left: Argument, right: Argument },
-        ESTABLISH_SCALAR_ARRAY => EstablishScalarArray { elements: Ids },
-        ESTABLISH_SCALAR_CASE => EstablishScalarCase { result_case: Id, fields: ScalarCaseFields },
-        ESTABLISH_BYTE_SEQUENCE_CONCATENATION => EstablishByteSequenceConcatenation {
-            left: ByteOperand,
-            right: ByteOperand,
-            capacity_obligation: Id,
-        },
-        BYTE_SEQUENCE_PREDICATE => ByteSequencePredicate { operand: ByteOperand, predicate: Predicate },
-        BYTE_SEQUENCE_EQUAL => ByteSequenceEqual { left: ByteOperand, right: ByteOperand },
-        ESTABLISH_BYTE_SEQUENCE_LITERAL => EstablishByteSequenceLiteral {
-            destination: Id,
-            bytes: Bytes,
-            qualifications: Ids,
-        },
-        ESTABLISH_ELEMENT_VIEW => EstablishElementView {
-            destination: Id,
-            source: Argument,
-            element: Id,
-            region: Region,
-        },
-        ESTABLISH_MUTABLE_ELEMENT_VIEW => EstablishMutableElementView {
-            destination: Id,
-            source: Argument,
-            element: Id,
-            region: Region,
-        },
-        ELEMENT_VIEW_LENGTH => ElementViewLength { source: Argument },
-        ELEMENT_VIEW_SUBSLICE => ElementViewSubslice {
-            source: Argument,
-            start: Id,
-            end: Id,
-            length: Id,
-            obligation: Id,
-        },
-        ESTABLISH_ZEROED_STRUCTURAL => EstablishZeroedStructural {},
-        ESTABLISH_STRUCTURAL_LOCAL => EstablishStructuralLocal {},
-        ESTABLISH_TRIVIAL_AFFINE_LOCAL => EstablishTrivialAffineLocal { destination: Id },
-        ESTABLISH_RECORD => EstablishRecord { fields: RecordFields },
-        ESTABLISH_STRUCTURAL_CASE => EstablishStructuralCase {
-            result_case: Id,
-            fields: RecordFields,
-        },
-        CALL => Call {
+        1 => IntegerConstant { value: Integer },
+        2 => BooleanConstant { value: Flag },
+        3 => WrappingIntegerAdd { left: Id, right: Id },
+        4 => SaturatingIntegerAdd { left: Id, right: Id },
+        5 => WrappingIntegerSubtract { left: Id, right: Id },
+        6 => SaturatingIntegerSubtract { left: Id, right: Id },
+        7 => WrappingIntegerMultiply { left: Id, right: Id },
+        8 => SaturatingIntegerMultiply { left: Id, right: Id },
+        9 => BooleanNot { operand: Id },
+        10 => BooleanEqual { left: Id, right: Id },
+        11 => IntegerEqual { left: Id, right: Id },
+        12 => IntegerLessThan { left: Id, right: Id },
+        13 => IntegerLessOrEqual { left: Id, right: Id },
+        14 => IntegerBitwiseAnd { left: Id, right: Id },
+        15 => IntegerBitwiseOr { left: Id, right: Id },
+        16 => IntegerBitwiseXor { left: Id, right: Id },
+        17 => WrappingIntegerShiftLeft { value: Id, count: Id },
+        18 => WrappingIntegerShiftRight { value: Id, count: Id },
+        19 => IntegerBitwiseNot { operand: Id },
+        20 => IntegerWiden { operand: Id },
+        21 => IntegerExactCast { operand: Id, obligation: Id },
+        22 => ExactIntegerShiftRight { value: Id, count: Id, obligation: Id },
+        23 => ExactIntegerShiftLeft { value: Id, count: Id, obligation: Id },
+        24 => ExactIntegerAdd { left: Id, right: Id, obligation: Id },
+        25 => ExactIntegerSubtract { left: Id, right: Id, obligation: Id },
+        26 => ExactIntegerMultiply { left: Id, right: Id, obligation: Id },
+        27 => ExactIntegerDivide { left: Id, right: Id, obligation: Id },
+        28 => ExactIntegerRemainder { left: Id, right: Id, obligation: Id },
+        29 => WrappingIntegerDivide { left: Id, right: Id, obligation: Id },
+        30 => WrappingIntegerRemainder { left: Id, right: Id, obligation: Id },
+        31 => SaturatingIntegerDivide { left: Id, right: Id, obligation: Id },
+        32 => SaturatingIntegerRemainder { left: Id, right: Id, obligation: Id },
+        33 => Call {
             callee: Id,
             arguments: Ids,
             erased_arguments: ScalarTerms,
@@ -1786,7 +1094,7 @@ operation_wire! {
             requirement_obligations: Ids,
             crash_continuations: CrashRoutes,
         },
-        CALL_UNIT => CallUnit {
+        34 => CallUnit {
             callee: Id,
             arguments: Ids,
             erased_arguments: ScalarTerms,
@@ -1796,7 +1104,17 @@ operation_wire! {
             requirement_obligations: Ids,
             crash_continuations: CrashRoutes,
         },
-        CALL_STRUCTURAL_SCALAR => CallStructuralScalar {
+        35 => BoundaryCall {
+            boundary: Id,
+            arguments: Ids,
+            structural_arguments: Arguments,
+            completion_receipts: CompletionReceipts,
+            requirement_obligations: Ids,
+        },
+        36 => PortWrite { service: Id, port: U16, value: U8 },
+        37 => EstablishTrivialAffineLocal { destination: Id },
+        38 => BooleanStructuralField { source: Id, path: FieldPath, field: Id },
+        39 => CallStructuralScalar {
             callee: Id,
             arguments: Ids,
             erased_arguments: ScalarTerms,
@@ -1806,7 +1124,20 @@ operation_wire! {
             requirement_obligations: Ids,
             crash_continuations: CrashRoutes,
         },
-        CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS => CallStructuralWithScalarArguments {
+        40 => EstablishByteSequenceLiteral { destination: Id, bytes: Bytes, qualifications: Ids },
+        41 => CallStructural {
+            callee: Id,
+            structural_arguments: Arguments,
+            claim_transfers: ClaimTransfers,
+            requirement_obligations: Ids,
+            crash_continuations: CrashRoutes,
+            selected_evidence: SelectedEvidence,
+        },
+        42 => EstablishScalarCase { result_case: Id, fields: ScalarCaseFields },
+        44 => IeeeFloatConstant { value: Float },
+        45 => NearestIeeeFloatFusedMultiplyAdd { left: Id, right: Id, addend: Id },
+        47 => ScalarStructuralField { source: Id, path: FieldPath, field: Id },
+        50 => CallStructuralWithScalarArguments {
             callee: Id,
             arguments: Ids,
             erased_arguments: ScalarTerms,
@@ -1817,26 +1148,43 @@ operation_wire! {
             crash_continuations: CrashRoutes,
             selected_evidence: SelectedEvidence,
         },
-        CALL_STRUCTURAL => CallStructural {
-            callee: Id,
-            structural_arguments: Arguments,
-            claim_transfers: ClaimTransfers,
-            requirement_obligations: Ids,
-            crash_continuations: CrashRoutes,
-            selected_evidence: SelectedEvidence,
+        56 => ByteSequenceRead { source: Id, index: Id, length: Id, obligation: Id },
+        58 => StructuralByteSequenceFieldStore {
+            destination: Id, path: Path, field: Id, source: Id, length: Id, obligation: Id,
         },
-        CALL_MACHINE => CallMachine {
-            callee: Id,
-            contract: Id,
-            arguments: Ids,
-            erased_arguments: ScalarTerms,
-            erased_proof_arguments: ProofTerms,
-            structural_arguments: Arguments,
-            claim_transfers: ClaimTransfers,
-            requirement_obligations: Ids,
-            crash_continuations: CrashRoutes,
+        59 => StructuralByteSequenceFieldLength { source: Id, path: Path, field: Id },
+        60 => StructuralByteSequenceFieldByteStore {
+            destination: Id, path: Path, field: Id, index: Id, value: Id, length: Id, obligation: Id,
         },
-        CALL_DYNAMIC => CallDynamic {
+        63 => ByteSequenceWrite { destination: Id, index: Id, value: Id, length: Id, obligation: Id },
+        64 => EstablishScalarArray { elements: Ids },
+        65 => IeeeFloatCompare { comparison: FloatComparison, left: Id, right: Id },
+        66 => StructuralCaseMembership { source: Id, path: Path, case: Id },
+        68 => EstablishRecord { fields: RecordFields },
+        77 => MoveStructuralField { source: Id, path: Path, field: OptionalField },
+        79 => EstablishElementView { destination: Id, source: Argument, element: Id, region: Region },
+        83 => EstablishStructuralCase { result_case: Id, fields: RecordFields },
+        84 => StructuralLeafCopy { source: Id, path: Path },
+        86 => StructuralByteSequenceFieldRead {
+            source: Id, path: Path, field: Id, index: Id, length: Id, obligation: Id,
+        },
+        91 => TrappingInteger { operation: scalar_operations::TrappingInteger },
+        94 => EstablishZeroedStructural {},
+        95 => EstablishByteSequenceConcatenation {
+            left: ByteOperand, right: ByteOperand, capacity_obligation: Id,
+        },
+        96 => ByteSequenceStore { destination: Id, source: Id, length: Id, obligation: Id },
+        97 => ElementViewWrite {
+            destination: Argument, path: Path, index: Id, value: Id, length: Id, obligation: Id,
+        },
+        98 => EstablishMutableElementView { destination: Id, source: Argument, element: Id, region: Region },
+        99 => FloatResultPolicy { policy: scalar_operations::FloatPolicy },
+        103 => EstablishStructuralLocal {},
+        104 => ByteSequencePredicate { operand: ByteOperand, predicate: Predicate },
+        105 => ByteSequenceEqual { left: ByteOperand, right: ByteOperand },
+        107 => EstablishStructuralArray { elements: Arguments },
+        109 => SelectImplementation { table: U32 },
+        110 => CallDynamic {
             selector: Id,
             interface: U32,
             slot: U32,
@@ -1849,241 +1197,161 @@ operation_wire! {
             requirement_obligations: Ids,
             crash_continuations: CrashRoutes,
         },
-        BOUNDARY_CALL => BoundaryCall {
-            boundary: Id,
+        112 => ElementViewLength { source: Argument },
+        113 => ByteSequenceSubslice { source: Argument, start: Id, end: Id, length: Id, obligation: Id },
+        114 => ElementViewSubslice { source: Argument, start: Id, end: Id, length: Id, obligation: Id },
+        115 => ByteSequenceLength { source: Argument },
+        117 => EstablishPrimitiveLocal { value: Id, range_obligation: OptionalId },
+        119 => AtomicFence { ordering: atomic_operations::Fence },
+        120 => EstablishAccessReference { source: Argument, resident: Resident },
+        122 => EstablishNativeCodeLayout { machine: Id },
+        123 => StorageAddress { source: Argument },
+        124 => MoveStructuralValue { source: Argument },
+        127 => EstablishActivationClaim {
+            bound: U64, committed: Id, backing_type: Id, established_case: Id, rejected_case: Id,
+        },
+        128 => ReleaseActivationClaim { source: Argument, claim: Id },
+        129 => SplitActivationClaim {
+            source: Argument, claim: Id, bound_at: U64, committed_at: Id, covered_case: Id, rejected_case: Id,
+        },
+        130 => MergeActivationClaim {
+            lower: Argument, upper: Argument, lower_claim: Id, upper_claim: Id, covered_case: Id, rejected_case: Id,
+        },
+        132 => ReadScalarApplication { application: Id },
+        133 => GlobalDescriptorTable { service: Id, operation: GlobalDescriptorTable, source: Argument },
+        134 => ActivateTaskRegister {
+            service: Id, entries: U16, gdt: Argument, task_state: Argument, selector: Id, scratch: Argument,
+        },
+        135 => ReadTaskRegister { service: Id },
+        136 => ReloadSegmentDescriptors {
+            service: Id, entries: U16, kind: SegmentReloadKind, gdt: Argument, selector: Id, scratch: Argument,
+        },
+        137 => ReadSegmentSelector { service: Id, register: SegmentSelectorRegister },
+        138 => SelectMachine { descriptor: Id },
+        139 => CallMachine {
+            callee: Id,
+            contract: Id,
             arguments: Ids,
+            erased_arguments: ScalarTerms,
+            erased_proof_arguments: ProofTerms,
             structural_arguments: Arguments,
-            completion_receipts: CompletionReceipts,
+            claim_transfers: ClaimTransfers,
             requirement_obligations: Ids,
+            crash_continuations: CrashRoutes,
         },
-        SELECT_IMPLEMENTATION => SelectImplementation { table: U32 },
-        SELECT_MACHINE => SelectMachine { descriptor: Id },
-        PORT_WRITE => PortWrite { service: Id, port: U16, value: U8 },
-        INTEGER_CONSTANT => IntegerConstant { value: Integer },
-        BOOLEAN_CONSTANT => BooleanConstant { value: Flag },
-        IEEE_FLOAT_CONSTANT => IeeeFloatConstant { value: Float },
-        IEEE_FLOAT_COMPARE => IeeeFloatCompare {
-            comparison: FloatComparison,
-            left: Id,
-            right: Id,
-        },
-        NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD => NearestIeeeFloatFusedMultiplyAdd {
-            left: Id,
-            right: Id,
-            addend: Id,
-        },
-        BOOLEAN_STRUCTURAL_FIELD => BooleanStructuralField { source: Id, path: FieldPath, field: Id },
-        SCALAR_STRUCTURAL_FIELD => ScalarStructuralField { source: Id, path: FieldPath, field: Id },
-        BOOLEAN_NOT => BooleanNot { operand: Id },
-        BOOLEAN_EQUAL => BooleanEqual { left: Id, right: Id },
-        INTEGER_EQUAL => IntegerEqual { left: Id, right: Id },
-        INTEGER_LESS_THAN => IntegerLessThan { left: Id, right: Id },
-        INTEGER_LESS_OR_EQUAL => IntegerLessOrEqual { left: Id, right: Id },
-        INTEGER_BITWISE_NOT => IntegerBitwiseNot { operand: Id },
-        INTEGER_WIDEN => IntegerWiden { operand: Id },
-        INTEGER_EXACT_CAST => IntegerExactCast { operand: Id, obligation: Id },
-        INTEGER_BITWISE_AND => IntegerBitwiseAnd { left: Id, right: Id },
-        INTEGER_BITWISE_OR => IntegerBitwiseOr { left: Id, right: Id },
-        INTEGER_BITWISE_XOR => IntegerBitwiseXor { left: Id, right: Id },
-        WRAPPING_INTEGER_SHIFT_LEFT => WrappingIntegerShiftLeft { value: Id, count: Id },
-        WRAPPING_INTEGER_SHIFT_RIGHT => WrappingIntegerShiftRight { value: Id, count: Id },
-        EXACT_INTEGER_SHIFT_LEFT => ExactIntegerShiftLeft { value: Id, count: Id, obligation: Id },
-        EXACT_INTEGER_SHIFT_RIGHT => ExactIntegerShiftRight { value: Id, count: Id, obligation: Id },
-        EXACT_INTEGER_ADD => ExactIntegerAdd { left: Id, right: Id, obligation: Id },
-        EXACT_INTEGER_SUBTRACT => ExactIntegerSubtract { left: Id, right: Id, obligation: Id },
-        EXACT_INTEGER_MULTIPLY => ExactIntegerMultiply { left: Id, right: Id, obligation: Id },
-        EXACT_INTEGER_DIVIDE => ExactIntegerDivide { left: Id, right: Id, obligation: Id },
-        EXACT_INTEGER_REMAINDER => ExactIntegerRemainder { left: Id, right: Id, obligation: Id },
-        WRAPPING_INTEGER_DIVIDE => WrappingIntegerDivide { left: Id, right: Id, obligation: Id },
-        WRAPPING_INTEGER_REMAINDER => WrappingIntegerRemainder { left: Id, right: Id, obligation: Id },
-        SATURATING_INTEGER_DIVIDE => SaturatingIntegerDivide { left: Id, right: Id, obligation: Id },
-        SATURATING_INTEGER_REMAINDER => SaturatingIntegerRemainder {
-            left: Id,
-            right: Id,
-            obligation: Id,
-        },
-        WRAPPING_INTEGER_ADD => WrappingIntegerAdd { left: Id, right: Id },
-        SATURATING_INTEGER_ADD => SaturatingIntegerAdd { left: Id, right: Id },
-        WRAPPING_INTEGER_SUBTRACT => WrappingIntegerSubtract { left: Id, right: Id },
-        SATURATING_INTEGER_SUBTRACT => SaturatingIntegerSubtract { left: Id, right: Id },
-        WRAPPING_INTEGER_MULTIPLY => WrappingIntegerMultiply { left: Id, right: Id },
-        SATURATING_INTEGER_MULTIPLY => SaturatingIntegerMultiply { left: Id, right: Id },
+        140 => DecomposeStructuralValue { subject: Argument },
+        141 => StorageAlignment { source: Argument },
+        142 => PackedIntegerBinary { operation: PackedIntegerBinary, left: Argument, right: Argument },
+        143 => PackedIntegerUnary { operation: PackedIntegerUnary, source: Argument },
     }
     paired {
-        STRUCTURAL_BYTE_VIEW_FIELD_STORE | PREDICATE_CHECKED_STRUCTURAL_BYTE_VIEW_FIELD_STORE
-            => StructuralByteViewFieldStore {
-                destination: Id, path: Path, field: OptionalField, source: Id; predicate_obligation
-            },
-        STRUCTURAL_SCALAR_FIELD_STORE | RANGE_CHECKED_STRUCTURAL_SCALAR_FIELD_STORE
-            => StructuralScalarFieldStore {
-                destination: Id, path: Path, field: Id, value: Id; range_obligation
-            },
-        SCALAR_REPRESENTATION_VIEW | LANDED_SCALAR_REPRESENTATION_VIEW
-            => ScalarRepresentationView { operand: Id; landing_obligation },
+        100 | 106 => StructuralByteViewFieldStore {
+            destination: Id, path: Path, field: OptionalField, source: Id; predicate_obligation
+        },
+        46 | 75 => StructuralScalarFieldStore {
+            destination: Id, path: Path, field: Id, value: Id; range_obligation
+        },
+        101 | 102 => ScalarRepresentationView { operand: Id; landing_obligation },
     }
     encode(writer) {
         OperationKind::EstablishReference { source, storage } => {
             storage_operations::encode_establish_reference(writer, source, storage)?
         },
         OperationKind::ReleaseReference { source, path } => {
-            storage_operations::encode_release_reference(writer, source, path)?
+            storage_operations::encode_optional_path_op(writer, 70, 108, source, &path)?
         },
         OperationKind::PrimitiveScalarRead { source, path } => {
-            storage_operations::encode_primitive_scalar_read(writer, source, path)?
+            storage_operations::encode_optional_path_op(writer, 62, 89, source, &path)?
         },
-        OperationKind::TransformContent {
-            source,
-            parents,
-            derivations,
-        } => {
-            writer.u8(operation_tags::TRANSFORM_CONTENT);
+        OperationKind::TransformContent { source, parents, derivations } => {
+            writer.u8(125);
             super::structural_place_wire::encode_structural_arguments(writer, &[source])?;
             super::structural_place_wire::encode_structural_arguments(writer, &parents)?;
             super::content_wire::encode_content_transformations(writer, &derivations)?;
         },
         OperationKind::StructuralCaseLeafCopy { source, path } => {
-            storage_operations::encode_structural_case_leaf_copy(writer, source, &path)?
+            writer.u8(85);
+            super::structural_field_wire::encode_canonical_structural_field(
+                writer, source, &path, "case leaf copy path",
+            )?;
         },
-        OperationKind::WriteOnlyPrimitiveStore {
-            destination,
-            value,
-            path,
-            range_obligation,
-        } => storage_operations::encode_write_only_primitive_store(
-            writer,
-            destination,
-            value,
-            path,
-            range_obligation,
-        )?,
-        OperationKind::StoreStructuralField {
-            disposition,
-            destination,
-            path,
-            field,
-            value,
-        } => storage_operations::encode_store_structural_field(
-            writer,
-            destination,
-            disposition,
-            path,
-            field,
-            value,
-        )?,
-        OperationKind::ElementViewRead {
-            source,
-            index,
-            length,
-            obligation,
-            path,
-        } => storage_operations::encode_element_view_read(
-            writer, source, index, length, obligation, path,
-        )?,
+        OperationKind::WriteOnlyPrimitiveStore { destination, value, path, range_obligation } => {
+            storage_operations::encode_write_only_primitive_store(
+                writer, destination, value, path, range_obligation,
+            )?
+        },
+        OperationKind::StoreStructuralField { disposition, destination, path, field, value } => {
+            storage_operations::encode_store_structural_field(
+                writer, destination, disposition, path, field, value,
+            )?
+        },
+        OperationKind::ElementViewRead { source, index, length, obligation, path } => {
+            storage_operations::encode_element_view_read(
+                writer, source, index, length, obligation, path,
+            )?
+        },
         OperationKind::RegisterAccess { service, event } => {
             call_operations::encode_register_access(writer, service, event)?
         },
-        OperationKind::TrappingInteger { operation } => {
-            scalar_operations::encode_trapping_integer(writer, operation)?
+        OperationKind::AtomicAccess { place, path, event, resident_obligation } => {
+            atomic_operations::encode_atomic_access(writer, place, &path, event, resident_obligation)?
         },
-        OperationKind::FloatResultPolicy { policy } => {
-            scalar_operations::encode_float_result_policy(writer, &policy)?
-        },
-        OperationKind::AtomicFence { ordering } => {
-            atomic_operations::encode_atomic_fence(writer, ordering)
-        },
-        OperationKind::AtomicAccess {
-            place,
-            path,
-            event,
-            resident_obligation,
-        } => atomic_operations::encode_atomic_access(
-            writer,
-            place,
-            &path,
-            event,
-            resident_obligation,
-        )?,
     }
     decode(reader) {
-        operation_tags::ESTABLISH_REFERENCE => {
-            storage_operations::decode_establish_reference(reader, false)?
-        },
-        operation_tags::ESTABLISH_STORAGE_VIEW_REFERENCE => {
-            storage_operations::decode_establish_reference(reader, true)?
-        },
-        operation_tags::RELEASE_REFERENCE => {
-            storage_operations::decode_release_reference(reader, false)?
-        },
-        operation_tags::PROJECTED_RELEASE_REFERENCE => {
-            storage_operations::decode_release_reference(reader, true)?
-        },
-        operation_tags::PRIMITIVE_SCALAR_READ => OperationKind::PrimitiveScalarRead {
-            path: Vec::new(),
+        69 => storage_operations::decode_establish_reference(reader, false)?,
+        111 => storage_operations::decode_establish_reference(reader, true)?,
+        70 => OperationKind::ReleaseReference { source: reader.id("PlaceId")?, path: Vec::new() },
+        108 => OperationKind::ReleaseReference {
             source: reader.id("PlaceId")?,
+            path: storage_operations::decode_nonempty_path(reader, "projected release requires a nonempty path")?,
         },
-        operation_tags::PROJECTED_PRIMITIVE_SCALAR_READ => {
-            storage_operations::decode_projected_primitive_scalar_read(reader)?
+        62 => OperationKind::PrimitiveScalarRead { source: reader.id("PlaceId")?, path: Vec::new() },
+        89 => OperationKind::PrimitiveScalarRead {
+            source: reader.id("PlaceId")?,
+            path: storage_operations::decode_nonempty_path(reader, "empty projected primitive path")?,
         },
-        operation_tags::TRANSFORM_CONTENT => {
-            let mut sources = super::structural_place_wire::decode_structural_arguments(reader)?;
-            if sources.len() != 1 {
-                return Err(CodecError::MalformedStructuralFoundation(
-                    "content transformation requires one payload",
-                ));
-            }
-            let source = sources.remove(0);
+        125 => {
+            let [source]: [terminal_psi::StructuralArgument; 1] =
+                super::structural_place_wire::decode_structural_arguments(reader)?
+                    .try_into()
+                    .map_err(|_| CodecError::MalformedStructuralFoundation(
+                        "content transformation requires one payload",
+                    ))?;
             OperationKind::TransformContent {
                 source,
                 parents: super::structural_place_wire::decode_structural_arguments(reader)?,
                 derivations: super::content_wire::decode_content_transformations(reader)?,
             }
         },
-        operation_tags::STRUCTURAL_CASE_LEAF_COPY => {
-            let (source, path) =
-                super::structural_field_wire::decode_canonical_structural_field(reader)?;
+        85 => {
+            let (source, path) = super::structural_field_wire::decode_canonical_structural_field(reader)?;
             OperationKind::StructuralCaseLeafCopy { source, path }
         },
-        operation_tags::WRITE_ONLY_PRIMITIVE_STORE => OperationKind::WriteOnlyPrimitiveStore {
-            path: Vec::new(),
+        43 => OperationKind::WriteOnlyPrimitiveStore {
             destination: reader.id("PlaceId")?,
+            path: Vec::new(),
             value: reader.id("ValueId")?,
             range_obligation: None,
         },
-        operation_tags::PROJECTED_WRITE_ONLY_PRIMITIVE_STORE => {
-            storage_operations::decode_projected_write_only_primitive_store(reader)?
+        90 => OperationKind::WriteOnlyPrimitiveStore {
+            destination: reader.id("PlaceId")?,
+            path: storage_operations::decode_nonempty_path(reader, "empty projected primitive path")?,
+            value: reader.id("ValueId")?,
+            range_obligation: None,
         },
-        operation_tags::RESTRICTED_WRITE_ONLY_PRIMITIVE_STORE => {
-            OperationKind::WriteOnlyPrimitiveStore {
-                destination: reader.id("PlaceId")?,
-                path: super::structural_place_wire::decode_structural_path(reader)?,
-                value: reader.id("ValueId")?,
-                range_obligation: Some(reader.id("ObligationId")?),
-            }
+        116 => OperationKind::WriteOnlyPrimitiveStore {
+            destination: reader.id("PlaceId")?,
+            path: super::structural_place_wire::decode_structural_path(reader)?,
+            value: reader.id("ValueId")?,
+            range_obligation: Some(reader.id("ObligationId")?),
         },
-        operation_tags::STORE_STRUCTURAL_FIELD => storage_operations::decode_store_structural_field(
-            reader,
-            terminal_psi::StructuralStoreDisposition::Vacant,
-        )?,
-        operation_tags::REPLACE_DISCARDABLE_STRUCTURAL_FIELD => {
-            storage_operations::decode_store_structural_field(
-                reader,
-                terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
-            )?
-        },
-        operation_tags::ELEMENT_VIEW_READ => storage_operations::decode_element_view_read(reader, false)?,
-        operation_tags::PROJECTED_ELEMENT_VIEW_READ => storage_operations::decode_element_view_read(reader, true)?,
-        operation_tags::REGISTER_ACCESS => call_operations::decode_register_access(reader, true)?,
-        operation_tags::REGISTER_OBSERVATION => {
-            call_operations::decode_register_access(reader, false)?
-        },
-        operation_tags::TRAPPING_INTEGER => scalar_operations::decode_trapping_integer(reader)?,
-        operation_tags::FLOAT_RESULT_POLICY => {
-            scalar_operations::decode_float_result_policy(reader)?
-        },
-        operation_tags::ATOMIC_FENCE => atomic_operations::decode_atomic_fence(reader)?,
-        operation_tags::ATOMIC_ACCESS => atomic_operations::decode_atomic_access(reader, false)?,
-        operation_tags::RESTRICTED_ATOMIC_ACCESS => {
-            atomic_operations::decode_atomic_access(reader, true)?
-        },
+        78 => storage_operations::decode_store_structural_field(reader, terminal_psi::StructuralStoreDisposition::Vacant)?,
+        118 => storage_operations::decode_store_structural_field(reader, terminal_psi::StructuralStoreDisposition::ReplaceDiscardable)?,
+        81 => storage_operations::decode_element_view_read(reader, false)?,
+        92 => storage_operations::decode_element_view_read(reader, true)?,
+        121 => call_operations::decode_register_access(reader, true)?,
+        126 => call_operations::decode_register_access(reader, false)?,
+        93 => atomic_operations::decode_atomic_access(reader, false)?,
+        131 => atomic_operations::decode_atomic_access(reader, true)?,
     }
 }
