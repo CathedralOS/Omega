@@ -21,42 +21,42 @@ impl<'source> GeneratedFile<'source> {
     }
 }
 
-pub(crate) fn collect_generated_files<'source>(
-    package_inputs: &'source crate::PackageCompilationInputs,
-    own_files: &'source [build_output::PackageGeneratedSource],
-    source_scope: source_provenance::DependencyScope,
-) -> Result<Vec<GeneratedFile<'source>>, Vec<Diagnostic>> {
-    use source_admission::SourceResolutionStratum::{
-        CurrentActivationExtension, DependencyActivationExtension,
-    };
-    use source_provenance::DependencyScope::{Build, Product};
+#[derive(Default)]
+pub(crate) struct GeneratedFiles<'source> {
+    pub entries: Vec<GeneratedFile<'source>>,
+    occupied: HashSet<(std::path::PathBuf, source_provenance::DependencyScope)>,
+}
 
-    let filesystem = package_inputs.source_filesystem();
-    let mut entries = Vec::new();
-    let mut occupied = HashSet::new();
-    let mut mount = |package,
-                     scope,
-                     stratum,
-                     files: &'source [build_output::PackageGeneratedSource]|
-     -> Result<(), Vec<Diagnostic>> {
-        let root = package_inputs
-            .package_root(package)
-            .expect("admitted generated file owner");
-        for source in files {
+impl<'source> GeneratedFiles<'source> {
+    fn mount(
+        &mut self,
+        inputs: &crate::PackageCompilationInputs,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        scope: source_provenance::DependencyScope,
+        stratum: source_admission::SourceResolutionStratum,
+        sources: &'source [build_output::PackageGeneratedSource],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let root = inputs.package_root(package).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "generated files have no admitted package root",
+            )]
+        })?;
+        let filesystem = inputs.source_filesystem();
+        for source in sources {
             let logical_path = generated_file_path(root, source)?;
             let filename = logical_path
                 .strip_prefix(root.join(source_admission::GENERATED_SOURCE_DIRECTORY))
                 .expect("generated coordinates are relative to their package");
             if super::files::captured_file(root, filename, filesystem)?.is_some()
                 || filesystem.exists(&logical_path)
-                || !occupied.insert((logical_path.clone(), scope))
+                || !self.occupied.insert((logical_path.clone(), scope))
             {
                 return Err(vec![Diagnostic::error(format!(
                     "generated logical file `{}` collides with an existing source",
                     filename.display(),
                 ))]);
             }
-            entries.push(GeneratedFile {
+            self.entries.push(GeneratedFile {
                 logical_path,
                 source,
                 scope,
@@ -64,28 +64,65 @@ pub(crate) fn collect_generated_files<'source>(
             });
         }
         Ok(())
-    };
-    mount(
-        package_inputs.root(),
-        Product,
-        CurrentActivationExtension,
-        own_files,
-    )?;
-    for (purpose, bundle) in package_inputs.dependency_build_handoff_instances() {
-        let scope = match purpose {
-            build_declarations::DependencyPurpose::Product => Product,
-            build_declarations::DependencyPurpose::Build => Build,
-        };
-        if source_scope == Product || scope == Build {
-            mount(
-                bundle.package(),
-                scope,
-                DependencyActivationExtension,
-                bundle.sources(),
-            )?;
-        }
     }
-    Ok(entries)
+
+    pub fn for_package(
+        inputs: &'source crate::PackageCompilationInputs,
+        own: &'source [build_output::PackageGeneratedSource],
+        scope: source_provenance::DependencyScope,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        use source_admission::SourceResolutionStratum::{
+            CurrentActivationExtension, DependencyActivationExtension,
+        };
+        use source_provenance::DependencyScope::{Build, Product};
+
+        let mut files = Self::default();
+        files.mount(
+            inputs,
+            inputs.root(),
+            Product,
+            CurrentActivationExtension,
+            own,
+        )?;
+        for (purpose, handoff) in inputs.dependency_build_handoff_instances() {
+            let dependency_scope = match purpose {
+                build_declarations::DependencyPurpose::Product => Product,
+                build_declarations::DependencyPurpose::Build => Build,
+            };
+            if scope == Product || dependency_scope == Build {
+                files.mount(
+                    inputs,
+                    handoff.package(),
+                    dependency_scope,
+                    DependencyActivationExtension,
+                    handoff.sources(),
+                )?;
+            }
+        }
+        Ok(files)
+    }
+
+    pub fn for_build_libraries(
+        inputs: &'source super::ProductQueryInputs,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut files = Self::default();
+        let mut mounted = HashSet::new();
+        for dependency in inputs.build_dependencies() {
+            if let Some(handoff) = &dependency.generated
+                && !handoff.sources().is_empty()
+                && mounted.insert(dependency.inputs.root())
+            {
+                files.mount(
+                    &dependency.inputs,
+                    dependency.inputs.root(),
+                    source_provenance::DependencyScope::Build,
+                    source_admission::SourceResolutionStratum::DependencyActivationExtension,
+                    handoff.sources(),
+                )?;
+            }
+        }
+        Ok(files)
+    }
 }
 
 pub(crate) fn generated_file_path(
