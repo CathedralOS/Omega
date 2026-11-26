@@ -73,6 +73,52 @@ impl<B> DirectoryMappings<B> {
         Ok(())
     }
 
+    /// Re-root an existing grant, preserving every mount that shadows part of
+    /// its subtree. A read-only projection attenuates all of its descendants.
+    pub fn remount(
+        &self,
+        from: &str,
+        to: &str,
+        access: DirectoryAccess,
+        subtree: impl FnOnce(&B, &[u8]) -> io::Result<B>,
+    ) -> io::Result<Self>
+    where
+        B: Clone,
+    {
+        let (root, relative) = self.resolve_entry(from.as_bytes())?;
+        if access == DirectoryAccess::ReadWrite && root.access == DirectoryAccess::ReadOnly {
+            return Err(io::ErrorKind::PermissionDenied.into());
+        }
+        let mut result = Self::default();
+        result.insert(to, subtree(&root.backing, relative)?, access)?;
+        for (suffix, child) in self.descendants(from) {
+            let guest = format!("{}/{suffix}", to.trim_end_matches('/'));
+            let child_access = if access == DirectoryAccess::ReadOnly {
+                access
+            } else {
+                child.access
+            };
+            result.insert(&guest, child.backing.clone(), child_access)?;
+        }
+        Ok(result)
+    }
+
+    pub fn descendants<'a>(
+        &'a self,
+        from: &'a str,
+    ) -> impl Iterator<Item = (&'a str, &'a DirectoryMapping<B>)> + 'a {
+        self.0.iter().filter_map(move |(name, child)| {
+            let suffix = name
+                .strip_prefix(from.trim_end_matches('/'))?
+                .strip_prefix('/')?;
+            (!suffix.is_empty()).then_some((suffix, child))
+        })
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = (&str, &DirectoryMapping<B>)> {
+        self.0.iter().map(|(guest, item)| (guest.as_str(), item))
+    }
+
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -170,6 +216,50 @@ mod tests {
         fs,
         io::{Read, Write},
     };
+
+    #[test]
+    fn a_read_only_subtree_preserves_nested_mounts_and_attenuates_every_entry() {
+        let mut incoming = DirectoryMappings::default();
+        incoming
+            .insert("/", "source", DirectoryAccess::ReadWrite)
+            .unwrap();
+        incoming
+            .insert("/sdk/headers", "headers", DirectoryAccess::ReadWrite)
+            .unwrap();
+        incoming
+            .insert("/sdk/bin", "tools", DirectoryAccess::ReadOnly)
+            .unwrap();
+        incoming
+            .insert("/sdk-next", "sibling", DirectoryAccess::ReadWrite)
+            .unwrap();
+        let child = incoming
+            .remount("/sdk", "/", DirectoryAccess::ReadOnly, |root, relative| {
+                assert_eq!(relative, b"sdk");
+                Ok(*root)
+            })
+            .unwrap();
+        assert_eq!(child.entries().count(), 3);
+        for (path, label) in [
+            ("/root", "source"),
+            ("/headers/name", "headers"),
+            ("/bin/tool", "tools"),
+        ] {
+            let (mapping, _) = child.resolve_file(path.as_bytes()).unwrap();
+            assert_eq!(mapping.access(), DirectoryAccess::ReadOnly);
+            assert_eq!(*mapping.backing(), label);
+        }
+        let same_root = child
+            .remount("/", "/again", DirectoryAccess::ReadOnly, |root, tail| {
+                assert!(tail.is_empty());
+                Ok(*root)
+            })
+            .unwrap();
+        assert_eq!(same_root.entries().count(), 3);
+        assert_eq!(
+            *same_root.resolve_entry(b"/again/bin").unwrap().0.backing(),
+            "tools"
+        );
+    }
 
     #[test]
     fn nested_directory_owns_the_path_even_if_only_the_parent_contains_the_file() {

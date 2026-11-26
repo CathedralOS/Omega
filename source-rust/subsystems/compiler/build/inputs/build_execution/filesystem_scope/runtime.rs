@@ -203,6 +203,56 @@ impl BuildFilesystemRuntime {
         BuildDirectory::captured(self.snapshot(root)?, relative).map_err(|e| e.to_string())
     }
 
+    pub fn forward_directory(
+        &self,
+        from: &str,
+        guest: &str,
+        access: platform_custody::directory_mappings::DirectoryAccess,
+    ) -> Result<
+        (
+            super::runtime_directory::BuildDirectoryMappings,
+            EvaluationStorageLease,
+        ),
+        String,
+    > {
+        use super::runtime_directory::BuildDirectory;
+        let incoming = &self.effects.scope.directories;
+        // Charge the remapped names before joining prefixes or cloning any backing.
+        let row = std::mem::size_of::<BuildDirectory>()
+            .checked_add(guest.len())
+            .ok_or("directory mapping size overflowed")?;
+        let (rows, bytes) = incoming
+            .descendants(from)
+            .try_fold(
+                (
+                    1u64,
+                    row.checked_add(from.len())
+                        .ok_or("directory mapping size overflowed")?,
+                ),
+                |(rows, bytes), (suffix, _)| {
+                    Some((
+                        rows.checked_add(1)?,
+                        bytes
+                            .checked_add(row)?
+                            .checked_add(1)?
+                            .checked_add(suffix.len())?,
+                    ))
+                },
+            )
+            .ok_or("directory mapping size overflowed")?;
+        let storage = self
+            .account
+            .reserve_storage(
+                rows,
+                u64::try_from(bytes).map_err(|_| "directory mapping size overflowed")?,
+            )
+            .map_err(|e| e.to_string())?;
+        let grants = incoming
+            .remount(from, guest, access, BuildDirectory::subtree)
+            .map_err(|error| format!("cannot forward directory {from} to {guest}: {error}"))?;
+        Ok((grants, storage))
+    }
+
     fn snapshot(
         &self,
         root: FilesystemGrantRootIdentity,

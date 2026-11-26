@@ -4,6 +4,7 @@ public boundary trait BuildFilesystemOperations {
     machine resolve_source(source: @BuildSource, relative: @[u8]) -> BuildPath reaches none crashes none;
     machine resolve_output(output: @BuildOutput, relative: @[u8]) -> BuildPath reaches none crashes none;
     machine map_directory(prefix: BuildDirectories, directory: BuildPath, guest: @[u8], writable: bool) -> BuildDirectories reaches none crashes none;
+    machine forward_directory(prefix: BuildDirectories, from: @[u8], guest: @[u8], writable: bool) -> BuildDirectories reaches none crashes none;
     machine named_input(inputs: @BuildInputs, name: @[u8]) -> BuildSource reaches none crashes none;
     machine open(source: @BuildSource, path: BuildPath, flags: i32) -> i32 reaches none crashes none;
     machine read(source: @BuildSource, descriptor: i32, buffer: @mutable [u8], count: u64) -> i64 reaches none crashes none;

@@ -48,6 +48,31 @@ impl BuildDirectory {
         }))
     }
 
+    pub(super) fn subtree(&self, relative: &[u8]) -> io::Result<Self> {
+        if relative.is_empty() {
+            return Ok(self.clone());
+        }
+        match &self.0 {
+            Backing::Live(directory) => Ok(Self::caller(directory.subtree(relative)?)),
+            Backing::Captured { source, prefix } => {
+                let mut path = prefix.clone();
+                if !path.is_empty() {
+                    path.push(b'/');
+                }
+                path.extend_from_slice(relative);
+                Self::captured(source, &path)
+            }
+            Backing::Staging { directory, scope } => {
+                let directory = directory.subtree(relative)?;
+                let mut scope = (**scope).clone();
+                scope
+                    .build_dir
+                    .push(std::str::from_utf8(relative).map_err(|_| io::ErrorKind::InvalidInput)?);
+                Ok(Self::output(directory, scope))
+            }
+        }
+    }
+
     pub(super) fn provider(&self) -> FilesystemObservationProvider {
         match self.0 {
             Backing::Captured { .. } => FilesystemObservationProvider::Captured,
