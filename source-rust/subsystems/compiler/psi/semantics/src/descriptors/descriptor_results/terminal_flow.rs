@@ -2006,7 +2006,6 @@ fn adapt_flow(
                     {
                         DescriptorFlowSource::Location(source)
                     } else {
-                        step.may_escape = true;
                         DescriptorFlowSource::from_query(
                             argument.place,
                             descriptor_contents_query(
@@ -2046,6 +2045,12 @@ fn adapt_flow(
                     binding.source_access = crate::structural_projection_authority(
                         machine, &module.types.structural_types, argument,
                     ).ok_or("descriptor arrival structural source has no exact projection authority")?;
+                    if binding.source.exact_location().is_none() {
+                        step.may_escape |= !borrows_plain_element(
+                            &module.types.structural_types, &graph.place_types,
+                            &binding, parameter.structural_type,
+                        );
+                    }
                     bindings.push(binding);
                 }
                 step.successors.push(DescriptorFlowEdge {
@@ -2410,6 +2415,27 @@ fn adapt_flow(
         }
     }
     graph.finish_index_literals()
+}
+
+/// A borrowed header retains its parent view while it is used. An element
+/// carrying a separate descriptor may retain other loans and still needs
+/// the conservative escape account.
+fn borrows_plain_element(
+    types: &[StructuralTypeDeclaration],
+    places: &BTreeMap<PlaceId, StructuralTypeId>,
+    binding: &DescriptorFlowBinding,
+    parameter: StructuralTypeId,
+) -> bool {
+    let Some(parent) = binding.indexed_borrow_source() else {
+        return false;
+    };
+    let parent_type = places
+        .get(&parent.root)
+        .and_then(|root| descriptor_location_type(types, *root, &parent.path))
+        .and_then(|ty| find_structural_type(types, ty));
+    matches!(parent_type.map(|declaration| &declaration.shape),
+        Some(StructuralTypeShape::ElementView { element, .. }) if *element == parameter
+    ) && plain_owned_shape(types.iter(), parameter)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

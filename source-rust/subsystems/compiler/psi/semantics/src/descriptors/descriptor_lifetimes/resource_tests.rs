@@ -473,3 +473,69 @@ fn indexed_sparse_lifetimes_match_dense_counterparts_without_empty_positions() {
         .is_none()
     );
 }
+
+#[test]
+fn an_indexed_borrow_demands_its_view_through_the_headers_last_use() {
+    use crate::storage::borrowed_storage::Projection;
+    use semantic_vocabulary::ValueId;
+    use terminal_psi::{StructuralAccess, StructuralPathSegment};
+
+    let view = root(1);
+    let header = root(2);
+    let mut arrival = edge(1);
+    arrival.parameters.push(header.clone());
+    let mut binding = DescriptorFlowBinding::new(
+        DescriptorFlowSource::Contents(DescriptorContentsQuery {
+            root: view.root,
+            steps: vec![DescriptorContentsStep::any_element(
+                semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+            )],
+        }),
+        header.clone(),
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::MutableBorrow,
+    )
+    .unwrap();
+    let index = Projection::new(&[StructuralPathSegment::RuntimeIndex {
+        index: ValueId::new(1).unwrap(),
+        obligation: ObligationId::new(1).unwrap(),
+    }]);
+    binding.captured_storage = Some((view.clone(), index.clone()));
+    assert!(binding.indexed_borrow_source().is_none());
+    binding.captured_storage = Some((view.clone(), index.at(position(0))));
+    binding.source_access = StructuralAccess::SharedBorrow;
+    assert!(binding.indexed_borrow_source().is_none());
+    binding.source_access = StructuralAccess::MutableBorrow;
+    arrival.bindings.push(binding);
+    let mut steps = BTreeMap::from([
+        (
+            position(0),
+            DescriptorFlowStep {
+                inputs: vec![(Some(view.clone()), None)],
+                successors: vec![arrival],
+                ..Default::default()
+            },
+        ),
+        (
+            position(1),
+            DescriptorFlowStep {
+                inputs: vec![(Some(header.clone()), None)],
+                successors: vec![edge(2)],
+                ..Default::default()
+            },
+        ),
+        (position(2), DescriptorFlowStep::default()),
+    ]);
+    let life = descriptor_entry_lifetime(&steps, position(0), &view);
+    assert_eq!(life.live, BTreeSet::from([position(0), position(1)]));
+    assert!(life.demanded[&position(1)].contains(&header));
+    assert!(!life.authorized[&position(1)].contains(&header));
+
+    // An actual escape from the header still reaches every continuation.
+    steps.get_mut(&position(1)).unwrap().may_escape = true;
+    assert!(
+        descriptor_entry_lifetime(&steps, position(0), &view)
+            .live
+            .contains(&position(2))
+    );
+}

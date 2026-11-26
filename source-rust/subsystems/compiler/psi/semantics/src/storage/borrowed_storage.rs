@@ -361,6 +361,11 @@ impl Projection {
         self
     }
 
+    pub(crate) fn is_captured_element(&self) -> bool {
+        matches!(self.address.as_deref(), Some([AddressStep::Path(steps, Some(_))])
+            if matches!(steps.as_slice(), [StructuralPathSegment::RuntimeIndex { .. }]))
+    }
+
     /// Recover the complete captured address, including fields after a
     /// dynamic selector. A widened region or a window has no single such
     /// path; a dynamic coordinate must retain its formation point.
