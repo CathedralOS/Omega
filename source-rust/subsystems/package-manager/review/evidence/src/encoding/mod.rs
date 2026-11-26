@@ -26,13 +26,13 @@ pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage
 // Ordinary public requirements preserve open reach/crash separately from
 // authored empty ceilings; predecessor payloads are not reinterpreted.
 // Domain records distinguish unrestricted issuance from an empty permitted issuer set.
-// Service method records in each of these layouts carry the foreign caller-stack bound.
-pub(crate) const BASELINE_WITHOUT_STRUCTURAL_PARAMETERS: u16 = 49;
-pub(crate) const BASELINE_WITH_STRUCTURAL_PARAMETERS: u16 = 50;
-pub(crate) const BASELINE_WITH_PROVIDER_APPLICATION_GRANTS: u16 = 51;
-pub(crate) const BASELINE_WITH_TYPE_ALIASES: u16 = 52;
-pub(crate) const BASELINE_WITH_CARRIED_TYPES: u16 = 53;
-pub(crate) const BASELINE_WITH_APPLIED_SERVICES: u16 = 54;
+// These baseline layouts omit the retired assumed-binding roster.
+pub(crate) const BASELINE_WITHOUT_STRUCTURAL_PARAMETERS: u16 = 55;
+pub(crate) const BASELINE_WITH_STRUCTURAL_PARAMETERS: u16 = 56;
+pub(crate) const BASELINE_WITH_PROVIDER_APPLICATION_GRANTS: u16 = 57;
+pub(crate) const BASELINE_WITH_TYPE_ALIASES: u16 = 58;
+pub(crate) const BASELINE_WITH_CARRIED_TYPES: u16 = 59;
+pub(crate) const BASELINE_WITH_APPLIED_SERVICES: u16 = 60;
 pub const PACKAGE_POLICY_BASELINE_VERSION: u16 = BASELINE_WITH_APPLIED_SERVICES;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 

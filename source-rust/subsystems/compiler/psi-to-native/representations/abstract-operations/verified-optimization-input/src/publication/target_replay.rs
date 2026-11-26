@@ -104,8 +104,6 @@ impl TargetOperationsForReplay {
 #[derive(Debug, Clone, Copy)]
 pub struct BoundaryOriginFacts<'a> {
     pub program_entry: Option<target_operations::ProgramEntryOrigin>,
-    pub assumed_bindings:
-        &'a [operation_evidence::provider_calls::InstalledAssumedBindingEvidence],
     pub target_context: Option<&'a psi_target_layouts::TerminalTargetContext>,
     pub module: &'a terminal_psi::TerminalModule,
 }
@@ -120,7 +118,6 @@ impl<'a> BoundaryOriginFacts<'a> {
                     source_signature: call.source_signature(),
                 }
             }),
-            assumed_bindings: input.assumed_bindings(),
             target_context: input.target_context(),
             module: input.module(),
         }

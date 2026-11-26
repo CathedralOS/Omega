@@ -2,7 +2,7 @@
 
 `record` holds the package policy that can be retained in a lock. `encoding` projects decisions, encodes canonical bytes and text, and recovers them under the caller's resource limits. Lock recovery, policy differences and comparison of retained consent use these records directly. Their versions and coordinates belong to the [schema](EVIDENCE_SCHEMA.md) and [policy baseline](POLICY_BASELINE.md).
 
-`TerminalPermissionAcceptance::compare_policy` compares a complete proposed policy with the retained lock rows for the same package and target. It checks the version and exact coordinate and meaning of each Terminal permission, assumed binding and component assumption. The application must separately establish that the proposal belongs to its current checked product before execution. Recovery of saved bytes alone confers no execution permission.
+`TerminalPermissionAcceptance::compare_policy` compares a complete proposed policy with the retained lock rows for the same package and target. It checks the version and exact coordinate and meaning of each Terminal permission and component assumption. The application must separately establish that the proposal belongs to its current checked product before execution. Recovery of saved bytes alone confers no execution permission.
 
 ## Issuing a fresh package review
 

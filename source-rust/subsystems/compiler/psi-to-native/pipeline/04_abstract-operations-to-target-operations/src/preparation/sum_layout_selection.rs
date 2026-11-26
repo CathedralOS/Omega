@@ -507,7 +507,6 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
     };
     let origins = BoundaryOriginFacts {
         program_entry: None,
-        assumed_bindings: &[],
         target_context: None,
         module: &module,
     };
@@ -3921,7 +3920,6 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
         &unit,
         BoundaryOriginFacts {
             program_entry: None,
-            assumed_bindings: &[],
             target_context: None,
             module: &module,
         },

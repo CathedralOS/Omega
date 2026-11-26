@@ -27,9 +27,7 @@ fn product(artifact: &Arc<CanonicalTerminalArtifact>) -> ProductScalarCompletion
                 targets: Some(terminal_target_context(artifact.view(), TARGET)),
                 providers: psi_provider_selections::admit_provider_installation(
                     artifact.view(),
-                    &[],
-                    &[],
-                )
+                    &[])
                 .unwrap(),
                 address_model: Ok(None),
                 carrier_layout: None,

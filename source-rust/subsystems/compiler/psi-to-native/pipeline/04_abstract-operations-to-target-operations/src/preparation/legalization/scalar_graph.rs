@@ -2475,18 +2475,6 @@ pub(crate) mod call_origin {
                         return Err(LegalizationError::custody());
                     }
                 }
-                if let TargetUnitOperation::Call {
-                    origin:
-                        NativeCallOrigin::InstalledProvider {
-                            assumption: Some(assumption),
-                            ..
-                        },
-                    ..
-                } = operation
-                    && !input.assumed_bindings.contains(assumption)
-                {
-                    return Err(LegalizationError::custody());
-                }
             }
         }
         Ok(())
@@ -2627,13 +2615,6 @@ pub(crate) mod call_origin {
             return Ok(None);
         };
         let callee = *callee;
-        let assumed_entry = matches!(
-            origin,
-            NativeCallOrigin::InstalledProvider {
-                assumption: Some(_),
-                ..
-            }
-        );
         let entry = matches!(origin, NativeCallOrigin::ProgramEntry { .. });
         let provider = match origin {
             NativeCallOrigin::ProgramEntry {
@@ -2655,16 +2636,11 @@ pub(crate) mod call_origin {
             NativeCallOrigin::InstalledProvider {
                 boundary: selected_boundary,
                 provider,
-                assumption,
                 completion_claim_sources: retained_sources,
                 completion_receipts: retained_receipts,
             } => {
                 if selected_boundary != boundary
-                    || assumption
-                        .as_ref()
-                        .map_or(provider.boundary != *boundary, |row| {
-                            !row.matches(*boundary, provider)
-                        })
+                    || provider.boundary != *boundary
                     || provider.candidate != callee
                     || retained_sources != completion_claim_sources
                     || retained_receipts != completion_receipts
@@ -2685,18 +2661,8 @@ pub(crate) mod call_origin {
         let candidate = plan
             .function(callee)
             .ok_or_else(|| LegalizationError::custody())?;
-        let provider_declaration = if let NativeCallOrigin::InstalledProvider {
-            assumption: Some(row),
-            ..
-        } = origin
-        {
-            plan.boundary_machine(row.selected_requirement)
-                .ok_or_else(|| LegalizationError::custody())?
-        } else {
-            declaration
-        };
         if provider
-            .is_some_and(|provider| provider_declaration.identity != provider.requirement_identity)
+            .is_some_and(|provider| declaration.identity != provider.requirement_identity)
             || declaration.scalar_parameters.len() != arguments.len()
             || candidate.parameters.len() != arguments.len()
             || declaration
@@ -2708,7 +2674,7 @@ pub(crate) mod call_origin {
             || candidate.structural_parameters.len() != structural_arguments.len()
             || provider.is_some_and(|provider| {
                 provider.signature.parameters.len() != structural_arguments.len()
-                    || provider.refinement.required_domains != provider_declaration.requires
+                    || provider.refinement.required_domains != declaration.requires
                     || provider.refinement.realized_service_ceiling
                         != candidate.published_service_ceiling
             })
@@ -2743,19 +2709,16 @@ pub(crate) mod call_origin {
                 || expected.structural_type != actual.structural_type
                 || expected.access != actual.access
                 || expected.multiplicity != actual.multiplicity
-                || (!assumed_entry
-                    && (expected.qualifications != actual.qualifications
-                        || expected.projected_qualifications != actual.projected_qualifications))
+                || expected.qualifications != actual.qualifications
+                        || expected.projected_qualifications != actual.projected_qualifications
                 || provider.is_some_and(|provider| {
                     let signature = &provider.signature.parameters[position];
                     expected.position != signature.position
                         || expected.structural_type != signature.structural_type
                         || expected.access != signature.access
                         || expected.multiplicity != signature.multiplicity
-                        || (!assumed_entry
-                            && (expected.qualifications != signature.qualifications
-                                || expected.projected_qualifications
-                                    != signature.projected_qualifications))
+                        || expected.qualifications != signature.qualifications
+                        || expected.projected_qualifications != signature.projected_qualifications
                 })
             {
                 return Err(LegalizationError::custody());

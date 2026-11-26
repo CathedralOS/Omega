@@ -82,13 +82,7 @@ impl<'artifact> ScalarEntryPrerequisites<'artifact> {
             let invocation = terminal_semantics::evaluation_scope::compiler_invocation_scope(
                 scope,
                 observations.target(),
-                observations.providers().providers().chain(
-                    observations
-                        .providers()
-                        .assumed_bindings()
-                        .iter()
-                        .map(|binding| (binding.required, binding.implementation)),
-                ),
+                observations.providers().providers(),
                 root,
             )?;
             let applies = |subject| -> Result<bool, String> {

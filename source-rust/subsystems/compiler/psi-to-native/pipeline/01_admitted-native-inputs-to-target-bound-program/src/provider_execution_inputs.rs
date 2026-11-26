@@ -281,7 +281,7 @@ pub(crate) fn plan_inputs_and_review(
                     continue;
                 }
                 let providers =
-                    psi_provider_selections::admit_provider_installation(artifact.view(), &[], &[])
+                    psi_provider_selections::admit_provider_installation(artifact.view(), &[])
                         .map_err(|error| refuse(format!("{error:?}")))?;
                 let analysis = &*provider_analysis
                     .get_or_insert_with(|| terminal.callable_analysis(Some(&providers)));

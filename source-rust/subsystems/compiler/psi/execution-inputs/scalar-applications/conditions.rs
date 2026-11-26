@@ -194,13 +194,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
                 .providers
                 .iter()
                 .copied()
-                .eq(observations.providers().providers().chain(
-                    observations
-                        .providers()
-                        .assumed_bindings()
-                        .iter()
-                        .map(|binding| (binding.required, binding.implementation)),
-                ))
+                .eq(observations.providers().providers())
     }
 
     pub fn include_applications(&mut self, demanded: &[ScalarApplicationId]) {

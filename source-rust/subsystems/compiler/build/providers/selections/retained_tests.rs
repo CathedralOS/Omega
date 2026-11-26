@@ -51,17 +51,17 @@ fn selected_plan() -> ProviderPlan {
 }
 
 #[test]
-fn selection_identity_matches_the_published_v5_digest() {
+fn selection_identity_matches_the_published_v6_digest() {
     let empty = crate::SelectedProviderPlanFacts::default();
     let selected =
         crate::SelectedProviderPlanFacts::from_selected_plans(vec![selected_plan()]).unwrap();
     assert_eq!(
         wire::digest_encoder::hex(empty.identity_digest().as_bytes()),
-        "5fd283d75ebc3288b6e892e67dc77b6ae97be22b545e9e9f3938dbf0b4afabad"
+        "ec730138e882da5a89e820e855d4a91b275d9e7bd579dfecf770f41c4769a7f2"
     );
     assert_eq!(
         wire::digest_encoder::hex(selected.identity_digest().as_bytes()),
-        "c66b6ff7585159796739c513cc37c20702349603aa1e032ccc6e00bff02d7591"
+        "52ee599c657b697f0630f6e4df6b527f4b753d6a1221962ba8dd53a5536ff876"
     );
 }
 

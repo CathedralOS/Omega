@@ -94,12 +94,6 @@ pub fn selected_synchronous_call_graph<'module>(
             return Err("synchronous provider graph has another provider installation".into());
         }
         calls.extend(installation.providers());
-        calls.extend(
-            installation
-                .assumed_bindings()
-                .iter()
-                .map(|binding| (binding.required, binding.implementation)),
-        );
         for &(_, machine) in &calls {
             let callable = terminal_psi::TargetMachineCallable::Machine(machine);
             if let Some(members) = target_members {

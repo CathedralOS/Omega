@@ -95,9 +95,6 @@ pub(in crate::encoding) fn policy(
     encoder.field("restricted_build_requests", |encoder| {
         encoder.sequence(&value.restricted_build_requests, restricted_build::request)
     })?;
-    encoder.field("assumed_bindings", |encoder| {
-        encoder.sequence(&value.assumed_bindings, |encoder, row| encoder.string(row))
-    })?;
     encoder.field("service_audits", |encoder| {
         encoder.sequence(&value.service_audits, encode_service)
     })?;

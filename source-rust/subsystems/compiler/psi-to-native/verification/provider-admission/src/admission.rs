@@ -376,7 +376,7 @@ fn admit_checked_provider_installation(
         if view.module().scalars.folded_constants.target.is_none() {
             return Ok(None);
         }
-        let selection = psi_provider_selections::admit_provider_installation(view, &[], &[])
+        let selection = psi_provider_selections::admit_provider_installation(view, &[])
             .map_err(|error| {
                 realization_error("historical-only catalog admission", format!("{error:?}"))
             })?
@@ -394,18 +394,6 @@ fn admit_checked_provider_installation(
             plan,
             view,
             request.checked_adapters,
-            &request
-                .selected_provider_plans
-                .assumed_binding_coordinates(view.module())
-                .map_err(|reason| realization_error("assumed binding installation", reason))?
-                .into_iter()
-                .map(|(required, supplied_requirement)| {
-                    psi_provider_selections::AssumedBindingSelection {
-                        required,
-                        supplied_requirement,
-                    }
-                })
-                .collect::<Vec<_>>(),
         )
         .map_err(|error| {
             realization_error("checked-provider installation", format!("{error:?}"))
@@ -473,11 +461,7 @@ fn require_reached_providers(
             }
             if native_settlements.iter().any(|settlement| settlement.boundary == *boundary) { return None; }
             let requirement = plan.identities.text(declaration.identity)?;
-            (selected.selected_requirement_row(requirement).is_none()
-                && !selected
-                    .assumed_bindings()
-                    .iter()
-                    .any(|row| row.required == requirement))
+            selected.selected_requirement_row(requirement).is_none()
             .then(|| {
                 // A canonical float operation is never Build-selected; when the
                 // target's realization table declares it unsupported, say so.

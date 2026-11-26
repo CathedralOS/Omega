@@ -40,7 +40,6 @@ pub enum PackagePolicyRowKind {
     SemanticDependency,
     SymbolicBoundaryDemand,
     RestrictedBuildRequest,
-    AssumedBindingContract,
     ServiceAudit,
     NativeBinding,
     ComponentAssumption,
@@ -50,10 +49,7 @@ pub enum PackagePolicyRowKind {
 impl PackagePolicyRowKind {
     /// The runtime decisions retained for a locked root Product occurrence.
     pub const fn requires_runtime_consent(self) -> bool {
-        matches!(
-            self,
-            Self::TerminalPermission | Self::AssumedBindingContract | Self::ComponentAssumption
-        )
+        matches!(self, Self::TerminalPermission | Self::ComponentAssumption)
     }
 
     pub const fn tag_and_name(self) -> (u8, &'static str) {
@@ -81,7 +77,6 @@ impl PackagePolicyRowKind {
             Self::SemanticDependency => (20, "semantic_dependency"),
             Self::SymbolicBoundaryDemand => (21, "symbolic_boundary_demand"),
             Self::RestrictedBuildRequest => (22, "restricted_build_request"),
-            Self::AssumedBindingContract => (23, "assumed_binding_contract"),
             Self::ServiceAudit => (24, "service_audit"),
             Self::NativeBinding => (25, "native_binding"),
             Self::ComponentAssumption => (26, "component_assumption"),
@@ -107,7 +102,6 @@ impl PackagePolicyRowKind {
             | Self::ExternalSupply
             | Self::DangerousCapability
             | Self::RestrictedBuildRequest
-            | Self::AssumedBindingContract
             | Self::ServiceAudit
             | Self::NativeBinding
             | Self::ComponentAssumption => true,

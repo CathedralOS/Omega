@@ -292,16 +292,13 @@ impl Program<'_> {
                 suppliers,
             } => {
                 let subject = publication.subject();
-                let consent = runtime_consent
-                    .map(|accepted| {
-                        let declarations = publication.runtime_permission_declarations()?;
-                        Ok::<_, Vec<Diagnostic>>((
-                            accepted,
-                            declarations,
-                            target.semantic_bindings.clone(),
-                        ))
-                    })
-                    .transpose()?;
+                let consent = runtime_consent.map(|accepted| {
+                    (
+                        accepted,
+                        publication.runtime_permission_declarations().clone(),
+                        target.semantic_bindings.clone(),
+                    )
+                });
                 let (artifact, providers, exclusions) = publication.into_parts();
                 let authorized = authorize_current_compilation(artifact)?;
                 native_compiler::prepare_source_program(

@@ -3,6 +3,7 @@
 //! declaration. Admission checks that each executed audit can be retained
 //! as a declaration in the accepted Product source.
 
+use crate::WireCompatibilityDemand;
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationRequest;
@@ -10,14 +11,12 @@ use crate::declaration_selection::ProductOperandRole;
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{ProductDeclarationLookup, ProductRequestAuthors};
 use diagnostics::Diagnostic;
-use source_declarations::source_selections::{AssumedBindingContract, TestGroupRegistration};
+use source_declarations::source_selections::TestGroupRegistration;
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use crate::WireCompatibilityDemand;
 
 pub struct AdmittedProductDeclarations {
     pub service_audits: Vec<SymbolHandle>,
-    pub assumed_bindings: Vec<AssumedBindingContract>,
     pub wire_demands: Vec<WireCompatibilityDemand>,
     pub test_groups: Vec<TestGroupRegistration>,
 }
@@ -35,10 +34,7 @@ pub fn admit(
     if build_requests_any(
         declared,
         executed,
-        &[
-            BuildOperation::AssumedBindingContract,
-            BuildOperation::WireCompatibilityRequest,
-        ],
+        &[BuildOperation::WireCompatibilityRequest],
     ) {
         return Err(vec![Diagnostic::error(
             "no product route yet: Build product declaration admission",
@@ -62,7 +58,6 @@ pub fn admit(
     let test_groups = admit_test_groups(typed, activation, executed, &formations)?;
     Ok(AdmittedProductDeclarations {
         service_audits,
-        assumed_bindings: Vec::new(),
         wire_demands: Vec::new(),
         test_groups,
     })

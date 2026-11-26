@@ -127,7 +127,6 @@ mod product {
                         | BuildOperation::ServiceExclusion
                         | BuildOperation::BoundaryAcceptance
                         | BuildOperation::ServiceAudit
-                        | BuildOperation::AssumedBindingContract
                         | BuildOperation::WireCompatibilityRequest
                         | BuildOperation::TestGroupRegistration
                 ),
@@ -1061,9 +1060,6 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
             BuildOperation::ProviderSelection => {
                 Self::BuildProviderSelection
             }
-            BuildOperation::AssumedBindingContract => {
-                Self::BuildAssumedBindingContract
-            }
             BuildOperation::RepresentationSelection => {
                 Self::BuildRepresentationSelection
             }
@@ -1108,7 +1104,6 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
         role: ProductOperandRole,
     },
     BuildProviderSelection,
-    BuildAssumedBindingContract,
     BuildRepresentationSelection,
     BuildServiceExclusion,
     BuildServiceAudit,
@@ -1238,7 +1233,6 @@ mod tests {
             "wire_compatibility#Edge#Lineage#Local#Peer#Readable",
             "accept_boundary::Console",
             "select_provider#Console",
-            "assume_binding_contract#WritableMemory::claim",
             "enable#Fast",
             "exclude_crash",
             "dependency",
