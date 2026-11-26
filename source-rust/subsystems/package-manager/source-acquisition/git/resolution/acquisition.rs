@@ -273,7 +273,7 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
                 {
                     return Err(GitWorkspaceProjectionError::Source(error));
                 }
-                if matches!(selection, GitRevisionSelection::Recorded(_))
+                if matches!(selection, GitRevisionSelection::Exact(_))
                     && matches!(
                         error,
                         SourceResolveError::GitExactRevisionUnavailable { .. }

@@ -1,11 +1,4 @@
-// Revision selection intent (`GitRevisionSelection`, `RecordedGitRevision`)
-// separating floating/pinned ordinary requests from exact recorded revisions.
-//
-// Determines whether a missing cache entry may be created and fetched
-// (`permits_new_acquisition`), whether a known object algorithm applies at
-// cache creation (`known_object_algorithm`), whether an absent cache entry
-// fails with `GitExactRevisionUnavailable` (`offline_unavailable`), and which
-// revision string a fetch targets (`fetch_revision`).
+//! A full commit fixes the object format and fetch target. A recorded tree, when supplied, must also match the commit.
 
 use crate::error::SourceResolveError;
 use crate::git::objects::authentication::verify_exact_git_revision;
@@ -15,22 +8,22 @@ use crate::observations::resolved::GitAcquisitionPin;
 
 use super::exact_revision::GitExactRevisionAcquisition;
 
-pub(super) struct RecordedGitRevision {
+pub(super) struct ExactGitRevision {
     pub(super) commit: String,
-    pub(super) tree: String,
+    pub(super) tree: Option<String>,
     pub(super) algorithm: GitObjectIdAlgorithm,
     pub(super) acquisition: GitExactRevisionAcquisition,
 }
 
-impl RecordedGitRevision {
+impl ExactGitRevision {
     pub(super) fn new(
         request: &GitSourceRequest,
         commit: &GitCommitId,
-        tree: &GitTreeId,
+        tree: Option<&GitTreeId>,
         acquisition: GitExactRevisionAcquisition,
     ) -> Result<Self, SourceResolveError> {
         let commit_hex = commit.to_hex();
-        if commit.algorithm() != tree.algorithm() {
+        if tree.is_some_and(|tree| commit.algorithm() != tree.algorithm()) {
             return Err(SourceResolveError::GitObjectInvalid {
                 oid: commit_hex,
                 message: "recorded commit and root tree use different object formats".to_owned(),
@@ -39,7 +32,7 @@ impl RecordedGitRevision {
         verify_exact_git_revision(request.requested_revision(), &commit_hex)?;
         Ok(Self {
             commit: commit_hex,
-            tree: tree.to_hex(),
+            tree: tree.map(GitTreeId::to_hex),
             algorithm: commit.algorithm(),
             acquisition,
         })
@@ -56,7 +49,7 @@ impl RecordedGitRevision {
 #[derive(Clone, Copy)]
 pub(super) enum GitRevisionSelection<'a> {
     Ordinary(Option<&'a GitAcquisitionPin>),
-    Recorded(&'a RecordedGitRevision),
+    Exact(&'a ExactGitRevision),
 }
 
 impl<'a> GitRevisionSelection<'a> {
@@ -84,22 +77,22 @@ impl<'a> GitRevisionSelection<'a> {
     pub(super) fn expected_commit(self) -> Option<&'a str> {
         match self {
             Self::Ordinary(pin) => pin.map(GitAcquisitionPin::commit),
-            Self::Recorded(recorded) => Some(&recorded.commit),
+            Self::Exact(revision) => Some(&revision.commit),
         }
     }
 
     pub(super) fn expected_tree(self) -> Option<&'a str> {
         match self {
             Self::Ordinary(pin) => pin.map(GitAcquisitionPin::tree),
-            Self::Recorded(recorded) => Some(&recorded.tree),
+            Self::Exact(revision) => revision.tree.as_deref(),
         }
     }
 
     pub(super) fn permits_new_acquisition(self) -> bool {
         match self {
             Self::Ordinary(pin) => pin.is_none(),
-            Self::Recorded(recorded) => {
-                recorded.acquisition == GitExactRevisionAcquisition::AllowFetch
+            Self::Exact(revision) => {
+                revision.acquisition == GitExactRevisionAcquisition::AllowFetch
             }
         }
     }
@@ -107,25 +100,25 @@ impl<'a> GitRevisionSelection<'a> {
     pub(super) fn known_object_algorithm(self) -> Option<GitObjectIdAlgorithm> {
         match self {
             Self::Ordinary(_) => None,
-            Self::Recorded(recorded) => Some(recorded.algorithm),
+            Self::Exact(revision) => Some(revision.algorithm),
         }
     }
 
     pub(super) fn offline_unavailable(self) -> Option<SourceResolveError> {
         match self {
-            Self::Recorded(recorded)
-                if recorded.acquisition == GitExactRevisionAcquisition::Offline =>
+            Self::Exact(revision)
+                if revision.acquisition == GitExactRevisionAcquisition::Offline =>
             {
-                Some(recorded.unavailable())
+                Some(revision.unavailable())
             }
-            Self::Ordinary(_) | Self::Recorded(_) => None,
+            Self::Ordinary(_) | Self::Exact(_) => None,
         }
     }
 
     pub(super) fn fetch_revision(self, requested_rev: &'a str) -> &'a str {
         match self {
             Self::Ordinary(_) => requested_rev,
-            Self::Recorded(recorded) => recorded.commit.as_str(),
+            Self::Exact(revision) => revision.commit.as_str(),
         }
     }
 }
