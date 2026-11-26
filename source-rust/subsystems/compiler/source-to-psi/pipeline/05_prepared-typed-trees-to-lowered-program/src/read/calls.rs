@@ -3141,6 +3141,26 @@ impl<'t> Program<'t> {
                     PackedIntegerUnaryOperation::NarrowI16x8ToU8x4Saturating,
                 )
             }
+            PackedIntegerPrimitive::WrappingAddU8x16 => {
+                crate::body::PackedIntegerOperation::Binary(
+                    PackedIntegerBinaryOperation::WrappingAddU8x16,
+                )
+            }
+            PackedIntegerPrimitive::MinI16x8 => {
+                crate::body::PackedIntegerOperation::Binary(PackedIntegerBinaryOperation::MinI16x8)
+            }
+            PackedIntegerPrimitive::CmpGtI16x8 => crate::body::PackedIntegerOperation::Binary(
+                PackedIntegerBinaryOperation::CmpGtI16x8,
+            ),
+            PackedIntegerPrimitive::BitAndI16x8 => crate::body::PackedIntegerOperation::Binary(
+                PackedIntegerBinaryOperation::BitAndI16x8,
+            ),
+            PackedIntegerPrimitive::BitAndNotI16x8 => crate::body::PackedIntegerOperation::Binary(
+                PackedIntegerBinaryOperation::BitAndNotI16x8,
+            ),
+            PackedIntegerPrimitive::AbsI16x8 => {
+                crate::body::PackedIntegerOperation::Unary(PackedIntegerUnaryOperation::AbsI16x8)
+            }
         };
         let free = self.machine_lifetimes(target);
         let mut bound = super::regions::Substitution::new();

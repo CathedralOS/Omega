@@ -107,6 +107,11 @@ impl Field<semantic_vocabulary::PackedIntegerBinaryOperation> for PackedIntegerB
                 writer.u8(2);
                 writer.bytes(lanes);
             }
+            WrappingAddU8x16 => writer.u8(3),
+            MinI16x8 => writer.u8(4),
+            CmpGtI16x8 => writer.u8(5),
+            BitAndI16x8 => writer.u8(6),
+            BitAndNotI16x8 => writer.u8(7),
         }
         Ok(())
     }
@@ -126,6 +131,11 @@ impl Field<semantic_vocabulary::PackedIntegerBinaryOperation> for PackedIntegerB
                 }
                 ShuffleI16x8 { lanes }
             }
+            3 => WrappingAddU8x16,
+            4 => MinI16x8,
+            5 => CmpGtI16x8,
+            6 => BitAndI16x8,
+            7 => BitAndNotI16x8,
             tag => return Err(CodecError::InvalidTag("PackedIntegerBinaryOperation", tag)),
         })
     }
@@ -148,6 +158,7 @@ impl Field<semantic_vocabulary::PackedIntegerUnaryOperation> for PackedIntegerUn
             LoadI16x4ZeroExtend => writer.u8(3),
             WidenU8x4ToI16x8 => writer.u8(4),
             NarrowI16x8ToU8x4Saturating => writer.u8(5),
+            AbsI16x8 => writer.u8(6),
         }
         Ok(())
     }
@@ -170,6 +181,7 @@ impl Field<semantic_vocabulary::PackedIntegerUnaryOperation> for PackedIntegerUn
             3 => LoadI16x4ZeroExtend,
             4 => WidenU8x4ToI16x8,
             5 => NarrowI16x8ToU8x4Saturating,
+            6 => AbsI16x8,
             tag => return Err(CodecError::InvalidTag("PackedIntegerUnaryOperation", tag)),
         })
     }

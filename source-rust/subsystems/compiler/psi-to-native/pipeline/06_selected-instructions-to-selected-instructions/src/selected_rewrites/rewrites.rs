@@ -2723,7 +2723,13 @@ pub(crate) mod window_hazards {
             | PackedShiftRightArithmeticI16x8Reg { .. }
             | PackedShuffleI16x8Reg { .. }
             | PackedWidenU8x8ToI16x8Reg
-            | PackedNarrowI16x8ToU8x8SaturatingReg => UnrosteredReach::Private,
+            | PackedNarrowI16x8ToU8x8SaturatingReg
+            | PackedAddU8x16Reg
+            | PackedMinI16x8Reg
+            | PackedCmpGtI16x8Reg
+            | PackedBitAndI16x8Reg
+            | PackedBitAndNotI16x8Reg
+            | PackedAbsI16x8Reg => UnrosteredReach::Private,
             Store { .. }
             | StorePacked { .. }
             | Store64 { .. }
@@ -2739,11 +2745,15 @@ pub(crate) mod window_hazards {
             | PackedLoadI16x4ZeroExtend
             | PackedWidenU8x4ToI16x8
             | PackedNarrowI16x8ToU8x4Saturating
+            | PackedAddU8x16
+            | PackedMinI16x8
+            | PackedCmpGtI16x8
+            | PackedBitAndI16x8
+            | PackedBitAndNotI16x8
+            | PackedAbsI16x8
             | PackedStore128 { .. }
             | PackedStore64 { .. }
-            | PackedStore32 { .. } => {
-                UnrosteredReach::Store
-            }
+            | PackedStore32 { .. } => UnrosteredReach::Store,
             _ => UnrosteredReach::Unaccounted,
         }
     }

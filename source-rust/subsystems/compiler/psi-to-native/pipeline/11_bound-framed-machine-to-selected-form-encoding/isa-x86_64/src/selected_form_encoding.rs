@@ -22053,6 +22053,18 @@ pub fn encode_x86_64_selected_form(
             | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
             | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
             | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+            | SelectedInstructionKind::PackedAddU8x16
+            | SelectedInstructionKind::PackedMinI16x8
+            | SelectedInstructionKind::PackedCmpGtI16x8
+            | SelectedInstructionKind::PackedBitAndI16x8
+            | SelectedInstructionKind::PackedBitAndNotI16x8
+            | SelectedInstructionKind::PackedAbsI16x8
+            | SelectedInstructionKind::PackedAddU8x16Reg
+            | SelectedInstructionKind::PackedMinI16x8Reg
+            | SelectedInstructionKind::PackedCmpGtI16x8Reg
+            | SelectedInstructionKind::PackedBitAndI16x8Reg
+            | SelectedInstructionKind::PackedBitAndNotI16x8Reg
+            | SelectedInstructionKind::PackedAbsI16x8Reg
     ) {
         return packed_integer::encode(physical, kind, alternative, operands);
     }
@@ -22134,6 +22146,18 @@ pub fn validate_x86_64_selected_form_encoding(
             | SelectedInstructionKind::PackedShuffleI16x8Reg { .. }
             | SelectedInstructionKind::PackedWidenU8x8ToI16x8Reg
             | SelectedInstructionKind::PackedNarrowI16x8ToU8x8SaturatingReg
+            | SelectedInstructionKind::PackedAddU8x16
+            | SelectedInstructionKind::PackedMinI16x8
+            | SelectedInstructionKind::PackedCmpGtI16x8
+            | SelectedInstructionKind::PackedBitAndI16x8
+            | SelectedInstructionKind::PackedBitAndNotI16x8
+            | SelectedInstructionKind::PackedAbsI16x8
+            | SelectedInstructionKind::PackedAddU8x16Reg
+            | SelectedInstructionKind::PackedMinI16x8Reg
+            | SelectedInstructionKind::PackedCmpGtI16x8Reg
+            | SelectedInstructionKind::PackedBitAndI16x8Reg
+            | SelectedInstructionKind::PackedBitAndNotI16x8Reg
+            | SelectedInstructionKind::PackedAbsI16x8Reg
     ) {
         return packed_integer::validate(physical, kind, alternative, operands, bytes);
     }
