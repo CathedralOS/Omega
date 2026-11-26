@@ -472,7 +472,6 @@ fn compile_subject(
             failed_targets.join(", ")
         );
     }
-    crate::commands::report_unused_imports(&file_imports);
     timeline.borrow_mut().record("teardown", || {
         drop(portable);
         drop(plans);
