@@ -1050,7 +1050,7 @@ mod tests {
         use source_capture::{CapturedSourceNode, CapturedSourceTree};
         let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-join-capture");
         let application = base.join("application");
-        let contract = base.join("std");
+        let contract = base.join("system");
         let tree = |text: &str| {
             Arc::new(
                 CapturedSourceTree::new([(

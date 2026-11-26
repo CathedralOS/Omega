@@ -13,7 +13,7 @@ first sample with a machine call in array-length position.
   `ledger.buf[9] = 7` is the first legal write to the last slot.
 
 The machine writes slot 9, reads it back, and accepts on 7 && 10.
-Compile-checked only (no std dependency):
+Compile-checked only (no system dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/const_sized_buffer/main.omg

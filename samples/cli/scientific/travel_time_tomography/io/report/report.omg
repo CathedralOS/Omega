@@ -1,7 +1,7 @@
 // Signed micro-units avoid dependence on a floating-point text library.
 // Values truncate toward zero; validation allows one micro-unit quantization.
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\I64::from_f64;
 use domain\model;
 use domain\model\Problem;

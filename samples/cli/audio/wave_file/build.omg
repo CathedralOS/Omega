@@ -5,8 +5,8 @@ machine build(builder: @mutable Build) {
     let wav_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
         location: "../wav_output"
     }));
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
-        location: "../../../../source/library/std"
+    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+        location: "../../../../source/library/system"
     }));
     Build::bind(builder, windows_x86_64::ProgramEntry, |app|::main);
     Build::bind(builder, windows_arm64::ProgramEntry, |app|::main);

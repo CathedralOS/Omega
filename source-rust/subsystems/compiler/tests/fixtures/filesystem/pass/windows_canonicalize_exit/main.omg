@@ -10,11 +10,11 @@ use omega\language\core\ProcessExit;
 // 76 directory creation failed; 77 directory canonicalize refused; 78 the
 // resolved directory buffer starts with neither model's spelling.
 
-use omega_language_std;
-use omega_language_std\ErrorKind;
-use omega_language_std\UnitResult;
+use system;
+use system\ErrorKind;
+use system\UnitResult;
 
-use omega_language_std\FilesystemService;
+use system\FilesystemService;
 
 // Separate entry for the host-call-count regression: failed acquisition must
 // observe its error without querying or closing the invalid handle.

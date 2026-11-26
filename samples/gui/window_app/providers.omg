@@ -5,29 +5,29 @@
 // existing Cocoa facades. Window is the shared application-owned state.
 use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
-use omega_language_std\AppKit;
-use omega_language_std\CoreGraphics;
-use omega_language_std\DarwinClock;
-use omega_language_std\ObjectiveC;
-use omega_language_std\Window;
-use omega_language_std\macos_key_state;
-use omega_language_std\macos_sleep;
-use omega_language_std\macos_window_blit;
-use omega_language_std\macos_window_create;
-use omega_language_std\macos_window_destroy;
-use omega_language_std\macos_window_foreground_window;
-use omega_language_std\macos_window_get_dc;
-use omega_language_std\macos_window_is_window;
-use omega_language_std\macos_window_msg_dispatch;
-use omega_language_std\macos_window_msg_peek;
-use omega_language_std\macos_window_msg_translate;
-use omega_language_std\MacosImageData;
-use omega_language_std\MacosImageObjects;
-use omega_language_std\WindowsGuiHost;
-use omega_language_std\WindowsMessage;
-use omega_language_std\windows_message_kind;
-use omega_language_std\windows_message_window;
-use omega_language_std\windows_message_word_parameter;
+use system\AppKit;
+use system\CoreGraphics;
+use system\DarwinClock;
+use system\ObjectiveC;
+use system\Window;
+use system\macos_key_state;
+use system\macos_sleep;
+use system\macos_window_blit;
+use system\macos_window_create;
+use system\macos_window_destroy;
+use system\macos_window_foreground_window;
+use system\macos_window_get_dc;
+use system\macos_window_is_window;
+use system\macos_window_msg_dispatch;
+use system\macos_window_msg_peek;
+use system\macos_window_msg_translate;
+use system\MacosImageData;
+use system\MacosImageObjects;
+use system\WindowsGuiHost;
+use system\WindowsMessage;
+use system\windows_message_kind;
+use system\windows_message_window;
+use system\windows_message_word_parameter;
 
 public windows_x86_64 machine app_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
 requires title[10] == 0

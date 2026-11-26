@@ -12,7 +12,7 @@ use omega\language\core\ProcessExit;
 // Each stage re-establishes the values it measures, so nothing is live across
 // a state edge and every reading is an ordinary local.
 // Expected exit: 70.
-use omega_language_std\Console;
+use system\Console;
 
 data Main { }
 machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {

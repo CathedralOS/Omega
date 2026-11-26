@@ -1,7 +1,7 @@
 use input.omg as input_packet;
 use {omega}/language/core/process_authority.omg;
 use {omega}/language/core/process_exit.omg;
-use {omega_language_std}/console.omg;
+use {system}/console.omg;
 use {wire}/codec.omg;
 
 machine read_byte() -> u8 reaches |process_exit|::ProcessExit + |process_authority|::StandardInput crashes Trap blocks {

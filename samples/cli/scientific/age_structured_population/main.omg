@@ -1,7 +1,7 @@
 use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
-use omega_language_std\Console;
+use system\Console;
 use demography\model;
 use demography\model\Census;
 use demography\model\Schedule;

@@ -1,6 +1,6 @@
 machine build(builder: @mutable Build) {
     Build::application(builder, "owned_outcome");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../source/library/std" }));
+    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "../../../../source/library/system" }));
     Build::accept_boundary::<Issuer>(builder);
     Build::select_provider::<Issuer, Provider>(builder, linux_arm64);
     Build::select_provider::<Issuer, Provider>(builder, linux_x86_64);

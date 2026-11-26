@@ -1,5 +1,5 @@
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\I32::from_f64;
 use omega\language\core\narrow_i32_to_u32_trapping;
 use omega\language\core\narrow_u32_to_i32_trapping;

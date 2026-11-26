@@ -19,7 +19,7 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
     use source_declarations::declaration_selection::BuildOperation;
 
     configure_library();
-    let build_path = fixture_repository::root().join("source/library/std/build.omg");
+    let build_path = fixture_repository::root().join("source/library/system/build.omg");
     let standard_package =
         begin_local_project_preparation(&build_path, &[TargetProfile::AlphaBootstrap], true)
             .unwrap()
@@ -42,7 +42,7 @@ fn alpha_service_defaults_are_returned_by_the_standard_library_build() {
         (&standard.replace(console, ""), vec![selected_exit]),
     ] {
         let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
-            "std-alpha-service-selections",
+            "system-alpha-service-selections",
             false,
         )
         .unwrap();

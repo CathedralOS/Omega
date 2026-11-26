@@ -69,7 +69,7 @@ public machine main(help: bool) {
 
 On Linux, `contains_user_argument` is a library helper. It skips slot zero, obtains each user argument by index from the [installed argument view](#how-linux-supplies-the-editors-pathname), and compares its bytes. The parameterless program above needs none of these operations.
 
-On Windows x86-64 the OS starts the executable without a command-line parameter. The proposed `command_line` calls `GetCommandLineW`, scans its system-owned UTF-16 buffer to the first zero code unit and lends a read-only slice of that length. The matcher uses a documented quoting rule (Microsoft C argument quoting in this example). A portable reader can expose successive arguments while preserving boundaries and empty arguments. Any conversion to Unicode text needs a policy for invalid input. A validated filename still conveys no directory or file authority. [Windows physical entry](../../../source/library/std/targets/windows_x86_64/entry.omg) · [Windows command-line buffer](https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-getcommandlinew) · [Microsoft argument quoting](https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments)
+On Windows x86-64 the OS starts the executable without a command-line parameter. The proposed `command_line` calls `GetCommandLineW`, scans its system-owned UTF-16 buffer to the first zero code unit and lends a read-only slice of that length. The matcher uses a documented quoting rule (Microsoft C argument quoting in this example). A portable reader can expose successive arguments while preserving boundaries and empty arguments. Any conversion to Unicode text needs a policy for invalid input. A validated filename still conveys no directory or file authority. [Windows physical entry](../../../source/library/system/targets/windows_x86_64/entry.omg) · [Windows command-line buffer](https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-getcommandlinew) · [Microsoft argument quoting](https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments)
 
 | Invocation | Expected exit | What the matcher observes |
 | --- | --- | --- |
@@ -79,7 +79,7 @@ On Windows x86-64 the OS starts the executable without a command-line parameter.
 
 ### How Linux supplies the editor's pathname
 
-For `./editor notes.txt`, the shell supplies two arguments and the kernel starts the static x86-64 ELF executable. The Linux target package describes the entry stack. The native compiler emits the stub at the ELF entry address. Build selects the application's startup machine. The proposed `system` interface lends that machine an opaque view of **this launch's arguments**. The count is an ordinary `u64`. [Linux x86-64 process ABI](https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/low-level-sys-info.tex) · [Current Linux entry and calling policy](../../../source/library/std/targets/linux_x86_64/entry.omg)
+For `./editor notes.txt`, the shell supplies two arguments and the kernel starts the static x86-64 ELF executable. The Linux target package describes the entry stack. The native compiler emits the stub at the ELF entry address. Build selects the application's startup machine. The proposed `system` interface lends that machine an opaque view of **this launch's arguments**. The count is an ordinary `u64`. [Linux x86-64 process ABI](https://gitlab.com/x86-psABIs/x86-64-ABI/-/blob/master/x86-64-ABI/low-level-sys-info.tex) · [Current Linux entry and calling policy](../../../source/library/system/targets/linux_x86_64/entry.omg)
 
 ```omega
 // Proposed Linux argument interface in system
@@ -147,13 +147,13 @@ public machine main(document: OpenDocument) -> i32 blocks {
 }
 ```
 
-With two arguments, slot 1 is at `[initial_rsp + 16]`. Its bytes before the NUL are the nine bytes of `notes.txt`. They meet the existing `Path` predicate. The application uses its separately admitted filesystem provider to open and close the file. It returns 0 on success, 66 on open failure, 74 on close failure, and 64 for a missing, empty or extra operand. The proposed Omega entry still requires compiler support. [Path predicate](../../../source/library/std/filesystem_host.omg) · [Filesystem service](../../../source/library/std/filesystem.omg)
+With two arguments, slot 1 is at `[initial_rsp + 16]`. Its bytes before the NUL are the nine bytes of `notes.txt`. They meet the existing `Path` predicate. The application uses its separately admitted filesystem provider to open and close the file. It returns 0 on success, 66 on open failure, 74 on close failure, and 64 for a missing, empty or extra operand. The proposed Omega entry still requires compiler support. [Path predicate](../../../source/library/system/filesystem_host.omg) · [Filesystem service](../../../source/library/system/filesystem.omg)
 
 Two counterexamples distinguish this contract. Given genuine `args`, a proven in-range index and an unrelated address, the caller can select only the kernel's pointer in that index's slot. A fabricated copy of the count and table base cannot satisfy the opaque parameter. An out-of-range index must fail the precondition before the provider reads a slot, and a returned slice cannot outlive the view or be used for a write.
 
 ### A Cathedral entry that receives a live firmware table
 
-The existing UEFI x64 physical entry receives the image handle in `RCX` and the system-table pointer in `RDX`. Its current application continuation receives two storage grants. This *alternative Cathedral profile* would let its application receive the live table under an explicit domain. The profile, the qualification `LiveFirmwareTable` and this projection into application code are proposed. [UEFI physical declaration and calling plan](../../../source/library/std/uefi_x86_64_entry.omg) · [Current UEFI continuation](../../spec/build/uefi_entry.md#physical-arrival-and-semantic-roots)
+The existing UEFI x64 physical entry receives the image handle in `RCX` and the system-table pointer in `RDX`. Its current application continuation receives two storage grants. This *alternative Cathedral profile* would let its application receive the live table under an explicit domain. The profile, the qualification `LiveFirmwareTable` and this projection into application code are proposed. [UEFI physical declaration and calling plan](../../../source/library/system/uefi_x86_64_entry.omg) · [Current UEFI continuation](../../spec/build/uefi_entry.md#physical-arrival-and-semantic-roots)
 
 ```omega
 // cathedral/build.omg

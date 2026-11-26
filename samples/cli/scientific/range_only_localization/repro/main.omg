@@ -5,7 +5,7 @@ use omega\language\core\ProcessExit;
 // native lowering must form the slice descriptor rather than reject the loan.
 // Expected exit: 0.
 // Expected output contains: 3456
-use omega_language_std\Console;
+use system\Console;
 
 data Main { }
 machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {

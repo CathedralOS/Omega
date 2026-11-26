@@ -12,7 +12,7 @@ formal.
 - `kind_of` unwraps one more level — `Kind::NotFound` vs `Kind::Other` —
   proving the inner case survives construction, return, and re-dispatch.
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/case_payload_formal/main.omg

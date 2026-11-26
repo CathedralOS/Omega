@@ -107,7 +107,7 @@ The target checks that binding under [entry admission](entry_roots.md).
 activation's Build value. The invoker's bindings determine which libraries
 Build code can import. The executed plan determines which libraries Product
 code can import. Aliases are unique within each scope. A package used in both
-scopes needs a binding in each, including std. Package tooling may persist a
+scopes needs a binding in each, including system. Package tooling may persist a
 product dependency by editing ordinary Build source. Neither an import nor a
 legacy lock can supply a missing edge.
 [Scoped execution](scoped_execution.md#two-checked-contexts) defines
@@ -191,16 +191,12 @@ nor matching paths, grants compiler custody, platform authority or privileged
 provider selection. Those remain governed by exact primitives, admitted
 contracts and resolved dependencies.
 
-The system-library rename remains implementation work under
-[LIBRARY-RESPONSIBILITY-NAMES](../../../TASKS.md#pipeline-route).
-Existing `std` spellings identify the library pending that migration.
-The allocation package is registered under its declared name, `allocation`.
-The rename is separate from removing compiler coupling and does not demonstrate
-replaceability by itself.
+The packages declare their names in their own Build entries. Ownership and
+compiler coupling follow the rules below.
 
 ## Ordinary library packages
 
-Named decision: `ordinary-library-packages`, settled 2026-11-12. `std` and
+Named decision: `ordinary-library-packages`, settled 2026-11-12. `system` and
 `allocation`, wherever no compiler privilege is required, use ordinary package
 ownership, dependencies, validation and immutable version selection. They may
 be distributed beside the compiler, fetched from Git or supplied by another
@@ -212,29 +208,29 @@ the release contents; the package owner identifies declarations; exact sealed
 bindings identify compiler-supplied behavior; and dependency resolution chooses
 the package instance used by a program. A whole-bundle digest alone does not
 merge nominal owners or prove that packages share primitive authority. Making
-`std` optional must preserve integrity verification for the components the
+`system` optional must preserve integrity verification for the components the
 distribution declares, not disable it to tolerate missing files.
 
 A request requiring only its selected core and target support must not require
-an installed `std` merely to make library discovery succeed. Default runtime
+an installed `system` merely to make library discovery succeed. Default runtime
 and entry support follows the target's declared dependencies and contracts
-through normal selection. Do not silently import pieces of bundled `std` with
+through normal selection. Do not silently import pieces of bundled `system` with
 toolchain-contract custody or mix them into an independently selected compatible
-`std` revision. Distribution defaults may select ordinary package revisions;
+`system` revision. Distribution defaults may select ordinary package revisions;
 they do not override the resolved dependency graph by filename or short name.
 
 Genuinely compiler-supplied primitives and unavoidable entry/ABI bridges retain
 explicit, tightly identified support under the existing sealed catalog and
 admission rules. Separate those minimal declarations from ordinary wrappers;
 do not make an entire surrounding library compiler-special or move all of
-`std` into core. A toolchain-owned core declaration is not automatically a
-compiler intrinsic merely because of its package owner. A package named `std`,
+`system` into core. A toolchain-owned core declaration is not automatically a
+compiler intrinsic merely because of its package owner. A package named `system`,
 matching paths or copied signatures/source bytes cannot confer compiler custody.
 Console formatting, collections, filesystem adapters and other ordinary library
 behavior retain normal checked implementations and package identities.
 
 The [validation delivery plan](../../drafts/designs/validation_subjects.md#ordinary-library-migration)
-tracks removal of mandatory/pinned `std` coupling independently of the
+tracks removal of mandatory/pinned `system` coupling independently of the
 registration-validation API and narrow core-check-root repair. This settlement
 does not itself deliver the library rename above or the
 [runtime providers](task_runtime.md#runtime-providers-and-call-authority).
@@ -243,7 +239,7 @@ does not itself deliver the library rename above or the
 
 A missing build file is not missing provenance. Preserve any exact owner already
 supplied by the resolved source graph or an imported artifact. Core retains its
-toolchain owner; ordinary std retains its resolved package owner. Neither shares
+toolchain owner; ordinary system retains its resolved package owner. Neither shares
 an absent-owner key with the root, and repeated imports never mint fresh owners.
 
 A genuinely anonymous root uses an invocation-private activation identity while

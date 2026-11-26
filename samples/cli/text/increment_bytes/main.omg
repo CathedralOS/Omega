@@ -11,8 +11,8 @@ use omega\language\core\ProcessExit;
 //   "ab " -> 3
 // The default input is empty; cases.json pins finite input/output vectors.
 
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 
 data Main { }
 machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {

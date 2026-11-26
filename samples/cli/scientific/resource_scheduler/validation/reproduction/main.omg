@@ -2,7 +2,7 @@ use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete current-main reproduction: a guarded successor borrows a local
 // fixed byte array. The same source is required to print the actual bytes.
-use omega_language_std\Console;
+use system\Console;
 data Main { choice: i32; }
 machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     let bytes: [u8; 4] = "TEST";

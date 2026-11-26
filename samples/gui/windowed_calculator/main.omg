@@ -17,15 +17,15 @@ use omega\language\core\min_i32;
 // GUI-subsystem app: the console surface is exit + a status line for terminal
 // runs (invisible from Finder). No stdin — a windowed app must never block on
 // a console.
-use omega_language_std\Console;
-use omega_language_std\AppKit;
-use omega_language_std\CoreGraphics;
-use omega_language_std\DarwinClock;
-use omega_language_std\ObjectiveC;
-use omega_language_std\Window;
-use omega_language_std\MacosImageData;
-use omega_language_std\MacosImageObjects;
-use omega_language_std\WindowsGuiHost;
+use system\Console;
+use system\AppKit;
+use system\CoreGraphics;
+use system\DarwinClock;
+use system\ObjectiveC;
+use system\Window;
+use system\MacosImageData;
+use system\MacosImageObjects;
+use system\WindowsGuiHost;
 use providers;
 // These requirements expose the shared macos_gui operations' service rows.
 // Direct-invocation declarations are separate; they do not supply a reach ceiling.

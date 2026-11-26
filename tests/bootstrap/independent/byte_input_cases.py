@@ -5,9 +5,9 @@ import struct
 
 def byte_input_cases(root):
     encode = runpy.run_path(str(root / 'source/application/construction/construct.py'))['encode']
-    std = (root / 'source/library/std/console.omg').read_bytes()
-    start = std.index(b'public data ByteRead')
-    declaration = std[start:std.index(b'\n}', start) + 2] + b'\n'
+    system = (root / 'source/library/system/console.omg').read_bytes()
+    start = system.index(b'public data ByteRead')
+    declaration = system[start:system.index(b'\n}', start) + 2] + b'\n'
     decoder = b'''
 machine decode(word:i32)->ByteRead crashes Trap {
     transition word == -1 {true -> eof(), _ -> check(word)}

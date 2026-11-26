@@ -1454,9 +1454,9 @@ fn sibling_disjunctions_in_one_premise_remain_separate_cuts() {
 }
 
 // A machine that lends a large array through its joins has a value for every
-// element at every join: std's Windows removal walk has about 66,000. One
+// element at every join: system's Windows removal walk has about 66,000. One
 // proof context names a few of them. Each prepared context, the root and every
-// case branch, used to fill rows over the whole namespace, so checking std for
+// case branch, used to fill rows over the whole namespace, so checking system for
 // four targets reached 48.7 GB. Rows follow the named values.
 #[test]
 fn each_case_branch_allocates_rows_only_for_the_values_it_names() {

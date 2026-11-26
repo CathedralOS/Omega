@@ -12,7 +12,7 @@ the value a data carrier's machines return.
 - Inference spells the generic call without angle args:
   `Counter::echo(17)` picks `T == i32`.
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/namespace_const/main.omg

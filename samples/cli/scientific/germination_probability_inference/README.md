@@ -79,7 +79,7 @@ source-invalid project: access at index 33 in `[f64;33]` must reject with
 `cannot prove index \`33\` is within length 33`. It never enters native execution.
 The application explicitly binds Linux x86-64, Windows x86-64 and macOS ARM64
 program entries. Host qualification is reported in `VALIDATION.md`; other
-hosts are not claimed by declaration alone. The only dependency is bundled std
+hosts are not claimed by declaration alone. The only dependency is bundled system
 console. Existing Beta occurrences were text labels, not assay inference; no
 matching germination or beta-binomial workflow was present on fetched main.
 

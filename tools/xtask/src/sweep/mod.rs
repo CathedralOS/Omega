@@ -15,7 +15,7 @@
 //! - `--changed <rev> [--previous <sweep.tsv>]` checks what a change since
 //!   `<rev>` can affect: programs whose own folder holds a changed file,
 //!   programs whose path dependencies (followed to the end) hold a changed
-//!   `.omg` file, every program when the toolchain's `core` or `std` changed
+//!   `.omg` file, every program when the toolchain's `core` or `system` changed
 //!   (every check reads them), and, when the compiler
 //!   changed, the earlier sweep's blocked programs whose error contains a
 //!   message on the diff's changed lines plus every program that checks or is
@@ -553,7 +553,7 @@ enum Reason {
     OwnSource,
     /// Its `build.omg` names a path dependency the change touched.
     Dependency,
-    /// The toolchain's `core` or `std`, which every check reads, changed.
+    /// The toolchain's `core` or `system`, which every check reads, changed.
     Library,
     /// It was blocked by an error message the change touched.
     Message,
@@ -567,7 +567,7 @@ impl Reason {
         match self {
             Self::OwnSource => "a file in its own folder changed",
             Self::Dependency => "a package it depends on, directly or not, changed",
-            Self::Library => "the toolchain core or std it reads changed",
+            Self::Library => "the toolchain core or system it reads changed",
             Self::Message => "it was blocked by an error message the change touched",
             Self::Guard => "it checks or is rejected as expected (regression guard)",
         }
@@ -693,10 +693,10 @@ fn dependency_roots(root: &Path, program: &str) -> Result<Vec<String>, String> {
 }
 
 /// Whether a changed library file is in a library every check reads: the
-/// toolchain supplies `core` and `std` to every program, declared or not;
+/// toolchain supplies `core` and `system` to every program, declared or not;
 /// any other library arrives only through a declared dependency.
 fn toolchain_library(path: &str) -> bool {
-    path.starts_with("source/library/core/") || path.starts_with("source/library/std/")
+    path.starts_with("source/library/core/") || path.starts_with("source/library/system/")
 }
 
 /// The blast zone of the change from `rev`: each program the change can
@@ -734,7 +734,7 @@ fn blast_zone(
         .iter()
         // Only Omega source reaches a check: a README or an expected-output
         // file beside a program changes nothing `omega --check` reads. A
-        // changed `core` or `std` file already selected every program.
+        // changed `core` or `system` file already selected every program.
         .filter(|path| path.ends_with(".omg") && !toolchain_library(path))
         .collect();
     if !sources.is_empty() {
@@ -1417,9 +1417,9 @@ mod tests {
     }
 
     #[test]
-    fn only_core_and_std_reach_every_program() {
+    fn only_core_and_system_reach_every_program() {
         assert!(toolchain_library("source/library/core/layout.omg"));
-        assert!(toolchain_library("source/library/std/console.omg"));
+        assert!(toolchain_library("source/library/system/console.omg"));
         assert!(!toolchain_library("source/library/allocation/vec/vec.omg"));
         assert!(!toolchain_library("samples/cli/facts/f/local/main.omg"));
     }

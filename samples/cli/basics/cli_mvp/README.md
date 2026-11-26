@@ -19,7 +19,7 @@ The Linux x86-64 ordinary route was attempted at `b53c7ea26032`: `omega
 update --project . --target linux_x86_64` rejects inside the
 `omega-language-std` package candidate check with `routed service field
 Filesystem::host has no exact Fused selected-provider-plan join`, before any
-review decision — a shared std-dependency gate, not a sample defect. Windows
+review decision — a shared system-dependency gate, not a sample defect. Windows
 x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler after local
 package review. EOF and Enter produce the exact 37-byte stdout, empty program
 stderr, and exit 0. The published image prints both lines while stdin is open,
@@ -48,8 +48,8 @@ mbx run --release -p omega -- packages update --resume --project samples/cli/bas
 
 Resume must succeed before compilation. The observed fresh macOS review required
 six decisions: the application's Console output, input, and termination
-permissions; std's external byte-input declaration and intrinsic binding; and
-std's public filesystem capability. Inspect the actual findings rather than
+permissions; system's external byte-input declaration and intrinsic binding; and
+system's public filesystem capability. Inspect the actual findings rather than
 assuming that list is unchanged. The source-diff renderer can report incomplete
 output; accepted decisions are not evidence of a complete source audit.
 
@@ -106,7 +106,7 @@ It executes the report's checked executable path under test-owned package
 acceptance. It does not perform the local project's CLI review or accept its
 `omega.lock`; keep those checks separate.
 
-[`main.omg`](main.omg) uses ordinary std Console and intrinsic
+[`main.omg`](main.omg) uses ordinary system Console and intrinsic
 `Service<Console>` establishment. [`build.omg`](build.omg) binds each hosted
 `ProgramEntry` to the same machine. Preserve the two writes, mutable pause view,
 blocking line read, and exit; do not replace the library bodies with sample-only

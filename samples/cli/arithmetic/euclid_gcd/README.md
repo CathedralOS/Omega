@@ -50,7 +50,7 @@ under EOF input; its test-owned acceptance does not cover the ordinary CLI
 review route. On Linux x86-64 `omega packages update --project . --target
 linux_x86_64` rejects inside the `omega-language-std` package candidate check
 with `routed service field Filesystem::host has no exact Fused
-selected-provider-plan join` before review decisions — the shared std gate
+selected-provider-plan join` before review decisions — the shared system gate
 already recorded for this project at `f600f8400b7`, re-witnessed at
 `b53c7ea26032`. The ordinary Linux CLI route remains open in
 [SAMPLE-CORPUS](../../../../TASKS.md).

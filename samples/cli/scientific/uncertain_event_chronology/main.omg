@@ -4,8 +4,8 @@ use omega\language\core\ProcessExit;
 // One-record chronology CLI; EOF without a record is an input error.
 // Expected exit: 2.
 // Expected output contains: invalid input
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use chronology\model;
 use chronology\model\Chronology;
 use chronology\model\Reconciliation;

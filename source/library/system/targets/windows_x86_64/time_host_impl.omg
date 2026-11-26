@@ -1,0 +1,56 @@
+use time_host.omg as time_host;
+
+// windows_x86_64 `TimeHost` provider.
+//
+// Windows has no stable syscall ABI, so every leaf realizes through kernel32
+// DLL linkage like the other Windows boundary leaves. All four entry points
+// were read out of Microsoft's API reference rather than assumed:
+//   `BOOL QueryPerformanceCounter([out] LARGE_INTEGER *lpPerformanceCount)`
+//     — profileapi.h, "DLL: Kernel32.dll". "On systems that run Windows XP or
+//     later, the function will always succeed when given valid parameters and
+//     will thus never return zero", which is what makes the degraded arm below
+//     unreachable in practice rather than a swallowed failure.
+//   `BOOL QueryPerformanceFrequency([out] LARGE_INTEGER *lpFrequency)`
+//     — profileapi.h, "DLL: Kernel32.dll".
+//   `VOID GetSystemTimePreciseAsFileTime([out] LPFILETIME)`
+//     — sysinfoapi.h, "DLL: Kernel32.dll", minimum Windows 8 / Server 2012.
+//     `system/time_host.omg`'s header selects this call for this target.
+//   `VOID Sleep(DWORD dwMilliseconds)` — kernel32; `system/build.omg` binds it
+//     for `WindowsClockWait::sleep` and `WindowsTimeRead::sleep`. Both
+//     callers keep 0xFFFFFFFF (`INFINITE`) away from it.
+//
+// The four raw requirements below are backed by native rows in `system/build.omg`,
+// not by forwarding declarations in this file.
+//
+// FILETIME is a 64-bit count of 100-nanosecond intervals since 1601-01-01
+// UTC. That is the whole reason `wall_clock_units_per_second` and
+// `wall_clock_epoch_offset_seconds` exist: the units are 10_000_000 and the
+// 1601 -> 1970 shift is 11_644_473_600 seconds (134_774 days x 86_400), the
+// two constants `system/time_host.omg`'s header already specifies here. The
+// portable wrapper in `system/time.omg` applies both; this file states them and
+// does no arithmetic.
+//
+// NATIVE EXECUTION IS UNVERIFIED. This host is macOS arm64 and cannot execute
+// a windows_x86_64 product. The evidence for this file is Psi checking plus
+// the native artifact's terminal-authority closure review resolving every
+// `TimeHost` requirement to a selected provider row.
+
+// LARGE_INTEGER's QuadPart is a signed LONGLONG, so the counter and frequency
+// out-parameters are `i64`. FILETIME's two DWORDs form one little-endian
+// 64-bit count, and x86-64 Windows is always little-endian, so one `u64`
+// cell receives that non-tearing read. Each requirement reaches `TimeHost`.
+boundary trait WindowsTimeRead {
+    machine query_performance_counter(counter: @mutable i64) -> i32
+    reaches |time_host|::TimeHost
+    crashes none;
+    machine query_performance_frequency(frequency: @mutable i64) -> i32
+    reaches |time_host|::TimeHost
+    crashes none;
+    machine system_time_as_file_time(file_time: @mutable u64)
+    reaches |time_host|::TimeHost
+    crashes none;
+    machine sleep(milliseconds: u32)
+    reaches |time_host|::TimeHost
+    blocks
+    crashes none;
+}

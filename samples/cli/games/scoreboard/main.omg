@@ -12,7 +12,7 @@ use omega\language\core\ProcessExit;
 // exercised elsewhere; this sample uses constant indices.)
 // Expected exit: 70.
 
-use omega_language_std\Console;
+use system\Console;
 
 data Player requires 0 <= score, score <= 100 {
     id: i32;

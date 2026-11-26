@@ -36,7 +36,7 @@ The [published source archive](https://github.com/CathedralOS/Omega/pull/1669#is
 Earlier macOS records at `b9060c9ca30d` and `8128744a9d77` remain historical observations, with their original source stamps.
 
 Every positive and root binds `ProgramEntry` for all four hosted targets and
-declares `Expected exit: 0`. There is no `std` dependency.
+declares `Expected exit: 0`. There is no `system` dependency.
 
 ```sh
 omega run --both samples/cli/facts/may_write_named_state/target_body/main.omg

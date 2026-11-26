@@ -4,7 +4,7 @@ use omega\language\core\ProcessExit;
 // Read supplied dose/replicate/control observations, fit and profile a 4PL.
 // Expected exit: 2.
 // Expected output contains: error=input:
-use omega_language_std\Console;
+use system\Console;
 use domain\model;
 use domain\model\Observations;
 use domain\model\Fit;

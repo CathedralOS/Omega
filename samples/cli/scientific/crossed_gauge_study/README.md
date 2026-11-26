@@ -41,7 +41,7 @@ From the repository root, using a compiler built from the recorded base:
 
 ```sh
 omega packages update --project samples/cli/independent/crossed_gauge_study
-# Read the generated review; accept only requested std/entry decisions and resume.
+# Read the generated review; accept only requested system/entry decisions and resume.
 omega packages update --resume --project samples/cli/independent/crossed_gauge_study
 omega --check samples/cli/independent/crossed_gauge_study/main.omg
 omega samples/cli/independent/crossed_gauge_study/main.omg

@@ -39,7 +39,7 @@ becomes satisfiable if individually removed from the final core.
 `domain/model.omg` defines validation and the inheritance kernel,
 `domain/input.omg` owns byte parsing, `domain/solver.omg` owns exhaustive inference
 and contradiction deletion, and `domain/report.omg` renders computed results.
-Only the stable std Console provider and core binding package are used. There
+Only the stable system Console provider and core binding package are used. There
 are no worker, numerical-library, Python runtime or shared-export dependencies.
 At six people, enumeration visits 729 genotype vectors; core extraction requires
 at most eight such passes. All weights and marginal sums fit in 4096. Explicit
@@ -98,7 +98,7 @@ portable approval. The bounds control rejects specifically for its intended
 index rule. All 49 frozen fixture/oracle hashes remain unchanged.
 
 The accompanying parser repair has two checked source controls and five
-intended rejections, all passing on the validation compiler. Its std-free
+intended rejections, all passing on the validation compiler. Its system-free
 blocking control also passed native and Terminal in the original checkpoint.
 On original compiler base `1ade44fe20d0979707c383846a4a25a40527209f`, combined
 suspension checked but the separate complete

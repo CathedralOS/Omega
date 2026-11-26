@@ -2,8 +2,8 @@ use omega\language\core\StandardInput;
 use omega\language\core\ProcessExit;
 // Complete positive control: a local fixed byte buffer crosses a case edge
 // after the standard input provider filled it. With input 0 LF, exit 70.
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 data Main { }
 machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
     let mutable input: [u8; 8];

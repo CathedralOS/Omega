@@ -1,11 +1,11 @@
 //! `Clock::sleep` holds the caller's worker for the whole wait, so the standard
 //! library declares it `blocks` and every caller must write `block` at the
 //! call (wiki/spec/language/effects.md, call-site acknowledgements). Before
-//! the declaration, std published the wait as never blocking and the checker
+//! the declaration, system published the wait as never blocking and the checker
 //! accepted an unmarked call.
 //!
 //! The twins differ only in that marker. The positive still stops later, at a
-//! separate failure every std `Clock` program shares today, so it pins only
+//! separate failure every system `Clock` program shares today, so it pins only
 //! that the acknowledgement check accepts the marked call.
 
 mod support;

@@ -47,7 +47,7 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 70.
 
-use omega_language_std\Console;
+use system\Console;
 
 data State [copy] {
     // Wrapping so the value-return arithmetic below (`n * multiplier`,

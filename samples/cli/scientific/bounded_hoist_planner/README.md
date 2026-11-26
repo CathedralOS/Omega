@@ -36,7 +36,7 @@ expected bytes.
 `main.omg` owns input and the entrypoint; `build.omg` binds exact target entry
 slots. `input/parse.omg`, `clearance/{model,search}.omg`, and
 `reporting/certificate.omg` own the whole workflow. The only dependency is the
-stable repository std package and existing Console providers. There are no
+stable repository system package and existing Console providers. There are no
 numerics-library or worker-candidate imports and no shared exports.
 
 Existing samples were searched for clearance, route, profile and hoist

@@ -4,7 +4,7 @@ A complete offline two-constituent gravimetric verification application. Read
 synthetic gross measurements and tare, correct each mass, propagate the declared
 measurement uncertainty including reused-tare covariance, and accept only when
 the entire expanded fraction interval lies inside the specification. All domain
-code and fixtures are private to this project. The only dependency is stable std;
+code and fixtures are private to this project. The only dependency is stable system;
 there is no dependency on another worker or an in-progress numeric package.
 
 From the repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's
@@ -12,7 +12,7 @@ From the repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's
 
 ```sh
 omega packages update --project samples/cli/independent/gravimetric_mixture --target linux_x86_64
-# Review the generated build/package-manager/review-linux_x86_64.txt decisions; accept the std dependency
+# Review the generated build/package-manager/review-linux_x86_64.txt decisions; accept the system dependency
 # and its ordinary entry/provider grants, then:
 omega packages update --resume --project samples/cli/independent/gravimetric_mixture
 omega --check samples/cli/independent/gravimetric_mixture/main.omg
@@ -21,7 +21,7 @@ omega run --both --keep samples/cli/independent/gravimetric_mixture/main.omg \
 ```
 
 The ../invalid_gravimetric_mixture source is a separate complete project with its own entry and
-build metadata. Prepare its std dependency the same way, then check
+build metadata. Prepare its system dependency the same way, then check
 `../invalid_gravimetric_mixture/main.omg`; it must reject the negative value assigned to
 `Nonnegative`.
 

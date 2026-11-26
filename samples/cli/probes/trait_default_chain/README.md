@@ -21,7 +21,7 @@ bindings.
 
 The machine resets a counter (value 30, `prepared` set by the bound row's
 10-branch) and `put_twice`-appends 7 to a wrapping ledger (count 2,
-sum 14). Compile-checked only (no std dependency):
+sum 14). Compile-checked only (no system dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/trait_default_chain/main.omg

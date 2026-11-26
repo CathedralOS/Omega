@@ -1,5 +1,5 @@
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 // Signed fixed-width decimal in hundredths of an energy unit.
 public machine number(value: i32 in Saturating) reaches StandardOutput
 invokes Console

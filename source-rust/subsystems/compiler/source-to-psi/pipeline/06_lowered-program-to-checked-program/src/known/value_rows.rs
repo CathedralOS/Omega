@@ -1,7 +1,7 @@
 //! One row per value that a proof context's facts name, not one per value of
 //! the machine.
 //!
-//! A machine's value namespace can be very large. std's Windows removal walk
+//! A machine's value namespace can be very large. system's Windows removal walk
 //! lends a `[WindowsRemovalFrame; 4096]` through every join of its nested
 //! machines, and each join snapshots every element, so one checked machine
 //! has about 66,000 values. The facts of one proof context name a few
@@ -9,7 +9,7 @@
 //! branch it opened, dense rows over the whole namespace: 400 to 600 contexts
 //! per machine, each allocating and filling several 66,000-row tables. In a
 //! copy of that walk each machine took 1.2–2.3 GB and 7–9 seconds to check,
-//! and checking std for four targets at once reached 48.7 GB.
+//! and checking system for four targets at once reached 48.7 GB.
 //!
 //! `ValueRows` keeps a dense row for each value in the context's sorted
 //! family, found by binary search, and a sorted overflow for any other value

@@ -14,7 +14,7 @@ omega --check samples/cli/independent/operating_envelope/main.omg
 omega run --both --keep samples/cli/independent/operating_envelope/main.omg < samples/cli/independent/operating_envelope/data/rectangle.txt
 ```
 
-First prepare the ordinary std dependency with `omega packages update --project
+First prepare the ordinary system dependency with `omega packages update --project
 samples/cli/independent/operating_envelope`, inspect its review and explicitly
 accept the required decisions, then `omega packages update --resume --project ...`.
 No candidate or in-progress numerical library is required.

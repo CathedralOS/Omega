@@ -60,7 +60,7 @@ pub enum SealedIntrinsic {
     TaskRuntimeTryStart,
     /// Core `layout.omg`'s existing restricted scalar accessor template.
     PlacedAccessorTemplate,
-    /// std `console.omg`'s `ByteRead`, the result type of `Console::read_byte`.
+    /// system `console.omg`'s `ByteRead`, the result type of `Console::read_byte`.
     HostedByteRead,
     /// A hosted console or process-exit requirement in bundled source.
     HostedRequirement(HostedOperation),
@@ -119,9 +119,9 @@ pub enum PlacementContent {
 /// The hosted operations the compiler realizes for every hosted target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum HostedOperation {
-    /// std `Console::write_byte`.
+    /// system `Console::write_byte`.
     ConsoleWriteByte,
-    /// std `Console::read_byte`.
+    /// system `Console::read_byte`.
     ConsoleReadByte,
     /// core `ProcessExit::exit_process`.
     ProcessExit,
@@ -494,19 +494,19 @@ const ROWS: &[SealedIntrinsicRow] = &[
     row(
         "console.omg",
         "ByteRead",
-        BundledFile::StdConsole,
+        BundledFile::SystemConsole,
         SealedIntrinsic::HostedByteRead,
     ),
     row(
         "console.omg",
         "Console::write_byte",
-        BundledFile::StdConsole,
+        BundledFile::SystemConsole,
         SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleWriteByte),
     ),
     row(
         "console.omg",
         "Console::read_byte",
-        BundledFile::StdConsole,
+        BundledFile::SystemConsole,
         SealedIntrinsic::HostedRequirement(HostedOperation::ConsoleReadByte),
     ),
     row(

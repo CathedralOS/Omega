@@ -7,29 +7,29 @@
 use super::boundary_calls::typed;
 use super::*;
 
-const VOCABULARY: &str = include_str!("../../../../../../../../source/library/std/calling.omg");
-const SHAPES: &str = include_str!("../../../../../../../../source/library/std/entry_shapes.omg");
+const VOCABULARY: &str = include_str!("../../../../../../../../source/library/system/calling.omg");
+const SHAPES: &str = include_str!("../../../../../../../../source/library/system/entry_shapes.omg");
 /// Each hosted target's named policy and its private static plan helper.
 const TARGETS: [(&str, &str, &str); 4] = [
     (
         "WindowsX86_64",
         "windows_x86_64_entry_plan",
-        include_str!("../../../../../../../../source/library/std/targets/windows_x86_64/entry.omg"),
+        include_str!("../../../../../../../../source/library/system/targets/windows_x86_64/entry.omg"),
     ),
     (
         "LinuxX86_64",
         "linux_x86_64_entry_plan",
-        include_str!("../../../../../../../../source/library/std/targets/linux_x86_64/entry.omg"),
+        include_str!("../../../../../../../../source/library/system/targets/linux_x86_64/entry.omg"),
     ),
     (
         "LinuxArm64",
         "linux_arm64_entry_plan",
-        include_str!("../../../../../../../../source/library/std/targets/linux_arm64/entry.omg"),
+        include_str!("../../../../../../../../source/library/system/targets/linux_arm64/entry.omg"),
     ),
     (
         "MacosArm64",
         "macos_arm64_entry_plan",
-        include_str!("../../../../../../../../source/library/std/targets/macos_arm64/entry.omg"),
+        include_str!("../../../../../../../../source/library/system/targets/macos_arm64/entry.omg"),
     ),
 ];
 
@@ -138,12 +138,18 @@ fn typed_hosted_policy(policy: &str) -> crate::source_state::TypedTrees {
         include_str!("../../../../../../../../source/library/core/byte_observation/byte_observation.omg"),
         None, source_admission::SourceOrigin::Toolchain,
     );
-    let mut add_std = |name, text| add_file(
-        std::path::Path::new("std"), name, text, Some(package), source_admission::SourceOrigin::User,
-    );
-    let abi = add_std("calling.omg", VOCABULARY);
-    let shapes = add_std("entry_shapes.omg", SHAPES);
-    let entry = add_std("entry.omg", policy);
+    let mut add_system = |name, text| {
+        add_file(
+            std::path::Path::new("system"),
+            name,
+            text,
+            Some(package),
+            source_admission::SourceOrigin::User,
+        )
+    };
+    let abi = add_system("calling.omg", VOCABULARY);
+    let shapes = add_system("entry_shapes.omg", SHAPES);
+    let entry = add_system("entry.omg", policy);
     let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
         syntax,
         sources: Some(Arc::new(sources)),

@@ -8,7 +8,7 @@ use domain\model\Application;
 use domain\selection;
 use domain\selection\violations;
 use domain\selection\witness;
-use omega_language_std\Console;
+use system\Console;
 public machine number(application: @mutable Application, value: u64) reaches StandardOutput
 invokes Console
 requires value <= 999 {

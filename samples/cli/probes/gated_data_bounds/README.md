@@ -14,7 +14,7 @@ gate.
   obligation discharges at the same time.
 
 The machine wounds a 50-health player to 20, reads it with a 3-level
-gauge, and accepts on 20 + 3 == 23. Compile-checked only (no std
+gauge, and accepts on 20 + 3 == 23. Compile-checked only (no system
 dependency, no ProcessExit provider):
 
 ```sh

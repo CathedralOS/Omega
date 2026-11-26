@@ -8,7 +8,7 @@ use omega\language\core\Schema;
 use omega\language\core\CAbiPolicy;
 use omega\language\core\narrow_i32_to_u32_wrapping;
 use omega\language\core\widen_u32_to_u64;
-use omega_language_std\targets\macos_arm64\filesystem_abi;
+use system\targets\macos_arm64\filesystem_abi;
 
 public boundary trait StatExchange {
     machine fill(value: @mutable DarwinStat) reaches none crashes none;

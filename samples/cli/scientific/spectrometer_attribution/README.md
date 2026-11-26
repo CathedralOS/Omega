@@ -97,14 +97,14 @@ export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 OMEGA=/absolute/path/to/omega
 APP=samples/cli/independent/spectrometer_attribution
 "$OMEGA" update --project "$APP" --target linux_x86_64
-# Inspect the emitted review, accept the expected local std/entry decisions,
+# Inspect the emitted review, accept the expected local system/entry decisions,
 # then resume if the update requests review.
 "$OMEGA" update --resume --project "$APP"
 "$OMEGA" --check --target linux_x86_64 "$APP/main.omg"
 "$OMEGA" run --both --keep "$APP/main.omg" < "$APP/data/isolated.input"
 ```
 
-The installed host providers are the ordinary std console. Build metadata binds
+The installed host providers are the ordinary system console. Build metadata binds
 exact hosted program-entry slots. Linux x86-64 is the execution acceptance host;
 other bindings are portability declarations, not unexecuted test claims.
 `omega run --both` compares termination and the exact stdout and stderr bytes from

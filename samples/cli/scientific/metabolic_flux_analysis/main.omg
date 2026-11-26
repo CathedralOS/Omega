@@ -17,7 +17,7 @@ use domain\solver\solve;
 use domain\report;
 use domain\report\rational;
 use omega\language\core\narrow_i64_to_i32_wrapping;
-use omega_language_std\Console;
+use system\Console;
 
 data Application { reader: Reader; solver: Solver; }
 machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {

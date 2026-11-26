@@ -13,7 +13,7 @@ use input\numbers\read_number;
 use input\numbers\only_whitespace;
 use report\render;
 use report\render\report;
-use omega_language_std\Console;
+use system\Console;
 
 machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput {
     let count: Parsed = block read_number();

@@ -5,7 +5,7 @@ bound to every hosted `ProgramEntry` slot, and **no package
 dependencies** — not even the standard library.
 
 It exists as a benchmark subject. Every other measured
-subject registers a dependency on `source/library/std`, whose compile currently rejects at
+subject registers a dependency on `source/library/system`, whose compile currently rejects at
 the comparison-occurrence realization gate. This subject stands alone: the
 compile reaches a published native artifact (~25 s on a w9 Linux x86-64 host),
 so `compile_time_ms`, `peak_memory_bytes`, and `code_size_bytes` are honest
@@ -13,7 +13,7 @@ measurements of the whole pipeline's fixed cost on the smallest possible
 program.
 
 The artifact is not runnable as a clean process. `ProcessExit::exit_process` is
-a toolchain-owned boundary whose canonical provider is bound to the std package
+a toolchain-owned boundary whose canonical provider is bound to the system package
 identity (`omega-language-std`), and a boundary machine declared in a subject's
 own package produces no provider plan — only dependency packages contribute
 them. With no exit authority the emitted entry falls off the end and the

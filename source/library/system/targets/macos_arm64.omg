@@ -1,0 +1,4 @@
+// The `macos_arm64` system target definition (file shape settled 2026-07-07:
+// `system/targets/<target>.omg` = the target def; checked per-subsystem target
+// implementations live beneath `system/targets/macos_arm64/`). Target filtering
+// keeps non-selected implementations inert.

@@ -13,7 +13,7 @@ use domain\orbit\Orbit;
 use domain\orbit\coordinate;
 use domain\orbit\diagnostics;
 use domain\orbit\step;
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\F64::from_i32;
 use omega\language\core\I32::from_f64;
 

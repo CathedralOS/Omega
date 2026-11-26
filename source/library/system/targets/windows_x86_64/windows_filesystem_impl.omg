@@ -1,0 +1,126 @@
+use targets/windows_x86_64/filesystem_removal/removal.omg as removal_removal;
+use targets/windows_x86_64/windows_filesystem_control.omg as control;
+use targets/windows_x86_64/windows_filesystem_directory.omg as directory;
+use targets/windows_x86_64/windows_filesystem_directory_entry.omg as directory_entry;
+use targets/windows_x86_64/windows_filesystem_file_control.omg as file_control;
+use targets/windows_x86_64/windows_filesystem_lock.omg as lock;
+use targets/windows_x86_64/windows_filesystem_metadata.omg as classifier;
+use targets/windows_x86_64/windows_filesystem_path_query.omg as path_query;
+use targets/windows_x86_64/windows_filesystem_position.omg as position;
+use targets/windows_x86_64/windows_filesystem_reparse.omg as reparse;
+use targets/windows_x86_64/windows_filesystem_transfer.omg as transfer;
+use filesystem_host.omg as paths;
+use windows_filesystem_host.omg as win_fs;
+use system;
+use targets\windows_x86_64\filesystem_removal\windows_remove_tree;
+// Windows raw filesystem entrance. Select one complete public family map and
+// its exact native dependencies: control/query imports plus whole-view I/O.
+// Control/path operations live below windows_filesystem_control; borrowed-buffer
+// mode, pinning and completion flow lives below windows_filesystem_transfer.
+// The calling policy describes representation, never custody or authority.
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
+
+// system's Build selects this map for windows_x86_64. Its inline members forward
+// to the Windows adapters and their foreign bindings. Forwarding preserves operation capability rows;
+// the raw family's selection identity contributes no additional service reach.
+NativeWindowsFilesystem satisfies |win_fs|::WindowsFilesystemHost {
+    machine remove_tree(path: @[u8] in |paths|::Path) -> i32
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {
+        block |removal_removal|::windows_remove_tree(path)
+    }
+    machine read_link(path: @[u8] in |paths|::Path, output: @mutable [u8], count: u64) -> i64
+    reaches FilesystemMetadataQuery {
+        block |reparse|::windows_filesystem_native_read_link(path, output, count)
+    }
+    machine lock_file(handle: u64, exclusive: bool, nonblocking: bool) -> i32 {
+        block |lock|::windows_filesystem_native_lock_file(handle, exclusive, nonblocking)
+    }
+    machine unlock_file(handle: u64) -> i32 {
+        block |lock|::windows_filesystem_native_unlock_file(handle)
+    }
+    machine directory_nth(path: @[u8] in |paths|::Path, ordinal: u64) -> |win_fs|::WindowsDirectoryEntryResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
+        block |directory_entry|::windows_filesystem_native_directory_nth(path, ordinal)
+    }
+    machine canonicalize(path: @[u8] in |paths|::Path, output: @mutable [u8]) -> i32 reaches FilesystemMetadataQuery {
+        block |path_query|::windows_filesystem_native_canonicalize(path, output)
+    }
+    machine directory_count(path: @[u8] in |paths|::Path) -> |win_fs|::WindowsDirectoryCountResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
+        block |directory|::windows_directory_count_names(path, false)
+    }
+    machine directory_has_entry(path: @[u8] in |paths|::Path) -> |win_fs|::WindowsDirectoryCountResult
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
+        block |directory|::windows_directory_count_names(path, true)
+    }
+    machine read_at(handle: u64, buffer: @mutable [u8], count: u64, offset: i64) -> i64 reaches FilesystemContentRead {
+        block |position|::windows_filesystem_native_read_at(handle, buffer, count, offset)
+    }
+    machine write_at(handle: u64, bytes: @[u8], offset: i64) -> i64 reaches FilesystemContentWrite {
+        block |position|::windows_filesystem_native_write_at(handle, bytes, offset)
+    }
+    machine set_file_length(handle: u64, length: i64) -> i32 reaches FilesystemContentWrite + FilesystemMetadataMutation {
+        block |file_control|::windows_filesystem_native_set_file_length(handle, length)
+    }
+    machine set_handle_readonly(handle: u64, readonly: bool) -> i32 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
+        block |file_control|::windows_filesystem_native_set_handle_readonly(handle, readonly)
+    }
+    machine set_path_readonly(path: @[u8] in |paths|::Path, readonly: bool) -> i32 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
+        block |file_control|::windows_filesystem_native_set_path_readonly(path, readonly)
+    }
+    machine metadata(handle: u64) -> |win_fs|::WindowsMetadataResult reaches FilesystemMetadataQuery {
+        block |classifier|::windows_filesystem_native_metadata(handle)
+    }
+    machine read_metadata(path: @[u8] in |paths|::Path, no_follow: bool) -> |win_fs|::WindowsMetadataResult reaches FilesystemMetadataQuery {
+        block |classifier|::windows_filesystem_native_read_metadata(path, no_follow)
+    }
+    machine create_file(path: @[u8] in |paths|::Path, desired_access: u32, share_mode: u32, creation_disposition: u32, flags_and_attributes: u32) -> u64
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+        block |control|::windows_filesystem_native_create_file(path, desired_access, share_mode, creation_disposition, flags_and_attributes)
+    }
+    machine write_file(handle: u64, bytes: @[u8]) -> i64 reaches FilesystemContentWrite {
+        block |transfer|::windows_filesystem_native_write_file(handle, bytes)
+    }
+    machine close_handle(handle: u64) -> i32 { block |control|::windows_filesystem_native_close_handle(handle) }
+    machine last_error() -> u32 { |control|::windows_filesystem_native_last_error() }
+    machine read_file(handle: u64, buffer: @mutable [u8], count: u64) -> i64 reaches FilesystemContentRead {
+        block |transfer|::windows_filesystem_native_read_file(handle, buffer, count)
+    }
+    machine flush_file_buffers(handle: u64) -> i32 { block |control|::windows_filesystem_native_flush_file_buffers(handle) }
+    machine set_file_pointer(handle: u64, distance: i64, method: u32) -> i64 {
+        block |control|::windows_filesystem_native_set_file_pointer(handle, distance, method)
+    }
+    machine duplicate_handle(handle: u64) -> u64 { |control|::windows_filesystem_native_duplicate_handle(handle) }
+    machine move_file(from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path, flags: u32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+        block |control|::windows_filesystem_native_move_file(from, to, flags)
+    }
+    machine rename_file(from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path) -> i32 reaches FilesystemNamespaceMutation {
+        block |control|::windows_filesystem_native_rename_file(from, to)
+    }
+    machine hard_link(original: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> i32 reaches FilesystemNamespaceMutation {
+        block |control|::windows_filesystem_native_hard_link(original, link)
+    }
+    machine set_file_time(handle: u64, access_time: u64, write_time: u64) -> i32 reaches FilesystemMetadataMutation {
+        block |control|::windows_filesystem_native_set_file_time(handle, access_time, write_time)
+    }
+    machine get_file_time(handle: u64) -> |win_fs|::WindowsFileTimeResult reaches FilesystemMetadataQuery {
+        block |control|::windows_filesystem_native_get_file_time(handle)
+    }
+    machine set_file_attributes(path: @[u8] in |paths|::Path, attributes: u32) -> i32 reaches FilesystemMetadataMutation {
+        block |control|::windows_filesystem_native_set_file_attributes(path, attributes)
+    }
+    machine create_directory(path: @[u8] in |paths|::Path) -> i32 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation {
+        block |control|::windows_filesystem_native_create_directory(path)
+    }
+    machine remove_directory(path: @[u8] in |paths|::Path) -> i32 reaches FilesystemNamespaceMutation {
+        block |control|::windows_filesystem_native_remove_directory(path)
+    }
+    machine delete_file(path: @[u8] in |paths|::Path) -> i32 reaches FilesystemNamespaceMutation {
+        block |control|::windows_filesystem_native_delete_file(path)
+    }
+}

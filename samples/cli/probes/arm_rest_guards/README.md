@@ -12,7 +12,7 @@ exhaustiveness law), `as` binding renames, and `if` guards on case arms.
 - Payloads ride on a scalar domain (`i32 in Step`, 0..=60): domain
   members add through the ordinary `+` and produce plain i32.
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/arm_rest_guards/main.omg

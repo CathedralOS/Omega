@@ -1,7 +1,7 @@
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete independent negative control: an unguarded capacity read must fail.
-use omega_language_std\Console;
+use system\Console;
 data Main { }
 machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     let sequence: [u8; 16];

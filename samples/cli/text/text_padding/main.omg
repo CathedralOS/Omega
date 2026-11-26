@@ -20,7 +20,7 @@ use omega\language\core\ProcessExit;
 // Expected exit: 6.
 // Expected output contains: ALERT temp
 
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\narrow_u64_to_i32_saturating;
 
 domain [u8]::Utf8

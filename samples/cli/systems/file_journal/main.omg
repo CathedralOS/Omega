@@ -4,13 +4,13 @@ use omega\language\core\ProcessExit;
 // Each successful step increments the tally; partial completion returns fewer
 // than seven. The application calls FilesystemService directly and holds no raw OS role.
 // Expected exit: 7.
-use omega_language_std\File;
-use omega_language_std\IoResult;
-use omega_language_std\Metadata;
-use omega_language_std\MetadataResult;
-use omega_language_std\OpenResult;
-use omega_language_std\UnitResult;
-use omega_language_std\FilesystemService;
+use system\File;
+use system\IoResult;
+use system\Metadata;
+use system\MetadataResult;
+use system\OpenResult;
+use system\UnitResult;
+use system\FilesystemService;
 
 data Main {
     result: UnitResult;

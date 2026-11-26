@@ -4,7 +4,7 @@ use omega\language\core\ProcessExit;
 // Ideal diprotic acid titration; supplied finite bounded stdin.
 // Expected exit: 0.
 // Expected output contains: status=ok
-use omega_language_std\Console;
+use system\Console;
 use domain\input;
 use domain\input\Reader;
 use domain\input\Input;

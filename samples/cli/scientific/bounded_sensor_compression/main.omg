@@ -3,7 +3,7 @@ use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 10.
 // Expected output contains: error: input bounds or syntax
-use omega_language_std\Console;
+use system\Console;
 use domain\model\SensorBlock;
 use domain\model\SensorStream;
 use domain\model\InputBuffer;

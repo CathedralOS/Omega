@@ -32,7 +32,7 @@ independently establish its storage, initialization, and lifetime obligations.
 
 ## Line result and zero initialization
 
-The library result in `source/library/std/console.omg` has this shape; native
+The library result in `source/library/system/console.omg` has this shape; native
 provider and complete caller support remain implementation obligations:
 
 ```omega

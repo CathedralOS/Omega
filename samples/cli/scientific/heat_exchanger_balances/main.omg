@@ -5,7 +5,7 @@ use omega\language\core\ProcessExit;
 // Expected exit: 64.
 // Expected output contains: INVALID bounded counterflow input
 // The generic sample harness supplies EOF; data/ covers the scientific workflows.
-use omega_language_std\Console;
+use system\Console;
 use io\input;
 use io\report;
 use model\stages;

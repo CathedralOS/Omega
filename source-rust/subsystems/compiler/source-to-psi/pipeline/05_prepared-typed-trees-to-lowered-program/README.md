@@ -460,7 +460,7 @@ executes":
   Build's dependency scope and checks it with the lowered-form checker before
   running it.
 - **The bound target's entry-contract source**
-  (`source/library/std/targets/<target>/entry.omg`), whose machines plan how
+  (`source/library/system/targets/<target>/entry.omg`), whose machines plan how
   the program is entered. It is a toolchain file, so its machines are judged
   only if something reaches them; acceptance does not cover the helpers
   nothing reaches.

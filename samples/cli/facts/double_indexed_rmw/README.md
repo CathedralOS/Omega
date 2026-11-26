@@ -12,7 +12,7 @@ The operation is that pair of read-modify-writes through borrowed caller
 storage. Both arrays are locals loaned into the state that writes them. The
 grid cell is selected by two runtime indices. The row cell is a field between
 two runtime indices. Exit 0 requires both observations. This witness does not
-depend on `source/library/std`.
+depend on `source/library/system`.
 
 Every place copies that fact sentence and operation. Only the transport of the
 borrowed storage changes: a local, a record field, an explicit parameter, a
@@ -29,7 +29,7 @@ Historical macOS qualification of the corpus fixtures
 `runtime_double_indexed_rmw_exit`,
 `runtime_indexed_struct_field_rmw_exit`, and `runtime_hoisted_index_write_exit`
 kept their authored exits and stopped at program-entry admission
-because `Build::dependency` on std asks for an accepted `WindowsX86_64Application`
+because `Build::dependency` on system asks for an accepted `WindowsX86_64Application`
 binding. That earlier observation is separate from the package-free row below.
 
 | Place | Positive | Reject twin | Transport |

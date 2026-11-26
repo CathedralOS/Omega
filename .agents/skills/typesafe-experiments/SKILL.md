@@ -118,7 +118,7 @@ Infrastructure (2026-09-19): `omega run` on a new package required interactive
 package review (`update` wrote pending decisions; each run regenerated them),
 with no headless route, so behavior was judged from `--check` plus how the
 program was built.
-`omega_language_std` imports need a sibling `build.omg` package edge;
+`system` imports need a sibling `build.omg` package edge;
 `omega::language::std` is the bundled single-file form. The local
 `devin` CLI refused headless runs after OAuth login (its stored credentials
 were in a format its dispatcher rejects); use subagent workers and record that.

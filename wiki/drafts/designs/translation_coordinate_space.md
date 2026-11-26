@@ -70,7 +70,7 @@ package is introduced.
 ## Observed implementation state
 
 A simplified form of the construction, with one `u64` offset and no address
-space parameters, was tried in a std-free scratch package against a build of
+space parameters, was tried in a system-free scratch package against a build of
 `eb37f41` made with the stable toolchain, not the pinned reference toolchain.
 A baseline interval split copied from
 `tests/omega/pass/facts/content_reunion_through_call_result_exit` checked

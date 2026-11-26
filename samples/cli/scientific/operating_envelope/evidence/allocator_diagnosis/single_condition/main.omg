@@ -2,7 +2,7 @@ use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Keep independently produced trapping additions live until their sum.
 // The callee parameter makes the operands runtime values rather than constants.
-use omega_language_std\Console;
+use system\Console;
 data Main { }
 
 machine doubled_sum(x: u64 in Trapping) -> u64 in Trapping {

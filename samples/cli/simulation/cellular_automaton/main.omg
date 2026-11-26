@@ -19,8 +19,8 @@ use omega\language\core\ProcessExit;
 // Pure compute + stdout + Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: #
-use omega_language_std\Console;
-use omega_language_std\Clock;
+use system\Console;
+use system\Clock;
 
 domain [u8]::Utf8
 requires

@@ -27,7 +27,7 @@ Keep the pass order explicit when porting. An operator can acquire a home before
 
 When a conformance overrides a trait default, [default selection](src/selections/conformance_blocks.rs) discards the synthesized machine and returns the new position of each survivor. Both deferred bodies and [service reaches](src/selections/service_reaches.rs) use those positions to stay with their declarations.
 
-Rust's [name resolver](https://rustc-dev-guide.rust-lang.org/name-resolution.html) gives import resolution and the lexical scope walk distinct homes. That split makes it possible to follow a shadowed name directly to the scope rules. Zig's [AstGen](https://github.com/ziglang/zig/blob/0.15.2/lib/std/zig/AstGen.zig) lowers local syntax to untyped instructions, while [Sema](https://github.com/ziglang/zig/blob/0.15.2/src/Sema.zig) analyzes instructions on demand. For Omega the comparable split is the visible handoff from prepared declarations to requested machine bodies.
+Rust's [name resolver](https://rustc-dev-guide.rust-lang.org/name-resolution.html) gives import resolution and the lexical scope walk distinct homes. That split makes it possible to follow a shadowed name directly to the scope rules. Zig's [AstGen](https://github.com/ziglang/zig/blob/0.15.2/lib/system/zig/AstGen.zig) lowers local syntax to untyped instructions, while [Sema](https://github.com/ziglang/zig/blob/0.15.2/src/Sema.zig) analyzes instructions on demand. For Omega the comparable split is the visible handoff from prepared declarations to requested machine bodies.
 
 ## Time one operation
 

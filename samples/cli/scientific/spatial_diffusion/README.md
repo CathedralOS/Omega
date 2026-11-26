@@ -58,7 +58,7 @@ omega packages update --project samples/cli/independent/spatial_diffusion --targ
 printf 0 | omega run samples/cli/independent/spatial_diffusion/main.omg
 ```
 
-The build only declares an application, std path dependency, and Linux entry.
+The build only declares an application, system path dependency, and Linux entry.
 It requests no host filesystem or subprocess service and grants no additional
 terminal permissions. Package risk classification is not authority acceptance.
 Never bypass a custody or permission refusal in order to run this sample.

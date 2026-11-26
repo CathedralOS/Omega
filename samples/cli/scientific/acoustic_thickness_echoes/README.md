@@ -75,7 +75,7 @@ omega run --both --keep samples/cli/independent/acoustic_thickness_echoes/main.o
 ```
 
 `build.omg` binds the exact entry for Linux x86_64, Windows x86_64 and macOS
-arm64 using ordinary std providers. This validation executor is Linux x86_64;
+arm64 using ordinary system providers. This validation executor is Linux x86_64;
 other hosts are declared targets, not claimed validation results. Package
 review and trust admission remain mandatory. A denied acceptance is recorded
 without retry. Generated images, reports and logs belong under ignored `build/`.

@@ -255,7 +255,7 @@ qualify the current Build-selection migration.
 
 Original Linux-only baseline: producer `591336bdc9e0b38268cbfa63b17aabb92a5d2389`,
 Linux x86-64, verified opt-level 1. The original root runs with native exit 0
-and interpreter exit 0 after its ordinary per-checkout std entry review. The
+and interpreter exit 0 after its ordinary per-checkout system entry review. The
 original Width-4 control rejects at byte-coverage validation. Initial missing
 entry acceptance is retained separately as setup evidence.
 

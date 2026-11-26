@@ -55,7 +55,7 @@ omega --check samples/cli/independent/principal_component_analysis/main.omg < /d
 omega run samples/cli/independent/principal_component_analysis/main.omg < samples/cli/independent/principal_component_analysis/input.txt
 ```
 
-Review normal package decisions before resuming any pending update. Std source
+Review normal package decisions before resuming any pending update. System source
 risk disclosures do not grant host access, and no validation script edits those
 gates. Use the platform-approved host command route when cloud filesystem UID
 mapping prevents Omega from establishing cache custody; retain the checks.

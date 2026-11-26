@@ -23,7 +23,7 @@ use omega\language\core\ProcessExit;
 // call binding 0) would fail one of the equality guards and exit 1.
 // Expected exit: 85.
 
-use omega_language_std\Console;
+use system\Console;
 
 data Engine {
     rpm: i32;

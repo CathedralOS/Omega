@@ -37,7 +37,7 @@ From the repository root, using a verified compiler binary:
 ```sh
 OMEGA=/absolute/path/to/omega
 $OMEGA update --project samples/cli/independent/logic_hazard_timing --target linux_x86_64
-# Read and accept the generated local std/entry review, then:
+# Read and accept the generated local system/entry review, then:
 $OMEGA update --resume --project samples/cli/independent/logic_hazard_timing
 $OMEGA --check samples/cli/independent/logic_hazard_timing/main.omg
 printf 0 | $OMEGA run samples/cli/independent/logic_hazard_timing/main.omg

@@ -13,7 +13,7 @@ calls.
 - `main.pair.left` is written directly through `main` — the mutable
   entry carrier — and left untouched by the projection.
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/projected_write/main.omg

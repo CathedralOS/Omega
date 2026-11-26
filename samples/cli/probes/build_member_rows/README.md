@@ -2,7 +2,7 @@
 
 The `Build::member` row family names workspace-member package
 directories — the shape the repository root build uses for the packages under
-`source/subsystems/compiler` and `source/application`, and `source/library/std`. A member row declares a *workspace*,
+`source/subsystems/compiler` and `source/application`, and `source/library/system`. A member row declares a *workspace*,
 and exactly one declaration kind is allowed per build:
 
 - `invalid_mixed_kinds` combines `Build::application` and `Build::member`

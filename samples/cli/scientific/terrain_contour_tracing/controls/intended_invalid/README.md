@@ -10,5 +10,5 @@ Command from repository root:
 $OMEGA --check --target linux_x86_64 samples/cli/independent/terrain_contour_tracing/controls/intended_invalid/main.omg
 ```
 
-The project has its own build metadata and std dependency. The invalid read
+The project has its own build metadata and system dependency. The invalid read
 is rejected during source checking, before any entry admission or execution.

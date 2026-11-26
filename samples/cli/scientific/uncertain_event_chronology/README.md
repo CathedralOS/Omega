@@ -41,7 +41,7 @@ Trailing input after the first completed line is outside this one-record protoco
 wire record; `model.omg` defines private storage; `solver.omg` owns enumeration
 and certificate extraction. The application owns the input backing across the
 blocking read; private `Digits` and `Candidate` records own parser and search
-scratch storage across state transitions. Only the current bundled std Console/provider is a
+scratch storage across state transitions. Only the current bundled system Console/provider is a
 dependency. There are no shared numerics imports or active-worker dependencies.
 
 Existing samples were compared before implementation: `maze_flood` performs

@@ -9,15 +9,15 @@ use std::path::{Path, PathBuf};
 /// Both Windows targets compile the Windows adapters kept in this directory;
 /// a target's own directory adds only what its ABI changes.
 const SHARED_WINDOWS_ADAPTERS: &str = "windows_x86_64";
-/// The `.omg` files one target compiles from `std`: the shared root files,
+/// The `.omg` files one target compiles from `system`: the shared root files,
 /// minus root files another family owns by prefix, plus the target directory
 /// and, for Windows, the shared Windows adapter directory.
-fn family_files(std_root: &Path, target: &str) -> Result<Vec<PathBuf>, String> {
+fn family_files(system_root: &Path, target: &str) -> Result<Vec<PathBuf>, String> {
     let windows = target.starts_with("windows_");
     let posix = !windows;
     let mut files = Vec::new();
-    let entries = fs::read_dir(std_root)
-        .map_err(|error| format!("cannot list {}: {error}", std_root.display()))?;
+    let entries = fs::read_dir(system_root)
+        .map_err(|error| format!("cannot list {}: {error}", system_root.display()))?;
     for entry in entries {
         let path = entry.map_err(|error| error.to_string())?.path();
         let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
@@ -35,7 +35,7 @@ fn family_files(std_root: &Path, target: &str) -> Result<Vec<PathBuf>, String> {
         }
     }
     files.sort();
-    let target_dir = std_root.join("targets").join(target);
+    let target_dir = system_root.join("targets").join(target);
     let mut nested = Vec::new();
     collect_omg(&target_dir, &mut nested)?;
     if nested.is_empty() {
@@ -43,7 +43,7 @@ fn family_files(std_root: &Path, target: &str) -> Result<Vec<PathBuf>, String> {
     }
     if windows && target != SHARED_WINDOWS_ADAPTERS {
         collect_omg(
-            &std_root.join("targets").join(SHARED_WINDOWS_ADAPTERS),
+            &system_root.join("targets").join(SHARED_WINDOWS_ADAPTERS),
             &mut nested,
         )?;
     }
@@ -95,15 +95,15 @@ enum Member {
 }
 
 impl Family {
-    pub(super) fn load(std_root: &Path, target: &str) -> Result<Self, String> {
+    pub(super) fn load(system_root: &Path, target: &str) -> Result<Self, String> {
         let mut family = Family::default();
-        for path in family_files(std_root, target)? {
+        for path in family_files(system_root, target)? {
             let text = strip_comments(&read(&path)?);
-            let relative = path.strip_prefix(std_root).map_err(|_| {
+            let relative = path.strip_prefix(system_root).map_err(|_| {
                 format!(
                     "adapter source {} lies outside {}",
                     path.display(),
-                    std_root.display()
+                    system_root.display()
                 )
             })?;
             family.add_source(relative, &text)?;

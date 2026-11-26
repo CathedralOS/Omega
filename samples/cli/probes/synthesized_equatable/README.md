@@ -14,7 +14,7 @@ an EMPTY named implementation (which receives a synthesized structural
 
 The machine verifies both faces: equal points compare true, differing ones
 false (operator and callable), and identical tokens compare false through
-the override. Compile-checked only (no std dependency, no ProcessExit
+the override. Compile-checked only (no system dependency, no ProcessExit
 provider):
 
 ```sh

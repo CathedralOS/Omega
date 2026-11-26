@@ -1,6 +1,0 @@
-// The `windows_arm64` std target definition (file shape settled 2026-07-07:
-// `std/targets/<target>.omg` = the target def; checked per-subsystem target
-// implementations live beneath `std/targets/windows_arm64/`). Windows ARM64
-// reuses the Windows adapters under `std/targets/windows_x86_64/`; `build.omg`
-// selects them for this target by ordinary rows. Target filtering keeps
-// non-selected implementations inert.

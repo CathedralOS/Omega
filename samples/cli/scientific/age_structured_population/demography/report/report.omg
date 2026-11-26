@@ -1,5 +1,5 @@
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 use demography\model;
 use demography\model\Census;
 use demography\model\Balance;

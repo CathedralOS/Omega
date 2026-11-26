@@ -127,7 +127,7 @@ machine build(builder: @mutable Build) {
     let omega_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Git {
         repository: "https://github.com/CathedralOS/Omega.git",
         revision: "RELEASE_COMMIT",
-        selection: PackageSelection::Named { package: "omega_language_std" }
+        selection: PackageSelection::Named { package: "system" }
     }));
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);

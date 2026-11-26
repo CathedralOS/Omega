@@ -1,5 +1,5 @@
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 
 // Values are 0..81, so two decimal digits cover every emitted quantity.
 // Output uses the existing console provider and no numerics package.

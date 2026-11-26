@@ -39,7 +39,7 @@ export const chapters: Chapter[] = [
           kind: "code",
           code: `use omega\\language\\core\\ProcessExit;
 use omega\\language\\core\\StandardOutput;
-use omega_language_std\\Console;
+use system\\Console;
 
 machine start() reaches StandardOutput + ProcessExit {
     Console::write_line("Hello, Omega.");
@@ -376,7 +376,7 @@ ensures
           kind: "code",
           code: `use omega\\language\\core\\ProcessExit;
 use omega\\language\\core\\StandardOutput;
-use omega_language_std\\Console;
+use system\\Console;
 
 machine start() reaches StandardOutput + ProcessExit {
     Console::write_line("through one wall");
@@ -436,8 +436,8 @@ machine uptime() -> u64 reaches Clock {
           kind: "code",
           code: `machine build(builder: @mutable Build) {
     Build::application(builder, "learn_omega");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
-        location: "../../source/library/std"
+    let system_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
+        location: "../../source/library/system"
     }));
     Build::bind(
         builder,
@@ -463,7 +463,7 @@ machine uptime() -> u64 reaches Clock {
           filename: "build.omg",
           companion: `use omega\\language\\core\\ProcessExit;
 use omega\\language\\core\\StandardOutput;
-use omega_language_std\\Console;
+use system\\Console;
 
 machine start() reaches StandardOutput + ProcessExit {
     Console::write_line("wired by the build machine");
@@ -495,7 +495,7 @@ machine start() reaches StandardOutput + ProcessExit {
           kind: "code",
           code: `use omega\\language\\core\\ProcessExit;
 use omega\\language\\core\\StandardOutput;
-use omega_language_std\\Console;
+use system\\Console;
 
 machine clear(line: @mutable [u8; 28]) {
     transition { _ -> scan(line, 0u64) }
@@ -566,7 +566,7 @@ machine main() reaches StandardOutput + ProcessExit {
           kind: "code",
           code: `use omega\\language\\core\\ProcessExit;
 use omega\\language\\core\\StandardOutput;
-use omega_language_std\\Console;
+use system\\Console;
 
 // Expected exit: 70.
 machine start() reaches StandardOutput + ProcessExit {
@@ -635,7 +635,7 @@ machine start() reaches StandardOutput + ProcessExit {
           kind: "code",
           code: `use omega\\language\\core\\ProcessExit;
 use omega\\language\\core\\StandardOutput;
-use omega_language_std\\Console;
+use system\\Console;
 
 // Expected exit: 4.
 machine start() reaches StandardOutput + ProcessExit {

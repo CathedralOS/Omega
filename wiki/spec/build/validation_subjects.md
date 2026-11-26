@@ -112,14 +112,14 @@ The ordinary explicit check request can select an existing bundled package:
 
 ```bash
 omega --check source/library/core/main.omg
-omega --check source/library/std/main.omg
+omega --check source/library/system/main.omg
 omega --check source/library/allocation/main.omg
 ```
 
 Recognize the selected package's existing owner, immutable source revision and
 dependency relationships. Do not reimport its sources into a new application,
 mint another core identity, or infer toolchain privilege from a directory name.
-Ordinary `std` and `allocation` use ordinary package-root checking regardless of
+Ordinary `system` and `allocation` use ordinary package-root checking regardless of
 whether their source was distributed with the compiler.
 
 For core, narrowly admit the explicitly selected existing toolchain package as
@@ -128,7 +128,7 @@ declaration rules. Other root/source isolation checks remain; checking core
 does not install, approve or select replacement toolchain primitives. The
 current implementation's overlap guard is passed the core subtree, not the
 entire library bundle, so this exception must not be generalized into special
-bundled-package kinds or unsupported claims about `std`/`allocation` overlap.
+bundled-package kinds or unsupported claims about `system`/`allocation` overlap.
 
 No magic `"core"` alias is added to `Build::validate`. A product requests checks
 through registrations; a direct package check selects the package as its root.

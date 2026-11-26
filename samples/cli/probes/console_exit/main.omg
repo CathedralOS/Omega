@@ -1,6 +1,6 @@
 use omega\language\core\ProcessExit;
-// std console exit: a direct `ProcessExit::exit_process` call + `use
-// omega_language_std\console` path dependency — the first
+// system console exit: a direct `ProcessExit::exit_process` call + `use
+// system\console` path dependency — the first
 // probe family that RUNS, not just compiles. `exit_process(70)`
 // is the corpus's universal canary.
 

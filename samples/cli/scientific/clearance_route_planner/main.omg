@@ -2,8 +2,8 @@ use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0 (input: 2 0\n).
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use fixtures;
 use geometry;
 use graph;

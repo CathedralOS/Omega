@@ -16,7 +16,7 @@ use domain\math\residual_sum;
 use omega\language\core\F64::from_i32;
 use omega\language\core\F64::is_finite;
 use omega\language\core\I32::from_f64;
-use omega_language_std\Console;
+use system\Console;
 
 data Application {
     reader: Reader;

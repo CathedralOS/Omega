@@ -1,0 +1,104 @@
+use calling.omg as abi;
+use windows_x86_64_filesystem_calling.omg as transfer_abi;
+use targets/windows_arm64/calling.omg as windows_arm64_abi;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+use targets/windows_x86_64/windows_filesystem_transfer.omg as transfer;
+
+// Exact whole-window imports. Their policy, not a first-byte reference plus
+// unrelated count, associates the native pointer/count with one borrowed view.
+// The handle classification is issued only after the exact pinned object's
+// mode query. It never escapes the private transfer/close flow. This records
+// the native completion premise; it is not numeric ownership or a promise
+// that an arbitrary copied HANDLE remains valid after release.
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+
+// Zero is the failed acquisition. Only nonzero classified values may enter I/O.
+domain i64::WindowsSynchronousFileOrAbsent
+requires self != -1
+access WindowsSynchronousFileIssuance;
+
+WindowsSynchronousFileIssuance satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Only { routes: [
+            |reflect|::callable(|transfer|::windows_synchronous_duplicate)
+        ] })
+    }
+}
+
+boundary trait WindowsFilesystemTransferIo: |abi|::Calling<|transfer_abi|::WindowsFilesystemTransferCalling> {
+    machine write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @[u8], transferred: @mutable u32, overlapped: u64) -> i32
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
+    reaches FilesystemContentWrite
+    blocks
+    crashes none;
+    machine read_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @mutable [u8], transferred: @mutable u32, overlapped: u64) -> i32
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
+    reaches FilesystemContentRead
+    blocks
+    crashes none;
+}
+
+// The synchronous ReadFile/WriteFile pair as one requirement both Windows
+// targets share. Each target places the borrowed view differently (Microsoft
+// x64 splits it across RDX and R8, AAPCS64 across x1 and x2), so each supplies
+// its own implementation over its own raw import trait, and `system/build.omg`
+// selects it per target. The transfer adapters are the same code on both.
+boundary trait WindowsFilesystemTransfer {
+    machine write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @[u8], transferred: @mutable u32, overlapped: u64) -> i32
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
+    reaches FilesystemContentWrite
+    blocks
+    crashes none;
+    machine read_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @mutable [u8], transferred: @mutable u32, overlapped: u64) -> i32
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
+    reaches FilesystemContentRead
+    blocks
+    crashes none;
+}
+
+WindowsX64FilesystemTransfer satisfies WindowsFilesystemTransfer {
+    machine write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @[u8], transferred: @mutable u32, overlapped: u64) -> i32
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
+    reaches FilesystemContentWrite blocks crashes none {
+        block WindowsFilesystemTransferIo::write_file(handle, bytes, transferred, overlapped)
+    }
+    machine read_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @mutable [u8], transferred: @mutable u32, overlapped: u64) -> i32
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
+    reaches FilesystemContentRead blocks crashes none {
+        block WindowsFilesystemTransferIo::read_file(handle, bytes, transferred, overlapped)
+    }
+}
+
+// The ARM64 leaves sit beside the handle domain they consume; this directory
+// holds the Windows adapters both Windows targets compile.
+// ReadFile/WriteFile under AAPCS64: handle in x0, the borrowed view's pointer
+// and count in x1 and x2, the count-output pointer in x3 and the null
+// OVERLAPPED in x4. The requirement proves the count fits a DWORD.
+boundary trait WindowsArm64FilesystemTransferIo: |abi|::Calling<|windows_arm64_abi|::WindowsArm64ByteViewCalling> {
+    machine write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @[u8], transferred: @mutable u32, overlapped: u64) -> i32
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
+    reaches FilesystemContentWrite
+    blocks
+    crashes none;
+    machine read_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @mutable [u8], transferred: @mutable u32, overlapped: u64) -> i32
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
+    reaches FilesystemContentRead
+    blocks
+    crashes none;
+}
+
+WindowsArm64FilesystemTransfer satisfies WindowsFilesystemTransfer {
+    machine write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @[u8], transferred: @mutable u32, overlapped: u64) -> i32
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
+    reaches FilesystemContentWrite blocks crashes none {
+        block WindowsArm64FilesystemTransferIo::write_file(handle, bytes, transferred, overlapped)
+    }
+    machine read_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @mutable [u8], transferred: @mutable u32, overlapped: u64) -> i32
+    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
+    reaches FilesystemContentRead blocks crashes none {
+        block WindowsArm64FilesystemTransferIo::read_file(handle, bytes, transferred, overlapped)
+    }
+}

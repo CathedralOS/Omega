@@ -15,7 +15,7 @@ use omega\language\core\ProcessExit;
 // constant 2463534242 (0x9E3779B9), one step yields 0x...63; the low byte is 99.
 // Expected exit: 99.
 
-use omega_language_std\Console;
+use system\Console;
 
 data Main {
     state: u32 in Wrapping;

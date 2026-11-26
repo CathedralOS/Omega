@@ -2588,8 +2588,8 @@ mod closed_contract_scope {
         let mut sources = SourceMap::default();
         for (ordinal, (root, origin)) in [
             ("application", SourceOrigin::User),
-            ("closed-std", SourceOrigin::ToolchainContract),
-            ("closed-std", SourceOrigin::ToolchainContract),
+            ("closed-system", SourceOrigin::ToolchainContract),
+            ("closed-system", SourceOrigin::ToolchainContract),
             ("another-contract", SourceOrigin::ToolchainContract),
             ("core", SourceOrigin::Toolchain),
         ]

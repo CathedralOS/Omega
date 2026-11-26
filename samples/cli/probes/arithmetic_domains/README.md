@@ -12,7 +12,7 @@ chosen by the operand's domain.
   without firing.
 
 The domain is the observable difference, not the operands — the machine
-accepts only on (127, -56, 150). Compile-checked only (no std
+accepts only on (127, -56, 150). Compile-checked only (no system
 dependency, no ProcessExit provider):
 
 ```sh

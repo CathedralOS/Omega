@@ -65,7 +65,7 @@ capacity limit occurred. Rejected records cannot contribute provenance.
 bounded input, `sequence.omg` owns private storage, `normalization.omg` owns
 haplotype construction and canonicalization, `ledger.omg` owns merges, and
 `report.omg` formats output through the existing Console provider. `build.omg`
-binds the exact entry to Linux x86-64 and uses the stable bundled std package.
+binds the exact entry to Linux x86-64 and uses the stable bundled system package.
 The sample introduces no shared exports.
 
 Semantic overlap was checked against `samples/cli/text/substring_search`,

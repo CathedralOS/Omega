@@ -2,7 +2,7 @@
 // Expected exit: 0.
 
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 
 const TICK_MS: i32 = 10;
 const MAX_FRAME_MS: i32 = 40;

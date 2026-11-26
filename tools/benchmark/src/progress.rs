@@ -335,7 +335,7 @@ fn build_release_compiler(root: &Path) -> Result<(PathBuf, Value), String> {
     ))
 }
 
-/// Settle a std-dependent project's package review for this compiler: drop any
+/// Settle a system-dependent project's package review for this compiler: drop any
 /// lock from another compiler, review, accept every pending decision, resume.
 /// This is project acceptance so the workload can compile, not a source audit.
 /// The review document is LF-only and byte-sensitive, so only the token changes.

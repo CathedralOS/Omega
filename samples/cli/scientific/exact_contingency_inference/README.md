@@ -55,7 +55,7 @@ From the repository root, using the compiler built from that checkout and
 
 ```sh
 omega packages update --project samples/cli/independent/exact_contingency_inference
-# Inspect the generated review; accept only the required documented std decisions.
+# Inspect the generated review; accept only the required documented system decisions.
 omega packages update --resume --project samples/cli/independent/exact_contingency_inference
 omega --check samples/cli/independent/exact_contingency_inference/main.omg
 omega run --keep samples/cli/independent/exact_contingency_inference/main.omg < samples/cli/independent/exact_contingency_inference/data/sparse.stdin
@@ -74,7 +74,7 @@ stack; `systems/framed_payload` computes a checksum. None enumerates a margin
 fiber, conditions on structural zeros, computes factorial masses or ranks exact
 tails. No contingency/Fisher/categorical/structural-zero sample was found.
 
-The only external package is the stable bundled std console provider. Build
+The only external package is the stable bundled system console provider. Build
 metadata binds the Linux x86-64 program-entry slot explicitly. Other targets
 have not been claimed as validated. Generated products are under ignored
 `build/`; evidence and final validation state are in `evidence/VALIDATION.md`.

@@ -4,7 +4,7 @@ use terrain\model\Terrain;
 use terrain\model\Contours;
 use terrain\stitch;
 use terrain\stitch\Paths;
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\narrow_u64_to_i32_wrapping;
 public data Main {
     input: [u8; 16];

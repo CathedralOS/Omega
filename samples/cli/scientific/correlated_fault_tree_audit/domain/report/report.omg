@@ -1,5 +1,5 @@
 use omega\language\core\StandardOutput;
-use omega_language_std\Console;
+use system\Console;
 
 // Emit decimal digits through the standard byte writer. No fabricated UTF-8
 // domain or host-side formatter is required. All callers pass nonnegative sums.

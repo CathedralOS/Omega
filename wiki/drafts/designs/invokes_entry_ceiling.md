@@ -4,7 +4,7 @@ Ratified 2026-11-10. `invokes` was specified as synchronous entry into a
 callback, but one sentence let a row name "an internally selected binding",
 and the library used it to list the host slots a provider calls. A portable
 requirement then named its implementations, and so did every public wrapper
-above it (the first two are excerpts from `std/filesystem.omg`):
+above it (the first two are excerpts from `system/filesystem.omg`):
 
 ```omega
 // before: the portable contract names two platforms

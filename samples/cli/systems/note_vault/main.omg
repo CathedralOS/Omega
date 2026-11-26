@@ -1,6 +1,6 @@
 use omega\language\core\ProcessExit;
 // A note-vault workflow over the ERGONOMIC `FilesystemService` surface -- the
-// result-enum / `File` layer (Rust std::fs parity), native-correct end to
+// result-enum / `File` layer (Rust system::fs parity), native-correct end to
 // end: create_dir_all (deep vault directory), create_new (exclusive create),
 // append (OpenOptions append semantics), metadata_path (payload-carrying
 // result), read_all, open_with { write, truncate } (the per-call-site
@@ -18,23 +18,23 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 14.
 
-use omega_language_std;
-use omega_language_std\File;
-use omega_language_std\IoResult;
-use omega_language_std\Metadata;
-use omega_language_std\MetadataResult;
-use omega_language_std\OpenOptions;
-use omega_language_std\OpenResult;
-use omega_language_std\UnitResult;
-use omega_language_std\Duration;
-use omega_language_std\SystemTime;
-use omega_language_std\SystemTimeDifference;
-use omega_language_std\TimeHost;
+use system;
+use system\File;
+use system\IoResult;
+use system\Metadata;
+use system\MetadataResult;
+use system\OpenOptions;
+use system\OpenResult;
+use system\UnitResult;
+use system\Duration;
+use system\SystemTime;
+use system\SystemTimeDifference;
+use system\TimeHost;
 
-use omega_language_std\FilesystemService;
-use omega_language_std\system_time_duration_since;
-use omega_language_std\system_time_from_unix_seconds;
-use omega_language_std\system_time_now;
+use system\FilesystemService;
+use system\system_time_duration_since;
+use system\system_time_from_unix_seconds;
+use system\system_time_now;
 
 data Main {
 }
@@ -97,7 +97,7 @@ machine main(context: @mutable Main) reaches ProcessExit + DirectoryEnumeration 
 
     machine audit_time(context: @mutable Main, passed: i32 in Wrapping, meta: Metadata) {
         let next_passed: i32 in Wrapping = passed + 1;
-        // 8. The vault's modified time BRIDGES into std\time: a just-written
+        // 8. The vault's modified time BRIDGES into system\time: a just-written
         // file is never in the future, so duration_since(now) must be Ok.
         let modified: SystemTime = system_time_from_unix_seconds(meta.modified_secs);
         let now_keep: SystemTime = system_time_now();

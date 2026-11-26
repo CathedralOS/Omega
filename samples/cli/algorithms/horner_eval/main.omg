@@ -15,7 +15,7 @@ use omega\language\core\ProcessExit;
 // which is 16 + 16 + 12 + 8 + 5 = 57. The result is checked against 57; exit 70 on success.
 // Expected exit: 70.
 
-use omega_language_std\Console;
+use system\Console;
 
 data Main {
 }

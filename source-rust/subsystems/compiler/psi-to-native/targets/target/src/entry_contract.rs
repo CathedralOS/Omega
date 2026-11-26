@@ -65,7 +65,7 @@ mod tests {
             Package::WindowsArm64,
         ] {
             let installed = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../../../../../source/library/std")
+                .join("../../../../../../source/library/system")
                 .join(package.package_relative_source());
             let published = source_provenance::entry_contract_digest(
                 package.manifest_identity(),

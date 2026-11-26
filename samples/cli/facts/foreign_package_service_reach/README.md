@@ -19,7 +19,7 @@ runner supply because the native leg runs the same product on the same host, it
 performs a reached service only when that service and its whole parent closure
 are declared by the package that declares the import's owning trait. A package
 may perform its own declared effects on the host; reach into another package's
-or the toolchain's services (core `StandardInput` and `StandardOutput`, std `Clock` and `TimeHost`, core filesystem
+or the toolchain's services (core `StandardInput` and `StandardOutput`, system `Clock` and `TimeHost`, core filesystem
 services), whose supplies Terminal may model, still refuses. Reach grants no
 capability ([service reach](../../../../wiki/spec/language/effects.md)); the
 delegation is the host's consent, not a reach-derived grant.

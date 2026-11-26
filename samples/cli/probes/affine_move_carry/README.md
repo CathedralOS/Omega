@@ -13,7 +13,7 @@ once.
 - `direct` reads a moved-into-call result (70) and `diverted` reads the
   untouched arm's fresh construction (71).
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/affine_move_carry/main.omg

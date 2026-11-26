@@ -11,7 +11,7 @@ use io\protocol\Protocol;
 use io\protocol\read;
 use io\protocol\integer;
 use io\protocol\number;
-use omega_language_std\Console;
+use system\Console;
 
 data Main {
     protocol: Protocol;

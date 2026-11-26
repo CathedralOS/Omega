@@ -12,7 +12,7 @@ property.
   structurally; the explicit declaration pins the authored spelling.
 
 The machine builds a Burst packet inside an envelope, matches the active
-case's payload, and accepts on 3 && 2. Compile-checked only (no std
+case's payload, and accepts on 3 && 2. Compile-checked only (no system
 dependency, no ProcessExit provider):
 
 ```sh

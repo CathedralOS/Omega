@@ -1,0 +1,43 @@
+use posix_filesystem_host.omg as posix;
+use targets/linux_x86_64/posix_filesystem_impl.omg as operations;
+
+// The linux_x86_64 raw POSIX service. system's Build selects it for linux_x86_64.
+public LinuxX8664PosixFilesystem satisfies |posix|::PosixFilesystemHost {
+    |posix|::PosixFilesystemHost::open = |operations|::linux_x86_64_posix_open;
+    |posix|::PosixFilesystemHost::open_create = |operations|::linux_x86_64_posix_open_create;
+    |posix|::PosixFilesystemHost::create = |operations|::linux_x86_64_posix_create;
+    |posix|::PosixFilesystemHost::read = |operations|::linux_x86_64_posix_read;
+    |posix|::PosixFilesystemHost::write = |operations|::linux_x86_64_posix_write;
+    |posix|::PosixFilesystemHost::read_at = |operations|::linux_x86_64_posix_read_at;
+    |posix|::PosixFilesystemHost::write_at = |operations|::linux_x86_64_posix_write_at;
+    |posix|::PosixFilesystemHost::close = |operations|::linux_x86_64_posix_close;
+    |posix|::PosixFilesystemHost::remove = |operations|::linux_x86_64_posix_remove;
+    |posix|::PosixFilesystemHost::seek = |operations|::linux_x86_64_posix_seek;
+    |posix|::PosixFilesystemHost::create_dir = |operations|::linux_x86_64_posix_create_dir;
+    |posix|::PosixFilesystemHost::remove_dir = |operations|::linux_x86_64_posix_remove_dir;
+    |posix|::PosixFilesystemHost::create_dir_name = |operations|::linux_x86_64_posix_create_dir_name;
+    |posix|::PosixFilesystemHost::open_at = |operations|::linux_x86_64_posix_open_at;
+    |posix|::PosixFilesystemHost::unlink_at = |operations|::linux_x86_64_posix_unlink_at;
+    |posix|::PosixFilesystemHost::set_permissions = |operations|::linux_x86_64_posix_set_permissions;
+    |posix|::PosixFilesystemHost::set_file_permissions = |operations|::linux_x86_64_posix_set_file_permissions;
+    |posix|::PosixFilesystemHost::rename = |operations|::linux_x86_64_posix_rename;
+    |posix|::PosixFilesystemHost::hard_link = |operations|::linux_x86_64_posix_hard_link;
+    |posix|::PosixFilesystemHost::symlink = |operations|::linux_x86_64_posix_symlink;
+    |posix|::PosixFilesystemHost::read_link = |operations|::linux_x86_64_posix_read_link;
+    |posix|::PosixFilesystemHost::read_dir = |operations|::linux_x86_64_posix_read_dir;
+    |posix|::PosixFilesystemHost::remove_name = |operations|::linux_x86_64_posix_remove_name;
+    |posix|::PosixFilesystemHost::remove_dir_name = |operations|::linux_x86_64_posix_remove_dir_name;
+    |posix|::PosixFilesystemHost::read_metadata = |operations|::linux_x86_64_posix_read_metadata;
+    |posix|::PosixFilesystemHost::read_file_metadata = |operations|::linux_x86_64_posix_read_file_metadata;
+    |posix|::PosixFilesystemHost::read_symlink_metadata = |operations|::linux_x86_64_posix_read_symlink_metadata;
+    |posix|::PosixFilesystemHost::read_metadata_at = |operations|::linux_x86_64_posix_read_metadata_at;
+    |posix|::PosixFilesystemHost::set_len = |operations|::linux_x86_64_posix_set_len;
+    |posix|::PosixFilesystemHost::set_file_times = |operations|::linux_x86_64_posix_set_file_times;
+    |posix|::PosixFilesystemHost::sync = |operations|::linux_x86_64_posix_sync;
+    |posix|::PosixFilesystemHost::sync_data = |operations|::linux_x86_64_posix_sync_data;
+    |posix|::PosixFilesystemHost::duplicate = |operations|::linux_x86_64_posix_duplicate;
+    |posix|::PosixFilesystemHost::lock_file = |operations|::linux_x86_64_posix_lock_file;
+    |posix|::PosixFilesystemHost::change_owner = |operations|::linux_x86_64_posix_change_owner;
+    |posix|::PosixFilesystemHost::change_owner_no_follow = |operations|::linux_x86_64_posix_change_owner_no_follow;
+    |posix|::PosixFilesystemHost::change_file_owner = |operations|::linux_x86_64_posix_change_file_owner;
+}

@@ -1,6 +1,6 @@
 # Heat exchanger balances (NEW073)
 
-A complete stdin-driven synthetic scientific application using the existing std
+A complete stdin-driven synthetic scientific application using the existing system
 Console provider and application-private parsing, stage solving and reporting.
 No experimental numerics imports, shared exports or worker dependencies.
 

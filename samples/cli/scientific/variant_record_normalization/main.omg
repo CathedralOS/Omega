@@ -2,8 +2,8 @@ use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete streamed synthetic variant-normalization application.
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use domain\sequence;
 use domain\sequence\Sequence;
 use domain\input;

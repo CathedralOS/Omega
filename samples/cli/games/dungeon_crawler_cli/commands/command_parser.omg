@@ -1,4 +1,4 @@
-use omega_language_std;
+use system;
 use rooms\CellId;
 use rooms\Direction;
 use rooms\Exit;

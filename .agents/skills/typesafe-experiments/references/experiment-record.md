@@ -1707,7 +1707,7 @@ Frozen facts:
 
 - Generator: 5/5 PASS under trusted coordinator-run --check. 31 elements,
   all machine-referenced. Workers found the checked-out omega.exe was
-  stale (p5 rebuilt it) and that corpus-style `omega_language_std` imports
+  stale (p5 rebuilt it) and that corpus-style `system` imports
   need a sibling build.omg (p5 wrote one; ~5 min package-path check vs
   ~3 s bundled-import).
 - Bind: 31/31 elements justified to a requirement, 0 orphans — the

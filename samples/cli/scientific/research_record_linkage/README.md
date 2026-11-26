@@ -64,7 +64,7 @@ tie breaking; `ambiguous_unmatched` challenges link-only ambiguity detection;
 `false_link` records both an actual false positive and missed truth;
 `low_threshold`/`high_threshold` challenge threshold behavior with the same input.
 
-Use a compiler built from current main and the existing std provider closure.
+Use a compiler built from current main and the existing system provider closure.
 From repository root, substitute its absolute path for OMEGA. First review the
 ordinary project package proposal:
 
@@ -72,7 +72,7 @@ ordinary project package proposal:
 OMEGA update --project samples/cli/independent/research_record_linkage --target linux_x86_64
 ```
 
-Read the generated review, accept only the concrete intended std/provider
+Read the generated review, accept only the concrete intended system/provider
 proposal if authorized, then resume once. Do not retry denied acceptance or
 bypass cache custody. After successful package preparation:
 

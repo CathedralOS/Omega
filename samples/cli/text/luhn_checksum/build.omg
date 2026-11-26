@@ -1,7 +1,7 @@
 machine build(builder: @mutable Build) {
     Build::application(builder, "luhn_checksum");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
-        location: "../../../../source/library/std"
+    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+        location: "../../../../source/library/system"
     }));
     Build::bind(builder, windows_x86_64\ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64\ProgramEntry, entry_start);

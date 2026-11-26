@@ -1,8 +1,8 @@
 use omega\language\core\StandardInput;
 use omega\language\core\ProcessExit;
 // Complete independent source control: unguarded runtime index must reject.
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 data Main { }
 machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
     let input: ByteRead = block Console::read_byte();

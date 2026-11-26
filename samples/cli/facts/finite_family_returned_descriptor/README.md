@@ -78,7 +78,7 @@ With repaired compiler `44f1471e7e5f9e96599b8d0f68dd8b11d053f687`,
 checks the focused program and original plain-record local place, then runs both
 at native/Terminal exit 0. Ordinary package review and execution also pass for
 the focused program. The existing local-backing twin rejects correctly. The
-whole report remains failed: two unchanged Std-based family controls time out
+whole report remains failed: two unchanged System-based family controls time out
 without a diagnostic. They provide no current rejection evidence.
 
 [The Linux row run](https://github.com/CathedralOS/Omega/actions/runs/41973178090)
@@ -113,7 +113,7 @@ have actual observations; only Linux executes the final contract-join refactor.
 The other three retain their original stamps and the reviewed applicability
 argument above.
 
-The two unchanged Std-based controls
+The two unchanged System-based controls
 [time out with the published pre-repair compiler](https://github.com/CathedralOS/Omega/actions/runs/41974279825).
 The later [checking repair](https://github.com/CathedralOS/Omega/pull/1900)
 reaches both intended contract errors at their original limits; its fresh

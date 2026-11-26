@@ -5,8 +5,8 @@ use omega\language\core\ProcessExit;
 // The generic sample harness closes stdin; this is the empty-input control.
 // Expected exit: 64.
 // Expected output contains: INVALID_INPUT
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 use chemistry\model;
 use chemistry\balance;
 use chemistry\inventory;

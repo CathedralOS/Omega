@@ -5,7 +5,7 @@ pub fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .find(|path| {
-            path.join("tests/fixtures").is_dir() && path.join("source/library/std").is_dir()
+            path.join("tests/fixtures").is_dir() && path.join("source/library/system").is_dir()
         })
         .expect("the checkout contains the fixture corpus and bundled standard library")
 }

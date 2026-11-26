@@ -55,8 +55,8 @@ fn both_engines_replay_eof_for_the_darwin_console_descriptor() {
         r#"
 use omega\language\core\ProcessExit;
 use omega\language\core\StandardInput;
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
+use system\ByteRead;
+use system\Console;
 machine main() reaches ProcessExit + StandardInput {
     let read: ByteRead = block Console::read_byte();
     transition read { ByteRead::Eof -> done(), _ -> unexpected() }
@@ -72,7 +72,7 @@ machine build(builder: @mutable Build) {{
     Build::bind(builder, macos_arm64\ProgramEntry, main);
 }}
 "#,
-            library.join("std").display()
+            library.join("system").display()
         ),
     );
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
@@ -108,8 +108,8 @@ fn failed_standard_input_returns_the_written_prefix() {
         r#"
 use omega\language\core\ProcessExit;
 use omega\language\core\StandardInput;
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 machine main() reaches StandardInput + ProcessExit crashes none {
     let mutable bytes: [u8; 3];
     bytes[2] = 99;
@@ -134,7 +134,7 @@ machine main() reaches StandardInput + ProcessExit crashes none {
     Build::bind(builder, linux_x86_64\ProgramEntry, main);
 }}
 "#,
-            library.join("std").display()
+            library.join("system").display()
         ),
     );
     let output = project.join("native");

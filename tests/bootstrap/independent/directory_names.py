@@ -101,7 +101,7 @@ def cases():
                                               "alternate/omega/marker.omg"])
     yield "core-before-local-namespace", data, 42
 
-    # A normal dependency alias starting with "omega" still selects ordinary std.
+    # A normal dependency alias starting with "omega" still selects ordinary system.
     ordinary = b"use omega\\sub\\score; machine main() -> u8 { score() }"
     data, _, _, _ = encode([("app", 0), ("library", 2)], [(0, 1, "omega")],
                            [(0, ordinary), (1, score)], 0, b"main",
@@ -113,7 +113,7 @@ def cases():
         ("core-name-without-role", 0, "sub/x.omg", core_import, score, 1, []),
         ("local-core-impostor", 0, "omega/language/core/sub/x.omg", core_import, score, 0, []),
         ("aliased-core-impostor", 0, "language/core/sub/x.omg", core_import, score, 1, [(0, 1, "omega")]),
-        ("ordinary-std-unmounted", 2, "sub/x.omg", core_import.replace(b"core", b"std"), score, 1, []),
+        ("ordinary-system-unmounted", 2, "sub/x.omg", core_import.replace(b"core", b"system"), score, 1, []),
     ]:
         data, _, _, rows = encode([("app", 0), ("omega_language_core", role)], edges,
                                   [(0, caller), (owner, declaration)], 0, b"main",
@@ -208,7 +208,7 @@ def invokes_cases(packet):
 
     # Preserve the original four authored wait names. Supplying their imports
     # as memberless services isolates checking of the Clock requirement.
-    clock = (ROOT / "source/library/std/clock.omg").read_bytes()
+    clock = (ROOT / "source/library/system/clock.omg").read_bytes()
     services = [("linux_arm64", "LinuxArmClockWait"), ("linux_x86_64", "LinuxClockWait"),
                 ("macos_arm64", "DarwinClockWait"), ("windows_x86_64", "WindowsClockWait")]
     sources = [b"machine main()->u8{42}", clock,

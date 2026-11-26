@@ -5,7 +5,7 @@ use omega\language\core\ProcessExit;
 // that too. Writes through either window are the row's own cells.
 // Expected exit: 0
 // Expected output contains: 3 9 5 7
-use omega_language_std\Console;
+use system\Console;
 
 data Occupancy { cells: [i32 in Wrapping; 4]; }
 data Main { }

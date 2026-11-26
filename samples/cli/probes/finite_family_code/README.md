@@ -14,7 +14,7 @@ disjunction over a const parameter.
   obligation; only a requirement signature derives a dispatch roster from it.
 
 The machine calls `Item::code<16>` and `Item::code<32>` directly and
-accepts when both rows return the item's 7. Compile-checked only (no std
+accepts when both rows return the item's 7. Compile-checked only (no system
 dependency, no ProcessExit provider):
 
 ```sh

@@ -11,7 +11,7 @@ Depend-free compile-scope probe: deferred locals and gated nested records
   gate — the `requires` fact constrains the scalar field without hiding the
   record from establishment.
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/deferred_init_gated/main.omg

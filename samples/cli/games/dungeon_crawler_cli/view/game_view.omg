@@ -11,7 +11,7 @@ use rooms\write_room_info;
 use text\TextBuffer;
 use text\text_buffer_live;
 use text\text_buffer_set;
-use omega_language_std\Console;
+use system\Console;
 
 data GameView {
     formatter: RoomFormatter;

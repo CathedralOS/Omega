@@ -70,6 +70,6 @@ corpus route to compare complete stdout, stderr and exit oracles for both engine
 The corpus applies its canonical CRLF-to-LF normalization to stream comparisons;
 the direct native validator compares raw bytes. Numerical tolerances are zero.
 It stages byte-identical application sources in fifteen private scratch fixtures,
-adapts only the relative std dependency path, and removes the fixtures afterward.
+adapts only the relative system dependency path, and removes the fixtures afterward.
 The engine consumes the native report's retained Terminal artifact; there is no
 checked-tree fallback or golden rewrite.

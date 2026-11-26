@@ -60,7 +60,7 @@ checkout's `source/library`. Substitute a current-main verified binary for
 
 ```sh
 $OMEGA update --project samples/cli/independent/crossover_experiment_design --target linux_x86_64
-# Inspect the generated review and accept only the exact bundled std proposal;
+# Inspect the generated review and accept only the exact bundled system proposal;
 # then use the normal saved-review --resume route.
 $OMEGA update --resume --project samples/cli/independent/crossover_experiment_design
 $OMEGA --check --target linux_x86_64 --build-dir samples/cli/independent/crossover_experiment_design/build/check samples/cli/independent/crossover_experiment_design/main.omg

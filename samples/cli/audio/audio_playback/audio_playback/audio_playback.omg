@@ -132,7 +132,7 @@ LinuxAudioPlayback satisfies AudioPlayback {
 // `_memmove` writes mAudioDataByteSize (offset 16) and copies the PCM into
 // mAudioData; `_bcopy` reads the mAudioData pointer (offset 8) back as a u64
 // local — eight bytes wide by the stated count. `_memcpy` is not bound here —
-// one Mach-O locator may serve only one import symbol and std's posix
+// one Mach-O locator may serve only one import symbol and system's posix
 // provider already imports it.
 //
 // OSStatus answers 0 on success. A negative status passes through while the

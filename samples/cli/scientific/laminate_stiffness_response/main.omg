@@ -3,8 +3,8 @@ use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete finite laminate workflow. Input selects one declared synthetic stack.
 // Expected exit: 0 (valid 0..4); singular 5 exits 3; invalid input exits 2.
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use mechanics\model;
 use mechanics\model\Laminate;
 use mechanics\model\absolute;

@@ -37,7 +37,7 @@ Every place keeps its `invalid/` twin and its separate `controls/insufficient_bo
 
 Additional [shared-input control](controls/shared_predicate_inputs/main.omg) retains the same computed range and read using a fixed-array predicate, and checks that a closed public requirement may take a shared slice in a specification. Source controls keep [nested reference elements](controls/nested_reference_elements/main.omg), [linear elements](controls/linear_elements/main.omg), [reference results](controls/reference_result/main.omg) and [exclusive predicate inputs](controls/exclusive_predicate_input/main.omg) outside denotational admission. A [closed public exclusive-input control](controls/exclusive_public_predicate_input/main.omg) independently retains the public access fence. Neighboring proof controls retain termination, normal-return, proposition-reference and quotient-qualification fences.
 
-Every runnable positive binds all four hosted targets and declares `Expected exit: 0`. Ordinary core slice operations provide the window; no `std` dependency or data-owned helper is introduced.
+Every runnable positive binds all four hosted targets and declares `Expected exit: 0`. Ordinary core slice operations provide the window; no `system` dependency or data-owned helper is introduced.
 
 ```sh
 omega run --both samples/cli/facts/computed_subslice_extent/target_body/main.omg

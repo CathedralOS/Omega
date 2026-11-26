@@ -6,7 +6,7 @@ measurement offsets. Enter a profile (1..6), temperature-low, temperature-high,
 one signed decimal integer per line. For example `3`, `-10`, `20` emits the
 attainable fit interval [9,51] micrometres, CONDITIONAL, and adverse contributors
 at each violated endpoint witness. No numerics-library work or worker candidate
-is required; the only dependency is the repository's existing std Console.
+is required; the only dependency is the repository's existing system Console.
 
 This is an explicitly declared sample physical/measurement model, not a
 calibrated engineering tool. A contributor is

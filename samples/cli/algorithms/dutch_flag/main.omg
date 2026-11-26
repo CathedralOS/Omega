@@ -29,7 +29,7 @@ use omega\language\core\ProcessExit;
 // already a sorted flag.
 // Expected exit: 70.
 
-use omega_language_std\Console;
+use system\Console;
 
 // Swaps copy these payload-free values out of borrowed array storage.
 data Color [copy] {

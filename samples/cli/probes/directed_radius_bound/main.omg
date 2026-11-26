@@ -13,7 +13,7 @@ use omega\language\core\F64::square_root;
 use omega\language\core\F64::square_root_toward_negative;
 use omega\language\core\F64::square_root_toward_positive;
 use omega\language\core\F64::square_root_toward_zero;
-use omega_language_std\Console;
+use system\Console;
 
 data Main { squared: f64; }
 

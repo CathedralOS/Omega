@@ -372,7 +372,7 @@ fn parse_declared_item<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Platform) {
         return Err(input.error_here(
             "`platform` blocks are retired: declare the host surface as a \
-             `boundary trait` with per-method `reaches` rows (std's Console \
+             `boundary trait` with per-method `reaches` rows (system's Console \
              is the model) -- same signatures, same requires/ensures, and \
              the purity checker sees the truth",
         ));

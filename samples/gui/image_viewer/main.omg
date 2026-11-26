@@ -15,30 +15,30 @@ use omega\language\core\FilesystemNamespaceMutation;
 // Run from this folder so the relative BMP paths resolve. No exit annotation:
 // this application waits for user input.
 
-use omega_language_std\PosixFilesystemHost;
-use omega_language_std\AppKit;
-use omega_language_std\CoreGraphics;
-use omega_language_std\DarwinClock;
-use omega_language_std\ObjectiveC;
-use omega_language_std\Window;
-use omega_language_std\macos_key_state;
-use omega_language_std\macos_sleep;
-use omega_language_std\macos_window_blit;
-use omega_language_std\macos_window_create;
-use omega_language_std\macos_window_destroy;
-use omega_language_std\macos_window_foreground_window;
-use omega_language_std\macos_window_get_dc;
-use omega_language_std\macos_window_is_window;
-use omega_language_std\macos_window_msg_dispatch;
-use omega_language_std\macos_window_msg_peek;
-use omega_language_std\macos_window_msg_translate;
-use omega_language_std\MacosImageData;
-use omega_language_std\MacosImageObjects;
+use system\PosixFilesystemHost;
+use system\AppKit;
+use system\CoreGraphics;
+use system\DarwinClock;
+use system\ObjectiveC;
+use system\Window;
+use system\macos_key_state;
+use system\macos_sleep;
+use system\macos_window_blit;
+use system\macos_window_create;
+use system\macos_window_destroy;
+use system\macos_window_foreground_window;
+use system\macos_window_get_dc;
+use system\macos_window_is_window;
+use system\macos_window_msg_dispatch;
+use system\macos_window_msg_peek;
+use system\macos_window_msg_translate;
+use system\MacosImageData;
+use system\MacosImageObjects;
 
 // GUI-subsystem app: the console surface is exit + a status line for terminal
 // runs (invisible from Finder). No stdin — a windowed app must never block on
 // a console.
-use omega_language_std\Console;
+use system\Console;
 // These requirements expose the shared macos_gui operations' service rows.
 // Direct-invocation declarations are separate; they do not supply a reach ceiling.
 public boundary trait Clock {

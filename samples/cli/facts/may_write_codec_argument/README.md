@@ -4,7 +4,7 @@ Choosing one of two mutable inputs and writing through that result preserves a d
 
 The helper `choose` returns either mutable `u64`. That result is the exclusive `written` argument of one synthesized `Blob::encode` call. The other input starts at `1` and stays there. Indexing `[4, 7, 8, 9]` with that preserved bound reads `7`. The runtime check also requires the chosen slot to become `5`, the cursor `encode` stores for this two-byte frame. Exit is `0` only when both hold. Each reject twin changes only `pick_chosen` from `true` to `false`, so the write overlaps the index bound and the stale bound must be rejected.
 
-The programs are freestanding. They do not depend on `source/library/std`.
+The programs are freestanding. They do not depend on `source/library/system`.
 
 This witnesses the codec-argument row of **R5** in `TASKS.md`: caller-visible may-write summaries under [invocation contracts](../../../../wiki/spec/language/state_contracts.md). It does not close finite write cycles or parameter-permutation write sets.
 

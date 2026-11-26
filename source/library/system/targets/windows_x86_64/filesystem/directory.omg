@@ -1,0 +1,71 @@
+use targets/windows_x86_64/filesystem/errors.omg as errors;
+use filesystem_host.omg as paths;
+use filesystem.omg as filesystem;
+use windows_filesystem_host.omg as win_fs;
+use EmptyResult;
+use IoResult;
+use WindowsFilesystemHost;
+use system;
+// Names-only counting does not decode into DirEntry's bounded UTF-8 spelling
+// or query metadata. In particular an unrepresentable name still counts.
+use omega\language\core\FilesystemContentRead;
+use omega\language\core\FilesystemContentWrite;
+use omega\language\core\FilesystemMetadataQuery;
+use omega\language\core\FilesystemMetadataMutation;
+use omega\language\core\DirectoryEnumeration;
+use omega\language\core\FilesystemNamespaceMutation;
+
+machine windows_filesystem_read_dir_count(path: @[u8] in |paths|::Path) -> IoResult
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+{
+    let result: |win_fs|::WindowsDirectoryCountResult = block WindowsFilesystemHost::directory_count(path);
+    transition result {
+        |win_fs|::WindowsDirectoryCountResult::Count { count } -> (IoResult::Ok { count: count }),
+        |win_fs|::WindowsDirectoryCountResult::Error { code } -> (IoResult::Error { kind: |errors|::windows_filesystem_error(code) })
+    }
+}
+
+machine windows_filesystem_read_dir_is_empty(path: @[u8] in |paths|::Path) -> EmptyResult
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+{
+    let result: |win_fs|::WindowsDirectoryCountResult = block WindowsFilesystemHost::directory_has_entry(path);
+    transition result {
+        |win_fs|::WindowsDirectoryCountResult::Error { code } -> (EmptyResult::Error { kind: |errors|::windows_filesystem_error(code) }),
+        |win_fs|::WindowsDirectoryCountResult::Count { count } -> from_count(count)
+    }
+    machine from_count(count: u64) -> EmptyResult {
+        transition count {
+            0 -> EmptyResult::Empty,
+            1 -> EmptyResult::NonEmpty,
+            _ -> (EmptyResult::Error { kind: |filesystem|::ErrorKind::Other })
+        }
+    }
+}
+
+// Retain the enumeration record's no-follow classification. Reparse points
+// are neither ordinary files nor directories here, including directory links;
+// querying a child path afterward could classify a replacement object instead.
+machine windows_filesystem_read_dir_nth(path: @[u8] in |paths|::Path, ordinal: u64) -> |filesystem|::DirEntryResult
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+{
+    let result: |win_fs|::WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth(path, ordinal);
+    transition result {
+        |win_fs|::WindowsDirectoryEntryResult::Error { code } -> (|filesystem|::DirEntryResult::Error { kind: |errors|::windows_filesystem_error(code) }),
+        |win_fs|::WindowsDirectoryEntryResult::End -> |filesystem|::DirEntryResult::End,
+        |win_fs|::WindowsDirectoryEntryResult::Entry { entry } -> (windows_filesystem_directory_entry(entry))
+    }
+}
+
+// A native entry becomes a portable value only after its complete name fits.
+// Keep the no-follow classification from that same enumeration record.
+machine windows_filesystem_directory_entry(record: |win_fs|::WindowsDirectoryEntry) -> |filesystem|::DirEntryResult {
+    transition record.name_len > 0 && record.name_len <= 765 {
+        true -> (|filesystem|::DirEntryResult::Ok { entry: |filesystem|::DirEntry {
+            name: record.name,
+            name_len: record.name_len,
+            is_dir: (record.attributes & 1040) == 16,
+            is_file: (record.attributes & 1040) == 0
+        } }),
+        false -> (|filesystem|::DirEntryResult::Error { kind: |filesystem|::ErrorKind::Other })
+    }
+}

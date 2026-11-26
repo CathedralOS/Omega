@@ -10,7 +10,7 @@ use domain\network\valid;
 use domain\solver;
 use domain\solver\Solver;
 use domain\solver\solve;
-use omega_language_std\Console;
+use system\Console;
 
 // Explicit build entry; EOF is a valid record terminator. No pause prompt.
 data Main { }

@@ -2,7 +2,7 @@ use omega\language\core\StandardOutput;
 use domain\input;
 use domain\input\Reader;
 use omega\language\core\narrow_i64_to_i32_wrapping;
-use omega_language_std\Console;
+use system\Console;
 use omega\language\core\I64::from_f64;
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.

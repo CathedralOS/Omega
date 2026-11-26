@@ -1,5 +1,5 @@
 // Expected exit: 0. One requirement, one named implementation per operating
-// system, and std-style Build rows that pick the implementation for each
+// system, and system-style Build rows that pick the implementation for each
 // target. The program calls only the requirement; no declaration names a
 // target. Each map returns its own operating system's constants, and `main`
 // checks that both members came from the same map: Windows and Linux answer

@@ -50,7 +50,7 @@ for the six release gates (`repository`, `source semantics`, `build and packages
 hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`,
 `windows_arm64`). The owner added `windows_arm64` on 2026-11-23. Programs can
 bind `windows_arm64\ProgramEntry`; `TASKS.md` **WINDOWS-ARM64-TARGET** tracks
-its std providers and the first run on a Windows ARM64 host.
+its system providers and the first run on a Windows ARM64 host.
 
 Omega has one specification in [wiki/spec/](wiki/spec/). Describe
 compiler-specific implementation status in the compiler's plan or layer
@@ -485,7 +485,7 @@ reads the allowed lanes from this table:
 | `packages` | Package acquisition, graphs, review and update in `source-rust/subsystems/package-manager/`. |
 | `cli` | Command parsing, flags, help and dispatch in `source-rust/application/src/`. |
 | `tooling` | Shipped developer tooling and shared host support in `source-rust/foundation/`. |
-| `library` | Bundled packages in `source/library/` (`core`, `allocation`, `std`, etc.). |
+| `library` | Bundled packages in `source/library/` (`core`, `allocation`, `system`, etc.). |
 | `samples` | Standalone sample content in `samples/`. A regression fixture for a compiler fix uses that compiler stage's lane. |
 | `tests` | Shared test infrastructure, kept fixtures, or multi-owner gates. Stage-specific tests use their stage's lane. |
 | `tools` | Repository maintenance tooling, CI/bootstrap helpers, ratchets, and `mbx xtask` (`tools/xtask/`). |

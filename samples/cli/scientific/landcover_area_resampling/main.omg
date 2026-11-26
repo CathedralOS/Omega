@@ -2,8 +2,8 @@ use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete bounded CLI: choose a fixture with one ASCII digit and LF.
-use omega_language_std\Console;
-use omega_language_std\LineReadResult;
+use system\Console;
+use system\LineReadResult;
 use landcover\geometry;
 use landcover\resampling;
 use landcover\resampling\Areas;

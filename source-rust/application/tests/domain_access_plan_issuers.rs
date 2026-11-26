@@ -157,7 +157,7 @@ machine main() crashes Trap {
 }
 
 /// A dependency's Build may select a provider whose member is the only code
-/// that names a governed domain, as std's Windows filesystem adapters do with
+/// that names a governed domain, as system's Windows filesystem adapters do with
 /// their handle domains. The Product request never names that member, but
 /// lowering reads it, so the Build must still run the domain's plan: the
 /// member may then remove `Stamped` and the program runs. The twin's plan

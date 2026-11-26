@@ -59,7 +59,7 @@ captures its root once, before source discovery, and reuses that snapshot
 across Product joins and later seeds. It keeps a distinct
 closed-contract source role, also recorded in source identities and stored
 review/provider records, and pulls in its logical Product siblings; it does
-not give core ambient visibility of std declarations. Source assembly schedules
+not give core ambient visibility of system declarations. Source assembly schedules
 loading and parsing; package provenance and the choice of accepted supplier
 stay here.
 

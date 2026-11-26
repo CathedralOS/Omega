@@ -4,7 +4,7 @@ Choosing one of two mutable inputs through a computed receiver and writing throu
 
 `choose` returns one of two mutable `Cell` placements. The call `selected.held.write` records that chosen cell. The other cell's `held` field starts at `1` and stays there. Indexing `[4, 7, 8, 9]` with that preserved bound reads `7`. Exit is `0` only when the chosen cell's `held` field is `9` and the index reads `7`. Each reject twin changes only `pick_chosen` from `true` to `false`, so the write overlaps the index bound.
 
-The programs do not depend on `source/library/std`.
+The programs do not depend on `source/library/system`.
 
 This witnesses the computed-receiver row of **R5** in `TASKS.md`: caller-visible may-write summaries under [invocation contracts](../../../../wiki/spec/language/state_contracts.md). It does not close finite write cycles or parameter-permutation write sets.
 

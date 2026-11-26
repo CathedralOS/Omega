@@ -12,7 +12,7 @@ declaring `crashes Trap` on ordinary machines.
   dormant path — every route exists in the checked program while none
   fires in this run.
 
-Compile-checked only (no std dependency, no ProcessExit provider):
+Compile-checked only (no system dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/crash_route_exits/main.omg

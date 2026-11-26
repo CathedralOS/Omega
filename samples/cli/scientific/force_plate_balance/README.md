@@ -47,7 +47,7 @@ Synthetic results are research fixtures, not equipment or safety certification.
 
 From the repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's
 `source/library` and `OMEGA` to a binary built from the candidate compiler source recorded in the review bundle. Prepare
-std's entry contract with `"$OMEGA" update --project
+system's entry contract with `"$OMEGA" update --project
 samples/cli/independent/force_plate_balance --target linux_x86_64`, review the
 proposal and `--resume`. Then:
 
