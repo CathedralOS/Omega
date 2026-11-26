@@ -1003,8 +1003,14 @@ pub(crate) mod proposition_encoding {
                 bytes.finish()
             };
             let mere = |inner| Proposition::IsMere(Box::new(inner));
-            assert_ne!(encoded(mere(Proposition::Truth)), encoded(Proposition::Truth));
-            assert_ne!(encoded(mere(Proposition::Truth)), encoded(mere(Proposition::Falsehood)));
+            assert_ne!(
+                encoded(mere(Proposition::Truth)),
+                encoded(Proposition::Truth)
+            );
+            assert_ne!(
+                encoded(mere(Proposition::Truth)),
+                encoded(mere(Proposition::Falsehood))
+            );
         }
 
         #[test]
@@ -1305,9 +1311,9 @@ pub(crate) mod structural_encoding {
         ProgramLocalRootIntroductionSchema, ProviderCandidateConformance,
         RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
         RetainedBorrowPlaceRoot, StructuralDomainDeclaration, StructuralDomainRequirement,
-        StructuralFieldDeclaration, StructuralFieldType,
-        StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
-        StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+        StructuralFieldDeclaration, StructuralFieldType, StructuralOperationResult,
+        StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
+        StructuralTypeShape, TerminalAffineCleanupAction,
     };
     use terminal_psi::BoundaryMachineResult;
 

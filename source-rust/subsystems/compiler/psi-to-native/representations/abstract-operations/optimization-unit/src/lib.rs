@@ -187,7 +187,9 @@ pub struct PsiOptimizationUnit {
 /// returns normally. Call-graph analysis and the pruning validator both read
 /// callees through `module_invocation`, so they cannot disagree about reachability.
 fn direct_call_machine(operation: &AbstractOperation) -> Option<MachineId> {
-    operation.module_invocation().map(|invocation| invocation.callee)
+    operation
+        .module_invocation()
+        .map(|invocation| invocation.callee)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

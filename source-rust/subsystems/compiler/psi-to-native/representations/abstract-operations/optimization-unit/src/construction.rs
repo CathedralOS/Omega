@@ -9,13 +9,12 @@ Terminal module catalogs and frontier facts are attached.
 */
 
 use super::{
-    AbstractFunction, AbstractOperation, AbstractOperationPlan, Arc, BTreeSet,
-    BlockId, EffectLink, MachineId, ObligationId, OperationId, OptimizationBlock, OptimizationEdge,
-    OptimizationFact, OptimizationNode, OptimizationUnitIdentity, OwnershipEvent, PlaceId,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, ScalarType,
-    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalRootServiceReach, ValueDefinition,
-    ValueDefinitionSite, ValueId, ValueUse, WorkScheduleIdentity, WorkSettlement,
-    recompute_psi_optimization_unit_identity,
+    AbstractFunction, AbstractOperation, AbstractOperationPlan, Arc, BTreeSet, BlockId, EffectLink,
+    MachineId, ObligationId, OperationId, OptimizationBlock, OptimizationEdge, OptimizationFact,
+    OptimizationNode, OptimizationUnitIdentity, OwnershipEvent, PlaceId, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiProvenance, ScalarType, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TerminalRootServiceReach, ValueDefinition, ValueDefinitionSite, ValueId,
+    ValueUse, WorkScheduleIdentity, WorkSettlement, recompute_psi_optimization_unit_identity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -943,7 +942,12 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::PackedIntegerUnary { source, result, .. } => {
             places.extend([result.place, source.place]);
         }
-        O::PackedIntegerBinary { left, right, result, .. } => {
+        O::PackedIntegerBinary {
+            left,
+            right,
+            result,
+            ..
+        } => {
             places.extend([result.place, left.place, right.place]);
         }
         O::StructuralLeafCopy { source, result, .. } => {

@@ -1428,18 +1428,17 @@ mod declarations {
 }
 
 mod codec {
-    use super::foundations::{encode_location, encode_provenance_rows};
     use super::canonical_encoding::{
         encode_integer_type, encode_integer_value, encode_len, encode_scalar_type,
     };
+    use super::foundations::{encode_location, encode_provenance_rows};
     use super::{
-        BlockId, CanonicalStructuralPathSegment, OptimizationRuleContract,
-        OptimizationUnitIdentity,
+        BlockId, CanonicalStructuralPathSegment, OptimizationRuleContract, OptimizationUnitIdentity,
     };
     use super::{
         FieldValueResolution, FoldedFieldValue, ProofCertifiedScalarIdentityKind,
-        ProvenanceRewrite, PsiRewriteDecisionPoint, PsiRewritePatch,
-        PsiRewriteWitness, ScalarEvaluationWitness, ScalarSubstitution, TotalScalarIdentityKind,
+        ProvenanceRewrite, PsiRewriteDecisionPoint, PsiRewritePatch, PsiRewriteWitness,
+        ScalarEvaluationWitness, ScalarSubstitution, TotalScalarIdentityKind,
     };
     use crate::ownership::encode_ownership_frontier_site;
 
