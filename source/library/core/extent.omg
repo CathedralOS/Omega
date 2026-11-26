@@ -1,3 +1,4 @@
+use {omega}/language/core/foundation.omg as proof;
 use {omega}/language/core/access/access.omg as access;
 
 // Core concrete-range authority.
@@ -37,7 +38,7 @@ public boundary trait VacantContentTransfer {
     reaches none
     ensures
         result in Granted & Vacant,
-        core\Identity::<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))
+        |proof|::Identity::<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))
     crashes Trap crashes Abort;
 }
 
@@ -72,12 +73,12 @@ ensures
     result.rest.length == whole.length - requested,
     requested != 0 || result.rest.base == whole.base,
     result.rest.length == 0 || embed(result.rest.base) == embed(whole.base) + embed(requested),
-    core\Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<IntervalSet<Nat>>(
         Granted::content(old(@whole)),
         separate(
             Granted::content(@result.taken), Granted::content(@result.rest))
     ),
-    core\Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<IntervalSet<Nat>>(
         Vacant::content(old(@whole)),
         separate(
             Vacant::content(@result.taken), Vacant::content(@result.rest))
@@ -111,11 +112,11 @@ ensures
     embed(result.length) == embed(left.length) + embed(right.length),
     left.length == 0 || result.base == left.base,
     left.length != 0 || result.base == right.base,
-    core\Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<IntervalSet<Nat>>(
         separate(Granted::content(old(@left)), Granted::content(old(@right))),
         Granted::content(@result)
     ),
-    core\Identity::<IntervalSet<Nat>>(
+    |proof|::Identity::<IntervalSet<Nat>>(
         separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
         Vacant::content(@result)
     )
@@ -138,7 +139,7 @@ public boundary trait ResidentContentTransfer<P, T> {
     reaches none
     ensures
         result in Granted & Resident<P, T>,
-        core\Identity::<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))
+        |proof|::Identity::<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))
     crashes Trap crashes Abort;
 }
 
@@ -147,7 +148,7 @@ public boundary trait ResidentContentTransfer<P, T> {
 // without becoming an address or narrowing the independent u64 count.
 // A bodyless boundary machine cannot substitute for this predicate: it would
 // turn every Granted fact into a runtime observation, not a proof formula.
-public let no_wrap(base: address, length: u64): core\Strict<0> =
+public let no_wrap(base: address, length: u64): |proof|::Strict<0> =
     embed(base) + embed(length) <= address::Bound;
 
 // `Granted` is authority evidence, not a structural invariant. Constructing
