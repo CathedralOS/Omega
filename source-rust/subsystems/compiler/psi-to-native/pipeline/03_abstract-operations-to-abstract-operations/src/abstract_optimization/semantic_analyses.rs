@@ -1850,10 +1850,8 @@ pub(crate) mod sparse_conditional_constants {
 
             let mut reachable = BTreeSet::from([function.entry]);
             let mut feasible_edges = BTreeMap::<EdgeId, ScalarConstantSupport>::new();
-            let mut reach_support = BTreeMap::from([(
-                function.entry,
-                ScalarConstantSupport::default(),
-            )]);
+            let mut reach_support =
+                BTreeMap::from([(function.entry, ScalarConstantSupport::default())]);
             loop {
                 let mut changed = false;
                 for block in &function.blocks {

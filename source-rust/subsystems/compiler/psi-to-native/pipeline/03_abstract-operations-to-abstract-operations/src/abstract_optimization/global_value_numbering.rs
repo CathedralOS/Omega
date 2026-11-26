@@ -1838,8 +1838,7 @@ where
                 else {
                     continue;
                 };
-                if leader_type != scalar_type
-                    || !use_definitions.has_use(function.machine, result)
+                if leader_type != scalar_type || !use_definitions.has_use(function.machine, result)
                 {
                     continue;
                 }

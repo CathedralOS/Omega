@@ -149,7 +149,8 @@ pub(crate) mod boolean_constants {
                 },
                 BooleanEvaluationKind::IntegerLessOrEqual,
             ) => {
-                let (left_value, left_fact) = constants.integer_constant(function.machine, *left)?;
+                let (left_value, left_fact) =
+                    constants.integer_constant(function.machine, *left)?;
                 let (right_value, right_fact) =
                     constants.integer_constant(function.machine, *right)?;
                 let left_type = integer_value_type(function, *left)?;
@@ -289,8 +290,7 @@ pub(crate) mod integer_binary_constants {
                 if shape.operation.kind() != kind {
                     return Ok(None);
                 }
-                let Some((left_value, left_fact)) =
-                    constants.integer_constant(machine, shape.left)
+                let Some((left_value, left_fact)) = constants.integer_constant(machine, shape.left)
                 else {
                     return Ok(None);
                 };
