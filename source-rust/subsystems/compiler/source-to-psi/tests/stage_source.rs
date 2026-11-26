@@ -198,6 +198,50 @@ fn a_recursive_view_must_reborrow_its_last_live_carrier() {
 }
 
 #[test]
+fn loop_specializations_publish_the_reach_of_their_emitted_calls() {
+    let package = PackageKeyIdentity::from_digest([0xa6; 32]).unwrap();
+    let source = r#"
+        boundary trait Signal { machine touch() reaches Signal crashes none; }
+        trait Step { machine apply() terminates; }
+        machine selected() satisfies Step::apply reaches Signal {}
+        machine ordinary() reaches Signal {}
+        machine walk<const F: Step::apply>(items: @[u8]) terminates
+        terminates by items -> Slice::Length {
+            transition items.length > 0 { true -> head(items), _ -> done() }
+            machine head(items: @[u8]) requires items.length > 0 {
+                ORDINARY
+                F();
+                walk::<F>(@items[1..])
+            }
+            machine done() {}
+        }
+        machine main() { let input: [u8; 2] = [1, 2]; walk::<selected>(@input[..]); }"#;
+
+    for (ordinary_call, fixed_services) in [("", 0), ("ordinary();", 1)] {
+        let text = source.replace("ORDINARY", ordinary_call);
+        let (files, root) = captured(package, &text);
+        let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+        let bytes = artifact.to_bytes();
+        let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+        let applications: Vec<_> = reopened
+            .semantic_module()
+            .machines
+            .iter()
+            .filter_map(|machine| machine.closed_reach_application.as_ref())
+            .filter(|application| !application.calls.is_empty())
+            .collect();
+        assert!(
+            !applications.is_empty(),
+            "the selected call must survive loop lowering"
+        );
+        for application in applications {
+            assert_eq!(application.dependencies, vec![0]);
+            assert_eq!(application.fixed.len(), fixed_services);
+        }
+    }
+}
+
+#[test]
 fn an_indexed_generic_borrow_can_end_before_the_next_suffix() {
     let package = PackageKeyIdentity::from_digest([0x78; 32]).unwrap();
     let (files, root) = captured(
