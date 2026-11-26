@@ -148,7 +148,7 @@ impl PreparedBuildEvaluation {
                     self.source_completion_accounting.clone(),
                 )
             })?;
-        self.finish(|execution| execution.complete(returned))
+        self.finish(returned, |execution, returned| execution.complete(returned))
     }
 
     pub fn complete_successor(
@@ -156,13 +156,17 @@ impl PreparedBuildEvaluation {
         returned: crate::ReturnedBuild,
         libraries: &[package_compilation::source_imports::SuppliedBuildLibrary],
     ) -> Result<EvaluatedBuild, CompileFailure> {
-        self.finish(|execution| execution.complete_successor(returned, libraries))
+        self.finish(returned, |execution, returned| {
+            execution.complete_successor(returned, libraries)
+        })
     }
 
     fn finish(
         self,
+        mut returned: crate::ReturnedBuild,
         settle: impl FnOnce(
             PreparedBuildExecution,
+            crate::ReturnedBuild,
         ) -> Result<crate::ComputedBuildConfig, Vec<Diagnostic>>,
     ) -> Result<EvaluatedBuild, CompileFailure> {
         let Self {
@@ -178,11 +182,18 @@ impl PreparedBuildEvaluation {
         let failure = |diagnostics| {
             CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
         };
-        let configuration = Arc::new(settle(execution).map_err(failure)?);
+        if !returned.validation_requests.is_empty() {
+            return Err(failure(vec![Diagnostic::error(
+                "Build validation requires its registered package occurrence",
+            )]));
+        }
+        let dependency_validation = std::mem::take(&mut returned.validation_subjects);
+        let configuration = Arc::new(settle(execution, returned).map_err(failure)?);
         drop(restricted_build_grants);
         Ok(EvaluatedBuild {
             preparations: Vec::new(),
             configuration,
+            dependency_validation,
             restricted_build_requests,
             base_source_consumption_commitment,
             constants,
@@ -269,7 +280,7 @@ pub fn prepare_build_evaluation(
     let subject_validation = if dependency_activation {
         BuildSubjectValidation::EntryOnly
     } else if check_only.is_some() {
-        BuildSubjectValidation::CheckedUnderProvisionalOwner
+        BuildSubjectValidation::NeedsOwnerCheck
     } else {
         BuildSubjectValidation::Checked
     };

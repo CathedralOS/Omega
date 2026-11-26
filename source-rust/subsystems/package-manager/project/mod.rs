@@ -2,6 +2,7 @@
 mod services;
 mod stages;
 mod successor_inputs;
+mod validation;
 mod workspace_check;
 pub use workspace_check::{CheckSubject, discover_check_root, open_check_subjects};
 #[cfg(all(test, unix))]
@@ -64,7 +65,9 @@ impl PackageReviewBuilds {
             )]
             .into());
         }
-        build.open_product(inputs.clone())
+        build
+            .open_pending(inputs.clone(), project_build::DependencyCheck::FullPackage)?
+            .settle()
     }
 }
 
@@ -796,10 +799,11 @@ fn open_products_with(
         if let Some(started) = step {
             open_timings.add_completed(OPEN_RESOLVE_SOURCES, started.elapsed().as_micros());
         }
-        if resolved
-            .inputs
-            .required_dependency_source_instances()
-            .is_empty()
+        if !resolved.root.has_dependency_validation()
+            && resolved
+                .inputs
+                .required_dependency_source_instances()
+                .is_empty()
             && decisions
                 .iter()
                 .all(|(_, policy)| matches!(policy, Ok(None)))
@@ -834,12 +838,16 @@ fn open_products_with(
                         .map(|policy| policy.root_permissions())
                         .transpose()
                         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    sources
+                        .validate_dependencies(&root, target)
+                        .map_err(|failure| error(failure.into()))?;
                     let (planned, rechecks) = sources
                         .dependency_product(
                             &root,
                             build_declarations::DependencyPurpose::Product,
                             target,
                             &mut dependencies,
+                            project_build::DependencyCheck::DemandedClosure,
                             alongside,
                         )
                         .map_err(|failure| error(failure.into()))?;

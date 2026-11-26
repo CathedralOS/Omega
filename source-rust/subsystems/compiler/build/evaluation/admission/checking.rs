@@ -41,7 +41,7 @@ pub fn settle_rejoined_build_slice(
     // A subject checked under a provisional owner still owes the check under
     // its real owner, even when it read no constants.
     if constants.read.is_empty()
-        && subject_validation != BuildSubjectValidation::CheckedUnderProvisionalOwner
+        && subject_validation != BuildSubjectValidation::NeedsOwnerCheck
     {
         return Ok(Default::default());
     }

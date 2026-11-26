@@ -393,6 +393,7 @@ pub(crate) mod build_requests {
         AddBinding,
         ExtendReach,
         PrepareDependency,
+        ValidateDependency,
         LogLine,
         PublishSource,
         ConfigureTestFixture,
