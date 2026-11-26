@@ -1,13 +1,12 @@
 // Error diagnostics for conservative `build.omg` dependency row projection.
 
-use crate::declarations::BuildDeclarationError;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DependencyProjectionError {
     Lex { message: String },
     Parse { message: String },
-    BuildDeclaration(Box<BuildDeclarationError>),
+    MissingBuildMachine,
     AuthoredToolchainVocabulary { name: String },
     ScopedBuildMachine { scope: String },
     DuplicateBuildMachines { count: usize },
@@ -40,9 +39,7 @@ impl fmt::Display for DependencyProjectionError {
         match self {
             Self::Lex { message } => write!(formatter, "cannot lex package build: {message}"),
             Self::Parse { message } => write!(formatter, "cannot parse package build: {message}"),
-            Self::BuildDeclaration(error) => {
-                write!(formatter, "cannot project dependencies without a valid project role: {error}")
-            }
+            Self::MissingBuildMachine => formatter.write_str("no free Build entry to edit"),
             Self::AuthoredToolchainVocabulary { name } => write!(
                 formatter,
                 "package build must not declare toolchain dependency vocabulary `{name}`"

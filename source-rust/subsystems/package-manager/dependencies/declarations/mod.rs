@@ -16,7 +16,6 @@ mod identity;
 pub(crate) use identity::AliasName;
 pub use identity::{PackageKey, PackageName};
 
-pub(crate) use editable_build::BuildDeclarationError;
 pub use build_declarations::{BuildDeclarationKind, WorkspaceMemberPath};
 pub use dependencies::DependencyPurpose;
 pub(crate) use dependencies::PackageSelection;

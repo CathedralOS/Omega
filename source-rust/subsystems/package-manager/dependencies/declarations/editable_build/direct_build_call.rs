@@ -1,9 +1,9 @@
 // Validates the canonical direct `Build::<operation>(builder, ...)` call shape
-// shared by role and dependency syntax projectors: a static `Build` owner whose
+// for editable dependency registrations: a static `Build` owner whose
 // explicit first operand names the root entry's Build parameter, with no
 // generic, evidence, or operational modifiers.
 
-use build_declarations::BUILD_TYPE_NAME;
+use build_declarations::BUILD_MODULE_NAME;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::TableCallExpression;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -19,7 +19,7 @@ pub(crate) fn direct_build_call_operands<'syntax>(
     receiver_name: &str,
 ) -> Result<&'syntax [ExpressionHandle], DirectBuildCallError> {
     if !call.target_is_static
-        || !matches!(syntax_trees.expression_identifier_path(call.receiver).as_deref(), Some([owner]) if owner.as_str(syntax_trees) == BUILD_TYPE_NAME)
+        || !matches!(syntax_trees.expression_identifier_path(call.receiver).as_deref(), Some([owner]) if owner.as_str(syntax_trees) == BUILD_MODULE_NAME)
     {
         return Err(DirectBuildCallError::WrongReceiver);
     }

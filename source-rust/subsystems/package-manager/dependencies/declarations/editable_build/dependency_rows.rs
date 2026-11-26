@@ -169,7 +169,7 @@ fn registration(
         return Ok(None);
     };
     let owner = expression_owner(syntax_trees, call.receiver);
-    if owner != Some(build_declarations::BUILD_TYPE_NAME)
+    if owner != Some(build_declarations::BUILD_MODULE_NAME)
         && (owner.is_some() || discarded.is_none())
     {
         return Ok(None);
@@ -306,7 +306,8 @@ fn aliased_row(
 
 #[cfg(test)]
 mod tests {
-    use super::super::{BuildDeclarationError, project_build_entry_syntax};
+    use super::super::project_build_entry_syntax;
+    use crate::declarations::dependencies::read::DependencyProjectionError;
     use super::{
         DependencyOperation, DependencyPurpose, DependencyRow, DependencyRowError,
         project_dependency_rows,
@@ -439,7 +440,7 @@ machine build(builder: @mutable Build) {
         .syntax;
         assert!(matches!(
             project_build_entry_syntax(&syntax_trees),
-            Err(BuildDeclarationError::MissingBuildDeclaration)
+            Err(DependencyProjectionError::MissingBuildMachine)
         ));
     }
 }
