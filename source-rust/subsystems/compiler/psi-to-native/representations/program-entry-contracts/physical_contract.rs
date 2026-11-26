@@ -8,9 +8,7 @@ pub struct ProgramEntryPhysicalContractPlan {
     target_slot: target::ProgramEntrySlotDeclaration,
     requirement_identity: terminal_psi::TerminalIdentityIndex,
     identities: terminal_psi::TerminalIdentityTable,
-    target_package: target::ProgramEntryPhysicalContractPackage,
     target_package_source_digest: ProgramEntryPhysicalContractPackageSourceDigest,
-    non_authoritative_target_package_source_report_fingerprint: u64,
     parameter_type_identities: Vec<terminal_psi::TerminalIdentityIndex>,
     result_type_identity: terminal_psi::TerminalIdentityIndex,
     calling_plan_report_fingerprint: u64,
@@ -22,9 +20,7 @@ impl ProgramEntryPhysicalContractPlan {
     pub fn new(
         target_slot: target::ProgramEntrySlotDeclaration,
         requirement_identity: String,
-        target_package: target::ProgramEntryPhysicalContractPackage,
         target_package_source_digest: ProgramEntryPhysicalContractPackageSourceDigest,
-        non_authoritative_target_package_source_report_fingerprint: u64,
         parameter_type_identities: Vec<String>,
         result_type_identity: String,
         calling_plan_report_fingerprint: u64,
@@ -33,10 +29,10 @@ impl ProgramEntryPhysicalContractPlan {
         let Some(physical_requirement) = target_slot.physical_arrival_requirement else {
             return Err("program-entry physical contract has no target-fixed requirement".into());
         };
+        let target_package = target_package_source_digest.package();
         if target_slot != target_slot.owner.program_entry_slot()
             || physical_requirement.is_empty()
             || target_slot.physical_contract_package != Some(target_package)
-            || target_package_source_digest.package() != target_package
         {
             return Err(
                 "physical entry contract drifted from its exact target slot declaration".into(),
@@ -74,9 +70,7 @@ impl ProgramEntryPhysicalContractPlan {
         Ok(Self {
             target_slot,
             requirement_identity: identities.intern(&requirement_identity),
-            target_package,
             target_package_source_digest,
-            non_authoritative_target_package_source_report_fingerprint,
             parameter_type_identities: parameter_type_identities
                 .iter()
                 .map(|identity| identities.intern(identity))
@@ -102,17 +96,13 @@ impl ProgramEntryPhysicalContractPlan {
     }
 
     pub const fn target_package(&self) -> target::ProgramEntryPhysicalContractPackage {
-        self.target_package
+        self.target_package_source_digest.package()
     }
 
     pub const fn target_package_source_digest(
         &self,
     ) -> ProgramEntryPhysicalContractPackageSourceDigest {
         self.target_package_source_digest
-    }
-
-    pub const fn non_authoritative_target_package_source_report_fingerprint(&self) -> u64 {
-        self.non_authoritative_target_package_source_report_fingerprint
     }
 
     pub fn parameter_type_identities(&self) -> &[terminal_psi::TerminalIdentityIndex] {
@@ -170,9 +160,7 @@ mod tests {
             ProgramEntryPhysicalContractPlan::new(
                 slot,
                 slot.physical_arrival_requirement.unwrap().to_owned(),
-                package,
                 exact_physical_contract_package_source_digest(package),
-                1,
                 parameters,
                 result,
                 calling.contract_report_fingerprint(),

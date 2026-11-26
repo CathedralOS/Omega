@@ -3,13 +3,13 @@
 
 use super::SelectedProgramEntryCallingPlans;
 use crate::calling_policy_plans::CallingProgram;
-use provider_plans::{
-    BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ServiceCallingApplication,
-    ServiceCallingPlan, ServiceSchema,
-};
 use program_entry_contracts::{
     ProgramEntryPhysicalContractPackageSourceDigest, ProgramEntryPhysicalContractPlan,
     SelectedProgramStorageEntryPlan,
+};
+use provider_plans::{
+    BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ServiceCallingApplication,
+    ServiceCallingPlan, ServiceSchema,
 };
 use semantic_vocabulary::CallingSignatureId;
 use terminal_psi::{CallingPolicyInstance, TerminalModule};
@@ -103,6 +103,13 @@ impl SelectedProgramEntryCallingPlans {
             providers,
             admission,
         } = request;
+        let package = slot
+            .physical_contract_package
+            .ok_or("entry slot has no physical contract package")?;
+        let source_digest = ProgramEntryPhysicalContractPackageSourceDigest::verify(
+            package,
+            physical_source_digest,
+        )?;
         let owner = schema
             .root_application_identity()
             .ok_or("entry schema has no exact root application identity")?
@@ -166,12 +173,6 @@ impl SelectedProgramEntryCallingPlans {
                 },
             });
         }
-        let package = slot
-            .physical_contract_package
-            .ok_or("entry slot has no physical contract package")?;
-        if physical_source_digest == [0; 32] {
-            return Err("entry physical contract has no admitted source commitment".into());
-        }
         let method = schema
             .declaration
             .methods
@@ -186,18 +187,10 @@ impl SelectedProgramEntryCallingPlans {
             .map(|identity| schema.identity_text(*identity).to_owned())
             .collect();
         let result = schema.identity_text(method.result_type_identity).to_owned();
-        let source_digest = ProgramEntryPhysicalContractPackageSourceDigest::from_retained_digest(
-            package,
-            physical_source_digest,
-        );
-        let mut source_report = [0; 8];
-        source_report.copy_from_slice(&source_digest.as_bytes()[..8]);
         let physical_contract = ProgramEntryPhysicalContractPlan::new(
             slot,
             physical_requirement.to_owned(),
-            package,
             source_digest,
-            u64::from_le_bytes(source_report),
             parameters,
             result,
             physical_calling_application

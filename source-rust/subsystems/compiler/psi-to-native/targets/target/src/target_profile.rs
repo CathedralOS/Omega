@@ -86,14 +86,31 @@ impl ProgramEntryPhysicalContractPackage {
     }
 
     pub const fn package_relative_source(self) -> &'static str {
+        self.contract_source().0
+    }
+
+    /// The profile's logical filename and its installed source come from the same selection.
+    pub(crate) const fn contract_source(self) -> (&'static str, &'static [u8]) {
+        macro_rules! source {
+            ($path:literal) => {
+                (
+                    $path,
+                    include_bytes!(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/../../../../../../source/library/std/",
+                        $path
+                    )),
+                )
+            };
+        }
         match self {
-            Self::UefiX64 => "uefi_x86_64_entry.omg",
-            Self::MacosArm64 => "targets/macos_arm64/entry.omg",
-            Self::MacosX64 => "targets/macos_x86_64/entry.omg",
-            Self::LinuxX86_64 => "targets/linux_x86_64/entry.omg",
-            Self::LinuxArm64 => "targets/linux_arm64/entry.omg",
-            Self::WindowsX64 => "targets/windows_x86_64/entry.omg",
-            Self::WindowsArm64 => "targets/windows_arm64/entry.omg",
+            Self::UefiX64 => source!("uefi_x86_64_entry.omg"),
+            Self::MacosArm64 => source!("targets/macos_arm64/entry.omg"),
+            Self::MacosX64 => source!("targets/macos_x86_64/entry.omg"),
+            Self::LinuxX86_64 => source!("targets/linux_x86_64/entry.omg"),
+            Self::LinuxArm64 => source!("targets/linux_arm64/entry.omg"),
+            Self::WindowsX64 => source!("targets/windows_x86_64/entry.omg"),
+            Self::WindowsArm64 => source!("targets/windows_arm64/entry.omg"),
         }
     }
 

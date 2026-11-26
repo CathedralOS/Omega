@@ -18,5 +18,4 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 
 sha2 = "0.10.9"
 
-[dev-dependencies]
 source-provenance = { path = "../../../foundation/source-provenance" }
