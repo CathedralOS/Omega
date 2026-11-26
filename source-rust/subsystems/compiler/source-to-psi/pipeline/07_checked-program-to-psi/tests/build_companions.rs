@@ -213,25 +213,28 @@ fn accepted_frontier_with_subjects(
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    source_compiler::test_support::SourcePreparationRequest {
-        program: typed,
-        accounting: Default::default(),
-        admission: Default::default(),
-        compilation: source_compiler::test_support::lowering::Compilation {
-            declaration_metadata: &[],
-            entries: &[entry],
-            subjects,
-            purpose: DependencyScope::Build,
-            selected: &[],
-            calling: None,
-            providers: None,
-            bindings: &[],
-            supplies: &[],
+    let entries = [entry];
+    let compilation = source_compiler::test_support::lowering::Compilation {
+        declaration_metadata: &[],
+        entries: &entries,
+        subjects,
+        purpose: DependencyScope::Build,
+        selected: &[],
+        calling: None,
+        providers: None,
+        bindings: &[],
+        supplies: &[],
+    };
+    let prepared = source_compiler::test_support::prepare_source_for_test(
+        source_compiler::test_support::SourcePreparationRequest {
+            program: typed,
+            accounting: Default::default(),
+            admission: Default::default(),
+            compilation,
         },
-    }
-    .judge(publication)
-    .map(|judged| judged.accepted)
-    .map_err(|failure| failure.diagnostics)
+    )
+    .map_err(|failure| failure.diagnostics)?;
+    source_compiler::test_support::judge_terminal_source(prepared.program, compilation, publication)
 }
 
 fn produced(build: &str) -> Result<ProducedTerminalProgram, Vec<diagnostics::Diagnostic>> {
