@@ -407,13 +407,50 @@ mod tests {
     }
 
     #[test]
+    fn repeated_catalog_stages_keep_their_own_registration_ordinals() {
+        let first_graph = catalog_graph();
+        let mut first = first_graph.catalog_dependencies[0].clone();
+        let successor = build_declarations::BuildEntryPath::parse("step.omg".into()).unwrap();
+        first.preparation = Some(crate::resolution::source::CatalogPreparation {
+            ordinal: 0,
+            successor: successor.clone(),
+        });
+        let mut second = first.clone();
+        second.preparation = Some(crate::resolution::source::CatalogPreparation {
+            ordinal: 1,
+            successor,
+        });
+        let build = |requests| {
+            source_graph("selected", "https://catalog.invalid/workspace.git")
+                .with_catalog_dependencies(
+                    requests,
+                    Limits::default(),
+                    &mut Budget::new(usize::MAX),
+                )
+        };
+        let subject = build(vec![first.clone(), second.clone()]).unwrap();
+        let text = subject.canonical_text(Limits::default()).unwrap();
+        assert_eq!(
+            CanonicalSourceClosureSubject::recover_text(&text, Limits::default()).unwrap(),
+            subject
+        );
+        assert!(!subject.same_source_graph(&first_graph));
+        second.preparation.as_mut().unwrap().ordinal = 0;
+        assert!(build(vec![first.clone(), second.clone()]).is_err());
+        second.ordinal = 1;
+        second.preparation.as_mut().unwrap().successor =
+            build_declarations::BuildEntryPath::parse("other.omg".into()).unwrap();
+        assert!(build(vec![first, second]).is_err());
+    }
+
+    #[test]
     fn catalog_free_subject_uses_the_current_identity() {
         let subject = source_graph("selected", "https://catalog.invalid/workspace.git");
         let text = subject.canonical_text(Limits::default()).unwrap();
         assert!(text.starts_with("omega-source-closure 7\n"));
         assert!(text.contains("authored-build 0\n"));
         assert!(text.ends_with("catalog-dependencies 0\nend\n"));
-        for retired in 1..=4 {
+        for retired in 1..7 {
             let old = text.replacen(
                 "omega-source-closure 7",
                 &format!("omega-source-closure {retired}"),
