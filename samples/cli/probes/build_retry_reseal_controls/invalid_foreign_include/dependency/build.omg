@@ -1,5 +1,6 @@
-// A dependency can publish only inside its own generated-source namespace.
-machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Package { name: "custody_break" };
-    Build::include_source(builder, "../start.omg", "public machine generated_value() -> i32 { 7 }");
+// A generator can create files only below its writable directory.
+machine build(plan: @mutable BuildPlan) {
+    let file: BuildPath = BuildOutput::resolve(@plan.output, "../start.omg");
+    _ = BuildOutput::create(@mutable plan.output, file, 0);
+    plan.product = BuildProduct::Package { name: "custody_break" };
 }

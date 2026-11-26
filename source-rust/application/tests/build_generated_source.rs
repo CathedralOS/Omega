@@ -6,7 +6,7 @@ use std::process::{Command, Output, Stdio};
 
 fn run(project: &Path, engine: &str, inputs: &[&str]) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-    command.args(["run", "--engine", engine]);
+    command.args(["run", "--engine", engine, "--outputs", engine]);
     for path in inputs {
         command.args(["--build-input", path]);
     }
@@ -24,6 +24,20 @@ fn report(result: &Output) -> String {
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
     )
+}
+
+fn assert_returned(root: &Path, engine: &str) {
+    let output = root.join(engine);
+    let termination = fs::read_to_string(output.join("termination.tsv")).unwrap();
+    match engine {
+        "psi" => assert_eq!(termination, "psi\treturn\n"),
+        _ => assert!(
+            termination.starts_with("native\texit\t0\t"),
+            "{termination}"
+        ),
+    }
+    assert!(fs::read(output.join("stdout")).unwrap().is_empty());
+    assert!(fs::read(output.join("stderr")).unwrap().is_empty());
 }
 
 #[test]
@@ -91,7 +105,9 @@ machine copy<const N: u64>(plan: @mutable BuildPlan, source: @[u8], destination:
             );
             let report = report(&result);
             assert_eq!(result.status.success(), valid, "{engine}: {report}");
-            if !valid {
+            if valid {
+                assert_returned(project.path(), engine);
+            } else {
                 assert!(
                     report.contains("no visible declaration"),
                     "{engine}: {report}"
@@ -124,4 +140,51 @@ fn a_build_cannot_import_its_own_future_product_file() {
     let result = run(project.path(), "psi", &["build.omg"]);
     assert!(!result.status.success());
     assert!(report(&result).contains("no admitted logical file `generated.omg`"));
+}
+
+#[test]
+fn a_consumer_runs_its_nested_dependency_from_the_returned_directory() {
+    if target::TargetProfile::host_if_supported().is_none() {
+        return;
+    }
+    let project = TemporaryDirectory::create("returned-nested-dependency", false).unwrap();
+    let sample =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/cli/probes/build_retry_reseal");
+    let root = project.path();
+    fs::create_dir(root.join("dependency")).unwrap();
+    for name in [
+        "build.omg",
+        "main.omg",
+        "dependency/build.omg",
+        "dependency/main.omg",
+        "dependency/seed.omg",
+        "dependency/template.txt",
+    ] {
+        fs::copy(sample.join(name), root.join(name)).unwrap();
+    }
+    for engine in ["psi", "native"] {
+        let result = run(root, engine, &[]);
+        assert!(result.status.success(), "{}", report(&result));
+        assert_returned(root, engine);
+    }
+
+    let generator = root.join("dependency/build.omg");
+    let source = fs::read_to_string(&generator).unwrap();
+    let selected = "BuildOutput::resolve(@builder.output, \"generated.omg\")";
+    assert!(source.contains(selected));
+    fs::write(
+        generator,
+        source.replace(
+            selected,
+            "BuildOutput::resolve(@builder.output, \"../outside.omg\")",
+        ),
+    )
+    .unwrap();
+    let result = run(root, "psi", &[]);
+    assert!(!result.status.success());
+    assert!(
+        report(&result).contains("Build path is not a canonical relative path"),
+        "{}",
+        report(&result)
+    );
 }

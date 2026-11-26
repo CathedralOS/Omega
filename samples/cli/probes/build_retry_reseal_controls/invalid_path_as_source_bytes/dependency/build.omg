@@ -1,6 +1,7 @@
-// Resolving a path gives the Build a handle. Publication requires the source bytes.
-machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Package { name: "custody_ghost" };
-    let path: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
-    Build::include_source(builder, "generated.omg", @path);
+// An issued path identifies the file. Writing it requires actual bytes.
+machine build(plan: @mutable BuildPlan) {
+    let file: BuildPath = BuildOutput::resolve(@plan.output, "generated.omg");
+    let writer: i32 = BuildOutput::create(@mutable plan.output, file, 0);
+    _ = BuildOutput::write(@mutable plan.output, writer, @file);
+    plan.product = BuildProduct::Package { name: "custody_ghost" };
 }

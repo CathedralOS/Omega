@@ -1,1 +1,1 @@
-invalid generated source filename `../start.omg`: expected a package-relative .omg filename
+Build path is not a canonical relative path
