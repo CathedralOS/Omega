@@ -182,6 +182,7 @@ int main(int count, char **args) {
             String::from_utf8_lossy(&output.stderr)
         )
     };
+    require_undelegated_child_refusal(temp.path(), &public, &image, &library);
     let pending = package("update", &image, &[]);
     assert_eq!(pending.status.code(), Some(3), "{}", show(&pending));
     let lock = app.join("omega.lock");
@@ -284,4 +285,47 @@ int main(int count, char **args) {
         "{error}"
     );
     assert_eq!(std::fs::read(&lock).unwrap(), locked);
+}
+
+fn require_undelegated_child_refusal(root: &Path, cli: &Path, image: &Path, library: &Path) {
+    let parent = root.join("parent");
+    let child = root.join("child");
+    for dir in [&parent, &child] {
+        std::fs::create_dir(dir).unwrap();
+        std::fs::write(
+            dir.join("main.omg"),
+            "public machine answer() -> u32 { 10u32 }",
+        )
+        .unwrap();
+    }
+    std::fs::write(parent.join("build.omg"), r#"use {omega}/build/dependency.omg;
+data Packer {}
+machine build(builder: @mutable Build) {
+    Build::package(builder, "parent");
+    _ = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../child" }));
+}"#).unwrap();
+    std::fs::write(
+        child.join("build.omg"),
+        r#"use {omega}/build/program.omg;
+data Packer {}
+machine build(builder: @mutable Build) blocks {
+    let args: [@[u8]; 1] = ["child"];
+    _ = block |program|::run::<Packer>(@args[..]);
+    Build::package(builder, "child");
+}"#,
+    )
+    .unwrap();
+    let result = Command::new(cli)
+        .current_dir(parent)
+        .env("OMEGA_LIBRARY_ROOT", library)
+        .args(["build", "--allow", "ProgramLaunch", "--program", "Packer"])
+        .arg(image)
+        .arg("build.omg")
+        .output()
+        .unwrap();
+    let message = String::from_utf8_lossy(&result.stderr);
+    assert!(
+        !result.status.success() && message.contains("Packer") && message.contains("ceiling"),
+        "{message}"
+    );
 }
