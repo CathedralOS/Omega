@@ -14,7 +14,8 @@ The final state takes only the maximum, not the grid borrow.
 From the repository root on macOS ARM64:
 
 ```sh
-target/release/omega run --both samples/cli/collections/heat_grid/main.omg
+target/release/omega run --engine native samples/cli/collections/heat_grid/main.omg
+target/release/omega run --engine psi samples/cli/collections/heat_grid/main.omg
 ```
 
 The first command completes this checkout's package review for measurement and

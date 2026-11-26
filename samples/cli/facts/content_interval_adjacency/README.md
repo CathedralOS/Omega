@@ -63,8 +63,7 @@ in its own `build.omg` and declares `Expected exit: 0`. The authored acceptance
 command is
 
 ```sh
-omega run samples/cli/facts/content_interval_adjacency/main.omg --both
-omega run samples/cli/facts/content_interval_adjacency/<place>/main.omg --both
+mbx xtask sample-gate --filter samples/cli/facts/content_interval_adjacency
 ```
 
 ### Measured on an Intel macOS host

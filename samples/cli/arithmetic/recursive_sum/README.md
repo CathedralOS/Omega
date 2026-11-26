@@ -7,7 +7,8 @@ Preserve the shrinking slice, accumulator reads, and two sequential calls.
 After reviewing this checkout's package closure, run from the repository root:
 
 ```text
-omega run --both samples/cli/arithmetic/recursive_sum/main.omg
+omega run --engine native samples/cli/arithmetic/recursive_sum/main.omg
+omega run --engine psi samples/cli/arithmetic/recursive_sum/main.omg
 ```
 
 EOF and Enter must each complete with native and Terminal exit 70. The complete

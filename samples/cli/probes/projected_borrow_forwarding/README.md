@@ -8,7 +8,8 @@ disjoint borrows must preserve each element's independent permission.
 After ordinary package review, run:
 
 ```sh
-omega run --both samples/cli/collections/projected_borrow_forwarding/main.omg
+omega run --engine native samples/cli/collections/projected_borrow_forwarding/main.omg
+omega run --engine psi samples/cli/collections/projected_borrow_forwarding/main.omg
 ```
 
 The native and Terminal runs both return 0 on macOS ARM64. The regression

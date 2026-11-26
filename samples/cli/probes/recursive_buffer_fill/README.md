@@ -10,7 +10,8 @@ loop bounds its remaining distance by `0..=bytes.length` on each invocation.
 From the repository root with a built `omega` on `PATH`:
 
 ```sh
-omega run --both samples/cli/probes/recursive_buffer_fill/build.omg
+omega run --engine native samples/cli/probes/recursive_buffer_fill/build.omg
+omega run --engine psi samples/cli/probes/recursive_buffer_fill/build.omg
 ```
 
 The original failure was rank formation for `cells.bytes.length`, followed by

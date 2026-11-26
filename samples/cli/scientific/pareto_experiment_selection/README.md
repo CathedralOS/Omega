@@ -74,7 +74,8 @@ omega packages update --project samples/cli/independent/pareto_experiment_select
 omega packages update --resume --project samples/cli/independent/pareto_experiment_selection
 omega --check samples/cli/independent/pareto_experiment_selection/main.omg
 omega run --keep samples/cli/independent/pareto_experiment_selection/main.omg < samples/cli/independent/pareto_experiment_selection/data/baseline.stdin
-omega run --both --keep samples/cli/independent/pareto_experiment_selection/main.omg < samples/cli/independent/pareto_experiment_selection/data/reordered.stdin
+omega run --engine native --keep samples/cli/scientific/pareto_experiment_selection/main.omg < samples/cli/scientific/pareto_experiment_selection/data/reordered.stdin
+omega run --engine psi --keep samples/cli/scientific/pareto_experiment_selection/main.omg < samples/cli/scientific/pareto_experiment_selection/data/reordered.stdin
 omega --check samples/cli/independent/pareto_experiment_selection/invalid_source/main.omg
 ```
 

@@ -3,7 +3,8 @@
 From the repository root, run with a built Omega CLI:
 
 ```text
-omega run --both samples/cli/algorithms/maze_flood/main.omg
+omega run --engine native samples/cli/algorithms/maze_flood/main.omg
+omega run --engine psi samples/cli/algorithms/maze_flood/main.omg
 ```
 
 Press Enter at the closing prompt (EOF also works). Native execution and the

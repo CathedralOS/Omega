@@ -7,7 +7,8 @@ remain valid until a write changes one of their operands.
 After ordinary local package review, run:
 
 ```sh
-omega run --both samples/cli/rendering/bouncing_particles/main.omg < /dev/null
+omega run --engine native samples/cli/rendering/bouncing_particles/main.omg < /dev/null
+omega run --engine psi samples/cli/rendering/bouncing_particles/main.omg < /dev/null
 ```
 
 On Linux x86_64, native execution exits 0. The checked interpreter currently

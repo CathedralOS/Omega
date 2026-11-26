@@ -550,14 +550,14 @@ machine main() reaches StandardOutput + ProcessExit {
           head: ["Verification step", "What it actually establishes"],
           rows: [
             ["`omega --check` passes", "Types, range proofs, affine moves, exhaustive transitions, and `reaches` ceilings all hold statically."],
-            ["`omega run --both` passes", "The Psi reference interpreter and the compiled native binary execute and agree on the outcome."],
+            ["The repository sample gate passes", "The Psi interpreter and native binary each execute the sample and match its expected observations."],
             ["Output bytes inspected", "Stdout bytes, space padding, line endings, and the exit code match the specification."],
             ["`--check` alone", "Proves the program is safe to run, not that a constant return or wrong formula solved the problem."],
           ],
         },
         notes: [
           { text: "Choose test inputs whose expected result can only appear if the machine genuinely ran its loop." },
-          { text: "In the Omega repository, every capability fact row must pass `omega run --both` (Psi + native execution agreement), not `--check` alone." },
+          { text: "In the Omega repository, run a capability fact with `mbx xtask sample-gate --filter <sample-path>` to check its native and Psi observations." },
         ],
       },
       {
@@ -599,7 +599,7 @@ machine start() reaches StandardOutput + ProcessExit {
         },
         notes: [
           { text: "Most agent failures come from inventing fields mid-machine or slapping `in Wrapping` onto a loop counter whose termination depends on not wrapping." },
-          { text: "Require both `omega --check` and an actual execution check (`omega run --both`) before accepting the task." },
+          { text: "Check the program with `omega --check`, then run the sample gate or its registered Build tests to verify the expected behavior." },
         ],
       },
       {
@@ -618,7 +618,7 @@ machine start() reaches StandardOutput + ProcessExit {
           ],
         },
         notes: [
-          { text: "Seven checks. If the code clears all seven and passes `omega run --both`, the machine is solid." },
+          { text: "Use the checklist alongside the actual execution results for the cases the machine must handle." },
         ],
       },
     ],

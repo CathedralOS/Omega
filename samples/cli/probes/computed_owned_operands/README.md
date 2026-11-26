@@ -12,7 +12,8 @@ call result carried through a state transition, and one passed in that
 later state.
 
 ```sh
-mbx run -p omega -- run --both samples/cli/probes/computed_owned_operands/main.omg
+mbx run -p omega -- run --engine native samples/cli/probes/computed_owned_operands/main.omg
+mbx run -p omega -- run --engine psi samples/cli/probes/computed_owned_operands/main.omg
 ```
 
 Expected exit: 0 natively and in Terminal; a wrong result crashes with `Trap`.

@@ -73,7 +73,8 @@ access to the execution host does not approve package authority. Then:
 ```
 omega packages update --project samples/cli/independent/phase_change_calorimetry --target linux_x86_64
 omega --check --target linux_x86_64 samples/cli/independent/phase_change_calorimetry/main.omg
-omega run --both samples/cli/independent/phase_change_calorimetry/main.omg < samples/cli/independent/phase_change_calorimetry/data/melting.txt
+omega run --engine native samples/cli/scientific/phase_change_calorimetry/main.omg < samples/cli/scientific/phase_change_calorimetry/data/melting.txt
+omega run --engine psi samples/cli/scientific/phase_change_calorimetry/main.omg < samples/cli/scientific/phase_change_calorimetry/data/melting.txt
 mbx build --manifest-path samples/cli/independent/phase_change_calorimetry/validation/Cargo.toml --release --target-dir target
 ```
 

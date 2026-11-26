@@ -3,7 +3,8 @@
 From the repository root, run:
 
 ```text
-mbx run -p omega -- run --both samples/cli/arithmetic/prime_sieve/main.omg
+mbx run -p omega -- run --engine native samples/cli/arithmetic/prime_sieve/main.omg
+mbx run -p omega -- run --engine psi samples/cli/arithmetic/prime_sieve/main.omg
 ```
 
 Press Enter at the closing prompt. Native and checked-interpreter execution

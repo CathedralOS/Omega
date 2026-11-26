@@ -46,7 +46,8 @@ From the repository root, using an optimized compiler of recorded provenance:
 
 ```sh
 omega packages update --project samples/cli/independent/ecological_rarefaction --target linux_x86_64
-omega run --both --keep samples/cli/independent/ecological_rarefaction/main.omg < samples/cli/independent/ecological_rarefaction/input.txt
+omega run --engine native --keep samples/cli/scientific/ecological_rarefaction/main.omg < samples/cli/scientific/ecological_rarefaction/input.txt
+omega run --engine psi --keep samples/cli/scientific/ecological_rarefaction/main.omg < samples/cli/scientific/ecological_rarefaction/input.txt
 ```
 
 Use the actual target for package preparation on macOS or Windows; Build binds

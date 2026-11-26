@@ -75,10 +75,11 @@ Build metadata binds exact `main` entry contracts for Linux x86-64,
 Windows x86-64 and macOS arm64. Execution evidence here is host-specific;
 other hosts require their own provider/package preparation and validation.
 See `VALIDATION.md` for exact measured commands, revisions and remaining limits.
-For a host-local replay of all fifteen frozen inputs with one compilation:
+For a host-local replay of all fifteen frozen inputs with one compilation per engine:
 
 ```sh
-omega run --both --inputs samples/cli/independent/disk_collision_lab/data --outputs build/disk-collision-results samples/cli/independent/disk_collision_lab/main.omg
+omega run --engine native --inputs samples/cli/scientific/disk_collision_lab/data --outputs build/disk-collision-results-native samples/cli/scientific/disk_collision_lab/main.omg
+omega run --engine psi --inputs samples/cli/scientific/disk_collision_lab/data --outputs build/disk-collision-results-psi samples/cli/scientific/disk_collision_lab/main.omg
 ```
 
 Malformed-input cases must return 2 with the exact invalid-input message. Generated child

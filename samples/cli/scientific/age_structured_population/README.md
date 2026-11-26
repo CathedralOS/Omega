@@ -69,7 +69,8 @@ omega packages update --project "$S" --target linux_x86_64
 # Review the exact generated pending decisions before accepting and resuming.
 omega --check "$S/main.omg"
 omega --build-dir "$S/build" "$S/main.omg"
-omega run --both --keep "$S/main.omg" < "$S/fixtures/births.input"
+omega run --engine native --keep "$S/main.omg" < "$S/fixtures/births.input"
+omega run --engine psi --keep "$S/main.omg" < "$S/fixtures/births.input"
 omega --check "$S/controls/invalid_rate_type/invalid.omg"
 ```
 
