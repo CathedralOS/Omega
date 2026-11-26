@@ -131,6 +131,24 @@ fn a_nested_machine_uses_the_applied_callback_from_its_lexical_scope() {
 }
 
 #[test]
+fn a_nested_callback_reads_its_argument_type_in_the_supplying_machine() {
+    let package = PackageKeyIdentity::from_digest([0x59; 32]).unwrap();
+    let source = "data Item { value: i32; }
+        trait Get<T> { machine receive(value: @T) -> i32 terminates; }
+        machine get(value: @Item) -> i32 satisfies Get<Item>::receive { value.value }
+        machine read<T, const F: Get<T>::receive>(value: @T) -> i32 terminates {
+            child(value)
+            machine child(value: @T) -> i32 { F(value) }
+        }
+        public machine run() -> i32 {
+            let item: Item = Item { value: 42 };
+            read::<Item, get>(@item)
+        }";
+    let (files, root) = captured(package, source);
+    compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+}
+
+#[test]
 fn a_requirement_reads_nested_nominal_arguments_in_its_own_type_scope() {
     let package = PackageKeyIdentity::from_digest([0x72; 32]).unwrap();
     let source = r#"
