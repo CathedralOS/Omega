@@ -8,7 +8,7 @@ still drives the full required-output custody loop.
   nothing rejects — "artifact-only Build requires at least one
   completed output". At least one required output must complete.
 - `invalid_artifact_package`: `artifact_only` modifies an application
-  declaration only — on `Build::package` project discovery rejects it with
+  declaration only — when the Build returns a package, project discovery rejects it with
   "artifact-only output requires an application role", before evaluation.
 - `invalid_artifact_provider_selection`: the parent probe plus one
   `Build::select_provider`. Artifact-only mode builds no product for the

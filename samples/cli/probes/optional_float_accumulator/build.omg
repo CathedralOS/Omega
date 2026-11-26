@@ -2,8 +2,8 @@
 // no standard-library package, so the artifact has no ProcessExit authority
 // and is compile-checked only (same posture as cli/basics/standalone).
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "optional_float_accumulator");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "optional_float_accumulator" };
     Build::bind(builder, windows_x86_64::ProgramEntry, optional_float_accumulator);
     Build::bind(builder, linux_x86_64::ProgramEntry, optional_float_accumulator);
     Build::bind(builder, linux_arm64::ProgramEntry, optional_float_accumulator);

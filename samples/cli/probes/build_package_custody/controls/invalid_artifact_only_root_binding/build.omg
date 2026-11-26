@@ -3,8 +3,8 @@
 // requests. The declaration must be rejected even though the required
 // output below would otherwise settle.
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_artifact_only_root_binding");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_artifact_only_root_binding" };
     Build::artifact_only(builder);
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "companion.txt");
@@ -16,14 +16,14 @@ machine build(builder: @mutable Build) {
     settle(builder, settled);
 }
 
-machine settle(builder: @mutable Build, settled: OutputCompletion) {
+machine settle(builder: @mutable BuildPlan, settled: OutputCompletion) {
     transition settled {
         OutputCompletion::Sealed { receipt } -> sealed(builder),
         OutputCompletion::Retry { obligation, file } -> unsealed(builder, obligation)
     }
-    machine sealed(builder: @mutable Build) {
+    machine sealed(builder: @mutable BuildPlan) {
     }
-    machine unsealed(builder: @mutable Build, obligation: RequiredOutput) {
+    machine unsealed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
         BuildOutput::fail(@mutable builder.output, obligation, "staged output never sealed");
     }
 }

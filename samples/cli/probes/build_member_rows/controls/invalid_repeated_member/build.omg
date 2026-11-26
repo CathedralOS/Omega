@@ -1,0 +1,7 @@
+use {omega}/build/workspace.omg;
+
+machine build(plan: @mutable BuildPlan) {
+    let first: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, "dependency");
+    let repeated: WorkspaceMembers = |workspace|::with_member(plan, first, "dependency");
+    plan.product = BuildProduct::Workspace { members: repeated };
+}

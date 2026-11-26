@@ -1,7 +1,7 @@
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::package(builder, "reviewed_service_rows_missing_capability");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "reviewed_service_rows_missing_capability" };
     let mutable reviewed_service_dependency: DependencyDescription = |dependency|::from_source(Source::Path {
         location: "../reviewed_service_rows_support"
     });

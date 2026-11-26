@@ -6,15 +6,15 @@
 
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_effect_before_bad_declaration");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_effect_before_bad_declaration" };
     mark(builder);
     let mutable missing_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "missing_package" });
     |dependency|::with_alias(@mutable missing_dependency, "missing");
     let missing_registration: DependencyRegistration = Build::dependency(builder, missing_dependency);
 }
 
-machine mark(builder: @mutable Build) {
+machine mark(builder: @mutable BuildPlan) {
     let path: BuildPath = BuildOutput::resolve(@builder.output, "must_not_exist.txt");
     let writer: i32 = BuildOutput::create(@mutable builder.output, path, 0);
     _ = BuildOutput::write(@mutable builder.output, writer, "this effect must never stage\n");

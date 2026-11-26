@@ -1,5 +1,5 @@
-machine build(builder: @mutable Build) {
-    Build::application(builder, "self_reentry_claim");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "self_reentry_claim" };
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

@@ -7,10 +7,10 @@
 use {omega}/build/dependency.omg;
 use depkit;
 
-machine build(builder: @mutable Build)
+machine build(builder: @mutable BuildPlan)
 suspends
 {
-    Build::application(builder, "app_declared");
+    builder.product = BuildProduct::Application { name: "app_declared" };
     let mutable depkit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "depdir" });
     |dependency|::with_alias(@mutable depkit_dependency, "depkit");
     let depkit_registration: DependencyRegistration = Build::build_dependency(builder, depkit_dependency);

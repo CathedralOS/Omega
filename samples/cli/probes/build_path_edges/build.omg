@@ -3,8 +3,8 @@
 // directory are legal local sources.
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_path_edges");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_path_edges" };
     let mutable inside_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep_inside" });
     |dependency|::with_alias(@mutable inside_dependency, "inside");
     let inside_registration: DependencyRegistration = Build::dependency(builder, inside_dependency);

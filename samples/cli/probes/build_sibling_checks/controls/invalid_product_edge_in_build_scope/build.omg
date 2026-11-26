@@ -5,8 +5,8 @@
 use {omega}/build/dependency.omg;
 use prod;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "invalid_product_edge_in_build_scope");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "invalid_product_edge_in_build_scope" };
     let mutable prod_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../../sibling_a" });
     |dependency|::with_alias(@mutable prod_dependency, "prod");
     let prod_registration: DependencyRegistration = Build::dependency(builder, prod_dependency);

@@ -1,8 +1,8 @@
 // `builder.source` is a compiler-issued BuildSource facet usable in
 // place by borrow: resolve/open/read/close all evaluate against the
 // activation source root.
-machine build(builder: @mutable Build) {
-    Build::application(builder, "build_facets");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "build_facets" };
     let p: BuildPath = BuildSource::resolve(@builder.source, "main.omg");
     let d: i32 = BuildSource::open(@builder.source, p, 0);
     let mutable bytes: [u8; 8] = [0,0,0,0,0,0,0,0];

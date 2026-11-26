@@ -1,3 +1,3 @@
-machine build(builder: @mutable Build) {
-    Build::package(builder, "mod_kernel");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Package { name: "mod_kernel" };
 }

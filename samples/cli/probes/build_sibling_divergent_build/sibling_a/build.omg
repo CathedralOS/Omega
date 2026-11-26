@@ -1,10 +1,10 @@
 use {omega}/build/dependency.omg;
 use shared;
 
-machine build(builder: @mutable Build)
+machine build(builder: @mutable BuildPlan)
 suspends
 {
-    Build::package(builder, "sibling_a");
+    builder.product = BuildProduct::Package { name: "sibling_a" };
     let mutable shared_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../shared" });
     |dependency|::with_alias(@mutable shared_dependency, "shared");
     let shared_registration: DependencyRegistration = Build::build_dependency(builder, shared_dependency);
