@@ -142,6 +142,32 @@ machine main() {}"#;
     );
 }
 
+#[test]
+fn installed_core_can_rejoin_every_admitted_cut() {
+    let source = r#"use {omega}/language/core/extent.omg as ranges;
+machine rejoin(
+    whole: |ranges|::Extent in |ranges|::Extent::Granted & |ranges|::Extent::Vacant,
+    requested: u64
+) -> |ranges|::Extent in |ranges|::Extent::Granted & |ranges|::Extent::Vacant
+requires requested <= whole.length
+{
+    let parts: |ranges|::VacantExtentParts = |ranges|::split_vacant_extent(whole, requested);
+    |ranges|::merge_vacant_extents(parts.taken, parts.rest)
+}
+machine main() {}"#;
+    let inspect = &["psi", "inspect", "--machine", "rejoin"];
+    let (output, report) = program::invoke(source, inspect);
+    assert!(output.status.success(), "{report}");
+
+    let unchecked = source.replace("requires requested <= whole.length", "");
+    let (output, report) = program::invoke(&unchecked, inspect);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove requires") && report.contains("split_vacant_extent"),
+        "{report}"
+    );
+}
+
 fn with_transfer_contract() -> String {
     let transfer = r#"public boundary trait Transfer {
         machine pass(input: Region in Owned) -> Region

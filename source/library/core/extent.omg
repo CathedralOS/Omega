@@ -84,11 +84,10 @@ ensures
     )
 {
     let { base, length } = whole;
-    // An exhausted range has no one-past address: that endpoint may equal
-    // address::Bound. Keep an existing representable base for the empty tail.
-    let rest_base: address = match requested < length {
-        true -> base + requested,
-        false -> base,
+    // A full cut at the address-space limit needs a representable empty tail.
+    let rest_base: address = match requested == 0 || requested == length {
+        true -> base,
+        false -> base + requested,
     };
     VacantExtentParts {
         taken: Extent { base: base, length: requested } as +Granted +Vacant,
