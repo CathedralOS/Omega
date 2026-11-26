@@ -1,8 +1,10 @@
+use {omega}/build/dependency.omg;
+
 machine helper_value() -> i32 { 7 }
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "promised");
-    let mutable request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable request, "kit");
+    let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable request, "kit");
     let registration: DependencyRegistration = Build::dependency(builder, request);
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "answer.dat");
     let held: @[u8] = RequiredOutput::path(@obligation);

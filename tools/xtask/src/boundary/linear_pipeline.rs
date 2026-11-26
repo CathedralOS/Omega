@@ -44,7 +44,7 @@ const RETIRED: [&str; 5] = [
     "omega-rust/omega/compilation/realization",
     "omega-rust/omega/foundation",
 ];
-pub(super) const TEXT_READER: &str = "source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax";
+pub(super) const TEXT_READER: &str = "source-rust/subsystems/compiler/source-to-psi/source-syntax";
 
 pub(super) const FRONTEND: [&str; 4] = [
     "source-rust/subsystems/compiler/source-to-psi/pipeline/00_source-files-to-tokens",
@@ -143,6 +143,9 @@ fn may_issue(owner: &str, dependency: &str) -> bool {
 /// lexer and parser on purpose.
 fn links_another_source_stage(start: &str, dependency: &str) -> bool {
     let number = |path: &str| PSI_STAGES.iter().position(|root| under(path, &[*root]));
+    if dependency == TEXT_READER {
+        return number(start).is_some();
+    }
     start != TEXT_READER
         && number(start)
             .zip(number(dependency))
@@ -300,7 +303,12 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
         ]
         .contains(&start.as_str());
         let representation = under(start, &REPRESENTATIONS);
-        if phase.is_none() && !runtime && !representation && !FRONTEND.contains(&start.as_str()) {
+        if phase.is_none()
+            && !runtime
+            && !representation
+            && !FRONTEND.contains(&start.as_str())
+            && start != TEXT_READER
+        {
             continue;
         }
         let mut visited = BTreeSet::from([start.as_str()]);

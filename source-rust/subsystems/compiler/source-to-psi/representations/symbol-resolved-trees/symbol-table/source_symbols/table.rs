@@ -646,6 +646,7 @@ mod modules {
                     logical_selection: false,
                 }),
                 producer: super::BindingProducer::Loader,
+                dependency: None,
             }
         }
     }
@@ -2818,6 +2819,7 @@ pub struct SourceScopedTopLevelBinding {
     declaration_source: SourceId,
     target: BindingTarget,
     producer: BindingProducer,
+    dependency: Option<(Arc<str>, PackageKeyIdentity)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
@@ -2845,6 +2847,7 @@ impl SourceScopedTopLevelBinding {
             declaration_source,
             target: BindingTarget::Declaration(name.into()),
             producer: BindingProducer::Loader,
+            dependency: None,
         }
     }
 
@@ -2859,6 +2862,7 @@ impl SourceScopedTopLevelBinding {
             declaration_source,
             target: BindingTarget::FileAlias(alias.into()),
             producer: BindingProducer::Loader,
+            dependency: None,
         }
     }
 
@@ -2873,7 +2877,15 @@ impl SourceScopedTopLevelBinding {
             declaration_source,
             target: BindingTarget::ProductFileAlias(alias.into()),
             producer: BindingProducer::Loader,
+            dependency: None,
         }
+    }
+
+    /// The local file alias can name a different, requester-local package edge.
+    /// Only the loader that actually selected that package supplies this evidence.
+    pub fn from_dependency(mut self, selected: Option<(&str, PackageKeyIdentity)>) -> Self {
+        self.dependency = selected.map(|(alias, package)| (alias.into(), package));
+        self
     }
 
     fn module_import_target(&self) -> Option<&modules::ModuleImport> {
@@ -3981,6 +3993,26 @@ impl SymbolTable {
             self.lookup_top_level_candidates(name, kinds, reference, matches_candidate, selection)
                 .into_iter(),
         )
+    }
+
+    /// Retrieve the dependency edge of this file-qualified declaration use.
+    pub fn dependency_file_use(
+        &self,
+        source: SourceId,
+        path: &str,
+    ) -> Option<(&str, PackageKeyIdentity)> {
+        let (alias, _) = path.strip_prefix('|')?.split_once("|::")?;
+        let mut candidates = self.source_scoped_bindings_for(source).iter().filter(|binding| {
+            matches!(&binding.target, BindingTarget::FileAlias(file) if file.as_ref() == alias)
+        });
+        let binding = candidates.next()?;
+        if candidates.next().is_some() {
+            return None;
+        }
+        binding
+            .dependency
+            .as_ref()
+            .map(|(alias, package)| (alias.as_ref(), *package))
     }
 
     fn file_alias_source(

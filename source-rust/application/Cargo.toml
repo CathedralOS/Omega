@@ -11,7 +11,7 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
-source-syntax = { path = "../subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax" }
+source-syntax = { path = "../subsystems/compiler/source-to-psi/source-syntax" }
 retained-image-runtime = { path = "../subsystems/interpreter/host/retained-image" }
 build-declarations = { path = "../subsystems/compiler/build/inputs/declarations" }
 build-execution = { path = "../subsystems/compiler/build/evaluation" }

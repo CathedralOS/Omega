@@ -1635,7 +1635,7 @@ impl Program<'_> {
                     // value.
                     let runs = parameter.is_none();
                     if (runs
-                        && (!matches!(envelope.service_reach, crate::static_contracts::SourceServiceCeiling::Closed(ref row) if row.is_empty())
+                        && (!matches!(envelope.service_reach, crate::callables::static_contracts::SourceServiceCeiling::Closed(ref row) if row.is_empty())
                             || !envelope.invocations.is_empty()
                             || !signature.declares_no_crash_route))
                         || !matches!(envelope.termination, terminal_psi::TerminalCallableTermination::Terminates { ref premises } if premises.is_empty())

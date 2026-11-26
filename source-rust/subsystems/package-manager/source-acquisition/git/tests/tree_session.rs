@@ -231,7 +231,7 @@ fn staged_workspace_pins_catalog_and_materializes_only_selected_payloads() {
         &fixture.storage,
         session.request(),
         &crate::GitCommitId::parse_hex(session.commit()).unwrap(),
-        &crate::GitTreeId::parse_hex(session.tree()).unwrap(),
+        Some(&crate::GitTreeId::parse_hex(session.tree()).unwrap()),
         crate::git::resolution::GitExactRevisionAcquisition::Offline,
         session.source_limits(),
         GitWorkspaceDeclarationLimits::new(4, 128, 512),

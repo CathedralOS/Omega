@@ -210,6 +210,11 @@ same entry. A cached copy of that exact revision can satisfy an offline build.
 Use an extra stage when the Build itself imports the library. A product-only
 dependency needs the ordinary registration.
 
+A Build can use `{omega}/build/dependencies/providers/git.omg` to declare an alias,
+repository, tracking reference and selected revision. After an online build has
+acquired that exact commit, `omega build --offline build.omg` can reconstruct
+the product from the cached commit and its tree. A missing object fails the build.
+
 For example, a Git declaration for `board` can follow the `stable` branch for
 updates and still build from yesterday's exact commit. The add and update guides explain how to register that package or change
 its commit literal.

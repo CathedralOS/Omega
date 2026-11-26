@@ -1,3 +1,4 @@
+use {omega}/build/dependency.omg;
 use main.omg as construction;
 use {system}/console.omg;
 
@@ -13,16 +14,16 @@ machine build(builder: @mutable Build) {
     Build::bind(builder, macos_arm64\ProgramEntry, |construction|::entry_start);
     Build::bind(builder, windows_x86_64\ProgramEntry, |construction|::entry_start);
     Build::bind(builder, alpha_bootstrap\ProgramEntry, |construction|::entry_start);
-    let compiler: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let compiler: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../subsystems/compiler/driver"
     }));
-    let psi: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let psi: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../subsystems/compiler/source_to_psi"
     }));
-    let wire: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let wire: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../foundation/wire"
     }));
-    let standard: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let standard: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../library/system"
     }));
 }

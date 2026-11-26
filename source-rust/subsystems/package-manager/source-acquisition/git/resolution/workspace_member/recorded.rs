@@ -16,7 +16,7 @@ use crate::limits::LocalSourceLimits;
 use crate::storage::RetainedStorageLane;
 
 use super::super::exact_revision::GitExactRevisionAcquisition;
-use super::super::selection::{GitRevisionSelection, RecordedGitRevision};
+use super::super::selection::{GitRevisionSelection, ExactGitRevision};
 use super::resolve_git_workspace_member_at_selection;
 
 pub fn resolve_git_workspace_member_at_revision_in_lanes<Planner>(
@@ -37,11 +37,11 @@ pub fn resolve_git_workspace_member_at_revision_in_lanes<Planner>(
 where
     Planner: GitWorkspaceProjectionPlanner,
 {
-    let recorded = RecordedGitRevision::new(request, commit, tree, acquisition)?;
+    let recorded = ExactGitRevision::new(request, commit, Some(tree), acquisition)?;
     resolve_git_workspace_member_at_selection(
         primary_git,
         request,
-        GitRevisionSelection::Recorded(&recorded),
+        GitRevisionSelection::Exact(&recorded),
         git_lane,
         member_lane,
         limits.compiler_bounded(),

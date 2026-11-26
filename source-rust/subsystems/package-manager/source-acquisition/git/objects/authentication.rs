@@ -58,8 +58,8 @@ pub(crate) fn authenticate_git_commit(
     executor: &GitExecutor,
     repository: &VerifiedGitRepository,
     commit: &str,
-    tree: &str,
-) -> Result<(), SourceResolveError> {
+    tree: Option<&str>,
+) -> Result<String, SourceResolveError> {
     let payload = repository.run_git_bytes_stdout(
         executor,
         [
@@ -73,11 +73,13 @@ pub(crate) fn authenticate_git_commit(
 
 pub(crate) fn authenticate_git_commit_payload(
     commit: &str,
-    reported_tree: &str,
+    reported_tree: Option<&str>,
     payload: &[u8],
-) -> Result<(), SourceResolveError> {
+) -> Result<String, SourceResolveError> {
     let algorithm = git_object_algorithm(commit)?;
-    if git_object_algorithm(reported_tree)? != algorithm {
+    if let Some(tree) = reported_tree
+        && git_object_algorithm(tree)? != algorithm
+    {
         return Err(git_object_invalid(
             commit,
             "commit and root tree use different object formats",
@@ -97,13 +99,15 @@ pub(crate) fn authenticate_git_commit_payload(
     };
     let commit_tree = std::str::from_utf8(commit_tree)
         .map_err(|_| git_object_invalid(commit, "commit tree ID is not ASCII"))?;
-    if git_object_algorithm(commit_tree)? != algorithm || commit_tree != reported_tree {
+    if git_object_algorithm(commit_tree)? != algorithm
+        || reported_tree.is_some_and(|tree| commit_tree != tree)
+    {
         return Err(git_object_invalid(
             commit,
             "commit root tree edge does not match the selected tree",
         ));
     }
-    Ok(())
+    Ok(commit_tree.to_owned())
 }
 
 pub(crate) fn authenticate_git_tree(

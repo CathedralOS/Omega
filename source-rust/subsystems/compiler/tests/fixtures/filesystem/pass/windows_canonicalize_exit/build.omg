@@ -1,8 +1,10 @@
 // Windows canonicalize runtime canary: select the exact supported entry.
 
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "windows_canonicalize_exit");
-    let system_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {
+    let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path {
         location: "../../../../../../../../source/library/system"
     }));
     Build::bind(builder, windows_x86_64\ProgramEntry, windows_entry);

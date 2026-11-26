@@ -17,11 +17,11 @@ use terminal_psi::{
     Terminator,
 };
 
+use crate::body::outcome::Outcome;
 use crate::body::{
     ArmGuard, Body, CaseSelector, CrashCeiling, Expression, ExpressionKind, Selector, Signature,
     Statement, Strict, Target, Termination, ValueType,
 };
-use crate::outcome::Outcome;
 use crate::{SourceOrigin, StorageShape, Unpositioned};
 
 mod provider_source_identities {
@@ -330,7 +330,7 @@ fn lower_records(
 ) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(body);
-    let boundary_signatures = crate::boundaries::BoundaryNamespace::default();
+    let boundary_signatures = crate::declare::boundaries::BoundaryNamespace::default();
     let signatures = crate::body::Signatures {
         theorems: &[],
         declarations: &IdTable::default(),
@@ -358,7 +358,7 @@ fn lower_records(
         &declared.records,
         &declared.structural_types,
         &crate::callables::CallableNamespace::default(),
-        &crate::boundaries::BoundaryNamespace::default(),
+        &crate::declare::boundaries::BoundaryNamespace::default(),
         false,
         &mut crate::qualifications::Qualifications::default(),
     )
@@ -1959,7 +1959,7 @@ fn ensures_over_result_name_the_result_pseudo_value() {
 /// has no normal completion.
 #[test]
 fn outcomes_follow_the_ceiling_or_the_body() {
-    use crate::outcome::outcomes;
+    use crate::body::outcome::outcomes;
     // machine 1 calls 2; 2 is `{ crash Trap; }`.
     let caller = Body {
         slots: Vec::new(),
@@ -1989,7 +1989,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
-                boundaries: &crate::boundaries::BoundaryNamespace::default(),
+                boundaries: &crate::declare::boundaries::BoundaryNamespace::default(),
             },
             &[],
             &crate::callables::CallableNamespace::default(),
@@ -2027,7 +2027,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
 /// owed as coverage by no route, which terminal-psi-to-terminal-psi decides.
 #[test]
 fn a_body_that_declares_crashes_none_publishes_no_route() {
-    use crate::outcome::outcomes;
+    use crate::body::outcome::outcomes;
     let run = |statements: Vec<Statement>, callee_statements: Vec<Statement>| {
         let mut bodies: IdTable<MachineId, Body> = IdTable::default();
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
@@ -2053,7 +2053,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
                 declarations: &IdTable::default(),
                 declaration_aliases: None,
                 machines: &signatures,
-                boundaries: &crate::boundaries::BoundaryNamespace::default(),
+                boundaries: &crate::declare::boundaries::BoundaryNamespace::default(),
             },
             &[],
             &crate::callables::CallableNamespace::default(),
@@ -2087,7 +2087,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
 /// right operand never returns still completes; its causes stay published.
 #[test]
 fn a_skipped_operand_cannot_end_the_machine() {
-    use crate::outcome::outcomes;
+    use crate::body::outcome::outcomes;
     // machine 1(a: bool) -> bool { a && f() }  with f = `{ crash Trap; }`
     let caller = Body {
         slots: scalars(vec![ScalarType::Boolean]),
@@ -2131,7 +2131,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
             declarations: &IdTable::default(),
             declaration_aliases: None,
             machines: &signatures,
-            boundaries: &crate::boundaries::BoundaryNamespace::default(),
+            boundaries: &crate::declare::boundaries::BoundaryNamespace::default(),
         },
         &[],
         &crate::callables::CallableNamespace::default(),
@@ -2226,10 +2226,10 @@ fn settle_both(
         declarations: &IdTable::default(),
         declaration_aliases: None,
         machines: &signatures,
-        boundaries: &crate::boundaries::BoundaryNamespace::default(),
+        boundaries: &crate::declare::boundaries::BoundaryNamespace::default(),
     };
     let run = |by_rounds| {
-        crate::outcome::counted_outcomes(
+        crate::body::outcome::counted_outcomes(
             &bodies,
             signatures,
             requirements,
@@ -4688,7 +4688,7 @@ fn machines_planned_on_workers_apply_what_planning_in_order_yields() {
         let mut module = module();
         let budget = worker_budget::ExecutionBudget::with_workers(workers).unwrap();
         let result = budget.run(|| {
-            crate::machine_order::plan_then_apply(
+            crate::lower::machine_order::plan_then_apply(
                 &mut module,
                 |module, _, machine| {
                     let copied = COPIES[machine.id.get() as usize - 1];

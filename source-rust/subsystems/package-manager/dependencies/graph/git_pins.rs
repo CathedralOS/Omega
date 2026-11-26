@@ -7,7 +7,7 @@ use crate::resolution::graph::{
 };
 use crate::resolution::source::ResolvePackageSourceError;
 use source_acquisition::git::resolution::GitExactRevisionAcquisition;
-use source_acquisition::{GitSourceRequest, ImmutableSourceResolution};
+use source_acquisition::{GitCommitId, GitSourceRequest, GitTreeId, ImmutableSourceResolution};
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -16,21 +16,26 @@ pub(crate) struct GitResolutionOptions<'a> {
     pub offline: bool,
 }
 
-pub(crate) struct RecordedGitSource<'a> {
-    pub resolution: &'a ImmutableSourceResolution,
+pub(crate) struct ExactGitSource {
+    pub commit: GitCommitId,
+    pub tree: Option<GitTreeId>,
     pub acquisition: GitExactRevisionAcquisition,
 }
 
 impl<'a> GitResolutionOptions<'a> {
-    pub(crate) fn recorded(
+    pub(crate) fn exact_revision(
         &self,
         request: &GitSourceRequest,
-    ) -> Result<Option<RecordedGitSource<'a>>, ResolvePackageSourceError> {
+    ) -> Result<Option<ExactGitSource>, ResolvePackageSourceError> {
         if let Some(policy) = &self.pins
             && let Some(resolution) = policy.resolution(request)?
         {
-            return Ok(Some(RecordedGitSource {
-                resolution,
+            let ImmutableSourceResolution::Git { commit, tree, .. } = resolution else {
+                return Err(pin_error(request, "recorded Git source has a non-Git resolution"));
+            };
+            return Ok(Some(ExactGitSource {
+                commit: commit.clone(),
+                tree: Some(tree.clone()),
                 acquisition: if self.offline {
                     GitExactRevisionAcquisition::Offline
                 } else {
@@ -38,11 +43,26 @@ impl<'a> GitResolutionOptions<'a> {
                 },
             }));
         }
+        if self.pins.is_none()
+            && let Ok(commit) = GitCommitId::parse_hex(request.requested_revision())
+        {
+            return Ok(Some(ExactGitSource {
+                commit,
+                tree: None,
+                acquisition: if self.offline {
+                    GitExactRevisionAcquisition::Offline
+                } else {
+                    GitExactRevisionAcquisition::AllowFetch
+                },
+            }));
+        }
         if self.offline {
-            return Err(pin_error(
-                request,
-                "offline resolution forbids new or refreshed Git selection; an unchanged recorded pin is required",
-            ));
+            let reason = if self.pins.is_none() {
+                "offline source selection requires a full commit ID in the Build declaration"
+            } else {
+                "offline lock resolution requires an unchanged recorded Git pin"
+            };
+            return Err(pin_error(request, reason));
         }
         Ok(None)
     }
@@ -166,3 +186,36 @@ impl fmt::Display for GitDependencyPinsError {
 }
 
 impl std::error::Error for GitDependencyPinsError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn offline_without_a_lock_requires_a_full_authored_commit() {
+        let options = GitResolutionOptions {
+            pins: None,
+            offline: true,
+        };
+        let hex = "72bc01f59de8a314c60155e8c3b7474b261490fe";
+        let request = |rev: &str| {
+            GitSourceRequest::new("https://example.org/board.git", Some(rev.to_owned())).unwrap()
+        };
+        let selected = options.exact_revision(&request(hex)).unwrap().unwrap();
+        assert_eq!(selected.commit.to_hex(), hex);
+        assert_eq!(selected.tree, None);
+        assert_eq!(selected.acquisition, GitExactRevisionAcquisition::Offline);
+        let online = GitResolutionOptions::default();
+        let fetched = online.exact_revision(&request(hex)).unwrap().unwrap();
+        assert_eq!(fetched.commit, selected.commit);
+        assert_eq!(fetched.tree, None);
+        assert_eq!(fetched.acquisition, GitExactRevisionAcquisition::AllowFetch);
+        for floating in ["stable", "refs/heads/stable", &hex[..12]] {
+            let Err(error) = options.exact_revision(&request(floating)) else {
+                panic!("accepted floating revision {floating} offline");
+            };
+            assert!(error.to_string().contains("full commit ID"), "{error}");
+            assert!(online.exact_revision(&request(floating)).unwrap().is_none());
+        }
+    }
+}

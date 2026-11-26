@@ -164,7 +164,7 @@ fn applied(
     let budget = worker_budget::ExecutionBudget::with_workers(workers).unwrap();
     budget
         .run(|| {
-            crate::machine_order::plan_then_apply(
+            crate::lower::machine_order::plan_then_apply(
                 &mut module,
                 |module, summaries, machine| {
                     let held = summaries.holds(id(MIDDLE));

@@ -385,11 +385,11 @@ impl Program<'_> {
                 )
             })?;
         self.static_contracts.conformances.push(
-            crate::static_contracts::SourceConformance {
+            crate::callables::static_contracts::SourceConformance {
                 declaration: parameter,
                 requirement: required.symbol,
                 application,
-                implementation: crate::static_contracts::SourceImplementation::Machine(
+                implementation: crate::callables::static_contracts::SourceImplementation::Machine(
                     body,
                 ),
                 signature,

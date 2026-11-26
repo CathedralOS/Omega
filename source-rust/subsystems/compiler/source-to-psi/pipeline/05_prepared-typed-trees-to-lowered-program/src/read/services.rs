@@ -2,7 +2,7 @@
 //! Private omitted axes are inferred from actual calls, never from callers or a
 //! list of eligible implementations. Published axes are checked as ceilings.
 
-use crate::reach::{SourceEnvelope, SourceInvocation as Invocation};
+use crate::publication::reach::{SourceEnvelope, SourceInvocation as Invocation};
 use crate::source_state::TypedTrees;
 use crate::source_state::signature::{
     AuthoredInvocation, AuthoredInvocationTarget, StateSignature,
@@ -48,7 +48,7 @@ pub(super) fn service_closure(
     context: MachineId,
     roots: &[ServiceReachId],
 ) -> Checked<Vec<ServiceReachId>> {
-    crate::reach::source_closure(typed, context, roots)
+    crate::publication::reach::source_closure(typed, context, roots)
 }
 
 pub(crate) fn finite_reach(
@@ -238,7 +238,7 @@ impl Program<'_> {
                     }
                 };
                 Policy {
-                    reach: crate::reach::written_ceiling(self.typed, id, *symbol)?,
+                    reach: crate::publication::reach::written_ceiling(self.typed, id, *symbol)?,
                     invokes: if !authored.is_empty() {
                         Some(invocations(self.typed, id, authored, parameters)?)
                     } else {
@@ -622,13 +622,13 @@ impl Program<'_> {
                     && complete.invokes
                     && complete.suspends
                     && complete.blocks)
-                    .then(|| crate::static_contracts::StaticSourceEnvelope {
+                    .then(|| crate::callables::static_contracts::StaticSourceEnvelope {
                         service_reach: if complete.reach {
-                            crate::static_contracts::SourceServiceCeiling::Closed(
+                            crate::callables::static_contracts::SourceServiceCeiling::Closed(
                                 envelope.service_reach.clone(),
                             )
                         } else {
-                            crate::static_contracts::SourceServiceCeiling::Open
+                            crate::callables::static_contracts::SourceServiceCeiling::Open
                         },
                         invocations: envelope.invocations.clone(),
                         suspends: envelope.suspends,
@@ -742,16 +742,16 @@ impl Program<'_> {
         // fixed ceiling on the requirement remains its own applied contract.
         let reach =
             if signature.service_reach_is_installation_bound && source_owner != signature.symbol {
-                crate::reach::written_ceiling(self.typed, id, source_owner)?
+                crate::publication::reach::written_ceiling(self.typed, id, source_owner)?
             } else {
-                match crate::reach::authored_source_ceiling(
+                match crate::publication::reach::authored_source_ceiling(
                     self.typed,
                     id,
                     signature.symbol,
                     signature.service_reach_row,
                 )? {
                     None if source_owner != signature.symbol => {
-                        crate::reach::written_ceiling(self.typed, id, source_owner)?
+                        crate::publication::reach::written_ceiling(self.typed, id, source_owner)?
                     }
                     declared => declared,
                 }
@@ -778,7 +778,7 @@ impl Program<'_> {
     }
 
     pub(crate) fn retain_requirement_schema(&mut self, id: MachineId) -> Checked<()> {
-        use crate::static_contracts::{
+        use crate::callables::static_contracts::{
             SourceSchema, SourceSchemaRequirement, SourceServiceCeiling, StaticSourceEnvelope,
         };
         if !self.requirements.contains(&id) {
@@ -1333,7 +1333,7 @@ impl Program<'_> {
             source_roots(&row.envelope, &mut roots);
         }
         self.static_contracts.service_roots(&mut roots);
-        let roots = crate::reach::source_closure(self.typed, context, &roots)?;
+        let roots = crate::publication::reach::source_closure(self.typed, context, &roots)?;
         let mut bindings = Vec::with_capacity(roots.len());
         for source in roots {
             let id = self.applied_source_service(context, source)?;
@@ -1345,7 +1345,7 @@ impl Program<'_> {
     pub(crate) fn service_map(
         &mut self,
         context: MachineId,
-    ) -> Checked<crate::reach::ServiceMap> {
+    ) -> Checked<crate::publication::reach::ServiceMap> {
         let bindings = self.prepare_service_bindings(context)?;
         let services = if self.services.is_empty() {
             if !bindings.is_empty() {
@@ -1354,7 +1354,7 @@ impl Program<'_> {
                     "service binding has no namespace declaration",
                 ));
             }
-            crate::reach::ServiceMap::default()
+            crate::publication::reach::ServiceMap::default()
         } else {
             let catalog = self
                 .shared
@@ -1370,7 +1370,7 @@ impl Program<'_> {
                     ),
                 )
                 .map_err(|error| unavailable(context, error.message))?;
-            crate::reach::ServiceMap::prepare(
+            crate::publication::reach::ServiceMap::prepare(
                 self.typed,
                 context,
                 &self.services,
@@ -1550,7 +1550,7 @@ impl<'t> Program<'t> {
         row: ServiceReachRowId,
     ) -> Checked<crate::Ceiling> {
         let Some(sources) =
-            crate::reach::authored_source_ceiling(self.typed, caller, owner, row)?
+            crate::publication::reach::authored_source_ceiling(self.typed, caller, owner, row)?
         else {
             return Ok(crate::Ceiling::Inferred);
         };

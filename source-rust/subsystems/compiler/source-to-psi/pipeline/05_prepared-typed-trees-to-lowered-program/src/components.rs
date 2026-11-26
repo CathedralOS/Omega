@@ -33,10 +33,8 @@ use crate::body::{
 };
 use crate::{Unserved, refuse};
 
-#[path = "components_graph.rs"]
 mod graph;
 pub(crate) use graph::Components;
-#[path = "components_rankings.rs"]
 mod rankings;
 
 /// All call occurrences in body order, grouped by caller without one allocation

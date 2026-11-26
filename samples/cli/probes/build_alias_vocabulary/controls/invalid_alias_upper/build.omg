@@ -1,6 +1,8 @@
+use {omega}/build/dependency.omg;
+
 machine build(builder: @mutable Build) {
     Build::application(builder, "invalid_alias_upper");
-    let mutable aliased_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
-    dependency\with_alias(@mutable aliased_dependency, "KIT");
+    let mutable aliased_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
+    |dependency|::with_alias(@mutable aliased_dependency, "KIT");
     let aliased_registration: DependencyRegistration = Build::dependency(builder, aliased_dependency);
 }

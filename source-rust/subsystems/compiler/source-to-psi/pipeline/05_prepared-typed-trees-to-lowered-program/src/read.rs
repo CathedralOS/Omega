@@ -200,7 +200,7 @@ pub(crate) struct Program<'t> {
     pub(crate) boundary_parent_contracts:
         Vec<crate::source_state::trait_definition::TraitApplicationEnvironment>,
     /// Choices made by this reader, prepared once before source admission.
-    pub(crate) completed_operators: crate::selection_questions::CompletedOperators,
+    pub(crate) completed_operators: crate::publication::selection_questions::CompletedOperators,
     pub purpose: source_provenance::DependencyScope,
     /// One output slot per source mathematical declaration, not per call.
     /// Publication assigns portable identities to the prepared definitions.
@@ -218,17 +218,17 @@ pub(crate) struct Program<'t> {
     /// Known invocation and operational limits survive an unrelated open reach.
     /// These checking headers never enter the executable callable catalog.
     pub(crate) checking_envelopes:
-        IdTable<MachineId, Option<crate::static_contracts::StaticSourceEnvelope>>,
+        IdTable<MachineId, Option<crate::callables::static_contracts::StaticSourceEnvelope>>,
     /// Contracts and exact code selections named by the read program. A
     /// selection retains code without adding an invocation to its call graph.
     pub callables: crate::callables::CallableNamespace,
-    pub boundaries: crate::boundaries::BoundaryNamespace,
-    pub external_providers: crate::external_providers::ExternalProviderNamespace,
-    pub static_contracts: crate::static_contracts::StaticContracts,
+    pub boundaries: crate::declare::boundaries::BoundaryNamespace,
+    pub external_providers: crate::declare::external_providers::ExternalProviderNamespace,
+    pub static_contracts: crate::callables::static_contracts::StaticContracts,
     pub declaration_metadata: Vec<SymbolHandle>,
     pub declaration_signatures: IdTable<semantic_vocabulary::ContractId, Signature>,
     pub declaration_envelopes:
-        IdTable<semantic_vocabulary::ContractId, crate::reach::SourceEnvelope>,
+        IdTable<semantic_vocabulary::ContractId, crate::publication::reach::SourceEnvelope>,
     pub declaration_sources: IdTable<
         semantic_vocabulary::ContractId,
         &'t crate::source_state::signature::StateSignature,
@@ -577,7 +577,7 @@ impl<'t> Program<'t> {
             admitted_signature_view_owners: Vec::new(),
             signature_view_owner: None,
             boundary_parent_contracts: Vec::new(),
-            completed_operators: crate::selection_questions::CompletedOperators::default(
+            completed_operators: crate::publication::selection_questions::CompletedOperators::default(
             ),
             shared,
             symbols: IdTable::default(),
@@ -587,10 +587,10 @@ impl<'t> Program<'t> {
             declared_envelope_policies: IdTable::default(),
             checking_envelopes: IdTable::default(),
             callables: crate::callables::CallableNamespace::default(),
-            boundaries: crate::boundaries::BoundaryNamespace::default(),
+            boundaries: crate::declare::boundaries::BoundaryNamespace::default(),
             external_providers:
-                crate::external_providers::ExternalProviderNamespace::default(),
-            static_contracts: crate::static_contracts::StaticContracts::default(),
+                crate::declare::external_providers::ExternalProviderNamespace::default(),
+            static_contracts: crate::callables::static_contracts::StaticContracts::default(),
             declaration_signatures: IdTable::default(),
             declaration_envelopes: IdTable::default(),
             declaration_sources: IdTable::default(),
@@ -1139,7 +1139,7 @@ mod tests {
             &[],
             &program.callables,
             &program.boundaries,
-            &crate::reach::ServiceMap::default(),
+            &crate::publication::reach::ServiceMap::default(),
             &program.external_providers,
             &program.static_contracts,
             terminal_codec::TerminalPublication::Invocation,

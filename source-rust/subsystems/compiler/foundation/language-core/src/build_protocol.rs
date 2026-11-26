@@ -29,6 +29,7 @@ pub enum SelectionProtocolOperation {
     Exclude,
     DescribeParameter,
     DescribeField,
+    DescribeService,
 }
 
 impl SelectionProtocolOperation {
@@ -44,6 +45,7 @@ impl SelectionProtocolOperation {
             Self::BindNative => "bind_native",
             Self::DescribeParameter => "describe_parameter",
             Self::DescribeField => "describe_field",
+            Self::DescribeService => "describe_service",
             Self::Select => "select",
             Self::SelectProvider => "select_provider",
             Self::SelectProviderOption => "select_provider_option",
