@@ -1126,9 +1126,12 @@ fn check_prepared_machine(
             continue;
         }
         if let ObligationKind::NormalGuarantee { clause, .. } = row.kind
-            && let Ok(index_in_returns) = content_returns.binary_search_by_key(&(clause as usize), |&(ordinal, _)| ordinal)
+            && let Ok(index_in_returns) =
+                content_returns.binary_search_by_key(&(clause as usize), |&(ordinal, _)| ordinal)
         {
-            decided[index] = Some(Ok(Discharged::ConservedContent(content_returns[index_in_returns].1.clone())));
+            decided[index] = Some(Ok(Discharged::ConservedContent(
+                content_returns[index_in_returns].1.clone(),
+            )));
             continue;
         }
         // A theorem over indexed data: the signature proved this clause.

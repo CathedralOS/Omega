@@ -218,7 +218,9 @@ impl Flow {
         };
         match &op.kind {
             Op::DecomposeStructuralValue { subject }
-                if inputs.binary_search(&subject.place).is_ok() && subject.path.is_empty() && self.opened.insert(subject.place) =>
+                if inputs.binary_search(&subject.place).is_ok()
+                    && subject.path.is_empty()
+                    && self.opened.insert(subject.place) =>
             {
                 Ok(())
             }
@@ -619,7 +621,10 @@ pub(super) fn check(
                     {
                         let truth = when_true.edge == edge;
                         if let Some(test) = flow.booleans.get(condition) {
-                            if test.known(&flow.bounds)?.is_some_and(|value| value != truth) {
+                            if test
+                                .known(&flow.bounds)?
+                                .is_some_and(|value| value != truth)
+                            {
                                 continue;
                             }
                             test.assume(truth, &mut next.bounds);

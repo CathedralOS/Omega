@@ -51,8 +51,14 @@ pub(crate) fn require_decomposition_laws(
             Exchange::read(law).is_some_and(|exchange| {
                 exchange.projection == owner.identity
                     && *law.algebra() == owner.algebra
-                    && exchange.inputs.iter().any(|input| input.root == formal.place)
-                    && exchange.outputs.iter().all(|output| output.root == result.place)
+                    && exchange
+                        .inputs
+                        .iter()
+                        .any(|input| input.root == formal.place)
+                    && exchange
+                        .outputs
+                        .iter()
+                        .all(|output| output.root == result.place)
             })
         });
         if !covered {
@@ -167,9 +173,10 @@ pub(super) fn checked_return(
         .structural_type;
     let domain =
         crate::exactly_one::exactly_one(module.types.structural_domains.iter(), |domain| {
-            domain.carrier == carrier && domain.content_projection.as_ref().is_some_and(|owner| {
-                owner.identity == projection && owner.algebra == *law.algebra()
-            })
+            domain.carrier == carrier
+                && domain.content_projection.as_ref().is_some_and(|owner| {
+                    owner.identity == projection && owner.algebra == *law.algebra()
+                })
         })
         .ok_or("partition input has no exact owner interval projection")?;
     let mut inputs = Vec::with_capacity(exchange.inputs.len());
