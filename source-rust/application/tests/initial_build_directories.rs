@@ -1,29 +1,31 @@
 //! The invoker supplies the package, its reach ceiling and its live directory independently.
+#[path = "support/project.rs"]
+mod project;
 mod support;
 
 use build_declarations::{BuildDeclaration, BuildDependencySource, ProjectName};
 use package_compilation::BuildSnapshotRequest;
 use package_manager::project::{BuildLibraryRequest, ProjectInput, RootBuildInputs, open_products};
 use platform_custody::directory_mappings::{DirectoryAccess, DirectoryMappings};
-use platform_custody::temporary_directory::TemporaryDirectory;
 use semantic_vocabulary::dependency_reach::DependencyReach;
 use std::fs;
 use target::TargetProfile;
 
 #[test]
 fn the_initial_build_reads_and_creates_only_with_the_appropriate_directory_grant() {
-    let temp = TemporaryDirectory::create("initial-build-directories", false).unwrap();
+    let temp = project::stage(
+        "initial-build-directories",
+        &[
+            (
+                "package/grammar.omg",
+                "public machine expected() -> u8 { 82u8 }",
+            ),
+            ("host/grammar.omg", "this host file is data"),
+        ],
+    );
     let package = temp.path().join("package");
     let host = temp.path().join("host");
-    fs::create_dir(&host).unwrap();
-    fs::create_dir(&package).unwrap();
     let entry = package.join("build.omg");
-    fs::write(
-        package.join("grammar.omg"),
-        "public machine expected() -> u8 { 82u8 }",
-    )
-    .unwrap();
-    fs::write(host.join("grammar.omg"), "this host file is data").unwrap();
     fs::write(&entry, r#"use grammar.omg;
 use {system}/filesystem.omg as files;
 use {system}/filesystem_host.omg as paths;
@@ -130,40 +132,34 @@ machine build(plan: @mutable BuildPlan) blocks {
 
 #[test]
 fn directory_grants_leave_the_drivers_product_publication_and_root_imports_alone() {
-    let temp = TemporaryDirectory::create("build-mapping-publication", false).unwrap();
-    let app = temp.path().join("app");
-    let host = temp.path().join("host");
-    fs::create_dir(&app).unwrap();
-    fs::create_dir(&host).unwrap();
     let target = TargetProfile::host_if_supported().unwrap();
-    fs::write(
-        app.join("build.omg"),
-        format!(
-            r#"use helper.omg;
+    let build = format!(
+        r#"use helper.omg;
 machine build(plan: @mutable BuildPlan) {{
     |helper|::select(plan);
     Build::bind(plan, {}::ProgramEntry, main);
 }}"#,
-            target.target_name()
-        ),
-    )
-    .unwrap();
-    fs::write(
-        app.join("helper.omg"),
-        r#"public machine select(plan: @mutable BuildPlan) {
+        target.target_name()
+    );
+    let temp = project::stage(
+        "build-mapping-publication",
+        &[
+            ("app/build.omg", &build),
+            (
+                "app/helper.omg",
+                r#"public machine select(plan: @mutable BuildPlan) {
     plan.product = BuildProduct::Application { name: "mapped" };
 }"#,
-    )
-    .unwrap();
-    fs::write(app.join("main.omg"), "machine main() {}").unwrap();
-    fs::write(host.join("helper.omg"), "not source").unwrap();
+            ),
+            ("app/main.omg", "machine main() {}"),
+            ("host/helper.omg", "not source"),
+        ],
+    );
+    let app = temp.path().join("app");
+    let host = temp.path().join("host");
     let mapping = format!("{}::/out", host.display());
     let invoke = |arguments: &[&str]| {
-        let output = std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
-            .current_dir(&app)
-            .args(arguments)
-            .output()
-            .unwrap();
+        let output = project::omega(&app, arguments);
         assert!(
             output.status.success(),
             "{}",

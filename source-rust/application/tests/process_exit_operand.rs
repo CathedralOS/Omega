@@ -10,10 +10,9 @@
 //! a package that depends on the bundled `system`, which provides the exit, and
 //! runs its entry through the native and Psi engines.
 
+#[path = "support/project.rs"]
+mod project;
 mod support;
-
-use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Stdio};
 
 /// Stage `main` with a Build that depends on the bundled `system` and binds
 /// `main` on every hosted target, run it both ways, and return the exit
@@ -44,22 +43,15 @@ machine build(builder: @mutable Build) {{
 /// exit status and everything printed.
 fn run_build(name: &str, build: &str, main: &str) -> [(Option<i32>, String); 2] {
     ["native", "psi"].map(|engine| {
-    let scratch = TemporaryDirectory::create(name, false).unwrap();
-    std::fs::write(scratch.path().join("build.omg"), build).unwrap();
-    std::fs::write(scratch.path().join("main.omg"), main).unwrap();
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--engine", engine, "build.omg"])
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("omega runs");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    eprintln!("{report}");
-    (output.status.code(), report)
+        let scratch = project::stage(name, &[("build.omg", build), ("main.omg", main)]);
+        let output = project::omega(scratch.path(), &["run", "--engine", engine, "build.omg"]);
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        eprintln!("{report}");
+        (output.status.code(), report)
     })
 }
 
@@ -91,13 +83,16 @@ fn the_exit_ends_the_process_with_the_operand_written() {
 /// the process instead ends with the 4 passed to the exit.
 #[test]
 fn nothing_after_an_exit_runs() {
-    exits_with(4, run(
-        "exit-grouped",
-        "use omega\\language\\core\\ProcessExit;
+    exits_with(
+        4,
+        run(
+            "exit-grouped",
+            "use omega\\language\\core\\ProcessExit;
 machine quit(code: i32) -> i32 reaches ProcessExit { (ProcessExit::exit_process(code)); 7 }
 machine main() reaches ProcessExit { let ignored: i32 = quit(4); }
 ",
-    ));
+        ),
+    );
 }
 
 /// A boundary trait of the package's own, spelled like Core's, is an
@@ -155,14 +150,17 @@ machine main() reaches ProcessExit { ProcessExit::exit_process(7); }
 ";
     exits_with(7, run_build("exit-provider", build, honest));
 
-    let changed = honest.replace("ProcessExitPrimitive(return_code)", "ProcessExitPrimitive(0)");
-    for (status, report) in run_build("exit-provider-changed", build, &changed) {
-    assert!(
-        report.contains("does not pass on the arguments the machine received"),
-        "{report}"
+    let changed = honest.replace(
+        "ProcessExitPrimitive(return_code)",
+        "ProcessExitPrimitive(0)",
     );
-    assert_ne!(status, Some(0), "{report}");
-    assert!(!report.contains("native exit 0"), "{report}");
+    for (status, report) in run_build("exit-provider-changed", build, &changed) {
+        assert!(
+            report.contains("does not pass on the arguments the machine received"),
+            "{report}"
+        );
+        assert_ne!(status, Some(0), "{report}");
+        assert!(!report.contains("native exit 0"), "{report}");
         assert!(!report.contains("Psi exit 0"), "{report}");
     }
 }

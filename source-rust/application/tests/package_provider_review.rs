@@ -1,6 +1,9 @@
 //! Package review retains the checked provider and the public types in its contract.
+#[path = "support/project.rs"]
+mod project;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::{fs, process::Command};
+use std::fs;
 
 #[test]
 fn review_retains_the_provider_already_checked_for_each_target() {
@@ -25,18 +28,17 @@ public MacReading satisfies Reading { machine read() -> u64 { 2 } }",
         ("linux_x86_64", "LinuxReading", "MacReading"),
         ("macos_arm64", "MacReading", "LinuxReading"),
     ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .current_dir(project.path())
-            .args([
+        let output = project::omega(
+            project.path(),
+            &[
                 "packages",
                 "audit",
                 "--offline",
                 "--target",
                 target,
                 "--details",
-            ])
-            .output()
-            .unwrap();
+            ],
+        );
         assert!(
             matches!(output.status.code(), Some(0 | 3)),
             "{}",
@@ -431,12 +433,8 @@ fn audit_reader_with_options(
     options: &[&str],
 ) -> (Option<i32>, String) {
     fs::write(project.path().join("reader.omg"), source).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .current_dir(project.path())
-        .args(["packages", "audit", "--offline", "--target", "linux_x86_64"])
-        .args(options)
-        .output()
-        .unwrap();
+    let arguments = ["packages", "audit", "--offline", "--target", "linux_x86_64"];
+    let output = project::omega(project.path(), &[&arguments[..], options].concat());
     (
         output.status.code(),
         String::from_utf8(output.stdout).unwrap(),

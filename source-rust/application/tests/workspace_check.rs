@@ -1,17 +1,13 @@
 //! An unnamed check validates the members returned by the workspace Build.
-use platform_custody::temporary_directory::TemporaryDirectory;
+#[path = "support/project.rs"]
+mod project;
+
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::Output;
 
 fn check(root: &Path, paths: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "--offline"])
-        .args(paths)
-        .current_dir(root)
-        .stdin(Stdio::null())
-        .output()
-        .unwrap()
+    project::omega(root, &[&["--check", "--offline"][..], paths].concat())
 }
 
 fn member(root: &Path, path: &str, name: &str, source: &str) -> PathBuf {
@@ -30,11 +26,11 @@ fn member(root: &Path, path: &str, name: &str, source: &str) -> PathBuf {
 fn workspace_checks_its_returned_members_and_named_checks_select_only_one() {
     // The repository has its own build.omg. A Cargo target directory inside the
     // checkout would give the fixture a second enclosing Build.
-    let directory = TemporaryDirectory::create("local-workspace-check", false).unwrap();
-    let root = directory.path();
-    fs::write(
-        root.join("build.omg"),
-        r#"use {omega}/build/workspace.omg;
+    let directory = project::stage(
+        "local-workspace-check",
+        &[(
+            "build.omg",
+            r#"use {omega}/build/workspace.omg;
 machine build(plan: @mutable BuildPlan) {
     let alpha: WorkspaceMembers = |workspace|::with_member(plan, WorkspaceMembers {}, "alpha");
     let members: WorkspaceMembers = roster(plan, alpha, true);
@@ -46,8 +42,9 @@ machine roster(plan: @mutable BuildPlan, members: WorkspaceMembers, enabled: boo
         false -> |workspace|::with_member(plan, members, "undeclared")
     }
 }"#,
-    )
-    .unwrap();
+        )],
+    );
+    let root = directory.path();
     let good = "public machine value() -> u64 { 1u64 }";
     let broken = "public machine unused_bad(count: u64) -> u64 { count + 1u64 }";
     member(root, "alpha", "first", good);
