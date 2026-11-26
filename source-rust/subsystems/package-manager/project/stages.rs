@@ -23,9 +23,29 @@ impl SourceHost<'_, '_> {
         let mut path = entry.to_path_buf();
         let mut preparations = Vec::new();
         loop {
-            let execution =
+            let mut execution =
                 self.session
                     .source_build_inputs(self.profile, snapshot.take(), dependency)?;
+            if !dependency {
+                execution.programs = self.root_programs.clone();
+                let previously_accepted = crate::review::RootRestrictedBuildGrants::for_source(
+                    &self.acquisitions.root_policies,
+                    acquired,
+                    self.profile,
+                );
+                let phase = self.acquisitions.phase_grants.clone();
+                let grants = match (previously_accepted, phase) {
+                    (Some(mut previous), phase) => {
+                        previous.phase = phase;
+                        Some(previous)
+                    }
+                    (None, phase) => phase.map(crate::review::RootRestrictedBuildGrants::for_phase),
+                };
+                if let Some(grants) = grants {
+                    execution.programs.reviewed_root_name = grants.name.clone();
+                    execution.restricted_grants = Some(Box::new(grants));
+                }
+            }
             let stage = project_build::prepare(
                 PlanningRequest {
                     root: &path,
@@ -35,7 +55,8 @@ impl SourceHost<'_, '_> {
                 },
                 Default::default(),
                 planning_timings(self.timings),
-            )?;
+            )
+            .map_err(|failure| PackageCommandError::for_build_preparation(failure, !dependency))?;
             let mut requests = Default::default();
             let stage = project_build::interpret(
                 stage,

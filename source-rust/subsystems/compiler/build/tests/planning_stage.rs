@@ -453,12 +453,13 @@ fn an_artifact_only_build_requests_its_scoped_filesystem_once() {
 
     struct Consent(Arc<Mutex<Vec<RestrictedBuildRequest>>>);
     impl RestrictedBuildGrants for Consent {
-        fn admit(
+        fn admits(
             &mut self,
+            _: &package_compilation::build_execution::RestrictedBuildSite,
             request: &RestrictedBuildRequest,
-        ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        ) -> Result<bool, Vec<diagnostics::Diagnostic>> {
             self.0.lock().unwrap().push(request.clone());
-            Ok(())
+            Ok(true)
         }
     }
 
@@ -513,7 +514,7 @@ fn an_artifact_only_build_requests_its_scoped_filesystem_once() {
     };
     assert_eq!(
         request.operation(),
-        RestrictedBuildOperation::ScopedFilesystemExecution
+        &RestrictedBuildOperation::ScopedFilesystemExecution
     );
     assert!(request.bounds().artifact_only());
 }
@@ -573,7 +574,7 @@ machine build(builder: @mutable Build) {
             true,
             false,
             &temp.path().join("out"),
-            None,
+            Default::default(),
         )
     };
     let products = compile().unwrap();

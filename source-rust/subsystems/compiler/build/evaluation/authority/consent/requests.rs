@@ -1,10 +1,19 @@
-//! The restricted filesystem execution a Build wants the receiving host to authorize.
+//! Restricted operations a Build asks its receiving host to authorize.
 #![forbid(unsafe_code)]
 use build_output::BuildCapturedSourceInventory;
 use evaluation_contracts::BuildEvaluationSponsorLimits;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// The checked executable and selected entry that would perform a restricted
+/// operation during this review. Portable policy records the operation itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RestrictedBuildSite {
+    pub program: [u8; 32],
+    pub entry: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RestrictedBuildOperation {
+    ProgramLaunch(Box<RestrictedProgramLaunch>),
     ScopedFilesystemExecution, // Execute against scoped real filesystem read/write roots.
     UnscopedFilesystemExecution, // Execute against the real filesystem without path grants.
 }
@@ -93,6 +102,27 @@ impl RestrictedBuildBounds {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramDeclarationOwner {
+    /// The request row is already scoped to the exact requesting occurrence.
+    RequestingSource,
+    Package([u8; 32]),
+    Toolchain([u8; 32]),
+}
+
+/// Portable review meaning for one demanded program. The installed image
+/// digest binds its runtime too on hosts admitting only static executables.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RestrictedProgramLaunch {
+    pub owner: ProgramDeclarationOwner,
+    pub declaration: String,
+    pub file: String,
+    pub image_sha256: [u8; 32],
+    pub readable: Vec<Vec<u8>>,
+    pub writable: Vec<Vec<u8>>,
+    pub timeout_ms: u64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RestrictedBuildRequest {
     operation: RestrictedBuildOperation,
@@ -104,8 +134,23 @@ pub struct RestrictedBuildRequest {
 }
 
 impl RestrictedBuildRequest {
-    pub const fn operation(&self) -> RestrictedBuildOperation {
-        self.operation
+    pub fn for_program(
+        program: RestrictedProgramLaunch,
+        bounds: RestrictedBuildBounds,
+        profile: Option<target::TargetProfile>,
+    ) -> Self {
+        Self {
+            operation: RestrictedBuildOperation::ProgramLaunch(Box::new(program)),
+            read_grants: Vec::new(),
+            write_grants: Vec::new(),
+            bounds,
+            build_execution_profile: profile,
+            selected_target_profile: None,
+        }
+    }
+
+    pub const fn operation(&self) -> &RestrictedBuildOperation {
+        &self.operation
     }
 
     pub fn read_grants(&self) -> &[RestrictedBuildGrant] {

@@ -69,7 +69,13 @@ impl BuildProviderScope {
         &self,
         program: &source_compiler::publication::ProducedTerminalProgram,
         diagnostic_output_bytes: Option<u64>,
-    ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
+    ) -> Result<
+        (
+            BuildProviderInstallation,
+            Vec<semantic_vocabulary::BoundaryMachineId>,
+        ),
+        Vec<Diagnostic>,
+    > {
         let artifact = program.view();
         let module = artifact.module();
         let entry = module
@@ -212,11 +218,14 @@ impl BuildProviderScope {
         if !errors.is_empty() {
             return Err(errors);
         }
-        Ok(BuildProviderInstallation {
-            supplies,
-            awaited,
-            diagnostic_output_bytes,
-        })
+        Ok((
+            BuildProviderInstallation {
+                supplies,
+                awaited,
+                diagnostic_output_bytes,
+            },
+            demand.imports,
+        ))
     }
 }
 

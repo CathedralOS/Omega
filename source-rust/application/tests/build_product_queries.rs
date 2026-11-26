@@ -90,7 +90,7 @@ fn run_with_kit(root: &Path, library: &str, target: target::TargetProfile) -> Re
         true,
         false,
         &output.path().join("build"),
-        None,
+        Default::default(),
     )
     .map_err(|errors| format!("{errors:?}"))?;
     let product = products

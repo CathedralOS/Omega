@@ -54,7 +54,7 @@ fn a_diamond_executes_four_builds_afresh_and_keeps_each_targets_handoffs() {
             true,
             false,
             &root.join("out"),
-            None,
+            Default::default(),
         )
         .unwrap();
         assert_eq!(
