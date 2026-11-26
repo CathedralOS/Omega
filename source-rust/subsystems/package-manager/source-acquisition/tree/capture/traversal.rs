@@ -224,7 +224,7 @@ pub(super) fn push_entry(
     Ok(())
 }
 
-pub(super) fn canonical_relative_path_bytes(relative: &Path) -> Vec<u8> {
+pub(crate) fn canonical_relative_path_bytes(relative: &Path) -> Vec<u8> {
     let mut encoded = Vec::new();
     for component in relative.components() {
         if !encoded.is_empty() {
