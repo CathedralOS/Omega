@@ -1,0 +1,1 @@
+a package Product cannot bind an executable root

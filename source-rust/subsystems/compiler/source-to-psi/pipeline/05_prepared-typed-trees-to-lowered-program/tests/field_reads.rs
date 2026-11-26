@@ -343,3 +343,45 @@ fn a_field_handoff_still_checks_the_sibling_named_by_its_owner() {
         program::Verdict::Rejected(_)
     ));
 }
+
+/// Each member sees the same borrowed record at a different block parameter.
+/// A field first inspected after two transfers still carries its declared bound.
+#[test]
+fn a_cycle_materializes_the_fields_its_members_expose() {
+    let source = |length: usize, action: &str| {
+        format!(
+            "data Cell requires value <= 31, {{ value: u64; }}
+             data Counter {{ count: u64; }}
+             data Table {{ active: Counter; rows: [Cell; {length}]; }}
+             machine touch(counter: @mutable Counter) {{ counter.count = 7; }}
+             machine first(table: @mutable Table, done: bool) {{
+                 touch(@mutable table.active);
+                 transition done {{ true -> finish(), _ -> second(table, done) }}
+             }}
+             machine second(table: @mutable Table, done: bool) {{
+                 transition done {{ true -> finish(), _ -> third(table, done) }}
+             }}
+             machine third(table: @mutable Table, done: bool) {{
+                 {action}
+                 transition done {{ true -> finish(), _ -> first(table, done) }}
+             }}
+             machine finish() {{}}"
+        )
+    };
+    let [small, large] = [3, 128].map(|length| {
+        let program = Program::of(&source(length, ""));
+        let lowered = program.lower();
+        ["first", "second", "third"].map(|name| {
+            let machine = lowered.machine(name);
+            let tables = lowered.elaboration.tables.machines.get(machine.id).unwrap();
+            (tables.places.len(), tables.values.len())
+        })
+    });
+    assert_eq!(small, large);
+    let write = |value| Program::of(&source(3, &format!("table.rows[1].value = {value}u64;")));
+    write(31).judged(|_| {}).accepted();
+    assert!(matches!(
+        write(32).judged(|_| {}),
+        program::Verdict::Rejected(_)
+    ));
+}

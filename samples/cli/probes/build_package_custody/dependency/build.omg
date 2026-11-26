@@ -1,52 +1,8 @@
-// The dependency package is the custody subject: the root reaches it through
-// a Build edge and a Product edge in one request. Its own build consults a
-// generator package through a nested build edge, reads an authored template
-// through the captured source inventory, and publishes its bytes as generated
-// product source. A separately promised output holds a copy of those bytes.
-
 use {omega}/build/dependency.omg;
-use {generator}/main.omg as generator;
 
-machine build(builder: @mutable BuildPlan)
-suspends
-{
-    builder.product = BuildProduct::Package { name: "custody_kernel" };
-    let mutable generator_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "../generator" });
-    |dependency|::with_alias(@mutable generator_dependency, "generator");
-    let generator_registration: DependencyRegistration = Build::build_dependency(builder, generator_dependency);
-    suspend Build::prepare_dependency(builder, generator_registration);
-    let answer: i32 = |generator|::generation_value();
-    transition answer == 7 {
-        true -> generate(builder),
-        _ -> wrong()
-    }
-    machine generate(builder: @mutable BuildPlan) {
-        let template: BuildPath = BuildSource::resolve(@builder.source, "template.txt");
-        let reader: i32 = BuildSource::open(@builder.source, template, 0);
-        let mutable bytes: [u8; 79];
-        _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], 79);
-        let _closed_reader: i32 = BuildSource::close(@builder.source, reader);
-        let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated.omg");
-        let generated: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
-        let writer: i32 = BuildOutput::create(@mutable builder.output, generated, 0);
-        _ = BuildOutput::write(@mutable builder.output, writer, @bytes[..]);
-        let _sealed: i32 = BuildOutput::close(@mutable builder.output, writer);
-        Build::include_source(builder, "generated.omg", @bytes[..]);
-        let settled: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, generated);
-        settle(builder, settled);
-    }
-    machine wrong() {
-    }
-}
-
-machine settle(builder: @mutable BuildPlan, completion: OutputCompletion) {
-    transition completion {
-        OutputCompletion::Sealed { receipt } -> sealed(builder),
-        OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
-    }
-    machine sealed(builder: @mutable BuildPlan) {
-    }
-    machine failed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
-        BuildOutput::fail(@mutable builder.output, obligation, "generated source did not seal");
-    }
+machine build(plan: @mutable BuildPlan) {
+    let mutable package: DependencyDescription = |dependency|::from_source(Source::Path { location: "generator" });
+    |dependency|::with_alias(@mutable package, "generator");
+    _ = |dependency|::add(plan, package);
+    plan.product = BuildProduct::InterpretedBuild { entry: "generate.omg" };
 }

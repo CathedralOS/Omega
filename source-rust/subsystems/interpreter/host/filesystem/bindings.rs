@@ -582,29 +582,9 @@ impl FilesystemContext {
         services: impl IntoIterator<Item = semantic_vocabulary::ServiceId>,
     ) -> Result<(), &'static str> {
         for service in services {
-            let supplied = module
-                .interfaces
-                .services
-                .iter()
-                .find(|row| row.id == service)
-                .and_then(|row| module.identities.text(row.identity))
-                .is_some_and(|identity| {
-                    matches!(
-                        identity,
-                        "toolchain::FilesystemContentRead"
-                            | "toolchain::FilesystemContentWrite"
-                            | "toolchain::FilesystemMetadataQuery"
-                            | "toolchain::FilesystemMetadataMutation"
-                            | "toolchain::DirectoryEnumeration"
-                            | "toolchain::FilesystemNamespaceMutation"
-                    )
-                });
-            // Keep only the existing exact legacy labels. Canonical service
-            // applications owe the retained schema and receiver-bundled owner;
-            // a familiar path inside another identity cannot supply authority.
-            if !supplied && module.core_filesystem_service(service).is_err() {
-                return Err("filesystem supply does not provide this exact additional service");
-            }
+            module
+                .core_filesystem_service(service)
+                .map_err(|_| "filesystem supply does not provide this exact additional service")?;
         }
         Ok(())
     }
@@ -1030,7 +1010,7 @@ mod tests {
     }
 
     #[test]
-    fn malformed_canonical_filesystem_labels_do_not_use_legacy_name_matching() {
+    fn filesystem_supply_rejects_an_inconsistent_core_schema() {
         let original = canonical_filesystem_module();
         let service = original.interfaces.services[2].id;
         let exact = original
@@ -1063,7 +1043,7 @@ mod tests {
     }
 
     #[test]
-    fn filesystem_supply_preserves_only_its_exact_legacy_labels() {
+    fn a_filesystem_name_without_its_core_schema_supplies_no_authority() {
         let mut module = terminal_psi::TerminalModule::declarations();
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         for (index, label) in [
@@ -1088,10 +1068,12 @@ mod tests {
         }
         module.identities = identities.build();
         let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace).unwrap();
-        assert_eq!(
-            context.admit_service_ids(&module, module.interfaces.services.iter().map(|row| row.id)),
-            Ok(())
-        );
+        for service in &module.interfaces.services {
+            assert_eq!(
+                context.admit_service_ids(&module, [service.id]),
+                Err("filesystem supply does not provide this exact additional service")
+            );
+        }
     }
 
     #[test]

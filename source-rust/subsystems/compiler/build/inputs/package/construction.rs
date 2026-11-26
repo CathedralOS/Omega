@@ -74,12 +74,25 @@ impl PackageCompilationInputs {
                     continue;
                 }
             };
+            if let Some(preparing) = &package.preparing_source
+                && (package.captured_source.is_none()
+                    || !canonical_root.starts_with(preparing.canonical_live_root()))
+            {
+                errors.push(PackageCompilationInputError::InvalidSourceRoot {
+                    identity: package.identity,
+                    path: canonical_root,
+                    reason: "returned package directory must belong to its preparing acquisition"
+                        .into(),
+                });
+                continue;
+            }
             if canonical_packages
                 .insert(
                     package.identity,
                     PackageCompilationSourceRecord {
                         build_entries: package.build_entries,
                         source_root: canonical_root.clone(),
+                        preparing_source: package.preparing_source,
                         canonical_name: package.canonical_name,
                         resolution: package.resolution,
                         canonical_source_metadata,
@@ -104,7 +117,20 @@ impl PackageCompilationInputs {
             }
         }
 
-        append_overlapping_source_roots(&roots, &canonical_packages, &mut errors);
+        // Directory handoffs retain their logical package paths for imports and
+        // diagnostics. Compare the original acquisitions for physical overlap.
+        let mut acquired_roots = BTreeMap::new();
+        for identity in roots.values() {
+            let acquired = canonical_packages[identity].acquired_root();
+            if let Some(first) = acquired_roots.insert(acquired.to_owned(), *identity) {
+                errors.push(PackageCompilationInputError::DuplicateSourceRoot {
+                    first,
+                    duplicate: *identity,
+                    path: acquired.to_owned(),
+                });
+            }
+        }
+        append_overlapping_source_roots(&acquired_roots, &canonical_packages, &mut errors);
 
         if !canonical_packages.contains_key(&root) {
             errors.push(PackageCompilationInputError::MissingRootPackage { root });
@@ -282,7 +308,7 @@ impl PackageCompilationInputs {
         match toolchain_root.canonicalize() {
             Ok(canonical_toolchain) => {
                 for (identity, record) in &self.source.packages {
-                    let root = &record.source_root;
+                    let root = record.acquired_root();
                     if root.starts_with(&canonical_toolchain)
                         || canonical_toolchain.starts_with(root)
                     {
@@ -319,8 +345,8 @@ pub(super) fn append_overlapping_source_roots(
         for ancestor in root.ancestors().skip(1) {
             if let Some((ancestor_root, ancestor_identity)) = roots.get_key_value(ancestor) {
                 if let (Some(parent), Some(child)) = (
-                    packages[ancestor_identity].captured_source.as_ref(),
-                    packages[identity].captured_source.as_ref(),
+                    acquired_tree(&packages[ancestor_identity]),
+                    acquired_tree(&packages[identity]),
                 ) {
                     let relative = root
                         .strip_prefix(ancestor_root)
@@ -346,6 +372,16 @@ pub(super) fn append_overlapping_source_roots(
                 }
             }),
     );
+}
+
+fn acquired_tree(
+    record: &PackageCompilationSourceRecord,
+) -> Option<&source_capture::CapturedSourceTree> {
+    record
+        .preparing_source
+        .as_ref()
+        .map(|source| source.tree().as_ref())
+        .or(record.captured_source.as_deref())
 }
 
 fn compatible_nested_capture(
@@ -462,6 +498,49 @@ mod tests {
             ("members/dep", directory),
             ("members/dep/api.omg", file)
         ]));
+    }
+
+    #[test]
+    fn nested_generated_packages_compare_acquired_files_and_compile_selected_files() {
+        let temp = TemporaryDirectory::create("generated-nested-package", false).unwrap();
+        let child = temp.path().join("kit");
+        std::fs::create_dir(&child).unwrap();
+        std::fs::write(child.join("api.omg"), "public const VALUE: u32 = 1u32;").unwrap();
+        let parent = crate::capture_anonymous_compilation_source(temp.path()).unwrap();
+        let original = crate::capture_anonymous_compilation_source(&child).unwrap();
+        std::fs::write(child.join("api.omg"), "public const VALUE: u32 = 2u32;").unwrap();
+        let selected = crate::capture_anonymous_compilation_source(&child).unwrap();
+        let root_id = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let kit_id = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let root = PackageSourceBinding::new(root_id, "root", parent.canonical_live_root().into())
+            .with_captured_source(parent.tree().clone())
+            .unwrap();
+        let kit = PackageSourceBinding::new(kit_id, "kit", child)
+            .with_captured_source(selected.tree().clone())
+            .unwrap();
+        let graph = |kit| {
+            PackageCompilationInputs::new(
+                root_id,
+                BuildDeclarationKind::Application,
+                vec![root.clone(), kit],
+                vec![PackageDependencyBinding::for_purpose(
+                    root_id,
+                    "kit",
+                    kit_id,
+                    DependencyPurpose::Product,
+                )],
+            )
+        };
+        let errors = graph(kit.clone()).unwrap_err();
+        assert!(errors.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::OverlappingSourceRoots { .. }
+        )));
+        let accepted = graph(kit.with_preparing_source(Some(original))).unwrap();
+        assert_eq!(
+            accepted.source.packages[&kit_id].captured_source.as_deref(),
+            Some(selected.tree().as_ref())
+        );
     }
 
     #[test]

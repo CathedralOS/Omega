@@ -1,11 +1,16 @@
-# One dependency alias in Build and Product
+# One alias in a Build and its application
 
-Both the Build and the product import `{kit}/generated.omg` and call its
-public `value()` machine. The Build registers the dependency with
-`Build::build_dependency` before waiting for it. A separate `Build::dependency`
-registration gives the product access under the same alias.
+The first Build prepares the dependency as `kit`. Its successor imports
+`{kit}/generated.omg`, checks that `value()` returns 7, and forwards the
+prepared binding to the application under the same alias. The application
+imports that file independently and checks the same value at runtime.
 
-The dependency reads a source template, publishes those bytes as
-`generated.omg`, and writes the same bytes to a promised file. The generated
-`value()` imports the dependency’s authored `main.omg` and calls `seed()`,
-which returns 7.
+The dependency seals its source template as the required output
+`generated.omg`, copies the authored seed and receiver entry, and returns that
+directory. The receiver declares the finished package. Removing either the
+seed or the generated file breaks the consuming import.
+
+Run `omega run --engine psi build.omg` or `omega run --engine native build.omg`.
+The [negative cases](../build_dual_purpose_alias_controls/) check that a Product
+registration cannot supply the executing Build and that the dependency's
+declared name cannot stand in for the registered alias.

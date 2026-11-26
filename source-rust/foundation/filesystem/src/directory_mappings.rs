@@ -97,11 +97,21 @@ impl DirectoryMapping {
     pub fn open_read(&self, relative: &[u8]) -> io::Result<std::fs::File> {
         self.backing.open_read(relative)
     }
+    pub fn create_dir(&self, relative: &[u8]) -> io::Result<()> {
+        self.require_write()?;
+        self.backing.create_dir(relative)
+    }
+
     pub fn open_write(&self, relative: &[u8]) -> io::Result<std::fs::File> {
+        self.require_write()?;
+        self.backing.open_write(relative)
+    }
+
+    fn require_write(&self) -> io::Result<()> {
         if self.access == DirectoryAccess::ReadOnly {
             return Err(io::ErrorKind::PermissionDenied.into());
         }
-        self.backing.open_write(relative)
+        Ok(())
     }
 }
 

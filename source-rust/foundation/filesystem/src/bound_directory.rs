@@ -97,6 +97,16 @@ impl BoundDirectory {
         Ok(file.into_std())
     }
 
+    pub fn is_directory(&self, path: &[u8]) -> io::Result<bool> {
+        let (directory, name) = self.parent(path)?;
+        Ok(directory.symlink_metadata(name)?.is_dir())
+    }
+
+    pub fn create_dir(&self, path: &[u8]) -> io::Result<()> {
+        let (directory, name) = self.parent(path)?;
+        directory.create_dir(name)
+    }
+
     pub fn create_new(&self, path: &[u8]) -> io::Result<std::fs::File> {
         let (directory, name) = self.parent(path)?;
         let mut options = OpenOptions::new();
@@ -135,6 +145,10 @@ mod tests {
         assert!(original.join("result").is_file());
         assert!(!outside.join("result").exists());
         assert!(bound.create_new(b"linked/escape").is_err());
+        bound.create_dir(b"generated").unwrap();
+        assert!(original.join("generated").is_dir());
+        assert!(!bound.is_directory(b"linked").unwrap());
+        assert!(bound.create_dir(b"linked/escape").is_err());
         assert!(!outside.join("escape").exists());
     }
 }

@@ -3,16 +3,18 @@
 //! whole selected field, while its siblings remain in the caller.
 
 use arena::{IdSet, IdTable};
-
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, Proposition, ScalarTerm, StructuralFieldId,
+    StructuralTypeId,
 };
 use terminal_psi::{
-    OperationProjection, StructuralFieldDeclaration, StructuralPathSegment, StructuralStorageUse,
+    OperationProjection, StructuralArgument, StructuralFieldDeclaration,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralStorageUse,
     StructuralTypeDeclaration, TerminalIdentityIndex, TerminalMachine,
 };
 
 struct Formal<'a> {
+    carrier: StructuralTypeId,
     record: &'a [StructuralFieldDeclaration],
     exposed: IdSet<StructuralFieldId>,
 }
@@ -61,6 +63,76 @@ impl Fields<'_> {
             formal.exposed.insert(id);
         } else {
             *slot = None;
+        }
+    }
+
+    fn carried_record(
+        &self,
+        argument: &StructuralArgument,
+        formal: &StructuralParameterDeclaration,
+    ) -> bool {
+        argument.path.is_empty()
+            && matches!(
+                argument.access,
+                terminal_psi::reading_borrow_pair_pattern!()
+            )
+            && argument.access == formal.access
+            && [argument.place, formal.place].into_iter().all(|root| {
+                self.0
+                    .get(root)
+                    .and_then(Option::as_ref)
+                    .is_some_and(|source| source.carrier == formal.structural_type)
+            })
+    }
+
+    /// A transferred borrow may reach any use of its block parameter, including
+    /// after a backedge. Union the observed fields across each connected set.
+    /// This shares the demand for names; every place still has its own snapshots.
+    fn include_transferred_fields(&mut self, transfers: &[(PlaceId, PlaceId)]) {
+        if transfers.is_empty() {
+            return;
+        }
+        let mut adjacent = self.0.map(|_, _| Vec::new());
+        for &(source, destination) in transfers {
+            adjacent
+                .get_mut(source)
+                .expect("tracked source")
+                .push(destination);
+            adjacent
+                .get_mut(destination)
+                .expect("tracked destination")
+                .push(source);
+        }
+        let mut seen = IdSet::new();
+        let mut group = Vec::new();
+        for &(start, _) in transfers {
+            if !seen.insert(start) {
+                continue;
+            }
+            group.clear();
+            group.push(start);
+            let mut next = 0;
+            while let Some(&root) = group.get(next) {
+                next += 1;
+                for &other in adjacent.get(root).expect("tracked formal") {
+                    if seen.insert(other) {
+                        group.push(other);
+                    }
+                }
+            }
+            let exposed = group.iter().try_fold(IdSet::new(), |mut combined, &root| {
+                let formal = self.0.get(root)?.as_ref()?;
+                combined.union_with(&formal.exposed);
+                Some(combined)
+            });
+            for &root in &group {
+                let slot = self.0.get_mut(root).expect("tracked formal");
+                if let (Some(formal), Some(exposed)) = (slot.as_mut(), &exposed) {
+                    formal.exposed.clone_from(exposed);
+                } else {
+                    *slot = None;
+                }
+            }
         }
     }
 
@@ -116,21 +188,34 @@ pub(super) fn observed<'a>(
             .ok()
             .map(|i| &types[i])
     };
-    let formals = machine.structural_parameters.iter().filter_map(|formal| {
-        if !formal.qualifications.is_empty()
-            || !formal.projected_qualifications.is_empty()
-            || !formal.additional_input_qualifications.is_empty()
-        {
-            return None;
-        }
-        let ty = lookup(formal.structural_type)?;
-        let record = ty.shape.record_fields()?;
-        if terminal_psi::structural_type_has_borrowed_storage_by(lookup, ty.id) {
-            return None;
-        }
-        let exposed = predicate_fields(ty, record)?;
-        Some((formal.place, Some(Formal { record, exposed })))
-    });
+    let mut formals: Vec<_> = machine
+        .structural_parameters
+        .iter()
+        .chain(machine.block_structural_parameters())
+        .filter_map(|formal| {
+            if !formal.qualifications.is_empty()
+                || !formal.projected_qualifications.is_empty()
+                || !formal.additional_input_qualifications.is_empty()
+            {
+                return None;
+            }
+            let ty = lookup(formal.structural_type)?;
+            let record = ty.shape.record_fields()?;
+            if terminal_psi::structural_type_has_borrowed_storage_by(lookup, ty.id) {
+                return None;
+            }
+            let exposed = predicate_fields(ty, record)?;
+            Some((
+                formal.place,
+                Some(Formal {
+                    carrier: ty.id,
+                    record,
+                    exposed,
+                }),
+            ))
+        })
+        .collect();
+    formals.sort_unstable_by_key(|(place, _)| *place);
     let mut fields = Fields(
         IdTable::from_rows_with_gaps(formals, machine.structural_places.len()).unwrap_or_default(),
     );
@@ -161,11 +246,45 @@ pub(super) fn observed<'a>(
             }
         }
     }
+    let mut transfers = Vec::new();
     for block in &machine.blocks {
-        for access in block.terminator.storage_uses() {
+        let edges = block.terminator.successor_edges();
+        let external_arguments = edges.is_empty();
+        for access in block
+            .terminator
+            .storage_uses_with_arguments(|_| external_arguments)
+        {
             fields.projection(access);
         }
+        for ((_, target), arguments) in edges
+            .into_iter()
+            .zip(block.terminator.successor_block_arguments())
+        {
+            let Some(destination) = machine
+                .blocks
+                .get((target.get() - 1) as usize)
+                .filter(|block| block.id == target)
+            else {
+                return Fields::default();
+            };
+            if arguments.len() != destination.structural_parameters.len() {
+                return Fields::default();
+            }
+            for (source, formal) in arguments.iter().zip(&destination.structural_parameters) {
+                if fields.carried_record(source, formal) {
+                    transfers.push((source.place, formal.place));
+                } else {
+                    fields.projection(OperationProjection {
+                        root: source.place,
+                        path: &source.path,
+                        field: None,
+                    });
+                    fields.expose(formal.place, None);
+                }
+            }
+        }
     }
+    fields.include_transferred_fields(&transfers);
     fields
 }
 

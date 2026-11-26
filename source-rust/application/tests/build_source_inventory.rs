@@ -3,7 +3,7 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 use std::process::{Command, Stdio};
 
 #[test]
-fn a_local_build_receives_its_helper_and_only_selected_assets() {
+fn a_build_and_its_successor_read_their_helper_and_only_selected_assets() {
     let project = TemporaryDirectory::create("local-source-inventory", false).unwrap();
     let root = project.path();
     std::fs::write(root.join("note.txt"), b"test input").unwrap();
@@ -13,43 +13,62 @@ fn a_local_build_receives_its_helper_and_only_selected_assets() {
     )
     .unwrap();
     let source = r#"use helper.omg;
-machine readable(builder: @Build, name: @[u8]) -> bool {
+machine readable(builder: @BuildPlan, name: @[u8]) -> bool {
     let path: BuildPath = BuildSource::resolve(@builder.source, name);
     let file: i32 = BuildSource::open(@builder.source, path, 0);
     transition file >= 0 { true -> close(builder, file), _ -> false }
-    machine close(builder: @Build, file: i32) -> bool {
+    machine close(builder: @BuildPlan, file: i32) -> bool {
         _ = BuildSource::close(@builder.source, file);
         true
     }
 }
-machine build(builder: @mutable Build) crashes Trap {
+machine build(builder: @mutable BuildPlan) crashes Trap {
     let helper_ok: bool = |helper|::ready() && readable(builder, "helper.omg");
     let asset_ok: bool = readable(builder, "note.txt") == EXPECTED;
     transition helper_ok && asset_ok { true -> publish(builder), _ -> failed() }
-    machine publish(builder: @mutable Build) { Build::package(builder, "reader"); }
+    machine publish(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "reader" }; }
     machine failed() crashes Trap { crash Trap; }
 }"#;
-    for (inputs, visible) in [
-        (&[][..], false),
-        (&["build.omg", "helper.omg"][..], false),
-        (&["build.omg", "helper.omg", "note.txt"][..], true),
-    ] {
-        std::fs::write(
-            root.join("build.omg"),
-            source.replace("EXPECTED", if visible { "true" } else { "false" }),
-        )
-        .unwrap();
-        let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-        command.arg("build").current_dir(root).stdin(Stdio::null());
-        for input in inputs {
-            command.args(["--build-input", input]);
+    for successor in [false, true] {
+        let entry = if successor { "next.omg" } else { "build.omg" };
+        if successor {
+            std::fs::write(
+                root.join("build.omg"),
+                r#"machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::InterpretedBuild { entry: "next.omg" };
+}"#,
+            )
+            .unwrap();
         }
-        let result = command.arg("build.omg").output().unwrap();
-        assert!(
-            result.status.success(),
-            "inputs {inputs:?}: {}",
-            String::from_utf8_lossy(&result.stderr)
-        );
+        for explicit in [None, Some(false), Some(true)] {
+            let visible = explicit == Some(true);
+            std::fs::write(
+                root.join(entry),
+                source.replace("EXPECTED", if visible { "true" } else { "false" }),
+            )
+            .unwrap();
+            let mut inputs = Vec::new();
+            if explicit.is_some() {
+                inputs.extend(["build.omg", "helper.omg"]);
+                if successor {
+                    inputs.push(entry);
+                }
+                if visible {
+                    inputs.push("note.txt");
+                }
+            }
+            let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+            command.arg("build").current_dir(root).stdin(Stdio::null());
+            for &input in &inputs {
+                command.args(["--build-input", input]);
+            }
+            let result = command.arg("build.omg").output().unwrap();
+            assert!(
+                result.status.success(),
+                "successor={successor}, inputs {inputs:?}: {}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+        }
     }
 }
 
@@ -60,7 +79,7 @@ fn a_scoped_build_imports_its_nested_dependency_through_its_registration() {
     std::fs::create_dir(root.join("dep")).unwrap();
     std::fs::write(
         root.join("dep/build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "numbers"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "numbers" }; }"#,
     )
     .unwrap();
     std::fs::write(
@@ -71,17 +90,18 @@ fn a_scoped_build_imports_its_nested_dependency_through_its_registration() {
     std::fs::write(
         root.join("build.omg"),
         r#"use {omega}/build/dependency.omg;
-machine build(builder: @mutable Build) crashes Trap {
-    Build::application(builder, "reader");
+use main.omg as app;
+machine build(builder: @mutable BuildPlan) crashes Trap {
+    builder.product = BuildProduct::Application { name: "reader" };
     let mutable request: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
     |dependency|::with_alias(@mutable request, "numbers");
-    let registration: DependencyRegistration = Build::dependency(builder, request);
+    _ = |dependency|::add(builder, request);
     let path: BuildPath = BuildSource::resolve(@builder.source, "dep/api.omg");
     let opened: i32 = BuildSource::open(@builder.source, path, 0);
     transition opened < 0 {
         true -> enter(builder), _ -> exposed()
     }
-    machine enter(builder: @mutable Build) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }
+    machine enter(builder: @mutable BuildPlan) { Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main); }
     machine exposed() crashes Trap { crash Trap; }
 }"#,
     )
@@ -90,7 +110,7 @@ machine build(builder: @mutable Build) crashes Trap {
         std::fs::write(
             root.join("main.omg"),
             format!(
-                "use {import};\nmachine main() crashes Trap {{\n\
+                "use {import};\npublic machine main() crashes Trap {{\n\
                    transition |api|::value() == 37 {{ true -> passed(), _ -> failed() }}\n\
                    machine passed() {{}}\n\
                    machine failed() crashes Trap {{ crash Trap; }}\n}}"
@@ -102,6 +122,8 @@ machine build(builder: @mutable Build) crashes Trap {
                 "run",
                 "--engine",
                 "psi",
+                "--outputs",
+                "observation",
                 "--target",
                 "linux_x86_64",
                 "--build-input",
@@ -118,7 +140,10 @@ machine build(builder: @mutable Build) crashes Trap {
         let stderr = String::from_utf8_lossy(&result.stderr);
         assert_eq!(result.status.success(), permitted, "{stdout}{stderr}");
         if permitted {
-            assert!(stderr.lines().any(|line| line == "Psi exit 0"), "{stderr}");
+            assert_eq!(
+                std::fs::read_to_string(root.join("observation/termination.tsv")).unwrap(),
+                "psi\treturn\n"
+            );
         } else {
             assert!(
                 stderr.contains("dep/api.omg")

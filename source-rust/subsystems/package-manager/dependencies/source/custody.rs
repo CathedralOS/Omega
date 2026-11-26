@@ -126,6 +126,10 @@ impl PackageSourceCustody {
         }
     }
 
+    pub(crate) fn preparing_source(&self) -> Option<&package_compilation::CapturedLocalSource> {
+        self.preparing_source.as_ref()
+    }
+
     pub fn captured_source(&self) -> Option<&Arc<source_capture::CapturedSourceTree>> {
         self.captured_source.as_ref()
     }

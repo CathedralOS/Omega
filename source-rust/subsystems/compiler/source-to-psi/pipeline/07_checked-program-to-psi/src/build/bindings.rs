@@ -251,6 +251,7 @@ pub(crate) mod build_filesystem {
         RequiredPath,
         ReadAll,
         WriteAll,
+        CreateDirectory,
     }
 
     #[derive(Debug, PartialEq, Eq, record_storage::Record)]

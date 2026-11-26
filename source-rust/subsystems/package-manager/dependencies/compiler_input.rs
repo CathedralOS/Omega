@@ -67,12 +67,11 @@ impl<'closure> PackageCompilationScope<'closure> {
                     custody.key().name().as_str(),
                     custody.snapshot_root().to_path_buf(),
                 )
-                .with_resolution(custody.resolution());
+                .with_resolution(custody.resolution())
+                .with_preparing_source(custody.preparing_source().cloned());
                 if custody.key() == root {
                     if let Some(captured) = root_binding.as_ref().filter(|captured| {
-                        captured.identity() == binding.identity()
-                            && captured.source_root() == binding.source_root()
-                            && captured.build_entries() == &custody.build_entries
+                        captured.can_reuse_for(&binding, &custody.build_entries, custody.captured_source())
                     }) {
                         return Ok(captured.clone());
                     }
