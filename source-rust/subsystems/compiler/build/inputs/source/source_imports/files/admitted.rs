@@ -138,7 +138,10 @@ fn bind_admitted(
             None => None,
         };
         let dependency = match &import.owner {
-            FileOwner::Package(package) => import.package_alias.filter(|alias| *alias != "omega").map(|alias|(alias,*package)),
+            FileOwner::Package(package) => import
+                .package_alias
+                .filter(|alias| *alias != "omega")
+                .map(|alias| (alias, *package)),
             FileOwner::Root(_) => None,
         };
         match (target, &use_site) {
@@ -151,10 +154,12 @@ fn bind_admitted(
                     import.source,
                     target,
                     import.alias,
-                ).from_dependency(dependency))
-            }
+                )
+                .from_dependency(dependency),
+            ),
             (Some(target), ImportUse::GeneratedProduct) => bindings.push(
-                SourceScopedTopLevelBinding::file_import(import.source, target, import.alias).from_dependency(dependency),
+                SourceScopedTopLevelBinding::file_import(import.source, target, import.alias)
+                    .from_dependency(dependency),
             ),
         }
     }

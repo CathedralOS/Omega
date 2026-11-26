@@ -44,9 +44,12 @@ fn registered_uses(
         .filter_map(move |issued| match issued.request() {
             BuildRequest::Dependency {
                 purpose: registered,
-                alias, max_reach,
+                alias,
+                max_reach,
                 ..
-            } if *registered == purpose => Some((alias.as_ref().map(|alias| alias.as_str()), max_reach)),
+            } if *registered == purpose => {
+                Some((alias.as_ref().map(|alias| alias.as_str()), max_reach))
+            }
             _ => None,
         })
 }

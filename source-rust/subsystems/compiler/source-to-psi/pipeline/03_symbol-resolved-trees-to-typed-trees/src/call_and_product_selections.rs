@@ -3940,7 +3940,10 @@ pub(crate) mod product_selections {
         ))
         .with_source_span(span));
         }
-        let requirement = if matches!(operation, BuildOperation::ProviderReadiness | BuildOperation::ServiceDescription) {
+        let requirement = if matches!(
+            operation,
+            BuildOperation::ProviderReadiness | BuildOperation::ServiceDescription
+        ) {
             let operand =
                 lower_static_machine_argument(Some(source), typed, exposure, &operands[0])?;
             let reference = typed
@@ -4075,8 +4078,13 @@ pub(crate) mod product_selections {
             }
         }
         inputs.dedup();
-        let request = if let Some(requirement) = requirement && operation == BuildOperation::ServiceDescription {
-            BuildSelectionRequest::Service {source_span: span, requirement}
+        let request = if let Some(requirement) = requirement
+            && operation == BuildOperation::ServiceDescription
+        {
+            BuildSelectionRequest::Service {
+                source_span: span,
+                requirement,
+            }
         } else if let Some(requirement) = requirement {
             BuildSelectionRequest::ProviderReadiness(
                 declaration_selection::ProviderReadinessRequest {

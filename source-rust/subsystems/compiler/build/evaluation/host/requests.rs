@@ -125,7 +125,9 @@ impl TerminalBuildRequestHost {
             inputs: InputBindings::new(libraries),
             reach: reach::ReachSets::from_module(
                 artifact.module(),
-                calls.iter().any(|call| call.action == Operation::ExtendReach),
+                calls
+                    .iter()
+                    .any(|call| call.action == Operation::ExtendReach),
             )?,
             original,
             account: account.cloned(),
@@ -539,7 +541,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             let binding = self.host.inputs.require(&structural_arguments[1])?;
             if !max_reach.is_subset_of(binding.library().max_reach()) {
-                return Err(refuse("forwarded dependency exceeds its incoming max_reach"));
+                return Err(refuse(
+                    "forwarded dependency exceeds its incoming max_reach",
+                ));
             }
             Some(binding)
         } else {
@@ -647,7 +651,9 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             }
             Operation::ArtifactOnly => BuildRequest::ArtifactOnly,
             Operation::InputBinding | Operation::ExtendReach => {
-                return Err(refuse("Build input binding or service set already returned"));
+                return Err(refuse(
+                    "Build input binding or service set already returned",
+                ));
             }
             Operation::AddBinding => {
                 let Some(BuildRequest::Dependency {alias, source, ..}) = forwarded.as_ref().map(|binding|binding.library().request()) else {

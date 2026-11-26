@@ -148,7 +148,13 @@ impl PackageCompilationInputs {
                 }
             };
             if aliases
-                .insert(dependency.alias.clone(), super::PackageUse {target: dependency.target, max_reach: dependency.max_reach})
+                .insert(
+                    dependency.alias.clone(),
+                    super::PackageUse {
+                        target: dependency.target,
+                        max_reach: dependency.max_reach,
+                    },
+                )
                 .is_some()
             {
                 errors.push(PackageCompilationInputError::DuplicateAlias {
@@ -168,9 +174,9 @@ impl PackageCompilationInputs {
                 let Some(record) = canonical_packages.get(&identity) else {
                     continue;
                 };
-                pending.extend(record.dependencies.values().map(|edge|edge.target));
+                pending.extend(record.dependencies.values().map(|edge| edge.target));
                 if identity == root {
-                    pending.extend(record.build_dependencies.values().map(|edge|edge.target));
+                    pending.extend(record.build_dependencies.values().map(|edge| edge.target));
                 }
             }
             for identity in canonical_packages.keys() {

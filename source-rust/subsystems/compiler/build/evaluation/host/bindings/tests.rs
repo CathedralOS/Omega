@@ -178,7 +178,7 @@ fn source_helper_calls_authenticate_their_site_artifact_receiver_and_ticket() {
         program.build_requests(),
         receiver.clone(),
         None,
-            Default::default(),
+        Default::default(),
     )
     .unwrap();
 

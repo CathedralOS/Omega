@@ -81,7 +81,8 @@ mod product {
     };
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-    pub enum BuildSelectionRequest<Requirement> {        ProviderReadiness(ProviderReadinessRequest<Requirement>),
+    pub enum BuildSelectionRequest<Requirement> {
+        ProviderReadiness(ProviderReadinessRequest<Requirement>),
         Service {
             source_span: source_text::SourceSpan,
             requirement: Requirement,
@@ -147,7 +148,10 @@ mod product {
         pub fn entry(&self) -> Option<&RootBindingRequest> {
             match self {
                 Self::Entry(request) => Some(request),
-                Self::Service { .. } | Self::ProviderReadiness(_) | Self::Declaration(_) | Self::Exclusion(_) => None,
+                Self::Service { .. }
+                | Self::ProviderReadiness(_)
+                | Self::Declaration(_)
+                | Self::Exclusion(_) => None,
             }
         }
 
@@ -171,7 +175,13 @@ mod product {
                         backing: request.backing,
                     })
                 }
-                Self::Service { source_span, requirement } => BuildSelectionRequest::Service {source_span, requirement: map(requirement)?},
+                Self::Service {
+                    source_span,
+                    requirement,
+                } => BuildSelectionRequest::Service {
+                    source_span,
+                    requirement: map(requirement)?,
+                },
                 Self::Entry(request) => BuildSelectionRequest::Entry(request),
                 Self::Declaration(request) => BuildSelectionRequest::Declaration(request),
                 Self::Exclusion(request) => BuildSelectionRequest::Exclusion(request),
@@ -1083,7 +1093,8 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-pub enum AuthoredDeclarationSelectionIntrinsic {    BuildNativeBinding,
+pub enum AuthoredDeclarationSelectionIntrinsic {
+    BuildNativeBinding,
     BuildProviderReadiness,
     BuildServiceDescription,
     BuiltinOperator,

@@ -154,7 +154,14 @@ impl SourcePublication {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             for &root in &roots {
-                psi_provider_selections::dependency_reach::check(module, semantic_vocabulary::TargetMachineCallable::Machine(root), &[], None, dependency_edges, &imported_calls)?;
+                psi_provider_selections::dependency_reach::check(
+                    module,
+                    semantic_vocabulary::TargetMachineCallable::Machine(root),
+                    &[],
+                    None,
+                    dependency_edges,
+                    &imported_calls,
+                )?;
             }
             return Ok(SourceProviderFacts::new(
                 accepted,

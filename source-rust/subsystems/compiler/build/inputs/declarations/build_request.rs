@@ -6,7 +6,8 @@
 use crate::{DependencyPurpose, ProjectName, WorkspaceMemberPath};
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-pub enum BuildRequest {    Package(ProjectName),
+pub enum BuildRequest {
+    Package(ProjectName),
     Application(ProjectName),
     Member(WorkspaceMemberPath),
     BuildEntry(BuildEntryPath),

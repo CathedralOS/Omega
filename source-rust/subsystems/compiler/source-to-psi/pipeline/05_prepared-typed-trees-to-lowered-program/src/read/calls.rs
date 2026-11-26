@@ -1558,8 +1558,9 @@ impl<'t> Program<'t> {
                 let scope = typed
                     .build_provider_requirement_scope(requirement, lexical_owner)
                     .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
-                if matches!(request, BuildSelectionRequest::ProviderReadiness(_)) && (!typed.trait_type_parameters(scope.declaration).is_empty()
-                    || !scope.declaration.lifetime_parameters.is_empty())
+                if matches!(request, BuildSelectionRequest::ProviderReadiness(_))
+                    && (!typed.trait_type_parameters(scope.declaration).is_empty()
+                        || !scope.declaration.lifetime_parameters.is_empty())
                 {
                     return Err(refuse(
                         id,

@@ -258,7 +258,13 @@ pub(crate) fn validate_dependency_sources<'request>(
         )
     });
     for request in requests {
-        let BuildRequest::Dependency { purpose, alias, max_reach, .. } = request else {
+        let BuildRequest::Dependency {
+            purpose,
+            alias,
+            max_reach,
+            ..
+        } = request
+        else {
             continue;
         };
         let (ordinal, selected, acquired) = match purpose {

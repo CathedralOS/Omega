@@ -176,7 +176,9 @@ pub fn body_service_reaches(
                             "body service boundary actuals disagree with its complete formal telescope".into(),
                         );
                     }
-                    if boundary.service_reach_is_installation_bound && let Some(&provider) = installed.get(&boundary.id) {
+                    if boundary.service_reach_is_installation_bound
+                        && let Some(&provider) = installed.get(&boundary.id)
+                    {
                         predecessors[machine_position(provider)?].push(position);
                     } else {
                         union(&mut rows[position], &boundary.published_service_ceiling);

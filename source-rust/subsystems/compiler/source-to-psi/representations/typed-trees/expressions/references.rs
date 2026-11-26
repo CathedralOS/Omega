@@ -2152,7 +2152,7 @@ impl TypedReferences for TypeOccurrences {
                 .build_selection_request(call.build_selection)
             {
                 Some(BuildSelectionRequest::ProviderReadiness(request)) => request.requirement,
-                Some(BuildSelectionRequest::Service { requirement, ..}) => *requirement,
+                Some(BuildSelectionRequest::Service { requirement, .. }) => *requirement,
                 _ => Default::default(),
             };
             for reference in [call.requirement_application, readiness] {

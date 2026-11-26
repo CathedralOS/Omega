@@ -176,12 +176,15 @@ impl PackageCompilationInputs {
                 records.entry(*identity).or_insert_with(|| record.clone());
             }
             edges.extend_from_slice(product.dependencies());
-            edges.push(PackageDependencyBinding::for_purpose(
-                self.root(),
-                &dependency.alias,
-                dependency.inputs.root(),
-                DependencyPurpose::Build,
-            ).with_max_reach(dependency.max_reach.clone()));
+            edges.push(
+                PackageDependencyBinding::for_purpose(
+                    self.root(),
+                    &dependency.alias,
+                    dependency.inputs.root(),
+                    DependencyPurpose::Build,
+                )
+                .with_max_reach(dependency.max_reach.clone()),
+            );
         }
         edges.sort_unstable_by(|left, right| {
             (
@@ -236,8 +239,12 @@ impl PackageCompilationInputs {
         };
         let mut counts = [0usize; 2];
         for acquisition in &acquisitions {
-            let build_declarations::BuildRequest::Dependency { purpose, alias, max_reach, .. } =
-                &acquisition.request
+            let build_declarations::BuildRequest::Dependency {
+                purpose,
+                alias,
+                max_reach,
+                ..
+            } = &acquisition.request
             else {
                 return Err(invalid(
                     "acquisition does not describe a dependency request",
