@@ -205,7 +205,7 @@ vocabulary, checked evidence and receiving verifier:
 | Relation | NaN with itself | Different NaN payloads | Positive and negative zero |
 | --- | --- | --- | --- |
 | IEEE value `==` | False | False | Equal |
-| `core\Identity<f32>` or `core\Identity<f64>` on raw values | Identical | Different | Different |
+| `Identity<f32>` or `Identity<f64>` on raw values | Identical | Different | Different |
 | Identity/equality of `FloatMeaning` projections | Identical | Equal | Different |
 
 Raw float identity compares exact same-format representations, preserving all

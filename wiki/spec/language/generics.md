@@ -896,7 +896,7 @@ function/predicate [term binders](../proofs/mathematical_bindings.md).
 Those elaborate to the [selected foundation](../proofs/foundation.md), whose
 mathematical universes and conversion are not defined by machine-symbol lookup.
 
-`u: core\Level` adds the checked universe-level binder category to generic
+`u: |proof|::Level` adds the checked universe-level binder category to generic
 telescopes; it is not a runtime integer parameter. Mathematical function values
 can appear as ordinary parameters and appropriate generic value indices under
 their declared staging rules. Logical applications of machine-shaped hypotheses

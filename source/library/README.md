@@ -39,8 +39,10 @@ The standard distribution ships the ordinary packages in this directory.
 Build source selects them by declared package name. See
 [selecting a bundled package](../../wiki/spec/packages/toolchain.md#selecting-a-bundled-package).
 
-The numeric laws use five mathematical declarations supplied by the compiler.
-Their spelling under file imports awaits an [owner decision](../../OWNER_QUESTIONS.md#sealed-mathematical-source-names).
+The specified import for the numeric laws is
+`use {omega}/language/core/foundation.omg as proof;`. The resolver and
+library migration is tracked under `PROOF-KERNEL-CORE` in [TASKS.md](../../TASKS.md).
+[Mathematical declarations](../../wiki/spec/proofs/mathematical_bindings.md#importing-the-mathematical-foundation)
 
 ## Core integer and float APIs
 

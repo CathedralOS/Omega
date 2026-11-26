@@ -161,13 +161,20 @@ erased field. `Valid<T>` here denotes the library's evidence type.
 
 ## Equality and identity
 
-`==` selects a comparison operation. `core\Identity::<T>(a, b)` states that two
+Import the core file that declares proof-relevant identity. The examples
+below use `proof` as its local name.
+
+```omega
+use {omega}/language/core/foundation.omg as proof;
+```
+
+`==` selects a comparison operation. `|proof|::Identity::<T>(a, b)` states that two
 subjects are the same value, permitting substitution. For an in-scope carrier
 `T` and operation `add`, a law can state:
 
 ```omega
 machine add_comm(a: T, b: T)
-ensures core\Identity::<T>(add(a, b), add(b, a));
+ensures |proof|::Identity::<T>(add(a, b), add(b, a));
 ```
 
 Equality and identity differ for floats: `0.0 == -0.0` is true although the
@@ -180,10 +187,10 @@ data Point { x: u32; y: u32; }
 
 machine same_point(a: Point, b: Point)
 requires
-    core\Identity::<u32>(a.x, b.x),
-    core\Identity::<u32>(a.y, b.y)
+    |proof|::Identity::<u32>(a.x, b.x),
+    |proof|::Identity::<u32>(a.y, b.y)
 ensures
-    core\Identity::<Point>(a, b)
+    |proof|::Identity::<Point>(a, b)
 {}
 ```
 
