@@ -9,7 +9,7 @@ use super::{
     remove_fixture, run_test_git, run_test_git_with_input, temp_root, test_system_git_executor,
     verify_git_cache_root_custody,
 };
-use crate::git::resolution::materialization::materialize_whole_git_source;
+use crate::git::resolution::materialize_whole_git_source;
 use crate::git::resolution::selection::GitRevisionSelection;
 use crate::git::workspace::GitWorkspaceProjectionError;
 use crate::test_support::create_private_dir_all;

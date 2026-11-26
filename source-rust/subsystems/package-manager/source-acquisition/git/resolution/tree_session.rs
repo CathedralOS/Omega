@@ -11,7 +11,7 @@ use super::GitExactRevisionAcquisition;
 use super::acquisition::{
     resolve_git_source_from_retained_cache, with_git_repository_from_retained_cache,
 };
-use super::selection::{GitRevisionSelection, ExactGitRevision};
+use super::selection::{ExactGitRevision, GitRevisionSelection};
 use super::workspace_member::{declarations, materialize_member};
 use crate::git::executable::selection::resolver_package_controlled_roots;
 use crate::git::objects::{AuthenticatedGitTreeInspection, inspect_git_tree_graph};

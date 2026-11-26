@@ -21,7 +21,7 @@ use crate::git::cache::identity::git_cache_identity;
 use crate::git::cache::invalidation::invalidate_git_cache_entry_from_open_parent;
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::cache::retry::{discard_incomplete_entry, may_preserve_cache};
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::git::executable::selection::{PrimaryGitSelection, resolver_package_controlled_roots};
 use crate::git::git_command::reconciliation::{
     reconcile_git_cache_operation_result, reconcile_git_command_result,
@@ -37,9 +37,9 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use super::issuance::finalize_git_resolution;
-use super::materialization::{GitMaterializedSource, materialize_whole_git_source};
 use super::repository::inspect_verified_git_cache_entry;
 use super::selection::GitRevisionSelection;
+use super::{GitMaterializedSource, materialize_whole_git_source};
 
 pub(super) fn resolve_git_source_from_retained_cache<Evidence, PlannerError>(
     primary_git: &PrimaryGitSelection,

@@ -9,11 +9,15 @@
 // repository-specific child directory (`member_lane.retain_child(repository_namespace)`)
 // rather than sharing a content-only member namespace.
 
+use super::GitMaterializedSource;
+use super::acquisition::resolve_git_source_from_retained_cache;
+use super::exact_revision::GitExactRevisionAcquisition;
+use super::selection::{ExactGitRevision, GitRevisionSelection};
 #[cfg(test)]
 use crate::SourceResolver;
 use crate::error::SourceResolveError;
 use crate::git::cache::repository::VerifiedGitRepository;
-use crate::git::executable::executor::GitExecutor;
+use crate::git::executable::GitExecutor;
 use crate::git::executable::selection::PrimaryGitSelection;
 use crate::git::objects::{
     AuthenticatedGitTreeInspection, GitTreeProjectionRequest, inspect_git_tree_graph,
@@ -24,17 +28,12 @@ use crate::git::workspace::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionCustody,
     GitWorkspaceProjectionError, GitWorkspaceProjectionPlanner, GitWorkspaceProjectionResult,
 };
+use crate::identity::{GitCommitId, GitTreeId};
 use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::GitAcquisitionPin;
 use crate::storage::RetainedStorageLane;
 
-use super::acquisition::resolve_git_source_from_retained_cache;
-use super::materialization::GitMaterializedSource;
-use super::selection::GitRevisionSelection;
-
 pub(super) mod declarations;
-mod recorded;
-pub use recorded::resolve_git_workspace_member_at_revision_in_lanes;
 
 #[cfg(test)]
 pub(crate) fn resolve_git_workspace_member<Planner>(
@@ -239,4 +238,42 @@ pub(super) fn materialize_member<Evidence, PlannerError>(
         workspace_projection: Some(workspace_projection),
         evidence,
     })
+}
+
+// Exact recorded-revision workspace member resolution
+// (`resolve_git_workspace_member_at_revision_in_lanes`).
+//
+// After authenticating the commit and tree graph for the recorded `(commit,
+// tree)` pair, opens only the root/member declarations and the selected
+// member's payload closure, and materializes only the selected member.
+
+pub fn resolve_git_workspace_member_at_revision_in_lanes<Planner>(
+    primary_git: &PrimaryGitSelection,
+    request: &GitSourceRequest,
+    commit: &GitCommitId,
+    tree: &GitTreeId,
+    acquisition: GitExactRevisionAcquisition,
+    git_lane: &RetainedStorageLane,
+    member_lane: &RetainedStorageLane,
+    limits: LocalSourceLimits,
+    declaration_limits: GitWorkspaceDeclarationLimits,
+    planner: &mut Planner,
+) -> Result<
+    GitWorkspaceProjectionResult<Planner::Evidence>,
+    GitWorkspaceProjectionError<Planner::Error>,
+>
+where
+    Planner: GitWorkspaceProjectionPlanner,
+{
+    let recorded = ExactGitRevision::new(request, commit, Some(tree), acquisition)?;
+    resolve_git_workspace_member_at_selection(
+        primary_git,
+        request,
+        GitRevisionSelection::Exact(&recorded),
+        git_lane,
+        member_lane,
+        limits.compiler_bounded(),
+        declaration_limits,
+        planner,
+    )
 }

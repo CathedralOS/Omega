@@ -13,7 +13,7 @@ use crate::error::cache_invalid;
 #[cfg(unix)]
 use crate::git::cache::invalidation::*;
 #[cfg(unix)]
-use crate::git::executable::executor::*;
+use crate::git::executable::*;
 #[cfg(unix)]
 use crate::git::git_command::reconciliation::*;
 use crate::limits::*;
