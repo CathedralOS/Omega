@@ -32,16 +32,7 @@ case (`health: 42`) and the minimum boundary case (`health: 1`). A wrong result 
 Run with `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/alias_fact_transfer/main.omg
-omega run --both samples/cli/facts/alias_fact_transfer/local/main.omg
-omega run --both samples/cli/facts/alias_fact_transfer/field/main.omg
-omega run --both samples/cli/facts/alias_fact_transfer/parameter/main.omg
-omega run --both samples/cli/facts/alias_fact_transfer/call_result/main.omg
-omega run --both samples/cli/facts/alias_fact_transfer/match_join/main.omg
-omega run --both samples/cli/facts/alias_fact_transfer/const_name/main.omg
-omega run --both samples/cli/facts/alias_fact_transfer/other_state/main.omg
-omega run --both samples/cli/facts/alias_fact_transfer/other_machine/main.omg
-omega run --both samples/cli/facts/alias_fact_transfer/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/alias_fact_transfer
 ```
 
 All 10 samples report `native exit 0` and `interp exit: 0`.

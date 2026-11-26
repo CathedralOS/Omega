@@ -29,7 +29,7 @@ it does not close the wider mutation-summary requirements.
 Every positive place, including root `main.omg`, binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, and declares `Expected exit: 0`. None depends on `source/library/system`.
 
 ```sh
-omega run --both samples/cli/facts/may_write_nested_helper/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/may_write_nested_helper/local
 ```
 
 The same command covers `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, and `target_body`.

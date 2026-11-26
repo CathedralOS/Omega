@@ -22,16 +22,7 @@ Every place carries the same construct and operation: a terminating, ranked mult
 Each positive place and root `main.omg` compiles and executes with agreement between Terminal Psi and native code, exiting 0 on all four hosted platforms (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`):
 
 ```sh
-omega run --both samples/cli/facts/loop_branch_relaxation_ranking/main.omg
-omega run --both samples/cli/facts/loop_branch_relaxation_ranking/local/main.omg
-omega run --both samples/cli/facts/loop_branch_relaxation_ranking/field/main.omg
-omega run --both samples/cli/facts/loop_branch_relaxation_ranking/parameter/main.omg
-omega run --both samples/cli/facts/loop_branch_relaxation_ranking/call_result/main.omg
-omega run --both samples/cli/facts/loop_branch_relaxation_ranking/match_join/main.omg
-omega run --both samples/cli/facts/loop_branch_relaxation_ranking/const_name/main.omg
-omega run --both samples/cli/facts/loop_branch_relaxation_ranking/other_state/main.omg
-omega run --both samples/cli/facts/loop_branch_relaxation_ranking/other_machine/main.omg
-omega run --both samples/cli/facts/loop_branch_relaxation_ranking/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/loop_branch_relaxation_ranking
 ```
 
 ### The oracle discriminates

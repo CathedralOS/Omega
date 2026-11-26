@@ -27,16 +27,7 @@ four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm
 declares `Expected exit: 0`, and passes `omega run --both`:
 
 ```bash
-omega run --both samples/cli/facts/scoped_scalar_initializer/main.omg
-omega run --both samples/cli/facts/scoped_scalar_initializer/local/main.omg
-omega run --both samples/cli/facts/scoped_scalar_initializer/field/main.omg
-omega run --both samples/cli/facts/scoped_scalar_initializer/parameter/main.omg
-omega run --both samples/cli/facts/scoped_scalar_initializer/call_result/main.omg
-omega run --both samples/cli/facts/scoped_scalar_initializer/match_join/main.omg
-omega run --both samples/cli/facts/scoped_scalar_initializer/const_name/main.omg
-omega run --both samples/cli/facts/scoped_scalar_initializer/other_state/main.omg
-omega run --both samples/cli/facts/scoped_scalar_initializer/other_machine/main.omg
-omega run --both samples/cli/facts/scoped_scalar_initializer/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/scoped_scalar_initializer
 ```
 
 ## Places and witnesses

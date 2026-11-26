@@ -34,7 +34,7 @@ that each spare stays untouched. The const place supplies the same 73 through
 `WRITTEN`; it creates no compile-time exclusive reference.
 
 ```sh
-omega run --both samples/cli/facts/non_owning_reference_erasure/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/non_owning_reference_erasure
 ```
 
 ## Requirements and controls

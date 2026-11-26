@@ -193,34 +193,99 @@ fn compile_targets(
         .map(|capture| BuildSnapshotRequest::scoped(std::iter::empty(), capture));
     // A check writes nothing, so it can run while the dependency Build
     // rechecks finish; each target settles them before its result is reported.
-    let open = if arguments.check_only {
-        package_manager::project::open_products_alongside_rechecks
-    } else {
-        package_manager::project::open_products
+    let root = arguments.root_path.clone();
+    let subjects: Box<dyn Iterator<Item = (PathBuf, Option<OpenedProduct>)> + '_> =
+        if active.is_empty() {
+            Box::new(std::iter::once((root, None)))
+        } else if arguments.check_only {
+            let subjects = timeline.borrow_mut().record("open_check_subjects", || {
+                package_manager::project::open_check_subjects(
+                    &arguments.root_path,
+                    &active,
+                    arguments.offline,
+                    arguments.timings,
+                    &base,
+                    snapshot,
+                )
+            });
+            match subjects {
+                Ok(subjects) => {
+                    Box::new(subjects.map(|subject| (subject.entry, Some(subject.products))))
+                }
+                Err(diagnostics) => Box::new(std::iter::once((root, Some(Err(diagnostics))))),
+            }
+        } else {
+            let products = timeline.borrow_mut().record("open_products", || {
+                package_manager::project::open_products(
+                    package_manager::project::ProjectInput::File(&arguments.root_path),
+                    &active,
+                    arguments.offline,
+                    arguments.timings,
+                    &base,
+                    snapshot,
+                )
+            });
+            Box::new(std::iter::once((root, Some(products))))
+        };
+    let batch = CompilationTargets {
+        profiles: &profiles,
+        leases: &leases,
+        batch,
+        started,
+        output,
+        timeline,
     };
-    let plans = if active.is_empty() {
-        None
-    } else {
-        Some(timeline.borrow_mut().record("open_products", || {
-            open(
-                if arguments.check_only {
-                    package_manager::project::ProjectInput::PackageCheck(&arguments.root_path)
-                } else {
-                    package_manager::project::ProjectInput::File(&arguments.root_path)
-                },
-                &active,
-                arguments.offline,
-                arguments.timings,
-                &base,
-                snapshot,
-            )
-        }))
-    };
+    let mut failures = Vec::new();
+    for (root, plans) in subjects {
+        if arguments.check_only {
+            writeln!(report, "validation subject: {}", root.display()).unwrap();
+        }
+        let arguments = CompileArguments {
+            root_path: root,
+            ..arguments.clone()
+        };
+        failures.extend(compile_subject(&arguments, report, plans, &batch)?);
+    }
+    timeline.borrow_mut().record("teardown", || {
+        drop(leases);
+        drop(scratch);
+    });
+    Ok(failures)
+}
+
+type OpenedProduct = Result<package_manager::project::ProjectProducts, Vec<Diagnostic>>;
+
+struct CompilationTargets<'a> {
+    profiles: &'a [TargetProfile],
+    leases: &'a [Result<
+        product_publication::output_directory::BuildDirOccupancy,
+        product_publication::output_directory::BuildDirConflict,
+    >],
+    batch: bool,
+    started: Instant,
+    output: DiagnosticOutput,
+    timeline: &'a RefCell<Timeline>,
+}
+
+fn compile_subject(
+    arguments: &CompileArguments,
+    report: &mut String,
+    plans: Option<OpenedProduct>,
+    targets: &CompilationTargets<'_>,
+) -> Result<Vec<CompilerRequestOutcome>, Vec<Diagnostic>> {
+    let CompilationTargets {
+        profiles,
+        leases,
+        batch,
+        started,
+        output,
+        timeline,
+    } = *targets;
     // Announce every selected target's test plan before starting any of its guests.
     let mut prepared = Vec::with_capacity(profiles.len());
     let mut portable_plans = Vec::new();
     timeline.borrow_mut().record("prepare_targets", || {
-        for (&profile, lease) in profiles.iter().zip(&leases) {
+        for (&profile, lease) in profiles.iter().zip(leases) {
             let selected = (|| {
                 let lease = lease.as_ref().map_err(output_error)?;
                 let plans = plans
@@ -244,7 +309,7 @@ fn compile_targets(
             }
             let target = selected.and_then(|(planned, lease)| {
                 let deployments = if arguments.emit_psi.is_some() {
-                    profiles.as_slice()
+                    profiles
                 } else {
                     std::slice::from_ref(&profile)
                 };
@@ -376,7 +441,7 @@ fn compile_targets(
             .expect("saved Psi retains its artifact")
             .manifest()
             .identity();
-        for profile in &profiles {
+        for profile in profiles {
             println!("Psi manifest {identity}");
             writeln!(
                 report,
@@ -397,8 +462,6 @@ fn compile_targets(
     timeline.borrow_mut().record("teardown", || {
         drop(portable);
         drop(plans);
-        drop(leases);
-        drop(scratch);
     });
     Ok(failures)
 }

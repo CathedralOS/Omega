@@ -25,7 +25,7 @@ Run one place or root directly:
 
 ```sh
 omega --check samples/cli/facts/call_result_bound_discharge/main.omg
-omega run --both samples/cli/facts/call_result_bound_discharge/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/call_result_bound_discharge
 ```
 
 `omega run --both` reports the native exit and the Terminal Psi exit; agreement at zero is the place's runtime oracle.

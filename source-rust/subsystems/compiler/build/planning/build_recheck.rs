@@ -23,6 +23,7 @@ pub(super) struct BuildRecheck {
     inputs: Option<PackageCompilationInputs>,
     declaration: Option<source_admission::RetainedDeclaration>,
     constants: BuildConstants,
+    libraries: Arc<[package_compilation::source_imports::SuppliedBuildLibrary]>,
     interpreter_providers: source_compiler::InterpretedProviderSelections,
     subject_validation: BuildSubjectValidation,
     timings: bool,
@@ -77,6 +78,7 @@ impl BuildRecheck {
                 .selected_build_declaration()
                 .cloned(),
             constants: constants.clone(),
+            libraries: Arc::clone(&product.supplied_build_libraries),
             interpreter_providers: evaluated.interpreter_providers.clone(),
             subject_validation: evaluated.subject_validation,
             timings: product.timings.is_enabled(),
@@ -109,14 +111,25 @@ impl BuildRecheck {
         self,
         timings: &mut CompileTimings,
     ) -> Result<SourceCompletionAccounting, CompileFailure> {
-        let inputs = self.inputs.as_ref();
-        let authority = inputs.map(|inputs| {
-            Arc::new(inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
-        });
         let declaration = self
             .declaration
             .as_ref()
             .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
+        let build_owner = declaration.source().package_identity;
+        let inputs = self
+            .inputs
+            .as_ref()
+            .filter(|inputs| build_owner.is_none_or(|owner| owner == inputs.root()));
+        let subject = build_owner.or_else(|| inputs.map(|inputs| inputs.root()));
+        let authority = inputs
+            .map(|inputs| inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
+            .or_else(|| {
+                package_compilation::source_imports::SuppliedBuildLibrary::declaration_scope(
+                    &self.libraries,
+                    subject,
+                )
+            })
+            .map(Arc::new);
         // Checking the rejoined subject reads only Build-scope sources and
         // names any refusal by its file, line, and column.
         let checked = (|| {
@@ -125,7 +138,7 @@ impl BuildRecheck {
                 &self.preparation,
                 self.host,
                 authority,
-                inputs.map(|inputs| inputs.root()),
+                subject,
                 declaration,
                 timings,
             )?;
@@ -136,6 +149,7 @@ impl BuildRecheck {
                 entry,
                 inputs,
                 self.anonymous_owner.as_ref(),
+                &self.libraries,
                 self.subject_validation,
                 timings,
             )

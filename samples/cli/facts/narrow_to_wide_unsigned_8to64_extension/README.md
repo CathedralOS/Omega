@@ -28,19 +28,10 @@ Subsequent exact 64-bit subtractions `180u64 - wide` and `wide - 50u64` are prov
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg`, carries `expected_native_exit.txt` (`0`), and declares `Expected exit: 0`.
-`omega run --both` verifies Terminal Psi interpreter and native execution agreement:
+The sample gate verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/local/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/field/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/parameter/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/call_result/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/match_join/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/const_name/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/other_state/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/other_machine/main.omg
-omega run --both samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/narrow_to_wide_unsigned_8to64_extension
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

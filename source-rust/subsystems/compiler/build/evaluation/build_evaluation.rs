@@ -225,7 +225,7 @@ pub fn prepare_build_evaluation(
     } = request;
     let typed = interval.program.as_ref();
     let checks_whole_subject_first =
-        execution.checks_whole_subject_first(package_inputs, anonymous_source.is_some());
+        execution.checks_whole_subject_first(package_inputs, anonymous_source);
     let BuildExecutionInputs {
         diagnostic_output_bytes,
         interpreter_providers,

@@ -54,19 +54,19 @@ machine exclude(builder: @mutable Build, cause: CrashCause) {
 }
 "#
     .replace("HOST", host.target_name());
-    let run = ["run", "--both", "build.omg"];
     let program = r#"
 machine main() crashes Trap { selected(); }
 machine selected() crashes Trap { BEHAVIOR }
 "#;
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
     let (passed, report) = execute(
         "excluded-clean",
         &build,
         &program.replace("BEHAVIOR", ""),
-        &run,
+        &["run", "--engine", engine, "build.omg"],
     );
-    assert!(
-        passed && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        assert!(
+        passed && report.lines().any(|line| line == expected),
         "{report}"
     );
 
@@ -74,12 +74,13 @@ machine selected() crashes Trap { BEHAVIOR }
         "excluded-trap",
         &build,
         &program.replace("BEHAVIOR", "crash Trap;"),
-        &run,
+        &["run", "--engine", engine, "build.omg"],
     );
     assert!(
         !passed && report.contains("behavior exclusion violated: crash cause Trap is reachable"),
         "{report}"
     );
+    }
 }
 
 #[test]
@@ -96,16 +97,18 @@ machine build(builder: @mutable Build) {
 }
 "#
     .replace("HOST", host.target_name());
+    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
     let (passed, report) = execute(
         "excluded-output",
         &build,
         "machine main() {}",
-        &["run", "--both", "build.omg"],
+        &["run", "--engine", engine, "build.omg"],
     );
-    assert!(
-        passed && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        assert!(
+        passed && report.lines().any(|line| line == expected),
         "{report}"
     );
+    }
 }
 
 /// Zero descriptors make poll a timer. Every call to the selected import

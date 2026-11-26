@@ -1,15 +1,8 @@
-// Canonical content ownership (`AnonymousSourceCapture`) for an anonymous source invocation after its `Build` join.
-//
-// Standalone compilations that run without a caller-supplied `PackageCompilationInputs`
-// graph retain their captured source tree and applicable `core` + toolchain-contract
-// semantic dependencies in `AnonymousSourceCapture` while the `Build` machine executes
-// privately. Once the `Build` join completes (with an empty dependency roster on the
-// standalone route), `complete_without_dependencies` hashes the complete captured
-// namespace and sorted semantic-dependency digests under `OMEGA-ANONYMOUS-CONTENT-OWNER-V1`
-// and `OMEGA-LANGUAGE-DEFAULT-BUILD-SEMANTICS-V1` to derive a deterministic
-// `PackageKeyIdentity`, binding every unbound user source in the `SourceMap` without
-// letting host paths, target profiles, or backend flags enter the key.
+//! Seal an anonymous Build product under the identity of its captured source,
+//! resolved dependencies, and applicable toolchain inputs. Before the Build
+//! returns, a distinct provisional identity may be used only for checking.
 
+use build_declarations::DependencyPurpose;
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 use source_capture::{CapturedSourceNode, CapturedSourceTree};
@@ -17,6 +10,7 @@ use std::sync::Arc;
 
 #[derive(Clone, record_storage::Record)]
 pub struct AnonymousSourceCapture {
+    pub(crate) build_owner: Option<PackageKeyIdentity>,
     pub(crate) acquisition: Option<crate::CapturedLocalSource>,
     pub(crate) root: std::path::PathBuf, // Canonical live root of the anonymous capture.
     pub(crate) capture: Arc<CapturedSourceTree>, // Complete captured source tree.
@@ -26,7 +20,36 @@ pub struct AnonymousSourceCapture {
     pub(crate) installed_roots: crate::source::source_imports::InstalledSourceRoots, // Closed installed source roots of this capture.
 }
 
+/// The real identity of a completed anonymous Build product, bound to the source
+/// acquisition that issued it. Only that product's receiving Build may adopt it.
+#[derive(Clone)]
+pub struct CompletedAnonymousSource {
+    pub(crate) owner: PackageKeyIdentity,
+    acquisition: crate::CapturedLocalSource,
+}
+impl CompletedAnonymousSource {
+    pub fn owner(&self) -> PackageKeyIdentity {
+        self.owner
+    }
+
+    pub(crate) fn require_capture(
+        &self,
+        capture: Option<&crate::CapturedLocalSource>,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        if !capture.is_some_and(|source| Arc::ptr_eq(source.tree(), self.acquisition.tree())) {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "anonymous Build product belongs to another captured source",
+            )]);
+        }
+        Ok(())
+    }
+}
+
 impl AnonymousSourceCapture {
+    pub fn build_owner(&self) -> Option<PackageKeyIdentity> {
+        self.build_owner
+    }
+
     /// The unbound local acquisition whose source map this Build actually typed.
     pub fn acquired_for(
         &self,
@@ -83,19 +106,29 @@ impl AnonymousSourceCapture {
         Ok(stage)
     }
 
-    pub fn complete_without_dependencies(
+    pub(crate) fn completed_owner<'a>(
+        &self,
+        dependencies: impl IntoIterator<Item = ResolvedEdge<'a>>,
+    ) -> Result<PackageKeyIdentity, Vec<diagnostics::Diagnostic>> {
+        derive(
+            &self.capture,
+            self.semantic_dependencies.iter().copied(),
+            dependencies,
+        )
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
+    }
+
+    pub(crate) fn complete_product<'a>(
         self,
-    ) -> Result<
-        Arc<source_compiler::representations::source_inputs::SourceMap>,
-        Vec<diagnostics::Diagnostic>,
-    > {
-        let identity = derive(&self.capture, self.semantic_dependencies)
-            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-        let mut sources = Arc::unwrap_or_clone(self.sources);
-        sources
-            .bind_anonymous_owner(&self.root, identity)
-            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
-        Ok(Arc::new(sources))
+        dependencies: impl IntoIterator<Item = ResolvedEdge<'a>>,
+    ) -> Result<CompletedAnonymousSource, Vec<diagnostics::Diagnostic>> {
+        let owner = self.completed_owner(dependencies)?;
+        let acquisition = self.acquisition.ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "anonymous Build product lost its original source acquisition",
+            )]
+        })?;
+        Ok(CompletedAnonymousSource { owner, acquisition })
     }
 }
 
@@ -133,15 +166,41 @@ fn field(digest: &mut Sha256, bytes: &[u8]) {
     digest.update(bytes);
 }
 
-pub(crate) fn derive(
+/// A direct registration in a completed anonymous Build. The resolution binds
+/// the immutable acquisition made by the package resolver, separately from
+/// the dependency's continuing package identity.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct ResolvedEdge<'a> {
+    pub purpose: DependencyPurpose,
+    pub alias: &'a str,
+    pub owner: PackageKeyIdentity,
+    pub resolution: [u8; 32],
+}
+
+fn derive<'a>(
     capture: &CapturedSourceTree,
     core: impl IntoIterator<Item = [u8; 32]>,
+    dependencies: impl IntoIterator<Item = ResolvedEdge<'a>>,
 ) -> Result<PackageKeyIdentity, String> {
     let mut digest = Sha256::new();
     field(&mut digest, b"OMEGA-ANONYMOUS-CONTENT-OWNER-V1\0");
     field(&mut digest, b"OMEGA-LANGUAGE-DEFAULT-BUILD-SEMANTICS-V1\0");
     snapshot(&mut digest, capture)?;
-    digest.update(0u64.to_le_bytes());
+    let mut edges = dependencies.into_iter().collect::<Vec<_>>();
+    edges.sort_unstable();
+    if edges
+        .windows(2)
+        .any(|pair| pair[0].purpose == pair[1].purpose && pair[0].alias == pair[1].alias)
+    {
+        return Err("anonymous Build has two resolutions for one dependency registration".into());
+    }
+    digest.update((edges.len() as u64).to_le_bytes());
+    for edge in edges {
+        digest.update([edge.purpose.canonical_tag()]);
+        field(&mut digest, edge.alias.as_bytes());
+        field(&mut digest, &edge.owner.digest());
+        field(&mut digest, &edge.resolution);
+    }
     let mut core = core.into_iter().collect::<Vec<_>>();
     core.sort();
     core.dedup();
@@ -195,6 +254,61 @@ mod tests {
     use super::*;
     use std::{path::PathBuf, sync::Arc};
 
+    fn derive(
+        capture: &CapturedSourceTree,
+        core: impl IntoIterator<Item = [u8; 32]>,
+    ) -> Result<PackageKeyIdentity, String> {
+        super::derive(capture, core, [])
+    }
+
+    #[test]
+    fn anonymous_owners_bind_canonical_purposes_aliases_and_immutable_resolutions() {
+        use source_acquisition::{GitCommitId, GitTreeId, ImmutableSourceResolution};
+        let capture = snapshot("build.omg", b"machine build() {}");
+        let tree = GitTreeId::parse_hex(&"2".repeat(40)).unwrap();
+        let revision = |c: char| {
+            ImmutableSourceResolution::git(
+                GitCommitId::parse_hex(&c.to_string().repeat(40)).unwrap(),
+                tree.clone(),
+            )
+            .unwrap()
+        };
+        let edge = ResolvedEdge {
+            purpose: DependencyPurpose::Product,
+            alias: "util",
+            owner: PackageKeyIdentity::from_digest([1; 32]).unwrap(),
+            resolution: revision('1').identity_digest(),
+        };
+        let add = |edges: Vec<ResolvedEdge<'_>>| super::derive(&capture, [], edges).unwrap();
+        let other = ResolvedEdge {
+            alias: "kit",
+            ..edge.clone()
+        };
+        let owner = add(vec![edge.clone(), other.clone()]);
+        assert_eq!(owner, add(vec![other.clone(), edge.clone()]));
+        for changed in [
+            ResolvedEdge {
+                purpose: DependencyPurpose::Build,
+                ..edge.clone()
+            },
+            ResolvedEdge {
+                alias: "helpers",
+                ..edge.clone()
+            },
+            ResolvedEdge {
+                owner: PackageKeyIdentity::from_digest([2; 32]).unwrap(),
+                ..edge.clone()
+            },
+            ResolvedEdge {
+                resolution: revision('3').identity_digest(),
+                ..edge.clone()
+            },
+        ] {
+            assert_ne!(owner, add(vec![changed, other.clone()]));
+        }
+        assert!(super::derive(&capture, [], [edge.clone(), edge]).is_err());
+    }
+
     fn snapshot(path: &str, bytes: &[u8]) -> CapturedSourceTree {
         CapturedSourceTree::new([(
             PathBuf::from(path),
@@ -204,6 +318,48 @@ mod tests {
             },
         )])
         .expect("closed source snapshot")
+    }
+
+    #[test]
+    fn a_relocated_capture_has_the_same_owner_but_cannot_supply_the_other_activation() {
+        use platform_custody::temporary_directory::TemporaryDirectory;
+        let directory = TemporaryDirectory::create("completed-build-source", false).unwrap();
+        let capture = |name: &str| {
+            let root = directory.path().join(name);
+            std::fs::create_dir(&root).unwrap();
+            std::fs::write(
+                root.join("entry.omg"),
+                "machine build(builder: @mutable Build) {}",
+            )
+            .unwrap();
+            crate::capture_anonymous_compilation_source(&root).unwrap()
+        };
+        let first = capture("first");
+        let second = capture("second");
+        let close = |acquisition: &crate::CapturedLocalSource| {
+            AnonymousSourceCapture {
+                build_owner: None,
+                root: acquisition.canonical_live_root().into(),
+                capture: Arc::clone(acquisition.tree()),
+                acquisition: Some(acquisition.clone()),
+                filesystem: Default::default(),
+                semantic_dependencies: vec![[13; 32]],
+                sources: Arc::default(),
+                installed_roots: Default::default(),
+            }
+            .complete_product([])
+            .unwrap()
+        };
+        let a = close(&first);
+        let b = close(&second);
+        assert_eq!(a.owner(), b.owner());
+        a.require_capture(Some(&first.clone())).unwrap();
+        assert!(a.require_capture(Some(&second)).is_err());
+        let reacquired =
+            crate::capture_anonymous_compilation_source(first.canonical_live_root()).unwrap();
+        assert_eq!(a.owner(), close(&reacquired).owner());
+        assert!(a.require_capture(Some(&reacquired)).is_err());
+        assert!(a.require_capture(None).is_err());
     }
 
     #[test]
@@ -233,6 +389,7 @@ mod tests {
             .source_id;
         let sources = Arc::new(sources);
         let capture = AnonymousSourceCapture {
+            build_owner: None,
             acquisition: None,
             root,
             capture: tree,

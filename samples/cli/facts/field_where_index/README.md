@@ -26,16 +26,7 @@ All nine places verify at runtime (`Expected exit: 0` with `crashes Trap`) that
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native execution agreement (`interp exit: 0` and `native exit 0`):
 
 ```sh
-omega run --both samples/cli/facts/field_where_index/main.omg
-omega run --both samples/cli/facts/field_where_index/local/main.omg
-omega run --both samples/cli/facts/field_where_index/field/main.omg
-omega run --both samples/cli/facts/field_where_index/parameter/main.omg
-omega run --both samples/cli/facts/field_where_index/call_result/main.omg
-omega run --both samples/cli/facts/field_where_index/match_join/main.omg
-omega run --both samples/cli/facts/field_where_index/const_name/main.omg
-omega run --both samples/cli/facts/field_where_index/other_state/main.omg
-omega run --both samples/cli/facts/field_where_index/other_machine/main.omg
-omega run --both samples/cli/facts/field_where_index/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/field_where_index
 ```
 
 ### The oracle discriminates

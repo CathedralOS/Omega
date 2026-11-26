@@ -24,16 +24,7 @@ Each positive place and root `main.omg` binds `ProgramEntry` for all four hosted
 ## Execution
 
 ```sh
-omega run --both samples/cli/facts/unsigned_shift_right_bound/main.omg
-omega run --both samples/cli/facts/unsigned_shift_right_bound/local/main.omg
-omega run --both samples/cli/facts/unsigned_shift_right_bound/field/main.omg
-omega run --both samples/cli/facts/unsigned_shift_right_bound/parameter/main.omg
-omega run --both samples/cli/facts/unsigned_shift_right_bound/call_result/main.omg
-omega run --both samples/cli/facts/unsigned_shift_right_bound/match_join/main.omg
-omega run --both samples/cli/facts/unsigned_shift_right_bound/const_name/main.omg
-omega run --both samples/cli/facts/unsigned_shift_right_bound/other_state/main.omg
-omega run --both samples/cli/facts/unsigned_shift_right_bound/other_machine/main.omg
-omega run --both samples/cli/facts/unsigned_shift_right_bound/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/unsigned_shift_right_bound
 ```
 
 Measured on macOS arm64 with the factsr1 shared generation producer `gen-f1b0d3326d2` (omega sha256 `4e3950e53eb15fbb3b54868f9c8964e23e7efc5bdced336e07f18eb27e28ac4a`): all ten positive places report `native exit 0` and `interp exit: 0` (20/20 engine legs, exit 0).

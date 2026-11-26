@@ -28,16 +28,7 @@ Every twin substitutes one authored `[1, 38]` initializer with `[1, 2]`. The mat
 Run each positive place with `omega run --both`:
 
 ```sh
-omega run --both samples/cli/facts/selected_scalar_initializer/main.omg
-omega run --both samples/cli/facts/selected_scalar_initializer/local/main.omg
-omega run --both samples/cli/facts/selected_scalar_initializer/field/main.omg
-omega run --both samples/cli/facts/selected_scalar_initializer/parameter/main.omg
-omega run --both samples/cli/facts/selected_scalar_initializer/call_result/main.omg
-omega run --both samples/cli/facts/selected_scalar_initializer/match_join/main.omg
-omega run --both samples/cli/facts/selected_scalar_initializer/const_name/main.omg
-omega run --both samples/cli/facts/selected_scalar_initializer/other_state/main.omg
-omega run --both samples/cli/facts/selected_scalar_initializer/other_machine/main.omg
-omega run --both samples/cli/facts/selected_scalar_initializer/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/selected_scalar_initializer
 ```
 
 All 10 samples report `native exit 0` and `interp exit: 0`.

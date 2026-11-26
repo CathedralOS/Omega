@@ -7,7 +7,7 @@ extent and records whether it still covers all four entries.
 The root `main.omg` runs with `// Expected exit: 0` and `crashes Trap` on failure:
 
 ```text
-omega run --both samples/cli/facts/as_slice_views/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/as_slice_views
 ```
 
 The range uses selected checked-provider supply and retains the bounds contract

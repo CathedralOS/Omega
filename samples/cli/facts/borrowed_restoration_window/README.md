@@ -26,19 +26,10 @@ The owner observes the restored value under invariant `val >= 100u64 && val <= 1
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares `Expected exit: 0`.
-`omega run --both` verifies Terminal Psi interpreter and native execution agreement:
+The sample gate verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/borrowed_restoration_window/main.omg
-omega run --both samples/cli/facts/borrowed_restoration_window/local/main.omg
-omega run --both samples/cli/facts/borrowed_restoration_window/field/main.omg
-omega run --both samples/cli/facts/borrowed_restoration_window/parameter/main.omg
-omega run --both samples/cli/facts/borrowed_restoration_window/call_result/main.omg
-omega run --both samples/cli/facts/borrowed_restoration_window/match_join/main.omg
-omega run --both samples/cli/facts/borrowed_restoration_window/const_name/main.omg
-omega run --both samples/cli/facts/borrowed_restoration_window/other_state/main.omg
-omega run --both samples/cli/facts/borrowed_restoration_window/other_machine/main.omg
-omega run --both samples/cli/facts/borrowed_restoration_window/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/borrowed_restoration_window
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.

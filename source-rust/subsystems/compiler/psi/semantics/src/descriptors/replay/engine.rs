@@ -1284,11 +1284,11 @@ impl<'a> Replay<'a> {
                 source,
                 projection: prefix.then(&suffix),
             };
-            let reason =
-                unavailable.or_else(|| {
-                    prefix.has_captured_reference_crossing().unwrap_or(true).then_some(
-                        "captured indirect projection has no retained entry-reference account")
-                });
+            let reason = unavailable.or_else(|| match prefix.has_captured_reference_crossing() {
+                Ok(false) => None,
+                Ok(true) => Some("captured indirect projection has no retained entry-reference account"),
+                Err(reason) => Some(reason),
+            });
             resolutions.push(match reason {
                 Some(reason) => StorageResolution::OpaqueProjection(origin, reason),
                 None => StorageResolution::Projected(origin),

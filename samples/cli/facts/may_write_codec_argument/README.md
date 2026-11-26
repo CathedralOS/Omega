@@ -25,15 +25,15 @@ This witnesses the codec-argument row of **R5** in `TASKS.md`: caller-visible ma
 Every positive place binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, and declares `Expected exit: 0`.
 
 ```sh
-omega run --both samples/cli/facts/may_write_codec_argument/local/main.omg
-omega run --both samples/cli/facts/may_write_codec_argument/field/main.omg
-omega run --both samples/cli/facts/may_write_codec_argument/parameter/main.omg
-omega run --both samples/cli/facts/may_write_codec_argument/call_result/main.omg
-omega run --both samples/cli/facts/may_write_codec_argument/match_join/main.omg
-omega run --both samples/cli/facts/may_write_codec_argument/const_name/main.omg
-omega run --both samples/cli/facts/may_write_codec_argument/other_state/main.omg
-omega run --both samples/cli/facts/may_write_codec_argument/other_machine/main.omg
-omega run --both samples/cli/facts/may_write_codec_argument/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/may_write_codec_argument/local
+mbx xtask sample-gate --filter samples/cli/facts/may_write_codec_argument/field
+mbx xtask sample-gate --filter samples/cli/facts/may_write_codec_argument/parameter
+mbx xtask sample-gate --filter samples/cli/facts/may_write_codec_argument/call_result
+mbx xtask sample-gate --filter samples/cli/facts/may_write_codec_argument/match_join
+mbx xtask sample-gate --filter samples/cli/facts/may_write_codec_argument/const_name
+mbx xtask sample-gate --filter samples/cli/facts/may_write_codec_argument/other_state
+mbx xtask sample-gate --filter samples/cli/facts/may_write_codec_argument/other_machine
+mbx xtask sample-gate --filter samples/cli/facts/may_write_codec_argument/target_body
 ```
 
 ## Reject twins

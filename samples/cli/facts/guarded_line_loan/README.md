@@ -69,7 +69,7 @@ the transport and carrier lowering of this one guarded-line-loan fact across the
 nine places; the board's other acceptance remains open.
 
 ```sh
-omega run --both samples/cli/facts/guarded_line_loan/local/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/guarded_line_loan/local
 omega --check samples/cli/facts/guarded_line_loan/invalid_local/main.omg
 ```
 

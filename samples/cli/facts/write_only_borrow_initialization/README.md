@@ -26,16 +26,7 @@ The original `main.omg` remains the starting witness. The nine places are:
 Each positive place is an application that exits 0 in both Terminal Psi and native execution:
 
 ```sh
-omega run --both samples/cli/facts/write_only_borrow_initialization/main.omg
-omega run --both samples/cli/facts/write_only_borrow_initialization/local/main.omg
-omega run --both samples/cli/facts/write_only_borrow_initialization/field/main.omg
-omega run --both samples/cli/facts/write_only_borrow_initialization/parameter/main.omg
-omega run --both samples/cli/facts/write_only_borrow_initialization/call_result/main.omg
-omega run --both samples/cli/facts/write_only_borrow_initialization/match_join/main.omg
-omega run --both samples/cli/facts/write_only_borrow_initialization/const_name/main.omg
-omega run --both samples/cli/facts/write_only_borrow_initialization/other_state/main.omg
-omega run --both samples/cli/facts/write_only_borrow_initialization/other_machine/main.omg
-omega run --both samples/cli/facts/write_only_borrow_initialization/target_body/main.omg
+mbx xtask sample-gate --filter samples/cli/facts/write_only_borrow_initialization
 ```
 
 All 10 applications pass with `native exit 0` and `interp exit: 0`.

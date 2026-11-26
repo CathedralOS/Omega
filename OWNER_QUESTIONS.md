@@ -86,8 +86,28 @@ defines when the compiler freezes its input. The [child filesystem contract](wik
 defines backing custody and borrow duration. The public virtual-backing and
 handoff API remains open.
 
+<a id="unnamed-workspace-check-discovery"></a>
+### 3. How does an unnamed check identify its workspace among enclosing Build entries?
+
+`omega --check` inside a workspace selects every declared member. A member and
+its enclosing workspace can each have a `build.omg`. The workspace can compute
+its roster through helpers and later Build stages, so filenames and the text of
+an individual source file cannot establish membership. Running every enclosing
+Build to inspect its return can execute an unrelated ancestor's program. The
+source-based workflow has no persistent workspace marker.
+
+Should tooling require the caller to name the catalog when it finds multiple
+enclosing Build entries, or should a workspace declare a discoverable identity
+outside Build execution? Recommend the explicit path in the ambiguous case.
+`omega --check ../build.omg` can execute that catalog and validate its actual
+members. A single enclosing entry remains discoverable from a subdirectory.
+
+[Command vocabulary](wiki/spec/build/command_line.md#command-vocabulary) ·
+[Workspaces](wiki/spec/build/declarations.md#workspaces) ·
+[Validation subjects](wiki/spec/build/validation_subjects.md#subjects)
+
 <a id="validation-of-incoming-build-libraries"></a>
-### 3. Can a Build request a full check of a library it received from its caller?
+### 4. Can a Build request a full check of a library it received from its caller?
 
 The board's configuration imports an already admitted layout generator. It can
 use that generator without adding it to the firmware. If the board wants every
