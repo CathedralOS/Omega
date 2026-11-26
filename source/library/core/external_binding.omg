@@ -1,12 +1,7 @@
 use reflect/reflect.omg as reflection;
 
-// Compiler-owned vocabulary for irreducible foreign import coordinates.
-//
-// A target-scoped ordinary machine returns one closed `ForeignBinding` locator. The
-// compiler evaluates that machine at build time, validates the exact nominal
-// result and const widths, then normalizes the atomic locator into provider
-// identity. Raw object-format bytes remain data; they are never Omega symbol
-// names or ambient lookup strings.
+// Build::bind_native takes a locator for one requirement on one target.
+// An import keeps the exact object-format bytes and their lengths.
 
 public data DllImport<
     const ObjectLength: u64,
@@ -32,9 +27,7 @@ public data DllImport<
     );
 }
 
-// Syscall numbers are ordinary target-scoped values. `VtableField` remains on
-// its explicit legacy carrier until NativeFieldIdentity has an ordinary typed
-// source form; it must not be smuggled into this sum as a magic integer.
+// The selected target interprets the syscall number or import coordinates.
 public data ForeignBinding<
     const ObjectLength: u64,
     const SymbolLength: u64,
