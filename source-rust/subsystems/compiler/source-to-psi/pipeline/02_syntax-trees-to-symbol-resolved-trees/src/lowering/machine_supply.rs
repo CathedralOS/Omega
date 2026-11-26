@@ -424,7 +424,7 @@ fn require_exact_atomic_fence_row(
                 && !parameter.is_mutable
                 && !parameter.relevance.is_erased()
                 && matches!(syntax_trees.tables.type_references.type_reference(parameter.type_reference),
-                TypeReferenceNode::Named(name) if name.as_str(syntax_trees) == "FenceOrdering")
+                TypeReferenceNode::Named(name) if name.as_str(syntax_trees) == "|fence_ordering|::FenceOrdering")
         }
         _ => false,
     };
@@ -436,7 +436,7 @@ fn require_exact_atomic_fence_row(
         || entry.return_type.is_valid()
         || !valid_parameter
     {
-        return Err(Diagnostic::error("the sealed atomic fence declaration must be exactly `public machine fence(ordering: FenceOrdering);` in `module Atomic`").with_source_span(machine.name.source_span()));
+        return Err(Diagnostic::error("the sealed atomic fence declaration must be exactly `public machine fence(ordering: |fence_ordering|::FenceOrdering);` in `Atomic/atomic.omg`").with_source_span(machine.name.source_span()));
     }
     Ok(())
 }
@@ -508,6 +508,12 @@ mod compiler_machine_tests {
             SourceOrigin::Toolchain,
         ));
         let mut request = ResolutionRequest::new(syntax);
+        if path == "Atomic/atomic.omg" {
+            request.top_level_bindings = crate::resolution::fixture_file_bindings(
+                &sources,
+                &[("toolchain/Atomic/atomic.omg", "toolchain/fence_ordering.omg", "fence_ordering")],
+            );
+        }
         request.sources = Some(Arc::new(sources));
         resolve(request)
     }
