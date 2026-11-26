@@ -4,7 +4,7 @@ machine entry() -> i32 {
     |kit|::value()
 }
 
-machine main() crashes Trap {
+public machine main() crashes Trap {
     transition entry() == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

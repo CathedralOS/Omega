@@ -3,5 +3,8 @@ use generated.omg;
 machine build(builder: @mutable BuildPlan) {
     let value: u8 = |generated|::value();
     builder.product = BuildProduct::Application { name: "future_input" };
-    Build::include_source(builder, "generated.omg", "public machine value() -> u8 { 7 }");
+    let path: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
+    let writer: i32 = BuildOutput::create(@mutable builder.output, path, 0);
+    _ = BuildOutput::write(@mutable builder.output, writer, "public machine value() -> u8 { 7 }");
+    _ = BuildOutput::close(@mutable builder.output, writer);
 }

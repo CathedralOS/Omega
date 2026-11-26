@@ -20,7 +20,6 @@ public boundary trait BuildRequestOperations {
     machine validate_binding(builder: @BuildPlan, binding: PackageBinding) reaches none crashes none;
     machine validate_dependency(builder: @BuildPlan, registered: DependencyRegistration) reaches none crashes none;
     machine prepare_dependency(builder: @BuildPlan, registered: DependencyRegistration) reaches none crashes none suspends;
-    machine publish_source(builder: @BuildPlan, name: @[u8], source: @[u8]) reaches none crashes none;
     machine configure_test_engine(group: @mutable TestGroupSettings, target: u64, engine: u64, policy: u64) reaches none crashes none;
     machine configure_test_fixture(group: @mutable TestGroupSettings, setting: u64, path: @[u8], bytes: @[u8]) reaches none crashes none;
     machine write_log(log: @BuildLog, text: @[u8]) reaches none crashes none;

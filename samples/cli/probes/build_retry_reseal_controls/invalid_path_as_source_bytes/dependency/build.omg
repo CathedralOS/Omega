@@ -1,6 +1,0 @@
-// Resolving a path gives the Build a handle. Publication requires the source bytes.
-machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Package { name: "custody_ghost" };
-    let path: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
-    Build::include_source(builder, "generated.omg", @path);
-}

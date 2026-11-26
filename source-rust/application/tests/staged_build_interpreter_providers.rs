@@ -186,7 +186,7 @@ fn changing_only_the_interpreter_selection_changes_the_final_product() {
 
 #[test]
 fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
-    let poison = r#"Build::include_source(builder, "../successor-started.omg", "");"#;
+    let poison = "let fabricated: PackageBinding = PackageBinding {}; Build::validate(builder, @fabricated);";
     let fixture = project(
         "linux_x86_64",
         None,
@@ -201,7 +201,7 @@ fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
         "{report}"
     );
     assert!(
-        !report.contains("invalid generated source filename"),
+        !report.contains("requires a PackageBinding this activation issued"),
         "{report}"
     );
 
@@ -215,7 +215,7 @@ fn a_successor_with_an_unmapped_service_cannot_begin_execution() {
     let (output, report) = run(&admitted, "psi");
     assert!(!output.status.success(), "{report}");
     assert!(
-        report.contains("invalid generated source filename `../successor-started.omg`"),
+        report.contains("requires a PackageBinding this activation issued"),
         "{report}"
     );
 }

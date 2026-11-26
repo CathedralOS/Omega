@@ -11,7 +11,6 @@ pub enum BuildOperation {
     OptimizationReportRequest,
     BoundaryAcceptance,
     WireCompatibilityRequest,
-    IncludedSourceHandoff,
     LogWriteLine,
     NativeBinding,
     // `builder.tests.group<Requirement>()` (wiki/spec/build/testing.md): one
@@ -45,7 +44,7 @@ impl BuildOperation {
         )
     }
 
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 14] = [
         Self::ProviderReadiness,
         Self::ServiceDescription,
         Self::EnableUnsafe,
@@ -57,7 +56,6 @@ impl BuildOperation {
         Self::OptimizationReportRequest,
         Self::BoundaryAcceptance,
         Self::WireCompatibilityRequest,
-        Self::IncludedSourceHandoff,
         Self::LogWriteLine,
         Self::NativeBinding,
         Self::TestGroupRegistration,
@@ -79,7 +77,6 @@ impl BuildOperation {
             Self::OptimizationReportRequest => "emit_report",
             Self::BoundaryAcceptance => "accept_boundary",
             Self::WireCompatibilityRequest => "require_wire_compatibility",
-            Self::IncludedSourceHandoff => "include_source",
             Self::LogWriteLine => "write_line",
             Self::TestGroupRegistration => "group",
         }

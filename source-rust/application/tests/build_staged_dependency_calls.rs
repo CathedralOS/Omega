@@ -1146,7 +1146,6 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
     let denied: i32 = BuildSource::open(@builder.source, input, 1);
     _ = BuildOutput::write(@mutable builder.output, writer, "7i32 }");
     _ = BuildOutput::close(@mutable builder.output, writer);
-    Build::include_source(builder, "joined.omg", "machine joined() -> i32 { 7i32 }");
     let ready: bool = selected == 7 && saw_first && second_count == 1i64 && second[0] == 117u8 && denied == -1;
     let completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, promised, output);
     transition completion {
@@ -1733,55 +1732,4 @@ machine build(builder: @mutable BuildPlan) suspends {
             "{report}"
         );
     }
-}
-
-#[test]
-fn a_dependency_publishes_source_bytes_under_the_name_the_product_imports() {
-    let target = target::TargetProfile::host_if_supported()
-        .unwrap()
-        .target_name();
-    let build = r#"use {kit}/generated/start.omg as entry;
-use {omega}/build/dependency.omg;
-machine build(builder: @mutable BuildPlan) suspends {
-    builder.product = BuildProduct::Application { name: "generated_entry" };
-    let mutable source: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
-    |dependency|::with_alias(@mutable source, "kit");
-    let registered: DependencyRegistration = Build::dependency(builder, source);
-    suspend Build::prepare_dependency(builder, registered);
-    Build::bind(builder, HOST::ProgramEntry, |entry|::start);
-}"#.replace("HOST", target);
-    let publish = r#"Build::include_source(builder, "generated/start.omg", "use main.omg as seed; public machine start() crashes Trap { transition |seed|::v() == 7 { true -> done(), _ -> bad() } machine done() {} machine bad() { crash Trap; } }");"#;
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let run = |name, body: &str| {
-            check_project(
-                name,
-                &build,
-                7,
-                body,
-                &["run", "--engine", engine, "build.omg"],
-            )
-        };
-        let (ok, report) = run("published-source-bytes", publish);
-        assert!(
-            ok && report.lines().any(|line| line == expected),
-            "{report}"
-        );
-        let outside = publish.replace("generated/start.omg", "../start.omg");
-        let (ok, report) = run("published-source-outside", &outside);
-        assert!(
-            !ok && report.contains("invalid generated source filename `../start.omg`"),
-            "{report}"
-        );
-    }
-}
-
-#[test]
-fn a_build_cannot_publish_the_same_filename_again_after_a_dependency_wait() {
-    let publish = r#"Build::include_source(builder, "generated/value.omg", "const SEVEN: i32 = 7;");"#;
-    let resumed = format!("{publish}\n    carried(builder);");
-    let (ok, report) = check("duplicate-source-after-wait", publish, &resumed, 7);
-    assert!(
-        !ok && report.contains("generated/value.omg") && report.contains("already"),
-        "{report}"
-    );
 }

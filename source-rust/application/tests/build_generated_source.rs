@@ -6,7 +6,7 @@ use std::process::{Command, Output, Stdio};
 
 fn run(project: &Path, engine: &str, inputs: &[&str]) -> Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-    command.args(["run", "--engine", engine]);
+    command.args(["run", "--engine", engine, "--outputs", engine]);
     for path in inputs {
         command.args(["--build-input", path]);
     }
@@ -26,6 +26,20 @@ fn report(result: &Output) -> String {
     )
 }
 
+fn assert_returned(root: &Path, engine: &str) {
+    let output = root.join(engine);
+    let termination = fs::read_to_string(output.join("termination.tsv")).unwrap();
+    match engine {
+        "psi" => assert_eq!(termination, "psi\treturn\n"),
+        _ => assert!(
+            termination.starts_with("native\texit\t0\t"),
+            "{termination}"
+        ),
+    }
+    assert!(fs::read(output.join("stdout")).unwrap().is_empty());
+    assert!(fs::read(output.join("stderr")).unwrap().is_empty());
+}
+
 #[test]
 fn handwritten_product_calls_a_generated_file() {
     let Some(host) = target::TargetProfile::host_if_supported() else {
@@ -33,18 +47,22 @@ fn handwritten_product_calls_a_generated_file() {
     };
     let project =
         TemporaryDirectory::create("handwritten-import-of-generated-file", false).unwrap();
-    fs::write(
-        project.path().join("main.omg"),
-        r#"
-        use generated.omg;
-        public machine launch() crashes Trap {
-            transition |generated|::read() == 17u8 { true -> success(), _ -> failure() }
-            machine success() {}
-            machine failure() { crash Trap; }
-        }
-    "#,
-    )
-    .unwrap();
+    let main = r#"use generated.omg;
+public machine launch() crashes Trap {
+    transition |generated|::read() == 17u8 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}"#;
+    let entry = format!(
+        r#"use main.omg as app;
+machine build(plan: @mutable BuildPlan) {{
+    plan.product = BuildProduct::Application {{ name: "frozen" }};
+    Build::bind(plan, {}::ProgramEntry, |app|::launch);
+}}"#,
+        host.target_name()
+    );
+    fs::write(project.path().join("main.omg"), main).unwrap();
+    fs::write(project.path().join("next.template"), &entry).unwrap();
     for (body, valid) in [
         ("public machine read() -> u8 { 17u8 }", true),
         (
@@ -53,31 +71,43 @@ fn handwritten_product_calls_a_generated_file() {
         ),
     ] {
         fs::write(project.path().join("asset.txt"), body).unwrap();
-        let length = body.len();
         let source = format!(
-            r#"use main.omg as app;
-            machine build(builder: @mutable Build) {{
-                Build::application(builder, "frozen");
-                let asset: BuildPath = BuildSource::resolve(@builder.source, "asset.txt");
-                let reader: i32 = BuildSource::open(@builder.source, asset, 0);
-                let mutable bytes: [u8; {length}];
-                _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], {length});
-                _ = BuildSource::close(@builder.source, reader);
-                Build::include_source(builder, "generated.omg", @bytes[..]);
-                Build::bind(builder, {}::ProgramEntry, |app|::launch);
-            }}"#,
-            host.target_name()
+            r#"machine build(plan: @mutable BuildPlan) {{
+    copy::<{main_length}>(plan, "main.omg", "main.omg");
+    copy::<{asset_length}>(plan, "asset.txt", "generated.omg");
+    copy::<{entry_length}>(plan, "next.template", "next.omg");
+    let directory: BuildPath = BuildOutput::resolve(@plan.output, "");
+    plan.package_root = BuildPackageRoot::Directory {{ path: directory }};
+    plan.product = BuildProduct::InterpretedBuild {{ entry: "next.omg" }};
+}}
+
+machine copy<const N: u64>(plan: @mutable BuildPlan, source: @[u8], destination: @[u8]) {{
+    let path: BuildPath = BuildSource::resolve(@plan.source, source);
+    let reader: i32 = BuildSource::open(@plan.source, path, 0);
+    let mutable bytes: [u8; N];
+    _ = BuildSource::read(@plan.source, reader, @mutable bytes[..], N);
+    _ = BuildSource::close(@plan.source, reader);
+    let file: BuildPath = BuildOutput::resolve(@plan.output, destination);
+    let writer: i32 = BuildOutput::create(@mutable plan.output, file, 0);
+    _ = BuildOutput::write(@mutable plan.output, writer, @bytes[..]);
+    _ = BuildOutput::close(@mutable plan.output, writer);
+}}"#,
+            main_length = main.len(),
+            asset_length = body.len(),
+            entry_length = entry.len(),
         );
         fs::write(project.path().join("build.omg"), source).unwrap();
         for engine in ["psi", "native"] {
             let result = run(
                 project.path(),
                 engine,
-                &["build.omg", "main.omg", "asset.txt"],
+                &["build.omg", "main.omg", "next.template", "asset.txt"],
             );
             let report = report(&result);
             assert_eq!(result.status.success(), valid, "{engine}: {report}");
-            if !valid {
+            if valid {
+                assert_returned(project.path(), engine);
+            } else {
                 assert!(
                     report.contains("no visible declaration"),
                     "{engine}: {report}"
@@ -96,10 +126,13 @@ fn a_build_cannot_import_its_own_future_product_file() {
         project.path().join("build.omg"),
         r#"
         use generated.omg;
-        machine build(builder: @mutable Build) {
+        machine build(plan: @mutable BuildPlan) {
+            let file: BuildPath = BuildOutput::resolve(@plan.output, "generated.omg");
+            let writer: i32 = BuildOutput::create(@mutable plan.output, file, 0);
+            _ = BuildOutput::write(@mutable plan.output, writer, "public machine read() -> u8 { 17u8 }");
+            _ = BuildOutput::close(@mutable plan.output, writer);
             let value: u8 = |generated|::read();
-            Build::application(builder, "future");
-            Build::include_source(builder, "generated.omg", "public machine read() -> u8 { 17u8 }");
+            plan.product = BuildProduct::Package { name: "future" };
         }
     "#,
     )
@@ -107,4 +140,51 @@ fn a_build_cannot_import_its_own_future_product_file() {
     let result = run(project.path(), "psi", &["build.omg"]);
     assert!(!result.status.success());
     assert!(report(&result).contains("no admitted logical file `generated.omg`"));
+}
+
+#[test]
+fn a_consumer_runs_its_nested_dependency_from_the_returned_directory() {
+    if target::TargetProfile::host_if_supported().is_none() {
+        return;
+    }
+    let project = TemporaryDirectory::create("returned-nested-dependency", false).unwrap();
+    let sample =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../samples/cli/probes/build_retry_reseal");
+    let root = project.path();
+    fs::create_dir(root.join("dependency")).unwrap();
+    for name in [
+        "build.omg",
+        "main.omg",
+        "dependency/build.omg",
+        "dependency/main.omg",
+        "dependency/seed.omg",
+        "dependency/template.txt",
+    ] {
+        fs::copy(sample.join(name), root.join(name)).unwrap();
+    }
+    for engine in ["psi", "native"] {
+        let result = run(root, engine, &[]);
+        assert!(result.status.success(), "{}", report(&result));
+        assert_returned(root, engine);
+    }
+
+    let generator = root.join("dependency/build.omg");
+    let source = fs::read_to_string(&generator).unwrap();
+    let selected = "BuildOutput::resolve(@builder.output, \"generated.omg\")";
+    assert!(source.contains(selected));
+    fs::write(
+        generator,
+        source.replace(
+            selected,
+            "BuildOutput::resolve(@builder.output, \"../outside.omg\")",
+        ),
+    )
+    .unwrap();
+    let result = run(root, "psi", &[]);
+    assert!(!result.status.success());
+    assert!(
+        report(&result).contains("Build path is not a canonical relative path"),
+        "{}",
+        report(&result)
+    );
 }

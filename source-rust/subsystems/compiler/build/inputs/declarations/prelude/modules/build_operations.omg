@@ -52,11 +52,6 @@ machine request_selected_git(builder: @BuildPlan, explicit_alias: bool, alias: @
     BuildRequestOperations::register_git_dependency(builder, explicit_alias, alias, repository, revision, named_package, package, max_reach)
 }
 
-// Publish a snapshot of these bytes under a package-relative source filename.
-public machine include_source(builder: @mutable BuildPlan, name: @[u8], source: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
-    BuildRequestOperations::publish_source(builder, name, source);
-}
-
 // The executed request is joined with the application role and required outputs.
 public machine artifact_only(builder: @mutable BuildPlan) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::artifact_only(builder);

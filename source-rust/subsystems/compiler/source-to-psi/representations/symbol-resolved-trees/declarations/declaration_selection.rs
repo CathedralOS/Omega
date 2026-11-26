@@ -1089,9 +1089,6 @@ impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
             BuildOperation::WireCompatibilityRequest => {
                 Self::BuildWireCompatibilityRequest
             }
-            BuildOperation::IncludedSourceHandoff => {
-                Self::BuildIncludedSourceHandoff
-            }
             BuildOperation::LogWriteLine => Self::BuildLogWriteLine,
             BuildOperation::TestGroupRegistration => {
                 Self::BuildTestGroupRegistration
@@ -1125,7 +1122,6 @@ pub enum AuthoredDeclarationSelectionIntrinsic {    BuildNativeBinding,
     BuildBoundaryAcceptance,
     BuildWireCompatibilityRequest,
     WireCompatibilityFact(semantic_vocabulary::source_selections::WireCompatibilityFact),
-    BuildIncludedSourceHandoff,
     BuildLogWriteLine,
     WireEncode,
     WireDecode,

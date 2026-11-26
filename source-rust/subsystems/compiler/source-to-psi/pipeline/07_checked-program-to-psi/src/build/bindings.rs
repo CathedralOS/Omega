@@ -408,7 +408,6 @@ pub(crate) mod build_requests {
         ValidateDependency,
         ValidateBinding,
         LogLine,
-        PublishSource,
         ConfigureTestFixture,
         ConfigureTestEngine,
         SandboxWrite,

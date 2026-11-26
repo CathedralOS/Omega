@@ -1433,8 +1433,7 @@ mod tests {
         )
         .unwrap();
         let scope = scope(temporary.path(), "staging");
-        let invocation = account();
-        let mut runtime = scope.begin_filesystem_runtime(invocation.clone()).unwrap();
+        let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
         let reader = runtime
             .open(BUILD_SOURCE_ROOT_IDENTITY, b"asset", 0)
             .unwrap();
@@ -1465,20 +1464,12 @@ mod tests {
         let exported = runtime.create(b"z-export.omg", 0).unwrap();
         runtime.write(exported, b"exported").unwrap();
         runtime.close(BUILD_OUTPUT_ROOT_IDENTITY, exported).unwrap();
-        let mut publications = crate::BuildSourcePublications::default();
-        publications
-            .publish(&invocation, b"generated.omg", b"published source")
-            .unwrap();
         let effects = runtime.finish().unwrap();
         let mut observations = crate::CapturedBuildObservations::new(&scope);
         observations.retain_filesystem_effects(effects).unwrap();
-        observations
-            .retain_source_publications(publications, &invocation)
-            .unwrap();
         let summary = observations.settle(true, "build").unwrap();
         assert_eq!(summary.required_output_settlements().len(), 1);
-        assert_eq!(summary.generated_sources().len(), 1);
-        assert_eq!(summary.generated_sources()[0].bytes(), b"published source");
+        assert!(summary.generated_sources().is_empty());
         let tree = summary.staged_output_tree().unwrap();
         assert!(matches!(
             tree.sealed_entry(b"generated.omg").unwrap().kind(),

@@ -5716,7 +5716,6 @@ pub mod inspection {
                 Intrinsic::WireCompatibilityFact(fact) => {
                     ("wire_compatibility_fact", Some(format!("{fact:?}")))
                 }
-                Intrinsic::BuildIncludedSourceHandoff => ("build_included_source_handoff", None),
                 Intrinsic::BuildLogWriteLine => ("build_log_write_line", None),
                 Intrinsic::WireEncode => ("wire_encode", None),
                 Intrinsic::WireDecode => ("wire_decode", None),

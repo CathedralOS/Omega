@@ -1,0 +1,36 @@
+use main.omg as app;
+
+machine build(plan: @mutable BuildPlan) crashes Trap {
+    plan.product = BuildProduct::Application { name: "captured_source_generated_constant" };
+    Build::artifact_only(plan);
+    transition |app|::entry() == 73u32 {
+        true -> publish(plan),
+        false -> wrong()
+    }
+    machine wrong() { crash Trap; }
+    machine publish(plan: @mutable BuildPlan) {
+        let path: BuildPath = BuildSource::resolve(@plan.source, "generated.omg");
+        let reader: i32 = BuildSource::open(@plan.source, path, 0);
+        let mutable bytes: [u8; 31];
+        _ = BuildSource::read(@plan.source, reader, @mutable bytes[..], 31);
+        _ = BuildSource::close(@plan.source, reader);
+        let obligation: RequiredOutput = BuildOutput::require(@mutable plan.output, "generated.omg");
+        let file: BuildPath = BuildOutput::resolve(@plan.output, "generated.omg");
+        let writer: i32 = BuildOutput::create(@mutable plan.output, file, 0);
+        _ = BuildOutput::write(@mutable plan.output, writer, @bytes[..]);
+        _ = BuildOutput::close(@mutable plan.output, writer);
+        let completion: OutputCompletion = BuildOutput::complete(@mutable plan.output, obligation, file);
+        settle(plan, completion);
+    }
+}
+
+machine settle(builder: @mutable BuildPlan, completion: OutputCompletion) {
+    transition completion {
+        OutputCompletion::Sealed { receipt } -> sealed(builder),
+        OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
+    }
+    machine sealed(builder: @mutable BuildPlan) {}
+    machine failed(builder: @mutable BuildPlan, obligation: RequiredOutput) {
+        BuildOutput::fail(@mutable builder.output, obligation, "generated source did not seal");
+    }
+}
