@@ -2601,16 +2601,10 @@ fn projected(tables: &MachineTables, root: PlaceId, fields: &[u64]) -> ExactPlac
 /// Every write to `place`, as its content and the operation it follows.
 fn written(tables: &MachineTables, place: ExactPlaceId) -> Vec<(Content, ProgramPoint)> {
     tables
-        .places
-        .get(place)
-        .unwrap()
         .writes
-        .iter()
-        .map(|write| {
-            let row = tables.writes.get(*write).unwrap();
-            assert_eq!(row.place, place);
-            (row.content, row.at)
-        })
+        .values()
+        .filter(|write| write.place == place)
+        .map(|write| (write.content, write.at))
         .collect()
 }
 
