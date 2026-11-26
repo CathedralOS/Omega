@@ -112,8 +112,8 @@ pub(crate) fn admit_build_program(
                 "Build declaration-selection admission: {reason}"
             ))]
         })?;
-    let (providers, imports) = providers
-        .admit(&produced, &prepared, diagnostic_output_bytes)
+    let providers = providers
+        .admit(&produced, &prepared, diagnostic_output_bytes, &filesystem_scope)
         .map_err(|mut errors| {
             if let Some(span) = prepared.source().symbols.symbol_source_span(machine.symbol) {
                 for error in &mut errors {
@@ -130,7 +130,7 @@ pub(crate) fn admit_build_program(
         programs,
         (&machine.name, entry_span),
         &filesystem_scope,
-        &imports,
+        &providers.imports,
     )?;
     Ok(AdmittedBuildProgram {
         programs,

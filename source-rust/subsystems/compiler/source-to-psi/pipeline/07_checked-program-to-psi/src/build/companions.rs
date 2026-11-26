@@ -88,7 +88,10 @@ pub(crate) fn produce(
                 None
             };
             let launcher = is_installed_launcher(source, owner.symbol, requirement.name.as_str());
+            let reads_file = owner.is_boundary
+                && is_installed_filesystem_read(source, owner.symbol, requirement.name.as_str());
             if stream.is_none()
+                && !reads_file
                 && !launcher
                 && ![
                     SELECTION_PROTOCOL,
@@ -118,6 +121,11 @@ pub(crate) fn produce(
                 companions.requests.push(TerminalBuildRequestCall {
                     site: call.site,
                     action,
+                });
+            } else if reads_file {
+                companions.filesystem.push(TerminalBuildFilesystemCall {
+                    site: call.site,
+                    action: TerminalBuildFilesystemOperation::ReadAll,
                 });
             } else if launcher
                 || (protocol("BuildRequestOperations") && call.name == "forward_program")
@@ -323,6 +331,38 @@ fn sandbox_stream_operation(
             == std::path::Path::new("sandbox/streams.omg")
         && file.source.as_bytes() == bundled_declarations::BUILD_STREAMS)
         .then_some(Action::SandboxWrite)
+}
+
+/// The invocation may supply the installed system's public read operation.
+/// Establish its root from an already admitted core file in this compilation.
+fn is_installed_filesystem_read(source: &TypedTrees, owner: SymbolHandle, operation: &str) -> bool {
+    if source.symbols.name(owner) != "Filesystem" || operation != "read_all" {
+        return false;
+    }
+    let Some(file) = source
+        .symbols
+        .symbol_source_span(owner)
+        .and_then(|span| source.symbols.source_file(span))
+    else {
+        return false;
+    };
+    file.origin == source_admission::SourceOrigin::User
+        && file.package_identity.is_some()
+        && file.path.strip_prefix(&file.package_root).ok()
+            == Some(std::path::Path::new("filesystem.omg"))
+        && file.source.as_bytes() == bundled_declarations::SYSTEM_FILESYSTEM
+        && source.symbols.source_files().any(|core| {
+            core.origin == source_admission::SourceOrigin::Toolchain
+                && core.package_identity.is_none()
+                && core
+                    .package_root
+                    .file_name()
+                    .is_some_and(|name| name == "core")
+                && core
+                    .package_root
+                    .parent()
+                    .is_some_and(|root| root.join("system") == file.package_root)
+        })
 }
 
 /// Only the checked machine in the installed Build library may ask the host

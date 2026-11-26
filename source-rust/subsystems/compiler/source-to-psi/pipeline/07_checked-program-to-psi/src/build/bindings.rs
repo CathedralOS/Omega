@@ -250,6 +250,7 @@ pub(crate) mod build_filesystem {
         Complete,
         Fail,
         RequiredPath,
+        ReadAll,
     }
 
     #[derive(Debug, PartialEq, Eq, record_storage::Record)]

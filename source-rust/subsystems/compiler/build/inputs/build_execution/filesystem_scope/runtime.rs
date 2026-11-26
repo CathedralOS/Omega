@@ -343,6 +343,48 @@ impl BuildFilesystemRuntime {
         self.complete_logical_handle(ordinal, descriptor)
     }
 
+    /// Open, read and close the admitted captured file using ordinary observation
+    /// and handle accounting. Missing bytes never trigger a live-host lookup.
+    pub fn read_file(
+        &mut self,
+        path: &[u8],
+        buffer: &mut [u8],
+        count: u64,
+    ) -> Result<Result<u64, std::io::ErrorKind>, String> {
+        const ROOT: FilesystemGrantRootIdentity = BUILD_SOURCE_ROOT_IDENTITY;
+        use std::io::ErrorKind;
+        self.snapshot(ROOT)?;
+        if count > buffer.len() as u64
+            || !filesystem_authority::source_snapshot_path_is_canonical(path, false)
+        {
+            return Ok(Err(ErrorKind::InvalidInput));
+        }
+        let descriptor = self.open(ROOT, path, 0)?;
+        if descriptor < 0 {
+            let attempt = self
+                .effects
+                .attempts
+                .last()
+                .ok_or("missing snapshot open observation")?;
+            let kind = match attempt.post_error {
+                2 => ErrorKind::NotFound,
+                20 | 22 => ErrorKind::InvalidInput,
+                21 => ErrorKind::IsADirectory,
+                40 => ErrorKind::PermissionDenied,
+                value => return Err(format!("unexpected snapshot open error {value}")),
+            };
+            return Ok(Err(kind));
+        }
+        let read = self.read(ROOT, descriptor, buffer, count);
+        let closed = self.close(ROOT, descriptor)?;
+        if closed != 0 {
+            return Err("could not close an admitted snapshot file".into());
+        }
+        Ok(Ok(
+            u64::try_from(read?).map_err(|_| "could not read an admitted snapshot file")?
+        ))
+    }
+
     pub fn read(
         &mut self,
         root: FilesystemGrantRootIdentity,
@@ -784,14 +826,6 @@ mod tests {
     };
 
     fn scope(root: &std::path::Path, name: &str) -> BuildMachineFilesystemScope {
-        let source_root = root.join("source");
-        std::fs::create_dir_all(&source_root).unwrap();
-        let sponsor = filesystem_authority::FilesystemSponsor::create_private(
-            root.join(name),
-            filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
-        )
-        .unwrap();
-        let output = sponsor.session_root().unwrap().join("output");
         let metadata = CanonicalFilesystemMetadataIndex::version_1(
             [42; 32],
             [
@@ -826,6 +860,22 @@ mod tests {
             ],
         )
         .unwrap();
+        scope_with_input(root, name, input)
+    }
+
+    fn scope_with_input(
+        root: &std::path::Path,
+        name: &str,
+        input: CapturedBuildSourceInput,
+    ) -> BuildMachineFilesystemScope {
+        let source_root = root.join("source");
+        std::fs::create_dir_all(&source_root).unwrap();
+        let sponsor = filesystem_authority::FilesystemSponsor::create_private(
+            root.join(name),
+            filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
+        )
+        .unwrap();
+        let output = sponsor.session_root().unwrap().join("output");
         let mut scope = BuildMachineFilesystemScope::for_root(
             &source_root.join("main.omg"),
             output,
@@ -884,6 +934,51 @@ mod tests {
         let input = capture(&[name]);
         assert_eq!(input.lookup(name), Ok(SourceSnapshotEntry::Directory));
         scope(&input).with_captured_source_input(input).unwrap();
+    }
+
+    #[test]
+    fn read_all_observes_captured_bytes_and_leaves_the_remaining_buffer_alone() {
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "captured-read-all",
+            false,
+        )
+        .unwrap();
+        let source = temp.path().join("source");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::write(source.join("asset"), b"hello").unwrap();
+        let captured = source_acquisition::local::operations::capture_local_source_input(
+            &source,
+            source_acquisition::LocalSourceLimits::default(),
+        )
+        .unwrap();
+        let input = crate::source::source_snapshot::retained_source_input(captured.tree()).unwrap();
+        let scope = scope_with_input(temp.path(), "session", input);
+        std::fs::write(source.join("asset"), b"later").unwrap();
+        std::fs::write(source.join("sibling"), b"unadmitted").unwrap();
+        let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
+        let mut buffer = [0xff; 8];
+
+        assert_eq!(runtime.read_file(b"asset", &mut buffer, 8).unwrap(), Ok(5));
+        assert_eq!(&buffer, b"hello\xff\xff\xff");
+        for (path, count, expected) in [
+            (b"sibling".as_slice(), 8, std::io::ErrorKind::NotFound),
+            (b"../asset", 8, std::io::ErrorKind::InvalidInput),
+            (b"asset", 9, std::io::ErrorKind::InvalidInput),
+        ] {
+            assert_eq!(
+                runtime.read_file(path, &mut buffer, count).unwrap(),
+                Err(expected)
+            );
+            assert_eq!(&buffer, b"hello\xff\xff\xff");
+        }
+        assert_eq!(runtime.read_file(b"asset", &mut buffer, 0).unwrap(), Ok(0));
+        let effects = runtime.finish().unwrap();
+        assert!(
+            effects
+                .attempts
+                .iter()
+                .all(|attempt| attempt.provider == FilesystemObservationProvider::Captured)
+        );
     }
 
     #[test]

@@ -419,6 +419,29 @@ pub(crate) mod boundary_predicates {
                         self.read(*root, &selected, *scalar_type)?
                     }
                 }
+                ScalarTerm::ByteSequencePredicate { predicate, root, path } => {
+                    let Some(position) = self.observed_argument(*root)? else {
+                        return Ok(());
+                    };
+                    let parameter = &self.boundary.structural_parameters[position];
+                    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
+                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "boundary byte predicate cannot read a write-only argument",
+                        ));
+                    }
+                    let mut source = self.arguments.get(position).ok_or(malformed())?.clone();
+                    source.path.extend(
+                        terminal_semantics::canonical_structural_storage_path(
+                            self.execution.program.structural_types().values(),
+                            parameter.structural_type,
+                            path,
+                        )
+                        .ok_or(malformed())?,
+                    );
+                    source.access = terminal_psi::StructuralAccess::SharedBorrow;
+                    let bytes = self.execution.observed_byte_sequence(&source)?;
+                    Some(TerminalScalarValue::Boolean(predicate.holds_for(bytes.bytes())))
+                }
                 ScalarTerm::ViewExtent {
                     root,
                     path,
@@ -3138,32 +3161,10 @@ pub(crate) mod results {
                     .structural_types()
                     .get(&result.structural_type)
                     .is_some_and(|declaration| {
-                        let plain_fields =
-                            |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-                                fields.iter().all(|field| {
-                                    !field.relevance.is_erased()
-                                        && crate::boundary::values::AggregatePlan::is_plain_leaf(
-                                            &field.field_type,
-                                        )
-                                })
-                            };
-                        match &declaration.shape {
-                            StructuralTypeShape::Record { .. }
-                            | StructuralTypeShape::FixedArray { .. }
-                            | StructuralTypeShape::PrimitiveScalar(_)
-                            | StructuralTypeShape::ByteSequence(_)
-                            | StructuralTypeShape::ElementView { .. } => {
-                                crate::boundary::values::AggregatePlan::new(
-                                    declaration,
-                                    |identity| self.structural_types().get(&identity),
-                                )
-                                .is_ok()
-                            }
-                            StructuralTypeShape::Sum { cases } => {
-                                cases.iter().all(|case| plain_fields(&case.fields))
-                            }
-                            _ => false,
-                        }
+                        crate::boundary::values::AggregatePlan::supports_host_result(
+                            declaration,
+                            |identity| self.structural_types().get(&identity),
+                        )
                     })
         }
 

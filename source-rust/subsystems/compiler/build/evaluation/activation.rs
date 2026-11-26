@@ -336,6 +336,7 @@ impl TerminalBuildHost {
             &produced,
             &original,
             &output.value,
+            &providers.imports,
             account,
             filesystem_scope,
             &machine.name,
