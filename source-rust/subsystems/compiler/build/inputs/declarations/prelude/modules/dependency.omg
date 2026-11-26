@@ -11,11 +11,11 @@ public machine input(builder: @Build, alias: @[u8]) -> PackageBinding reaches Bu
     BuildRequestOperations::input_binding(builder, alias)
 }
 
-public machine add(builder: @Build, binding: PackageBinding) -> DependencyRegistration reaches BuildRequestOperations {
+public machine add(builder: @mutable Build, binding: PackageBinding) -> DependencyRegistration reaches BuildRequestOperations {
     BuildRequestOperations::add_binding(builder, binding, PackageReach {})
 }
 
-public machine add(builder: @Build, binding: PackageBinding, max_reach: @[BoundaryServiceRef]) -> DependencyRegistration reaches BuildRequestOperations {
+public machine add(builder: @mutable Build, binding: PackageBinding, max_reach: @[BoundaryServiceRef]) -> DependencyRegistration reaches BuildRequestOperations {
     BuildRequestOperations::add_binding(builder, binding, dependency::ceiling(builder, max_reach))
 }
 
@@ -23,7 +23,7 @@ public machine add(builder: @mutable Build, description: DependencyDescription) 
     Build::dependency(builder, description)
 }
 
-public machine add(builder: @Build, description: DependencyDescription, max_reach: @[BoundaryServiceRef]) -> DependencyRegistration reaches BuildRequestOperations {
+public machine add(builder: @mutable Build, description: DependencyDescription, max_reach: @[BoundaryServiceRef]) -> DependencyRegistration reaches BuildRequestOperations {
     Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source, dependency::ceiling(builder, max_reach))
 }
 
