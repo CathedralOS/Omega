@@ -626,6 +626,28 @@ impl Lowering<'_> {
                 if matches!(left_expression.result, Some(ValueType::Record(..))) {
                     return self.structural_equal(left_expression, right, source);
                 }
+                // A `true ->` arm of a transition on a Boolean reaches here as
+                // `subject == true`, which is the subject itself. Branching on
+                // the subject lets native selection fuse its comparison into
+                // the branch instead of materializing and re-testing it.
+                if let ExpressionKind::Strict {
+                    operation: Strict::Equal,
+                    policy: None,
+                    ..
+                } = &expression.kind
+                    && matches!(right.kind, ExpressionKind::Boolean(true))
+                    && matches!(
+                        left_expression.result,
+                        Some(ValueType::Scalar(ScalarType::Boolean, _))
+                    )
+                    && matches!(
+                        expression.result,
+                        Some(ValueType::Scalar(ScalarType::Boolean, _))
+                    )
+                {
+                    let subject = continuing!(self.scalar(left_expression));
+                    return Ok(Reached::Value(Value::Scalar(subject)));
+                }
                 let left = continuing!(self.scalar(left_expression));
                 let right = continuing!(self.scalar(right));
                 self.strict_expression(expression, left, right)
