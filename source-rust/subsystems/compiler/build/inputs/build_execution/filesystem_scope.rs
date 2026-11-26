@@ -430,6 +430,10 @@ impl BuildMachineFilesystemScope {
         Ok(())
     }
 
+    pub fn has_captured_files(&self) -> bool {
+        self.captured_source_input.is_some()
+    }
+
     pub fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
         self.captured_source_input.as_ref().map(CapturedBuildSourceInput::inventory)
     }
