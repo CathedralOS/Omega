@@ -1,15 +1,15 @@
 //! Byte views passed across transitions keep their values natively.
 //!
-//! Native selection copies a view descriptor straight into the next state's
-//! parameter when no binding of the edge reads a slot another binding writes.
+//! Native selection leaves a view descriptor that a state passes back to its
+//! own parameter in place, with no copy on the transition.
 
-#[path = "support/build_fixture.rs"]
-mod build_fixture;
+#[path = "support/program.rs"]
+mod program;
 mod support;
 
 #[test]
 fn unchanged_views_cross_transitions_on_both_engines() {
-    build_fixture::assert_silent_return(
+    program::assert_fixture_silent_return(
         &support::repository_root()
             .join("source-rust/application/tests/fixtures/views/run/view_transition_copies"),
     );
