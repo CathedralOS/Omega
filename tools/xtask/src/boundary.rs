@@ -191,12 +191,13 @@ pub fn forbidden_rules() -> Vec<Rule> {
         "portable provider selection reads the artifact and receiving installation",
     ));
     // Only the source driver runs the full numbered source pipeline. The text reader
-    // preserves authored spelling and trivia. The other readers take stage 07 records.
+    // owns single-file syntax for the parse command and package edits. The other readers take stage 07 records.
     rules.push(Rule {
         except_package: Some(SOURCE_DRIVER),
         except_owners: linear_pipeline::PSI_STAGES.to_vec(),
         allowed: [
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
+            (CLI_APPLICATION, linear_pipeline::TEXT_READER),
             ("source-rust/subsystems/compiler/build/evaluation/result", linear_pipeline::PSI_STAGES[7]),
             ("source-rust/subsystems/compiler/source-to-psi/representations/evaluation-receipts", linear_pipeline::PSI_STAGES[7]),
         ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
@@ -1385,6 +1386,14 @@ mod tests {
                     ],
                 ),
                 pkg(
+                    "omega",
+                    CLI_APPLICATION,
+                    &[
+                        ("parse-file", linear_pipeline::TEXT_READER, None),
+                        ("run-parser", stages[1], None),
+                    ],
+                ),
+                pkg(
                     "neighbor",
                     "source-rust/subsystems/package-manager/helper",
                     &[("read-text", linear_pipeline::TEXT_READER, Some("build"))],
@@ -1406,7 +1415,8 @@ mod tests {
             .filter(|rule| rule.reason.starts_with("source stages are consumed"))
             .collect();
         let violations = forbidden_dependency_violations(&metadata, &rules).unwrap();
-        assert_eq!(violations.len(), 3, "{violations:?}");
+        assert_eq!(violations.len(), 4, "{violations:?}");
+        assert!(violations.iter().any(|error| error.contains("omega -> 01_tokens-to-syntax-trees")));
         assert!(
             violations
                 .iter()
