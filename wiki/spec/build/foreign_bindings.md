@@ -382,8 +382,8 @@ an opaque provider is an unsound admitted claim.
 
 Execution placement is ordinary provider/executor selection, not a foreign-call
 disposition keyword. A dedicated pinned UI executor may perform a blocking
-native call; a blocking-executor package may move custody through bounded queues
-and completion claims. A detached in-process call retains its worker, storage,
+native call. A worker pool can take ownership of queued work and return a
+completion claim to the caller. A detached in-process call retains its worker, storage,
 and provider era until native return. Safely bounded recovery from a genuine hang
 requires process isolation; an in-process worker cannot simply be killed.
 

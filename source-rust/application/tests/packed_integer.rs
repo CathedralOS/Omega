@@ -12,12 +12,12 @@ fn project_source(source: &str) -> TemporaryDirectory {
     fs::write(scratch.path().join("main.omg"), source).unwrap();
     let build = fs::read_to_string(fixture.join("build.omg")).unwrap();
     let library = root
-        .join("source/library/simd")
+        .join("source/library/system")
         .to_string_lossy()
         .replace('\\', "/");
     fs::write(
         scratch.path().join("build.omg"),
-        build.replace("../../../../../../../source/library/simd", &library),
+        build.replace("../../../../../../../source/library/system", &library),
     )
     .unwrap();
     scratch
@@ -47,8 +47,8 @@ fn dependent_additions_wrap_each_lane() {
 #[test]
 fn u8x16_wrapping_addition_matches_psi_and_native() {
     let source = r#"
-use {simd}/simd.omg as simd;
-use {simd}/u8x16.omg as u8x16;
+use {system}/simd/simd.omg as simd;
+use {system}/simd/u8x16.omg as u8x16;
 
 public machine main() crashes Trap {
     let left: [u8; 16] = [255u8, 200u8, 0u8, 127u8, 128u8, 10u8, 250u8, 1u8, 99u8, 254u8, 42u8, 16u8, 240u8, 3u8, 120u8, 200u8];
@@ -75,8 +75,8 @@ public machine main() crashes Trap {
 #[test]
 fn i16x8_abs_min_cmpgt_and_bitops_match_psi_and_native() {
     let source = r#"
-use {simd}/simd.omg as simd;
-use {simd}/i16x8.omg as i16x8;
+use {system}/simd/simd.omg as simd;
+use {system}/simd/i16x8.omg as i16x8;
 
 public machine main() crashes Trap {
     let a_arr: [i16; 8] = [-32768i16, -5i16, 0i16, 7i16, -1i16, 32767i16, -256i16, 255i16];

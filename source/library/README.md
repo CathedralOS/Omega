@@ -69,7 +69,9 @@ executes on each host.
 
 ## Fixed-width SIMD
 
-The `simd` package provides fixed-width lane values and a four-by-four transpose.
+The `system` package provides fixed-width lane values under
+`{system}/simd/simd.omg` and a four-by-four transpose under
+`{system}/simd/transpose.omg`.
 Its loads and stores take borrows of fixed arrays. The element type and count
 determine exactly how much memory each operation accesses.
 [Fixed-width SIMD values](../../wiki/spec/language/simd.md)
