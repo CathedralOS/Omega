@@ -6455,21 +6455,6 @@ pub enum FunctionFragmentObjectArtifactError {
         operation: semantic_vocabulary::OperationId,
         detail: String,
     },
-    InstallationInterval {
-        machine: semantic_vocabulary::MachineId,
-        operation: semantic_vocabulary::OperationId,
-        detail: String,
-    },
-    InstallationGuard {
-        machine: semantic_vocabulary::MachineId,
-        operation: semantic_vocabulary::OperationId,
-        detail: String,
-    },
-    InstallationPairCapture {
-        machine: semantic_vocabulary::MachineId,
-        operation: semantic_vocabulary::OperationId,
-        detail: String,
-    },
     StructuralSourceHome {
         machine: semantic_vocabulary::MachineId,
         place: semantic_vocabulary::PlaceId,
@@ -6546,30 +6531,6 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
                 formatter,
                 "installation refusal result is not preserved at {machine:?}/{operation:?}: {detail}",
             ),
-            Self::InstallationInterval {
-                machine,
-                operation,
-                detail,
-            } => write!(
-                formatter,
-                "another source operation interrupts installation validation or publication at {machine:?}/{operation:?}: {detail}",
-            ),
-            Self::InstallationGuard {
-                machine,
-                operation,
-                detail,
-            } => write!(
-                formatter,
-                "installation is missing a dominating refusal guard at {machine:?}/{operation:?}: {detail}",
-            ),
-            Self::InstallationPairCapture {
-                machine,
-                operation,
-                detail,
-            } => write!(
-                formatter,
-                "installation stack-pair capture at {machine:?}/{operation:?}: {detail}",
-            ),
             Self::StructuralSourceHome {
                 machine,
                 place,
@@ -6641,33 +6602,6 @@ impl From<installation_admission::selected::Error> for FunctionFragmentObjectArt
         use installation_admission::selected::Error as Source;
         match error {
             Source::Mismatch(reason) => Self::Mismatch(reason),
-            Source::InstallationInterval {
-                machine,
-                operation,
-                detail,
-            } => Self::InstallationInterval {
-                machine,
-                operation,
-                detail,
-            },
-            Source::InstallationGuard {
-                machine,
-                operation,
-                detail,
-            } => Self::InstallationGuard {
-                machine,
-                operation,
-                detail,
-            },
-            Source::InstallationPairCapture {
-                machine,
-                operation,
-                detail,
-            } => Self::InstallationPairCapture {
-                machine,
-                operation,
-                detail,
-            },
         }
     }
 }

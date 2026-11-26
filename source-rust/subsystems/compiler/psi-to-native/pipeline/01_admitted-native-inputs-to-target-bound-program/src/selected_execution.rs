@@ -197,19 +197,6 @@ impl SelectedProviderResult {
             .map(target::TargetProfile::native_target)
     }
 
-    /// The evidence settled for this exact program and target. Grant checking reads it independently.
-    pub fn trust_evidence(&self) -> provider_correspondence::trust::SelectedTrustEvidence<'_> {
-        let realized = self.realization();
-        provider_correspondence::trust::SelectedTrustEvidence {
-            program: realized.program(),
-            target: realized.target(),
-            plans: realized.plans(),
-            leaves: realized.direct_boundary_leaves(),
-            bindings: realized.evaluated_native_bindings(),
-            identities: realized.evaluated_binding_identities(),
-        }
-    }
-
     pub fn plans(&self) -> &selected_provider_plans::SelectedProviderPlanFacts {
         self.realization.plans()
     }
