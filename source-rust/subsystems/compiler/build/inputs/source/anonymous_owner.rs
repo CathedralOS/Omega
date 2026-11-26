@@ -345,7 +345,7 @@ mod tests {
                 filesystem: Default::default(),
                 semantic_dependencies: vec![[13; 32]],
                 sources: Arc::default(),
-                toolchain_contract_custody: Default::default(),
+                installed_roots: Default::default(),
             }
             .complete_product([])
             .unwrap()
