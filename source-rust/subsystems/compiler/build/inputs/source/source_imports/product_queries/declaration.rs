@@ -23,7 +23,7 @@ impl ProductQueryInputs {
             && !alias.is_empty()
             && path.split("::").all(|member| !member.is_empty())
         {
-            self.declaration = Some(DeclarationLookup {
+            self.declarations.push(DeclarationLookup {
                 author: author.clone(),
                 span,
                 alias: alias.to_owned(),
@@ -37,36 +37,58 @@ impl ProductQueryInputs {
         &self,
         storage: &mut SourceStorage,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        let Some(lookup) = &self.declaration else {
-            return Ok(Vec::new());
-        };
+        let mut paths = Vec::new();
+        for lookup in &self.declarations {
+            paths.extend(lookup.sources(self, storage)?);
+        }
+        paths.sort();
+        paths.dedup();
+        Ok(paths)
+    }
+
+    pub fn with_successor_entry(mut self, entry: build_declarations::BuildEntryPath) -> Self {
+        self.successor = Some(entry);
+        self
+    }
+
+    pub(crate) fn successor_entry(&self) -> Option<&build_declarations::BuildEntryPath> {
+        self.successor.as_ref()
+    }
+}
+
+impl DeclarationLookup {
+    fn sources(
+        &self,
+        inputs: &ProductQueryInputs,
+        storage: &mut SourceStorage,
+    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let author = storage
             .sources
-            .rejoined_source_id(&lookup.author)
+            .rejoined_source_id(&self.author)
             .ok_or_else(|| {
                 vec![Diagnostic::error(
                     "Product query author lost its admitted source correspondence",
                 )]
             })?;
-        if let Some(alias) = lookup
+        if let Some(alias) = self
             .alias
             .strip_prefix('|')
             .and_then(|name| name.strip_suffix('|'))
         {
             return super::super::files::product_file_sources(
                 storage,
-                SourceSpan::new(author, lookup.span),
+                SourceSpan::new(author, self.span),
                 alias,
-                self.graphs().chain(self.named_source.iter()),
+                inputs.graphs().chain(inputs.named_source.iter()),
             );
         }
         let Some(package) = storage
             .sources
-            .product_dependency_at(SourceSpan::new(author, lookup.span), &lookup.alias)
+            .product_dependency_at(SourceSpan::new(author, self.span), &self.alias)
         else {
             return Ok(Vec::new());
         };
-        let root = self
+        let root = inputs
             .graphs()
             .find_map(|graph| graph.package_root(package))
             .ok_or_else(|| {
@@ -82,6 +104,6 @@ impl ProductQueryInputs {
             .collect();
         storage
             .package_roots
-            .select_declaring(root, &lookup.members, &storage.filesystem, excluded)
+            .select_declaring(root, &self.members, &storage.filesystem, excluded)
     }
 }

@@ -163,7 +163,7 @@ impl PreparedBuildExecution {
             .validate_successor_libraries(libraries)
             .map_err(|reason| self.refuse(&reason))?;
         if !completed.root_bindings.is_empty()
-            || !completed.product_selections.is_empty()
+            || completed.product_selections.iter().any(|event| event.request.operation != source_compiler::representations::declaration_selection::BuildOperation::ProviderSelection || event.test_group.is_some())
             || !completed.native_bindings.is_empty()
             || !completed.exclusions.is_empty()
             || completed.settings != Default::default()
