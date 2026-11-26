@@ -1508,6 +1508,7 @@ pub(crate) mod values {
             Scalar(StructuralFieldType),
             Record(Vec<(&'declaration StructuralFieldDeclaration, Element)>),
             Array { element: usize, length: u64 },
+            Sum,
         }
 
         struct Node<'declaration> {
@@ -1548,6 +1549,23 @@ pub(crate) mod values {
                 declaration: &'declaration StructuralTypeDeclaration,
                 lookup: impl Fn(StructuralTypeId) -> Option<&'declaration StructuralTypeDeclaration>,
             ) -> Result<Self, TerminalInterpretError> {
+                Self::build(declaration, lookup, false)
+            }
+
+            /// Admission checks all possible cases. Their selected leaves are validated
+            /// and written together when the concrete result arrives.
+            pub(crate) fn supports_host_result(
+                declaration: &'declaration StructuralTypeDeclaration,
+                lookup: impl Fn(StructuralTypeId) -> Option<&'declaration StructuralTypeDeclaration>,
+            ) -> bool {
+                Self::build(declaration, lookup, true).is_ok()
+            }
+
+            fn build(
+                declaration: &'declaration StructuralTypeDeclaration,
+                lookup: impl Fn(StructuralTypeId) -> Option<&'declaration StructuralTypeDeclaration>,
+                allow_cases: bool,
+            ) -> Result<Self, TerminalInterpretError> {
                 let mut nodes: Vec<Node<'declaration>> = Vec::new();
                 let mut active = Vec::new();
                 let mut pending = vec![(declaration, false)];
@@ -1570,6 +1588,16 @@ pub(crate) mod values {
                             pending.push((declaration, false));
                             Ok::<_, TerminalInterpretError>(())
                         };
+                        let mut add_fields = |fields: &[StructuralFieldDeclaration]| {
+                            for field in fields.iter().rev().filter(|field| !field.relevance.is_erased()) {
+                                if let StructuralFieldType::Structural(identity) = field.field_type {
+                                    child(identity)?;
+                                } else if !Self::is_plain_leaf(&field.field_type) {
+                                    return Err(malformed());
+                                }
+                            }
+                            Ok(())
+                        };
                         match &declaration.shape {
                             StructuralTypeShape::PrimitiveScalar(_) => {}
                             StructuralTypeShape::ByteSequence(carrier)
@@ -1586,18 +1614,14 @@ pub(crate) mod values {
                                 ) {
                                     return Err(malformed());
                                 }
-                                for field in fields
-                                    .iter()
-                                    .rev()
-                                    .filter(|field| !field.relevance.is_erased())
-                                {
-                                    if let StructuralFieldType::Structural(identity) =
-                                        field.field_type
-                                    {
-                                        child(identity)?;
-                                    } else if !Self::is_plain_leaf(&field.field_type) {
+                                add_fields(fields)?;
+                            }
+                            StructuralTypeShape::Sum { cases } if allow_cases => {
+                                for case in cases {
+                                    if case.fields.iter().any(|field| field.relevance.is_erased()) {
                                         return Err(malformed());
                                     }
+                                    add_fields(&case.fields)?;
                                 }
                             }
                             StructuralTypeShape::FixedArray { element, .. } => child(*element)?,
@@ -1663,6 +1687,28 @@ pub(crate) mod values {
                                 || members.iter().any(|(_, element)| matches!(element, Element::Structural(index) if nodes[*index].requires_erased_establishment));
                             (Shape::Record(members), count, requires_erased)
                         }
+                        StructuralTypeShape::Sum { cases } if allow_cases => {
+                            // A concrete result carries one tag and the fields of its active case.
+                            // Bound every case here; materialization checks its exact active leaves.
+                            let mut maximum = 1u64;
+                            let mut requires_erased = false;
+                            for case in cases {
+                                let mut count = 1u64;
+                                for field in &case.fields {
+                                    let leaves = match field.field_type {
+                                        StructuralFieldType::Structural(id) => {
+                                            let node = &nodes[child(id)?];
+                                            requires_erased |= node.requires_erased_establishment;
+                                            node.count.ok_or(malformed())?
+                                        }
+                                        _ => 1,
+                                    };
+                                    count = count.checked_add(leaves).ok_or(malformed())?;
+                                }
+                                maximum = maximum.max(count);
+                            }
+                            (Shape::Sum, Some(maximum), requires_erased)
+                        }
                         StructuralTypeShape::FixedArray {
                             element,
                             length: terminal_psi::ArrayExtent::Literal(length),
@@ -1717,6 +1763,7 @@ pub(crate) mod values {
                             || field.field_type.scalar_type().is_some()
                     }),
                     Shape::Array { .. } => true,
+                    Shape::Sum => false,
                 })
             }
 
@@ -1747,6 +1794,7 @@ pub(crate) mod values {
                                         .rev()
                                         .map(|(field, element)| Visit::Field(field, element)),
                                 ),
+                                Shape::Sum => return Err(malformed()),
                                 Shape::Array { element, length } => pending.push(Visit::Element {
                                     node: *element,
                                     index: 0,
@@ -2134,6 +2182,37 @@ pub(crate) mod values {
                 fn validate(&self) -> Result<(), TerminalInterpretError> {
                     self.payload
                         .validate_scalar_against(&self.declarations[0], |value| self.lookup(value))
+                }
+            }
+
+            #[test]
+            fn host_return_checks_every_nested_case_before_entry() {
+                let sum = |value, fields| {
+                    declaration(
+                        value,
+                        StructuralTypeShape::Sum {
+                            cases: vec![terminal_psi::StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
+                                id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                                identity: TerminalIdentityIndex(0),
+                                fields,
+                            }],
+                        },
+                    )
+                };
+                let payload = |ty| vec![field(1, StructuralFieldType::Structural(identity(ty)))];
+                let nested = sum(2, Vec::new());
+                let result = sum(1, payload(2));
+                assert!(AggregatePlan::supports_host_result(&result, |ty| (ty
+                    == nested.id)
+                    .then_some(&nested)));
+                for unsupported in [
+                    sum(2, payload(2)),
+                    declaration(2, StructuralTypeShape::Opaque),
+                ] {
+                    assert!(!AggregatePlan::supports_host_result(&result, |ty| (ty
+                        == unsupported.id)
+                        .then_some(&unsupported)));
                 }
             }
 

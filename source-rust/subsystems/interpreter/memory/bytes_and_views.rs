@@ -1788,40 +1788,33 @@ pub(crate) mod byte_sequences {
                 Ok(Some(ByteSequenceView::new(bytes)))
             }
 
+            /// Read the exact bytes a shared structural argument presents.
+            pub(crate) fn observed_byte_sequence(
+                &self,
+                source: &terminal_psi::StructuralArgument,
+            ) -> Result<ByteSequenceView, TerminalInterpretError> {
+                if source.access != StructuralAccess::SharedBorrow {
+                    return Err(malformed());
+                }
+                if let Some(bytes) = self.fixed_byte_array_observation(source)? {
+                    return Ok(bytes);
+                }
+                let (selected, binding) = self.readable_byte_descriptor(source)?;
+                self.byte_descriptor_length(&binding, &selected)?;
+                self.reborrow_byte_sequence_binding(
+                    &binding,
+                    &selected,
+                    StructuralAccess::SharedBorrow,
+                )?
+                .snapshot(self)
+            }
+
             pub(crate) fn byte_sequence_operand_view(
                 &self,
                 operand: &ByteSequenceOperand,
             ) -> Result<ByteSequenceView, TerminalInterpretError> {
                 let bytes = match operand {
-                    ByteSequenceOperand::Whole { source, length } => {
-                        if source.access != StructuralAccess::SharedBorrow {
-                            return Err(malformed());
-                        }
-                        if let Some(bytes) = self.fixed_byte_array_observation(source)? {
-                            let expected = IntegerType::new(IntegerSign::Unsigned, 64)
-                                .map_err(|_| malformed())?;
-                            if !matches!(self.values.get(length), Some(TerminalScalarValue::Integer { scalar_type, value: IntegerValue::Unsigned(count) })
-                        if *scalar_type == expected && *count == bytes.len() as u128)
-                            {
-                                return Err(malformed());
-                            }
-                            return Ok(bytes);
-                        }
-                        self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
-                        let selected = self.resolve_live_projection(
-                            source.place,
-                            &source.path,
-                            StructuralAccess::SharedBorrow,
-                        )?;
-                        let binding = self.byte_descriptor_binding(source, &selected)?;
-                        self.byte_descriptor_length(&binding, &selected)?;
-                        self.reborrow_byte_sequence_binding(
-                            &binding,
-                            &selected,
-                            StructuralAccess::SharedBorrow,
-                        )?
-                        .snapshot(self)?
-                    }
+                    ByteSequenceOperand::Whole { source, .. } => self.observed_byte_sequence(source)?,
                     ByteSequenceOperand::Field { source, field, .. } => {
                         let (key, capacity) =
                             self.readable_byte_field(source.place, &source.path, *field)?;

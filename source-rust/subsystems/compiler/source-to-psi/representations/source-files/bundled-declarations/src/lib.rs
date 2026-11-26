@@ -29,3 +29,9 @@ pub const BUILD_PROGRAM: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../../../../source/library/build/program.omg"
 ));
+
+/// A Build may bind this requirement only in the installed system package.
+pub const SYSTEM_FILESYSTEM: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../../../source/library/system/filesystem.omg"
+));

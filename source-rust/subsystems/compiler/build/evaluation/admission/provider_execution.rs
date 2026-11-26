@@ -13,6 +13,7 @@ pub(crate) struct BuildProviderScope {
 }
 
 pub(crate) struct BuildProviderInstallation {
+    pub(crate) imports: Vec<semantic_vocabulary::BoundaryMachineId>,
     pub(crate) diagnostic_output_bytes: Option<u64>,
     pub(crate) supplies: terminal_interpreter::TerminalRuntimeSupplies,
     pub(crate) awaited: Vec<semantic_vocabulary::BoundaryMachineId>,
@@ -69,13 +70,8 @@ impl BuildProviderScope {
         &self,
         program: &source_compiler::publication::ProducedTerminalProgram,
         diagnostic_output_bytes: Option<u64>,
-    ) -> Result<
-        (
-            BuildProviderInstallation,
-            Vec<semantic_vocabulary::BoundaryMachineId>,
-        ),
-        Vec<Diagnostic>,
-    > {
+        filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
+    ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
         let artifact = program.view();
         let module = artifact.module();
         let entry = module
@@ -138,15 +134,6 @@ impl BuildProviderScope {
             .build_filesystem()
             .calls_for(artifact)
             .ok_or_else(|| failure("Build filesystem calls lost their artifact custody"))?;
-        let mut host_imports = requests
-            .iter()
-            .map(|call| call.site.boundary)
-            .chain(bindings.iter().map(|call| call.site.boundary))
-            .chain(queries.iter().map(|call| call.site.boundary))
-            .chain(filesystem.iter().map(|call| call.site.boundary))
-            .collect::<Vec<_>>();
-        host_imports.sort_unstable();
-        host_imports.dedup();
         let mut awaited = Vec::new();
         for call in bindings.iter() {
             if let source_compiler::representations::declaration_selection::BuildSelectionRequest::ProviderReadiness(request) = &call.request {
@@ -155,6 +142,25 @@ impl BuildProviderScope {
         }
         awaited.sort_unstable();
         awaited.dedup();
+
+        let mut host_imports = requests
+            .iter()
+            .map(|call| call.site.boundary)
+            .chain(bindings.iter().map(|call| call.site.boundary))
+            .chain(queries.iter().map(|call| call.site.boundary))
+            .chain(filesystem.iter().filter_map(|call| {
+                let boundary = call.site.boundary;
+                let optional = call.action
+                    == source_compiler::publication::TerminalBuildFilesystemOperation::ReadAll;
+                let selected = implementations
+                    .iter()
+                    .any(|provider| provider.boundary == boundary)
+                    || awaited.binary_search(&boundary).is_ok();
+                (!optional || !selected).then_some(boundary)
+            }))
+            .collect::<Vec<_>>();
+        host_imports.sort_unstable();
+        host_imports.dedup();
 
         let program = terminal_interpreter::TerminalProgram::borrow(artifact);
         let mut supplies = program
@@ -196,6 +202,17 @@ impl BuildProviderScope {
                 "Build requires `{name}` before entry; the caller supplied no bounded StandardOutput diagnostic sink"
             )));
         }
+        if !filesystem_scope.has_captured_files()
+            && filesystem.iter().any(|call| {
+                call.action
+                    == source_compiler::publication::TerminalBuildFilesystemOperation::ReadAll
+                    && demand.imports.contains(&call.site.boundary)
+            })
+        {
+            return Err(failure(
+                "Build requires Filesystem::read_all before entry, but the caller supplied no captured filesystem",
+            ));
+        }
         let missing = demand
             .missing_providers
             .iter()
@@ -213,14 +230,12 @@ impl BuildProviderScope {
         if !errors.is_empty() {
             return Err(errors);
         }
-        Ok((
-            BuildProviderInstallation {
-                supplies,
-                awaited,
-                diagnostic_output_bytes,
-            },
-            demand.imports,
-        ))
+        Ok(BuildProviderInstallation {
+            imports: demand.imports,
+            supplies,
+            awaited,
+            diagnostic_output_bytes,
+        })
     }
 }
 
