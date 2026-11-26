@@ -11,7 +11,9 @@ fn invoke(files: &[(&str, &str)], arguments: &[&str]) -> (ExitStatus, String) {
         let path = project.path().join(name);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, source).unwrap();
-        command.args(["--build-input", name]);
+        if !arguments.contains(&"--build-input") {
+            command.args(["--build-input", name]);
+        }
     }
     let output = command
         .arg("build.omg")
@@ -193,7 +195,7 @@ machine select_workspace(plan: @mutable BuildPlan) {
             ("tools/build.omg", &tools),
             ("tools/main.omg", "public machine answer() -> u32 { 42u32 }"),
         ],
-        &["--check"],
+        &["--check", "--build-input", "build.omg", "--build-input", "tools"],
     );
     assert!(status.success(), "{report}");
 
