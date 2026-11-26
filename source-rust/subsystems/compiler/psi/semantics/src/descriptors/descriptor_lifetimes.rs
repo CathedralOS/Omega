@@ -519,7 +519,7 @@ fn location_live_positions(
 pub struct DescriptorLifetime {
     /// At this formation the previous dynamic occurrence, when present,
     /// supplies the new one. The external lender still owns the lineage.
-    pub reborrows_previous: bool,
+    pub(crate) recurring_authority: Option<Box<LocationsByPosition>>,
     pub live: BTreeSet<DescriptorPosition>,
     /// Future demand of each actual carrier spelling. A dead copy can
     /// be released without rewalking the graph from every possible cut.
@@ -529,6 +529,26 @@ pub struct DescriptorLifetime {
     /// Unlike `authorized`, absence of a common name at a join does not
     /// erase a surviving occurrence on one of its predecessors.
     pub surviving: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
+}
+
+impl DescriptorLifetime {
+    /// Every returning path lends the next view its last copy of the previous one.
+    pub fn reborrows_previous(&self) -> bool {
+        self.recurring_authority.is_some()
+    }
+
+    /// Permission on every path from this occurrence to the queried position.
+    /// Arrivals that precede its formation have a separate lender.
+    pub(crate) fn authorizes_after_formation(
+        &self,
+        at: DescriptorPosition,
+        name: &DescriptorLocation,
+    ) -> bool {
+        self.recurring_authority
+            .as_ref()
+            .and_then(|permissions| permissions.get(&at))
+            .is_some_and(|names| names.contains(name))
+    }
 }
 
 pub fn descriptor_entry_lifetime(
@@ -800,13 +820,18 @@ fn descriptor_lifetime_with_predecessors(
         cutoff,
         &needs_contents,
     );
-    let reborrows_previous = start == DescriptorStart::AfterDefinition
+    let recurring_authority = if start == DescriptorStart::AfterDefinition
         && demand.live.contains(&birth)
         && !demand.escaped
-        && ends_at_view_reborrow(steps, birth, descriptor, &demand, cutoff, &needs_contents);
+    {
+        final_view_reborrow(steps, birth, descriptor, &demand, cutoff, &needs_contents)
+            .map(Box::new)
+    } else {
+        None
+    };
     let mut surviving = BTreeMap::new();
     let authorized = if start == DescriptorStart::AfterDefinition
-        && !reborrows_previous
+        && recurring_authority.is_none()
         && !is_fresh_definition(steps, birth, descriptor, &demand.live)
     {
         BTreeMap::new()
@@ -825,7 +850,7 @@ fn descriptor_lifetime_with_predecessors(
         )
     };
     DescriptorLifetime {
-        reborrows_previous,
+        recurring_authority,
         live: demand.live,
         demanded: demand.names,
         authorized,
@@ -836,19 +861,19 @@ fn descriptor_lifetime_with_predecessors(
 /// A previous occurrence can hand its permission to the next only when
 /// the view being narrowed is its last demanded carrier at the formation.
 /// Check its continuation separately, without seeding the new result.
-fn ends_at_view_reborrow(
+fn final_view_reborrow(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
     result: &DescriptorLocation,
     demand: &DescriptorDemand,
     cutoff: Option<&DeadTailCutoff>,
     needs_contents: impl Fn(DescriptorPosition, &DescriptorLocation) -> bool,
-) -> bool {
+) -> Option<LocationsByPosition> {
     let Some(formation) = steps.get(&birth) else {
-        return false;
+        return None;
     };
     let [(source, child)] = formation.derivations.as_slice() else {
-        return false;
+        return None;
     };
     if !formation.reborrows_view
         || child != result
@@ -859,7 +884,7 @@ fn ends_at_view_reborrow(
             .get(&birth)
             .is_some_and(|names| names.len() == 1 && names.contains(source))
     {
-        return false;
+        return None;
     }
     if !location_live_positions(
         steps,
@@ -873,7 +898,7 @@ fn ends_at_view_reborrow(
     .live
     .is_empty()
     {
-        return false;
+        return None;
     }
 
     returns_with_previous_authority(steps, birth, source, result, cutoff)
@@ -888,7 +913,7 @@ fn returns_with_previous_authority(
     source: &DescriptorLocation,
     result: &DescriptorLocation,
     cutoff: Option<&DeadTailCutoff>,
-) -> bool {
+) -> Option<LocationsByPosition> {
     let mut returns = FlowPredecessors {
         predecessors: BTreeMap::new(),
     };
@@ -899,7 +924,7 @@ fn returns_with_previous_authority(
             continue;
         }
         let Some(step) = steps.get(&position) else {
-            return false;
+            return None;
         };
         for edge in &step.successors {
             returns
@@ -911,9 +936,9 @@ fn returns_with_previous_authority(
         }
     }
     let Some(arrivals) = returns.predecessors.get(&birth) else {
-        return false;
+        return None;
     };
-    let permissions = transported_locations_with_predecessors(
+    let mut permissions = transported_locations_with_predecessors(
         steps,
         Some(&returns),
         cutoff,
@@ -926,7 +951,7 @@ fn returns_with_previous_authority(
         None,
     );
     let empty = BTreeSet::new();
-    arrivals.iter().all(|&(from, edge)| {
+    let exact = arrivals.iter().all(|&(from, edge)| {
         let before = permissions.get(&from).unwrap_or(&empty);
         let mut after = steps[&from].transport_authority(before, false);
         if from == birth {
@@ -934,7 +959,12 @@ fn returns_with_previous_authority(
         }
         edge.transport_locations(&after, false, false)
             .contains(source)
-    })
+    });
+    if !exact {
+        return None;
+    }
+    permissions.insert(birth, BTreeSet::from([source.clone()]));
+    Some(permissions)
 }
 
 fn is_fresh_definition(
@@ -980,16 +1010,24 @@ pub struct DescriptorLoanChoice {
 }
 
 impl DescriptorLoanChoice {
+    pub fn includes_incoming(&self) -> bool {
+        self.nodes
+            .values()
+            .any(|node| matches!(node, LoanChoice::Incoming(_)))
+    }
+
     pub fn loans(&self) -> impl Iterator<Item = ObligationId> + '_ {
         self.nodes.values().filter_map(|node| match node {
             LoanChoice::Loan(parent) => Some(*parent),
-            LoanChoice::Arrivals(_) => None,
+            LoanChoice::Incoming(_) | LoanChoice::Arrivals(_) => None,
         })
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoanChoice {
+    /// Permission carried from an original incoming view on this arrival.
+    Incoming(DescriptorLocation),
     Loan(ObligationId),
     Arrivals(Vec<LoanChoiceArrival>),
 }
@@ -1007,7 +1045,14 @@ pub(crate) fn joined_loan_authority(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     location: LoanChoiceLocation,
     candidates: &[(ObligationId, &DescriptorLifetime)],
+    incoming: Option<(&DescriptorLocation, &DescriptorLifetime)>,
 ) -> Option<DescriptorLoanChoice> {
+    let sources = || {
+        candidates
+            .iter()
+            .map(|(id, life)| (LoanChoice::Loan(*id), *life))
+            .chain(incoming.map(|(input, life)| (LoanChoice::Incoming(input.clone()), life)))
+    };
     let mut predecessors =
         BTreeMap::<DescriptorPosition, Vec<(DescriptorPosition, &DescriptorFlowEdge)>>::new();
     for (position, step) in steps {
@@ -1037,7 +1082,7 @@ pub(crate) fn joined_loan_authority(
         }
 
         let (at, descriptor) = &requested;
-        let mut reaching = candidates.iter().filter(|(_, lifetime)| {
+        let mut reaching = sources().filter(|(_, lifetime)| {
             lifetime
                 .surviving
                 .get(at)
@@ -1051,14 +1096,13 @@ pub(crate) fn joined_loan_authority(
                 .get(at)
                 .is_some_and(|names| names.contains(descriptor))
         {
-            nodes.insert(requested, LoanChoice::Loan(*identity));
+            nodes.insert(requested, identity);
             continue;
         }
 
         let mut arrivals = Vec::new();
         for &(from, edge) in predecessors.get(at)? {
-            let names = candidates
-                .iter()
+            let names = sources()
                 .filter_map(|(_, lifetime)| lifetime.surviving.get(&from))
                 .flatten()
                 .collect::<BTreeSet<_>>();

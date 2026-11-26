@@ -1273,7 +1273,7 @@ impl<'a> Storage<'a> {
         } else {
             descriptor_location_lifetime(flow, at, &DescriptorLocation::whole(result.place))
         };
-        if lifetime.live.contains(&at) && !lifetime.reborrows_previous {
+        if lifetime.live.contains(&at) && !lifetime.reborrows_previous() {
             return Err(self.unsupported(
                 concerns,
                 "persistent loan crosses its own formation without a fresh occurrence",
@@ -1853,6 +1853,9 @@ impl<'a> Storage<'a> {
         let mut relevant = false;
         for identity in choice.loans() {
             let candidate = self.loan_parent(identity, formed, concerns)?;
+            if choice.includes_incoming() && candidate.lender != Lender::Incoming {
+                return Ok(false);
+            }
             if let (LoanRegion::Storage(candidate), LoanRegion::Storage(lender)) =
                 (&candidate.lineage, &loan.lineage)
                 && !overlap(candidate, lender)
@@ -2063,7 +2066,7 @@ impl<'a> Storage<'a> {
                     let mut parents = choice.loans().collect::<Vec<_>>();
                     parents.sort_unstable();
                     parents.dedup();
-                    self.check_selected_parents(loan, &parents, formed)?;
+                    self.check_selected_parents(loan, &parents, choice.includes_incoming(), formed)?;
                     selections.push((position, parents));
                     Lender::Selected
                 }
@@ -2127,12 +2130,19 @@ impl<'a> Storage<'a> {
         &self,
         child: &Formed,
         parents: &[ObligationId],
+        includes_incoming: bool,
         formed: &[Formed],
     ) -> Checked<()> {
         let concerns = Construct::Obligation(child.obligation);
         let mut owners = Vec::with_capacity(parents.len());
         for &identity in parents {
             let parent = self.loan_parent(identity, formed, concerns)?;
+            // A caller/local join is proved for the one recurring view whose
+            // initial lender is this input. Its descendants can only assume a
+            // relationship to that local parent while the occurrence exists.
+            if includes_incoming && parent.lender != Lender::Incoming {
+                return Err(self.unsupported(concerns, "a returning view has a distinct initial lender"));
+            }
             let compatible = match parent.access {
                 ReferenceAccess::Shared => child.access == ReferenceAccess::Shared,
                 ReferenceAccess::Mutable => true,

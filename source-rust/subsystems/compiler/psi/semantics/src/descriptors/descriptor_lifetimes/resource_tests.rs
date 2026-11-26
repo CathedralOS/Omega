@@ -70,6 +70,7 @@ fn every_edge_selects_its_actual_parent_even_with_the_same_target() {
             steps,
             start.clone(),
             &[(left, &left_life), (right, &right_life)],
+            None,
         )
     };
     let found = choice(&steps).unwrap();
@@ -89,8 +90,23 @@ fn every_edge_selects_its_actual_parent_even_with_the_same_target() {
     assert_eq!(found.nodes[&(from, root(1))], LoanChoice::Loan(left));
     assert_eq!(found.nodes[&(from, root(2))], LoanChoice::Loan(right));
 
+    let from_caller = |steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>| {
+        let incoming = descriptor_entry_lifetime(steps, from, &root(1));
+        let local = descriptor_entry_lifetime(steps, from, &root(2));
+        joined_loan_authority(
+            steps,
+            start.clone(),
+            &[(right, &local)],
+            Some((&root(1), &incoming)),
+        )
+    };
+    let mixed = from_caller(&steps).unwrap();
+    assert_eq!(mixed.nodes[&(from, root(1))], LoanChoice::Incoming(root(1)));
+    assert_eq!(mixed.nodes[&(from, root(2))], LoanChoice::Loan(right));
+
     steps.get_mut(&from).unwrap().successors[1].bindings.clear();
     assert!(choice(&steps).is_none());
+    assert!(from_caller(&steps).is_none());
 }
 
 #[test]
@@ -579,7 +595,9 @@ fn a_loop_can_hand_its_last_view_to_the_next_reborrow() {
     let lifetime = |steps: &_| descriptor_location_lifetime(steps, position(0), &result);
     let handed = lifetime(&steps);
     assert!(handed.live.contains(&position(0)));
-    assert!(handed.reborrows_previous);
+    assert!(handed.reborrows_previous());
+    assert!(handed.authorizes_after_formation(position(0), &source));
+    assert!(!handed.authorizes_after_formation(position(0), &result));
     assert!(handed.authorized[&position(1)].contains(&result));
 
     // The predecessor's source stays independently usable after the next
@@ -589,14 +607,14 @@ fn a_loop_can_hand_its_last_view_to_the_next_reborrow() {
         .unwrap()
         .inputs
         .push((Some(source.clone()), None));
-    assert!(!lifetime(&steps).reborrows_previous);
+    assert!(!lifetime(&steps).reborrows_previous());
     steps.get_mut(&position(1)).unwrap().inputs.pop();
 
     steps.get_mut(&position(1)).unwrap().may_escape = true;
-    assert!(!lifetime(&steps).reborrows_previous);
+    assert!(!lifetime(&steps).reborrows_previous());
     steps.get_mut(&position(1)).unwrap().may_escape = false;
     steps.get_mut(&position(0)).unwrap().reborrows_view = false;
-    assert!(!lifetime(&steps).reborrows_previous);
+    assert!(!lifetime(&steps).reborrows_previous());
     steps.get_mut(&position(0)).unwrap().reborrows_view = true;
 
     // One return path narrows through a separate child loan. Its bytes
@@ -628,5 +646,5 @@ fn a_loop_can_hand_its_last_view_to_the_next_reborrow() {
             ..Default::default()
         },
     );
-    assert!(!lifetime(&steps).reborrows_previous);
+    assert!(!lifetime(&steps).reborrows_previous());
 }

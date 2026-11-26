@@ -516,14 +516,43 @@ pub fn borrowed_loan_sources<'a>(
             Ok(source) => return Ok(BorrowedLoanSources::Single(source)),
             Err(reason) => reason,
         };
-        let flow = analysis.flow(machine.id).map_err(|_| unresolved)?;
-        return crate::descriptor_lifetimes::joined_loan_authority(
+        let flow = analysis.flow_arc(machine.id).map_err(|_| unresolved)?;
+        let selected = |incoming| {
+            crate::descriptor_lifetimes::joined_loan_authority(
+                &flow,
+                (at, descriptor.clone()),
+                &joined,
+                incoming,
+            )
+        };
+        if let Some(choice) = selected(None) {
+            return Ok(BorrowedLoanSources::Selected(choice));
+        }
+        // The first arrival at a loop header may carry an input directly;
+        // later arrivals can carry the specific view formed by the loop.
+        // Trace both permissions to their actual formation on each edge.
+        let [(previous_id, previous)] = joined.as_slice() else {
+            return Err(unresolved);
+        };
+        if !previous.authorizes_after_formation(at, descriptor) {
+            return Err(unresolved);
+        }
+        let origins = analysis
+            .symbolic_source_origins(machine.id, at, descriptor)
+            .ok_or(unresolved)?;
+        let original =
+            incoming_view_occurrence(module, machine, &origins).map_err(|_| unresolved)?;
+        let incoming = crate::descriptor_lifetimes::descriptor_entry_lifetime(
             &flow,
-            (at, descriptor.clone()),
-            &joined,
-        )
-        .map(BorrowedLoanSources::Selected)
-        .ok_or(unresolved);
+            (machine.entry, 0),
+            &original,
+        );
+        return selected(Some((&original, &incoming)))
+            .filter(|choice| {
+                choice.includes_incoming() && choice.loans().any(|loan| loan == *previous_id)
+            })
+            .map(BorrowedLoanSources::Selected)
+            .ok_or(unresolved);
     }
     if let Some(parent) = parent {
         return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Loan(
@@ -1100,7 +1129,7 @@ fn retain_result_dependencies(
             position,
             argument.path.clone(),
             crate::descriptor_lifetimes::DescriptorLifetime {
-                reborrows_previous: false,
+                recurring_authority: None,
                 live: lifetime.live.clone(),
                 demanded: lifetime.demanded.clone(),
                 surviving: lifetime.surviving.clone(),
