@@ -687,13 +687,9 @@ fn body_service_summary_refuses_an_unknown_instruction_service() {
     assert!(crate::body_services::body_service_reaches(&module, &[]).is_err());
 }
 
-#[test]
-fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
-    use StructuralAccess::{MutableBorrow, Owned, SharedBorrow};
+fn byte_view_descriptor(id: u64, access: Option<StructuralAccess>) -> StructuralTypeDeclaration {
     use terminal_psi::ByteSequenceCarrier;
-
-    let mut module = module();
-    let descriptor = |id, access| StructuralTypeDeclaration {
+    StructuralTypeDeclaration {
         declaration_identity: Default::default(),
         id: StructuralTypeId::new(id).unwrap(),
         identity: TerminalIdentityIndex(id as u32),
@@ -701,7 +697,7 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
         quotient_carrier: None,
         owns_linear_claim: false,
         no_code_affine_cleanup: true,
-        multiplicity: if access == Some(MutableBorrow) {
+        multiplicity: if access == Some(StructuralAccess::MutableBorrow) {
             StructuralMultiplicity::Affine
         } else {
             StructuralMultiplicity::Unrestricted
@@ -710,11 +706,74 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
         nominal_cleanup: None,
         shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }),
         scalar_restriction: None,
+    }
+}
+
+#[test]
+fn boundary_service_reach_accepts_checked_mutable_view_presentation() {
+    let mut module = module();
+    let actual = byte_view_descriptor(10, Some(StructuralAccess::MutableBorrow));
+    let formal = byte_view_descriptor(20, None);
+    let place = PlaceId::new(1).unwrap();
+    let parameter = StructuralParameterDeclaration {
+        place,
+        position: 0,
+        structural_type: actual.id,
+        access: StructuralAccess::MutableBorrow,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
     };
+    let mut read = boundary(1, false);
+    read.completion = semantic_vocabulary::BoundaryCompletion::NormalReturn;
+    read.parameter_order.push(BoundaryParameterKind::Structural);
+    read.structural_parameters
+        .push(StructuralParameterDeclaration {
+            structural_type: formal.id,
+            ..parameter.clone()
+        });
+    let mut caller = machine(1);
+    caller
+        .parameter_order
+        .push(BoundaryParameterKind::Structural);
+    caller.structural_parameters.push(parameter);
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::Parameter { position: 0 },
+    });
+    let mut call = diagnostic_boundary_call(read.id);
+    let O::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &mut call.kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(terminal_psi::StructuralArgument::whole(
+        place,
+        StructuralAccess::MutableBorrow,
+    ));
+    caller.blocks[0].operations.push(call);
+    module.types.structural_types = vec![actual, formal];
+    module.interfaces.boundary_machines.push(read);
+    module.machines.push(caller);
+
+    crate::body_services::body_service_reaches(&module, &[]).unwrap();
+    // A shared descriptor cannot supply this boundary's mutable argument.
+    module.types.structural_types[0] =
+        byte_view_descriptor(10, Some(StructuralAccess::SharedBorrow));
+    assert!(crate::body_services::body_service_reaches(&module, &[]).is_err());
+}
+
+#[test]
+fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
+    use StructuralAccess::{MutableBorrow, Owned, SharedBorrow};
+    let mut module = module();
     module.types.structural_types = vec![
-        descriptor(10, None),
-        descriptor(20, Some(MutableBorrow)),
-        descriptor(30, Some(SharedBorrow)),
+        byte_view_descriptor(10, None),
+        byte_view_descriptor(20, Some(MutableBorrow)),
+        byte_view_descriptor(30, Some(SharedBorrow)),
     ];
     // Canonical type rows are ordered, but their IDs need not be consecutive.
     let id = |n: u64| StructuralTypeId::new(n * 10).unwrap();
