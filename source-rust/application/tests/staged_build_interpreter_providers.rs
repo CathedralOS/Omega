@@ -1,5 +1,4 @@
 //! The preparing Build chooses which package implementation the next Build calls.
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -327,4 +326,122 @@ fn sandbox_standard_output_and_system_editor_guide() {
     let execution = Command::new(file).output().unwrap();
     assert!(execution.status.success(), "{execution:?}");
     assert_eq!(execution.stdout, b"editor started\n");
+}
+
+#[test]
+fn a_returned_dependency_reads_only_its_own_captured_package() {
+    let sandbox = TemporaryDirectory::create("board-filesystem", false).unwrap();
+    let app = sandbox.path().join("app");
+    let board = sandbox.path().join("board");
+    fs::create_dir(&app).unwrap();
+    fs::create_dir(&board).unwrap();
+    fs::write(app.join("build.omg"), r#"use {omega}/build/dependency.omg;
+machine build(plan: @mutable BuildPlan) {
+    let board: DependencyDescription = |dependency|::from_source(Source::Path { location: "../board" });
+    _ = |dependency|::add(plan, board);
+    plan.product = BuildProduct::Package { name: "firmware" };
+}"#).unwrap();
+    fs::write(board.join("configure.omg"), r#"use {system}/filesystem.omg as files;
+use {system}/filesystem_host.omg as paths;
+machine build(plan: @mutable BuildPlan) blocks {
+    let mutable bytes: [u8; 1] = [0u8];
+    let loaded: |files|::IoResult = block |files|::Filesystem::read_all("board.cfg" as + |paths|::Path, @mutable bytes[..], 1u64);
+    transition loaded {
+        |files|::IoResult::Ok { count } -> choose(plan, bytes[0], count),
+        |files|::IoResult::Error { kind } -> refused(plan, kind)
+    }
+    machine choose(plan: @mutable BuildPlan, byte: u8, count: u64) {
+        transition count == 1u64 && byte == 82u8 {
+            true -> rover(plan),
+            false -> wrong(plan)
+        }
+    }
+    machine rover(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::Package { name: "board" };
+    }
+    machine refused(plan: @mutable BuildPlan, error: |files|::ErrorKind) {
+        transition error {
+            |files|::ErrorKind::NotFound -> missing(plan),
+            _ -> wrong(plan)
+        }
+    }
+    machine missing(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::InterpretedBuild { entry: "board-input-was-absent.omg" };
+    }
+    machine wrong(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::InterpretedBuild { entry: "unexpected-board-read.omg" };
+    }
+}"#).unwrap();
+    let library = std::env::var_os("OMEGA_LIBRARY_ROOT")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| support::repository_root().join("source/library"));
+    let system = library.join("system");
+    let prepare = |library: &std::path::Path| {
+        let source = r#"use {omega}/build/dependency.omg;
+use {omega}/language/core/filesystem_authority.omg as authority;
+machine build(plan: @mutable BuildPlan) {
+    let allowed: [BoundaryServiceReference; 4] = [
+        Build::service::<|authority|::FilesystemContentRead>(plan),
+        Build::service::<|authority|::FilesystemContentWrite>(plan),
+        Build::service::<|authority|::FilesystemMetadataMutation>(plan),
+        Build::service::<|authority|::FilesystemNamespaceMutation>(plan)
+    ];
+    let system: DependencyDescription = |dependency|::from_source(Source::Path { location: "SYSTEM_PATH" });
+    _ = |dependency|::add(plan, system, @allowed[..]);
+    plan.product = BuildProduct::InterpretedBuild { entry: "configure.omg" };
+}"#.replace("SYSTEM_PATH", &library.to_string_lossy().replace('\\', "/"));
+        fs::write(board.join("build.omg"), source).unwrap();
+    };
+    let check = || {
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .env("OMEGA_LIBRARY_ROOT", &library)
+            .args([
+                "--check",
+                "--build-input",
+                "build.omg",
+                "--build-input",
+                "board.cfg",
+                "build.omg",
+            ])
+            .current_dir(&app)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        (output.status, report)
+    };
+    fs::write(app.join("board.cfg"), b"P").unwrap();
+    fs::write(board.join("board.cfg"), b"R").unwrap();
+    prepare(&system);
+    let (status, report) = check();
+    assert!(status.success(), "{report}");
+
+    fs::remove_file(board.join("board.cfg")).unwrap();
+    let (status, report) = check();
+    assert!(!status.success(), "{report}");
+    assert!(report.contains("board-input-was-absent.omg"), "{report}");
+
+    let copy = sandbox.path().join("another-system");
+    fs::create_dir(&copy).unwrap();
+    for name in ["filesystem.omg", "filesystem_host.omg"] {
+        fs::copy(system.join(name), copy.join(name)).unwrap();
+    }
+    fs::write(
+        copy.join("build.omg"),
+        r#"machine build(plan: @mutable BuildPlan) {
+        plan.product = BuildProduct::Package { name: "system" };
+    }"#,
+    )
+    .unwrap();
+    prepare(&copy);
+    let (status, report) = check();
+    assert!(!status.success(), "{report}");
+    assert!(
+        report.contains("no interpreter provider or host binding was supplied"),
+        "{report}"
+    );
 }

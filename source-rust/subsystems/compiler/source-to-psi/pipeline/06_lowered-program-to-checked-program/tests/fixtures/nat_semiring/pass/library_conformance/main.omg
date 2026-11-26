@@ -3,23 +3,14 @@
 // `core/nat.omg` declares `Nat` a `CommutativeSemiring`, so the checker reads
 // that whole conformance, has the kernel judge its laws, and may then reorder
 // and regroup `add` and reorder `mul` under them.
-use omega\language\core\ProcessExit;
-use omega\language\core\Nat;
-use omega\language\core\add;
-use omega\language\core\mul;
+use {omega}/language/core/nat.omg;
 
-machine relies_on_the_semiring(a: Nat, b: Nat, c: Nat)
-ensures core\Identity::<Nat>(add(mul(a, b), add(c, a)), add(a, add(c, mul(b, a))))
+machine relies_on_the_semiring(a: |nat|::Nat, b: |nat|::Nat, c: |nat|::Nat)
+ensures core\Identity::<|nat|::Nat>(
+    |nat|::add(|nat|::mul(a, b), |nat|::add(c, a)),
+    |nat|::add(a, |nat|::add(c, |nat|::mul(b, a)))
+)
 {
 }
 
-data Main { }
-machine exit_with_status(main: @mutable Main) reaches ProcessExit {
-    ProcessExit::exit_process(0);
-}
-
-// The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit {
-    let mutable entry_storage: Main;
-    block exit_with_status(@mutable entry_storage);
-}
+public machine entry_start() {}

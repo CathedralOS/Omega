@@ -14,6 +14,8 @@ through suspension without holding the host's obligation table or filesystem
 lock.
 */
 
+mod read_all;
+
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::FilesystemGrantRootIdentity;
 use package_compilation::build_execution::{
@@ -59,6 +61,7 @@ pub(crate) struct TerminalBuildFilesystemHost {
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildFilesystemCall]>,
     facets: Option<FilesystemFacets>,
+    read_result: Option<read_all::ReadResult>,
     account: EvaluationInvocationAccount,
     machine_name: String,
     activation: Mutex<Option<FilesystemActivation>>,
@@ -69,6 +72,7 @@ impl TerminalBuildFilesystemHost {
         produced: &source_compiler::publication::ProducedTerminalProgram,
         original: &TerminalStructuralValue,
         original_output: &TerminalStructuralValue,
+        imports: &[semantic_vocabulary::BoundaryMachineId],
         account: &EvaluationInvocationAccount,
         scope: &BuildMachineFilesystemScope,
         machine_name: &str,
@@ -79,18 +83,35 @@ impl TerminalBuildFilesystemHost {
             .build_filesystem()
             .calls_for(artifact)
             .ok_or("Build filesystem calls lost their invocation custody")?;
-        let activation = if calls.is_empty() && !program_files {
-            None
-        } else {
+        let read_result = calls
+            .iter()
+            .find(|call| call.action == Operation::ReadAll && imports.contains(&call.site.boundary))
+            .map(|call| {
+                let boundary = artifact
+                    .module()
+                    .boundary_machine(call.site.boundary)
+                    .ok_or("missing installed filesystem boundary")?;
+                let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result
+                else {
+                    return Err("filesystem read lost its IoResult".into());
+                };
+                read_all::ReadResult::admit(artifact.module(), result.structural_type)
+            })
+            .transpose()?;
+        let needs_facets = calls.iter().any(|call| call.action != Operation::ReadAll);
+        let activation = if needs_facets || read_result.is_some() || program_files {
             Some(FilesystemActivation {
                 runtime: scope.begin_filesystem_runtime(account.clone())?,
                 markers: Vec::new(),
             })
+        } else {
+            None
         };
         Ok(Arc::new(Self {
+            read_result,
             artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
-            facets: if calls.is_empty() {
+            facets: if !needs_facets {
                 None
             } else {
                 Some(FilesystemFacets {
@@ -224,7 +245,7 @@ impl FilesystemAdapter {
             .find(|call| crate::host::is_call_at(effect, call.site))
             .map(|call| call.action)
             .ok_or("filesystem call has no source-issued protocol custody")?;
-        if !buffers.is_empty() && action != Operation::Read {
+        if !buffers.is_empty() && !matches!(action, Operation::Read | Operation::ReadAll) {
             return Err("unexpected mutable filesystem operand".into());
         }
         let structural = |position: usize| {
@@ -256,14 +277,15 @@ impl FilesystemAdapter {
             .as_mut()
             .ok_or("Build filesystem activation is absent or already settled")?;
         let FilesystemActivation { runtime, markers } = activation;
-        let facets = self
-            .host
-            .facets
-            .as_ref()
-            .ok_or("Build filesystem facets were not admitted")?;
+        let facets = || {
+            self.host
+                .facets
+                .as_ref()
+                .ok_or("Build filesystem facets were not admitted")
+        };
         let output = || -> Result<(), String> {
             let receiver = structural(0)?;
-            if receiver == &facets.output {
+            if receiver == &facets()?.output {
                 Ok(())
             } else {
                 Err(
@@ -304,7 +326,7 @@ impl FilesystemAdapter {
                 })
             }
             Operation::NamedInput => {
-                if structural(0)? != &facets.inputs {
+                if structural(0)? != &facets()?.inputs {
                     return Err(
                         "named input lookup requires the original compiler-issued inputs facet"
                             .into(),
@@ -322,6 +344,16 @@ impl FilesystemAdapter {
                     return Err("BuildPath belongs to another input root".into());
                 }
                 integer_result(i64::from(runtime.open(root, relative, descriptor()?)?), 32)
+            }
+            Operation::ReadAll => {
+                let [buffer] = buffers else {
+                    return Err("read_all requires one mutable byte view".into());
+                };
+                if buffer.argument_index() != 1 {
+                    return Err("read_all buffer has the wrong argument position".into());
+                }
+                let read = runtime.read_file(bytes(0)?, buffer.bytes_mut(), unsigned(integer(0)?)?)?;
+                self.host.read_result.as_ref().ok_or("missing admitted IoResult")?.finish(read)
             }
             Operation::Read => {
                 let root = self.host.source_root(markers, structural(0)?)?;

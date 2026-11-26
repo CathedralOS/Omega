@@ -1,8 +1,7 @@
-use {omega}/build/dependency.omg;
+use main.omg as app;
 
-machine build(builder: @mutable BuildPlan) {
-    builder.product = BuildProduct::Application { name: "invalid_private_import" };
-    let mutable kit_dependency: DependencyDescription = |dependency|::from_source(Source::Path { location: "dep" });
-    |dependency|::with_alias(@mutable kit_dependency, "kit");
-    let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
+machine build(plan: @mutable BuildPlan) {
+    _ = Build::dependency(plan, Source::Path { location: "dep" });
+    plan.product = BuildProduct::Application { name: "invalid_private_import" };
+    Build::bind(plan, linux_x86_64::ProgramEntry, |app|::main);
 }
