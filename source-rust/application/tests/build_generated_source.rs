@@ -172,6 +172,39 @@ fn a_build_cannot_import_its_own_future_product_file() {
 }
 
 #[test]
+fn a_build_overload_requires_only_its_selected_body_imports() {
+    let project = TemporaryDirectory::create("overloaded-build-imports", false).unwrap();
+    fs::write(
+        project.path().join("choices.omg"),
+        r#"use future.omg;
+public machine choose(value: u8) -> u32 { 7u32 }
+public machine choose(value: bool) -> u32 { |future|::read() }"#,
+    )
+    .unwrap();
+    for (argument, reason) in [
+        ("true", "no admitted logical file `future.omg`"),
+        ("1u8", "Build path is not a canonical relative path"),
+    ] {
+        fs::write(
+            project.path().join("build.omg"),
+            format!(
+                r#"use choices.omg;
+machine build(plan: @mutable BuildPlan) {{
+    _ = |choices|::choose({argument});
+    _ = BuildSource::resolve(@plan.source, "../entered");
+    plan.product = BuildProduct::Package {{ name: "overloaded" }};
+}}"#
+            ),
+        )
+        .unwrap();
+        let result = run(project.path(), "psi", &["build.omg", "choices.omg"]);
+        assert!(!result.status.success());
+        let message = report(&result);
+        assert!(message.contains(reason), "{argument}: {message}");
+    }
+}
+
+#[test]
 fn a_consumer_runs_its_nested_dependency_from_the_returned_directory() {
     if target::TargetProfile::host_if_supported().is_none() {
         return;

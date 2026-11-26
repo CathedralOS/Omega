@@ -117,7 +117,7 @@ pub(super) fn complete_initializer_receipt_dependencies(
     }
     assign_constant_expression_symbols(&mut lowerer.symbol_resolved_trees, roots.iter().copied());
     loop {
-        let demand = collect_machine_body_demand(&lowerer.symbol_resolved_trees, &[], &roots)
+        let demand = collect_machine_body_demand(&lowerer.symbol_resolved_trees, &[], &roots, None)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         if demand.deferred_machines.is_empty() {
             return Ok(());
@@ -373,8 +373,9 @@ impl DeferredResolvedFrontier {
         &self,
         machine_roots: &[SymbolHandle],
         expression_roots: &[ExpressionHandle],
+        overloads: Option<&AuthoredDeclarationSelections>,
     ) -> Result<ResolvedMachineBodyDemand, Vec<Diagnostic>> {
-        let demand = collect_machine_body_demand(&self.trees, machine_roots, expression_roots)
+        let demand = collect_machine_body_demand(&self.trees, machine_roots, expression_roots, overloads)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         for symbol in &demand.deferred_machines {
             if !self.pending_machines().any(|pending| pending == *symbol) {
@@ -394,8 +395,9 @@ impl DeferredResolvedFrontier {
         roots: &[SymbolHandle],
         provider_conformances: &[(std::path::PathBuf, source_text::Span)],
         subject_sources: &[source_text::SourceId],
+        overloads: Option<&AuthoredDeclarationSelections>,
     ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
-        let demand = self.body_demand(roots, &[])?;
+        let demand = self.body_demand(roots, &[], overloads)?;
         let symbols = &self.trees.symbols;
         let mut pending_sorted: Vec<(u32, u32)> = self
             .pending_machines()

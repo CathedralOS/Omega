@@ -327,6 +327,7 @@ fn next_demand_batch_for_request(
     frontier: &resolution::DeferredResolvedFrontier,
     request: &BodyDemandRequest,
     completed_roots: &mut Vec<symbols::SymbolHandle>,
+    selections: &source_declarations::source_selections::AuthoredDeclarationSelections,
 ) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
     let (initial, provider_conformances, subject_sources) = initial_demand_roots(frontier, request);
     let require_imports = |batch: &[symbols::SymbolHandle]| {
@@ -386,8 +387,13 @@ fn next_demand_batch_for_request(
         }
         require_imports(completed_roots)?;
     }
-    let mut batch =
-        frontier.demand_closure_batch(completed_roots, &provider_conformances, &subject_sources)?;
+    let overloads = matches!(request, BodyDemandRequest::BuildDemand { .. }).then_some(selections);
+    let mut batch = frontier.demand_closure_batch(
+        completed_roots,
+        &provider_conformances,
+        &subject_sources,
+        overloads,
+    )?;
     if matches!(request, BodyDemandRequest::BuildDemand { .. }) {
         // One authored file may implement several stages, each with different imports.
         require_imports(&batch)?;
@@ -435,7 +441,7 @@ fn complete_demanded_typed_bodies(
     loop {
         let selected = timings
             .record_result(stages::RESOLVE, || {
-                next_demand_batch_for_request(&pending_bodies, request, &mut completed_roots)
+                next_demand_batch_for_request(&pending_bodies, request, &mut completed_roots, typing.typed().authored_declaration_selections())
             })
             .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
         if selected.is_empty() {
@@ -481,7 +487,7 @@ fn resolve_eager_bodies(
     loop {
         let selected = timings
             .record_result(stages::RESOLVE, || {
-                next_demand_batch_for_request(&frontier, body_demand, &mut completed_roots)
+                next_demand_batch_for_request(&frontier, body_demand, &mut completed_roots, frontier.trees().authored_declaration_selections())
             })
             .map_err(|rows| DiagnosticStage::Resolution.attribute(rows))?;
         if selected.is_empty() {

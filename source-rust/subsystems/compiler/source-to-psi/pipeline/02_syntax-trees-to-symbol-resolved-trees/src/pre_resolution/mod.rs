@@ -234,7 +234,7 @@ fn finish_const_initializer_selection(
         .filter(|initializer| initializer.is_valid())
         .collect::<Vec<_>>();
     loop {
-        let demand = frontier.body_demand(&[], &initializers)?;
+        let demand = frontier.body_demand(&[], &initializers, None)?;
         if demand.deferred_machines.is_empty() {
             break;
         }

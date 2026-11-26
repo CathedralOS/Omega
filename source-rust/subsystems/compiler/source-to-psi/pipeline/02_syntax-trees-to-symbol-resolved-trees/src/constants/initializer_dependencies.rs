@@ -506,8 +506,10 @@ pub(crate) fn collect_machine_body_demand(
     program: &SymbolResolvedTrees,
     machine_roots: &[SymbolHandle],
     expression_roots: &[ExpressionHandle],
+    overloads: Option<&crate::source_resolved::AuthoredDeclarationSelections>,
 ) -> Result<ResolvedMachineBodyDemand, String> {
     let mut collector = Collector {
+        overloads,
         machines: machine_roots.iter().rev().copied().collect(),
         expressions: expression_roots
             .iter()
@@ -545,6 +547,7 @@ pub(crate) fn collect_machine_body_demand(
             continue;
         }
         let mut availability = Collector {
+            overloads,
             machines: vec![machine],
             deferred_machines: Some(Vec::new()),
             purpose: DependencyPurpose::DeclarationReadiness,
@@ -794,6 +797,7 @@ struct Collector<'program, 'selection> {
         Final normalization compares the complete reconstructed source roster.
     */
     selected_calls: Option<&'selection [(SourceSpan, SourceSpan)]>,
+    overloads: Option<&'selection crate::source_resolved::AuthoredDeclarationSelections>,
 }
 
 impl<'program, 'selection> Collector<'program, 'selection> {
@@ -822,6 +826,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             follow_dependencies: true,
             purpose: DependencyPurpose::Authored,
             selected_calls: None,
+            overloads: None,
         }
     }
 
@@ -1006,6 +1011,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         &mut self,
         site: crate::resolution::selections::body_calls::CallSite<'_>,
         target_span: SourceSpan,
+        occurrences: impl Iterator<
+            Item = source_declarations::source_selections::AuthoredDeclarationSelectionOccurrenceId,
+        >,
         static_arguments: &[StaticMachineArgument],
     ) -> Result<(), String> {
         let receiver_symbol = site.receiver_symbol;
@@ -1043,6 +1051,18 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             };
             if !candidates.is_empty() {
                 if self.deferred_machines.is_some() {
+                    if let Some(ledger) = self.overloads {
+                        // Signatures are already visible. Only a chosen overload needs its body.
+                        for selection in occurrences.filter_map(|id| ledger.get(id)) {
+                            if selection.kind() == crate::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                                && let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target()
+                                && candidates.contains(&target.selected_symbol())
+                            {
+                                self.call(target.selected_symbol(), target_span)?;
+                            }
+                        }
+                        return Ok(());
+                    }
                     if self.follow_dependencies {
                         self.available_machines.extend(candidates);
                     }
@@ -1227,6 +1247,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                             argument_count: table.expression_handles(call.arguments).len(),
                         },
                         call.target.source_span(),
+                        table.authored_selection_occurrences(expression),
                         &call.machine_arguments,
                     )?;
                 }
@@ -1584,6 +1605,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                                         .len(),
                                 },
                                 call.target.source_span(),
+                                call.authored_call_selection.into_iter(),
                                 &call.machine_arguments,
                             )?;
                         }
