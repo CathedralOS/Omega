@@ -3708,11 +3708,6 @@ impl SymbolTable {
         presentation spelling into global authority.
     */
     pub fn lookup_source_type(&self, name: &str, reference: SourceSpan) -> SymbolLookup {
-        if let Some(symbol) = FixedCoreDeclaration::from_name(name)
-            .and_then(|fixed| self.fixed_core_declaration_symbol(fixed))
-        {
-            return SymbolLookup::Unique(symbol);
-        }
         let builtin = crate::source_symbols::is_builtin_type_spelling(name);
         let kinds: &[SymbolKind] = if builtin {
             &[SymbolKind::BuiltinType]
@@ -4092,9 +4087,7 @@ impl SymbolTable {
                     .and_then(crate::source_symbols::core_source_at)
                     == Some(language_core::core_vocabulary::CoreSource::Foundation)
             {
-                return FixedCoreDeclaration::ALL
-                    .into_iter()
-                    .find(|fixed| fixed.name().strip_prefix("core::") == Some(declaration))
+                return FixedCoreDeclaration::from_foundation_member(declaration)
                     .and_then(|fixed| self.fixed_core_declaration_symbol(fixed))
                     .filter(|symbol| matches_candidate(*symbol))
                     .into_iter()
@@ -4117,6 +4110,11 @@ impl SymbolTable {
                 })
                 .collect();
         }
+        // Only the foundation file exports kernel slots. Their internal labels
+        // have no source namespace of their own.
+        let mut matches_candidate = |symbol| {
+            self.fixed_core_declaration_for_symbol(symbol).is_none() && matches_candidate(symbol)
+        };
         if (reference_is_source_backed || selection == TopLevelSelection::Ordinary)
             && let Some(result) = self.find_module_qualified_candidates(
                 name,

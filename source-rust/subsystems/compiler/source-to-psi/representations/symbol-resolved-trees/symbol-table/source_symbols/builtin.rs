@@ -143,9 +143,11 @@ mod builtin_ordinal_tests {
                 declaration,
             );
             assert_eq!(
-                FixedCoreDeclaration::from_name(declaration.name()),
+                FixedCoreDeclaration::from_foundation_member(
+                    declaration.name().strip_prefix("core::").unwrap()
+                ),
                 Some(declaration),
-                "{:?} must be recoverable from its own spelling",
+                "{:?} must be recoverable from its exported member name",
                 declaration,
             );
         }
@@ -153,7 +155,11 @@ mod builtin_ordinal_tests {
             FixedCoreDeclaration::from_ordinal(FixedCoreDeclaration::COUNT),
             None
         );
-        assert_eq!(FixedCoreDeclaration::from_name("core::Vec"), None);
+        assert_eq!(FixedCoreDeclaration::from_foundation_member("Vec"), None);
+        assert_eq!(
+            FixedCoreDeclaration::from_foundation_member("core::Type"),
+            None
+        );
     }
 
     /* The integer family is open-ended; a value-like spelling is not a type name. */
