@@ -24,7 +24,7 @@ use expression_keys::{ScalarExpressionKey, ScalarExpressionRow};
 
 use crate::abstract_optimization::rules::catalog::BuiltInRuleRegistration;
 use crate::abstract_optimization::{
-    AnalysisProduct, EffectKnowledge, EffectSummaryAnalysis, RuleProposalError,
+    AnalysisProduct, EffectSummaryAnalysis, RuleProposalError,
     analyses::block_dominates,
     rules::{GLOBAL_VALUE_NUMBERING_PASS_NAME, accepted_obligations, standard_rule_contract},
 };
@@ -574,36 +574,6 @@ pub(crate) mod expression_keys {
         fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self>;
     }
 
-    impl ScalarExpressionKey for TotalScalarExpressionKey {
-        fn references_parameter(self, values: &BTreeSet<ValueId>) -> bool {
-            self.references_any(values)
-        }
-
-        fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
-            self.translate(values)
-        }
-    }
-
-    impl ScalarExpressionKey for ProofCertifiedScalarExpressionKey {
-        fn references_parameter(self, values: &BTreeSet<ValueId>) -> bool {
-            self.references_any(values)
-        }
-
-        fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
-            Some(self.translate(values))
-        }
-    }
-
-    impl ScalarExpressionKey for CompatiblePolicyScalarExpressionKey {
-        fn references_parameter(self, values: &BTreeSet<ValueId>) -> bool {
-            self.references_any(values)
-        }
-
-        fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
-            Some(self.translate(values))
-        }
-    }
-
     fn canonical_pair(left: ValueId, right: ValueId) -> (ValueId, ValueId) {
         if left <= right {
             (left, right)
@@ -645,8 +615,8 @@ pub(crate) mod expression_keys {
         Multiply(IntegerType, ValueId, ValueId),
     }
 
-    impl CompatiblePolicyScalarExpressionKey {
-        pub(crate) fn references_any(self, values: &BTreeSet<ValueId>) -> bool {
+    impl ScalarExpressionKey for CompatiblePolicyScalarExpressionKey {
+        fn references_parameter(self, values: &BTreeSet<ValueId>) -> bool {
             match self {
                 Self::ShiftLeft(_, _, left, right)
                 | Self::ShiftRight(_, _, left, right)
@@ -658,9 +628,9 @@ pub(crate) mod expression_keys {
             }
         }
 
-        pub(crate) fn translate(self, values: &BTreeMap<ValueId, ValueId>) -> Self {
+        fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
             let value = |operand: ValueId| values.get(&operand).copied().unwrap_or(operand);
-            match self {
+            Some(match self {
                 Self::ShiftLeft(value_type, count_type, operand, count) => {
                     Self::ShiftLeft(value_type, count_type, value(operand), value(count))
                 }
@@ -678,12 +648,12 @@ pub(crate) mod expression_keys {
                     let (left, right) = canonical_pair(value(left), value(right));
                     Self::Multiply(scalar_type, left, right)
                 }
-            }
+            })
         }
     }
 
-    impl TotalScalarExpressionKey {
-        pub(crate) fn references_any(self, values: &BTreeSet<ValueId>) -> bool {
+    impl ScalarExpressionKey for TotalScalarExpressionKey {
+        fn references_parameter(self, values: &BTreeSet<ValueId>) -> bool {
             match self {
                 Self::BooleanConstant(_) | Self::IntegerConstant(_, _) => false,
                 Self::BooleanNot(value)
@@ -709,7 +679,7 @@ pub(crate) mod expression_keys {
             }
         }
 
-        pub(crate) fn translate(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
+        fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
             let value = |operand: ValueId| Some(values.get(&operand).copied().unwrap_or(operand));
             let commutative = |left: ValueId, right: ValueId| {
                 let left = value(left)?;
@@ -802,8 +772,8 @@ pub(crate) mod expression_keys {
         SaturatingRemainder(IntegerType, ValueId, ValueId),
     }
 
-    impl ProofCertifiedScalarExpressionKey {
-        pub(crate) fn references_any(self, values: &BTreeSet<ValueId>) -> bool {
+    impl ScalarExpressionKey for ProofCertifiedScalarExpressionKey {
+        fn references_parameter(self, values: &BTreeSet<ValueId>) -> bool {
             match self {
                 Self::ExactCast(_, _, operand) => values.contains(&operand),
                 Self::ExactShiftLeft(_, _, left, right)
@@ -822,9 +792,9 @@ pub(crate) mod expression_keys {
             }
         }
 
-        pub(crate) fn translate(self, values: &BTreeMap<ValueId, ValueId>) -> Self {
+        fn translated(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
             let value = |operand: ValueId| values.get(&operand).copied().unwrap_or(operand);
-            match self {
+            Some(match self {
                 Self::ExactCast(source_type, target_type, operand) => {
                     Self::ExactCast(source_type, target_type, value(operand))
                 }
@@ -863,7 +833,7 @@ pub(crate) mod expression_keys {
                 Self::SaturatingRemainder(scalar_type, left, right) => {
                     Self::SaturatingRemainder(scalar_type, value(left), value(right))
                 }
-            }
+            })
         }
     }
 }
@@ -973,9 +943,7 @@ pub(crate) mod phi_translated_accounting {
             .collect::<BTreeSet<_>>();
         if parameter_values.is_empty()
             || !key_references_parameters(&parameter_values)
-            || !use_definitions.uses.iter().any(|(machine, use_site)| {
-                *machine == function.machine && use_site.value == redundant_result
-            })
+            || !use_definitions.has_use(function.machine, redundant_result)
         {
             return None;
         }
@@ -1083,7 +1051,8 @@ pub(crate) mod phi_translated_scalar_gvn {
             OptimizationSafetyClass::ExactOperationSemantics,
         ),
         propose = propose_phi_translated,
-        super::total_cse_phi_rows,
+        super::TOTAL_CSE_KEYS,
+        false,
     );
 
     psi_rule_contract!(
@@ -1093,7 +1062,8 @@ pub(crate) mod phi_translated_scalar_gvn {
             OptimizationSafetyClass::ProofCertified,
         ),
         propose = propose_phi_translated,
-        super::proof_certified_cse_phi_rows,
+        super::PROOF_CERTIFIED_CSE_KEYS,
+        false,
     );
 
     psi_rule_contract!(
@@ -1103,7 +1073,8 @@ pub(crate) mod phi_translated_scalar_gvn {
             OptimizationSafetyClass::ProofCertified,
         ),
         propose = propose_phi_translated,
-        super::compatible_policy_cse_phi_rows,
+        super::COMPATIBLE_POLICY_CSE_KEYS,
+        true,
     );
 }
 pub(crate) mod same_block_scalar_cse {
@@ -1206,9 +1177,7 @@ pub(crate) mod total_scalar_identities {
                     }) else {
                         continue;
                     };
-                    if !use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine && use_site.value == shape.result
-                    }) {
+                    if !use_definitions.has_use(function.machine, shape.result) {
                         continue;
                     }
                     let location = NodeLocation {
@@ -1775,15 +1744,10 @@ pub(crate) fn exact_pure_scalar_effect(
     node: u32,
 ) -> bool {
     effects.nodes.iter().any(|row| {
-        row.revision == unit.identity
-            && row.machine == machine
+        row.machine == machine
             && row.block == block
             && row.node == node
-            && row.class == crate::abstract_optimization::EffectClass::PureScalar
-            && row.observable == EffectKnowledge::No
-            && row.structural_state == EffectKnowledge::No
-            && row.crash == EffectKnowledge::No
-            && row.suspension == EffectKnowledge::No
+            && row.is_pure_scalar_baseline(unit.identity)
     })
 }
 
@@ -1874,10 +1838,7 @@ where
                 else {
                     continue;
                 };
-                if leader_type != scalar_type
-                    || !use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine && use_site.value == result
-                    })
+                if leader_type != scalar_type || !use_definitions.has_use(function.machine, result)
                 {
                     continue;
                 }
@@ -1962,39 +1923,17 @@ where
     for function in &unit.functions {
         let machine_dominators = dominators.rows(function.machine);
         let value_types = function_value_types(function);
-        let mut leaders = Vec::new();
-        let mut expressions = Vec::new();
-        for block in &function.blocks {
-            for (index, node) in block.nodes.iter().enumerate() {
-                let leader_row = leader(&value_types, unit, function, &node.operation);
-                let redundant_row = redundant(&value_types, unit, function, &node.operation);
-                if leader_row.is_none() && redundant_row.is_none() {
-                    continue;
-                }
-                let node_index = u32::try_from(index).expect("optimization node index fits u32");
-                if !exact_pure_scalar_effect(unit, effects, function.machine, block.id, node_index)
-                {
-                    continue;
-                }
-                let location = optimization_unit::NodeLocation {
-                    machine: function.machine,
-                    block: block.id,
-                    node: node_index,
-                };
-                if let Some(row) = leader_row {
-                    leaders.push((row.0, location, row.1, row.2, row.3));
-                }
-                if let Some((row, extras)) = redundant_row {
-                    expressions.push((row.0, location, row.1, row.2, row.3, extras));
-                }
-            }
-        }
+        let (leaders, expressions) = collect_scalar_rows(
+            unit,
+            function,
+            effects,
+            |operation| leader(&value_types, unit, function, operation),
+            |operation| redundant(&value_types, unit, function, operation),
+        );
         for (key, redundant, redundant_operation, redundant_result, scalar_type, extras) in
             &expressions
         {
-            if !use_definitions.uses.iter().any(|(machine, use_site)| {
-                *machine == function.machine && use_site.value == *redundant_result
-            }) {
+            if !use_definitions.has_use(function.machine, *redundant_result) {
                 continue;
             }
             let Some(redundant_block) = function.block(redundant.block) else {
@@ -2327,16 +2266,28 @@ pub(crate) fn propose_phi_translated<K>(
     unit: &PsiOptimizationUnit,
     analyses: crate::abstract_optimization::RuleAnalysisView<'_>,
     contract: OptimizationRuleContract,
-    rows: fn(
-        &PsiOptimizationUnit,
-        &PsiOptimizationFunction,
-        &EffectSummaryAnalysis,
-        &ScalarCseValueTypes,
-    ) -> PhiTranslatedScalarGvnRows<K, ScalarCsePayload>,
+    keys: ScalarCseKeys<K>,
+    redundants_outside_entry: bool,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError>
 where
     K: ScalarExpressionKey + Ord,
 {
+    let rows = |unit: &PsiOptimizationUnit,
+                function: &PsiOptimizationFunction,
+                effects: &EffectSummaryAnalysis,
+                value_types: &ScalarCseValueTypes| {
+        let (leaders, mut redundants) = collect_scalar_rows(
+            unit,
+            function,
+            effects,
+            |operation| (keys.leader)(value_types, unit, function, operation),
+            |operation| (keys.redundant)(value_types, unit, function, operation),
+        );
+        if redundants_outside_entry {
+            redundants.retain(|row| row.1.block != function.entry);
+        }
+        (leaders, redundants)
+    };
     propose_phi_translated_scalar_gvn(unit, analyses, rows, |found| {
         match found.extras {
             Some(obligation_fact) => {
@@ -2361,61 +2312,4 @@ where
         }
         .map_err(RuleProposalError::InvalidCandidate)
     })
-}
-
-pub(crate) fn total_cse_phi_rows(
-    unit: &PsiOptimizationUnit,
-    function: &PsiOptimizationFunction,
-    effects: &EffectSummaryAnalysis,
-    value_types: &ScalarCseValueTypes,
-) -> PhiTranslatedScalarGvnRows<expression_keys::TotalScalarExpressionKey, ScalarCsePayload> {
-    let keys = TOTAL_CSE_KEYS;
-    collect_scalar_rows(
-        unit,
-        function,
-        effects,
-        |operation| (keys.leader)(value_types, unit, function, operation),
-        |operation| (keys.redundant)(value_types, unit, function, operation),
-    )
-}
-
-pub(crate) fn proof_certified_cse_phi_rows(
-    unit: &PsiOptimizationUnit,
-    function: &PsiOptimizationFunction,
-    effects: &EffectSummaryAnalysis,
-    value_types: &ScalarCseValueTypes,
-) -> PhiTranslatedScalarGvnRows<expression_keys::ProofCertifiedScalarExpressionKey, ScalarCsePayload>
-{
-    let keys = PROOF_CERTIFIED_CSE_KEYS;
-    collect_scalar_rows(
-        unit,
-        function,
-        effects,
-        |operation| (keys.leader)(value_types, unit, function, operation),
-        |operation| (keys.redundant)(value_types, unit, function, operation),
-    )
-}
-
-pub(crate) fn compatible_policy_cse_phi_rows(
-    unit: &PsiOptimizationUnit,
-    function: &PsiOptimizationFunction,
-    effects: &EffectSummaryAnalysis,
-    value_types: &ScalarCseValueTypes,
-) -> PhiTranslatedScalarGvnRows<
-    expression_keys::CompatiblePolicyScalarExpressionKey,
-    ScalarCsePayload,
-> {
-    let keys = COMPATIBLE_POLICY_CSE_KEYS;
-    let (leaders, redundants) = collect_scalar_rows(
-        unit,
-        function,
-        effects,
-        |operation| (keys.leader)(value_types, unit, function, operation),
-        |operation| (keys.redundant)(value_types, unit, function, operation),
-    );
-    let redundants = redundants
-        .into_iter()
-        .filter(|row| row.1.block != function.entry)
-        .collect();
-    (leaders, redundants)
 }

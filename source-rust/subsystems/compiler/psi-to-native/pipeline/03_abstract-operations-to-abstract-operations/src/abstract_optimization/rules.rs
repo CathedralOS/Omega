@@ -37,6 +37,19 @@ pub(crate) fn standard_rule_contract(
     .expect("built-in rule has nonzero version")
 }
 
+/// Unproved dead-scalar rules read liveness and effects and invalidate the
+/// same analyses; only their identities differ.
+fn dead_pure_scalar_contract(identity: &'static [u8]) -> OptimizationRuleContract {
+    standard_rule_contract(
+        identity,
+        DEAD_PURE_SCALAR_PASS_NAME,
+        1,
+        AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
+        AnalysisInvalidationSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+        OptimizationSafetyClass::ExactOperationSemantics,
+    )
+}
+
 fn representation_specialization_contract(identity: &'static [u8]) -> OptimizationRuleContract {
     standard_rule_contract(
         identity,
@@ -71,20 +84,10 @@ macro_rules! psi_rule_contract {
         }
     };
     ($(#[$meta:meta])* $name:ident, $contract:expr, propose = $propose:ident $(, $extra:expr)* $(,)?) => {
-        $(#[$meta])*
-        #[derive(Debug, Clone, Copy, Default)]
-        pub(crate) struct $name;
-
-        impl $name {
-            pub fn contract() -> OptimizationRuleContract {
-                $contract
-            }
-        }
+        psi_rule_contract!($(#[$meta])* $name, $contract);
 
         impl PsiOptimizationRule for $name {
-            fn contract(&self) -> OptimizationRuleContract {
-                Self::contract()
-            }
+            psi_rule_contract!(@adapter);
 
             fn propose(
                 &self,
@@ -894,14 +897,10 @@ pub(crate) mod dead_scalar_elimination {
 
     pub(crate) mod dead_scalar_literal_elimination {
         use abstract_operations::AbstractOperation as O;
-        use optimization_core::{
-            AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-            OptimizationSafetyClass,
-        };
+        use optimization_core::OptimizationRuleContract;
         use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
         use semantic_vocabulary::ScalarType;
 
-        use crate::abstract_optimization::rules::DEAD_PURE_SCALAR_PASS_NAME;
         use crate::abstract_optimization::rules::node_elision::{
             DeadScalarShape, propose_unproved_dead_scalar_nodes,
         };
@@ -911,16 +910,8 @@ pub(crate) mod dead_scalar_elimination {
 
         psi_rule_contract!(
             DeadScalarLiteralEliminationRule,
-            crate::abstract_optimization::rules::standard_rule_contract(
-                b"omega.psi-rule.dead-unused-scalar-literal-elimination.v1",
-                DEAD_PURE_SCALAR_PASS_NAME,
-                1,
-                AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-                OptimizationSafetyClass::ExactOperationSemantics
+            crate::abstract_optimization::rules::dead_pure_scalar_contract(
+                b"omega.psi-rule.dead-unused-scalar-literal-elimination.v1"
             ),
             propose = propose_unproved_dead_scalar_nodes,
             classify,
@@ -957,14 +948,10 @@ pub(crate) mod dead_scalar_elimination {
             bitwise_or_xor_pair_pattern, boolean_not_or_equal_pair_pattern,
             integer_equal_less_pair_pattern,
         };
-        use optimization_core::{
-            AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleContract,
-            OptimizationSafetyClass,
-        };
+        use optimization_core::OptimizationRuleContract;
         use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
         use semantic_vocabulary::ScalarType;
 
-        use crate::abstract_optimization::rules::DEAD_PURE_SCALAR_PASS_NAME;
         use crate::abstract_optimization::rules::node_elision::{
             DeadScalarShape, propose_unproved_dead_scalar_nodes,
         };
@@ -974,16 +961,8 @@ pub(crate) mod dead_scalar_elimination {
 
         psi_rule_contract!(
             DeadUnconditionallyTotalScalarEliminationRule,
-            crate::abstract_optimization::rules::standard_rule_contract(
-                b"omega.psi-rule.dead-unused-unconditionally-total-scalar-elimination.v1",
-                DEAD_PURE_SCALAR_PASS_NAME,
-                1,
-                AnalysisSet::new([AnalysisKind::ValueLiveness, AnalysisKind::EffectSummaries]),
-                AnalysisInvalidationSet::new([
-                    AnalysisKind::UseDefinition,
-                    AnalysisKind::EffectSummaries,
-                ]),
-                OptimizationSafetyClass::ExactOperationSemantics
+            crate::abstract_optimization::rules::dead_pure_scalar_contract(
+                b"omega.psi-rule.dead-unused-unconditionally-total-scalar-elimination.v1"
             ),
             propose = propose_unproved_dead_scalar_nodes,
             classify,
