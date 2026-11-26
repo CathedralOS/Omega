@@ -283,7 +283,6 @@ impl ImmutableSourceParseCheckpoint {
             &mut source_storage,
             &mut imports,
             imports::SourceRouting::Compilation {
-                root_path: &self.root_path,
                 package_inputs,
                 phase: PackageImportPhase::ExactTarget(None),
             },
