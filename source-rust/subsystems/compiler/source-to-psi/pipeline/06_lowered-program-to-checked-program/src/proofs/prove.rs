@@ -334,11 +334,17 @@ impl Direction {
 
     /// Whether `next` is a strictly tighter bound than `best` in this
     /// direction; no bound yet is always improved. A tie keeps `best`.
+    ///
+    /// The bound search recurses through its callers close to a test
+    /// thread's stack limit; these two helpers are inlined so they add no
+    /// frame to it (`checking_required_floor` overflows otherwise).
+    #[inline(always)]
     fn improves(self, integer: IntegerType, next: &Bound, best: Option<&Bound>) -> bool {
         best.is_none_or(|best| self.prefers(integer.compare(next.literal, best.literal)))
     }
 
     /// The tighter of two bounds in this direction, `best` on a tie.
+    #[inline(always)]
     fn tighter(self, integer: IntegerType, best: Bound, next: Bound) -> Bound {
         if self.improves(integer, &next, Some(&best)) {
             next
