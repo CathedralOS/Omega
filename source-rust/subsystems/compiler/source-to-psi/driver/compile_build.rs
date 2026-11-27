@@ -155,7 +155,9 @@ impl BuildStageSource {
             .filter(|file| {
                 file.dependency_scope == source_provenance::DependencyScope::Build
                     && ((file.origin == source_admission::SourceOrigin::User
-                        && check.is_none_or(|roots| roots.check_entry_file && file.source_id == entry_span.source_id))
+                        && check.is_none_or(|roots| {
+                            roots.check_entry_file && file.source_id == entry_span.source_id
+                        }))
                         || (file.origin == source_admission::SourceOrigin::Toolchain
                             && source_admission::source_identity::is_build_prelude_path(
                                 &file.path,
@@ -244,8 +246,14 @@ impl CheckedBuildInvocation {
         // this private program through the declarations the entry and its selected
         // providers actually need. Product checks have their own full subjects.
         program.build_invocation_entry = Some(
-            program.symbols.symbol_provenance_source_span(entry)
-                .ok_or_else(|| uncharged(vec![Diagnostic::error("Build entry has no admitted source occurrence")]))?
+            program
+                .symbols
+                .symbol_provenance_source_span(entry)
+                .ok_or_else(|| {
+                    uncharged(vec![Diagnostic::error(
+                        "Build entry has no admitted source occurrence",
+                    )])
+                })?,
         );
         let overrides = provider_declarations::rejoin_in_scope(
             &mut program,

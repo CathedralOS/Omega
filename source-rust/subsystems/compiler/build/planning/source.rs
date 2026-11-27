@@ -398,10 +398,15 @@ fn check_only_subject(
         .map_err(refusal)?;
     let scope = SuppliedBuildLibrary::declaration_scope(libraries, check_owner).map(Arc::new);
     stage
-        .prepare(preparation, profile.target_name(), scope, source_compiler::BuildSourceCheck {
-            providers,
-            check_entry_file: true,
-        })
+        .prepare(
+            preparation,
+            profile.target_name(),
+            scope,
+            source_compiler::BuildSourceCheck {
+                providers,
+                check_entry_file: true,
+            },
+        )
         .map(Some)
         .map_err(|rows| locate_failure(rows.into(), &assembled.parsed.files, None))
 }

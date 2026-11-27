@@ -219,7 +219,10 @@ mod tests {
                 &Default::default(),
                 profile.target_name(),
                 None,
-                source_compiler::BuildSourceCheck { providers: &Default::default(), check_entry_file: true },
+                source_compiler::BuildSourceCheck {
+                    providers: &Default::default(),
+                    check_entry_file: true,
+                },
             )
             .unwrap();
         let typed = interval.program.as_ref();
