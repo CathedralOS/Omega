@@ -488,11 +488,11 @@ impl Program<'_> {
                     "logical theorem input needs its complete fixed scalar carrier",
                 ));
             };
-            if !matches!(scalar_type, ScalarType::Boolean)
+            if !matches!(scalar_type, ScalarType::Boolean | ScalarType::IeeeFloat(_))
                 && !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits().is_some())
             {
                 return Err(unavailable(
-                    "logical theorem input has no closed-width integer or Boolean denotation",
+                    "logical theorem input has no closed-width integer, float or Boolean denotation",
                 ));
             }
             formals.push(ValueDeclaration {

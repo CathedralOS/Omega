@@ -477,3 +477,69 @@ fn evidence_the_data_does_not_allow_is_refused_where_it_is_built() {
         "{report}"
     );
 }
+
+const ABOVE_ONE_IS_POSITIVE: &str = "data AboveOneIsPositive = machine(x: f64)
+    requires x > 1.0f64
+    ensures x > 0.0f64;
+
+machine above_one_is_positive(x: f64)
+requires x > 1.0f64
+ensures x > 0.0f64
+{
+}
+
+machine use_step<Step: AboveOneIsPositive>(x: f64)
+requires x > 1.0f64
+ensures x > 0.0f64
+{
+    Step(x);
+}
+
+machine main() {
+    use_step::<above_one_is_positive>(2.0f64);
+}
+";
+
+fn float_theorem(name: &str, source: &str) -> (bool, String) {
+    project::check(name, &[("main.omg", source)], &["--check", "main.omg"])
+}
+
+#[test]
+fn a_float_theorem_supplies_its_alias() {
+    let (accepted, report) = float_theorem("float_theorem", ABOVE_ONE_IS_POSITIVE);
+    assert!(accepted, "{report}");
+}
+
+#[test]
+fn a_float_theorem_with_a_narrower_premise_cannot_supply_its_alias() {
+    let source = ABOVE_ONE_IS_POSITIVE.replacen(
+        "machine above_one_is_positive(x: f64)\nrequires x > 1.0f64",
+        "machine above_one_is_positive(x: f64)\nrequires x > 2.0f64",
+        1,
+    );
+    assert!(source.contains("requires x > 2.0f64"), "{source}");
+    let (accepted, report) = float_theorem("float_theorem_narrower", &source);
+    assert!(!accepted, "{report}");
+    assert!(
+        report.contains("explicit proof argument does not establish the complete aliased contract"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_theorem_over_another_float_format_cannot_supply_the_alias() {
+    let source = ABOVE_ONE_IS_POSITIVE.replacen(
+        "machine above_one_is_positive(x: f64)\nrequires x > 1.0f64\nensures x > 0.0f64",
+        "machine above_one_is_positive(x: f32)\nrequires x > 1.0f32\nensures x > 0.0f32",
+        1,
+    );
+    assert!(source.contains("above_one_is_positive(x: f32)"), "{source}");
+    let (accepted, report) = float_theorem("float_theorem_format", &source);
+    assert!(!accepted, "{report}");
+    assert!(
+        report.contains(
+            "cited theorem's subjects are not the aliased contract's subjects and carriers"
+        ),
+        "{report}"
+    );
+}
