@@ -140,8 +140,9 @@ fn bounded_copy_rejects_executable_mode_changes_and_preserves_stable_modes() {
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
     let (mut file, initial) = fixture.open();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let mut scratch = vec![0_u8; super::FILE_READ_BUFFER_BYTES];
     assert!(matches!(
-        read_opened_file_bounded(&mut file, &initial, &path, 100, 100),
+        read_opened_file_bounded(&mut file, &initial, &path, 100, 100, &mut scratch),
         Err(SourceResolveError::LocalSourceChanged { .. })
     ));
     for (mode, executable) in [(0o600, false), (0o700, true)] {
