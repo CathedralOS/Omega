@@ -1,9 +1,13 @@
 /*
-    Shared operand-owner index and cohort-scoped guards for Stage 03 (`close_typed_cohort`).
+    Operand-owner tables and cohort-scoped guards for Stage 03 (`close_typed_cohort`).
 
-    Fresh cohorts reuse the parallel `collect_program_operand_owners` walk once across all
-    preparation and deferral passes. Incremental cohorts (`lower_seeded_extension` and
-    `lower_body_completion`) walk only declarations added or completed in the active cohort so
+    A table answers exactly only for the program it was built from. The owner
+    walk reads nearly every typed-trees field, every preparation pass writes
+    some of them, and typed trees keep no revision, so `close_typed_cohort`
+    builds one table for each pass that reads owners rather than sharing one.
+    A fresh cohort uses the parallel `collect_program_operand_owners` walk.
+    Incremental cohorts (`lower_seeded_extension` and `lower_body_completion`)
+    walk only the declarations the cohort added or completed, so
     already-closed declarations are not re-traversed.
 */
 
@@ -85,12 +89,12 @@ impl<Element> ScopedOccurrences<Element> {
     }
 }
 
-/// Operand-owner lookup shared across `close_typed_cohort` passes.
+/// Operand owners of one program state, for one `close_typed_cohort` pass.
+/// A pass that writes the program makes the table stale for later passes.
 pub(crate) struct CohortOperandOwners {
     full: Option<ProgramOperandOwners>,
     types: ScopedOccurrences<TypeReferenceNode>,
     expressions: ScopedOccurrences<ExpressionNode>,
-    covered_expressions: usize,
 }
 
 impl CohortOperandOwners {
@@ -100,7 +104,6 @@ impl CohortOperandOwners {
             full: Some(collect_program_operand_owners(program)),
             types: ScopedOccurrences::default(),
             expressions: ScopedOccurrences::default(),
-            covered_expressions: program.expression_table.expression_count(),
         }
     }
 
@@ -116,18 +119,7 @@ impl CohortOperandOwners {
             full: None,
             types: collector.types,
             expressions: collector.expressions,
-            covered_expressions: program.expression_table.expression_count(),
         }
-    }
-
-    pub(crate) fn covered_expressions(&self) -> usize {
-        self.covered_expressions
-    }
-
-    /// Re-collect owners if a later pass (such as structural equality expansion) introduced
-    /// expressions beyond `covered_expressions` that must be attributed.
-    pub(crate) fn refresh(&mut self, program: &TypedTrees, cohort: &TypingCohort<'_>) {
-        *self = Self::collect(program, cohort);
     }
 
     pub(crate) fn expression_owners<'a>(

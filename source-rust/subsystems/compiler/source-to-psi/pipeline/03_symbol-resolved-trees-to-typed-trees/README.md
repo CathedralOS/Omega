@@ -95,6 +95,12 @@ and `prepare_applied_callable_signatures` when the cohort adds a declaration,
 scope or application that could need an applied signature. Either may rewrite
 retained declarations, so the second runtime call binding then walks the whole
 program too.
+Every `close_typed_cohort` pass that reads operand owners gets a table built
+from the program as it is where the pass reads them; a fresh cohort walks the
+whole program for each, a continuation only the cohort's declarations. Passes must not share
+one table: the owner walk reads nearly every typed-trees field, each of these
+passes writes some of them, and typed trees keep no revision, so a reused
+table misses owners and the deferred refusals those owners carry.
 Declaration identities, written contracts, progress premises, domain
 constraints and literals' concrete types stay typed data and judge no body.
 Requests that depended on the removed checker refuse with
