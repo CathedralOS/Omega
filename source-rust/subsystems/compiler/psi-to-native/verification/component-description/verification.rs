@@ -245,6 +245,23 @@ impl VerifiedComponent {
         &self.artifact
     }
 
+    /// Verification decodes the description's embedded artifact, so that copy
+    /// is received code. When the caller already holds the same artifact as
+    /// executable code (produced here or authorized by the host), keep that
+    /// copy instead; an equal received copy cannot replace it.
+    pub fn with_executable_artifact(
+        mut self,
+        artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    ) -> Result<Self, ComponentVerificationRejection> {
+        if artifact.requires_host_trust() || artifact.as_ref() != self.artifact.as_ref() {
+            return Err(ComponentVerificationRejection::ArtifactInvalid(
+                "the executable component artifact differs from its verified description".into(),
+            ));
+        }
+        self.artifact = std::sync::Arc::clone(artifact);
+        Ok(self)
+    }
+
     pub fn imports(&self) -> &[ImportSlot] {
         &self.description.imports
     }

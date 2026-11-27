@@ -172,7 +172,8 @@ impl BuildProviderScope {
         host_imports.sort_unstable();
         host_imports.dedup();
 
-        let program = terminal_interpreter::TerminalProgram::borrow(artifact);
+        let program = terminal_interpreter::TerminalProgram::borrow(artifact)
+            .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?;
         let mut supplies = program
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
                 installation: Some(&checked),

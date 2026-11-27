@@ -1267,7 +1267,7 @@ pub(crate) mod capabilities {
                 },
             )
             .unwrap();
-            let program = TerminalProgram::retain(artifact.retain_code());
+            let program = TerminalProgram::retain(artifact.retain_code()).unwrap();
             let bind = |store: Rc<Store>| {
                 let mut supplies = TerminalRuntimeSupplies::from(selected.selection());
                 supplies.entry = Some(terminal_psi::TargetMachineCallable::Machine(candidate));

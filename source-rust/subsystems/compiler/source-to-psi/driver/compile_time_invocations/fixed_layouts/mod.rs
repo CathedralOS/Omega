@@ -57,7 +57,8 @@ impl super::PreparedBuildMachineEntry {
             &calls,
             |value, events| {
                 let private_layout_placements = placements::decode(
-                    &terminal_interpreter::TerminalProgram::borrow(produced.view()),
+                    &terminal_interpreter::TerminalProgram::borrow(produced.view())
+                        .map_err(|error| error.to_string())?,
                     &sites,
                     events,
                 )?;

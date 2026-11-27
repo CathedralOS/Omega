@@ -26,6 +26,7 @@ semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
 numerics = { path = "../compiler/foundation/numerics" }
 terminal-psi = { path = "../compiler/psi" }
 terminal-codec = { path = "../compiler/psi/artifact/codec" }
+psi-authorization = { path = "../compiler/psi/artifact/authorization" }
 terminal-work = { path = "../compiler/psi/semantics/work" }
 terminal-semantics = { path = "../compiler/psi/semantics" }
 closed-predicates = { path = "../compiler/psi/semantics/closed-predicates" }

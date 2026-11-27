@@ -3,6 +3,12 @@
 //! checker accepted the program or that its producer can be trusted. The
 //! encoding and the closed type catalog belong to `terminal_wire`; this crate
 //! owns only the seal that keeps them beside the module.
+//!
+//! A module decoded from bytes remembers that it was received. The bytes and
+//! their identity came from outside this process, so the interpreter refuses
+//! to execute such a module unless the receiving host authorizes its exact
+//! artifact and producer. A module closed from an in-memory `TerminalModule`
+//! was produced by its caller, who is then its producer.
 
 use std::sync::Arc;
 
@@ -10,26 +16,45 @@ use terminal_psi::{TerminalModule, TerminalPsiIdentity};
 
 use crate::{ClosedTypeCatalog, CodecError, EvidenceSeals, ObligationEvidenceSeal};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ClosedTerminalModule {
     module: Arc<TerminalModule>,
     types: ClosedTypeCatalog,
     bytes: Arc<[u8]>,
     identity: TerminalPsiIdentity,
+    received: bool,
 }
+
+/// Equality compares the program. Where its bytes came from does not change
+/// what they mean; it changes only who may execute them.
+impl PartialEq for ClosedTerminalModule {
+    fn eq(&self, other: &Self) -> bool {
+        self.identity == other.identity
+            && self.bytes == other.bytes
+            && self.types == other.types
+            && self.module == other.module
+    }
+}
+
+impl Eq for ClosedTerminalModule {}
 
 impl ClosedTerminalModule {
     pub fn new(module: TerminalModule) -> Result<Self, CodecError> {
         let (bytes, types) = terminal_wire::sealing::encode_closed_execution_module(&module)?;
-        Ok(Self::from_encoding(module, bytes, types))
+        Ok(Self::from_encoding(module, bytes, types, false))
     }
 
     pub fn from_semantic_bytes(bytes: &[u8]) -> Result<Self, CodecError> {
         let (module, bytes, types) = terminal_wire::sealing::decode_closed_parts(bytes)?;
-        Ok(Self::from_encoding(module, bytes, types))
+        Ok(Self::from_encoding(module, bytes, types, true))
     }
 
-    fn from_encoding(module: TerminalModule, bytes: Vec<u8>, types: ClosedTypeCatalog) -> Self {
+    fn from_encoding(
+        module: TerminalModule,
+        bytes: Vec<u8>,
+        types: ClosedTypeCatalog,
+        received: bool,
+    ) -> Self {
         let identity = TerminalPsiIdentity {
             vocabulary_marker: module.vocabulary_marker,
             program_fingerprint: terminal_wire::sealing::encoded_fingerprint(&module, &bytes),
@@ -39,6 +64,25 @@ impl ClosedTerminalModule {
             types,
             bytes: bytes.into(),
             identity,
+            received,
+        }
+    }
+
+    /// Whether this module was decoded from bytes rather than closed from a
+    /// module built in this process. Execution of a received module needs
+    /// the host's authorization of its exact artifact and producer; inspection
+    /// does not.
+    pub const fn requires_host_trust(&self) -> bool {
+        self.received
+    }
+
+    /// The same program after the receiving host accepted it. Only the
+    /// authorization crate may call this, after binding its producer trust
+    /// to the exact artifact; a repository test keeps every other caller out.
+    pub(crate) fn host_admitted(&self) -> Self {
+        Self {
+            received: false,
+            ..self.clone()
         }
     }
 

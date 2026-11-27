@@ -286,7 +286,8 @@ machine done() {{ }}
     );
     let run = |closure: &crate::AcceptedClosure| {
         let publication = closure.publish_invocation().unwrap();
-        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let program =
+            terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
         let mut instance = program.instantiate(Default::default()).unwrap();
         assert_eq!(
             instance

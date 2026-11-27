@@ -136,7 +136,9 @@ pub fn authorize_terminal_artifact(
 ) -> Result<AuthorizedTerminalArtifact, ArtifactTrustError> {
     let producer = producer.ok_or(ArtifactTrustError::ProducerTrustRequired)?;
     Ok(AuthorizedTerminalArtifact {
-        artifact,
+        // Received bytes become executable only here, beside the host's
+        // decision. The caller's own copy stays received.
+        artifact: artifact.record_host_authorization(),
         producer_identity: Arc::clone(&producer.identity),
     })
 }
@@ -172,10 +174,56 @@ mod tests {
             decoded.manifest().identity(),
             original.manifest().identity()
         );
+        assert!(decoded.requires_host_trust());
         assert!(matches!(
-            authorize_terminal_artifact(decoded, None),
+            authorize_terminal_artifact(Arc::clone(&decoded), None),
             Err(ArtifactTrustError::ProducerTrustRequired)
         ));
+
+        // The host's decision makes its own copy executable. The received
+        // original stays received, so holding it authorizes nothing.
+        let producer = HostProducerTrust::accept("host-pinned producer");
+        let authorized =
+            authorize_terminal_artifact(Arc::clone(&decoded), Some(&producer)).unwrap();
+        assert!(!authorized.artifact().requires_host_trust());
+        assert_eq!(authorized.artifact(), decoded.as_ref());
+        assert!(decoded.requires_host_trust());
+    }
+
+    /// Only this crate may turn received bytes into executable code. Walk the
+    /// Rust workspace and refuse any other caller of the codec's hook.
+    #[test]
+    fn only_authorization_records_host_acceptance() {
+        fn visit(directory: &std::path::Path, callers: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(directory).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    if path.file_name().is_some_and(|name| name == "target") {
+                        continue;
+                    }
+                    visit(&path, callers);
+                } else if path.extension().is_some_and(|extension| extension == "rs")
+                    && std::fs::read_to_string(&path)
+                        .unwrap()
+                        .contains(".record_host_authorization(")
+                {
+                    callers.push(path);
+                }
+            }
+        }
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let workspace = manifest.join("../../../../..");
+        let mut callers = Vec::new();
+        visit(&workspace, &mut callers);
+        let callers = callers
+            .iter()
+            .map(|path| path.canonicalize().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            callers,
+            [manifest.join("authorization.rs").canonicalize().unwrap()],
+            "received Psi must become executable only through authorize_terminal_artifact"
+        );
     }
 
     #[test]

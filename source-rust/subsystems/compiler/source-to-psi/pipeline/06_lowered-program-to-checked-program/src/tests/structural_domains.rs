@@ -107,7 +107,7 @@ machine entry() -> u32 {
         panic!("the unmodified reference must check: {verdict:?}");
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = TerminalProgram::borrow(publication.artifact.view());
+    let program = TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
@@ -342,7 +342,7 @@ fn assert_unsigned_invocation(source: &str, expected: u128) {
         panic!("the qualified array must check: {verdict:?}");
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = TerminalProgram::borrow(publication.artifact.view());
+    let program = TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let actual = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))

@@ -9,9 +9,14 @@ tracking ID under **PROOF-KERNEL-CORE** in [TASKS.md](../../../TASKS.md).
 
 ## Existing implementation and scope
 
-At `9f5b0b44f749c`, `TerminalProgram::load`, `load_envelope` and
-`TerminalExecution::start_artifact` expose byte-loading execution routes without
-an explicit host trust witness. CLI inspection has a 64 MiB input cap. Shared
+Step 1 below has landed. Decoding marks a closed module as received, and the
+interpreter's `TerminalProgram::borrow` and `retain` refuse received code. Received
+Psi executes only through `TerminalProgram::admit`, `retain_authorized` or
+`TerminalExecution::start_artifact`, each of which takes the host's
+`AuthorizedTerminalArtifact`; `psi_authorization::authorize_terminal_artifact` is
+the only code that makes an executable copy of received bytes. The byte-loading
+`TerminalProgram::load` and `load_envelope` are gone. CLI inspection has a 64 MiB
+input cap. Shared
 decoders bound counts against remaining bytes and cap nesting and strings, but
 loading has no overall enforceable work budget. Canonical decoding also runs
 module-foundation validation and dynamic-result admission, including descriptor

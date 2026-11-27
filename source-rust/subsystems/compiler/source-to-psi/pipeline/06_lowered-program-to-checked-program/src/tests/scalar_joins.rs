@@ -263,7 +263,8 @@ fn shift_count_literals_retain_their_own_integer_carrier() {
             panic!("{positive:?}")
         };
         let publication = accepted.publish_invocation().unwrap();
-        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let program =
+            terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
         let mut instance = program.instantiate(Default::default()).unwrap();
         let status = instance
             .invoke(&mut terminal_work::WorkMeter::with_budget(100))
@@ -345,7 +346,8 @@ machine build_entry() -> u32 {{
             panic!("{source}: {verdict:?}");
         };
         let publication = accepted.publish_invocation().unwrap();
-        let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+        let program =
+            terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
         let mut instance = program.instantiate(Default::default()).unwrap();
         let status = instance
             .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))

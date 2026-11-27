@@ -23,3 +23,4 @@ terminal-work = { path = "../../psi/semantics/work" }
 
 [dev-dependencies]
 proof-applications = { path = "../../psi/proofs/applications" }
+psi-authorization = { path = "../../psi/artifact/authorization" }

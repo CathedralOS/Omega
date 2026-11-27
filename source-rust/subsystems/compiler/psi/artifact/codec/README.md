@@ -6,7 +6,10 @@ Native code encodes structural domains, access plans and quotient declarations t
 
 - [closed_module.rs](src/closed_module.rs) seals a module: it keeps the
   module, its closed type catalog, canonical bytes and identity together, and
-  binds obligation evidence to that exact identity.
+  binds obligation evidence to that exact identity. A module decoded from
+  bytes is marked received; the interpreter executes it only after
+  [authorization](../authorization/authorization.rs) records the host's trust
+  in a separate executable copy.
 - [canonical_artifact.rs](src/canonical_artifact.rs) packs semantic,
   optimization and optional debug bytes into the envelope passed between
   stages. A producer hands over its module; an artifact read from outside

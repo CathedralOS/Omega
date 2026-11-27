@@ -754,7 +754,7 @@ machine entry() crashes none {
         panic!("the selected call must read its public requirement contract");
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = TerminalProgram::borrow(publication.artifact.view());
+    let program = TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     assert_eq!(
         instance
@@ -1009,7 +1009,7 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
         panic!("{positive:?}");
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = TerminalProgram::borrow(publication.artifact.view());
+    let program = TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     assert_eq!(
         instance
@@ -1106,7 +1106,8 @@ fn a_shared_reference_formation_owns_its_fresh_permission_carrier() {
     );
     terminal_semantics::structural_effect_leaf_observation(formed[0]).unwrap();
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
@@ -1212,7 +1213,8 @@ fn a_shared_reference_copy_keeps_the_original_formation_owned() {
         Err(terminal_semantics::plain_affine::Error::Malformed { detail, .. })
             if detail == "place custody disagrees with its exact type declaration"));
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
@@ -1273,7 +1275,8 @@ fn a_whole_record_assignment_writes_the_storage_its_references_observe() {
         panic!("assignments after the last use must be accepted: {verdict:?}");
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     assert_eq!(
         instance
@@ -1769,7 +1772,7 @@ fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
         panic!("a returned selected result keeps its declared input region: {verdict:?}");
     };
     let publication = accepted.publish_invocation().unwrap();
-    let program = TerminalProgram::borrow(publication.artifact.view());
+    let program = TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
         .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))

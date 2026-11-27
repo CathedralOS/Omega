@@ -1216,7 +1216,15 @@ mod tests {
                 requires: Vec::new(),
             });
         let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
-        let program = TerminalProgram::load(closed.semantic_bytes()).unwrap();
+        let program = {
+            let record =
+                terminal_codec::build_identity_optimization_execution_record(closed.module())
+                    .unwrap();
+            let artifact =
+                terminal_codec::CanonicalTerminalArtifact::from_closed_parts(closed, record, None)
+                    .unwrap();
+            TerminalProgram::retain(artifact.retain_code()).unwrap()
+        };
         for (symbol, access, reach) in [
             (
                 b"_pread".as_slice(),

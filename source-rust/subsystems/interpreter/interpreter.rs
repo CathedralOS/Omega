@@ -181,12 +181,15 @@ pub use storage::structural_storage::contents::{
 };
 
 impl TerminalExecution<'_> {
+    /// Start the entry of an artifact the receiving host has authorized.
+    /// Bytes alone do not execute; decode them and obtain the host's
+    /// [`psi_authorization::AuthorizedTerminalArtifact`] first.
     pub fn start_artifact(
-        semantic_bytes: &[u8],
+        artifact: &psi_authorization::AuthorizedTerminalArtifact,
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
-    ) -> Result<Self, TerminalArtifactInterpretError> {
-        crate::embedding::program::TerminalProgram::load(semantic_bytes)?.start_execution(
+    ) -> Result<TerminalExecution<'static>, TerminalArtifactInterpretError> {
+        crate::embedding::program::TerminalProgram::retain_authorized(artifact).start_execution(
             scalar_arguments,
             structural_inputs,
             None,

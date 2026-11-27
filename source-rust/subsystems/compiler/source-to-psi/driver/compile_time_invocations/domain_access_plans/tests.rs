@@ -556,7 +556,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
             &mut artifacts::compile_timings::CompileTimings::default(),
         )
         .expect("publish the same accepted ordinary program");
-    let program = terminal_interpreter::TerminalProgram::borrow(produced.view());
+    let program = terminal_interpreter::TerminalProgram::borrow(produced.view()).unwrap();
     let mut instance = program
         .instantiate(terminal_interpreter::TerminalInstantiation::default())
         .expect("the original program needs no external supply");
@@ -815,11 +815,16 @@ machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
                 &mut artifacts::compile_timings::CompileTimings::default(),
             )
             .expect("produce the same checked read/write program");
-        let received = terminal_interpreter::TerminalProgram::load(&bytes)
-            .expect("load the actual received program with its access rules");
+        let received = std::sync::Arc::new(
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
+                .expect("decode the actual received program with its access rules"),
+        );
+        let host = psi_authorization::HostProducerTrust::accept("access plan test host");
+        let received = psi_authorization::authorize_terminal_artifact(received, Some(&host))
+            .expect("the host trusts this producer");
         for program in [
-            terminal_interpreter::TerminalProgram::borrow(produced.view()),
-            received,
+            terminal_interpreter::TerminalProgram::borrow(produced.view()).unwrap(),
+            terminal_interpreter::TerminalProgram::admit(&received),
         ] {
             let mut instance = program
                 .instantiate(terminal_interpreter::TerminalInstantiation::default())

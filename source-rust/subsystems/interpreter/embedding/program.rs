@@ -1735,7 +1735,6 @@ pub(crate) mod program {
 
     pub(crate) enum ProgramStorage<'artifact> {
         Borrowed(terminal_codec::TerminalExecutionView<'artifact>),
-        Owned(terminal_codec::ClosedTerminalModule),
         // Existing engine fixtures intentionally edit unsealed rows. They
         // cannot borrow or mutate a production closed-code owner.
         #[cfg(test)]
@@ -1749,7 +1748,6 @@ pub(crate) mod program {
         fn deref(&self) -> &Self::Target {
             match self {
                 Self::Borrowed(code) => code.module(),
-                Self::Owned(module) => module.module(),
                 Self::Retained(code) => code.view().module(),
                 #[cfg(test)]
                 Self::Fixture(module) => module,
@@ -1764,7 +1762,6 @@ pub(crate) mod program {
             match self {
                 Self::Borrowed(code) => Ok(code.closed_types()),
                 Self::Retained(code) => Ok(code.view().closed_types()),
-                Self::Owned(module) => Ok(module.closed_types()),
                 #[cfg(test)]
                 Self::Fixture(_) => Err(TerminalInterpretError::UnsupportedSemanticVariant(
                     "mutable engine fixture has no sealed type catalogue",
@@ -1777,7 +1774,6 @@ pub(crate) mod program {
         ) -> Result<&terminal_codec::ClosedTerminalModule, TerminalInterpretError> {
             match self {
                 Self::Borrowed(code) => Ok(code.closed_module()),
-                Self::Owned(module) => Ok(module),
                 Self::Retained(code) => Ok(code.view().closed_module()),
                 #[cfg(test)]
                 Self::Fixture(_) => Err(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -2047,6 +2043,17 @@ pub(crate) mod program {
         }
     }
 
+    /// Received code needs the host's authorization; only its producer may
+    /// reuse produced code without one.
+    fn require_produced(
+        code: terminal_codec::TerminalExecutionView<'_>,
+    ) -> Result<(), psi_authorization::ArtifactTrustError> {
+        if code.closed_module().requires_host_trust() {
+            return Err(psi_authorization::ArtifactTrustError::ProducerTrustRequired);
+        }
+        Ok(())
+    }
+
     impl<'artifact> TerminalProgram<'artifact> {
         pub fn module(&self) -> &TerminalModule {
             &self.program.catalogs
@@ -2164,32 +2171,26 @@ pub(crate) mod program {
             )
         }
 
-        pub fn load(semantic_bytes: &[u8]) -> Result<Self, TerminalArtifactInterpretError> {
-            let module = terminal_codec::ClosedTerminalModule::from_semantic_bytes(semantic_bytes)
-                .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-            let identity = module.identity();
-            Ok(Self::from_admitted(AdmittedTerminalProgram {
-                identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
-                catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
-                target_layouts: None,
-                scalar_geometry: None,
-            }))
-        }
-
-        pub fn borrow(
-            artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
-        ) -> Self {
-            let artifact = artifact.into();
+        /// Execute an artifact the receiving host has authorized. The witness
+        /// binds the host's producer trust to this exact artifact; bytes,
+        /// a manifest digest or a producer name copied from the artifact
+        /// cannot construct it.
+        pub fn admit(artifact: &'artifact psi_authorization::AuthorizedTerminalArtifact) -> Self {
+            let view = terminal_codec::TerminalExecutionView::from(artifact.artifact().view());
             Self::from_admitted(AdmittedTerminalProgram {
-                identity: artifact.custody_identity(),
-                catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(artifact)),
+                identity: view.custody_identity(),
+                catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(view)),
                 target_layouts: None,
                 scalar_geometry: None,
             })
         }
 
-        pub fn retain(code: terminal_codec::RetainedTerminalCode) -> Self {
-            Self::from_admitted(AdmittedTerminalProgram {
+        /// [`Self::admit`] for a program that outlives the borrowed witness.
+        pub fn retain_authorized(
+            artifact: &psi_authorization::AuthorizedTerminalArtifact,
+        ) -> TerminalProgram<'static> {
+            let code = artifact.artifact().retain_code();
+            TerminalProgram::from_admitted(AdmittedTerminalProgram {
                 identity: code.view().custody_identity(),
                 catalogs: std::sync::Arc::new(ProgramStorage::Retained(code)),
                 target_layouts: None,
@@ -2197,15 +2198,31 @@ pub(crate) mod program {
             })
         }
 
-        pub fn load_envelope(
-            artifact_bytes: &[u8],
-        ) -> Result<Self, TerminalArtifactInterpretError> {
-            let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(artifact_bytes)
-                .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
-            let module = artifact.into_semantics();
+        /// Reuse code this process produced, such as a compiler stage's
+        /// published artifact or invocation code. Code decoded from bytes is
+        /// refused here: it executes only through [`Self::admit`] with the
+        /// host's authorization of its exact artifact and producer.
+        pub fn borrow(
+            artifact: impl Into<terminal_codec::TerminalExecutionView<'artifact>>,
+        ) -> Result<Self, psi_authorization::ArtifactTrustError> {
+            let artifact = artifact.into();
+            require_produced(artifact)?;
             Ok(Self::from_admitted(AdmittedTerminalProgram {
-                identity: terminal_codec::TerminalExecutionIdentity::portable(module.identity()),
-                catalogs: std::sync::Arc::new(ProgramStorage::Owned(module)),
+                identity: artifact.custody_identity(),
+                catalogs: std::sync::Arc::new(ProgramStorage::Borrowed(artifact)),
+                target_layouts: None,
+                scalar_geometry: None,
+            }))
+        }
+
+        /// [`Self::borrow`] for retained code that outlives its producer's view.
+        pub fn retain(
+            code: terminal_codec::RetainedTerminalCode,
+        ) -> Result<Self, psi_authorization::ArtifactTrustError> {
+            require_produced(code.view())?;
+            Ok(Self::from_admitted(AdmittedTerminalProgram {
+                identity: code.view().custody_identity(),
+                catalogs: std::sync::Arc::new(ProgramStorage::Retained(code)),
                 target_layouts: None,
                 scalar_geometry: None,
             }))
@@ -2471,7 +2488,8 @@ pub(crate) mod program {
             let view = match self.program.catalogs.as_ref() {
                 ProgramStorage::Borrowed(view) => *view,
                 ProgramStorage::Retained(code) => code.view(),
-                _ => return Err(refusal()),
+                #[cfg(test)]
+                ProgramStorage::Fixture(_) => return Err(refusal()),
             };
             let root = view.module().entry.ok_or_else(refusal)?;
             admitted
@@ -2858,11 +2876,11 @@ pub(crate) mod program {
     }
 
     #[cfg(test)]
-    mod envelope_load_tests {
+    mod host_trust_tests {
         use super::*;
 
         #[test]
-        fn loading_an_envelope_keeps_identity_with_its_owned_semantics() {
+        fn received_artifacts_execute_only_with_host_trust_in_their_exact_bytes() {
             let mut module = TerminalModule::declarations();
             let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
             let declaration = identities.intern("envelope_owned_declaration");
@@ -2878,10 +2896,47 @@ pub(crate) mod program {
             let artifact =
                 terminal_codec::CanonicalTerminalArtifact::from_closed_parts(closed, record, None)
                     .unwrap();
-            let bytes = artifact.to_bytes();
-            let program = TerminalProgram::load_envelope(&bytes).unwrap();
-            drop(bytes);
-            drop(artifact);
+            // The producer may reuse its own immutable output.
+            assert!(TerminalProgram::borrow(artifact.view()).is_ok());
+            assert!(TerminalProgram::retain(artifact.retain_code()).is_ok());
+
+            // The same bytes received from outside the process stay
+            // inspectable, but neither the decoded view nor retained code
+            // executes without the host's decision.
+            let received = std::sync::Arc::new(
+                terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+                    .unwrap(),
+            );
+            assert_eq!(received.view().identity(), identity);
+            assert!(matches!(
+                TerminalProgram::borrow(received.view()),
+                Err(psi_authorization::ArtifactTrustError::ProducerTrustRequired)
+            ));
+            assert!(matches!(
+                TerminalProgram::retain(received.retain_code()),
+                Err(psi_authorization::ArtifactTrustError::ProducerTrustRequired)
+            ));
+            // Rebuilding the artifact from the received closed module keeps
+            // the received marker: identity fields cannot launder it.
+            let rebuilt = terminal_codec::CanonicalTerminalArtifact::from_closed_parts(
+                received.closed_module().clone(),
+                received.optimization().clone(),
+                None,
+            )
+            .unwrap();
+            assert!(TerminalProgram::borrow(rebuilt.view()).is_err());
+            assert!(matches!(
+                psi_authorization::authorize_terminal_artifact(
+                    std::sync::Arc::clone(&received),
+                    None
+                ),
+                Err(psi_authorization::ArtifactTrustError::ProducerTrustRequired)
+            ));
+
+            let host = psi_authorization::HostProducerTrust::accept("embedding test host");
+            let authorized =
+                psi_authorization::authorize_terminal_artifact(received, Some(&host)).unwrap();
+            let program = TerminalProgram::admit(&authorized);
             assert_eq!(program.terminal_psi(), identity);
             assert_eq!(program.closed_module().unwrap().identity(), identity);
             assert_eq!(
@@ -2903,7 +2958,14 @@ pub(crate) mod program {
             let bytes = std::fs::read(path).expect("read actual canonical bytes");
             let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes)
                 .expect("independent canonical admission");
-            let program = TerminalProgram::borrow(artifact.view());
+            let host = psi_authorization::HostProducerTrust::accept("qualification host");
+            let artifact = psi_authorization::authorize_terminal_artifact(
+                std::sync::Arc::new(artifact),
+                Some(&host),
+            )
+            .unwrap();
+            let program = TerminalProgram::admit(&artifact);
+            let artifact = artifact.artifact();
             let Some(terminal_psi::TargetMachineCallable::Machine(entry)) =
                 artifact.semantic_module().entry
             else {

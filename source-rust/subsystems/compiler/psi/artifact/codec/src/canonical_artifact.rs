@@ -320,6 +320,30 @@ impl CanonicalTerminalArtifact {
         self.semantic_module.semantic_bytes()
     }
 
+    /// Whether these bytes were received rather than produced in this
+    /// process; see [`ClosedTerminalModule::requires_host_trust`].
+    pub fn requires_host_trust(&self) -> bool {
+        self.semantic_module.requires_host_trust()
+    }
+
+    /// Records the receiving host's acceptance of this exact artifact.
+    ///
+    /// This is the authorization crate's hook, not an embedding API: call
+    /// `psi_authorization::authorize_terminal_artifact` instead, which
+    /// requires the host's producer trust. A repository test refuses any
+    /// other caller. The returned artifact has the same bytes and identity;
+    /// the received original stays non-executable.
+    #[doc(hidden)]
+    pub fn record_host_authorization(self: &std::sync::Arc<Self>) -> std::sync::Arc<Self> {
+        if !self.requires_host_trust() {
+            return std::sync::Arc::clone(self);
+        }
+        std::sync::Arc::new(Self {
+            semantic_module: std::sync::Arc::new(self.semantic_module.host_admitted()),
+            ..Self::clone(self)
+        })
+    }
+
     pub fn view(&self) -> TerminalArtifactView<'_> {
         TerminalArtifactView {
             closed: &self.semantic_module,

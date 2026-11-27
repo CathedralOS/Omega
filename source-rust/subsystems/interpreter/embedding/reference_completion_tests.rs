@@ -2065,7 +2065,7 @@ fn check_aggregate_reference_formation(control: AggregateReferenceControl) {
         terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap();
-    let program = crate::TerminalProgram::borrow(artifact.view());
+    let program = crate::TerminalProgram::borrow(artifact.view()).unwrap();
     let target = psi_target_layouts::terminal_target_context(artifact.view(), "linux_x86_64");
     let facts = psi_target_layouts::LayoutTargetFacts {
         profile: "linux_x86_64".into(),

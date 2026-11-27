@@ -276,7 +276,8 @@ fn execute_observed(accepted: Box<crate::AcceptedClosure>) {
     let publication = accepted
         .publish_invocation()
         .expect("ordinary receiving validation");
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let program =
+        terminal_interpreter::TerminalProgram::borrow(publication.artifact.view()).unwrap();
     let mut instance = program.instantiate(Default::default()).unwrap();
     assert_eq!(
         instance

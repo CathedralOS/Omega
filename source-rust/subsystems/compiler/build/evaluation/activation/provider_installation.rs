@@ -88,7 +88,8 @@ pub(super) fn prepare<'host, 'code>(
         };
     };
     let module = artifact.view().module();
-    let program = TerminalProgram::retain(artifact.retain_code());
+    let program =
+        TerminalProgram::retain(artifact.retain_code()).map_err(|error| error.to_string())?;
     let targets = terminal_target_context(artifact.view(), profile.target_name());
     let target_facts = profile
         .layout_target_facts()

@@ -114,7 +114,7 @@ fn echo_record() -> terminal_codec::CanonicalTerminalArtifact {
 #[test]
 fn projects_a_declared_field_through_the_interpreted_policy() {
     let artifact = echo_record();
-    let program = TerminalProgram::borrow(artifact.view());
+    let program = TerminalProgram::borrow(artifact.view()).unwrap();
     let signature = BuildTimeValue::Struct {
         type_name: "PolicySignature".into(),
         fields: vec![("available".into(), BuildTimeValue::Bool(true))],

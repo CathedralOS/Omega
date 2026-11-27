@@ -402,7 +402,7 @@ fn interpreted_build_checks_and_executes_the_provider_chosen_for_its_source() {
         let artifact = evaluated.view();
         let checked =
             psi_provider_selections::logical_reach::admit_interpreted_providers(artifact).unwrap();
-        let program = TerminalProgram::borrow(artifact);
+        let program = TerminalProgram::borrow(artifact).unwrap();
         let supplies = program
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
                 installation: Some(&checked),

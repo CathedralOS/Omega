@@ -170,7 +170,9 @@ pub(crate) fn plan_inputs_and_review(
     // Every provider policy runs under the same selection, admitted from no
     // provider plans, so the first one builds the callable projection that
     // the rest reuse.
-    let terminal = calling.terminal_program();
+    let terminal = calling
+        .terminal_program()
+        .map_err(|error| refuse(error.to_string()))?;
     let authority = package_permissions
         .as_ref()
         .map(|scope| scope as &dyn DeclarationSelectionAuthority);
