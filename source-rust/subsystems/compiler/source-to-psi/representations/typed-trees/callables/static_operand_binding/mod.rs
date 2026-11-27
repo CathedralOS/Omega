@@ -96,10 +96,8 @@ pub struct Operand {
     /// where a copied body passes it on as a static argument.
     pub argument: StaticMachineArgument,
     pub value: StaticMachineBindingValue,
-    /// A value parameter's closed value, an integer landed in the
-    /// parameter's type or a Boolean: what replaces the parameter where a
-    /// copied expression names it.
-    pub scalar: Option<Value>,
+    /// The checked value substituted for this parameter in a copied expression.
+    pub closed_value: Option<Value>,
 }
 
 impl Operand {
@@ -119,7 +117,7 @@ impl Operand {
                 "a non-type binder carries a property bound no application judges",
             ));
         }
-        let mut scalar = None;
+        let mut closed_value = None;
         let (identity, value) = match kind {
             TypeParameterKind::Type => {
                 let reference = named_type(program, argument, supplying_owner)?;
@@ -166,22 +164,36 @@ impl Operand {
                 (identity, StaticMachineBindingValue::Const(reference))
             }
             TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference }
                 if program.primitive_type_reference(*type_reference).is_none()
                     && argument.symbol.is_valid()
-                    && program
+                    && (program
                         .const_declaration_by_symbol(argument.symbol)
-                        .is_some() =>
+                        .is_some()
+                        || program.variant_owner(argument.symbol).is_some()) =>
             {
                 let value = program
                     .canonical_aggregate_argument(*type_reference, argument)
                     .map_err(unserved)?;
+                let identity = value.index_identity().ok_or(unserved(
+                    "a static aggregate lost its canonical value identity",
+                ))?;
+                // Later stages recover the exact checked declaration from this
+                // binding. The canonical identity groups equal specializations.
+                let name =
+                    crate::name::Identifier::generated(program.symbols.name(argument.symbol));
                 let reference = program
-                    .static_operand_type_reference(argument)
-                    .map_err(unserved)?;
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: argument.symbol,
+                        name,
+                    });
+                closed_value = Some(Value::Aggregate {
+                    carrier: *type_reference,
+                    value,
+                });
                 (
-                    Identity::Value(value.index_identity().ok_or(unserved(
-                        "a static aggregate lost its canonical value identity",
-                    ))?),
+                    Identity::Value(identity),
                     StaticMachineBindingValue::Const(reference),
                 )
             }
@@ -194,7 +206,7 @@ impl Operand {
                 let identity = match closed_scalar(program, *type_reference, argument)? {
                     Scalar::Closed(value) => {
                         let identity = Identity::Scalar(value.spelled());
-                        scalar = Some(value);
+                        closed_value = Some(value);
                         identity
                     }
                     // A `const` parameter needs a value that is static in
@@ -218,8 +230,9 @@ impl Operand {
                     }
                     Scalar::Parameter(symbol) => Identity::Declaration(symbol),
                 };
-                let reference = if let Some(value) = &scalar {
-                    let expression = program.expression_table.insert(value.expression());
+                let reference = if let Some(value) = &closed_value {
+                    let node = value.expression(program)?;
+                    let expression = program.expression_table.insert(node);
                     program
                         .type_reference_table
                         .insert(TypeReferenceNode::ConstExpression(expression))
@@ -231,12 +244,11 @@ impl Operand {
                 (identity, StaticMachineBindingValue::Const(reference))
             }
             TypeParameterKind::Machine { contract }
-                if program.machine_parameter_contract_view(contract).is_some()
-                    && {
-                        let owner = program.symbols.get(parameter).parent;
-                        program.machine_by_symbol(owner).is_some()
-                            || program.trait_machine_signature(owner).is_some()
-                    } =>
+                if program.machine_parameter_contract_view(contract).is_some() && {
+                    let owner = program.symbols.get(parameter).parent;
+                    program.machine_by_symbol(owner).is_some()
+                        || program.trait_machine_signature(owner).is_some()
+                } =>
             {
                 // A nominal contract is judged by `require_nominal_callbacks`
                 // once the whole application's type arguments are known.
@@ -265,7 +277,7 @@ impl Operand {
             identity,
             argument: argument.clone(),
             value,
-            scalar,
+            closed_value,
         })
     }
 
@@ -468,12 +480,16 @@ impl Operand {
     }
 }
 
-/// A closed value of a builtin scalar type: what a value parameter is given.
+/// A closed value supplied to a static parameter, retained for substitution.
 #[derive(Clone)]
 pub enum Value {
     /// An integer literal, landed in the parameter's type.
     Integer(numeric_literals::IntegerLiteral),
     Boolean(bool),
+    Aggregate {
+        carrier: TypeReferenceHandle,
+        value: application_identity::const_value::CanonicalConstValue,
+    },
 }
 
 impl Value {
@@ -483,14 +499,25 @@ impl Value {
         match self {
             Self::Integer(literal) => literal.canonical_spelling().to_string(),
             Self::Boolean(value) => value.to_string(),
+            Self::Aggregate { value, .. } => value.atom(),
         }
     }
 
-    pub fn expression(&self) -> ExpressionNode {
-        match self {
+    pub fn expression(&self, program: &mut TypedTrees) -> Served<ExpressionNode> {
+        Ok(match self {
             Self::Integer(literal) => ExpressionNode::Integer(literal.clone()),
             Self::Boolean(value) => ExpressionNode::Boolean(*value),
-        }
+            Self::Aggregate { carrier, value } => {
+                let decoded = value
+                    .decode_encoding()
+                    .ok_or(Stop::Defect("checked static value has no encoding"))?;
+                program
+                    .materialize_canonical_const_value(*carrier, &decoded)
+                    .ok_or(unserved(
+                        "a static value could not be materialized in its declared carrier",
+                    ))?
+            }
+        })
     }
 }
 

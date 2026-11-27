@@ -58,3 +58,72 @@ fn a_matching_signature_does_not_bind_a_callback_to_the_requirement() {
         "{report}"
     );
 }
+
+#[test]
+fn enum_static_arguments_retain_their_value_across_a_forwarding_call() {
+    let source = r#"
+data Storage [copy] { case Fixed; case Split; }
+const split_plan: Storage = Storage::Split;
+
+machine choose<const Plan: Storage>() -> u32 {
+    match Plan { Storage::Fixed -> 1u32, Storage::Split -> 2u32 }
+}
+machine forward<const Plan: Storage>() -> u32 { choose::<Plan>() }
+
+machine main() crashes Trap {
+    let fixed: u32 = forward::<Storage::Fixed>();
+    let split: u32 = forward::<split_plan>();
+    transition fixed == 1u32 && split == 2u32 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+"#;
+    program::assert_silent_return(source);
+}
+
+#[test]
+fn equally_named_static_cases_from_distinct_carriers_are_rejected() {
+    let source = r#"
+data Storage [copy] { case Fixed; case Split; }
+data Other [copy] { case Fixed; case Split; }
+machine choose<const Plan: Storage>() {}
+machine main() { choose::<Other::Fixed>(); }
+"#;
+    let (output, report) = program::invoke(source, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(report.contains("carrier"), "{report}");
+}
+
+#[test]
+fn a_structural_static_parameter_retains_the_fields_of_its_named_constant() {
+    program::assert_silent_return(
+        r#"
+data Size [copy] { width: u32; }
+const tiny: Size = Size { width: 7 };
+machine read<const Plan: Size>() -> u32 { Plan.width }
+machine main() crashes Trap {
+    let width: u32 = read::<tiny>();
+    transition width == 7 { true -> done(), false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
+"#,
+    );
+}
+
+#[test]
+fn checking_one_structural_instance_does_not_discharge_the_generic_body() {
+    let source = r#"
+data Storage [copy] { case Fixed; case Split; }
+machine choose<const Plan: Storage>() -> u32 ensures result == 1u32 {
+    match Plan { Storage::Fixed -> 1u32, Storage::Split -> 2u32 }
+}
+machine main() { let fixed: u32 = choose::<Storage::Fixed>(); }
+"#;
+    let (output, report) = program::invoke(source, &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove ensures contract for exit from choose"),
+        "{report}"
+    );
+}
