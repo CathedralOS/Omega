@@ -21,7 +21,6 @@ numeric-literals = { path = "../../../foundation/numeric-literals" }
 arena = { path = "../../../../../foundation/arena" }
 wire = { path = "../../../../../foundation/wire" }
 language-core = { path = "../../../foundation/language-core" }
-layout = { path = "../../targets/layout" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 provider-correspondence = { path = "../provider-correspondence" }
 component-description = { path = "../component-description" }
@@ -41,6 +40,3 @@ terminal-codec = { path = "../../../psi/artifact/codec" }
 terminal-semantics = { path = "../../../psi/semantics" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 target = { path = "../../targets/target" }
-
-[dev-dependencies]
-terminal-work = { path = "../../../psi/semantics/work" }
