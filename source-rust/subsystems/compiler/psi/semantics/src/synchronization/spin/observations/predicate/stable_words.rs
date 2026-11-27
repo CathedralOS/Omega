@@ -10,7 +10,7 @@ use std::hash::Hash;
 type Test = (usize, SpinCondition, IntegerValue);
 
 pub(super) struct StableWords<K> {
-    by_home: HashMap<(K, ScalarType), usize>,
+    by_home: HashMap<(K, ScalarType, Option<IntegerValue>), usize>,
     // Keep evaluation in the order the observations occur in the body.
     tests: Vec<(ScalarType, Vec<Test>)>,
 }
@@ -30,7 +30,14 @@ impl<K: Eq + Hash> StableWords<K> {
         else {
             return;
         };
-        let index = self.by_home.entry((home, ty)).or_insert_with(|| {
+        // The same raw word can give different answers under different masks.
+        // Partition the resulting integer for each distinct projection.
+        let mask = match condition.comparison.mask {
+            Some(crate::entry_values::TerminalScalarValue::Integer { value, .. }) => Some(value),
+            Some(_) => return,
+            None => None,
+        };
+        let index = self.by_home.entry((home, ty, mask)).or_insert_with(|| {
             self.tests.push((ty, Vec::new()));
             self.tests.len() - 1
         });

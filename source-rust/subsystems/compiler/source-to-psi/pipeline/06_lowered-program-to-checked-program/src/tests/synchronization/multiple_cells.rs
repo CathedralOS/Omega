@@ -118,3 +118,18 @@ fn two_choices_over_the_same_candidates_can_observe_different_words() {
         );
     expect_unproved_progress(&program);
 }
+
+#[test]
+fn separate_bits_of_one_runtime_word_can_enable_different_branches() {
+    let same_word = |condition| {
+        wait(condition, "input", "0")
+            .replace("await_change(@left, @right)", "await_change(@left, @left)")
+    };
+    // Input 2 retries, whereas 0 returns. Both tests see the same raw word.
+    expect_unproved_progress(&same_word("(a & 1) == 0 && (b & 2) != 0"));
+    let disjoint = same_word("(a & 2) == 0 && (b & 2) != 0");
+    for input in [0, 2, u32::MAX] {
+        execute_with_input(&disjoint, input);
+    }
+    reject_deadlock(&same_word("(a & 2) == 0 || (b & 2) != 0"));
+}
