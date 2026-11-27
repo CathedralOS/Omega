@@ -39,6 +39,7 @@ mod scopes;
 
 pub(super) fn require_helper_associations(
     input: &AdmissionSource<'_>,
+    analyses: Option<&terminal_semantics::ModuleAnalyses<'_>>,
     request: &ProviderAdmissionRequest<'_, '_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     entry_custody: &super::callback_entries::PreparedEntries<'_>,
@@ -62,6 +63,7 @@ pub(super) fn require_helper_associations(
     } else {
         let calls = super::selected_synchronous_call_graph(
             artifact.view(),
+            analyses,
             input.target_context(),
             None,
             installation,
@@ -123,6 +125,7 @@ pub(super) fn require_helper_associations(
 
 pub(super) fn admit(
     input: &AdmissionSource<'_>,
+    analyses: Option<&terminal_semantics::ModuleAnalyses<'_>>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,
     installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
@@ -336,6 +339,7 @@ pub(super) fn admit(
     }
     let scopes = scopes::prepare(
         input,
+        analyses,
         artifact,
         request,
         installation,

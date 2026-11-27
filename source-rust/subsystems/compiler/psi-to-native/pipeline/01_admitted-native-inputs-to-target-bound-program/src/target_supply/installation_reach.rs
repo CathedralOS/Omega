@@ -16,8 +16,11 @@ pub struct NormalizedNativeSupply {
 }
 
 /// Use the selected body's own closure to resolve each authored installation bound.
+/// `analyses` are `module`'s call analyses or the refusal that building them
+/// produced; the refusal applies only once a requirement needs the call graph.
 pub(super) fn resolve_installation_reach(
     module: &TerminalModule,
+    analyses: Result<&terminal_semantics::ModuleAnalyses<'_>, &String>,
     installation_requirements: &[BoundaryMachineId],
     selected: build_providers::selections::SelectedProviderPlanFacts,
 ) -> Result<build_providers::selections::SelectedProviderPlanFacts, Vec<Diagnostic>> {
@@ -50,7 +53,7 @@ pub(super) fn resolve_installation_reach(
             .map(str::to_owned)
             .ok_or_else(|| fail(format!("installation reach lost exact service {id:?}")))
     };
-    let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None).map_err(fail)?;
+    let graph = analyses.map_err(|error| fail(error.clone()))?.calls();
     let mut rows = Vec::new();
     for row in
         target_provider_admission::selected_checked_invocation_rows(selected.plans(), module).map_err(fail)?

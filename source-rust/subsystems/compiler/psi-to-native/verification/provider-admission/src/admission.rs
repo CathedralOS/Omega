@@ -158,11 +158,18 @@ pub fn admit_native_providers<'request>(
             .map_err(|reason| realization_error("program provider context", reason))?;
     }
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
+    // Every call graph admission builds reads one set of callable values.
+    // Native lowering admits `artifact` only as the authorized program the
+    // plan was lowered from, so the analyses of `input`'s module serve both.
+    // When they cannot be built, each graph is built alone and refuses as
+    // it did before.
+    let analyses = terminal_semantics::ModuleAnalyses::new(input.module()).ok();
     let entry_custody = callback_entries::PreparedEntries::new(input, request)
         .map_err(|reason| realization_error("callback entry admission", reason))?;
     let installation = admit_checked_provider_installation(input, artifact, request)?;
     let helper_associations = static_interrupts::require_helper_associations(
         input,
+        analyses.as_ref(),
         request,
         artifact,
         &entry_custody,
@@ -170,6 +177,7 @@ pub fn admit_native_providers<'request>(
     )?;
     let installed_interrupts = static_interrupts::admit(
         input,
+        analyses.as_ref(),
         artifact,
         request,
         installation.as_ref().map(|row| row.terminal_selection()),
@@ -186,6 +194,7 @@ pub fn admit_native_providers<'request>(
         crate::native_binding_settlements::settle(input, request, &compiler_builtins)?;
     require_reached_providers(
         input,
+        analyses.as_ref(),
         request.profile,
         request.selected_provider_plans,
         &installed_interrupts,
@@ -281,6 +290,7 @@ pub fn admit_native_providers<'request>(
             terminal_artifact_identity,
             request.profile,
             input,
+            analyses.as_ref(),
             request.selected_provider_plans,
             effective_policy,
             request.terminal_authority_permission_policy.as_ref(),
@@ -409,6 +419,7 @@ fn admit_checked_provider_installation(
 
 fn require_reached_providers(
     input: &crate::AdmissionSource<'_>,
+    analyses: Option<&terminal_semantics::ModuleAnalyses<'_>>,
     target_profile: target::TargetProfile,
     selected: &build_providers::selections::SelectedProviderPlanFacts,
     installed_interrupts: &crate::AdmittedInstalledInterruptCohort,
@@ -416,7 +427,7 @@ fn require_reached_providers(
     native_settlements: &[AdmittedBoundarySettlement<'_>],
 ) -> Result<(), Vec<Diagnostic>> {
     let plan = input.plan();
-    let reached = AuthorityGraph::new(input, target_profile)
+    let reached = AuthorityGraph::new(input, analyses, target_profile)
         .and_then(|graph| graph.with_installed_interrupts(installed_interrupts))
         .and_then(|graph| graph.reachable_authority_edges(plan.entry))
         .map_err(|error| realization_error("provider supply", error))?;

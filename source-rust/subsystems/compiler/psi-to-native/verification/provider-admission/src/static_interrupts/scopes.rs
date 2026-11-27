@@ -28,6 +28,7 @@ use terminal_psi::{
 
 pub(super) fn prepare(
     input: &AdmissionSource<'_>,
+    analyses: Option<&terminal_semantics::ModuleAnalyses<'_>>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,
     installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
@@ -48,6 +49,7 @@ pub(super) fn prepare(
 
     let calls = super::super::selected_synchronous_call_graph(
         artifact.view(),
+        analyses,
         input.target_context(),
         input
             .selected_program_entry_call()
@@ -63,6 +65,7 @@ pub(super) fn prepare(
         )?;
         Some(super::super::selected_synchronous_call_graph(
             artifact.view(),
+            analyses,
             input.target_context(),
             context.entry_bridge(),
             context.providers(),
