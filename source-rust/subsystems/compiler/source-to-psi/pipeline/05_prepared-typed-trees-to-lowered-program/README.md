@@ -125,10 +125,31 @@ recursor per member (`PlainData::block`). A machine by cases over one member
 that calls machines over the others is read with every machine of its group
 (`mutual_group`, one per member) as one application of its member's recursor,
 whose motives are the group's results; a call must be at a field of the
-callee's member. A law by induction over a member, a machine ranked on fuel
-over a block and a dispatch inside a value over one are refused: the block's
-induction takes every member's motive, which they do not state. Data reaching
-itself through a callable's parameter is refused at its declaration.
+callee's member. Each machine of a group takes the one value it dispatches
+on. Laws by induction over members are proved the same way: a law over one
+member and the laws it cites at fields of other members, which cite it back,
+are one group (`mutual_laws`), each one equality about one value with no
+premise. A member no machine or law of the group is about gets a motive into
+`Two` whose branches ignore their fields. A dispatch inside a value, and a
+law's split of a field, is a case analysis of one member: the block's
+recursor with motives into `Two` at the others (`analysis_motives`). A
+recursive call at a computed value of a block is refused, since only data
+shaped like `Nat` has the natural order its fuel descends in.
+
+A field may hold a callable whose result is the data (`data Branch =
+machine(index: u64) -> Tree ..`, a field `children: Branch` of `Tree`): a
+child for each argument, a strictly positive occurrence. `proof_stratum`
+reaches the data through the callable's parameters and result, and such a
+callable is mathematical like the data, so the ordinary reader skips its
+alias. The field is `PlainField::Function`, the kernel's `Π (index). Tree`,
+and its induction hypothesis is the motive at every child. Calling the field
+(`children(0)`) applies it, a recursive call at that child is the hypothesis
+applied to the argument, and a law cites itself there the same way
+(`Evidence::Hypothesis`'s `at`). A machine named as a value is its
+definition. A field whose callable takes the data as a parameter is a
+negative occurrence and is refused at the declaration, as is a callable of
+other than one plain parameter to the data, or one whose result holds the
+data inside another type.
 
 Data whose parameters are values and that holds itself at other values
 (`data Vector<Length: u64, Total: u64> requires .. { case Nil; case

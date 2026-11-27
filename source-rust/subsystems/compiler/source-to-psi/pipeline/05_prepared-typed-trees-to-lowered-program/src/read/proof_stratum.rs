@@ -78,16 +78,49 @@ impl Program<'_> {
         let mut named = Vec::new();
         for member in typed.data_members(data) {
             match member {
-                DataMember::Field(field) => named.extend(self.names_data(field.type_reference)),
-                DataMember::Variant(variant) => named.extend(
-                    typed
-                        .data_payload_fields(variant)
-                        .iter()
-                        .filter_map(|field| self.names_data(field.type_reference)),
-                ),
+                DataMember::Field(field) => self.names_through(field.type_reference, &mut named),
+                DataMember::Variant(variant) => {
+                    for field in typed.data_payload_fields(variant) {
+                        self.names_through(field.type_reference, &mut named);
+                    }
+                }
             }
         }
         named
+    }
+
+    /// The declarations a field's type names: the data it names, or, for a
+    /// callable (`data Branch = machine(index: u64) -> Tree ..`), every
+    /// declaration its parameters and its result name. A field holding a
+    /// callable whose result is the data holds a child for each argument;
+    /// one whose parameter names the data is a negative occurrence, which
+    /// the signature refuses at the declaration.
+    fn names_through(&self, reference: TypeReferenceHandle, named: &mut Vec<SymbolHandle>) {
+        if let Some(symbol) = self.names_data(reference) {
+            named.push(symbol);
+            return;
+        }
+        if !reference.is_valid() {
+            return;
+        }
+        let typed = self.typed;
+        let TypeReferenceNode::Callable { contract } =
+            typed.type_reference_table.type_reference(reference)
+        else {
+            return;
+        };
+        if !typed.runtime_callable_contracts.is_valid(*contract) {
+            return;
+        }
+        let signature = &typed.runtime_callable_contract(*contract).signature;
+        for parameter in typed
+            .state_parameters
+            .span(signature.parameters)
+            .unwrap_or_default()
+        {
+            self.names_through(parameter.type_reference, named);
+        }
+        self.names_through(signature.return_type, named);
     }
 
     fn reaches(
@@ -144,6 +177,27 @@ impl Program<'_> {
             .collect();
         block.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
         block
+    }
+
+    /// Whether a type is a callable whose parameters or result name data
+    /// that is mathematical: a stored function of such data, which is no
+    /// more stored than the data is.
+    pub(crate) fn is_mathematical_callable(&self, reference: TypeReferenceHandle) -> bool {
+        if !reference.is_valid()
+            || !matches!(
+                self.typed.type_reference_table.type_reference(reference),
+                TypeReferenceNode::Callable { .. }
+            )
+        {
+            return false;
+        }
+        let mut named = Vec::new();
+        self.names_through(reference, &mut named);
+        named.into_iter().any(|symbol| {
+            self.typed
+                .unique_data_definition_by_symbol(symbol)
+                .is_some_and(|data| self.is_mathematical_data(data))
+        })
     }
 
     /// Whether the data contains itself, or has a field or payload field of

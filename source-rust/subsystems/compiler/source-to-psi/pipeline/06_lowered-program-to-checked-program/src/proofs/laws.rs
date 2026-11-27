@@ -517,26 +517,44 @@ impl Cited<'_> {
                         .map_or(&[][..], |law| law.premises.as_slice());
                     (constant(self.arena, cited), premises, arguments.clone())
                 }
-                Evidence::Hypothesis { field } => {
+                Evidence::Hypothesis { field, at } => {
                     // The law at a field: the field in the dispatched
                     // formal's place, the citation's arguments in the others'.
+                    // At a field holding a function to the data, the law at
+                    // the child `at` names: the field applied there.
                     let LawProof::Cases { formal, .. } = &self.law.proof else {
                         return Err(Uncited::Search(SearchError::NoProof));
                     };
                     let count = self.law.formals.len();
+                    let at = at.map(|at| instantiate(self.arena, at, self.names));
+                    let child = self.names.get(count + field as usize).copied().map(|value| {
+                        match at {
+                            Some(argument) => self.arena.insert(Term::Apply {
+                                function: value,
+                                argument,
+                            }),
+                            None => value,
+                        }
+                    });
                     let mut others = arguments.iter().copied();
                     let actuals: Vec<_> = (0..count)
                         .map(|position| {
                             if position == *formal as usize {
-                                self.names.get(count + field as usize).copied()
+                                child
                             } else {
                                 others.next()
                             }
                         })
                         .collect::<Option<_>>()
                         .ok_or(Uncited::Search(SearchError::NoProof))?;
-                    let hypothesis =
+                    let mut hypothesis =
                         (self.hypothesis)(field).unwrap_or_else(|| self.arena.insert(Term::Dummy));
+                    if let Some(argument) = at {
+                        hypothesis = self.arena.insert(Term::Apply {
+                            function: hypothesis,
+                            argument,
+                        });
+                    }
                     (hypothesis, self.law.premises.as_slice(), actuals)
                 }
                 // The law with one unit of fuel less, at any arguments. The

@@ -30,13 +30,22 @@ pub enum PlainField {
     Member(u32),
     /// The field holds a value of this closed type.
     Payload(TermHandle),
+    /// The field holds a function from `argument`, a closed type, to member
+    /// `member` of the block (this one's own position included): a child for
+    /// each argument. Its induction hypothesis is the motive at every child,
+    /// `Π (x: argument). motive (field x)`. The data occurs only as the
+    /// function's result, so the occurrence stays strictly positive.
+    Function { argument: TermHandle, member: u32 },
 }
 
 impl PlainField {
     /// Whether the field holds the data or another member of its block: a
     /// field with an induction hypothesis.
     pub fn is_recursive(self) -> bool {
-        matches!(self, Self::Recursive | Self::Member(_))
+        matches!(
+            self,
+            Self::Recursive | Self::Member(_) | Self::Function { .. }
+        )
     }
 }
 
@@ -94,6 +103,7 @@ impl PlainData {
                                 PlainField::Member(member) => {
                                     member < count && member as usize != own
                                 }
+                                PlainField::Function { member, .. } => member < count,
                                 _ => true,
                             })
                     })
@@ -164,7 +174,7 @@ impl PlainData {
     pub fn field_member(&self, case: usize, field: u32) -> Option<u32> {
         match self.own()[case].get(field as usize)? {
             PlainField::Recursive => Some(self.member),
-            PlainField::Member(member) => Some(*member),
+            PlainField::Member(member) | PlainField::Function { member, .. } => Some(*member),
             PlainField::Payload(_) => None,
         }
     }
@@ -179,13 +189,15 @@ impl PlainData {
     }
 
     /// Whether any field of any case of any member holds a value of another
-    /// type.
+    /// type, or a function to the data: anything but a value of the block
+    /// itself.
     pub fn has_payload(&self) -> bool {
-        self.members
-            .iter()
-            .flatten()
-            .flatten()
-            .any(|field| matches!(field, PlainField::Payload(_)))
+        self.members.iter().flatten().flatten().any(|field| {
+            matches!(
+                field,
+                PlainField::Payload(_) | PlainField::Function { .. }
+            )
+        })
     }
 
     /// The index of the first member's own entry when the block's
@@ -244,6 +256,10 @@ impl PlainData {
                 PlainField::Recursive => Self::data_type(arena, data),
                 PlainField::Member(member) => Self::data_type(arena, first + member),
                 PlainField::Payload(payload) => payload,
+                PlainField::Function { argument, member } => {
+                    let child = Self::data_type(arena, first + member);
+                    pi(arena, argument, child)
+                }
             })
             .collect()
     }
@@ -340,9 +356,25 @@ impl PlainData {
             let Some(member) = self.field_member(case, field) else {
                 continue;
             };
-            let motive = shift(arena, motives[member as usize], 0, arity + hypothesis);
-            let value = variable(arena, arity + hypothesis - 1 - field);
-            binders.push(apply(arena, motive, value));
+            let depth = arity + hypothesis;
+            let binder = match self.own()[case][field as usize] {
+                // The motive at the child for every argument, under one more
+                // binder: the argument.
+                PlainField::Function { argument, .. } => {
+                    let motive = shift(arena, motives[member as usize], 0, depth + 1);
+                    let function = variable(arena, depth - field);
+                    let argument_value = variable(arena, 0);
+                    let child = apply(arena, function, argument_value);
+                    let body = apply(arena, motive, child);
+                    pi(arena, argument, body)
+                }
+                _ => {
+                    let motive = shift(arena, motives[member as usize], 0, depth);
+                    let value = variable(arena, depth - 1 - field);
+                    apply(arena, motive, value)
+                }
+            };
+            binders.push(binder);
             hypothesis += 1;
         }
         binders
@@ -1606,6 +1638,80 @@ mod tests {
         assert!(!convertible(&mut arena, &context, halved, zero, nat, &mut budget).unwrap());
         let at_zero = call(&mut arena, 11, &[even_zero]);
         assert!(convertible(&mut arena, &context, at_zero, zero, nat, &mut budget).unwrap());
+    }
+
+    /// `Nat` at 0..4, then `Tree { Leaf; Node(children: Nat -> Tree) }` at
+    /// 4..8, and `leftmost : Tree -> Nat` at 8: zero at a leaf, one more than
+    /// the leftmost of the child at zero at a node.
+    fn branching(arena: &mut TermArena) -> (PlainData, Vec<Declaration>) {
+        let peano = PlainData::recursive(vec![0, 1]).unwrap();
+        let mut declarations = peano.declarations(arena, 0);
+        let nat = constant(arena, 0);
+        let tree = PlainData::new(vec![
+            vec![],
+            vec![PlainField::Function {
+                argument: nat,
+                member: 0,
+            }],
+        ])
+        .unwrap();
+        assert!(tree.has_payload() && tree.is_set(arena, 4).is_none());
+        declarations.extend(tree.declarations(arena, 4));
+        let tree_ty = constant(arena, 4);
+        let motive = lambda(arena, tree_ty, nat);
+        let zero = constant(arena, 1);
+        let at_leaf = tree.branch(arena, 4, motive, 0, zero);
+        // The hypothesis is a function: the motive at every child.
+        let hypothesis = tree.hypothesis(arena, 1, 0, 0).unwrap();
+        let at_zero = arena.apply_arguments(hypothesis, &[zero]);
+        let successor = call(arena, 2, &[at_zero]);
+        let at_node = tree.branch(arena, 4, motive, 1, successor);
+        let subject = variable(arena, 0);
+        let leftmost = tree.induct(arena, 4, motive, &[at_leaf, at_node], subject);
+        let leftmost = lambda(arena, tree_ty, leftmost);
+        let leftmost_type = pi(arena, tree_ty, nat);
+        declarations.push(Declaration::definition(0, leftmost_type, leftmost));
+        (tree, declarations)
+    }
+
+    #[test]
+    fn data_with_a_function_to_itself_computes_through_its_recursor() {
+        let mut arena = TermArena::new();
+        let mut budget = Budget::default();
+        let (_, declarations) = branching(&mut arena);
+        let context = checked(&mut arena, &declarations, &mut budget);
+        let nat = constant(&mut arena, 0);
+        let zero = constant(&mut arena, 1);
+        let one = call(&mut arena, 2, &[zero]);
+        // leftmost(Node(λ_. Node(λ_. Leaf))) = 2.
+        let leaf = constant(&mut arena, 5);
+        let only_leaf = lambda(&mut arena, nat, leaf);
+        let inner = call(&mut arena, 6, &[only_leaf]);
+        let only_inner = lambda(&mut arena, nat, inner);
+        let outer = call(&mut arena, 6, &[only_inner]);
+        let depth = call(&mut arena, 8, &[outer]);
+        let two = call(&mut arena, 2, &[one]);
+        assert!(convertible(&mut arena, &context, depth, two, nat, &mut budget).unwrap());
+        assert!(!convertible(&mut arena, &context, depth, one, nat, &mut budget).unwrap());
+    }
+
+    #[test]
+    fn data_with_a_function_from_itself_is_refused() {
+        // `Node(children: Tree -> Nat)`: the data as a function's input is a
+        // negative occurrence.
+        let mut arena = TermArena::new();
+        let peano = PlainData::recursive(vec![0, 1]).unwrap();
+        let mut declarations = peano.declarations(&mut arena, 0);
+        let nat = constant(&mut arena, 0);
+        let tree_ty = constant(&mut arena, 4);
+        let from_tree = pi(&mut arena, tree_ty, nat);
+        let tree = PlainData::new(vec![vec![], vec![PlainField::Payload(from_tree)]]).unwrap();
+        declarations.extend(tree.declarations(&mut arena, 4));
+        let refused = check_signature(&mut arena, &declarations, &mut Budget::default());
+        assert_eq!(
+            refused.unwrap_err(),
+            CoreError::NonStrictlyPositiveOccurrence
+        );
     }
 
     #[test]

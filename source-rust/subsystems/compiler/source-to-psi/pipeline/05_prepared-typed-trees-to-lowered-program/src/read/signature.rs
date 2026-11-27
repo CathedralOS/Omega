@@ -458,6 +458,10 @@ enum Read {
 struct Bound {
     term: TermHandle,
     field: Option<u32>,
+    /// With `field`, a field that holds a function to the data applied to
+    /// this argument: the child there, whose recursion is the field's
+    /// hypothesis at the argument.
+    applied: Option<TermHandle>,
 }
 
 struct Scope<'s> {
@@ -870,14 +874,7 @@ impl<'p> Converter<'p, '_> {
                 for case in declared.cases() {
                     let mut fields = Vec::with_capacity(case.fields.len());
                     for field in &case.fields {
-                        let at = records
-                            .iter()
-                            .position(|&other| field.value_type == ValueType::record(other));
-                        fields.push(match at {
-                            Some(at) if at == own => PlainField::Recursive,
-                            Some(at) => PlainField::Member(at as u32),
-                            None => PlainField::Payload(self.value_ty(id, field.value_type)?.0),
-                        });
+                        fields.push(self.data_field(id, field.value_type, &records, own)?);
                     }
                     cases.push(fields);
                 }
@@ -951,6 +948,93 @@ impl<'p> Converter<'p, '_> {
         Ok(first + at as u32)
     }
 
+    /// What a field of type `value_type` of member `own` of the block whose
+    /// members' records are `records`, in order, holds: a member, a callable
+    /// to a member, which holds a child for each argument, or a payload of
+    /// its own kernel type. A callable whose parameter names the block is a
+    /// negative occurrence and is refused, as is one whose result holds the
+    /// block inside another type.
+    fn data_field(
+        &mut self,
+        id: MachineId,
+        value_type: ValueType,
+        records: &[StructuralTypeId],
+        own: usize,
+    ) -> Checked<PlainField> {
+        let member = |ty: ValueType| records.iter().position(|&other| ty == ValueType::record(other));
+        if let Some(at) = member(value_type) {
+            return Ok(if at == own {
+                PlainField::Recursive
+            } else {
+                PlainField::Member(at as u32)
+            });
+        }
+        if let ValueType::Scalar(ScalarType::Callable(contract), _) = value_type
+            && self.mentions_block(value_type, records, 0)
+        {
+            let signature = self
+                .program
+                .callables
+                .contracts
+                .get(contract)
+                .map(|row| row.signature.clone())
+                .ok_or_else(|| unserved(id, "stored callable lost its contract"))?;
+            if signature
+                .parameters
+                .iter()
+                .any(|&parameter| self.mentions_block(parameter, records, 0))
+            {
+                return Err(unserved(
+                    id,
+                    "data that contains itself as the input of a stored callable: a negative occurrence",
+                ));
+            }
+            let Some(at) = signature.result.and_then(member) else {
+                return Err(unserved(
+                    id,
+                    "data that contains itself inside the result of a stored callable",
+                ));
+            };
+            let (&[parameter], true, true) = (
+                signature.parameters.as_slice(),
+                signature.erased.is_empty(),
+                signature.borrowed.is_empty(),
+            ) else {
+                return Err(unserved(
+                    id,
+                    "data that contains itself through a stored callable of other than one plain parameter",
+                ));
+            };
+            let argument = self.value_ty(id, parameter)?.0;
+            return Ok(PlainField::Function {
+                argument,
+                member: at as u32,
+            });
+        }
+        Ok(PlainField::Payload(self.value_ty(id, value_type)?.0))
+    }
+
+    /// Whether a type is a member of the block, or a callable that takes or
+    /// returns one, however deeply.
+    fn mentions_block(&self, ty: ValueType, records: &[StructuralTypeId], depth: u32) -> bool {
+        if records.iter().any(|&record| ty == ValueType::record(record)) {
+            return true;
+        }
+        let ValueType::Scalar(ScalarType::Callable(contract), _) = ty else {
+            return false;
+        };
+        let Some(row) = self.program.callables.contracts.get(contract) else {
+            return false;
+        };
+        depth < 16
+            && row
+                .signature
+                .parameters
+                .iter()
+                .chain(row.signature.result.iter())
+                .any(|&inner| self.mentions_block(inner, records, depth + 1))
+    }
+
     /// The cases of plain data that contains itself, each field either the
     /// data itself or a payload of a type the signature declares, and its
     /// declarations from the next free entry on.
@@ -968,11 +1052,7 @@ impl<'p> Converter<'p, '_> {
         for case in declared.cases() {
             let mut fields = Vec::with_capacity(case.fields.len());
             for field in &case.fields {
-                fields.push(if field.value_type == ValueType::record(record) {
-                    PlainField::Recursive
-                } else {
-                    PlainField::Payload(self.value_ty(id, field.value_type)?.0)
-                });
+                fields.push(self.data_field(id, field.value_type, &[record], 0)?);
             }
             cases.push(fields);
         }
@@ -1957,7 +2037,7 @@ impl<'p> Converter<'p, '_> {
     ) -> Checked<Vec<TermHandle>> {
         let slots: Vec<_> = values
             .iter()
-            .map(|&term| Some(Bound { term, field: None }))
+            .map(|&term| Some(Bound { term, field: None, applied: None }))
             .collect();
         let aliases: Vec<usize> = (0..values.len()).collect();
         let scope = Scope {
@@ -3072,6 +3152,35 @@ impl<'p> Converter<'p, '_> {
             let carrier = self.declare_integers(id)?;
             return Ok((self.constant(carrier), carrier));
         }
+        // A stored callable of one plain parameter is the function from it:
+        // the kernel's `Π`, at the entry of its result.
+        if let ValueType::Scalar(ScalarType::Callable(contract), _) = value_type {
+            let signature = self
+                .program
+                .callables
+                .contracts
+                .get(contract)
+                .map(|row| row.signature.clone())
+                .ok_or_else(|| unserved(id, "stored callable lost its contract"))?;
+            let (&[parameter], Some(result), true, true) = (
+                signature.parameters.as_slice(),
+                signature.result,
+                signature.erased.is_empty(),
+                signature.borrowed.is_empty(),
+            ) else {
+                return Err(unserved(
+                    id,
+                    "mathematical stored callable of other than one plain parameter and a result",
+                ));
+            };
+            let (domain, _) = self.value_ty(id, parameter)?;
+            let (codomain, entry) = self.value_ty(id, result)?;
+            let codomain = shift(&mut self.signature.arena, codomain, 0, 1);
+            return Ok((
+                self.signature.arena.insert(Term::Pi { domain, codomain }),
+                entry,
+            ));
+        }
         self.ty(id, value_type)
     }
 
@@ -3532,11 +3641,12 @@ impl<'p> Converter<'p, '_> {
             slots[subject] = Some(Bound {
                 term: shape.case_value(arena, data, case, rest),
                 field: None,
+                applied: None,
             });
             let mut actuals = vec![slots[subject].expect("bound above").term; count];
             for (position, &other) in others.iter().enumerate() {
                 let term = self.variable(rest - 1 - position as u32);
-                slots[other] = Some(Bound { term, field: None });
+                slots[other] = Some(Bound { term, field: None, applied: None });
                 actuals[other] = term;
             }
             // The variables of the branch: the case's fields, the recursion
@@ -3732,6 +3842,7 @@ impl<'p> Converter<'p, '_> {
                 slots[0] = Some(Bound {
                     term: at.case_value(arena, entry, case, 0),
                     field: None,
+                    applied: None,
                 });
                 // The variables of the branch: the case's fields, then the
                 // recursion at each field of a member, into that member's
@@ -4527,6 +4638,7 @@ impl<'p> Converter<'p, '_> {
             slots[slot] = Some(Bound {
                 term: shape.case_value(arena, data, case, outer),
                 field: None,
+                applied: None,
             });
             // A dispatch is a case analysis: at a field of another member of
             // a mutual block its hypothesis is a `Two` nothing reads.
@@ -4849,13 +4961,23 @@ impl<'p> Converter<'p, '_> {
         expression: &Expression,
         scope: &Scope<'_>,
     ) -> Checked<Bound> {
-        let plain = |term| Bound { term, field: None };
+        let plain = |term| Bound { term, field: None, applied: None };
         match &expression.kind {
             ExpressionKind::Boolean(value) => Ok(plain(self.signature.arena.insert(if *value {
                 Term::TwoOne
             } else {
                 Term::TwoZero
             }))),
+            // A fixed-width literal is the integer it holds, as a payload or
+            // formal of that type is (`value_ty`).
+            ExpressionKind::Integer(literal) => {
+                let value = match *literal {
+                    IntegerValue::Signed(value) => bignum::BigInt::from_i128(value),
+                    IntegerValue::Unsigned(value) => bignum::BigInt::from_u128(value),
+                };
+                self.declare_integers(id)?;
+                Ok(plain(self.integer_literal(id, value)?))
+            }
             ExpressionKind::Slot(slot) => scope
                 .slots
                 .get(scope.aliases.get(*slot).copied().unwrap_or(*slot))
@@ -4876,6 +4998,7 @@ impl<'p> Converter<'p, '_> {
                     Ok(Bound {
                         term: fields[*field],
                         field: scope.induction.then_some(*field as u32),
+                        applied: None,
                     })
                 }
                 _ => Err(unserved(
@@ -4945,6 +5068,32 @@ impl<'p> Converter<'p, '_> {
                     self.signature.arena.apply_arguments(constructor, &operands),
                 ))
             }
+            // A call of a stored callable is the function applied. A field
+            // that holds a function to the data, applied, is the child there,
+            // which a recursion may descend to.
+            ExpressionKind::Call {
+                callee: CallTarget::Selected { callable, .. },
+                arguments,
+                ..
+            } => {
+                let function = self.expression(id, callable, scope)?;
+                let mut operands = Vec::with_capacity(arguments.len());
+                for argument in arguments {
+                    operands.push(self.expression(id, argument, scope)?.term);
+                }
+                let term = self
+                    .signature
+                    .arena
+                    .apply_arguments(function.term, &operands);
+                Ok(match (function.field, function.applied, operands.as_slice()) {
+                    (Some(field), None, &[argument]) => Bound {
+                        term,
+                        field: Some(field),
+                        applied: Some(argument),
+                    },
+                    _ => plain(term),
+                })
+            }
             ExpressionKind::Call {
                 callee: CallTarget::Machine(callee),
                 arguments,
@@ -5009,6 +5158,15 @@ impl<'p> Converter<'p, '_> {
                                     "recursive call at a field that does not hold the data",
                                 )
                             })?;
+                    // At a field that holds a function to the data, the
+                    // recursion is at the child the call applies it to.
+                    let result = match operands[subject].applied {
+                        Some(argument) => self.signature.arena.insert(Term::Apply {
+                            function: result,
+                            argument,
+                        }),
+                        None => result,
+                    };
                     return Ok(plain(self.signature.arena.apply_arguments(result, &rest)));
                 }
                 if self.helper(*callee)
@@ -5072,6 +5230,31 @@ impl<'p> Converter<'p, '_> {
                 Ok(plain(
                     self.signature.arena.apply_arguments(function, &operands),
                 ))
+            }
+            // A stored selection of a mathematical machine is its definition,
+            // the function itself. Nothing calls it here, so a premise it
+            // owes at a call has no arguments to be proved at.
+            ExpressionKind::MachineValue { descriptor, .. } => {
+                let selected = self
+                    .program
+                    .callables
+                    .descriptors
+                    .get(*descriptor)
+                    .map(|selection| selection.machine)
+                    .ok_or_else(|| unserved(id, "machine value lost its selection"))?;
+                if self
+                    .program
+                    .signatures
+                    .get(selected)
+                    .is_none_or(|signature| !signature.requires.is_empty())
+                {
+                    return Err(unserved(
+                        id,
+                        "mathematical machine value whose machine has a premise",
+                    ));
+                }
+                let function = self.function(selected)?;
+                Ok(plain(self.constant(function)))
             }
             _ => Err(unserved(
                 id,
@@ -5731,6 +5914,7 @@ impl<'p> Converter<'p, '_> {
                 (slot < formals).then(|| Bound {
                     term: self.variable((formals - 1 - slot) as u32),
                     field: None,
+                    applied: None,
                 })
             })
             .collect()
@@ -5927,6 +6111,7 @@ impl<'p> Converter<'p, '_> {
                     Some(Bound {
                         term: self.variable((count - 1 - formal) as u32 + arity),
                         field: None,
+                        applied: None,
                     })
                 })
                 .collect();
@@ -6032,6 +6217,9 @@ impl<'p> Converter<'p, '_> {
                     bound.map(|bound| Bound {
                         term: shift(&mut self.signature.arena, bound.term, 0, arity),
                         field: bound.field,
+                        applied: bound.applied.map(|applied| {
+                            shift(&mut self.signature.arena, applied, 0, arity)
+                        }),
                     })
                 })
                 .collect();
@@ -6200,7 +6388,28 @@ impl<'p> Converter<'p, '_> {
                 }
                 Ok(())
             }
-            ExpressionKind::Slot(_) | ExpressionKind::Payload { .. } if nested || returns => Ok(()),
+            // A stored callable applied, as an operand: a term, which cites
+            // what its operands cite.
+            ExpressionKind::Call {
+                callee: CallTarget::Selected { callable, .. },
+                arguments,
+                ..
+            } if nested || returns => {
+                self.cite_within(law, machine, callable, scope, script, true)?;
+                for argument in arguments {
+                    self.cite_within(law, machine, argument, scope, script, true)?;
+                }
+                Ok(())
+            }
+            ExpressionKind::Slot(_)
+            | ExpressionKind::Payload { .. }
+            | ExpressionKind::Integer(_)
+            | ExpressionKind::Boolean(_)
+            | ExpressionKind::MachineValue { .. }
+                if nested || returns =>
+            {
+                Ok(())
+            }
             _ => Err(unserved(machine, "law body statement other than a call")),
         }
     }
@@ -6266,6 +6475,7 @@ impl<'p> Converter<'p, '_> {
             // A law of a mutual induction at a field of the dispatched case
             // that holds its member is the block's induction hypothesis
             // there: each law of the group has the one formal.
+            let at = operands.first().and_then(|operand| operand.applied);
             let field = operands
                 .first()
                 .and_then(|operand| operand.field)
@@ -6283,7 +6493,7 @@ impl<'p> Converter<'p, '_> {
             }
             self.ranked_on(*callee, 0, true)?;
             script.citations.push(Citation {
-                evidence: Evidence::Hypothesis { field },
+                evidence: Evidence::Hypothesis { field, at },
                 arguments: Vec::new(),
             });
             return Ok(());
@@ -6297,6 +6507,7 @@ impl<'p> Converter<'p, '_> {
                     "law cites itself without dispatching on a formal",
                 ));
             };
+            let at = operands.get(subject).and_then(|operand| operand.applied);
             let field = operands
                 .get(subject)
                 .and_then(|operand| operand.field)
@@ -6308,7 +6519,7 @@ impl<'p> Converter<'p, '_> {
                 })?;
             self.ranked_on(law, subject, true)?;
             script.citations.push(Citation {
-                evidence: Evidence::Hypothesis { field },
+                evidence: Evidence::Hypothesis { field, at },
                 arguments: operands
                     .iter()
                     .enumerate()

@@ -304,7 +304,8 @@ fn false_case_analyses_of_a_member_of_a_mutual_block_are_refused() {
 #[test]
 fn data_containing_itself_through_a_callable_is_refused_at_its_declaration() {
     // `Loop` reaches itself through the parameter of the callable `Test`: a
-    // negative occurrence, which no inductive declares.
+    // negative occurrence, which no inductive declares. Its twin is
+    // `BRANCHING`, which reaches itself through a callable's result.
     let source = program(
         "
 data Test = machine(value: Loop) -> bool reaches none crashes none terminates;
@@ -336,9 +337,8 @@ ensures
         refused.iter().any(|detail| detail.ends_with(declaration)),
         "{refused:#?}"
     );
-    // `Test` itself is refused for its record, and every machine over `Loop`
-    // repeats the declaration's refusal.
-    let reason = "a type other than data that contains itself";
+    // Every machine over `Loop` repeats the declaration's refusal.
+    let reason = "data that contains itself as the input of a stored callable: a negative occurrence";
     for machine in ["depth", "depth_end"] {
         let at = format!("while reading the mathematical declaration of `{machine}`");
         assert!(
@@ -350,10 +350,9 @@ ensures
     }
 }
 
-#[test]
-fn probe_positive_callable() {
-    let source = program(
-        "
+/// Data with a child for every argument: a field holding a callable whose
+/// result is the data, a strictly positive occurrence.
+const BRANCHING: &str = "
 data Branch = machine(index: u64) -> Tree reaches none crashes none terminates;
 
 data Tree {
@@ -370,23 +369,101 @@ terminates by t
     }
 }
 
+machine leftmost_again(t: Tree) -> Nat
+terminates by t
+{
+    transition t {
+        Tree::Leaf -> Nat::Zero,
+        Tree::Node { children } -> add(leftmost_again(children(0)), Nat::Succ { prev: Nat::Zero })
+    }
+}
+
+machine only_leaves(index: u64) -> Tree
+{
+    Tree::Leaf
+}
+
+machine node_of_leaves() -> Tree
+{
+    Tree::Node { children: only_leaves }
+}
+
 machine leftmost_leaf()
 ensures
     |proof|::Identity::<Nat>(leftmost(Tree::Leaf), Nat::Zero)
 {
 }
-",
-    );
-    let typed = std::panic::catch_unwind(|| judged(&source));
-    match typed {
-        Ok(verdicts) => {
-            for verdict in &verdicts {
-                let shown = format!("{verdict:?}");
-                if !shown.starts_with("Accepted") {
-                    eprintln!("VERDICT {}", shown.chars().take(900).collect::<String>());
-                }
-            }
-        }
-        Err(_) => eprintln!("PANICKED"),
+
+machine leftmost_node()
+ensures
+    |proof|::Identity::<Nat>(
+        leftmost(node_of_leaves()),
+        Nat::Succ { prev: Nat::Zero }
+    )
+{
+}
+
+machine leftmost_agrees(t: Tree) -> Nat
+terminates by t
+ensures
+    |proof|::Identity::<Nat>(leftmost(t), leftmost_again(t))
+{
+    transition t {
+        Tree::Leaf -> Nat::Zero,
+        Tree::Node { children } -> agrees_step(children)
+    }
+
+    machine agrees_step(children: Branch) -> Nat {
+        _ = add_succ_law(leftmost_again(children(0)), Nat::Zero);
+        add_zero_right(leftmost_again(children(0)));
+        transition { _ -> leftmost_agrees(children(0)) }
     }
 }
+";
+
+const BRANCHING_LAWS: [&str; 3] = ["leftmost_leaf", "leftmost_node", "leftmost_agrees"];
+
+#[test]
+fn laws_over_data_with_a_callable_to_itself_are_judged() {
+    let verdicts = judged(&program(BRANCHING));
+    let judgment = signature(&verdicts);
+    for machine in BRANCHING_LAWS {
+        let law = judgment
+            .laws
+            .iter()
+            .find(|law| law.machine == machine)
+            .unwrap_or_else(|| panic!("`{machine}` is judged: {judgment:?}"));
+        assert!(
+            matches!(law.decision, MathematicalCoreDecision::Judged(_)),
+            "{law:?}"
+        );
+    }
+}
+
+#[test]
+fn false_laws_over_data_with_a_callable_to_itself_are_refused() {
+    for (machine, from, to) in [
+        (
+            "leftmost_node",
+            "leftmost(node_of_leaves()),\n        Nat::Succ { prev: Nat::Zero }",
+            "leftmost(node_of_leaves()),\n        Nat::Zero",
+        ),
+        (
+            "leftmost_agrees",
+            "transition { _ -> leftmost_agrees(children(0)) }",
+            "transition { _ -> leftmost_agrees(children(1)) }",
+        ),
+        (
+            "leftmost_agrees",
+            "transition { _ -> leftmost_agrees(children(0)) }",
+            "transition { _ -> leftmost(children(0)) }",
+        ),
+    ] {
+        let changed = program(BRANCHING).replacen(from, to, 1);
+        assert_ne!(changed, program(BRANCHING), "{machine} is changed");
+        let verdicts = judged(&changed);
+        let law = unproved(&verdicts);
+        assert_eq!(law.machine, machine, "{law:?}");
+    }
+}
+

@@ -471,7 +471,10 @@ pub enum Evidence {
     /// `arguments` then holds the remaining formals' actuals in order. Over
     /// a mutual block it is the law of the field's member, which may be
     /// another law of the group.
-    Hypothesis { field: u32 },
+    /// At a field that holds a function to the data, `at` is the argument
+    /// the law is cited at the child of, a term like `arguments`: the
+    /// hypothesis is the law at every child, applied there.
+    Hypothesis { field: u32, at: Option<TermHandle> },
     /// The law itself with one unit of fuel less, in a law proved by
     /// induction on fuel. `arguments` holds every formal's actual. With no
     /// fuel left there is no such hypothesis and the citation is nothing.

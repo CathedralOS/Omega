@@ -671,21 +671,41 @@ pub(crate) fn normal(
         }
         let mut applied = arena.apply_arguments(cases.branches[case], &fields);
         // The branch takes the recursion at each field that holds the data
-        // itself, after all of the case's fields.
+        // itself, after all of the case's fields: at a field holding a
+        // function to the data, the recursion at every child, `λx. rec (f x)`.
         let Some((_, shape)) = definitions.1.iter().find(|(entry, _)| *entry == cases.data) else {
             return Ok(arena.apply_arguments(function, &operands));
         };
-        let recursive: Vec<TermHandle> = fields
+        let recursive: Vec<(TermHandle, proof_admission::PlainField)> = fields
             .iter()
             .zip(shape.fields(case))
-            .filter(|(_, kind)| **kind == proof_admission::PlainField::Recursive)
-            .map(|(&field, _)| field)
+            .filter(|(_, kind)| kind.is_recursive())
+            .map(|(&field, &kind)| (field, kind))
             .collect();
-        for &field in &recursive {
-            let at_field = arena.insert(Term::Apply {
-                function: recursor,
-                argument: field,
-            });
+        for &(field, kind) in &recursive {
+            let at_field = match kind {
+                proof_admission::PlainField::Function { argument, .. } => {
+                    let function = shift(arena, field, 0, 1);
+                    let bound = arena.insert(Term::Variable(0));
+                    let child = arena.insert(Term::Apply {
+                        function,
+                        argument: bound,
+                    });
+                    let recursor = shift(arena, recursor, 0, 1);
+                    let body = arena.insert(Term::Apply {
+                        function: recursor,
+                        argument: child,
+                    });
+                    arena.insert(Term::Lambda {
+                        domain: argument,
+                        body,
+                    })
+                }
+                _ => arena.insert(Term::Apply {
+                    function: recursor,
+                    argument: field,
+                }),
+            };
             applied = arena.insert(Term::Apply {
                 function: applied,
                 argument: at_field,
