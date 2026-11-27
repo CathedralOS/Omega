@@ -2530,9 +2530,13 @@ impl<'a> Prover<'a> {
                 self.arithmetic(left, right)
             }
             Proposition::IntegerMathEqual(left, right) => {
+                // An exact result equation makes the goal one transport
+                // step; only when no definition decides it does the prover
+                // build the two-sided order certificate.
                 if let Some(proof) = self
                     .reflexive(goal.clone())
                     .or_else(|| self.closed(goal.clone()))
+                    .or_else(|| self.by_transport(goal))
                 {
                     return Ok(proof);
                 }
