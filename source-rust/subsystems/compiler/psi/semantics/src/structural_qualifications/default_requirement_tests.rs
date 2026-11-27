@@ -285,7 +285,7 @@ fn a_window_requires_coordinates_only_for_its_potential_owners() {
     let project = |types: &[_], domains: &[_], machine: &TerminalMachine| {
         DefaultRequirements::new(types, domains, machine)
             .unwrap()
-            .has_no_window_defaults(root, &window, &[], &[StructuralPathSegment::FixedIndex(1)])
+            .has_no_window_defaults(root, &window, &[], WindowWrite::Store(&[StructuralPathSegment::FixedIndex(1)]))
             .unwrap()
     };
     let mut types = types(2);
@@ -306,10 +306,35 @@ fn a_window_requires_coordinates_only_for_its_potential_owners() {
 
     types[0].requires.push(Proposition::Truth);
     assert!(!project(&types, &[], &machine));
+    let handback = |types: &[_], machine: &TerminalMachine, projection: &Projection, displayed| {
+        DefaultRequirements::new(types, &[], machine)
+            .unwrap()
+            .has_no_window_defaults(root, projection, &[], WindowWrite::ExclusiveCall(displayed))
+            .unwrap()
+    };
+    let selected = window.then(&Projection::new(&[StructuralPathSegment::FixedIndex(1)]));
+    let element = types[0].id;
+    let view = types[1].id;
+    assert!(handback(&types, &machine, &selected, element));
+    assert!(!handback(&types, &machine, &selected, view));
+    let recast = selected.then(&Projection::new(&[StructuralPathSegment::RepresentationView {
+        structural_type: element,
+        stored_scalar: None,
+    }]));
+    assert!(!handback(&types, &machine, &recast, element));
+    assert!(handback(&types, &machine, &window, view));
+    assert!(!handback(&types, &machine, &window, element));
+    // This clause belongs to the containing collection. Handing back one
+    // valid element, or every element of a subview, cannot establish it.
+    types[1].requires.push(Proposition::Truth);
+    assert!(!handback(&types, &machine, &selected, element));
+    assert!(!handback(&types, &machine, &window, view));
+    types[1].requires.clear();
     types[0].requires.clear();
 
     let owner = domain(types[1].id);
     machine.structural_parameters[0].qualifications.push(owner.id);
+    assert!(!handback(&types, &machine, &selected, element));
     assert!(!project(&types, &[owner], &machine));
 }
 

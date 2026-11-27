@@ -330,6 +330,12 @@ enum Changed<'path> {
     },
 }
 
+#[derive(Clone, Copy)]
+enum WindowWrite<'a> {
+    Store(&'a [StructuralPathSegment]),
+    ExclusiveCall(StructuralTypeId),
+}
+
 /// Construction owes its clauses immediately. Writes and exclusive calls
 /// can instead open a restoration window on existing storage.
 pub fn operation_writes_default_storage(kind: &OperationKind) -> bool {
@@ -942,7 +948,13 @@ impl<'a> DefaultRequirements<'a> {
                         descriptor.path.to_vec()
                     };
                     for (root, mut selected) in self.backings(
-                        module, descriptor.root, &selected, true, path, before, references,
+                        module,
+                        descriptor.root,
+                        &selected,
+                        true,
+                        WindowWrite::Store(path),
+                        before,
+                        references,
                     )? {
                         selected.extend_from_slice(path);
                         selected.pop(); // Only the containing owner carries the default.
@@ -962,9 +974,15 @@ impl<'a> DefaultRequirements<'a> {
                     | OperationKind::StructuralByteViewFieldStore { field: None, .. }
                     | OperationKind::AtomicAccess { .. }
             );
-            for (owner, mut selected) in
-                self.backings(module, root, &path, payload, &[], before, references)?
-            {
+            for (owner, mut selected) in self.backings(
+                module,
+                root,
+                &path,
+                payload,
+                WindowWrite::Store(&[]),
+                before,
+                references,
+            )? {
                 if replaces_whole {
                     visit(Changed::Replaced {
                         displayed_root: root,
@@ -995,7 +1013,7 @@ impl<'a> DefaultRequirements<'a> {
                 argument.place,
                 &argument.path,
                 true,
-                &[],
+                WindowWrite::ExclusiveCall(self.carrier(argument.place, &argument.path)?),
                 before,
                 references,
             )? {
@@ -1055,7 +1073,7 @@ impl<'a> DefaultRequirements<'a> {
         root: PlaceId,
         path: &[StructuralPathSegment],
         payload: bool,
-        element_path: &[StructuralPathSegment],
+        write: WindowWrite<'_>,
         before: crate::descriptor_lifetimes::DescriptorPosition,
         references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
     ) -> Judged<Vec<(PlaceId, Vec<StructuralPathSegment>)>> {
@@ -1155,7 +1173,7 @@ impl<'a> DefaultRequirements<'a> {
             let (root, mut selected) = if let Some(path) = projection.captured_storage_path() {
                 (source, path)
             } else {
-                if self.has_no_window_defaults(source, &projection, suffix, element_path)? {
+                if self.has_no_window_defaults(source, &projection, suffix, write)? {
                     continue;
                 }
                 let unique = references
@@ -1178,17 +1196,22 @@ impl<'a> DefaultRequirements<'a> {
     }
 
     /// A window can lose its exact offset while retaining all its types.
-    /// Discharge an empty restoration inventory without inventing an address.
-    /// A possible type clause or lender membership still needs its true place.
+    /// Find whether this write owes a clause at an unidentifiable offset.
+    /// A call can rely on the callee restoring the same typed element.
+    /// Hidden memberships and enclosing type invariants still need their owner.
     fn has_no_window_defaults(
         &self,
         source: PlaceId,
         projection: &crate::borrowed_storage::Projection,
         suffix: &[StructuralPathSegment],
-        element_path: &[StructuralPathSegment],
+        write: WindowWrite<'_>,
     ) -> Judged<bool> {
         let Some((_, root_type, memberships)) = self.declared.row(source) else {
             return Ok(false);
+        };
+        let element_path = match write {
+            WindowWrite::Store(path) => path,
+            WindowWrite::ExclusiveCall(_) => &[],
         };
         if !memberships.is_empty()
             || suffix.contains(&StructuralPathSegment::Referent)
@@ -1196,7 +1219,7 @@ impl<'a> DefaultRequirements<'a> {
         {
             return Ok(false);
         }
-        let Some(mut path) = projection.captured_window_carrier_path() else {
+        let Some((mut path, window_depth)) = projection.captured_window_carrier_path() else {
             return Ok(false);
         };
         path.extend_from_slice(suffix);
@@ -1209,6 +1232,17 @@ impl<'a> DefaultRequirements<'a> {
                 *step = StructuralPathSegment::AllElements;
             }
         }
+        // A representation view can change an element's nominal identity.
+        // Only declared subobjects carry their own type invariant into the call.
+        let handback = match write {
+            WindowWrite::ExclusiveCall(displayed) if path.iter().all(|step| {
+                matches!(step, StructuralPathSegment::AllElements
+                    | StructuralPathSegment::Case(_) | StructuralPathSegment::Field(_))
+            }) => Some(displayed),
+            _ => None,
+        };
+        let mut empty_inventory = true;
+        let mut enclosing_clause = false;
         for length in 0..=path.len() {
             let prefix = &path[..length];
             if matches!(prefix.last(), Some(StructuralPathSegment::Case(_))) {
@@ -1219,16 +1253,39 @@ impl<'a> DefaultRequirements<'a> {
             else {
                 return Ok(false);
             };
-            if self.type_has_defaults(carrier)? {
-                return Ok(false);
-            }
-            if let StructuralTypeShape::ElementView { element, .. } = self.declaration(carrier)?.shape
-                && self.type_has_defaults(element)?
+            let row = self.declaration(carrier)?;
+            if length == path.len()
+                && !enclosing_clause
+                && let Some(displayed) = handback
             {
-                return Ok(false);
+                // A checked callee restores the type of a whole value lent to it.
+                // The caller still owes the direct clauses of its strict owners.
+                if length > window_depth && displayed == carrier {
+                    return Ok(true);
+                }
+                // A subview can hand back all its elements without establishing
+                // an invariant on the original, potentially longer collection.
+                if length == window_depth
+                    && row.requires.is_empty()
+                    && let StructuralTypeShape::ElementView { element: expected, .. } =
+                        self.declaration(displayed)?.shape
+                    && matches!(
+                        row.shape,
+                        StructuralTypeShape::ElementView { element, .. }
+                            | StructuralTypeShape::FixedArray { element, .. } if element == expected
+                    )
+                {
+                    return Ok(true);
+                }
+            }
+            enclosing_clause |= !row.requires.is_empty();
+            if self.type_has_defaults(carrier)?
+                || matches!(row.shape, StructuralTypeShape::ElementView { element, .. } if self.type_has_defaults(element)?)
+            {
+                empty_inventory = false;
             }
         }
-        Ok(true)
+        Ok(empty_inventory)
     }
 
     fn declared_operation(&self, operation: &Operation) -> Judged<Vec<DefaultRequirement>> {

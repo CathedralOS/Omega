@@ -246,7 +246,7 @@ fn the_core_iterator_instantiates_its_callback_borrow_for_each_element() {
     let package = PackageKeyIdentity::from_digest([0x7a; 32]).unwrap();
     let source = concat!(
         include_str!("../../../../../source/library/core/iteration.omg"),
-        "\ndata Cell { value: i32; }
+        "\ndata Cell requires value >= 0 { value: i32; }
         machine clear(item: @mutable Cell) satisfies ElementStep<Cell>::apply { item.value = 0; }
         machine main() {
             let mutable items: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
@@ -262,6 +262,16 @@ fn the_core_iterator_instantiates_its_callback_borrow_for_each_element() {
             .unwrap()
             .to_bytes(),
         bytes,
+    );
+
+    let broken = source.replace("item.value = 0;", "item.value = -1;");
+    let (files, root) = captured(package, &broken);
+    let diagnostics = compile(product(files, root, package, &[]).unwrap(), None).unwrap_err();
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove requires clause")),
+        "an exclusive callback must reestablish its element default: {diagnostics:?}"
     );
 }
 
