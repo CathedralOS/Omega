@@ -1731,6 +1731,7 @@ dependencies = [
  "project-build",
  "psi-authorization",
  "psi-entry-memory",
+ "psi-provider-selections",
  "retained-image-runtime",
  "runtime-abi",
  "semantic-vocabulary",

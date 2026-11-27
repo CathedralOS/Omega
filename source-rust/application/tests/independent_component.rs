@@ -415,3 +415,139 @@ fn independent_wait_uses_the_selected_export_and_the_callers_private_cell() {
         }
     }
 }
+
+#[test]
+fn selected_component_wait_needs_progress_for_the_receivers_actual_input() {
+    use psi_provider_selections::{
+        ProgressScope, ProviderInstallationSelection, admit_component_provider,
+        invocation_progress_failure,
+    };
+    use terminal_semantics::synchronization::ProgressFailure;
+
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/synchronization/run/independent_wait");
+    let read = |file: &str| fs::read_to_string(fixture.join(file)).unwrap();
+    let supplier_build = read("supplier/build.omg");
+    let supplier = read("supplier/main.omg");
+    let build = read("application/build.omg");
+    let application = read("application/main.omg");
+    for requires in ["", "requires input != 1"] {
+        let mut work = application
+            .replace("machine main()", "public machine work(input: u32)")
+            .replace("crashes none {", &format!("crashes none {requires} {{"))
+            .replace("store(0, Publish)", "store(input, Publish)");
+        work.push_str("machine main() reaches |signals|::Wait crashes none { work(2); }");
+        let scratch = project::stage(
+            "selected-component-wait-progress",
+            &[
+                ("supplier/build.omg", &supplier_build),
+                ("supplier/main.omg", &supplier),
+                ("application/build.omg", &build),
+                ("application/main.omg", &work),
+            ],
+        );
+        let inspect = |project_dir: &str, machine: &str| {
+            let path = scratch.path().join(project_dir);
+            let output = project::omega(
+                &path,
+                &[
+                    "psi",
+                    "inspect",
+                    "--machine",
+                    machine,
+                    "--target",
+                    "linux_x86_64",
+                    "--output",
+                    "program.psi",
+                    "build.omg",
+                ],
+            );
+            let (ok, diagnostic) = project::status(&output);
+            assert!(ok, "{diagnostic}");
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(
+                &fs::read(path.join("program.psi")).unwrap(),
+            )
+            .unwrap()
+        };
+        let receiver = inspect("application", "work");
+        let supplier = inspect("supplier", "wait_for_clear");
+        let module = supplier.semantic_module();
+        let root = receiver.semantic_module();
+        let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = root.entry else {
+            panic!("expected the selected work entry");
+        };
+        assert_eq!(module.interfaces.provider_candidates.len(), 2);
+        for candidate in &module.interfaces.provider_candidates {
+            let identities = &module.identities;
+            let provider = identities.text(candidate.provider_identity).unwrap();
+            let slot = root
+                .interfaces
+                .boundary_machines
+                .iter()
+                .find(|slot| {
+                    root.identities.text(slot.identity)
+                        == identities.text(candidate.requirement_identity)
+                })
+                .unwrap();
+            let selected = ProviderInstallationSelection {
+                boundary: candidate.boundary,
+                provider_identity: provider.to_owned(),
+                provider_declaration: identities
+                    .text(candidate.provider_declaration.identity())
+                    .unwrap()
+                    .to_owned(),
+                candidate: candidate.candidate,
+            };
+            let admitted =
+                admit_component_provider(receiver.view(), slot.id, supplier.view(), &selected)
+                    .unwrap();
+            if provider.ends_with("::ObservedWait") {
+                assert_eq!(
+                    invocation_progress_failure(
+                        supplier.view(),
+                        candidate.candidate,
+                        ProgressScope::OpenInterface,
+                        []
+                    ),
+                    None
+                );
+                let standalone = invocation_progress_failure(
+                    supplier.view(),
+                    candidate.candidate,
+                    ProgressScope::Executable,
+                    [],
+                )
+                .expect("a standalone provider has no incoming progress premise");
+                assert_eq!(standalone.cause, ProgressFailure::UnprovedExternal);
+            }
+            let failure = invocation_progress_failure(
+                receiver.view(),
+                entry,
+                ProgressScope::Executable,
+                [&admitted],
+            );
+            if provider.ends_with("::ObservedWait") && requires.is_empty() {
+                let failure =
+                    failure.expect("the installed provider may never see an enabled value");
+                assert_eq!(failure.cause, ProgressFailure::Unproved);
+                assert_eq!(failure.machine, entry);
+                let call = root
+                    .machine(entry)
+                    .unwrap()
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .find(|op| op.id == failure.operation)
+                    .unwrap()
+                    .declared_invocation()
+                    .unwrap();
+                assert_eq!(
+                    call.callee,
+                    terminal_psi::TargetMachineCallable::Boundary(slot.id)
+                );
+            } else {
+                assert_eq!(failure, None, "{provider} with {requires}");
+            }
+        }
+    }
+}

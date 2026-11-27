@@ -10,7 +10,7 @@ mod selected;
 mod spin;
 
 pub use component::component_spin_wait;
-pub use private_cells::{private_wait_failure, stuck_private_wait};
+pub use private_cells::private_wait_failure;
 pub use progress::{PrivateWaitFailure, ProgressFailure, ProgressScope};
 pub use selected::selected_spin_wait;
 pub use spin::{SpinWait, spin_wait};
