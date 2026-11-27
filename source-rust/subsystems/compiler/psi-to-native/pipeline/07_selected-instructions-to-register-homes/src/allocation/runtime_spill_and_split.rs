@@ -3915,6 +3915,9 @@ pub(crate) mod runtime_spill {
                                                 instruction.kind,
                                                 SelectedInstructionKind::Store { .. }
                                                     | SelectedInstructionKind::ZeroBytes
+                                                    | SelectedInstructionKind::PackedStore128 { .. }
+                                                    | SelectedInstructionKind::PackedStore64 { .. }
+                                                    | SelectedInstructionKind::PackedStore32 { .. }
                                             )
                                         {
                                             return Err(RuntimeSpillError::UnsupportedUse);
