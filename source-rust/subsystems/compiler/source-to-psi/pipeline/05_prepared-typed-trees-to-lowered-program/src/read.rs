@@ -325,6 +325,12 @@ pub(crate) struct Program<'t> {
     /// of it returns over its own formals, by the machine whose contract
     /// names it. Lowering hands each to the machines it was read for.
     pub(crate) applied_operations: Vec<(MachineId, SymbolHandle, semantic_vocabulary::Proposition)>,
+    /// Each member of an implementation whose own written contract ensures
+    /// something, with those clauses over its formals and result, read
+    /// before its caller-facing contract became its requirement's
+    /// (`machine::signature`). Lowering hands them to the other members of
+    /// the same implementation (`RealizedGuarantee`).
+    pub(crate) realized_ensures: Vec<(SymbolHandle, Vec<semantic_vocabulary::Proposition>)>,
     /// Each data declaration indexed by values read so far (`families`).
     pub(crate) families: Vec<families::FamilyRecord>,
     /// Each theorem over such data read so far (`families`).
@@ -387,6 +393,9 @@ pub(crate) struct Program<'t> {
     rigid_storage: Vec<Option<type_parameters::ParameterStorage>>,
     /// Binds sibling operations while reading a law supplied by this record.
     clause_supplier: Option<SymbolHandle>,
+    /// The implementation whose rows a requirement's clauses name while its
+    /// witness reads that requirement at the implementation's arguments.
+    witness_conformance: Option<SymbolHandle>,
     /// `scope` of each machine, pushed with its signature and restored
     /// when its body is read.
     scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
@@ -670,6 +679,7 @@ impl<'t> Program<'t> {
             executable_quotients: Vec::new(),
             quotient_soundness: Vec::new(),
             applied_operations: Vec::new(),
+            realized_ensures: Vec::new(),
             families: Vec::new(),
             family_theorems: Vec::new(),
             evidence_uses: Vec::new(),
@@ -691,6 +701,7 @@ impl<'t> Program<'t> {
             reading_schema: false,
             rigid_storage: Vec::new(),
             clause_supplier: None,
+            witness_conformance: None,
             scopes: IdTable::default(),
             nominal_calls: Vec::new(),
             const_scope: Vec::new(),

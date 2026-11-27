@@ -35,7 +35,7 @@ witness runs both choices and observes an independent path marker.
 Root [main.omg](main.omg) carries the same operation. Each positive binds all four
 hosted `ProgramEntry` targets.
 
-Run `omega run --both samples/cli/facts/may_write_codec/<place>/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/facts/may_write_codec/<place>`.
 Each twin is intended-invalid and requires its authored `cannot prove` fragment.
 No caller equality guard establishes the index bound after encoding.
 

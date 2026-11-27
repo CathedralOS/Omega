@@ -39,7 +39,7 @@ never a runtime trap.
 
 Every positive place binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares
-`Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and
+`Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter and
 native execution agreement (`native exit 0` and `interp exit: 0`):
 
 ```sh
@@ -124,7 +124,7 @@ drift apart.
 5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The call, the recorded
    premise, and the consuming contract lower without loss into canonical
    target-neutral Terminal Psi; the Terminal Psi interpreter executes all nine
-   positive places in agreement with native execution (`omega run --both`).
+   positive places in agreement with native execution.
    The pinned compiler mechanism is the checked-tree body-wide boolean join in
    `omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs`,
    which records `true` for a boolean call whose normal exits return the
@@ -144,7 +144,7 @@ drift apart.
    (`Omega 07–09` + emission):** Final encoding resolves symbolic
    displacements, relaxes short/near branches, binds relocations, and emits
    direct PE/ELF/Mach-O images; on this host the macos_arm64 image executes
-   with exit code 0 and agrees with Terminal Psi (`omega run --both`).
+   with exit code 0 and agrees with Terminal Psi.
 
 Remaining open scope: the parent item's broader call-premise acceptance —
 calls in abstract signatures (`abstract_signature_call`), generic comparison

@@ -1,5 +1,5 @@
 // An `[erased]` field has no storage: `pick` reads the field after it, at the
-// place a layout without `ghost` gives it, and both engines see its 5.
+// place a layout without `ghost` gives it, and the interpreter and compiled executable both see its 5.
 // Expected exit: 0
 data Tagged [copy] { value: u64; ghost [erased]: u64; tail: u64; }
 machine pick(tagged: Tagged) -> u64 { tagged.tail }

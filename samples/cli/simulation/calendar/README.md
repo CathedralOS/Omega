@@ -22,12 +22,14 @@ then resume the transaction:
 
 ```sh
 mbx run -p omega -- packages update --resume --project samples/cli/simulation/calendar
-mbx run -p omega -- run --engine native samples/cli/simulation/calendar/main.omg
-mbx run -p omega -- run --engine psi samples/cli/simulation/calendar/main.omg
+mbx run -p omega -- run samples/cli/simulation/calendar/main.omg
 ```
 
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/simulation/calendar` from the repository root.
+
 Use Cargo if `mbx` is unavailable. Enter closes the native program.
-Leave `--target` off `run` so it executes on the matching host. The same
+`run` interprets for the host target by default. The same
 commands work in PowerShell; select `windows_x86_64` for update/check and
 review that target's generated file. The native result below was verified
 on macOS ARM64.
@@ -35,7 +37,7 @@ on macOS ARM64.
 Windows x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler
 after local package review. EOF and finite Enter each produce the complete
 277-byte stdout below, including every trailing space, and native and Terminal
-exit 0. The CLI comparison checks exits; the exact-output check covers native
+exit 0. The recorded comparison checked exits; the exact-output check covered native
 stdout. Both Linux hosts retain their matching-host obligations in
 [SAMPLE-CORPUS](../../../../TASKS.md).
 
@@ -56,6 +58,5 @@ The complete stdout is 277 bytes with LF line endings: the banner
 `calendar: render a 30-day month starting on Wednesday as a 7-column grid`,
 the six lines above, `done: all 30 dates laid out and flushed (exit 0)`, and
 `[press Enter to close]`, each followed by LF. Native and checked-interpreter
-execution both exit 0; the CLI reports `native exit 0` and `interp exit: 0`
-on stderr. Acceptance requires all five
+execution both exit 0; the CLI reports `Psi exit 0` on stderr. Acceptance requires all five
 rows and the exact header, not merely output containing `30`.

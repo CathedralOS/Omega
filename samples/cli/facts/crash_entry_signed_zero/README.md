@@ -94,7 +94,7 @@ local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
   cannot authorize executable guards.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the recorded equality
   lowers into the crash guard's float predicate, the crash entry and its
-  uncovered route lower unchanged, and `omega run --both` executes the same
+  uncovered route lower unchanged, and the native/Psi comparison executes the same
   program in the Terminal Psi interpreter and natively with agreement
   (`interpreter exit: 0`, `native exit 0`).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
@@ -121,7 +121,7 @@ local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
 | reject twins | `fail/facts/crash_entry_signed_zero_through_<place>_rejected` and the written-local pin | `rejected`, `expected`; 0 rejected without the expected fragment |
 
 Earlier direct runs at `9ff26a87021` with an opt-level 1 CLI and stdin closed:
-9 of 9 positives `omega run --both` exited 0 (native exit 0, interpreter exit 0),
+9 of 9 positives the native/Psi comparison exited 0 (native exit 0, interpreter exit 0),
 9 of 9 twins rejected with `has an uncovered Trap crash route`, and each twin's
 direct diagnostic equals its pinned continuation line. The psi flow machinery
 that reads entry origins moved after that measurement (`114906953e1`,

@@ -57,7 +57,7 @@ machine and flags. The oracle and 25 fixtures were frozen before any Omega run.
 Absolute/relative tolerances are both zero. Inputs cover capacity variants,
 precedence-sensitive urgent pickup windows, waiting, tied optima, coincident
 sites, reversed sites, exact/infeasible deadlines, EOF, and malformed records.
-`--both` also requests Terminal comparison; a DECLINED comparison remains an
+the native/Psi comparison also requests Terminal comparison; a DECLINED comparison remains an
 explicit unsupported result.
 
 The separate [intended-invalid source](controls/intended_invalid/main.omg)

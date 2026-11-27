@@ -2362,7 +2362,6 @@ pub(crate) fn assert_every_bit_flip_rejected(encoded: &[u8], rejects: impl Fn(&[
 mod tests {
     use super::*;
     use optimization_core::AcceptedObligationFactIdentity;
-    use register_model::validate_physical_register_model;
     use selected_instructions::{
         AccessorScalarForm, AtomicForm, AtomicOperation, ByteSequencePredicate, ControlRegister,
         FloatResultPolicyForm, FrameStorageSlotId, GlobalDescriptorTableOperation,
@@ -2375,8 +2374,8 @@ mod tests {
     use semantic_vocabulary::{IntegerValue, ObligationId, OperationId, PlaceId, ServiceId};
     use target::NativeTarget;
 
-    fn phys() -> ValidatedPhysicalRegisterModel {
-        validate_physical_register_model(crate::x86_64_physical_register_model()).unwrap()
+    fn phys() -> &'static ValidatedPhysicalRegisterModel {
+        crate::validated_x86_64_physical_register_model()
     }
 
     fn views(p: &ValidatedPhysicalRegisterModel, names: &[&str]) -> Vec<RegisterViewId> {
@@ -2666,36 +2665,36 @@ mod tests {
             ),
         ];
         for &(kind, family, variant, names, expected) in cases {
-            let ops = views(&p, names);
+            let ops = views(p, names);
             let key = Key { family, variant };
-            let enc = encode_x86_64_selected_form(&p, kind, key, &ops).unwrap();
+            let enc = encode_x86_64_selected_form(p, kind, key, &ops).unwrap();
             assert_eq!(enc.bytes(), expected, "{kind:?} v{variant}");
             assert_eq!(
-                validate_x86_64_selected_form_encoding(&p, kind, key, &ops, expected).unwrap(),
+                validate_x86_64_selected_form_encoding(p, kind, key, &ops, expected).unwrap(),
                 enc
             );
             assert_every_bit_flip_rejected(expected, |b| {
-                validate_x86_64_selected_form_encoding(&p, kind, key, &ops, b).is_err()
+                validate_x86_64_selected_form_encoding(p, kind, key, &ops, b).is_err()
             });
             assert_byte_fragility(expected, |b| {
-                validate_x86_64_selected_form_encoding(&p, kind, key, &ops, b).is_err()
+                validate_x86_64_selected_form_encoding(p, kind, key, &ops, b).is_err()
             });
         }
         assert_eq!(
             encode_x86_64_selected_form(
-                &p,
+                p,
                 Kind::ReturnScalar,
                 Key {
                     family: Family::ReturnScalar,
                     variant: 0
                 },
-                &views(&p, &["rcx"])
+                &views(p, &["rcx"])
             ),
             Err(X86_64SelectedFormEncodingError::EncodedFormMismatch)
         );
         assert_eq!(
             encode_x86_64_selected_form(
-                &p,
+                p,
                 Kind::CompareI64Immediate {
                     immediate: IntegerValue::Unsigned(4096)
                 },
@@ -2703,7 +2702,7 @@ mod tests {
                     family: Family::CompareI64Immediate,
                     variant: 0
                 },
-                &views(&p, &["rax"])
+                &views(p, &["rax"])
             ),
             Err(X86_64SelectedFormEncodingError::ImmediateOutsideU12)
         );
@@ -2716,17 +2715,17 @@ mod tests {
             family: Family::CopyI64,
             variant: 0,
         };
-        let same = views(&p, &["r9", "r9"]);
-        let enc = encode_x86_64_selected_form(&p, Kind::CopyI64, key, &same).unwrap();
+        let same = views(p, &["r9", "r9"]);
+        let enc = encode_x86_64_selected_form(p, Kind::CopyI64, key, &same).unwrap();
         assert!(enc.bytes().is_empty());
         assert_eq!(
-            validate_x86_64_selected_form_encoding(&p, Kind::CopyI64, key, &same, &[]).unwrap(),
+            validate_x86_64_selected_form_encoding(p, Kind::CopyI64, key, &same, &[]).unwrap(),
             enc
         );
         // `mov r9, r9` is still the wrong bytes for this row.
         assert!(
             validate_x86_64_selected_form_encoding(
-                &p,
+                p,
                 Kind::CopyI64,
                 key,
                 &same,
@@ -2735,9 +2734,9 @@ mod tests {
             .is_err()
         );
         // A copy between different registers may not claim the empty encoding.
-        let different = views(&p, &["r8", "r15"]);
+        let different = views(p, &["r8", "r15"]);
         assert_eq!(
-            validate_x86_64_selected_form_encoding(&p, Kind::CopyI64, key, &different, &[]),
+            validate_x86_64_selected_form_encoding(p, Kind::CopyI64, key, &different, &[]),
             Err(X86_64SelectedFormEncodingError::MalformedEncoding)
         );
     }
@@ -2799,11 +2798,11 @@ mod tests {
                     SaturatingOperation::Subtract if !carrier.is_signed() => &["r12", "r13", "r15"],
                     _ => &["r12", "r13", "r14", "r15"],
                 };
-                let ops = views(&p, names);
+                let ops = views(p, names);
                 let key = Key { family, variant: 0 };
-                let enc = encode_x86_64_selected_form(&p, kind, key, &ops).unwrap();
+                let enc = encode_x86_64_selected_form(p, kind, key, &ops).unwrap();
                 assert_eq!(
-                    validate_x86_64_selected_form_encoding(&p, kind, key, &ops, enc.bytes())
+                    validate_x86_64_selected_form_encoding(p, kind, key, &ops, enc.bytes())
                         .unwrap(),
                     enc
                 );
@@ -2826,10 +2825,9 @@ mod tests {
             ]
             .into_iter()
             .any(|names| {
-                let ops = views(&p, names);
-                encode_x86_64_selected_form(&p, kind, key, &ops).is_ok_and(|enc| {
-                    validate_x86_64_selected_form_encoding(&p, kind, key, &ops, enc.bytes())
-                        .unwrap()
+                let ops = views(p, names);
+                encode_x86_64_selected_form(p, kind, key, &ops).is_ok_and(|enc| {
+                    validate_x86_64_selected_form_encoding(p, kind, key, &ops, enc.bytes()).unwrap()
                         == enc
                 })
             });
@@ -2848,10 +2846,10 @@ mod tests {
                 AtomicOperation::CompareExchangeOnce => &["r12", "rax", "r13", "r14", "r15"],
                 _ => &["r12", "r13", "r15"],
             };
-            let ops = views(&p, names);
-            let enc = encode_x86_64_selected_form(&p, kind, key, &ops).unwrap();
+            let ops = views(p, names);
+            let enc = encode_x86_64_selected_form(p, kind, key, &ops).unwrap();
             assert_eq!(
-                validate_x86_64_selected_form_encoding(&p, kind, key, &ops, enc.bytes()).unwrap(),
+                validate_x86_64_selected_form_encoding(p, kind, key, &ops, enc.bytes()).unwrap(),
                 enc
             );
         }
@@ -2862,13 +2860,10 @@ mod tests {
                 family: Family::NearestIeeeFloatArithmetic(form),
                 variant: 0,
             };
-            let ops = views(
-                &p,
-                &["r12", "r13", "r14", "r15"][..form.operand_count() + 1],
-            );
-            let enc = encode_x86_64_selected_form(&p, kind, key, &ops).unwrap();
+            let ops = views(p, &["r12", "r13", "r14", "r15"][..form.operand_count() + 1]);
+            let enc = encode_x86_64_selected_form(p, kind, key, &ops).unwrap();
             assert_eq!(
-                validate_x86_64_selected_form_encoding(&p, kind, key, &ops, enc.bytes()).unwrap(),
+                validate_x86_64_selected_form_encoding(p, kind, key, &ops, enc.bytes()).unwrap(),
                 enc
             );
         }
@@ -2879,10 +2874,10 @@ mod tests {
                 family: Family::FloatResultPolicy(form),
                 variant: 0,
             };
-            let ops = views(&p, &["r12", "r13", "r15"][..form.operand_count() + 1]);
-            let enc = encode_x86_64_selected_form(&p, kind, key, &ops).unwrap();
+            let ops = views(p, &["r12", "r13", "r15"][..form.operand_count() + 1]);
+            let enc = encode_x86_64_selected_form(p, kind, key, &ops).unwrap();
             assert_eq!(
-                validate_x86_64_selected_form_encoding(&p, kind, key, &ops, enc.bytes()).unwrap(),
+                validate_x86_64_selected_form_encoding(p, kind, key, &ops, enc.bytes()).unwrap(),
                 enc
             );
         }
@@ -2942,10 +2937,10 @@ mod tests {
             let family = register_access::family(op).unwrap();
             let kind = Kind::RegisterAccess { operation: op };
             let key = Key { family, variant: 0 };
-            let ops = views(&p, names);
-            let enc = encode_x86_64_selected_form(&p, kind, key, &ops).unwrap();
+            let ops = views(p, names);
+            let enc = encode_x86_64_selected_form(p, kind, key, &ops).unwrap();
             assert_eq!(
-                validate_x86_64_selected_form_encoding(&p, kind, key, &ops, enc.bytes()).unwrap(),
+                validate_x86_64_selected_form_encoding(p, kind, key, &ops, enc.bytes()).unwrap(),
                 enc
             );
         }
@@ -2956,15 +2951,15 @@ mod tests {
             ByteSequencePredicate::AsciiOnly,
             ByteSequencePredicate::ValidUtf8,
         ] {
-            let ops = views(&p, &["r13", "r14", "r12", "r15", "r8"]);
+            let ops = views(p, &["r13", "r14", "r12", "r15", "r8"]);
             let kind = Kind::ScanByteSequence { predicate: pred };
             let key = Key {
                 family: Family::ScanByteSequence,
                 variant: 0,
             };
-            let enc = encode_x86_64_selected_form(&p, kind, key, &ops).unwrap();
+            let enc = encode_x86_64_selected_form(p, kind, key, &ops).unwrap();
             assert_eq!(
-                validate_x86_64_selected_form_encoding(&p, kind, key, &ops, enc.bytes()).unwrap(),
+                validate_x86_64_selected_form_encoding(p, kind, key, &ops, enc.bytes()).unwrap(),
                 enc
             );
         }
@@ -2986,7 +2981,7 @@ mod tests {
         };
 
         let jmp = encode_x86_64_selected_jump_form(
-            &p,
+            p,
             Key {
                 family: Family::Jump,
                 variant: 0,
@@ -2997,7 +2992,7 @@ mod tests {
         assert_eq!(jmp.bytes(), &[0xe9, 0xfb, 0xff, 0xff, 0xff]);
         assert_eq!(
             validate_x86_64_selected_jump_form(
-                &p,
+                p,
                 Key {
                     family: Family::Jump,
                     variant: 0
@@ -3010,7 +3005,7 @@ mod tests {
         );
 
         let jnz = encode_x86_64_selected_short_nonzero_branch_form(
-            &p,
+            p,
             Key {
                 family: Family::ConditionalBranchNonZero,
                 variant: 0,
@@ -3021,7 +3016,7 @@ mod tests {
         assert_eq!(jnz.bytes(), &[0x75, 12]);
         assert!(
             validate_x86_64_selected_short_nonzero_branch_form(
-                &p,
+                p,
                 Key {
                     family: Family::ConditionalBranchNonZero,
                     variant: 0
@@ -3085,11 +3080,11 @@ mod tests {
                 16,
             ),
         ] {
-            let ops = views(&p, names);
+            let ops = views(p, names);
             let key = Key { family, variant: 0 };
-            let enc = encode_x86_64_selected_memory_form(&p, kind, key, &ops, disp).unwrap();
+            let enc = encode_x86_64_selected_memory_form(p, kind, key, &ops, disp).unwrap();
             assert_eq!(
-                validate_x86_64_selected_memory_form(&p, kind, key, &ops, disp, enc.bytes())
+                validate_x86_64_selected_memory_form(p, kind, key, &ops, disp, enc.bytes())
                     .unwrap(),
                 enc
             );
@@ -3104,16 +3099,16 @@ mod tests {
                 family: Family::AccessorScalarAccess(form),
                 variant: 0,
             };
-            let ops = views(&p, &["r12", "r15"]);
-            let enc = encode_x86_64_selected_memory_form(&p, kind, key, &ops, 16).unwrap();
+            let ops = views(p, &["r12", "r15"]);
+            let enc = encode_x86_64_selected_memory_form(p, kind, key, &ops, 16).unwrap();
             assert_eq!(
-                validate_x86_64_selected_memory_form(&p, kind, key, &ops, 16, enc.bytes()).unwrap(),
+                validate_x86_64_selected_memory_form(p, kind, key, &ops, 16, enc.bytes()).unwrap(),
                 enc
             );
         }
 
         let aligned = encode_x86_64_selected_frame_form(
-            &p,
+            p,
             Kind::FrameAddress {
                 slot: local,
                 byte_offset: 24,
@@ -3122,14 +3117,14 @@ mod tests {
                 family: Family::FrameAddress,
                 variant: 0,
             },
-            &views(&p, &["r12"]),
+            &views(p, &["r12"]),
             48,
             64,
         )
         .unwrap();
         assert_eq!(
             validate_x86_64_selected_frame_form(
-                &p,
+                p,
                 Kind::FrameAddress {
                     slot: local,
                     byte_offset: 24
@@ -3138,7 +3133,7 @@ mod tests {
                     family: Family::FrameAddress,
                     variant: 0
                 },
-                &views(&p, &["r12"]),
+                &views(p, &["r12"]),
                 48,
                 64,
                 aligned.bytes()
@@ -3150,25 +3145,25 @@ mod tests {
         for target in [NativeTarget::linux_x64(), NativeTarget::macos_x64()] {
             let exit = hosted_exit_process::encode_x86_64_selected_hosted_exit_process_form(
                 target,
-                &p,
+                p,
                 Kind::HostedExitProcessI32,
                 Key {
                     family: Family::HostedExitProcessI32,
                     variant: 0,
                 },
-                &views(&p, &["r11"]),
+                &views(p, &["r11"]),
             )
             .unwrap();
             assert_eq!(
                 hosted_exit_process::validate_x86_64_selected_hosted_exit_process_form(
                     target,
-                    &p,
+                    p,
                     Kind::HostedExitProcessI32,
                     Key {
                         family: Family::HostedExitProcessI32,
                         variant: 0
                     },
-                    &views(&p, &["r11"]),
+                    &views(p, &["r11"]),
                     exit.bytes()
                 )
                 .unwrap(),
@@ -3176,7 +3171,7 @@ mod tests {
             );
             let read = hosted_read_byte::encode_x86_64_selected_hosted_read_byte_form(
                 target,
-                &p,
+                p,
                 Kind::HostedReadByte { slot: structural },
                 Key {
                     family: Family::HostedReadByte,
@@ -3189,7 +3184,7 @@ mod tests {
             assert_eq!(
                 hosted_read_byte::validate_x86_64_selected_hosted_read_byte_form(
                     target,
-                    &p,
+                    p,
                     Kind::HostedReadByte { slot: structural },
                     Key {
                         family: Family::HostedReadByte,
@@ -3204,26 +3199,26 @@ mod tests {
             );
             let write = encode_x86_64_selected_hosted_write_byte_form(
                 target,
-                &p,
+                p,
                 Kind::HostedWriteByteI32 { slot: boundary },
                 Key {
                     family: Family::HostedWriteByteI32,
                     variant: 0,
                 },
-                &views(&p, &["r11"]),
+                &views(p, &["r11"]),
                 32,
             )
             .unwrap();
             assert_eq!(
                 validate_x86_64_selected_hosted_write_byte_form(
                     target,
-                    &p,
+                    p,
                     Kind::HostedWriteByteI32 { slot: boundary },
                     Key {
                         family: Family::HostedWriteByteI32,
                         variant: 0
                     },
-                    &views(&p, &["r11"]),
+                    &views(p, &["r11"]),
                     32,
                     write.bytes()
                 )
@@ -3233,24 +3228,24 @@ mod tests {
         }
 
         let cpu = encode_x86_64_selected_form(
-            &p,
+            p,
             Kind::InstalledInterruptCpuCheck { gdt_bytes: 64 },
             Key {
                 family: Family::InstalledInterruptCpuCheck,
                 variant: 0,
             },
-            &views(&p, &["rdi", "rsi", "rcx", "rax"]),
+            &views(p, &["rdi", "rsi", "rcx", "rax"]),
         )
         .unwrap();
         assert_eq!(
             validate_x86_64_selected_form_encoding(
-                &p,
+                p,
                 Kind::InstalledInterruptCpuCheck { gdt_bytes: 64 },
                 Key {
                     family: Family::InstalledInterruptCpuCheck,
                     variant: 0
                 },
-                &views(&p, &["rdi", "rsi", "rcx", "rax"]),
+                &views(p, &["rdi", "rsi", "rcx", "rax"]),
                 cpu.bytes()
             )
             .unwrap(),

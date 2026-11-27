@@ -1,7 +1,7 @@
 //! A value `match` whose arms each borrow an incoming record forms one loan
 //! per arm, and the joined reference keeps every one of those loans live.
-//! A call can borrow the joined reference in both engines whether the arms
-//! name one incoming record or two. Because each arm's loan stays live, a
+//! A call can borrow the joined reference whether the arms name one incoming
+//! record or two. Because each arm's loan stays live, a
 //! write through a lender while the joined reference is live is refused,
 //! even the lender of the arm the program does not take.
 

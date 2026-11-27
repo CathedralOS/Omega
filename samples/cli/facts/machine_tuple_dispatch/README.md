@@ -35,7 +35,7 @@ Reject fragments are `direct == true` and `hold`. An incomplete tuple
 `pair<left>` still refuses specialization.
 
 On Linux x86_64, all nine positives report native exit 0 and interpreter exit 0
-from `omega run --both`. All nine twins reject. Windows, macOS, and QEMU were
+from the native/Psi comparison. All nine twins reject. Windows, macOS, and QEMU were
 not run.
 
 - **Establishment:** `left` returns the subject and `right` returns true. The

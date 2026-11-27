@@ -24,7 +24,7 @@ fn invoke(fixture: &Path, source: &str, args: &[&str]) -> (ExitStatus, String) {
         "main.omg",
         "build.omg",
     ];
-    let output = project::omega(scratch.path(), &[args, &inputs].concat());
+    let output = project::observe(scratch.path(), &[args, &inputs].concat());
     (
         output.status,
         String::from_utf8_lossy(&output.stderr).into_owned(),
@@ -37,13 +37,9 @@ fn run_visitation(name: &str) {
     }
     let fixture = fixture("run", name);
     let source = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
-    for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let (status, diagnostics) = invoke(&fixture, &source, &["run", "--engine", engine]);
+    for command in ["run", "build"] {
+        let (status, diagnostics) = invoke(&fixture, &source, &[command]);
         assert!(status.success(), "{diagnostics}");
-        assert!(
-            diagnostics.lines().any(|line| line == receipt),
-            "{diagnostics}"
-        );
     }
 }
 

@@ -94,13 +94,13 @@ pub(crate) fn derive_scope(
     let facts = object.emission_facts();
     let final_plan = &facts.program;
     let terminal = facts.projection.terminal;
-    let validation = facts.projection.identity;
+    let selection = facts.projection.selection;
     let final_unit = facts.projection.final_unit;
     validate_source_terminal(final_plan.psi, terminal, object.psi())?;
     let scope = super::projection::derive_validated_optimization_scope(
         final_plan,
         terminal,
-        validation,
+        selection,
         final_unit,
         coverage,
         coverage_identity,

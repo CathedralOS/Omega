@@ -361,6 +361,7 @@ impl CheckedBoundaryCallable {
                             crate::ClosedReachArgument::Const(index),
                             CallingOperandKind::Const | CallingOperandKind::Value,
                         ) => *index,
+                        (crate::ClosedReachArgument::Machine { identity, .. }, CallingOperandKind::Machine) => *identity,
                         _ => return true,
                     };
                     identities.text(index) != Some(operand.identity.as_str())
@@ -380,7 +381,10 @@ impl CheckedBoundaryCallable {
                     crate::ClosedReachArgument::Const(index) => Ok(
                         MachineOperandSelectionIdentity::Const(text(*index)?.to_owned()),
                     ),
-                    _ => Err("boundary calling needs a complete type or value tuple".to_owned()),
+                    crate::ClosedReachArgument::Machine { identity, .. } => Ok(
+                        MachineOperandSelectionIdentity::Machine(text(*identity)?.to_owned()),
+                    ),
+                    _ => Err("boundary calling needs a complete type, value or machine tuple".to_owned()),
                 }
             })
             .collect::<Result<Vec<_>, String>>()?;

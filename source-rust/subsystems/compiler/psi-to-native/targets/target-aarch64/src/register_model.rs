@@ -1164,15 +1164,12 @@ mod float_scalar_calls {
     #[cfg(test)]
     mod tests {
         use super::super::{
-            aarch64_physical_register_model, aarch64_register_constraint_catalog,
-            validate_aarch64_register_constraint_catalog,
+            aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
         };
 
         #[test]
         fn floating_return_uses_ordinary_return_bytes_and_exact_home() {
-            let physical =
-                register_model::validate_physical_register_model(aarch64_physical_register_model())
-                    .unwrap();
+            let physical = crate::validated_aarch64_physical_register_model();
             let home = physical.model().view_named("d0").unwrap().id;
             let wrong = physical.model().view_named("d1").unwrap().id;
             let kind = selected_instructions::SelectedInstructionKind::ReturnScalar;
@@ -1181,10 +1178,10 @@ mod float_scalar_calls {
                 variant: 0,
             };
             let encoded =
-                isa_aarch64::encode_aarch64_selected_form(&physical, kind, alternative, &[home])
+                isa_aarch64::encode_aarch64_selected_form(physical, kind, alternative, &[home])
                     .expect("floating return");
             isa_aarch64::validate_aarch64_selected_form_encoding(
-                &physical,
+                physical,
                 kind,
                 alternative,
                 &[home],
@@ -1193,7 +1190,7 @@ mod float_scalar_calls {
             .unwrap();
             assert!(
                 isa_aarch64::validate_aarch64_selected_form_encoding(
-                    &physical,
+                    physical,
                     kind,
                     alternative,
                     &[wrong],
@@ -1205,12 +1202,10 @@ mod float_scalar_calls {
 
         #[test]
         fn scalar_float_roster_is_complete_and_binds_result_home_and_clobbers() {
-            let physical =
-                register_model::validate_physical_register_model(aarch64_physical_register_model())
-                    .expect("physical model");
+            let physical = crate::validated_aarch64_physical_register_model();
             register_model::test_support::assert_float_scalar_call_rows(
-                &physical,
-                &aarch64_register_constraint_catalog(&physical),
+                physical,
+                &aarch64_register_constraint_catalog(physical),
                 &super::rosters(),
                 ["d0", "d1"],
                 |catalog, model| {
@@ -1224,15 +1219,13 @@ mod float_scalar_calls {
 mod float_transport_tests {
     use super::{
         AARCH64_FLOAT32_TO_BITS, aarch64_aapcs64_mixed_unit_call_keys,
-        aarch64_physical_register_model, aarch64_register_constraint_catalog,
-        validate_aarch64_register_constraint_catalog,
+        aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
     };
     use crate::register_model::physical_model::GPR64;
-    use register_model::validate_physical_register_model;
     #[test]
     fn transport_and_mixed_call_constraints_reject_forged_classes_and_clobbers() {
-        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let catalog = aarch64_register_constraint_catalog(&physical);
+        let physical = crate::validated_aarch64_physical_register_model();
+        let catalog = aarch64_register_constraint_catalog(physical);
         let mut wrong_transport = catalog.clone();
         let transport = register_model::find_register_constraint_mut(
             &mut wrong_transport.constraints,
@@ -1240,14 +1233,14 @@ mod float_transport_tests {
         )
         .unwrap();
         transport.operands[0].class = GPR64;
-        assert!(validate_aarch64_register_constraint_catalog(wrong_transport, &physical).is_err());
+        assert!(validate_aarch64_register_constraint_catalog(wrong_transport, physical).is_err());
         let mut wrong_call = catalog;
         let call_key = aarch64_aapcs64_mixed_unit_call_keys()[0];
         let call =
             register_model::find_register_constraint_mut(&mut wrong_call.constraints, call_key)
                 .unwrap();
         assert!(call.clobbers.pop().is_some());
-        assert!(validate_aarch64_register_constraint_catalog(wrong_call, &physical).is_err());
+        assert!(validate_aarch64_register_constraint_catalog(wrong_call, physical).is_err());
     }
 }
 mod indirect_results {
@@ -1419,20 +1412,18 @@ mod mixed_calls {
     #[cfg(test)]
     mod tests {
         use super::super::{
-            aarch64_physical_register_model, aarch64_register_aggregate_call_keys,
-            aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
+            aarch64_register_aggregate_call_keys, aarch64_register_constraint_catalog,
+            validate_aarch64_register_constraint_catalog,
         };
         use super::{
             RegisterOperandAccess, aarch64_aapcs64_mixed_unit_call_keys,
             aarch64_darwin_mixed_unit_call_keys, aarch64_mixed_aggregate_call_keys,
         };
-        use register_model::validate_physical_register_model;
 
         #[test]
         fn mixed_aggregate_rows_preserve_banks_and_define_only_result_fragments() {
-            let model =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let catalog = aarch64_register_constraint_catalog(&model);
+            let model = crate::validated_aarch64_physical_register_model();
+            let catalog = aarch64_register_constraint_catalog(model);
             for darwin in [false, true] {
                 let unit_keys = if darwin {
                     aarch64_darwin_mixed_unit_call_keys()
@@ -1482,14 +1473,13 @@ mod mixed_calls {
                     assert_eq!(row.clobbers, clobbers);
                 }
             }
-            validate_aarch64_register_constraint_catalog(catalog, &model).unwrap();
+            validate_aarch64_register_constraint_catalog(catalog, model).unwrap();
         }
 
         #[test]
         fn mixed_aggregate_rows_reject_result_bank_access_and_clobber_mutations() {
-            let model =
-                validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-            let catalog = aarch64_register_constraint_catalog(&model);
+            let model = crate::validated_aarch64_physical_register_model();
+            let catalog = aarch64_register_constraint_catalog(model);
             for darwin in [false, true] {
                 let key = aarch64_mixed_aggregate_call_keys(darwin)[143];
                 for mutation in 0..4 {
@@ -1518,7 +1508,7 @@ mod mixed_calls {
                         }),
                         _ => unreachable!(),
                     }
-                    assert!(validate_aarch64_register_constraint_catalog(changed, &model).is_err());
+                    assert!(validate_aarch64_register_constraint_catalog(changed, model).is_err());
                 }
             }
         }
@@ -1902,11 +1892,15 @@ mod physical_model {
         model.model().view_named(&name).map(|view| view.id)
     }
 
+    // The validated canonical model holds the only process-wide copy; the raw
+    // view borrows it so the table is built and validated exactly once.
     pub fn aarch64_physical_register_model_ref() -> &'static PhysicalRegisterModel {
-        static MODEL: std::sync::OnceLock<PhysicalRegisterModel> = std::sync::OnceLock::new();
-        MODEL.get_or_init(build_aarch64_physical_register_model)
+        validated_aarch64_physical_register_model().model()
     }
 
+    /// A deep copy of the canonical model, for tests that change a table to
+    /// forge invalid input. Readers borrow `aarch64_physical_register_model_ref`
+    /// or `validated_aarch64_physical_register_model` instead.
     pub fn aarch64_physical_register_model() -> PhysicalRegisterModel {
         aarch64_physical_register_model_ref().clone()
     }
@@ -2148,9 +2142,10 @@ mod physical_model {
         static CANONICAL: std::sync::OnceLock<ValidatedPhysicalRegisterModel> =
             std::sync::OnceLock::new();
         CANONICAL.get_or_init(|| {
-            validate_physical_register_model(aarch64_physical_register_model()).unwrap_or_else(
-                |error| panic!("canonical aarch64 physical register model must validate: {error}"),
-            )
+            validate_physical_register_model(build_aarch64_physical_register_model())
+                .unwrap_or_else(|error| {
+                    panic!("canonical aarch64 physical register model must validate: {error}")
+                })
         })
     }
 
@@ -2237,10 +2232,10 @@ mod tests {
 
     #[test]
     fn aggregate_result_fragments_are_definitions_not_unknown_clobbers() {
-        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let catalog = aarch64_register_constraint_catalog(&model);
+        let model = crate::validated_aarch64_physical_register_model();
+        let catalog = aarch64_register_constraint_catalog(model);
         assert_aggregate_fragments_are_definitions(
-            &model,
+            model,
             &catalog,
             &AggregateFragmentRoster {
                 keys: [false, true]
@@ -2257,40 +2252,40 @@ mod tests {
 
     #[test]
     fn fixed_machine_register_views_are_target_owned() {
-        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         assert_eq!(
-            aarch64_fixed_register_view(&model, MachineRegister::Aarch64X(0)),
+            aarch64_fixed_register_view(model, MachineRegister::Aarch64X(0)),
             model.model().view_named("x0").map(|view| view.id)
         );
         assert_eq!(
-            aarch64_fixed_register_view(&model, MachineRegister::X86Rdi),
+            aarch64_fixed_register_view(model, MachineRegister::X86Rdi),
             None
         );
     }
 
     #[test]
     fn preservation_convention_is_selected_by_exact_target_policy() {
-        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         assert_eq!(
-            aarch64_preservation_convention_for_target(&model, NativeTarget::linux_arm64())
+            aarch64_preservation_convention_for_target(model, NativeTarget::linux_arm64())
                 .unwrap()
                 .name,
             "aapcs64"
         );
         assert_eq!(
-            aarch64_preservation_convention_for_target(&model, NativeTarget::macos_arm64())
+            aarch64_preservation_convention_for_target(model, NativeTarget::macos_arm64())
                 .unwrap()
                 .name,
             "darwin-aapcs64"
         );
         assert_eq!(
-            aarch64_preservation_convention_for_target(&model, NativeTarget::windows_arm64())
+            aarch64_preservation_convention_for_target(model, NativeTarget::windows_arm64())
                 .unwrap()
                 .name,
             "darwin-aapcs64"
         );
         assert!(
-            aarch64_preservation_convention_for_target(&model, NativeTarget::windows_x64())
+            aarch64_preservation_convention_for_target(model, NativeTarget::windows_x64())
                 .is_none()
         );
     }
@@ -2299,7 +2294,7 @@ mod tests {
     #[test]
     fn platform_register_overlay_reserves_x18_on_apple_and_windows_only() {
         use crate::{AARCH64_PLATFORM_RESERVATION_OVERLAY, aarch64_reserves_platform_register};
-        let model = aarch64_physical_register_model();
+        let model = crate::aarch64_physical_register_model_ref();
         let overlay = model
             .reservations
             .iter()
@@ -2319,8 +2314,7 @@ mod tests {
 
     #[test]
     fn model_validates_without_collapsing_stack_and_zero_registers() {
-        let validated =
-            validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let validated = crate::validated_aarch64_physical_register_model();
         let model = validated.model();
         let view = |name| model.view_named(name).unwrap().id;
         assert!(model.aliases(view("x0"), view("w0")));
@@ -2337,10 +2331,10 @@ mod tests {
 
     #[test]
     fn register_constraint_catalog_closes_the_required_aarch64_inventory() {
-        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let model = crate::validated_aarch64_physical_register_model();
         let validated = validate_aarch64_register_constraint_catalog(
-            aarch64_register_constraint_catalog(&model),
-            &model,
+            aarch64_register_constraint_catalog(model),
+            model,
         )
         .unwrap();
         let catalog = validated.catalog();
@@ -2529,19 +2523,19 @@ mod tests {
 
     #[test]
     fn every_missing_required_aarch64_constraint_rejects() {
-        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        for (position, expected) in aarch64_register_constraint_catalog(&model)
+        let model = crate::validated_aarch64_physical_register_model();
+        for (position, expected) in aarch64_register_constraint_catalog(model)
             .required
             .into_iter()
             .enumerate()
         {
-            let mut catalog = aarch64_register_constraint_catalog(&model);
+            let mut catalog = aarch64_register_constraint_catalog(model);
             catalog.constraints.remove(position);
             for (id, constraint) in catalog.constraints.iter_mut().enumerate() {
                 constraint.id = RegisterConstraintId(u16::try_from(id).unwrap());
             }
             assert_eq!(
-                validate_aarch64_register_constraint_catalog(catalog, &model),
+                validate_aarch64_register_constraint_catalog(catalog, model),
                 Err(Aarch64RegisterConstraintCatalogValidationError::Structural(
                     RegisterConstraintCatalogValidationError::MissingRequiredConstraint(expected)
                 ))
@@ -2551,12 +2545,12 @@ mod tests {
 
     #[test]
     fn aarch64_target_semantics_reject_class_compatible_corruption() {
-        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let mut wrong_syscall_register = aarch64_register_constraint_catalog(&model);
+        let model = crate::validated_aarch64_physical_register_model();
+        let mut wrong_syscall_register = aarch64_register_constraint_catalog(model);
         row_mut(&mut wrong_syscall_register, AARCH64_LINUX_SYSTEM_CALL).operands[5].fixed_view =
             Some(model.model().view_named("x3").unwrap().id);
         assert_eq!(
-            validate_aarch64_register_constraint_catalog(wrong_syscall_register, &model),
+            validate_aarch64_register_constraint_catalog(wrong_syscall_register, model),
             Err(
                 Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
                     AARCH64_LINUX_SYSTEM_CALL
@@ -2564,12 +2558,12 @@ mod tests {
             )
         );
 
-        let mut missing_nzcv = aarch64_register_constraint_catalog(&model);
+        let mut missing_nzcv = aarch64_register_constraint_catalog(model);
         row_mut(&mut missing_nzcv, AARCH64_LINUX_SYSTEM_CALL)
             .clobbers
             .clear();
         assert_eq!(
-            validate_aarch64_register_constraint_catalog(missing_nzcv, &model),
+            validate_aarch64_register_constraint_catalog(missing_nzcv, model),
             Err(
                 Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
                     AARCH64_LINUX_SYSTEM_CALL
@@ -2577,13 +2571,13 @@ mod tests {
             )
         );
 
-        let mut missing_link_state = aarch64_register_constraint_catalog(&model);
+        let mut missing_link_state = aarch64_register_constraint_catalog(model);
         let x30 = model.model().view_named("x30").unwrap().units[0];
         row_mut(&mut missing_link_state, AARCH64_AAPCS64_CALL)
             .implicit_defs
             .retain(|unit| *unit != x30);
         assert_eq!(
-            validate_aarch64_register_constraint_catalog(missing_link_state, &model),
+            validate_aarch64_register_constraint_catalog(missing_link_state, model),
             Err(
                 Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
                     AARCH64_AAPCS64_CALL
@@ -2594,13 +2588,13 @@ mod tests {
 
     #[test]
     fn aarch64_compare_rejects_one_field_missing_flags_definition() {
-        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let mut catalog = aarch64_register_constraint_catalog(&model);
+        let model = crate::validated_aarch64_physical_register_model();
+        let mut catalog = aarch64_register_constraint_catalog(model);
         row_mut(&mut catalog, AARCH64_COMPARE_I64_ZERO)
             .implicit_defs
             .clear();
         assert_eq!(
-            validate_aarch64_register_constraint_catalog(catalog, &model),
+            validate_aarch64_register_constraint_catalog(catalog, model),
             Err(
                 Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
                     AARCH64_COMPARE_I64_ZERO,
@@ -2608,11 +2602,11 @@ mod tests {
             )
         );
 
-        let mut immediate = aarch64_register_constraint_catalog(&model);
+        let mut immediate = aarch64_register_constraint_catalog(model);
         row_mut(&mut immediate, AARCH64_ADD_I64_IMMEDIATE).operands[0].access =
             RegisterOperandAccess::Def;
         assert_eq!(
-            validate_aarch64_register_constraint_catalog(immediate, &model),
+            validate_aarch64_register_constraint_catalog(immediate, model),
             Err(
                 Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
                     AARCH64_ADD_I64_IMMEDIATE,
@@ -2623,19 +2617,19 @@ mod tests {
 
     #[test]
     fn aarch64_add_rejects_one_field_operand_role_change() {
-        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let mut catalog = aarch64_register_constraint_catalog(&model);
+        let model = crate::validated_aarch64_physical_register_model();
+        let mut catalog = aarch64_register_constraint_catalog(model);
         row_mut(&mut catalog, AARCH64_ADD_I64).operands[1].access = RegisterOperandAccess::Def;
         assert_eq!(
-            validate_aarch64_register_constraint_catalog(catalog, &model),
+            validate_aarch64_register_constraint_catalog(catalog, model),
             Err(Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(AARCH64_ADD_I64,))
         );
 
-        let mut subtract = aarch64_register_constraint_catalog(&model);
+        let mut subtract = aarch64_register_constraint_catalog(model);
         row_mut(&mut subtract, AARCH64_SUBTRACT_I64).operands[1].access =
             RegisterOperandAccess::Def;
         assert_eq!(
-            validate_aarch64_register_constraint_catalog(subtract, &model),
+            validate_aarch64_register_constraint_catalog(subtract, model),
             Err(
                 Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
                     AARCH64_SUBTRACT_I64,
@@ -2643,11 +2637,11 @@ mod tests {
             )
         );
 
-        let mut flag_clobber = aarch64_register_constraint_catalog(&model);
+        let mut flag_clobber = aarch64_register_constraint_catalog(model);
         row_mut(&mut flag_clobber, AARCH64_SUBTRACT_I64).clobbers =
             model.model().view_named("nzcv").unwrap().units.clone();
         assert_eq!(
-            validate_aarch64_register_constraint_catalog(flag_clobber, &model),
+            validate_aarch64_register_constraint_catalog(flag_clobber, model),
             Err(
                 Aarch64RegisterConstraintCatalogValidationError::TargetSemantics(
                     AARCH64_SUBTRACT_I64,
@@ -2658,9 +2652,8 @@ mod tests {
 
     #[test]
     fn aarch64_catalog_validation_rejects_same_architecture_forged_physical_model() {
-        let canonical =
-            validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let catalog = aarch64_register_constraint_catalog(&canonical);
+        let canonical = crate::validated_aarch64_physical_register_model();
+        let catalog = aarch64_register_constraint_catalog(canonical);
         let mut forged = aarch64_physical_register_model();
         forged.views[0].name = "forged.x0".into();
         let forged = validate_physical_register_model(forged).unwrap();
@@ -2718,17 +2711,17 @@ mod tests {
 
     #[test]
     fn normalized_foreign_templates_retain_complete_target_call_effects() {
-        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let catalog = aarch64_register_constraint_catalog(&model);
+        let model = crate::validated_aarch64_physical_register_model();
+        let catalog = aarch64_register_constraint_catalog(model);
         assert_templates_retain_call_effects(&catalog, &aarch64_foreign_template_roster());
     }
 
     #[test]
     fn normalized_foreign_templates_reject_signature_rows_and_changed_effects() {
-        let model = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
-        let catalog = aarch64_register_constraint_catalog(&model);
+        let model = crate::validated_aarch64_physical_register_model();
+        let catalog = aarch64_register_constraint_catalog(model);
         assert_templates_reject_changed_effects(
-            &model,
+            model,
             &catalog,
             &aarch64_foreign_template_roster(),
             |catalog, model| validate_aarch64_register_constraint_catalog(catalog, model).is_ok(),

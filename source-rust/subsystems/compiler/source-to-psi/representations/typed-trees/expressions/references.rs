@@ -1011,6 +1011,7 @@ pub(crate) mod source_occurrences {
                 .insert(ExpressionNode::Cast(TableCastExpression {
                     value: leaf,
                     target_type: authored_cast,
+                    recast_storage_type: Default::default(),
                     result_type: computed,
                     target_label: Default::default(),
                     domain: numerics::arithmetic::ArithmeticDomain::Exact,
@@ -1747,6 +1748,47 @@ pub fn collect_selected_program_type_occurrences(
     program: &TypedTrees,
     selection: &DeclarationSelection,
 ) -> Vec<TypeOccurrence> {
+    type_occurrences_in(program, selection).types
+}
+
+/// The ordinary storage occurrences and the source and target types of
+/// checked storage recasts. Both use the same lexical-owner walk.
+pub fn collect_layout_type_occurrences(
+    program: &TypedTrees,
+) -> (Vec<TypeOccurrence>, Vec<TypeOccurrence>) {
+    let occurrences = type_occurrences_in(program, &DeclarationSelection::default());
+    let mut recasts = Vec::new();
+    for occurrence in &occurrences.seen_expressions.rows {
+        let ExpressionNode::Cast(cast) = program.expression_table.expression(occurrence.reference)
+        else {
+            continue;
+        };
+        if !cast.form.is_recast() {
+            continue;
+        }
+        let root = cast.recast_storage_type;
+        let source = program.contains_type_reference(root).then(|| {
+            let reference = program
+                .type_reference_table
+                .unconstrained_type_reference(root);
+            match program.type_reference_node(reference) {
+                TypeReferenceNode::Reference { referee, .. } => *referee,
+                _ => reference,
+            }
+        });
+        for reference in source.into_iter().chain(std::iter::once(cast.target_type)) {
+            if program.contains_type_reference(reference) {
+                recasts.push(TypeOccurrence {
+                    lexical_owner: occurrence.owner,
+                    reference,
+                });
+            }
+        }
+    }
+    (occurrences.types, recasts)
+}
+
+fn type_occurrences_in(program: &TypedTrees, selection: &DeclarationSelection) -> TypeOccurrences {
     let mut occurrences = TypeOccurrences {
         selection: selection.clone(),
         ..TypeOccurrences::default()
@@ -1762,7 +1804,7 @@ pub fn collect_selected_program_type_occurrences(
             occurrences.owner = previous;
         }
     }
-    occurrences.types
+    occurrences
 }
 
 pub struct ProgramOperandOwners {
@@ -2586,9 +2628,10 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
 }
 
 /// Machine-owned rows found by owner symbol. Specialization receipts carry
-/// their own instance index ([`crate::source_state::MachineSpecializations`]).
+/// their own instance index ([`crate::source_state::MachineSpecializations`]),
+/// and authored service ceilings are sorted by owner in their own table.
+#[derive(Default)]
 pub struct MachineSidecarIndex {
-    service_reaches: Vec<(SymbolHandle, u32)>,
     requirement_invocations: std::sync::OnceLock<
         Vec<(
             SymbolHandle,
@@ -2616,20 +2659,6 @@ fn sidecar_symbol_rows<Row>(
 }
 
 impl MachineSidecarIndex {
-    pub fn build(program: &TypedTrees) -> Self {
-        let mut service_reaches: Vec<(SymbolHandle, u32)> = program
-            .authored_service_reach_rows
-            .iter()
-            .enumerate()
-            .map(|(index, row)| (row.owner, index as u32))
-            .collect();
-        service_reaches.sort_by_key(|(symbol, _)| sidecar_symbol_key(*symbol));
-        Self {
-            service_reaches,
-            requirement_invocations: Default::default(),
-        }
-    }
-
     pub(crate) fn requirement_invocation_signatures<'program>(
         &'program self,
         program: &'program TypedTrees,
@@ -2657,7 +2686,7 @@ pub fn visit_program(program: &TypedTrees, roots: &mut impl TypedReferences) {
     let mut sidecars = None;
     for machine in program.machines() {
         if roots.declaration(machine.symbol) {
-            let sidecars = sidecars.get_or_insert_with(|| MachineSidecarIndex::build(program));
+            let sidecars = sidecars.get_or_insert_with(MachineSidecarIndex::default);
             visit_machine_with_sidecars(program, roots, machine, Some(sidecars));
         }
     }
@@ -3938,6 +3967,7 @@ pub fn visit_expression(
             visit_type_reference(program, retained, cast.target_type);
             if retained.derived_declaration_references() {
                 visit_type_reference(program, retained, cast.result_type);
+                visit_type_reference(program, retained, cast.recast_storage_type);
             }
             // Intrinsic conversions, recasts and builtin policy entries may
             // omit a named domain. Every nonempty coordinate still reaches
@@ -4527,12 +4557,8 @@ fn visit_machine_with_sidecars(
         for specialization in program.machine_specializations.for_instance(machine.symbol) {
             visit_specialization(specialization);
         }
-        if body && !program.ranking_expression_custody.is_empty() {
-            for custody in program
-                .ranking_expression_custody
-                .iter()
-                .filter(|row| row.machine == machine.symbol)
-            {
+        if body {
+            for custody in program.ranking_expression_custody.owned_by(machine.symbol) {
                 for subject in &custody.subjects {
                     visit_expression(program, retained, *subject);
                 }
@@ -4586,29 +4612,14 @@ fn visit_machine_with_sidecars(
     }
 
     if retained.derived_declaration_references() {
-        if let Some(sidecars) = sidecars {
-            for &(_, index) in sidecar_symbol_rows(&sidecars.service_reaches, from) {
-                for target in &program.authored_service_reach_rows[index as usize].targets {
-                    match target.service {
-                        crate::source_state::signature::ReachSubject::Static(symbol) => {
-                            visit_symbol(retained, symbol)
-                        }
-                        crate::source_state::signature::ReachSubject::Service(id) => {
-                            visit_service_reach(program, retained, id)
-                        }
+        for row in program.authored_service_reach_rows_for(from) {
+            for target in &row.targets {
+                match target.service {
+                    crate::source_state::signature::ReachSubject::Static(symbol) => {
+                        visit_symbol(retained, symbol)
                     }
-                }
-            }
-        } else if !program.authored_service_reach_rows.is_empty() {
-            for row in program.authored_service_reach_rows_for(from) {
-                for target in &row.targets {
-                    match target.service {
-                        crate::source_state::signature::ReachSubject::Static(symbol) => {
-                            visit_symbol(retained, symbol)
-                        }
-                        crate::source_state::signature::ReachSubject::Service(id) => {
-                            visit_service_reach(program, retained, id)
-                        }
+                    crate::source_state::signature::ReachSubject::Service(id) => {
+                        visit_service_reach(program, retained, id)
                     }
                 }
             }
@@ -5543,6 +5554,7 @@ mod cast_dependency_tests {
         let mut cast = TableCastExpression {
             value,
             target_type: carrier,
+            recast_storage_type: Default::default(),
             result_type: carrier,
             target_label: Default::default(),
             domain: numerics::arithmetic::ArithmeticDomain::Wrapping,

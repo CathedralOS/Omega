@@ -11,10 +11,9 @@ numbers, invalid flags, out-of-range counts/times and input over 4096 bytes exit
 2 with `ERROR invalid input`. No patient data or clinical interpretation.
 
 ```sh
-omega packages update --project samples/cli/independent/censored_survival_analysis --target linux_x86_64
-omega --check --target linux_x86_64 samples/cli/independent/censored_survival_analysis/main.omg
-omega run --engine native samples/cli/scientific/censored_survival_analysis/main.omg < samples/cli/scientific/censored_survival_analysis/data/tied/input.txt
-omega run --engine psi samples/cli/scientific/censored_survival_analysis/main.omg < samples/cli/scientific/censored_survival_analysis/data/tied/input.txt
+omega packages update --project samples/cli/scientific/censored_survival_analysis --target linux_x86_64
+omega --check --target linux_x86_64 samples/cli/scientific/censored_survival_analysis/main.omg
+omega run samples/cli/scientific/censored_survival_analysis/main.omg < samples/cli/scientific/censored_survival_analysis/data/tied/input.txt
 ```
 
 Read pending package decisions and resume the normal review. Source-risk

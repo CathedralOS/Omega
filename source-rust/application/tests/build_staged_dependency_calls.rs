@@ -119,7 +119,7 @@ machine hidden() -> i32 {{ 7 }}
     if let Some(support) = support {
         project::write(scratch.path(), &[("support/support.omg", support)]);
     }
-    let output = project::omega(scratch.path(), arguments);
+    let output = project::observe(scratch.path(), arguments);
     (
         output.status.success(),
         format!(
@@ -251,7 +251,7 @@ fn a_wait_preserves_the_proof_for_an_already_resolved_call() {
 
 #[test]
 fn a_prepared_call_and_an_earlier_borrow_are_visible_together() {
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (ran, report) = check_with_dependency_build(
             "live-loan-and-package",
             r#"    let mutable amount: i32 = initial_amount(builder);
@@ -265,12 +265,9 @@ fn a_prepared_call_and_an_earlier_borrow_are_visible_together() {
     }"#,
             7,
             "",
-            &["run", "--engine", engine, "build.omg"],
+            &[command, "build.omg"],
         );
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(ran, "{report}");
     }
 }
 
@@ -361,7 +358,7 @@ machine build(builder: @mutable BuildPlan) suspends {{
 }}
 "#
         );
-        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        for command in ["run", "build"] {
             let run = |case: &str, build: &str, support: Option<&str>| {
                 check_project_with_support(
                     &format!("helpers-{layout}-{case}"),
@@ -369,24 +366,18 @@ machine build(builder: @mutable BuildPlan) suspends {{
                     7,
                     "",
                     support,
-                    &["run", "--engine", engine, "build.omg"],
+                    &[command, "build.omg"],
                 )
             };
             let (ran, output) = run("after", &build, support.as_deref());
-            assert!(
-                ran && output.lines().any(|line| line == expected),
-                "{layout}: {output}"
-            );
+            assert!(ran, "{layout}: {output}");
 
             let early = build.replace(
                 "set_role(builder);",
                 &format!("let early: i32 = {call}; set_role(builder);"),
             );
             let (ran, output) = run("before", &early, support.as_deref());
-            assert!(
-                ran && output.lines().any(|line| line == expected),
-                "{layout}: {output}"
-            );
+            assert!(ran, "{layout}: {output}");
 
             // The helper file supplies both the type and the constructor from the start.
             for (form, expression) in [
@@ -403,19 +394,13 @@ machine build(builder: @mutable BuildPlan) suspends {{
                     &type_helper(&build),
                     type_support.as_deref(),
                 );
-                assert!(
-                    ran && output.lines().any(|line| line == expected),
-                    "{layout} {form}: {output}"
-                );
+                assert!(ran, "{layout} {form}: {output}");
                 let (ran, output) = run(
                     &format!("{form}-before"),
                     &type_helper(&early),
                     type_support.as_deref(),
                 );
-                assert!(
-                    ran && output.lines().any(|line| line == expected),
-                    "{layout} {form}: {output}"
-                );
+                assert!(ran, "{layout} {form}: {output}");
             }
 
             for (case, unused, diagnostic) in [
@@ -497,18 +482,10 @@ machine choose_amount(flag: bool) -> i32 ensures result >= 7 && result <= 9 {{
 {helpers}
 "#
         );
-        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-            let (ran, output) = check_project(
-                name,
-                &build,
-                7,
-                "",
-                &["run", "--engine", engine, "build.omg"],
-            );
+        for command in ["run", "build"] {
+            let (ran, output) = check_project(name, &build, 7, "", &[command, "build.omg"]);
             assert_eq!(ran, accepted, "{output}");
-            if accepted {
-                assert!(output.lines().any(|line| line == expected), "{output}");
-            } else {
+            if !accepted {
                 assert!(
                     output.contains("cannot prove requires contract for call require_related"),
                     "{output}"
@@ -552,7 +529,7 @@ fn a_live_loan_also_prevents_writes_before_preparation() {
 
 #[test]
 fn a_resumed_mutable_loan_updates_its_own_home() {
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (ran, report) = check_with_dependency_build(
             "two-live-homes",
             r#"    let other: i32 = 3;
@@ -563,12 +540,9 @@ fn a_resumed_mutable_loan_updates_its_own_home() {
     transition amount == 7 && other == 3 { true -> carried(builder), _ -> wrong(builder) }"#,
             7,
             "",
-            &["run", "--engine", engine, "build.omg"],
+            &[command, "build.omg"],
         );
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(ran, "{report}");
     }
 }
 
@@ -578,37 +552,31 @@ fn registration_and_a_mutable_local_survive_the_same_preparation() {
         "    $held = 7;\n    builder.tests.disabled = amount == 7;\n    suspend Build::prepare_dependency(builder, kit_registered);\n{}",
         after("|amounts|::value")
     );
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (ran, report) = check_with_dependency_build(
             "registration-and-mutable-local",
             "    let mutable amount: i32 = 3;\n    let held: @mutable i32 = @mutable amount;",
             &after_wait,
             7,
             "",
-            &["run", "--engine", engine, "build.omg"],
+            &[command, "build.omg"],
         );
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(ran, "{report}");
     }
 }
 
 #[test]
 fn a_local_helper_can_run_before_the_build_releases_its_live_borrow() {
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (ran, report) = check_with_dependency_build(
             "call-with-live-borrow",
             "    let mutable amount: i32 = 3;\n    let held: @mutable i32 = @mutable amount;",
             "    let seven: i32 = |amounts|::value();\n    $held = seven;\n    suspend Build::prepare_dependency(builder, kit_registered);\n    transition amount == 7 {\n        true -> carried(builder),\n        _ -> wrong(builder)\n    }",
             7,
             "",
-            &["run", "--engine", engine, "build.omg"],
+            &[command, "build.omg"],
         );
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(ran, "{report}");
     }
 }
 
@@ -635,18 +603,10 @@ machine build(builder: @mutable BuildPlan) suspends {
     machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Unselected; }
 }
 "#.replace("HOST", target.target_name());
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let (ran, report) = check_project(
-            "byte-before-wait",
-            &build,
-            7,
-            "",
-            &["run", "--engine", engine, "build.omg"],
-        );
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+    for command in ["run", "build"] {
+        let (ran, report) =
+            check_project("byte-before-wait", &build, 7, "", &[command, "build.omg"]);
+        assert!(ran, "{report}");
     }
 }
 
@@ -657,18 +617,10 @@ fn a_field_borrow_survives_preparing_a_product_dependency() {
         "linux_x86_64::ProgramEntry",
         &format!("{}::ProgramEntry", target.target_name()),
     );
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let (ran, report) = check_project(
-            "borrowed-field",
-            &source,
-            7,
-            "",
-            &["run", "--engine", engine, "build.omg"],
-        );
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+    for command in ["run", "build"] {
+        let (ran, report) =
+            check_project("borrowed-field", &source, 7, "", &[command, "build.omg"]);
+        assert!(ran, "{report}");
 
         let conflict = source.replace("$held = seven;", "gauge.amount = seven;");
         let (ran, report) = check_project(
@@ -705,18 +657,15 @@ fn a_suspending_helper_returns_its_local_value_after_preparation() {
     build.push_str(&format!(
         "\nmachine ready(builder: @mutable BuildPlan, registration: DependencyRegistration) -> i32 suspends {{\n    {wait}\n    helper_value()\n}}\n"
     ));
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (ok, report) = check_project(
             "suspending-helper-result",
             &build,
             7,
             "",
-            &["run", "--engine", engine, "build.omg"],
+            &[command, "build.omg"],
         );
-        assert!(
-            ok && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(ok, "{report}");
         let wrong = build.replace(
             "machine helper_value() -> i32 { 7 }",
             "machine helper_value() -> i32 { 8 }",
@@ -775,18 +724,9 @@ machine ready(builder: @mutable BuildPlan, item: DependencyRegistration) -> bool
         ("direct-subject", &direct),
         ("subsequent-subject", &pair),
     ] {
-        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-            let (ran, report) = check_project(
-                name,
-                source,
-                7,
-                "",
-                &["run", "--engine", engine, "build.omg"],
-            );
-            assert!(
-                ran && report.lines().any(|line| line == expected),
-                "{report}"
-            );
+        for command in ["run", "build"] {
+            let (ran, report) = check_project(name, source, 7, "", &[command, "build.omg"]);
+            assert!(ran, "{report}");
         }
     }
     let (ran, report) = check_project("false-subject", &direct, 8, "", &["--check", "main.omg"]);
@@ -809,18 +749,9 @@ fn a_helper_prepares_a_package_with_the_callers_borrow_still_live() {
             ""
         };
         source.push_str(&format!("\nmachine ready(builder: @mutable BuildPlan, registration: DependencyRegistration) suspends {{\n    {wait}\n    {body}\n}}\n"));
-        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-            let (ran, report) = check_project(
-                name,
-                &source,
-                7,
-                "",
-                &["run", "--engine", engine, "build.omg"],
-            );
-            assert!(
-                ran && report.lines().any(|line| line == expected),
-                "{report}"
-            );
+        for command in ["run", "build"] {
+            let (ran, report) = check_project(name, &source, 7, "", &[command, "build.omg"]);
+            assert!(ran, "{report}");
         }
     }
 }
@@ -865,10 +796,10 @@ machine build(builder: @mutable BuildPlan) suspends {
     machine finish(builder: @mutable BuildPlan) { Build::bind(builder, HOST::ProgramEntry, |app|::main); }
     machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Unselected; }
 }"#.replace("HOST", target.target_name());
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let run = |program: &str| {
             std::fs::write(root.join("build.omg"), program).unwrap();
-            project::omega(root, &["run", "--engine", engine, "build.omg"])
+            project::observe(root, &[command, "build.omg"])
         };
         let result = run(&build);
         let report = format!(
@@ -876,10 +807,7 @@ machine build(builder: @mutable BuildPlan) suspends {
             String::from_utf8_lossy(&result.stdout),
             String::from_utf8_lossy(&result.stderr)
         );
-        assert!(
-            result.status.success() && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(result.status.success(), "{report}");
         let wait = "    suspend Build::prepare_dependency(builder, registered);\n";
         let call = "    let score: i32 = |support|::score();\n";
         let early = build.replace(&format!("{wait}{call}"), &format!("{call}{wait}"));
@@ -890,10 +818,7 @@ machine build(builder: @mutable BuildPlan) suspends {
             String::from_utf8_lossy(&result.stdout),
             String::from_utf8_lossy(&result.stderr)
         );
-        assert!(
-            result.status.success() && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(result.status.success(), "{report}");
     }
 }
 
@@ -951,8 +876,8 @@ machine build(builder: @mutable BuildPlan) suspends {
             selected.push_str("\nmachine unused(n: u64) -> u64 { n + 1u64 }\n");
         }
         std::fs::write(root.join("build.omg"), selected).unwrap();
-        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-            let output = project::omega(&root, &["run", "--engine", engine, "build.omg"]);
+        for command in ["run", "build"] {
+            let output = project::observe(&root, &[command, "build.omg"]);
             let report = format!(
                 "{}{}",
                 String::from_utf8_lossy(&output.stdout),
@@ -966,10 +891,7 @@ machine build(builder: @mutable BuildPlan) suspends {
                     "{report}"
                 );
             } else {
-                assert!(
-                    output.status.success() && report.lines().any(|line| line == expected),
-                    "{report}"
-                );
+                assert!(output.status.success(), "{report}");
             }
         }
     }
@@ -1001,21 +923,10 @@ machine require_step(start: i32, after: i32) requires start <= 9 && after == sta
 machine reading(flag: bool) -> f64 ensures result >= 0.0 && result <= 0.5 { match flag { true -> 0.25, _ -> 0.5 } }
 machine require_small(x: f64) requires x >= 0.0 && x <= 0.5 {}
 "#.replace("HOST", target.target_name());
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let run = |name, source: &str| {
-            check_project(
-                name,
-                source,
-                7,
-                "",
-                &["run", "--engine", engine, "build.omg"],
-            )
-        };
+    for command in ["run", "build"] {
+        let run = |name, source: &str| check_project(name, source, 7, "", &[command, "build.omg"]);
         let (ran, report) = run("staged-proof", &build);
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(ran, "{report}");
         for (name, before, after, contract) in [
             (
                 "staged-proof-arithmetic",
@@ -1067,18 +978,15 @@ machine build(builder: @mutable BuildPlan) suspends {
     machine wrong(builder: @mutable BuildPlan) { builder.product = BuildProduct::Unselected; }
 }"#.replace("HOST", target.target_name());
     for (flag, value) in [("true", 7), ("false", 8)] {
-        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+        for command in ["run", "build"] {
             let (ran, report) = check_project(
                 &format!("conditional-wait-{flag}"),
                 &build.replace("FLAG", flag),
                 value,
                 "",
-                &["run", "--engine", engine, "build.omg"],
+                &[command, "build.omg"],
             );
-            assert!(
-                ran && report.lines().any(|line| line == expected),
-                "{report}"
-            );
+            assert!(ran, "{report}");
         }
     }
     let wrong_local = build.replace("FLAG", "false").replace(
@@ -1153,19 +1061,16 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
             true -> carried(builder), _ -> wrong(builder)
         }
     }"#;
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (ran, report) = check_with_dependency_build(
             "open-files-across-mount",
             before,
             after,
             7,
             "",
-            &["run", "--engine", engine, "build.omg"],
+            &[command, "build.omg"],
         );
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(ran, "{report}");
         let output = platform_custody::temporary_directory::TemporaryDirectory::create(
             "open-writer-completed-output",
             false,
@@ -1212,18 +1117,15 @@ fn an_issued_output_keeps_its_borrowed_path_and_obligation_across_preparation() 
         "linux_x86_64::ProgramEntry",
         &format!("{}::ProgramEntry", target.target_name()),
     );
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let (ran, report) = check_project(
             "issued-output-after-wait",
             &build,
             7,
             "",
-            &["run", "--engine", engine, "build.omg"],
+            &[command, "build.omg"],
         );
-        assert!(
-            ran && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(ran, "{report}");
 
         // Settling the same obligation with a fresh, guest-constructed path must fail.
         let forged = build.replace("obligation, checked);", "obligation, BuildPath {});");
@@ -1542,10 +1444,10 @@ machine build(builder: @mutable BuildPlan) suspends {
     Build::bind(builder, HOST_TARGET::ProgramEntry, |app|::main);
 }
 "#.replace("HOST_TARGET", host.target_name());
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
+    for command in ["run", "build"] {
         let invoke = |contents: &str| {
             std::fs::write(root.join("build.omg"), contents).unwrap();
-            project::omega(root, &["run", "--engine", engine, "build.omg"])
+            project::observe(root, &[command, "build.omg"])
         };
         let output = invoke(&build);
         let report = format!(
@@ -1553,10 +1455,7 @@ machine build(builder: @mutable BuildPlan) suspends {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-        assert!(
-            output.status.success() && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+        assert!(output.status.success(), "{report}");
 
         let leaked = format!(
             "use {{kit}}/main.omg as kit;\n{}",
@@ -1729,7 +1628,7 @@ machine build(builder: @mutable BuildPlan) suspends {
 }"#.replace("HOST", host.target_name());
     let invoke = |source: &str, args: &[&str]| {
         std::fs::write(root.join("build.omg"), source).unwrap();
-        let output = project::omega(root, args);
+        let output = project::observe(root, args);
         let report = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),
@@ -1737,12 +1636,9 @@ machine build(builder: @mutable BuildPlan) suspends {
         );
         (output.status.success(), report)
     };
-    for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-        let (ok, report) = invoke(&build, &["run", "--engine", engine, "build.omg"]);
-        assert!(
-            ok && report.lines().any(|line| line == expected),
-            "{report}"
-        );
+    for command in ["run", "build"] {
+        let (ok, report) = invoke(&build, &[command, "build.omg"]);
+        assert!(ok, "{report}");
         let with_unused = format!("use {{absent}}/other.omg as unused;\n{build}");
         let (ok, report) = invoke(&with_unused, &["--check", "build.omg"]);
         assert!(

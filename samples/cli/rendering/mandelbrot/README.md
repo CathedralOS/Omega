@@ -6,9 +6,11 @@ up to 28 binary64 escape-time steps and selects from ` .:-=+*#`.
 After completing the sample's package review, run from the repository root:
 
 ```sh
-omega run --engine native samples/cli/rendering/mandelbrot/main.omg
-omega run --engine psi samples/cli/rendering/mandelbrot/main.omg
+omega run samples/cli/rendering/mandelbrot/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/rendering/mandelbrot` from the repository root.
 
 Press Enter at the final prompt. A POSIX shell can redirect stdin from
 `/dev/null` for unattended execution. The named entry and explicit state
@@ -27,4 +29,4 @@ c2426e3116ab434670b86aed7144875ab885ea9c75d1cfd32bb0328dcf009ca8
 ```
 
 This digest covers the banner, image, success message, prompt, and LF line
-endings. The CLI's `native exit 0` and `interp exit: 0` reports are on stderr.
+endings. The CLI reports `Psi exit 0` on stderr.

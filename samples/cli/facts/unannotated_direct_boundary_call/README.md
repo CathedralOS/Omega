@@ -29,7 +29,7 @@ empty ceiling rejects that hidden direct service. It does not close the item.
 
 Every positive place and root `main.omg` binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, and
-declares `Expected exit: 0`. On Linux x86_64, `omega run --both` agreed:
+declares `Expected exit: 0`. On Linux x86_64, the native/Psi comparison agreed:
 interpreter exit 0 and native exit 0. Windows, macOS, and QEMU execution were
 not run on this host.
 
@@ -114,7 +114,7 @@ programs' calls, contracts and expected results.
    path are ordinary integer compare and branch. Linux x86_64 native exit
    was 0 for root and all nine places.
 8. **Emission (`Omega 07–09`).** Linux x86_64 images executed and agreed with
-   Terminal Psi (`omega run --both`). Windows, macOS, and QEMU images were
+   Terminal Psi. Windows, macOS, and QEMU images were
    not executed here.
 
 ### Demonstrated
@@ -411,7 +411,7 @@ These are observations of that producer, not executions of later main commits.
 - The pinned both-engine gate measured 68 corresponding positive fixtures plus
   the existing reviewed-service-row control: all 69 native and Terminal
   executions exited 0 and agreed. The sample root separately ran with
-  `omega run --both --keep`, also native/Terminal 0.
+  the native/Psi comparison, also native/Terminal 0.
 - The 1,041-fixture affected checked pass retained the migration's broader
   consumers. A focused comparison measured the 43 moved or historically red
   fixtures against the actual published base. A Windows metadata fixture that
@@ -471,7 +471,7 @@ attributed product-pipeline limitations, before the changed parser branch.
 
 The `target_body` places of the direct, `transitive`, `generic`, `dynamic`,
 `provider`, `imported` and `recursive` productions and their twins carry no
-source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement publishes `reaches Mark`; each implementation's own body stays unannotated, and the twin's empty implementation ceiling still rejects for the hidden `Mark` reach. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.
+source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement publishes `reaches Mark`; each implementation's own body stays unannotated, and the twin's empty implementation ceiling still rejects for the hidden `Mark` reach. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under the native/Psi comparison (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.
 
 The six non-direct productions moved in a second step with the same shape:
 each implementation calls `SelectedBodyCheck::require_tag` and then performs
@@ -480,7 +480,7 @@ its production's original call (`call_mark()`, `call_mark<read_service>()`,
 `first(2)`). Their twins still change only the implementation ceilings to an
 empty `reaches`, except `provider`, whose twin still changes only `MarkerMark`
 to call `Forbidden`. Observed with the optimized producer at `11bdd2fe41f` on
-macOS x86-64: all six migrated positives exit 0 under `omega run --both`
+macOS x86-64: all six migrated positives exit 0 under the native/Psi comparison
 (native and Terminal Psi agree); five twins reject because
 `X86ReadMark::read_mark` and `ArmReadMark::read_mark` publish no service reach
 but reach `Mark`, and the `provider` twin rejects because service `Forbidden`

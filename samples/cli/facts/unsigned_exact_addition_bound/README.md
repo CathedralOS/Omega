@@ -13,16 +13,16 @@ Claim Ticket: `3765574628ce4387b2c234732374037e`
 
 | Place | Positive Status | Rejection Twin Diagnostic |
 |---|---|---|
-| root (`main.omg`) | passes `omega run --both` exit 0 | N/A |
-| `local` | passes `omega run --both` exit 0 | `may overflow \`u64\`` |
-| `field` | passes `omega run --both` exit 0 | `may overflow \`u64\`` |
-| `parameter` | passes `omega run --both` exit 0 | `may overflow \`u64\`` |
-| `call_result` | passes `omega run --both` exit 0 | `may overflow \`u64\`` |
-| `match_join` | passes `omega run --both` exit 0 | `may overflow \`u64\`` |
-| `const_name` | passes `omega run --both` exit 0 | `may overflow \`u64\`` |
-| `other_state` | passes `omega run --both` exit 0 | `may overflow \`u64\`` |
-| `other_machine` | passes `omega run --both` exit 0 | `may overflow \`u64\`` |
-| `target_body` | passes `omega run --both` exit 0 | `may overflow \`u64\`` |
+| root (`main.omg`) | passes the native/Psi comparison exit 0 | N/A |
+| `local` | passes the native/Psi comparison exit 0 | `may overflow \`u64\`` |
+| `field` | passes the native/Psi comparison exit 0 | `may overflow \`u64\`` |
+| `parameter` | passes the native/Psi comparison exit 0 | `may overflow \`u64\`` |
+| `call_result` | passes the native/Psi comparison exit 0 | `may overflow \`u64\`` |
+| `match_join` | passes the native/Psi comparison exit 0 | `may overflow \`u64\`` |
+| `const_name` | passes the native/Psi comparison exit 0 | `may overflow \`u64\`` |
+| `other_state` | passes the native/Psi comparison exit 0 | `may overflow \`u64\`` |
+| `other_machine` | passes the native/Psi comparison exit 0 | `may overflow \`u64\`` |
+| `target_body` | passes the native/Psi comparison exit 0 | `may overflow \`u64\`` |
 
 ## Pinned Fixtures
 
@@ -31,7 +31,7 @@ contract-entailment changes, then other rows' fixture landings) the row was re-m
 fixtures clean, 0 rows moved — and re-recorded scoped at the landing base, so the row content is
 unchanged and only the provenance stamp moved to the landing base:
 
-- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
+- the native/Psi comparison over the root and the nine places: 10/10 report `native exit 0` and
   `interp exit: 0`.
 - the nine twins refuse at checking (CLI exit 200), each observed diagnostic containing its
   authored `may overflow \`u64\`` fragment (9/9).
@@ -47,7 +47,7 @@ unchanged and only the provenance stamp moved to the landing base:
   post-addition interval `[40, 90]`, discharging both exact subtractions `90u64 - sum` and
   `sum - 40u64` across all nine places — transported through `requires` facts, `ensures` results,
   local initializer facts, guards and call results — with Terminal Psi and native execution
-  agreeing (`omega run --both`: root plus nine places, `native exit 0`, `interp exit: 0`).
+  agreeing (the native/Psi comparison: root plus nine places, `native exit 0`, `interp exit: 0`).
 - **Establishment:** Adding two bounded unsigned `u64` values (`lhs >= 15u64 && lhs <= 40u64` and `rhs >= 25u64 && rhs <= 50u64`) statically establishes interval arithmetic bounds `[15 + 25, 40 + 50] = [40, 90]`. This post-addition interval directly discharges the exact subtraction proof obligations for both headroom (`90u64 - sum >= 0`) and margin (`sum - 40u64 >= 0`). Widening operand intervals (e.g. `rhs <= 51u64`, allowing `sum = 91u64`) fails closed at compile time with `may overflow \`u64\``.
 - **Identity and lifetime:** The unsigned `u64` sum preserves its synthesized interval bound across all storage carriers and place projections without loss or unexpected aliasing.
 - **Composition:** The verified interval flows through local variables, record fields, machine parameters, call return values, match join points, named constants, state transitions, machine invocations, and target-scoped bodies, discharging both `90u64 - sum` and `sum - 40u64` in all nine places.

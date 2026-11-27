@@ -3,75 +3,111 @@
 
 mod activation;
 mod aggregate;
+mod computed;
+mod continuation;
 mod control;
+mod opaque_calls;
 mod storage;
 mod successor;
+mod wait;
 
-use super::progress::{PrivateWaitFailure, ProgressFailure, entry_scalars};
-use super::selected::Summaries;
-use super::spin::{CellUpdate, SpinWait};
+use super::progress::{PrivateWaitFailure, ProgressFailure, ProgressScope, entry_scalars};
+use super::selected::{SelectedCall, Summaries};
+use super::spin::spin_observation;
 use activation::{Bindings, Destination, Frame, ScalarArguments};
 use control::{Execution, Frontier};
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
-use storage::Storage;
-use terminal_psi::{
-    StructuralAccess, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
-    Terminator,
-};
-
-/// Find a call which can only retry on a permanently unchanged private cell.
-/// The caller supplies summaries only for its exact admitted boundary bodies.
-/// Follow returned records and their selected cleanup on the actual edge.
-/// Stop upon unknown effects, control or aliasing and repeated ordinary blocks.
-pub fn stuck_private_wait(
-    module: &TerminalModule,
-    entry: MachineId,
-    boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
-) -> Option<(MachineId, OperationId)> {
-    let failure = private_wait_failure(module, entry, boundary)?;
-    (failure.cause == ProgressFailure::Deadlock).then_some((failure.machine, failure.operation))
-}
+use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use storage::{Location, Storage};
+use terminal_psi::{StructuralAccess, TerminalAffineCleanupAction, TerminalModule, Terminator};
 
 pub fn private_wait_failure(
     module: &TerminalModule,
     entry: MachineId,
-    boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+    scope: ProgressScope,
+    boundary: impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
 ) -> Option<PrivateWaitFailure> {
-    if !module.types.structural_types.iter().any(|ty| {
-        matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
-            || ty
-                .shape
-                .fields()
-                .any(|field| field.field_type.atomic_cell_type().is_some())
-    }) {
+    let imported_obligations = module.interfaces.boundary_machines.iter().any(|row| {
+        matches!(
+            boundary(row.id),
+            Some(SelectedCall::ImportedWait(_) | SelectedCall::UnresolvedImport)
+        )
+    });
+    if !imported_obligations
+        && !module.types.structural_types.iter().any(|ty| {
+            matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
+                || ty
+                    .shape
+                    .fields()
+                    .any(|field| field.field_type.atomic_cell_type().is_some())
+        })
+    {
         return None;
     }
     let selected_entry = module.machine(entry)?;
-    let root_bindings = Bindings {
+    let mut root_bindings = Bindings {
         values: entry_scalars(selected_entry),
-        ..Default::default()
+        ..Bindings::new(module, selected_entry)
     };
     if crate::inhabitation::predicates_are_false_with(&selected_entry.requires, |value| {
         root_bindings.values.get(&value)?.known_integer()
     }) {
         return None;
     }
+    let mut memory = Storage::default();
+    for parameter in &selected_entry.structural_parameters {
+        let home = if parameter.access == StructuralAccess::SharedBorrow {
+            Location::input(parameter.place)
+        } else {
+            memory.input()
+        };
+        root_bindings.places.insert(parameter.place, home);
+    }
+    if let Some((operation, wait)) = spin_observation(module, selected_entry) {
+        let arguments: Vec<_> = selected_entry
+            .structural_parameters
+            .iter()
+            .map(|formal| terminal_psi::StructuralArgument::whole(formal.place, formal.access))
+            .collect();
+        let cause = wait::apply(
+            &wait,
+            &root_bindings,
+            &mut memory,
+            &arguments,
+            |index| {
+                root_bindings
+                    .values
+                    .get(&selected_entry.parameters.get(index)?.id)
+                    .copied()
+            },
+            &selected_entry.requires,
+            scope,
+        )
+        .err()?;
+        return Some(PrivateWaitFailure {
+            machine: entry,
+            operation,
+            cause,
+        });
+    }
     let entry = Frame::enter(selected_entry, root_bindings, Destination::Unit)?;
     let mut paths = Frontier::default();
     paths.queue(Execution {
         stack: vec![entry],
-        memory: Storage::default(),
+        memory,
         coverage: Default::default(),
     });
     let mut summaries = Summaries::default();
+    let computed = computed::Invocations::new(selected_entry.id);
     let mut unproved = None;
     while let Some(mut path) = paths.next() {
         match advance(
             module,
             &boundary,
             &mut summaries,
+            &computed,
             &mut path,
             &selected_entry.requires,
+            scope,
         ) {
             Some(Advance::Continue) => paths.queue(path),
             Some(Advance::Fork(arms)) => path.fork(&arms, |arm| paths.queue(arm)),
@@ -81,7 +117,24 @@ pub fn private_wait_failure(
             Some(Advance::Blocked(failure)) => {
                 unproved.get_or_insert(failure);
             }
-            None => {}
+            Some(Advance::Terminated) => {}
+            outcome @ (Some(Advance::OpaqueReturn) | None) => {
+                let opaque_return = matches!(outcome, Some(Advance::OpaqueReturn));
+                if !opaque_return && !imported_obligations {
+                    continue;
+                }
+                if let Some(failure) = continuation::unproved(
+                    module,
+                    &path.stack,
+                    &boundary,
+                    &computed,
+                    &mut summaries,
+                    opaque_return,
+                    imported_obligations,
+                ) {
+                    unproved.get_or_insert(failure);
+                }
+            }
         }
     }
     unproved
@@ -89,29 +142,53 @@ pub fn private_wait_failure(
 
 enum Advance {
     Continue,
+    Terminated,
+    OpaqueReturn,
     Fork(std::borrow::Cow<'static, [usize]>),
     Blocked(PrivateWaitFailure),
 }
 
 fn advance<'m>(
     module: &'m TerminalModule,
-    boundary: &impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+    boundary: &impl Fn(BoundaryMachineId) -> Option<SelectedCall>,
     summaries: &mut Summaries,
+    computed: &computed::Invocations,
     path: &mut Execution<'m>,
     requirements: &[semantic_vocabulary::Proposition],
+    scope: ProgressScope,
 ) -> Option<Advance> {
     let certain = path.certain();
     let memory = &mut path.memory;
     let stack = &mut path.stack;
     while let Some(frame) = stack.last_mut() {
         if let Some(op) = frame.block.operations.get(frame.position) {
-            frame.position += 1;
-            let Some(call) = op.declared_invocation() else {
-                frame.step(module, op, memory)?;
-                continue;
-            };
-            let spin = match call.callee {
-                TargetMachineCallable::Machine(id) => {
+            let (selected, arguments, structural_arguments) =
+                if let Some(call) = op.declared_invocation() {
+                    (
+                        SelectedCall::resolve(call.callee, boundary),
+                        call.arguments,
+                        call.structural_arguments,
+                    )
+                } else if let Some(call) = op.kind.callable_invocation() {
+                    let reached = computed.site(module, boundary, frame.machine.id, op.id)?;
+                    let [callee] = reached.selected_machines.as_slice() else {
+                        return None;
+                    };
+                    if !reached.targets_are_resolved() {
+                        return None;
+                    }
+                    (
+                        Some(SelectedCall::Local(*callee)),
+                        call.arguments,
+                        call.structural_arguments,
+                    )
+                } else {
+                    frame.step(module, op, memory)?;
+                    frame.position += 1;
+                    continue;
+                };
+            let spin = match selected {
+                Some(SelectedCall::Local(id)) => {
                     if let Some(summary) = summaries.get(module, id, boundary) {
                         summary
                     } else {
@@ -120,57 +197,78 @@ fn advance<'m>(
                             memory,
                             &callee.parameters,
                             &callee.structural_parameters,
-                            ScalarArguments::Values(call.arguments),
-                            call.structural_arguments,
+                            ScalarArguments::Values(arguments),
+                            structural_arguments,
                         )?;
                         let return_to = Destination::of(op);
+                        let child = Frame::enter(callee, args, return_to)?;
                         if stack.iter().any(|active| active.machine.id == id) {
                             return None;
                         }
-                        stack.push(Frame::enter(callee, args, return_to)?);
+                        stack.last_mut()?.position += 1;
+                        stack.push(child);
                         continue;
                     }
                 }
-                TargetMachineCallable::Boundary(id) => boundary(id)?,
+                Some(SelectedCall::ImportedWait(wait)) => wait,
+                None | Some(SelectedCall::PendingProvider) => {
+                    let call = op.declared_invocation()?;
+                    let terminal_psi::TargetMachineCallable::Boundary(slot) = call.callee else {
+                        return None;
+                    };
+                    let row = module.boundary_machine(slot)?;
+                    if row.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn {
+                        return Some(Advance::Terminated);
+                    }
+                    let pending = selected.is_some();
+                    let transfer = opaque_calls::normal_return(
+                        module,
+                        row,
+                        op,
+                        &call,
+                        &frame.bindings,
+                        memory,
+                        pending,
+                    );
+                    frame.position += 1;
+                    match transfer {
+                        None if !pending && scope == ProgressScope::Executable => {
+                            return Some(Advance::OpaqueReturn);
+                        }
+                        None => return None,
+                        Some(false) => path.coverage = control::Coverage::Partial,
+                        Some(true) => {}
+                    }
+                    return Some(Advance::Continue);
+                }
+                Some(SelectedCall::UnresolvedImport) => {
+                    return Some(Advance::Blocked(PrivateWaitFailure {
+                        machine: frame.machine.id,
+                        operation: op.id,
+                        cause: ProgressFailure::UnprovedImport,
+                    }));
+                }
             };
-            let actual = call.structural_arguments.get(spin.parameter)?;
-            if actual.access != StructuralAccess::SharedBorrow {
-                return None;
-            }
-            let base = memory.locate(&frame.bindings.places, actual.place, &actual.path)?;
-            let location = memory.project(base, &spin.path)?;
-            let mut all_block = true;
-            let mut can_block = false;
-            let mut observe = |initial| {
-                let failure = spin.while_value.failure(initial, spin.update, requirements);
-                all_block &= failure == Some(ProgressFailure::Deadlock);
-                can_block |= failure.is_some();
-            };
-            if memory
-                .get(&location)
-                .visit_scalars(spin.while_value.value.scalar_type(), |value| {
-                    observe(Some(value))
-                })
-                .is_none()
-            {
-                observe(None);
-            }
-            if can_block {
-                let cause = if all_block && certain {
-                    ProgressFailure::Deadlock
-                } else {
-                    ProgressFailure::Unproved
-                };
+            let progress = wait::apply(
+                &spin,
+                &frame.bindings,
+                memory,
+                structural_arguments,
+                |index| frame.bindings.values.get(arguments.get(index)?).copied(),
+                requirements,
+                scope,
+            );
+            if let Err(mut cause) = progress {
+                if !certain && cause == ProgressFailure::Deadlock {
+                    cause = ProgressFailure::Unproved;
+                }
                 return Some(Advance::Blocked(PrivateWaitFailure {
                     machine: frame.machine.id,
                     operation: op.id,
                     cause,
                 }));
             }
-            if spin.update != CellUpdate::Observe {
-                let next = memory.get(&location).after_update(spin.update);
-                memory.set(&location, next);
-            }
+            frame.position += 1;
             continue;
         }
         let cleanup = match successor::prepare(module, frame, memory)? {

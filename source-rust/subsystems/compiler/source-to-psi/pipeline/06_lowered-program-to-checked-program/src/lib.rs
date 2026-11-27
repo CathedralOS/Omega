@@ -1485,7 +1485,17 @@ fn check_prepared_machine(
         }
     }
     let windows = opened;
-    let mut uses = storage.uses(references, tables, empty_contracts, inhabitation)?;
+    let (mut uses, case_goals) = storage.uses(references, tables, empty_contracts, inhabitation)?;
+    for goal in case_goals {
+        let proved = decide_case_goal(context, graph, tables, &mut knowledge, id, &goal, activity)?;
+        if !proved
+            && let Some(used) = uses
+                .iter_mut()
+                .find(|used| used.at == goal.at && used.verdict.is_ok())
+        {
+            used.verdict = Err(places::unproved_payload_case(id, goal.at));
+        }
+    }
     // Byte-domain establishments are judged from their actual source at the
     // producer, including qualified transfers whose result is never consumed.
     for judged in storage.byte_predicate_establishments(module, references)? {
@@ -1808,8 +1818,19 @@ fn fill_knowledge<'a>(
                 .collect::<Vec<_>>(),
             _ => Vec::new(),
         };
+        // What a sibling member of this machine's implementation ensures of
+        // itself (`RealizedGuarantee`).
+        let realized = match row.callee {
+            Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => tables
+                .realized_guarantees
+                .iter()
+                .filter(|realized| realized.callee == callee)
+                .map(|realized| (realized.clause, realized.statement.clone()))
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        };
         let mut ensures = contract.ensures.scalar_clauses().peekable();
-        if ensures.peek().is_none() && applied.is_empty() {
+        if ensures.peek().is_none() && applied.is_empty() && realized.is_empty() {
             continue;
         }
         let mut returned = storage.after_call(
@@ -1849,6 +1870,21 @@ fn fill_knowledge<'a>(
                 .ok()
             })
             .collect::<Vec<_>>();
+        // A clause the call's actuals cannot name leaves it unused.
+        let realized = realized
+            .iter()
+            .filter_map(|(clause, statement)| {
+                substitute(
+                    statement,
+                    &mut ErasedTerms {
+                        terms: &erased,
+                        runtime: &mut returned,
+                    },
+                )
+                .ok()
+                .map(|proposition| (*clause, proposition))
+            })
+            .collect::<Vec<_>>();
         for (clause, proposition) in propositions {
             push_knowledge(
                 tables,
@@ -1866,6 +1902,14 @@ fn fill_knowledge<'a>(
                 proposition,
                 ProgramPoint::AfterOperation(operation),
                 Justification::CallCongruence { invocation },
+            );
+        }
+        for (clause, proposition) in realized {
+            push_knowledge(
+                tables,
+                proposition,
+                ProgramPoint::AfterOperation(operation),
+                Justification::RealizationGuarantee { invocation, clause },
             );
         }
     }
@@ -3082,7 +3126,8 @@ fn decide_indexed(
     unreached: &[ValueId],
     activity: &mut ProofSearchActivity,
 ) -> Checked<Evidence> {
-    match knowledge.narrowed_or_full(graph, tables, id, obligation, point, &goal)? {
+    let concerns = Construct::Obligation(obligation);
+    match knowledge.narrowed_or_full(graph, tables, id, concerns, point, &goal)? {
         NarrowedKnowledge::Narrowed(narrowed) => {
             if let Ok(certificate) = search_certificate(
                 context,
@@ -3097,7 +3142,7 @@ fn decide_indexed(
             ) {
                 return verify(context, id, obligation, goal, narrowed, certificate);
             }
-            let full = knowledge.full(graph, tables, id, obligation, point)?;
+            let full = knowledge.full(graph, tables, id, concerns, point)?;
             let certificate = search_certificate(
                 context,
                 &tables.values,
@@ -3126,6 +3171,62 @@ fn decide_indexed(
             verify(context, id, obligation, goal, hypotheses, certificate)
         }
     }
+}
+
+/// Whether every case name a payload access rests on is proved true where
+/// the access stands (`places::CaseGoal`). The proof is searched and
+/// accepted by the kernel from the knowledge available there, as an
+/// obligation's is; the access is a storage use, not an obligation row, so
+/// no certificate is kept. `Err` is a defect of the tables, not the program.
+fn decide_case_goal(
+    context: &PropositionContext,
+    graph: &Graph,
+    tables: &MachineTables,
+    knowledge: &mut KnowledgeIndex<'_>,
+    id: MachineId,
+    goal: &places::CaseGoal,
+    activity: &mut ProofSearchActivity,
+) -> Checked<bool> {
+    let mut accepted = |hypotheses: &Hypotheses, statement: &Proposition| {
+        prove::Prover::new(
+            context,
+            &hypotheses.assumptions,
+            &hypotheses.axioms,
+            &tables.values,
+            activity,
+        )
+        .prove(statement)
+        .is_ok_and(|proof| {
+            proof_admission::accept_certificate(
+                context,
+                statement,
+                &hypotheses.assumptions,
+                &hypotheses.axioms,
+                &proof,
+            )
+            .is_ok()
+        })
+    };
+    for name in &goal.names {
+        let statement = Proposition::Equal(
+            ScalarTerm::value(*name, ScalarType::Boolean),
+            ScalarTerm::Boolean(true),
+        );
+        let proved =
+            match knowledge.narrowed_or_full(graph, tables, id, goal.at, goal.point, &statement)? {
+                NarrowedKnowledge::Narrowed(narrowed) => {
+                    accepted(&narrowed, &statement) || {
+                        let full = knowledge.full(graph, tables, id, goal.at, goal.point)?;
+                        accepted(&full, &statement)
+                    }
+                }
+                NarrowedKnowledge::All(hypotheses) => accepted(&hypotheses, &statement),
+            };
+        if !proved {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 enum NarrowedKnowledge {
@@ -3443,7 +3544,7 @@ impl<'a> KnowledgeIndex<'a> {
         graph: &Graph,
         tables: &MachineTables,
         id: MachineId,
-        obligation: ObligationId,
+        concerns: Construct,
         point: ProgramPoint,
     ) -> Checked<()> {
         if self.bad_rows.is_empty() {
@@ -3457,11 +3558,11 @@ impl<'a> KnowledgeIndex<'a> {
                 refusal(
                     RefusalReason::ForeignIdentity,
                     id,
-                    Construct::Obligation(obligation),
+                    concerns,
                     "knowledge row has no proposition",
                 )
             })?;
-            concrete(tables, id, Construct::Obligation(obligation), proposition)?;
+            concrete(tables, id, concerns, proposition)?;
         }
         Ok(())
     }
@@ -3580,10 +3681,10 @@ impl<'a> KnowledgeIndex<'a> {
         graph: &Graph,
         tables: &MachineTables,
         id: MachineId,
-        obligation: ObligationId,
+        concerns: Construct,
         point: ProgramPoint,
     ) -> Checked<Hypotheses> {
-        self.check_bad_rows(graph, tables, id, obligation, point)?;
+        self.check_bad_rows(graph, tables, id, concerns, point)?;
         let (used_block, used_pos, used_dom) = graph.locate_with_dominance_info(point)?;
         self.kept_rows.clear();
         let is_cleanup = matches!(
@@ -3642,17 +3743,17 @@ impl<'a> KnowledgeIndex<'a> {
         graph: &Graph,
         tables: &MachineTables,
         id: MachineId,
-        obligation: ObligationId,
+        concerns: Construct,
         point: ProgramPoint,
         goal: &Proposition,
     ) -> Checked<NarrowedKnowledge> {
-        self.check_bad_rows(graph, tables, id, obligation, point)?;
+        self.check_bad_rows(graph, tables, id, concerns, point)?;
         let (used_block, used_pos, used_dom) = graph.locate_with_dominance_info(point)?;
         let used_start = used_dom.traversal_start();
         self.goal_vals.clear();
         if !goal.visit_value_ids(|value| self.goal_vals.push(value)) {
             return Ok(NarrowedKnowledge::All(
-                self.full(graph, tables, id, obligation, point)?,
+                self.full(graph, tables, id, concerns, point)?,
             ));
         }
         if self.stamp == u32::MAX {
@@ -3924,6 +4025,7 @@ pub(crate) fn hypotheses(
             | Justification::TheoremGuarantee { .. }
             | Justification::CalleeGuarantee { .. }
             | Justification::CallCongruence { .. }
+            | Justification::RealizationGuarantee { .. }
             | Justification::BranchCondition { .. }
             | Justification::ExcludedDispatchCase { .. }
             | Justification::DispatchBinding { .. }

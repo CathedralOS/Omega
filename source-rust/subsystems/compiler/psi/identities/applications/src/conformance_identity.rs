@@ -41,7 +41,7 @@ pub struct MachineOperandIdentity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MachineOperandSelectionIdentity {
+pub enum MachineOperandSelectionIdentity {    Machine(String),
     Const(String),
     Type(String),
     Conformance(String),
@@ -244,8 +244,9 @@ pub fn requirement_application_commitment(
             MachineOperandSelectionIdentity::Const(identity) if !identity.is_empty() => {
                 ("value", identity.as_str()).hash(&mut commitment);
             }
+            MachineOperandSelectionIdentity::Machine(identity) => commitment.machine_argument(identity)?,
             _ => {
-                return Err("applied requirement needs complete type or value argument identity");
+                return Err("applied requirement needs complete type, value or machine argument identity");
             }
         }
     }
@@ -266,6 +267,7 @@ impl MachineOperandIdentity {
             MachineOperandSelectionIdentity::Const(identity) => (1, identity),
             MachineOperandSelectionIdentity::Type(identity) => (2, identity),
             MachineOperandSelectionIdentity::Conformance(identity) => (3, identity),
+            MachineOperandSelectionIdentity::Machine(identity) => (4, identity),
         };
         bytes.push(tag);
         append_text(bytes, identity);

@@ -45,7 +45,7 @@ Subsequent exact subtractions in `verify_payload` (`headroom = 80u64 - res = 20u
 The transition guard `combined == 40u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
 If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
 
-Measured discrimination: A 1-token perturbation altering the demanded value from `combined == 40u64` to `combined == 41u64` in `main.omg` was executed against `omega run --both`:
+Measured discrimination: A 1-token perturbation altering the demanded value from `combined == 40u64` to `combined == 41u64` in `main.omg` was executed against the native/Psi comparison:
 - Native execution: trapped immediately with `native exit -1073741795` (STATUS_ILLEGAL_INSTRUCTION / Trap crash).
 - Terminal Psi interpreter: trapped with `interp crash: Trap (host presentation agrees)`.
 Both engines trapped consistently on the corrupted value, verifying bidirectional discrimination.
@@ -58,7 +58,7 @@ Each place has an `invalid/` reject twin that widens one variant's bound (`Gamma
 When `v == 39u64`, `res` can fall to `39u64 < 40u64`, which violates the contract precondition `value >= 40u64` required by `verify_payload` (or ensures postcondition on helper extraction).
 The compiler strictly fails closed at compile time:
 
-| Place | `omega run --both` | Reject twin diagnostic |
+| Place | the native/Psi comparison | Reject twin diagnostic |
 | --- | --- | --- |
 | `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
 | `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
@@ -76,7 +76,7 @@ The compiler strictly fails closed at compile time:
 - **Identity and lifetime**: The extracted payload interval fact `res in [40, 80]` is preserved across local bindings, carrier record fields, machine parameters, helper call returns, match join arms, named constants, state transitions, helper forwarding machines, and target-scoped bodies without semantic loss.
 - **Composition**: In each place, the synthesized interval `res in [40, 80]` composes directly with `verify_payload` contract preconditions and subsequent exact subtractions `headroom = 80u64 - res` and `margin = res - 40u64` to statically discharge underflow safety and non-negativity without post-hoc caller equality guards.
 - **Soundness boundaries**: In every reject twin, widening the payload bound on variant `Gamma` to `v >= 39u64` permits `res` to reach `39u64`, which fails closed under contract requires preconditions or ensures postconditions across boundary transmissions, verifying that out-of-interval variant payloads cannot satisfy safety bounds.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: Tagged enum construction, variant discrimination, and payload access lower to target-neutral Terminal Psi tagged case representations (`PSITERM\0`), while proof-only where-clauses are erased. Both Terminal Psi interpreter and native execution agree with exit 0 (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: Tagged enum construction, variant discrimination, and payload access lower to target-neutral Terminal Psi tagged case representations (`PSITERM\0`), while proof-only where-clauses are erased. Both Terminal Psi interpreter and native execution agree with exit 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 4-variant tagged enum `Packet` with its discriminant tag and 8-byte payload (`IntegerAt 8-byte` for `u64`), respecting layout alignment and calling conventions across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA variant tag comparison and branch instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.

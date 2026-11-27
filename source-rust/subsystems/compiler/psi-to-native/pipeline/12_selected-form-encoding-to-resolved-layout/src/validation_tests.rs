@@ -17,8 +17,7 @@ mod order_tests {
 #[cfg(test)]
 mod tests {
     use isa_aarch64::{
-        aarch64_physical_register_model, encode_aarch64_selected_conditional_branch_form,
-        encode_aarch64_selected_jump_form,
+        encode_aarch64_selected_conditional_branch_form, encode_aarch64_selected_jump_form,
     };
     use machine_code::{
         DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
@@ -140,8 +139,8 @@ mod tests {
         block_with(id, Vec::new(), terminator)
     }
 
-    fn physical() -> register_model::ValidatedPhysicalRegisterModel {
-        register_model::validate_physical_register_model(aarch64_physical_register_model()).unwrap()
+    fn physical() -> &'static register_model::ValidatedPhysicalRegisterModel {
+        isa_aarch64::validated_aarch64_physical_register_model()
     }
 
     fn branch_alternative() -> MachineAlternative {
@@ -151,7 +150,7 @@ mod tests {
             variant: 0,
         };
         let encoded = encode_aarch64_selected_conditional_branch_form(
-            &physical,
+            physical,
             key,
             MachineAlternativeFamily::ConditionalBranchNonZero,
             isa_aarch64::Aarch64ConditionalBranchForm::CanonicalWordV1,
@@ -176,7 +175,7 @@ mod tests {
             family: MachineAlternativeFamily::Jump,
             variant: 0,
         };
-        let encoded = encode_aarch64_selected_jump_form(&physical, key, 4).unwrap();
+        let encoded = encode_aarch64_selected_jump_form(physical, key, 4).unwrap();
         MachineAlternative {
             key,
             applicability: MachineAlternativeApplicability::Always,
@@ -356,7 +355,7 @@ mod tests {
                 reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
                 alternatives: std::sync::Arc::new(control_templates(
                     row_alternative(instruction, alternatives),
-                    &physical(),
+                    physical(),
                     target::Architecture::Aarch64,
                 )),
             },
@@ -465,7 +464,7 @@ mod tests {
             selected,
             &rows,
             machine.instructions(),
-            &physical(),
+            physical(),
             SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
             &encoded,
         )
@@ -475,7 +474,7 @@ mod tests {
             Architecture::Aarch64,
             selected,
             &machine,
-            &physical(),
+            physical(),
             SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1,
             &mut iter,
             &produced,

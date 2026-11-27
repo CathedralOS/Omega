@@ -3,12 +3,14 @@
 From the repository root, run with a built Omega CLI:
 
 ```text
-omega run --engine native samples/cli/algorithms/maze_flood/main.omg
-omega run --engine psi samples/cli/algorithms/maze_flood/main.omg
+omega run samples/cli/algorithms/maze_flood/main.omg
 ```
 
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/algorithms/maze_flood` from the repository root.
+
 Press Enter at the closing prompt (EOF also works). Native execution and the
-Terminal interpreter must both exit **0**. For `--both`, provide finite input
+Terminal interpreter must both exit **0**. For the comparison, provide finite input
 ending at EOF before compilation. The maze's shortest distances are:
 
 ```text

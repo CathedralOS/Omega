@@ -98,9 +98,8 @@ pub use derivation::NativePhysicalEvidenceDerivation;
 pub(crate) use derivation::derive_physical_evidence;
 pub(crate) use fragment_publication::derive_scope as derive_fragment_publication_scope;
 use optimization_core::{
-    NativeOptimizationProjectionIdentity, OptimizationUnitIdentity,
-    OptimizedAbstractPlanProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
-    OptimizedOperatorOccurrenceIdentity,
+    NativeOptimizationProjectionIdentity, OptimizationSelectionIdentity, OptimizationUnitIdentity,
+    OptimizedBoundaryOccurrenceIdentity, OptimizedOperatorOccurrenceIdentity,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
 use target::NativeTarget;
@@ -237,7 +236,7 @@ impl NativeOptimizationProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedOptimizedNativePhysicalEvidenceScope {
-    validation: OptimizedAbstractPlanProjectionIdentity,
+    selection: OptimizationSelectionIdentity,
     final_unit: OptimizationUnitIdentity,
     boundary_application_coverage: [u8; 32],
     projection: NativeOptimizationProjection,
@@ -1006,14 +1005,14 @@ fn native_optimization_projection(
 }
 
 fn validated_optimized_native_physical_evidence_scope(
-    validation: OptimizedAbstractPlanProjectionIdentity,
+    selection: OptimizationSelectionIdentity,
     final_unit: OptimizationUnitIdentity,
     boundary_application_coverage: [u8; 32],
     projection: NativeOptimizationProjection,
     identity: [u8; 32],
 ) -> ValidatedOptimizedNativePhysicalEvidenceScope {
     ValidatedOptimizedNativePhysicalEvidenceScope {
-        validation,
+        selection,
         final_unit,
         boundary_application_coverage,
         projection,

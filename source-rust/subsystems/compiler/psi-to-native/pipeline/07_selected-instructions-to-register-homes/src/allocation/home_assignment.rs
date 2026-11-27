@@ -2383,7 +2383,7 @@ pub(crate) mod compute {
         mut reuse: Option<&mut FunctionHomeReuse>,
     ) -> Result<RegisterHomePlan, RegisterHomeError> {
         let register_environment = environment.identity();
-        if legality.receipt().ranges() != ranges.receipt().identity()
+        if legality.plan().selected != ranges.plan().selected
             || legality.receipt().register_environment() != register_environment
             || ranges.plan().target.architecture != environment.physical().model().architecture
             || !infrastructure_environment_agrees(
@@ -2424,8 +2424,7 @@ pub(crate) mod compute {
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(RegisterHomePlan {
-            legality: legality.receipt().identity(),
-            ranges: ranges.receipt().identity(),
+            selected: ranges.plan().selected.clone(),
             register_environment,
             allocator_availability: legality.receipt().allocator_availability(),
             functions,
@@ -2538,8 +2537,6 @@ pub(crate) mod receipt {
     pub(crate) fn build(plan: &RegisterHomePlan) -> RegisterHomeReceipt {
         RegisterHomeReceipt {
             identity: register_home_identity(plan),
-            legality: plan.legality,
-            ranges: plan.ranges,
             register_environment: plan.register_environment,
             allocator_availability: plan.allocator_availability,
             function_count: plan.functions.len(),
@@ -2552,13 +2549,12 @@ pub(crate) mod receipt {
     }
 }
 
-use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
+use register_homes::AllocatorAvailabilityIdentity;
 pub use register_homes::{
     FunctionRegisterHomes, RegisterHomeIdentity, RegisterHomePlan, VirtualRegisterHome,
     register_home_identity,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::LiveRangeIdentity;
 
 pub(crate) fn assign_register_homes(
     legality: &ValidatedAllocationLegality,
@@ -2586,8 +2582,6 @@ copy_receipt! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct RegisterHomeReceipt {
         pub(crate) identity: RegisterHomeIdentity,
-        pub(crate) legality: AllocationLegalityIdentity,
-        pub(crate) ranges: LiveRangeIdentity,
         pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
         pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
         pub(crate) function_count: usize,

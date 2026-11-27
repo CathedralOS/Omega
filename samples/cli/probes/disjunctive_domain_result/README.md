@@ -4,7 +4,7 @@ Cathedral's image/storage range classifier returns a qualified result after
 observing either range order. This smaller witness carries an observed
 disjunction into a result domain expressed over mathematical embeddings.
 
-Run `omega run --both samples/cli/memory/disjunctive_domain_result/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/probes/disjunctive_domain_result`.
 Expected exit: 0 in both engines. The cases exercise either alternative, both,
 and neither; this does not establish firmware backing or Cathedral boot.
 

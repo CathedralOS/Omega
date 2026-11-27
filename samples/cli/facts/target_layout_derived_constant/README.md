@@ -24,7 +24,7 @@ at line 22. The baseline build took 10m45s. Existing main already included
 this advance uses it.
 
 From the directory of each case, run
-`omega run --both --build-input build.omg --build-input main.omg main.omg`.
+`omega run --build-input build.omg --build-input main.omg main.omg`.
 The two-file capture selects one case. Capturing the whole sample directory
 also selects the sibling declarations of `Answer` in the nested controls.
 All positive projects bind all four hosted `ProgramEntry` targets and promise

@@ -15,8 +15,10 @@ use terminal_psi::{
     TerminalMachine, TerminalModule, ValueDeclaration,
 };
 
-#[derive(Clone, Default)]
-pub(super) struct Bindings {
+#[derive(Clone)]
+pub(super) struct Bindings<'m> {
+    pub(super) module: &'m TerminalModule,
+    pub(super) machine: &'m TerminalMachine,
     pub(super) places: Facts<PlaceId, Location>,
     pub(super) values: Facts<ValueId, ScalarFact>,
 }
@@ -26,7 +28,16 @@ pub(super) enum ScalarArguments<'a> {
     Payload(Vec<Option<ScalarFact>>),
 }
 
-impl Bindings {
+impl<'m> Bindings<'m> {
+    pub(super) fn new(module: &'m TerminalModule, machine: &'m TerminalMachine) -> Self {
+        Self {
+            module,
+            machine,
+            places: Facts::default(),
+            values: Facts::default(),
+        }
+    }
+
     pub(super) fn join(&mut self, other: &Self, arrivals: &mut super::storage::Arrivals<'_>) {
         self.values.retain_equal(&other.values);
         self.places.retain(|key, place| {
@@ -54,7 +65,7 @@ impl Bindings {
         if places.len() != actuals.len() || formals.len() != count {
             return None;
         }
-        let mut bindings = Self::default();
+        let mut bindings = Self::new(self.module, self.machine);
         for (index, formal) in formals.iter().enumerate() {
             let value = match &arguments {
                 ScalarArguments::Values(values) => self.values.get(&values[index]).copied(),
@@ -68,7 +79,7 @@ impl Bindings {
             if formal.access != actual.access {
                 return None;
             }
-            if let Some(loc) = memory.locate(&self.places, actual.place, &actual.path) {
+            if let Some(loc) = memory.locate(self, actual.place, &actual.path) {
                 let loc = if actual.access == StructuralAccess::Owned {
                     memory.allocate(memory.get(&loc))
                 } else {
@@ -92,7 +103,7 @@ fn field_location(
     path: &[StructuralPathSegment],
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Option<Location> {
-    let base = memory.locate(&bindings.places, root, path)?;
+    let base = memory.locate(bindings, root, path)?;
     let Some(field) = field else {
         return Some(base);
     };
@@ -127,7 +138,7 @@ impl Destination {
 #[derive(Clone)]
 pub(super) struct Arrival<'m> {
     pub(super) edge: EdgeId,
-    pub(super) bindings: Bindings,
+    pub(super) bindings: Bindings<'m>,
     pub(super) cleanup: &'m [TerminalAffineCleanupAction],
     block: &'m Block,
 }
@@ -141,7 +152,7 @@ pub(super) struct Frame<'m> {
     pub(super) selected_arm: Option<usize>,
     pub(super) arrival: Option<Arrival<'m>>,
     visited: Facts<BlockId, ()>,
-    pub(super) bindings: Bindings,
+    pub(super) bindings: Bindings<'m>,
     scalar_types: Rc<OnceCell<crate::MachineScalarIndex<'m>>>,
     pub(super) return_to: Destination,
 }
@@ -149,9 +160,10 @@ pub(super) struct Frame<'m> {
 impl<'m> Frame<'m> {
     pub(super) fn enter(
         machine: &'m TerminalMachine,
-        bindings: Bindings,
+        mut bindings: Bindings<'m>,
         return_to: Destination,
     ) -> Option<Self> {
+        bindings.machine = machine;
         Some(Self {
             machine,
             block: machine.block(&machine.entry)?,
@@ -179,6 +191,9 @@ impl<'m> Frame<'m> {
             return Some(());
         }
         match &op.kind {
+            // Selecting code alone cannot touch any of this activation's cells.
+            // The callable flow supplies the selected body at its invocation.
+            OperationKind::SelectMachine { .. } => {}
             OperationKind::EstablishZeroedStructural {}
             | OperationKind::EstablishStructuralLocal {} => {
                 let value = if matches!(op.kind, OperationKind::EstablishZeroedStructural {}) {
@@ -186,8 +201,8 @@ impl<'m> Frame<'m> {
                         .structural_type(op.result.structural()?.structural_type)?
                         .shape;
                     match shape.cases().first() {
-                        Some(first) => Stored::Zero.select_case(first.id),
-                        None => Stored::Zero,
+                        Some(first) => Stored::ZERO.select_case(first.id),
+                        None => Stored::ZERO,
                     }
                 } else {
                     Stored::Unknown
@@ -201,14 +216,14 @@ impl<'m> Frame<'m> {
                 storage: None,
             } => {
                 let contents = memory
-                    .locate(&bindings.places, source.place, &source.path)
+                    .locate(bindings, source.place, &source.path)
                     .map_or(Stored::Unknown, Stored::Reference);
                 bindings
                     .places
                     .insert(op.result.structural()?.place, memory.allocate(contents));
             }
             OperationKind::ReleaseReference { source, path } => {
-                if let Some(slot) = memory.locate(&bindings.places, *source, path)
+                if let Some(slot) = memory.locate(bindings, *source, path)
                     && matches!(memory.get(&slot), Stored::Reference(_))
                 {
                     memory.set(&slot, Stored::Unknown);
@@ -223,7 +238,7 @@ impl<'m> Frame<'m> {
                 bindings.places.insert(result.place, value);
             }
             OperationKind::StructuralCaseMembership { source, path, case } => {
-                let target = memory.locate(&bindings.places, *source, path);
+                let target = memory.locate(bindings, *source, path);
                 let contents = target.as_ref().map_or(Stored::Unknown, |v| memory.get(v));
                 let tags = contents.tags();
                 let membership = match tags {
@@ -242,7 +257,7 @@ impl<'m> Frame<'m> {
             OperationKind::StructuralLeafCopy { source, path } => {
                 // Copying an input of unknown value still creates the checked
                 // result. Its possible cases can be visited independently.
-                let location = memory.locate(&bindings.places, *source, path);
+                let location = memory.locate(bindings, *source, path);
                 let value = location.as_ref().map_or(Stored::Unknown, |v| memory.get(v));
                 match &op.result {
                     terminal_psi::OperationResult::Structural(result) => {
@@ -258,7 +273,7 @@ impl<'m> Frame<'m> {
                 }
             }
             OperationKind::MoveStructuralValue { source } => {
-                let location = memory.locate(&bindings.places, source.place, &source.path)?;
+                let location = memory.locate(bindings, source.place, &source.path)?;
                 let moved = memory.allocate(memory.get(&location));
                 bindings.places.insert(op.result.structural()?.place, moved);
             }
@@ -269,7 +284,7 @@ impl<'m> Frame<'m> {
                 value,
                 ..
             } => {
-                let source = memory.locate(&bindings.places, value.place, &value.path)?;
+                let source = memory.locate(bindings, value.place, &value.path)?;
                 let dest = field_location(
                     module,
                     self.machine,
@@ -326,7 +341,7 @@ impl<'m> Frame<'m> {
                 event,
                 resident_obligation: None,
             } => {
-                let location = memory.locate(&bindings.places, *place, path)?;
+                let location = memory.locate(bindings, *place, path)?;
                 let observed = if event.observes_resident() {
                     let result = op.result.scalar()?;
                     let prior = memory.get(&location).scalar(result.scalar_type);
@@ -343,6 +358,21 @@ impl<'m> Frame<'m> {
                     | AtomicAccessEvent::Swap { value, .. } => {
                         bindings.values.get(value).copied().into()
                     }
+                    AtomicAccessEvent::ReadModifyWrite {
+                        operation, operand, ..
+                    } => {
+                        let ty = op.result.scalar()?.scalar_type;
+                        let operand = bindings.values.get(operand).copied();
+                        memory.get(&location).map_scalars(ty, |prior| {
+                            let (ScalarFact::Literal(prior), Some(ScalarFact::Literal(operand))) =
+                                (prior, operand)
+                            else {
+                                return None;
+                            };
+                            crate::atomic_read_modify_write(*operation, prior, operand)
+                                .map(ScalarFact::Literal)
+                        })
+                    }
                     AtomicAccessEvent::CompareExchange {
                         expected,
                         replacement,
@@ -353,10 +383,7 @@ impl<'m> Frame<'m> {
                         match (expect, proposal) {
                             (Some(expected), _) if observed == Some(expected) => proposal.into(),
                             (Some(expected), _) if proposal == Some(expected) => return Some(()),
-                            (
-                                Some(ScalarFact::Literal(expected)),
-                                Some(ScalarFact::Literal(replacement)),
-                            ) => memory
+                            (Some(expected), Some(replacement)) => memory
                                 .get(&location)
                                 .after_update(CellUpdate::CompareExchange {
                                     expected,

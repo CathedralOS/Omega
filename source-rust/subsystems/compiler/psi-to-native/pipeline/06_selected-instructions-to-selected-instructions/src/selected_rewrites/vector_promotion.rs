@@ -1,26 +1,30 @@
 /*
-  Intra-block promotion of memory-based `Packed*` selected instructions to
-  128-bit `VECTOR128` register operations (`Packed*Reg`, `PackedLoad*`,
-  `PackedStore*`, `PackedMaterializeZero`, `PackedFromGpr64*`), paired with
-  single-block local-slot scalar replacement, external 16-byte store
-  coalescing, dead local-store elimination, and pure `CopyI64`/DCE cleanup.
+  The `SelectedPackedVectorPromotionV1` rewrite: intra-block promotion of
+  memory-based `Packed*` selected instructions to 128-bit `VECTOR128` register
+  operations (`Packed*Reg`, `PackedLoad*`, `PackedStore*`,
+  `PackedMaterializeZero`, `PackedFromGpr64*`), paired with single-block
+  local-slot scalar replacement, external 16-byte store coalescing, dead
+  local-store elimination, and pure `CopyI64`/DCE cleanup. It runs only when
+  the build selects it (`structural_rewrites.rs`): every target encodes the
+  memory-based `Packed*` forms selection emits, so a program lowers without it.
 
   All transformations are intra-block and strictly preserve non-empty
   `provenance.work`, `provenance.obligations`, and `provenance.edges`.
 */
 
-use crate::instruction_selection::SelectedInstructionError;
+use crate::selected_rewrites::structural_rewrites::StructuralRewriteError;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{
     RegisterClassId, RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
 };
+use selected_instructions::compaction::{
+    EdgeRegister, block_instructions, prune_dead_metadata, renumber_function, successor_registers,
+};
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedCaseDispatchSource,
-    SelectedCasePayloadTransport, SelectedConstraintKeys, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-    SelectedMemoryAccessRole, SelectedOperand, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin, terminator_instruction, terminator_instruction_mut,
-    terminator_successors, terminator_successors_mut,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedBlock, SelectedConstraintKeys,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, SelectedOperand, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin, terminator_instruction, terminator_successors,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use std::collections::{HashMap, HashSet};
@@ -37,17 +41,25 @@ fn packed_vector_scalar_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 128).expect("u128 integer type"))
 }
 
+/// Whether the target supplies the 128-bit packed register forms promotion
+/// emits. AArch64 supplies none of them today.
+pub(crate) fn supports_target(environment: &ValidatedTargetRegisterEnvironment) -> bool {
+    PackedRegKeys::from_keys(&environment.selected_keys(), environment).is_some()
+}
+
 pub(crate) fn promote_and_simplify(
     functions: &mut [SelectedFunction],
     environment: &ValidatedTargetRegisterEnvironment,
-) -> Result<(), SelectedInstructionError> {
+) -> Result<(), StructuralRewriteError> {
     let keys = environment.selected_keys();
-    let Some(packed_keys) = PackedRegKeys::from_keys(&keys, environment) else {
-        return Ok(());
-    };
+    let packed_keys = PackedRegKeys::from_keys(&keys, environment).ok_or(
+        StructuralRewriteError::UnsupportedTarget {
+            optimization: optimization_core::Optimization::SelectedPackedVectorPromotionV1,
+        },
+    )?;
     let copy_row = constraint_row(environment, keys.copy_i64)?;
     if copy_row.operands.len() != 2 {
-        return Err(SelectedInstructionError::MissingConstraint(keys.copy_i64));
+        return Err(StructuralRewriteError::MissingConstraint(keys.copy_i64));
     }
     let vec128_class = constraint_row(environment, packed_keys.add_reg)?.operands[2].class;
     let gpr64_class = copy_row.operands[0].class;
@@ -150,10 +162,10 @@ impl PackedRegKeys {
 fn constraint_row(
     environment: &ValidatedTargetRegisterEnvironment,
     key: RegisterConstraintKey,
-) -> Result<&RegisterInstructionConstraint, SelectedInstructionError> {
+) -> Result<&RegisterInstructionConstraint, StructuralRewriteError> {
     environment
         .constraint(key)
-        .ok_or(SelectedInstructionError::MissingConstraint(key))
+        .ok_or(StructuralRewriteError::MissingConstraint(key))
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -276,7 +288,7 @@ fn promote_function(
     packed_keys: &PackedRegKeys,
     vec128_class: RegisterClassId,
     gpr64_class: RegisterClassId,
-) -> Result<(), SelectedInstructionError> {
+) -> Result<(), StructuralRewriteError> {
     let slot_sizes: HashMap<LocalStorageSlotId, usize> = function
         .local_storage_slots
         .iter()
@@ -439,7 +451,7 @@ fn promote_function(
     // ensuring every VirtualRegisterOrigin instruction still exists before renumber_function.
     prune_dead_metadata(function);
 
-    super::selection_inlining::renumber_function(function);
+    renumber_function(function);
     Ok(())
 }
 
@@ -838,7 +850,7 @@ impl<'a> BlockCtx<'a> {
         key: RegisterConstraintKey,
         vregs: &[VirtualRegisterId],
         provenance: SelectedInstructionProvenance,
-    ) -> Result<SelectedInstruction, SelectedInstructionError> {
+    ) -> Result<SelectedInstruction, StructuralRewriteError> {
         let id = SelectedInstructionId(*self.next_inst_id);
         *self.next_inst_id += 1;
         let row = constraint_row(self.environment, key)?;
@@ -862,7 +874,7 @@ impl<'a> BlockCtx<'a> {
         uses: &[VirtualRegisterId],
         is_vec_def: bool,
         provenance: SelectedInstructionProvenance,
-    ) -> Result<(SelectedInstructionId, VirtualRegisterId), SelectedInstructionError> {
+    ) -> Result<(SelectedInstructionId, VirtualRegisterId), StructuralRewriteError> {
         let id = SelectedInstructionId(*self.next_inst_id);
         *self.next_inst_id += 1;
         let row = constraint_row(self.environment, key)?;
@@ -870,7 +882,7 @@ impl<'a> BlockCtx<'a> {
             .operands
             .iter()
             .position(|o| matches!(o.access, RegisterOperandAccess::Def))
-            .ok_or(SelectedInstructionError::MissingConstraint(key))?;
+            .ok_or(StructuralRewriteError::MissingConstraint(key))?;
         let def_vreg = if is_vec_def {
             self.alloc_vec_vreg(id, def_idx as u16)
         } else {
@@ -884,7 +896,7 @@ impl<'a> BlockCtx<'a> {
             } else {
                 let u = use_iter
                     .next()
-                    .ok_or(SelectedInstructionError::MissingConstraint(key))?;
+                    .ok_or(StructuralRewriteError::MissingConstraint(key))?;
                 let _ = op;
                 vregs.push(u);
             }
@@ -906,14 +918,14 @@ impl<'a> BlockCtx<'a> {
         &mut self,
         out: &mut Vec<SelectedInstruction>,
         slot: LocalStorageSlotId,
-    ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    ) -> Result<VirtualRegisterId, StructuralRewriteError> {
         if let Some(&addr) = self.cached_local_addr.get(&slot) {
             return Ok(addr);
         }
         let key = self
             .keys
             .frame_address
-            .ok_or_else(SelectedInstructionError::custody)?;
+            .ok_or_else(StructuralRewriteError::custody)?;
         let (_, addr) = self.emit_def_inst(
             out,
             SelectedInstructionKind::FrameAddress {
@@ -964,7 +976,7 @@ impl<'a> BlockCtx<'a> {
         write_off: u32,
         write_len: u32,
         drop_fully_covered: bool,
-    ) -> Result<(), SelectedInstructionError> {
+    ) -> Result<(), StructuralRewriteError> {
         let Some(entries) = self.pending_vec_writes.get_mut(&slot) else {
             return Ok(());
         };
@@ -1006,7 +1018,7 @@ impl<'a> BlockCtx<'a> {
                     },
                     self.packed_keys.store_32,
                 ),
-                _ => return Err(SelectedInstructionError::custody()),
+                _ => return Err(StructuralRewriteError::custody()),
             };
             let inst = self.make_inst(
                 kind,
@@ -1026,7 +1038,7 @@ impl<'a> BlockCtx<'a> {
         offset: u32,
         len: u32,
         vreg: VirtualRegisterId,
-    ) -> Result<(), SelectedInstructionError> {
+    ) -> Result<(), StructuralRewriteError> {
         self.flush_pending_overlap(out, slot, offset, len, true)?;
         let bytes = self.slot_bytes.get_mut(&slot).unwrap();
         for i in 0..(len as usize) {
@@ -1046,7 +1058,7 @@ impl<'a> BlockCtx<'a> {
         &mut self,
         out: &mut Vec<SelectedInstruction>,
         prov: Option<SelectedInstructionProvenance>,
-    ) -> Result<(Option<SelectedInstructionId>, VirtualRegisterId), SelectedInstructionError> {
+    ) -> Result<(Option<SelectedInstructionId>, VirtualRegisterId), StructuralRewriteError> {
         if prov.as_ref().is_none_or(is_pure_provenance)
             && let Some(z) = self.cached_zero_xmm
         {
@@ -1073,7 +1085,7 @@ impl<'a> BlockCtx<'a> {
         &mut self,
         out: &mut Vec<SelectedInstruction>,
         val: u64,
-    ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    ) -> Result<VirtualRegisterId, StructuralRewriteError> {
         if let Some(&r) = self.cached_const_gpr.get(&val) {
             return Ok(r);
         }
@@ -1099,7 +1111,7 @@ impl<'a> BlockCtx<'a> {
         lo: u64,
         hi: u64,
         prov: Option<SelectedInstructionProvenance>,
-    ) -> Result<(Option<SelectedInstructionId>, VirtualRegisterId), SelectedInstructionError> {
+    ) -> Result<(Option<SelectedInstructionId>, VirtualRegisterId), StructuralRewriteError> {
         if lo == 0 && hi == 0 {
             return self.get_or_materialize_zero(out, prov);
         }
@@ -1151,9 +1163,9 @@ impl<'a> BlockCtx<'a> {
         width: u32,
         need_zero_ext_to_16: bool,
         prov_for_only_op: Option<SelectedInstructionProvenance>,
-    ) -> Result<(Option<SelectedInstructionId>, VirtualRegisterId), SelectedInstructionError> {
+    ) -> Result<(Option<SelectedInstructionId>, VirtualRegisterId), StructuralRewriteError> {
         let Some(ptr) = self.resolve_ptr(ptr_vreg) else {
-            return Err(SelectedInstructionError::custody());
+            return Err(StructuralRewriteError::custody());
         };
         let p_pure = prov_for_only_op.as_ref().is_none_or(is_pure_provenance);
         match ptr {
@@ -1180,7 +1192,7 @@ impl<'a> BlockCtx<'a> {
                         self.packed_keys.load_32,
                         true,
                     ),
-                    _ => return Err(SelectedInstructionError::custody()),
+                    _ => return Err(StructuralRewriteError::custody()),
                 };
                 let (id, v) = self.emit_def_inst(
                     out,
@@ -1382,7 +1394,7 @@ impl<'a> BlockCtx<'a> {
                         self.packed_keys.load_32,
                         true,
                     ),
-                    _ => return Err(SelectedInstructionError::custody()),
+                    _ => return Err(StructuralRewriteError::custody()),
                 };
                 let (id, v) = self.emit_def_inst(
                     out,
@@ -1398,7 +1410,7 @@ impl<'a> BlockCtx<'a> {
         }
     }
 
-    fn promote_block(&mut self, block: &mut SelectedBlock) -> Result<(), SelectedInstructionError> {
+    fn promote_block(&mut self, block: &mut SelectedBlock) -> Result<(), StructuralRewriteError> {
         let orig_insts = std::mem::take(&mut block.instructions);
         let block_local_ptrs =
             collect_block_local_ptrs(&orig_insts, self.local_slots, self.multi_def_vregs);
@@ -2080,7 +2092,7 @@ impl<'a> BlockCtx<'a> {
         out: &mut Vec<SelectedInstruction>,
         inst: &SelectedInstruction,
         spec: PackedOpSpec,
-    ) -> Result<(), SelectedInstructionError> {
+    ) -> Result<(), StructuralRewriteError> {
         let mut remapped_reads: Vec<SelectedInstructionId> = Vec::new();
         let mut inputs = Vec::with_capacity(spec.in_count);
 
@@ -2260,10 +2272,10 @@ impl<'a> BlockCtx<'a> {
                                 inst.provenance.clone(),
                             )?
                         } else {
-                            return Err(SelectedInstructionError::custody());
+                            return Err(StructuralRewriteError::custody());
                         }
                     } else {
-                        return Err(SelectedInstructionError::custody());
+                        return Err(StructuralRewriteError::custody());
                     };
                     self.vec_high8_zero.insert(v, true);
                     remapped_reads.push(id);
@@ -2301,7 +2313,7 @@ impl<'a> BlockCtx<'a> {
                         },
                         self.packed_keys.store_32,
                     ),
-                    _ => return Err(SelectedInstructionError::custody()),
+                    _ => return Err(StructuralRewriteError::custody()),
                 };
                 let s_inst = self.make_inst(
                     kind,
@@ -2317,7 +2329,7 @@ impl<'a> BlockCtx<'a> {
                 out.push(s_inst);
                 self.invalidate_ext_loads();
             }
-            None => return Err(SelectedInstructionError::custody()),
+            None => return Err(StructuralRewriteError::custody()),
         }
 
         // Update memory_accesses mapping for `inst.id`.
@@ -2350,7 +2362,7 @@ fn coalesce_external_stores(
     added_vregs: &mut Vec<VirtualRegister>,
     mem_remap: &mut HashMap<SelectedInstructionId, Vec<(bool, SelectedInstructionId)>>,
     mem_delete: &mut HashSet<SelectedInstructionId>,
-) -> Result<(), SelectedInstructionError> {
+) -> Result<(), StructuralRewriteError> {
     let block_local_ptrs = collect_block_local_ptrs(insts, local_slots, multi_def_vregs);
     let mut last_zero_store: Option<(usize, VirtualRegisterId)> = None;
     let mut removed = vec![false; insts.len()];
@@ -2971,270 +2983,6 @@ fn reconcile_memory_accesses(
     }
     expanded.retain(|access| surviving_insts.contains(&access.instruction));
     function.memory_accesses = expanded;
-}
-
-pub(crate) fn prune_dead_metadata(function: &mut SelectedFunction) {
-    let mut live_insts = HashSet::new();
-    let mut live_vregs = HashSet::new();
-    let mut live_slots = HashSet::new();
-
-    for block in &function.blocks {
-        for inst in block_instructions(block) {
-            live_insts.insert(inst.id);
-            for op in &inst.operands {
-                live_vregs.insert(op.virtual_register);
-            }
-            match &inst.kind {
-                SelectedInstructionKind::FrameAddress {
-                    slot: FrameStorageSlotId::Local(s),
-                    ..
-                }
-                | SelectedInstructionKind::Store64 {
-                    slot: FrameStorageSlotId::Local(s),
-                    ..
-                }
-                | SelectedInstructionKind::HostedReadByte { slot: s }
-                | SelectedInstructionKind::HostedWriteByteI32 { slot: s }
-                | SelectedInstructionKind::SaveFloatingControl { slot: s }
-                | SelectedInstructionKind::RestoreFloatingControl { slot: s } => {
-                    live_slots.insert(*s);
-                }
-                _ => {}
-            }
-        }
-        for succ in terminator_successors(&block.terminator) {
-            successor_registers(succ, |_, register| {
-                live_vregs.insert(register);
-            });
-            for sb in &succ.structural_bindings {
-                match sb.transport {
-                    selected_instructions::SelectedStructuralTransport::Address {
-                        base,
-                        destination,
-                        ..
-                    }
-                    | selected_instructions::SelectedStructuralTransport::ScalarReference {
-                        base,
-                        destination,
-                        ..
-                    } => {
-                        live_slots.insert(destination);
-                        if let selected_instructions::SelectedAddressBase::Local(s) = base {
-                            live_slots.insert(s);
-                        }
-                    }
-                    selected_instructions::SelectedStructuralTransport::WholeValue {
-                        destination,
-                        ..
-                    } => {
-                        live_slots.insert(destination);
-                    }
-                    selected_instructions::SelectedStructuralTransport::Unused => {}
-                }
-            }
-            if let Some(case) = &succ.structural_case
-                && let SelectedCaseDispatchSource::Local { slot } = case.source
-            {
-                live_slots.insert(slot);
-            }
-        }
-    }
-
-    for access in &function.memory_accesses {
-        if let SelectedMemoryAccessRole::ReadLocal { slot }
-        | SelectedMemoryAccessRole::WriteLocal { slot }
-        | SelectedMemoryAccessRole::AddressLocal { slot } = access.role
-        {
-            live_slots.insert(slot);
-        }
-    }
-
-    function.local_storage_slots.retain(|slot| {
-        !matches!(
-            slot.id,
-            LocalStorageSlotId::Structural { .. } | LocalStorageSlotId::Inlined { .. }
-        ) || live_slots.contains(&slot.id)
-    });
-
-    // Also retain any register referenced by a surviving SpillAddress origin.
-    let mut extra_vregs = Vec::new();
-    for reg in &function.virtual_registers {
-        if let VirtualRegisterOrigin::SpillAddress {
-            instruction,
-            register,
-        } = reg.origin
-            && (live_vregs.contains(&reg.id) || live_insts.contains(&instruction))
-        {
-            extra_vregs.push(register);
-        }
-    }
-    live_vregs.extend(extra_vregs);
-
-    function.virtual_registers.retain(|reg| match reg.origin {
-        VirtualRegisterOrigin::EntryParameter { .. }
-        | VirtualRegisterOrigin::StructuralParameter { .. }
-        | VirtualRegisterOrigin::BlockParameter { .. } => true,
-        VirtualRegisterOrigin::InstructionScratch { instruction, .. }
-        | VirtualRegisterOrigin::StructuralObservation { instruction, .. }
-        | VirtualRegisterOrigin::ScalarAbiAddress { instruction, .. }
-        | VirtualRegisterOrigin::SpillAddress { instruction, .. }
-        | VirtualRegisterOrigin::AbiTransport { instruction, .. }
-        | VirtualRegisterOrigin::InstructionResult { instruction, .. } => {
-            live_vregs.contains(&reg.id) && live_insts.contains(&instruction)
-        }
-    });
-
-    // Renumber virtual registers densely to 0..len so `ids_are_positions()` holds.
-    let mut vreg_map: HashMap<VirtualRegisterId, VirtualRegisterId> =
-        HashMap::with_capacity(function.virtual_registers.len());
-    for (idx, reg) in function.virtual_registers.iter_mut().enumerate() {
-        let new_id = VirtualRegisterId(idx as u32);
-        vreg_map.insert(reg.id, new_id);
-        reg.id = new_id;
-    }
-    for reg in &mut function.virtual_registers {
-        if let VirtualRegisterOrigin::SpillAddress { register, .. } = &mut reg.origin {
-            *register = vreg_map[register];
-        }
-    }
-    for block in &mut function.blocks {
-        for inst in &mut block.instructions {
-            for op in &mut inst.operands {
-                op.virtual_register = vreg_map[&op.virtual_register];
-            }
-        }
-        let term = terminator_instruction_mut(&mut block.terminator);
-        for op in &mut term.operands {
-            op.virtual_register = vreg_map[&op.virtual_register];
-        }
-        for succ in terminator_successors_mut(&mut block.terminator) {
-            for b in &mut succ.bindings {
-                if let selected_instructions::SelectedValueTransport::Registers {
-                    argument,
-                    parameter,
-                } = &mut b.transport
-                {
-                    *argument = vreg_map[argument];
-                    *parameter = vreg_map[parameter];
-                }
-            }
-            for sb in &mut succ.structural_bindings {
-                match &mut sb.transport {
-                    selected_instructions::SelectedStructuralTransport::Address {
-                        base: selected_instructions::SelectedAddressBase::Register(r),
-                        ..
-                    }
-                    | selected_instructions::SelectedStructuralTransport::ScalarReference {
-                        base: selected_instructions::SelectedAddressBase::Register(r),
-                        ..
-                    }
-                    | selected_instructions::SelectedStructuralTransport::WholeValue {
-                        argument: r,
-                        ..
-                    } => {
-                        *r = vreg_map[r];
-                    }
-                    _ => {}
-                }
-            }
-            if let Some(case) = &mut succ.structural_case {
-                if let SelectedCaseDispatchSource::Borrowed { pointer, .. } = &mut case.source {
-                    *pointer = vreg_map[pointer];
-                }
-                for payload in &mut case.payloads {
-                    match &mut payload.transport {
-                        SelectedCasePayloadTransport::Unmaterialized { parameter } => {
-                            *parameter = vreg_map[parameter];
-                        }
-                        SelectedCasePayloadTransport::Registers {
-                            argument,
-                            parameter,
-                        } => {
-                            *argument = vreg_map[argument];
-                            *parameter = vreg_map[parameter];
-                        }
-                        SelectedCasePayloadTransport::Unused => {}
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// A block's instructions followed by its terminator instruction.
-fn block_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
-    block
-        .instructions
-        .iter()
-        .chain(std::iter::once(terminator_instruction(&block.terminator)))
-}
-
-/// Where on a successor edge a register appears. A value binding reads its
-/// `Argument` in this block and defines its `Parameter` in the successor.
-/// `Structural` covers transport bases and whole-value arguments. `Case` covers
-/// the borrowed dispatch pointer, payload arguments and unmaterialized payload
-/// parameters; `CaseParameter` is a materialized payload's parameter.
-#[derive(Clone, Copy)]
-enum EdgeRegister {
-    Argument,
-    Parameter,
-    Structural,
-    Case,
-    CaseParameter,
-}
-
-/// Visit every virtual register a successor edge names. Each pass filters
-/// the roles it needs instead of walking the edge itself.
-fn successor_registers(
-    succ: &selected_instructions::SelectedSuccessor,
-    mut visit: impl FnMut(EdgeRegister, VirtualRegisterId),
-) {
-    for b in &succ.bindings {
-        if let selected_instructions::SelectedValueTransport::Registers {
-            argument,
-            parameter,
-        } = b.transport
-        {
-            visit(EdgeRegister::Argument, argument);
-            visit(EdgeRegister::Parameter, parameter);
-        }
-    }
-    for sb in &succ.structural_bindings {
-        match sb.transport {
-            selected_instructions::SelectedStructuralTransport::Address {
-                base: selected_instructions::SelectedAddressBase::Register(r),
-                ..
-            }
-            | selected_instructions::SelectedStructuralTransport::ScalarReference {
-                base: selected_instructions::SelectedAddressBase::Register(r),
-                ..
-            }
-            | selected_instructions::SelectedStructuralTransport::WholeValue {
-                argument: r, ..
-            } => visit(EdgeRegister::Structural, r),
-            _ => {}
-        }
-    }
-    if let Some(case) = &succ.structural_case {
-        if let SelectedCaseDispatchSource::Borrowed { pointer, .. } = case.source {
-            visit(EdgeRegister::Case, pointer);
-        }
-        for payload in &case.payloads {
-            match payload.transport {
-                SelectedCasePayloadTransport::Registers {
-                    argument,
-                    parameter,
-                } => {
-                    visit(EdgeRegister::Case, argument);
-                    visit(EdgeRegister::CaseParameter, parameter);
-                }
-                SelectedCasePayloadTransport::Unmaterialized { parameter } => {
-                    visit(EdgeRegister::Case, parameter)
-                }
-                SelectedCasePayloadTransport::Unused => {}
-            }
-        }
-    }
 }
 
 fn make_operands(

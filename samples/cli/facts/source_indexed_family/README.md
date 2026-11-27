@@ -15,7 +15,7 @@ The witness exercises the applicable requirement layers:
 - Omega 03–06: ordinary scalar instruction selection, register homes and bounded activation realize the consumer; proof-only recursion is erased after its separate totality check. This change makes no new physical recursive-frame claim.
 - Omega 07–09 and emission: the normal Linux x86_64 ELF emission and Terminal execution agree on the authored result. The source retains all four hosted ProgramEntry bindings; only Linux x86_64 execution was measured here.
 
-Measured on Linux x86_64 with integrated producer 11 and receiver runner 14 (format 174, vocabulary 130): the focused `--both` run, including ordinary production and independent receiver controls, completed in 47.237s with native exit 0 and Terminal interpreter exit 0. Canonical decode, independent verification, source-signature matching, all four actual-argument mutations, three root mutations and a missing-law control passed their receiving assertions. Four Vector positive fixtures ran with native/interpreter exit 0; the affected runtime Value fixture agreed at exit 17. A separate historical producer-51 control ran a valid ordinary crash body and trapped in both engines, demonstrating that its effect was not erased as a logical citation.
+Measured on Linux x86_64 with integrated producer 11 and receiver runner 14 (format 174, vocabulary 130): the focused the native/Psi comparison run, including ordinary production and independent receiver controls, completed in 47.237s with native exit 0 and Terminal interpreter exit 0. Canonical decode, independent verification, source-signature matching, all four actual-argument mutations, three root mutations and a missing-law control passed their receiving assertions. Four Vector positive fixtures ran with native/interpreter exit 0; the affected runtime Value fixture agreed at exit 17. A separate historical producer-51 control ran a valid ordinary crash body and trapped in both engines, demonstrating that its effect was not erased as a logical citation.
 
 The affected ordinary constant-recursion canary also ran with native/interpreter exit 70 in 31.908s. Integration exposed a genuine ordinary-ranking phase gap: body completion reset pending default evidence. The compiler now rebuilds that evidence at body completion using exact resolved source builtin identities. The strict canary gate still reports a performance slowdown against its historical 9.085s row; semantic agreement does not erase that timing observation. The six-program capture completed in 162.875s wall time and retained twelve artifact files (4,519,223 bytes).
 
@@ -41,7 +41,7 @@ optimization level 1, executable SHA-256
 `49d8547614663b72346970bd3441e36533dfb07a2b0802cb8f5ee006d187e92c`,
 rejects the public `--check` command at the supplied `tail` with
 `source indexed capture has no retained constructor derivation` (exit 1).
-`omega run --both open_constructor/main.omg` refuses compilation (exit 200);
+the native/Psi comparison refuses compilation (exit 200);
 neither engine runs. These are fresh baseline observations, not candidate
 acceptance.
 
@@ -50,7 +50,7 @@ Fresh clean-main producer `d4457c973873b50cc6b23764d622fbf1de7da397`
 `2eb31ad1303c916429a60b53d1b9bcb34887c2537cc284bd5ce175130491a3a1`)
 still checks the unchanged closed root and runs it with both exits 0. It rejects
 the open witness and all nine places with the same missing-constructor diagnostic;
-`run --both` on the open witness exits 200 before either engine runs.
+The native/Psi comparison on the open witness exits 200 before either engine runs.
 
 The repair checks constructor schemas over their exact source value, erased-child
 and entry-premise telescope. Dependency abstraction includes dependent binder

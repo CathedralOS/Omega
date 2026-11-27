@@ -45,9 +45,8 @@ zero-initialized by the application entry, and the kernel runs once per record.
 From the repository root, using an optimized compiler of recorded provenance:
 
 ```sh
-omega packages update --project samples/cli/independent/ecological_rarefaction --target linux_x86_64
-omega run --engine native --keep samples/cli/scientific/ecological_rarefaction/main.omg < samples/cli/scientific/ecological_rarefaction/input.txt
-omega run --engine psi --keep samples/cli/scientific/ecological_rarefaction/main.omg < samples/cli/scientific/ecological_rarefaction/input.txt
+omega packages update --project samples/cli/scientific/ecological_rarefaction --target linux_x86_64
+omega run --keep samples/cli/scientific/ecological_rarefaction/main.omg < samples/cli/scientific/ecological_rarefaction/input.txt
 ```
 
 Use the actual target for package preparation on macOS or Windows; Build binds
@@ -72,6 +71,6 @@ Raw streams and command exits remain under ignored `build/validation`.
 a parse failure or unrelated rejection does not satisfy this control.
 
 `--route terminal` replays every fixture with one compilation through
-`omega run --both --inputs data`, which runs each case natively and through
+`omega run --inputs data`, which runs each case natively and through
 the Terminal reference and writes both engines' streams; both must satisfy the
 frozen oracle.

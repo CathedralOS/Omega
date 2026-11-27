@@ -125,7 +125,7 @@ pub(crate) fn publish(
     Ok(paths)
 }
 
-/// The execution engine determines whether the program needs a linked image.
+/// The caller requests an executable for publication or a runtime product for interpretation.
 #[derive(Clone, Copy)]
 pub(crate) enum ExecutionProduct {
     Native,

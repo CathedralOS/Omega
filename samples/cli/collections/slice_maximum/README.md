@@ -8,14 +8,16 @@ special treatment of this sample in the compiler.
 From the repository root, with a current `omega` binary on `PATH`:
 
 ```sh
-omega run --engine native samples/cli/collections/slice_maximum/main.omg
-omega run --engine psi samples/cli/collections/slice_maximum/main.omg
+omega run samples/cli/collections/slice_maximum/main.omg
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/collections/slice_maximum` from the repository root.
 
 Press Enter when prompted. Both native execution and the checked interpreter
 must return **9**. For unattended execution, macOS's shell can redirect stdin
 from `/dev/null`; PowerShell can pipe `''` to the command. Exit 9 is the authored
-result, not a compiler failure. Omit `--target` to execute on the current host.
+result, not a compiler failure. `omega run` interprets for the host target by default.
 
 ## Remaining native dependency
 

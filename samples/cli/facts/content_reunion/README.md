@@ -58,7 +58,7 @@ provider issuance, cross-owner boundary custody and Cathedral remain open.
 
 Every positive place and the root bind `ProgramEntry` for `windows_x86_64`,
 `linux_x86_64`, `macos_arm64`, and `linux_arm64`, declare `Expected exit: 0`,
-and must pass `omega run --both`. Earlier qualification reported Windows native and interpreter exit 0 for the
+and must pass the native/Psi comparison. Earlier qualification reported Windows native and interpreter exit 0 for the
 root and all nine places. Fresh engineering runs at `ad1772d8f612` also observed
 native and Terminal exit 0 on macOS ARM64, with all nine ownership twins
 rejecting. The retained Windows report was not revalidated by those runs.
@@ -100,7 +100,7 @@ different roots alone neither authorize nor forbid a combination.
    intervals do not grant the input's ownership.
 5. **Checked-to-Terminal Psi lowering:** the positive places lower the
    reunion, the domain obligation, and the exit choice into Terminal Psi.
-   `omega run --both` agrees on interpreter exit 0 and native exit 0.
+   the native/Psi comparison agrees on interpreter exit 0 and native exit 0.
 6. **Provider settlement and layout:** each positive binds all four hosted
    `ProgramEntry` values. `Region` is two `u64` fields and `Parts` is two
    regions. Calls and the reunited return use ordinary aggregate calling plans.

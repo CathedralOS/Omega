@@ -36,7 +36,7 @@ postcondition is then unproved. The recursive arm is unchanged.
 Reject fragments are `cannot prove ensures` and `gauss`.
 
 On Linux x86_64, all nine positives report native exit 0 and interpreter exit 0
-from `omega run --both`. All nine twins reject. Windows, macOS, and QEMU were
+from the native/Psi comparison. All nine twins reject. Windows, macOS, and QEMU were
 not run.
 
 - **Establishment:** the base arm returns `acc`. The recursive arm uses the

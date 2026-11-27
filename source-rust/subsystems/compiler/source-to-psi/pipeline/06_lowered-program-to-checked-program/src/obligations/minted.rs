@@ -68,6 +68,17 @@ fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
 }
 
+/// Static value binders form a suffix of the authored parameter order. A
+/// structural binder occupies a place and contributes no scalar ValueId.
+fn first_static_scalar(machine: &TerminalMachine, value_binders: usize) -> Option<usize> {
+    let authored = machine.parameter_order.len().checked_sub(value_binders)?;
+    let static_scalars = machine.parameter_order[authored..]
+        .iter()
+        .filter(|kind| **kind == BoundaryParameterKind::Scalar)
+        .count();
+    machine.parameters.len().checked_sub(static_scalars)
+}
+
 /// Inspect only the selected type family. Parameter extents nested below
 /// literal dimensions or reference fields still belong to the call equation.
 fn contains_parameter_extent(
@@ -148,7 +159,7 @@ pub(crate) fn width_questions_are_minted(
             .get(owner)
             .copied()
             .unwrap_or(0);
-        let start = lowered.parameters.len().checked_sub(count).ok_or_else(|| {
+        let start = first_static_scalar(lowered, count).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
                 owner,
@@ -319,7 +330,7 @@ pub(crate) fn width_questions_are_minted(
                 .get(machine)
                 .copied()
                 .unwrap_or(0);
-            let Some(start) = lowered.parameters.len().checked_sub(count) else {
+            let Some(start) = first_static_scalar(lowered, count) else {
                 return Err(foreign(
                     concerns,
                     "static value parameter count exceeds the actual scalar inputs",

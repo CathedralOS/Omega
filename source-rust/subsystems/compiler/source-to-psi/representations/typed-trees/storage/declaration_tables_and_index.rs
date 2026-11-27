@@ -5389,6 +5389,19 @@ pub(crate) mod type_reference_queries {
                     | TypeParameterKind::Value { type_reference },
                     StaticMachineBindingValue::Const(actual),
                 ) => {
+                    if self.is_closed_aggregate_operand(*type_reference, argument) {
+                        let Ok(bound) = self.static_operand_from_type_reference(*actual) else {
+                            return false;
+                        };
+                        let identity = |operand: &_| {
+                            self.canonical_aggregate_argument(*type_reference, operand)
+                                .ok()
+                                .and_then(|value| value.application_identity())
+                        };
+                        return identity(argument)
+                            .zip(identity(&bound))
+                            .is_some_and(|(a, b)| a == b);
+                    }
                     // Inference may carry the same scalar as a typed operand, while
                     // the binding retains its landed literal. Compare their values at
                     // the declared carrier before considering symbolic operands.

@@ -479,25 +479,8 @@ pub(crate) fn measure(
                 String::from_utf8_lossy(&captured.stderr)
             );
             sample.compiler_stage_ms = stage_timings(&compiler_text);
-            let published: Vec<_> = compiler_text
-                .lines()
-                .filter_map(|line| line.strip_prefix("published native output to "))
-                .collect();
-            if published.len() != 1 {
-                return Err("compile must report exactly one published native output".into());
-            }
-            let artifact = resolve(&plan.working_directory, Path::new(published[0]))?;
-            if !artifact.starts_with(
-                build_dir
-                    .canonicalize()
-                    .map_err(|error| error.to_string())?,
-            ) || !artifact.is_file()
-            {
-                return Err(
-                    "published executable must be inside this sample's fresh build directory"
-                        .into(),
-                );
-            }
+            let artifact =
+                published_executable(&compiler_text, &plan.working_directory, &build_dir)?;
             sample.artifact_sha256 = Some(file_digest(&artifact)?);
             sample.artifact_relative_path = Some(
                 artifact
@@ -593,6 +576,33 @@ fn collect_inputs(path: &Path, files: &mut BTreeMap<String, String>) -> Result<(
         ));
     }
     Ok(())
+}
+
+/// Only execute an image published by this compilation into its fresh directory.
+pub(crate) fn published_executable(
+    report: &str,
+    working_directory: &Path,
+    build_dir: &Path,
+) -> Result<PathBuf, String> {
+    let published: Vec<_> = report
+        .lines()
+        .filter_map(|line| line.strip_prefix("published native output to "))
+        .collect();
+    if published.len() != 1 {
+        return Err("compile must report exactly one published native output".into());
+    }
+    let artifact = resolve(working_directory, Path::new(published[0]))?;
+    if !artifact.starts_with(
+        build_dir
+            .canonicalize()
+            .map_err(|error| error.to_string())?,
+    ) || !artifact.is_file()
+    {
+        return Err(
+            "published executable must be inside this sample's fresh build directory".into(),
+        );
+    }
+    Ok(artifact)
 }
 
 fn resolve(directory: &Path, path: &Path) -> Result<PathBuf, String> {

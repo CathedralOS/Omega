@@ -2,7 +2,7 @@
 
 Expected exit: 0 on both native and Terminal execution.
 
-Run `omega run --both samples/cli/memory/indexed_storage_issuer/main.omg`
+Run `mbx xtask sample-gate --filter samples/cli/probes/indexed_storage_issuer`
 after ordinary package preparation.
 
 An authorized generic machine issues a ticket indexed by a placement type.

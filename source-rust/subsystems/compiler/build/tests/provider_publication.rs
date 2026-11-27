@@ -1028,10 +1028,27 @@ machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::App
 #[test]
 fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant() {
     let target = TargetProfile::LinuxX64;
-    for (name, service, critical) in [
-        ("StandardInput", r"use {omega}/language/core/process_authority.omg;", true),
-        ("StandardOutput", r"use {omega}/language/core/process_authority.omg;", true),
-        ("StandardOutput", "public boundary trait StandardOutput {}", false),
+    // Imported names resolve only through their file alias.
+    let imported = r"use {omega}/language/core/process_authority.omg as authority;";
+    for (name, service, reach, critical) in [
+        (
+            "StandardInput",
+            imported,
+            "|authority|::StandardInput",
+            true,
+        ),
+        (
+            "StandardOutput",
+            imported,
+            "|authority|::StandardOutput",
+            true,
+        ),
+        (
+            "StandardOutput",
+            "public boundary trait StandardOutput {}",
+            "StandardOutput",
+            false,
+        ),
     ] {
         let project = platform_custody::temporary_directory::TemporaryDirectory::create(
             "review-callable-service-ceiling",
@@ -1044,7 +1061,7 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
             r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "review_ceiling" }; }"#,
         )
         .unwrap();
-        std::fs::write(root.join("main.omg"), format!("{service}\npublic machine inspect_value(value: u32) -> u32 reaches {name} crashes none {{ value }}\n")).unwrap();
+        std::fs::write(root.join("main.omg"), format!("{service}\npublic machine inspect_value(value: u32) -> u32 reaches {reach} crashes none {{ value }}\n")).unwrap();
         let checked = reviewed_policy(&root.join("build.omg"), target);
         let callable = checked
             .policy

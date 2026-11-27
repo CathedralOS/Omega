@@ -20,17 +20,21 @@ use target::{Architecture, NativeTarget};
 #[cfg(test)]
 use target_aarch64::{AARCH64_AAPCS64_CALL, AARCH64_DARWIN_CALL};
 use target_aarch64::{
-    AARCH64_PLATFORM_RESERVATION_OVERLAY, aarch64_physical_register_model,
-    aarch64_reserves_platform_register, prepare_aarch64_register_constraint_catalog,
+    AARCH64_PLATFORM_RESERVATION_OVERLAY, aarch64_reserves_platform_register,
+    prepare_aarch64_register_constraint_catalog, validated_aarch64_physical_register_model,
 };
 #[cfg(test)]
 use target_x86_64::{X86_64_MICROSOFT_CALL, X86_64_SYSTEM_V_CALL};
-use target_x86_64::{prepare_x86_64_register_constraint_catalog, x86_64_physical_register_model};
+use target_x86_64::{
+    prepare_x86_64_register_constraint_catalog, validated_x86_64_physical_register_model,
+};
 
-pub(super) fn target_physical_register_model(target: NativeTarget) -> PhysicalRegisterModel {
+pub(super) fn target_validated_physical_register_model(
+    target: NativeTarget,
+) -> &'static ValidatedPhysicalRegisterModel {
     match target.architecture {
-        Architecture::X86_64 => x86_64_physical_register_model(),
-        Architecture::Aarch64 => aarch64_physical_register_model(),
+        Architecture::X86_64 => validated_x86_64_physical_register_model(),
+        Architecture::Aarch64 => validated_aarch64_physical_register_model(),
     }
 }
 

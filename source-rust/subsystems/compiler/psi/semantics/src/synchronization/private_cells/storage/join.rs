@@ -58,8 +58,10 @@ impl<'a> Arrivals<'a> {
     pub(super) fn record(self, storage: &mut Storage) {
         let known = std::rc::Rc::make_mut(&mut storage.selected);
         known.extend(self.selections.into_iter().filter_map(|selection| {
-            (selection.result.is_choice() && !matches!(selection.contents, Stored::Unknown))
-                .then_some((selection.result, selection.contents))
+            (selection.result.tracks_selection()
+                && !selection.result.includes_shared()
+                && !matches!(selection.contents, Stored::Unknown))
+            .then_some((selection.result, selection.contents))
         }));
     }
 }

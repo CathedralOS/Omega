@@ -22,8 +22,17 @@ pub enum TerminalCompilation {
     Prepared(PreparedCompilation),
 }
 
+/// How the source selected the root of this lowered closure. Inspecting a
+/// supplier preserves its incoming obligations for the actual composition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RootPurpose {
+    Execution,
+    Inspection,
+}
+
 #[derive(Debug, Clone)]
 pub struct PreparedCompilation {
+    pub root_purpose: RootPurpose,
     pub closure: Checked<Elaboration>,
     /// Every refusal reading met after the one `closure` holds, in the order
     /// it met them: declarations first, then bodies by `MachineId`. Each is

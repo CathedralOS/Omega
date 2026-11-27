@@ -454,8 +454,6 @@ pub mod compute {
         Ok(RecoveryClassificationPlan {
             selected: selected.shared_selected_plan(),
             spill_choices: spill_choices.receipt().identity(),
-            ranges: ranges.receipt().identity(),
-            legality: legality.receipt().identity(),
             register_environment: legality.receipt().register_environment(),
             allocator_availability: legality.receipt().allocator_availability(),
             optimization_unit: selected.optimization_unit_identity(),
@@ -476,9 +474,10 @@ pub mod compute {
         if *ranges.plan().selected != *selected.selected_plan()
             || ranges.receipt().optimization_unit() != selected.optimization_unit_identity()
             || ranges.receipt().work_schedule() != selected.work_schedule_identity()
-            || legality.receipt().ranges() != ranges.receipt().identity()
-            || spill_choices.receipt().ranges() != ranges.receipt().identity()
-            || spill_choices.receipt().legality() != legality.receipt().identity()
+            || legality.plan().selected != ranges.plan().selected
+            || spill_choices.plan().selected != ranges.plan().selected
+            || spill_choices.receipt().allocator_availability()
+                != legality.receipt().allocator_availability()
             || spill_choices.receipt().register_environment()
                 != legality.receipt().register_environment()
             || selected.selected_plan().functions.len() != ranges.plan().functions.len()
@@ -493,11 +492,10 @@ pub mod compute {
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkUsage};
 use register_homes::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
-    RecoveryClassificationPlan, SpillChoiceIdentity,
+    AllocatorAvailabilityIdentity, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+    SpillChoiceIdentity,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::LiveRangeIdentity;
 use semantic_vocabulary::WorkScheduleIdentity;
 
 use crate::WorkDefect;
@@ -527,8 +525,6 @@ seal_plan!(
         = register_homes::recovery_classification_identity, RecoveryClassificationError
     {
         spill_choices,
-        ranges,
-        legality,
         register_environment,
         allocator_availability,
         optimization_unit,
@@ -542,8 +538,6 @@ seal_plan!(
 pub struct RecoveryClassificationValidationReceipt {
     pub(crate) identity: RecoveryClassificationIdentity,
     pub(crate) spill_choices: SpillChoiceIdentity,
-    pub(crate) ranges: LiveRangeIdentity,
-    pub(crate) legality: AllocationLegalityIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,

@@ -135,3 +135,36 @@ machine build(builder: @mutable BuildPlan) {
         "{output}"
     );
 }
+
+#[test]
+fn run_stops_before_the_entry_when_a_group_requires_a_native_test() {
+    let configuration = r#"use main.omg as app;
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "required_native" };
+    Build::bind(builder, linux_x86_64::ProgramEntry, |app|::main);
+    let group: TestGroup = builder.tests.group::<|app|::Checks::live>();
+    TestGroup::engine(group, linux_x86_64, TestEngine::Native, TestEnginePolicy::Required);
+}"#;
+    let package = project::stage(
+        "run-required-native-test",
+        &[("main.omg", PRODUCT), ("build.omg", configuration)],
+    );
+    let (success, output) = project::status(&project::omega(
+        package.path(),
+        &[
+            "run",
+            "--target",
+            "linux_x86_64",
+            "--outputs",
+            "observations",
+            "build.omg",
+        ],
+    ));
+    assert!(!success, "{output}");
+    assert!(
+        output.contains("use `omega build` for required native test execution"),
+        "{output}"
+    );
+    assert!(output.contains("passed on Psi interpreter"), "{output}");
+    assert!(!package.path().join("observations").exists());
+}

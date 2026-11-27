@@ -35,7 +35,7 @@ subject arrives. They do not re-establish `Held` after the qualification.
 Reject fragments are `bool::Held` and `cannot prove initializer`.
 
 On Linux x86_64, all nine positives report native exit 0 and interpreter exit 0
-from `omega run --both`. All nine twins reject. Windows, macOS, and QEMU were
+from the native/Psi comparison. All nine twins reject. Windows, macOS, and QEMU were
 not run.
 
 - **Establishment:** `marks::project(self).kept` is the domain obligation. The

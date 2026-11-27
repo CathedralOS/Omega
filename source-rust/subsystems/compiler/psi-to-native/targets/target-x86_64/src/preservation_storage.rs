@@ -93,15 +93,15 @@ mod tests {
     use register_model::{RegisterUnitId, validate_physical_register_model};
     use target::{Architecture, ObjectFormat};
 
-    fn model() -> ValidatedPhysicalRegisterModel {
-        validate_physical_register_model(x86_64_physical_register_model()).unwrap()
+    fn model() -> &'static ValidatedPhysicalRegisterModel {
+        crate::validated_x86_64_physical_register_model()
     }
 
     #[test]
     fn system_v_catalog_coalesces_each_fragmented_gpr_into_one_group() {
         let model = model();
         let catalog =
-            x86_64_preservation_storage_catalog(&model, NativeTarget::linux_x64()).unwrap();
+            x86_64_preservation_storage_catalog(model, NativeTarget::linux_x64()).unwrap();
         let groups = &catalog.catalog().groups;
         assert_eq!(
             groups
@@ -128,7 +128,7 @@ mod tests {
     fn microsoft_catalog_has_eight_gpr_and_ten_distinct_xmm_groups() {
         let model = model();
         let catalog =
-            x86_64_preservation_storage_catalog(&model, NativeTarget::windows_x64()).unwrap();
+            x86_64_preservation_storage_catalog(model, NativeTarget::windows_x64()).unwrap();
         let groups = &catalog.catalog().groups;
         assert_eq!(groups.len(), 18);
         assert_eq!(
@@ -179,12 +179,12 @@ mod tests {
     fn exact_target_and_canonical_model_are_mandatory() {
         let model = model();
         assert_eq!(
-            x86_64_preservation_storage_catalog(&model, NativeTarget::macos_arm64()),
+            x86_64_preservation_storage_catalog(model, NativeTarget::macos_arm64()),
             Err(X86_64PreservationStorageCatalogError::UnsupportedTarget)
         );
         assert_eq!(
             x86_64_preservation_storage_catalog(
-                &model,
+                model,
                 NativeTarget {
                     architecture: Architecture::X86_64,
                     object_format: ObjectFormat::Elf,
@@ -208,19 +208,19 @@ mod tests {
     fn convention_and_group_shape_are_identity_bound() {
         let model = model();
         let system_v =
-            x86_64_preservation_storage_catalog(&model, NativeTarget::linux_x64()).unwrap();
+            x86_64_preservation_storage_catalog(model, NativeTarget::linux_x64()).unwrap();
         let microsoft =
-            x86_64_preservation_storage_catalog(&model, NativeTarget::windows_x64()).unwrap();
+            x86_64_preservation_storage_catalog(model, NativeTarget::windows_x64()).unwrap();
         assert_ne!(system_v.identity(), microsoft.identity());
         assert_eq!(
             system_v.identity(),
-            x86_64_preservation_storage_catalog(&model, NativeTarget::linux_x64())
+            x86_64_preservation_storage_catalog(model, NativeTarget::linux_x64())
                 .unwrap()
                 .identity()
         );
         assert_eq!(
             system_v.identity(),
-            x86_64_preservation_storage_catalog(&model, NativeTarget::macos_x64())
+            x86_64_preservation_storage_catalog(model, NativeTarget::macos_x64())
                 .unwrap()
                 .identity()
         );

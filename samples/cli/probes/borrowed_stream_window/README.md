@@ -1,6 +1,6 @@
 # Borrowed stream window
 
-Run `omega run --both samples/cli/memory/borrowed_stream_window/main.omg`.
+Run `mbx xtask sample-gate --filter samples/cli/probes/borrowed_stream_window`.
 The authored result is exit 0: requests of 3 and 9 bytes produce windows of
 3 and 4 bytes from an eight-byte buffer while retaining a stream borrow.
 

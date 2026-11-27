@@ -1,14 +1,11 @@
 //! Pressure-recovery records for in-process allocation recovery.
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
-    SpillChoiceIdentity,
-};
+use crate::{AllocatorAvailabilityIdentity, RecoveryClassificationIdentity, SpillChoiceIdentity};
 pub use identity::pressure_rematerialization_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterConstraintKey, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
-    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlan, VirtualRegisterId,
+    LiveRangePoint, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlan,
+    VirtualRegisterId,
 };
 use semantic_vocabulary::{IntegerValue, MachineId, ValueId, WorkScheduleIdentity};
 use std::sync::Arc;
@@ -20,8 +17,6 @@ pub struct PressureRematerializationPlan {
     pub source_selected: Arc<SelectedInstructionPlan>,
     pub spill_choices: SpillChoiceIdentity,
     pub recovery_classifications: RecoveryClassificationIdentity,
-    pub ranges: LiveRangeIdentity,
-    pub legality: AllocationLegalityIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
@@ -71,7 +66,7 @@ pub(crate) mod identity {
         plan: &PressureRematerializationPlan,
     ) -> PressureRematerializationIdentity {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(b"omega.terminal-pressure-rematerialization.v3\0");
+        bytes.extend_from_slice(b"omega.terminal-pressure-rematerialization.v4\0");
         bytes.extend_from_slice(&encode_terminal_pressure_rematerialization_content(plan));
         PressureRematerializationIdentity::from_canonical_bytes(&bytes)
     }
@@ -82,8 +77,6 @@ pub(crate) mod identity {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&plan.spill_choices.bytes());
         bytes.extend_from_slice(&plan.recovery_classifications.bytes());
-        bytes.extend_from_slice(&plan.ranges.bytes());
-        bytes.extend_from_slice(&plan.legality.bytes());
         bytes.extend_from_slice(&plan.register_environment.bytes());
         bytes.extend_from_slice(&plan.allocator_availability.bytes());
         bytes.extend_from_slice(&plan.optimization_unit.bytes());

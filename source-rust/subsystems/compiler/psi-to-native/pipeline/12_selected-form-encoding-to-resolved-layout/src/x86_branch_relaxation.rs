@@ -553,7 +553,7 @@ mod tests {
         ValidatedX86_64SelectedFormEncoding, encode_x86_64_selected_i64_less_than_branch_form,
         encode_x86_64_selected_jump_form, encode_x86_64_selected_nonzero_branch_form,
         encode_x86_64_selected_short_nonzero_branch_form,
-        encode_x86_64_selected_u64_less_than_branch_form, x86_64_physical_register_model,
+        encode_x86_64_selected_u64_less_than_branch_form,
     };
     use machine_code::layout::evidence::X86BranchRelaxationIdentity;
     use machine_code::{
@@ -561,7 +561,7 @@ mod tests {
         ResolvedSelectedFunctionLayout,
     };
     use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-    use register_model::{ValidatedPhysicalRegisterModel, validate_physical_register_model};
+    use register_model::ValidatedPhysicalRegisterModel;
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
         SelectedBlockId, SelectedInstructionId,
@@ -735,8 +735,8 @@ mod tests {
         super::inspect_production_branch(function, block, instruction, &controls)
     }
 
-    fn physical() -> ValidatedPhysicalRegisterModel {
-        validate_physical_register_model(x86_64_physical_register_model()).unwrap()
+    fn physical() -> &'static ValidatedPhysicalRegisterModel {
+        isa_x86_64::validated_x86_64_physical_register_model()
     }
 
     fn alternative() -> MachineAlternativeKey {
@@ -775,7 +775,7 @@ mod tests {
         let displacement = i64::try_from(fallthrough_arm_bytes).unwrap();
         let branch_alternative = selected_alternative(predicate, alternative(), true);
         let near =
-            encode_lane(predicate, true, &physical, branch_alternative, displacement).unwrap();
+            encode_lane(predicate, true, physical, branch_alternative, displacement).unwrap();
         let entry = SelectedBlockId(0);
         let fallthrough = SelectedBlockId(1);
         let taken = SelectedBlockId(2);
@@ -817,7 +817,7 @@ mod tests {
         let fallthrough_offset = branch_offset + 6;
         let near_displacement = -(i64::try_from(branch_offset).unwrap() + 6);
         let near =
-            encode_x86_64_selected_nonzero_branch_form(&physical, alternative(), near_displacement)
+            encode_x86_64_selected_nonzero_branch_form(physical, alternative(), near_displacement)
                 .unwrap();
         ResolvedSelectedFunctionLayout {
             machine: MachineId::new(1).unwrap(),
@@ -856,10 +856,10 @@ mod tests {
             family: MachineAlternativeFamily::Jump,
             variant: 0,
         };
-        let jump = encode_x86_64_selected_jump_form(&physical, jump_alternative, jump_displacement)
+        let jump = encode_x86_64_selected_jump_form(physical, jump_alternative, jump_displacement)
             .unwrap();
         let near =
-            encode_x86_64_selected_nonzero_branch_form(&physical, alternative(), near_displacement)
+            encode_x86_64_selected_nonzero_branch_form(physical, alternative(), near_displacement)
                 .unwrap();
         ResolvedSelectedFunctionLayout {
             machine: MachineId::new(1).unwrap(),
@@ -1031,21 +1031,18 @@ mod tests {
     ) -> Vec<ResolvedSelectedFunctionLayout> {
         let physical = physical();
         assert_eq!(
-            inspect_production_branch(&source, branch_block, 0, &physical).unwrap(),
+            inspect_production_branch(&source, branch_block, 0, physical).unwrap(),
             (
                 X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
                 Some(displacement),
             )
         );
-        let short = encode_x86_64_selected_short_nonzero_branch_form(
-            &physical,
-            alternative(),
-            displacement,
-        )
-        .unwrap();
+        let short =
+            encode_x86_64_selected_short_nonzero_branch_form(physical, alternative(), displacement)
+                .unwrap();
         let mut produced = vec![source.clone()];
         produced[0].blocks[branch_block].instructions[0].bytes = short.bytes().to_vec();
-        reflow_production_functions(&mut produced, &physical).unwrap();
+        reflow_production_functions(&mut produced, physical).unwrap();
         assert_eq!(source.byte_count - produced[0].byte_count, 4);
         assert_eq!(
             produced[0].blocks[branch_block].instructions[0].bytes,
@@ -1064,7 +1061,7 @@ mod tests {
             displacement
         );
         assert_eq!(
-            inspect_production_branch(&produced[0], branch_block, 0, &physical).unwrap(),
+            inspect_production_branch(&produced[0], branch_block, 0, physical).unwrap(),
             (X86BranchRelaxationAttemptOutcome::AlreadyShort, None)
         );
         produced
@@ -1075,7 +1072,7 @@ mod tests {
         let mut layout = function(1);
         let issued = machine_code::EncodedControlIndex::new(&control_rows(
             std::slice::from_ref(&layout),
-            &physical(),
+            physical(),
         ))
         .unwrap();
         assert!(super::inspect_production_branch(&layout, 0, 0, &issued).is_ok());
@@ -1098,7 +1095,7 @@ mod tests {
             &[(1, 2), (2, 129)],
         );
         let fixed_point = produced.clone();
-        reflow_production_functions(&mut produced, &physical()).unwrap();
+        reflow_production_functions(&mut produced, physical()).unwrap();
         assert_eq!(produced, fixed_point);
     }
 
@@ -1109,7 +1106,7 @@ mod tests {
         assert_eq!(source.blocks[0].instructions[0].bytes[..2], [0x0f, 0x82]);
         assert_eq!(source.blocks[0].instructions[0].alternative.variant, 0);
         assert_eq!(
-            inspect_production_branch(&source, 0, 0, &physical).unwrap(),
+            inspect_production_branch(&source, 0, 0, physical).unwrap(),
             (
                 X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
                 Some(127),
@@ -1120,12 +1117,12 @@ mod tests {
             variant: 1,
         };
         let short =
-            encode_x86_64_selected_u64_less_than_branch_form(&physical, short_alternative, 127)
+            encode_x86_64_selected_u64_less_than_branch_form(physical, short_alternative, 127)
                 .unwrap();
         let mut produced = vec![source.clone()];
         produced[0].blocks[0].instructions[0].alternative = short_alternative;
         produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
-        reflow_production_functions(&mut produced, &physical).unwrap();
+        reflow_production_functions(&mut produced, physical).unwrap();
         assert_eq!(source.byte_count - produced[0].byte_count, 4);
         assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x72, 0x7f]);
         assert_eq!(
@@ -1133,7 +1130,7 @@ mod tests {
             short_alternative
         );
         assert_eq!(
-            inspect_production_branch(&produced[0], 0, 0, &physical).unwrap(),
+            inspect_production_branch(&produced[0], 0, 0, physical).unwrap(),
             (X86BranchRelaxationAttemptOutcome::AlreadyShort, None)
         );
     }
@@ -1148,12 +1145,12 @@ mod tests {
             variant: 1,
         };
         let short =
-            encode_x86_64_selected_i64_less_than_branch_form(&physical, short_alternative, 127)
+            encode_x86_64_selected_i64_less_than_branch_form(physical, short_alternative, 127)
                 .unwrap();
         let mut produced = vec![source.clone()];
         produced[0].blocks[0].instructions[0].alternative = short_alternative;
         produced[0].blocks[0].instructions[0].bytes = short.bytes().to_vec();
-        reflow_production_functions(&mut produced, &physical).unwrap();
+        reflow_production_functions(&mut produced, physical).unwrap();
         assert_eq!(source.byte_count - produced[0].byte_count, 4);
         assert_eq!(produced[0].blocks[0].instructions[0].bytes, [0x7c, 0x7f]);
     }
@@ -1164,7 +1161,7 @@ mod tests {
         let mut less = less_than_function(1);
         less.blocks[0].instructions[0].alternative = alternative();
         less.blocks[0].instructions[0].bytes = vec![0x0f, 0x85, 1, 0, 0, 0];
-        assert!(inspect_production_branch(&less, 0, 0, &physical).is_err());
+        assert!(inspect_production_branch(&less, 0, 0, physical).is_err());
 
         let mut nonzero = function(1);
         nonzero.blocks[0].instructions[0].alternative = MachineAlternativeKey {
@@ -1172,7 +1169,7 @@ mod tests {
             variant: 0,
         };
         nonzero.blocks[0].instructions[0].bytes = vec![0x0f, 0x82, 1, 0, 0, 0];
-        assert!(inspect_production_branch(&nonzero, 0, 0, &physical).is_err());
+        assert!(inspect_production_branch(&nonzero, 0, 0, physical).is_err());
     }
 
     #[test]
@@ -1180,7 +1177,7 @@ mod tests {
         let physical = physical();
         let source = function(128);
         assert_eq!(
-            inspect_production_branch(&source, 0, 0, &physical).unwrap(),
+            inspect_production_branch(&source, 0, 0, physical).unwrap(),
             (
                 X86BranchRelaxationAttemptOutcome::NearDisplacementOutsideI8,
                 None,
@@ -1194,12 +1191,12 @@ mod tests {
         let mut source = function(1);
         source.blocks[0].instructions[0].bytes = vec![0x74, 1];
         assert!(matches!(
-            inspect_production_branch(&source, 0, 0, &physical),
+            inspect_production_branch(&source, 0, 0, physical),
             Err(OptimizedX86BranchRelaxationError::X86_64(_))
         ));
         source.blocks[0].instructions[0].bytes = vec![0x0f, 0x85, 1];
         assert!(matches!(
-            inspect_production_branch(&source, 0, 0, &physical),
+            inspect_production_branch(&source, 0, 0, physical),
             Err(OptimizedX86BranchRelaxationError::MalformedBranch(
                 SelectedInstructionId(0)
             ))
@@ -1218,7 +1215,7 @@ mod tests {
     fn non_x86_target_is_rejected_before_any_relaxation_work() {
         let physical = physical();
         assert_eq!(
-            ensure_x86_target(NativeTarget::linux_arm64(), &physical),
+            ensure_x86_target(NativeTarget::linux_arm64(), physical),
             Err(OptimizedX86BranchRelaxationError::UnsupportedTarget(
                 NativeTarget::linux_arm64()
             ))
@@ -1324,7 +1321,7 @@ mod tests {
         let physical = physical();
         let source = backward_conditional_function(127);
         assert_eq!(
-            inspect_production_branch(&source, 1, 0, &physical).unwrap(),
+            inspect_production_branch(&source, 1, 0, physical).unwrap(),
             (
                 X86BranchRelaxationAttemptOutcome::NearDisplacementOutsideI8,
                 None,
@@ -1337,7 +1334,7 @@ mod tests {
         let physical = physical();
         let source = jump_across_branch_function(127);
         assert_eq!(
-            inspect_production_branch(&source, 1, 0, &physical).unwrap(),
+            inspect_production_branch(&source, 1, 0, physical).unwrap(),
             (
                 X86BranchRelaxationAttemptOutcome::SelectedForRelaxation,
                 Some(127),
@@ -1353,11 +1350,11 @@ mod tests {
         };
         assert_eq!(jump_evidence(&source).byte_displacement, 133);
 
-        let short = encode_x86_64_selected_short_nonzero_branch_form(&physical, alternative(), 127)
-            .unwrap();
+        let short =
+            encode_x86_64_selected_short_nonzero_branch_form(physical, alternative(), 127).unwrap();
         let mut produced = vec![source.clone()];
         produced[0].blocks[1].instructions[0].bytes = short.bytes().to_vec();
-        reflow_production_functions(&mut produced, &physical).unwrap();
+        reflow_production_functions(&mut produced, physical).unwrap();
         assert_eq!(source.byte_count - produced[0].byte_count, 4);
         let jump = jump_evidence(&produced[0]);
         assert_eq!(jump.target_offset, 134);
@@ -1374,7 +1371,7 @@ mod tests {
         let mut source = function(1);
         conditional_branch_mut(&mut source, 0, 0).when_taken_block = SelectedBlockId(99);
         assert_eq!(
-            inspect_production_branch(&source, 0, 0, &physical),
+            inspect_production_branch(&source, 0, 0, physical),
             Err(OptimizedX86BranchRelaxationError::MissingTargetBlock(
                 SelectedBlockId(99)
             ))
@@ -1387,7 +1384,7 @@ mod tests {
         let mut functions = vec![function(1)];
         conditional_branch_mut(&mut functions[0], 0, 0).when_fallthrough_block = SelectedBlockId(2);
         assert_eq!(
-            reflow_production_functions(&mut functions, &physical),
+            reflow_production_functions(&mut functions, physical),
             Err(
                 OptimizedX86BranchRelaxationError::BranchFallthroughMismatch(
                     SelectedInstructionId(0)
@@ -1404,7 +1401,7 @@ mod tests {
             .decoded_effects
             .control = MachineEncodedControlEffect::FallThroughV1;
         assert_eq!(
-            reflow_production_functions(&mut functions, &physical),
+            reflow_production_functions(&mut functions, physical),
             Err(OptimizedX86BranchRelaxationError::BranchEffectsMismatch(
                 SelectedInstructionId(0)
             ))
@@ -1435,7 +1432,7 @@ mod tests {
             let offset = u64::from(index) * 6;
             let displacement = i64::try_from(taken_offset - offset - 6).unwrap();
             let near =
-                encode_x86_64_selected_nonzero_branch_form(&physical, alternative(), displacement)
+                encode_x86_64_selected_nonzero_branch_form(physical, alternative(), displacement)
                     .unwrap();
             let fallthrough = if index + 1 == branch_count {
                 padding
@@ -1503,7 +1500,7 @@ mod tests {
     fn sweep_report(functions: Vec<ResolvedSelectedFunctionLayout>) -> String {
         let physical = physical();
         let production =
-            compute_trace(sweep_roots(), &functions, &physical, sweep_budget()).unwrap();
+            compute_trace(sweep_roots(), &functions, physical, sweep_budget()).unwrap();
         format!(
             "sweeps={} commits={} branches={}",
             production.usage.iterations,
@@ -1527,14 +1524,14 @@ mod tests {
         let trace = compute_trace(
             super::revision_roots(&baseline),
             baseline.functions(),
-            &physical,
+            physical,
             sweep_budget(),
         )
         .unwrap();
         let issued = super::finish_artifact(&baseline, sweep_budget(), trace).unwrap();
         let record = issued.record().clone();
         let forms =
-            machine_code::EncodedControlIndex::new(&control_rows(baseline.functions(), &physical))
+            machine_code::EncodedControlIndex::new(&control_rows(baseline.functions(), physical))
                 .unwrap();
         let check_output = |output: &machine_code::ResolvedMachineLayout| {
             crate::relaxation::validate_layout_transition(
@@ -1567,7 +1564,7 @@ mod tests {
         });
 
         let verify = |candidate: &machine_code::layout::X86BranchRelaxationRecord| {
-            validate_optimized_x86_branch_relaxation(&physical, &baseline, candidate)
+            validate_optimized_x86_branch_relaxation(physical, &baseline, candidate)
         };
         assert_eq!(verify(&record), Ok(()));
 
@@ -1575,7 +1572,7 @@ mod tests {
         let mut other_baseline = baseline.clone();
         other_baseline.functions[0].blocks[0].instructions[0].bytes[2] ^= 1;
         assert_eq!(
-            validate_optimized_x86_branch_relaxation(&physical, &other_baseline, &record),
+            validate_optimized_x86_branch_relaxation(physical, &other_baseline, &record),
             Err(OptimizedX86BranchRelaxationError::ArtifactMismatch)
         );
         // A record whose machine plan names another selected program does not

@@ -95,6 +95,7 @@ pub(crate) fn materialize(
         node = ExpressionNode::Cast(TableCastExpression {
             value: program.expression_table.insert(node),
             target_type: input_type,
+            recast_storage_type: Default::default(),
             result_type,
             target_label: arena::HandleSpan::empty(),
             domain: numerics::arithmetic::ArithmeticDomain::Exact,

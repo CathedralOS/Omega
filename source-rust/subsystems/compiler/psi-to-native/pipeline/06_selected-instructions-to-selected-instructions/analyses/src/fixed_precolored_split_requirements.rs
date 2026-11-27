@@ -139,11 +139,13 @@ mod compute {
                 if unique {
                     Ok(())
                 } else {
-                    Err(FixedPrecoloredSplitRequirementError::UnauthenticatedDomainBreak {
-                        function,
-                        register,
-                        point: site_point(site),
-                    })
+                    Err(
+                        FixedPrecoloredSplitRequirementError::UnauthenticatedDomainBreak {
+                            function,
+                            register,
+                            point: site_point(site),
+                        },
+                    )
                 }
             }
         }
@@ -178,9 +180,13 @@ mod compute {
                 for rejected in [&[4][..], &[1, 2][..]] {
                     assert!(matches!(
                         check(rejected),
-                        Err(FixedPrecoloredSplitRequirementError::UnauthenticatedDomainBreak {
-                            function: 0, register: 1, point: 8,
-                        })
+                        Err(
+                            FixedPrecoloredSplitRequirementError::UnauthenticatedDomainBreak {
+                                function: 0,
+                                register: 1,
+                                point: 8,
+                            }
+                        )
                     ));
                 }
             }
@@ -679,8 +685,7 @@ mod compute {
         )?;
         let usage = work.finish(budget)?;
         Ok(FixedPrecoloredSplitRequirementPlan {
-            ranges: ranges.receipt().identity(),
-            legality: legality.receipt().identity(),
+            selected: ranges.plan().selected.clone(),
             register_environment: legality.receipt().register_environment(),
             allocator_availability: legality.receipt().allocator_availability(),
             optimization_unit: ranges.receipt().optimization_unit(),
@@ -698,9 +703,8 @@ mod compute {
         legality: &ValidatedAllocationLegality,
         fixed: &ValidatedFixedPrecoloredIntervals,
     ) -> Result<(), FixedPrecoloredSplitRequirementError> {
-        if legality.receipt().ranges() != ranges.receipt().identity()
-            || fixed.plan().ranges != ranges.receipt().identity()
-            || fixed.plan().legality != legality.receipt().identity()
+        if legality.plan().selected != ranges.plan().selected
+            || fixed.plan().selected != ranges.plan().selected
             || fixed.plan().register_environment != legality.receipt().register_environment()
             || fixed.plan().allocator_availability != legality.receipt().allocator_availability()
             || fixed.plan().optimization_unit != ranges.receipt().optimization_unit()

@@ -36,12 +36,12 @@ From the repository root, using a verified compiler binary:
 
 ```sh
 OMEGA=/absolute/path/to/omega
-$OMEGA update --project samples/cli/independent/logic_hazard_timing --target linux_x86_64
+$OMEGA update --project samples/cli/scientific/logic_hazard_timing --target linux_x86_64
 # Read and accept the generated local system/entry review, then:
-$OMEGA update --resume --project samples/cli/independent/logic_hazard_timing
-$OMEGA --check samples/cli/independent/logic_hazard_timing/main.omg
-printf 0 | $OMEGA run samples/cli/independent/logic_hazard_timing/main.omg
-printf 2 | $OMEGA run --both samples/cli/independent/logic_hazard_timing/main.omg
+$OMEGA update --resume --project samples/cli/scientific/logic_hazard_timing
+$OMEGA --check samples/cli/scientific/logic_hazard_timing/main.omg
+printf 0 | $OMEGA run samples/cli/scientific/logic_hazard_timing/main.omg
+printf 2 | $OMEGA run samples/cli/scientific/logic_hazard_timing/main.omg
 ```
 
 Check `../invalid_logic_hazard_timing/main.omg` directly; checking reports the obligation before
@@ -49,7 +49,7 @@ requiring an accepted deployable entry. Its complete separate entrypoint calls `
 positive-delay precondition. Validation requires that intended diagnostic;
 unrelated compilation refusal is not accepted as evidence.
 
-The CLI compares termination, stdout and stderr. The application also checks its trace
+The recorded comparison checked termination, stdout and stderr. The application also checks its trace
 digest inside both runtimes. This digest is a bounded regression
 check, not a collision-free equivalence proof.
 

@@ -101,33 +101,32 @@ fn validate_recovery_selection(
 mod tests {
     use super::*;
     use optimization_core::{
-        OptimizationExecutionPhase, PostAllocationOptimizationManifestIdentity,
-        PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
+        OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationUnitIdentity,
+        OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
+        PreAllocationOptimizationCompletionIdentity,
         SelectedLoweringOptimizationCompletionIdentity,
     };
     use register_homes::{
-        AllocationLegalityIdentity, AllocatorAvailabilityIdentity, PostAllocationManifestStage,
+        AllocatorAvailabilityIdentity, PostAllocationManifestStage,
         PostAllocationOptimizationManifest, PostAllocationSelectedTransformation,
         PostAllocationSpillStatus, PostAllocationStatistics, PostAllocationUnavailableData,
         RegisterHomeIdentity,
     };
     use register_model::TargetRegisterEnvironmentIdentity;
     use selected_instruction_analyses::SelectedOptimizationRecord;
-    use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
 
     fn record() -> PostAllocationOptimizationManifest {
         let mut post = PostAllocationOptimizationManifest {
             identity: PostAllocationOptimizationManifestIdentity::from_canonical_bytes(b"pending"),
             stage: PostAllocationManifestStage::RegisterHomes,
-            pre_physical: PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(b"pre"),
+            optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
+            selection: OptimizationSelectionIdentity::from_bytes([3; 32]),
+            budget_per_pass: OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap(),
             target: target::NativeTarget::linux_x64(),
             selected: selected_instructions::test_support::placeholder_plan(1),
             selected_lowering_completion: None,
             pre_allocation_completion: None,
             selected_transformations: Vec::new(),
-            liveness: LivenessIdentity::from_bytes([1; 32]),
-            ranges: LiveRangeIdentity::from_bytes([2; 32]),
-            legality: AllocationLegalityIdentity::from_bytes([3; 32]),
             register_environment: TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
             allocator_availability: AllocatorAvailabilityIdentity::from_bytes([5; 32]),
             homes: RegisterHomeIdentity::from_bytes([6; 32]),

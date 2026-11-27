@@ -79,7 +79,7 @@ pub(crate) mod fixed_view_copy {
                     || ranges.plan().optimization_unit != selected.optimization_unit()
                     || ranges.plan().work_schedule != selected.work_schedule()
                     || ranges.plan().target != selected.plan().target
-                    || legality.receipt().ranges() != ranges.receipt().identity()
+                    || legality.plan().selected != ranges.plan().selected
                     || legality.receipt().register_environment() != register_environment
                     || constraints.physical_identity() != physical.identity()
                     || reservations.physical_identity() != physical.identity()
@@ -695,8 +695,6 @@ pub(crate) mod fixed_view_copy {
 
             Ok(FixedViewCopyPlan {
                 source_selected: selected.shared_plan(),
-                source_ranges: ranges.receipt().identity(),
-                source_legality: legality.receipt().identity(),
                 register_environment,
                 allocator_availability: legality.receipt().allocator_availability(),
                 policy,
@@ -832,12 +830,11 @@ pub(crate) mod fixed_view_copy {
             ) -> Result<(), FixedViewCopyError> {
                 let split = requirements.plan();
                 let assigned = homes.plan();
-                if split.ranges != ranges.receipt().identity()
-                    || split.legality != legality.receipt().identity()
+                if split.selected != ranges.plan().selected
+                    || legality.plan().selected != ranges.plan().selected
                     || split.policy
                         != FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1
-                    || assigned.ranges != ranges.receipt().identity()
-                    || assigned.legality != legality.receipt().identity()
+                    || assigned.selected != ranges.plan().selected
                     || assigned.register_environment != legality.receipt().register_environment()
                     || assigned.allocator_availability
                         != legality.receipt().allocator_availability()
@@ -1085,8 +1082,6 @@ pub(crate) mod fixed_view_copy {
             ) -> MaterializedFixedViewCopies {
                 let receipt = FixedViewCopyReceipt {
                     identity: fixed_view_copy_identity(&plan),
-                    source_ranges: plan.source_ranges,
-                    source_legality: plan.source_legality,
                     register_environment: plan.register_environment,
                     allocator_availability: plan.allocator_availability,
                     optimization_unit: selected.optimization_unit(),
@@ -1265,14 +1260,14 @@ pub(crate) mod fixed_view_copy {
     }
 
     use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-    use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
+    use register_homes::AllocatorAvailabilityIdentity;
     pub use register_homes::{
         FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
         fixed_view_copy_identity,
     };
 
     use crate::allocation::ValidatedFixedPrecoloredSplitRequirements;
-    use selected_instructions::{FixedViewCopyIdentity, LiveRangeIdentity};
+    use selected_instructions::FixedViewCopyIdentity;
 
     pub(crate) fn materialize_fixed_view_copies(
         selected: &SelectedProgram,
@@ -1308,8 +1303,6 @@ pub(crate) mod fixed_view_copy {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct FixedViewCopyReceipt {
         pub(crate) identity: FixedViewCopyIdentity,
-        pub(crate) source_ranges: LiveRangeIdentity,
-        pub(crate) source_legality: AllocationLegalityIdentity,
         pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
         pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
         pub(crate) optimization_unit: optimization_core::OptimizationUnitIdentity,

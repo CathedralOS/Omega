@@ -48,17 +48,16 @@ From the repository root, with a compiler built from the same main revision:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega packages update --project samples/cli/independent/error_correcting_telemetry --target linux_x86_64
+omega packages update --project samples/cli/scientific/error_correcting_telemetry --target linux_x86_64
 # Read and explicitly resolve pending package decisions, then update --resume.
-omega --check samples/cli/independent/error_correcting_telemetry/main.omg
-omega run samples/cli/independent/error_correcting_telemetry/main.omg < samples/cli/independent/error_correcting_telemetry/data/exhaustive.stdin
-omega run --engine native samples/cli/scientific/error_correcting_telemetry/main.omg < samples/cli/scientific/error_correcting_telemetry/data/exhaustive.stdin
-omega run --engine psi samples/cli/scientific/error_correcting_telemetry/main.omg < samples/cli/scientific/error_correcting_telemetry/data/exhaustive.stdin
-omega --check samples/cli/independent/error_correcting_telemetry/controls/out_of_bounds/main.omg
+omega --check samples/cli/scientific/error_correcting_telemetry/main.omg
+omega run samples/cli/scientific/error_correcting_telemetry/main.omg < samples/cli/scientific/error_correcting_telemetry/data/exhaustive.stdin
+omega run samples/cli/scientific/error_correcting_telemetry/main.omg < samples/cli/scientific/error_correcting_telemetry/data/exhaustive.stdin
+omega --check samples/cli/scientific/error_correcting_telemetry/controls/out_of_bounds/main.omg
 ```
 
-The CLI Terminal comparison must report exit agreement explicitly; a decline is
-recorded as unsupported. The CLI forwards native stdout and checks that both engines produce
+The recorded Terminal comparison must report exit agreement explicitly; a decline is
+recorded as unsupported. The earlier comparison forwarded native stdout and checked that both executions produced
 identical stdout
 and stderr. Generated compiler output stays in
 ignored `build/`. See `VALIDATION.md` for the actual revision, binary, commands,

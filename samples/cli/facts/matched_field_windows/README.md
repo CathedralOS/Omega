@@ -27,7 +27,7 @@ Root witness: [`main.omg`](main.omg) with [`build.omg`](build.omg).
 
 Expected exit: 0 for all ten positive entries (root plus 9 places). Every positive place
 and root `main.omg` binds `ProgramEntry` for all four hosted targets (`windows_x86_64`,
-`linux_x86_64`, `macos_arm64`, `linux_arm64`) and passes `omega run --both`: the Terminal
+`linux_x86_64`, `macos_arm64`, `linux_arm64`) and passes the native/Psi comparison: the Terminal
 Psi leg reports `interp exit: 0` in exact agreement with native `exit 0`.
 
 ```sh
@@ -71,10 +71,10 @@ All three were measured on a fresh producer built from the rebased candidate.
 - Exclusive mutable borrow rules, loan scopes, and slice safety invariants are
   preserved throughout; an unproved or mismatched slice length cannot escape to
   runtime.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Pattern-refined subslice construction lowers without semantic loss into canonical target-neutral Terminal Psi (`PSITERM\0`), erasing static length proofs while retaining runtime pointer+length view carriers, borrow restoration windows (`reborrow restored call uses`), match joins, and state transitions. All 10 positive entries execute in the Terminal Psi interpreter (`omega run --both`), agreeing with native execution.
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Pattern-refined subslice construction lowers without semantic loss into canonical target-neutral Terminal Psi (`PSITERM\0`), erasing static length proofs while retaining runtime pointer+length view carriers, borrow restoration windows (`reborrow restored call uses`), match joins, and state transitions. All 10 positive entries execute in the Terminal Psi interpreter, agreeing with native execution.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Backing array `[u8; 4]` and mutable slice view descriptors (`(ptr, len)`) validate target layout geometry (two-word fat pointers of 16 bytes with 8-byte alignment). `CallPlan` and `StatePlan` lower two-word slice view returns and parameters across target ABI register and stack slots according to target calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for subslice base-pointer offset arithmetic (`base + start * elem_size`, here `start * 1` for `u8` and `start * 8` for 64-bit carriers) and slice length calculation (`end - start = 2`). The backend assigns register homes and disjoint stack-frame activation storage for the backing array and slice descriptor, maintaining worst-case stack bounds and inserting standard entry prologues and epilogues.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve for the array backing storage, match dispatch and basic blocks lay out with short/near branch relaxation and offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across `windows_x86_64` and `macos_arm64`.
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve for the array backing storage, match dispatch and basic blocks lay out with short/near branch relaxation and offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (exit 0) across `windows_x86_64` and `macos_arm64`.
 
 ## Build-owned target-body migration
 
