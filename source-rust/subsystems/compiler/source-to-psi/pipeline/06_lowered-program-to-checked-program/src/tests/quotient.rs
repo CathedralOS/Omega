@@ -836,32 +836,119 @@ const STORED: &str = include_str!(concat!(
     "/../../../../../../samples/cli/facts/quotient_closed_literal/parameter/main.omg"
 ));
 
-#[test]
-fn a_law_over_classes_of_stored_data_is_refused_by_name() {
-    // `related_representatives_have_one_class` proves this law of a
-    // quotient of mathematical data. Over data that stores an `i32` the
-    // mathematical signature has no quotient to state it with, so it is
-    // refused as that, not proved and not dropped.
+/// The carrier, relation and quotient of `STORED`, and a law `one_class`
+/// that `requires` and `ensures` as given.
+fn stored(requires: &str, ensures: &str) -> String {
     let start = STORED
         .find("data Representative")
         .expect("the sample's carrier");
     let end = STORED
         .find("machine representative(")
         .expect("the sample's operation");
-    let source = format!(
+    format!(
         "use {{omega}}/language/core/relation.omg;\n\
          use {{omega}}/language/core/foundation.omg as proof;\n{}\n\
          machine one_class(a: Representative, b: Representative)\n\
-         requires equivalent(a, b)\n\
-         ensures |proof|::Identity::<EquivalenceClass>(a as EquivalenceClass, b as EquivalenceClass)\n\
-         {{\n}}\n",
+         {requires}ensures {ensures}\n{{\n}}\n",
         &STORED[start..end]
-    );
-    let verdicts = judged(&source);
+    )
+}
+
+const ONE_CLASS: &str =
+    "|proof|::Identity::<EquivalenceClass>(a as EquivalenceClass, b as EquivalenceClass)";
+
+/// The unproved obligations of a rejected closure, by their account.
+fn rejected(verdicts: &[RouteVerdict]) -> Vec<String> {
+    verdicts
+        .iter()
+        .filter_map(|verdict| match verdict {
+            RouteVerdict::Rejected { unproved, .. } => Some(unproved),
+            _ => None,
+        })
+        .flatten()
+        .map(|obligation| format!("{}: {}", obligation.statement, obligation.detail))
+        .collect()
+}
+
+#[test]
+fn related_stored_representatives_have_one_class() {
+    // `related_representatives_have_one_class` for a quotient of data that
+    // stores an `i32`: its relation is the Identity of the two records, and
+    // the quotient's soundness at them gives the Identity of the classes.
+    let verdicts = judged(&stored("requires equivalent(a, b)\n", ONE_CLASS));
     assert!(
-        matches!(refusals(&verdicts).as_slice(), [detail]
-            if detail.contains("quotient of data that has storage")),
-        "{:?}",
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+        "{:?} {:?}",
+        refusals(&verdicts),
+        rejected(&verdicts)
+    );
+}
+
+#[test]
+fn unrelated_stored_representatives_are_not_given_one_class() {
+    // With nothing relating them, two records have two classes as far as
+    // the checker knows; so too when only `a` is related to itself.
+    for requires in ["", "requires equivalent(a, a)\n"] {
+        let verdicts = judged(&stored(requires, ONE_CLASS));
+        let rejected = rejected(&verdicts);
+        assert!(
+            matches!(rejected.as_slice(), [statement] if statement.contains("one_class")),
+            "{requires:?}: {rejected:?} {:?}",
+            refusals(&verdicts)
+        );
+    }
+}
+
+/// A quotient of records that store two numbers, by equality of the first
+/// alone, so two records with one class may differ.
+const TAGGED: &str = r"use {omega}/language/core/relation.omg;
+use {omega}/language/core/foundation.omg as proof;
+
+data Key [copy] { value: i32; }
+data Tagged [copy] { key: Key; tag: i32; }
+
+proposition same_value(a: Tagged, b: Tagged) = |proof|::Identity::<Key>(a.key, b.key);
+
+SameValue satisfies |relation|::Equivalence<Tagged, same_value> {
+    machine reflexive(value: Tagged) ensures same_value(value, value) { }
+    machine symmetric(left: Tagged, right: Tagged) requires same_value(left, right) ensures same_value(right, left) { }
+    machine transitive(left: Tagged, middle: Tagged, right: Tagged) requires same_value(left, middle), same_value(middle, right) ensures same_value(left, right) { }
+}
+
+data Value [copy] = Tagged % same_value
+requires same_value satisfies
+    |relation|::Equivalence<Tagged, same_value>
+    as SameValue;
+";
+
+fn tagged(requires: &str) -> String {
+    format!(
+        "{TAGGED}\nmachine one_class(a: Tagged, b: Tagged)\n{requires}\
+         ensures |proof|::Identity::<Value>(a as Value, b as Value)\n{{\n}}\n"
+    )
+}
+
+#[test]
+fn stored_representatives_related_but_unequal_have_one_class() {
+    // `a` and `b` may differ in `tag`: only the quotient's soundness at
+    // them, from `same_value(a, b)`, makes their classes one.
+    let verdicts = judged(&tagged("requires same_value(a, b)\n"));
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+        "{:?} {:?}",
+        refusals(&verdicts),
+        rejected(&verdicts)
+    );
+    // The twin relates `a` to itself only.
+    let verdicts = judged(&tagged("requires same_value(a, a)\n"));
+    let rejected = rejected(&verdicts);
+    assert!(
+        matches!(rejected.as_slice(), [statement] if statement.contains("one_class")),
+        "{rejected:?} {:?}",
         refusals(&verdicts)
     );
 }

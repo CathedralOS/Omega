@@ -348,6 +348,17 @@ pub struct ErasedFieldTerm {
     pub term: semantic_vocabulary::ScalarTerm,
 }
 
+/// An Identity of two classes of a quotient of data that has storage, and
+/// the quotient's relation read at their two representatives. The checker
+/// may prove the Identity from a proof of the relation by the quotient's
+/// soundness (wiki/spec/proofs/quotients.md, "Set-quotient foundation":
+/// `sound`), an assumption its receipt counts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotientSoundness {
+    pub classes: semantic_vocabulary::ClauseIdentity,
+    pub related: semantic_vocabulary::ClauseIdentity,
+}
+
 /// Everything the checker holds for one machine. Value, place, claim and
 /// edge identities are machine-local in the lowered form (ownership.md:
 /// "Claim identities stay machine-local"), so these tables are too.
@@ -368,6 +379,9 @@ pub struct MachineTables {
     pub edges: IdTable<EdgeId, edges::EdgeRow>,
     pub invocations: IdTable<InvocationId, edges::InvocationRow>,
     pub erased_field_terms: Vec<ErasedFieldTerm>,
+    /// Each Identity of two classes this machine's contracts state over a
+    /// quotient of data that has storage, with what relates them.
+    pub quotient_soundness: Vec<QuotientSoundness>,
 }
 
 /// The module: one `MachineTables` per machine.

@@ -2164,6 +2164,7 @@ fn lower_program_with_parallel<'source>(
     for lowered in lowered_machines {
         let mut lowered = lowered?;
         lower::apply_machine_qualifications(&mut lowered, &mut qualifications)?;
+        let lowered_id = lowered.machine.id;
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
@@ -2175,6 +2176,15 @@ fn lower_program_with_parallel<'source>(
             .proofs
             .theorem_applications
             .extend(lowered.theorem_applications);
+        if let Some(source) = declarations {
+            lowered.tables.quotient_soundness.extend(
+                source
+                    .quotient_soundness
+                    .iter()
+                    .filter(|(machine, _)| *machine == lowered_id)
+                    .map(|(_, row)| row.clone()),
+            );
+        }
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
