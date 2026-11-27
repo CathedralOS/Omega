@@ -232,10 +232,18 @@ checkout. See [release packaging](../../_recycling/tools/release/README.md#build
 for installation layout, explicit library selection and relocation tests.
 
 `omega psi inspect --artifact <file>` reads an existing portable Psi artifact
-file (up to 64 MiB), decodes it canonically, validates its meaning, and prints
+file, decodes it canonically, validates its meaning, and prints
 its module and placed-input list. It takes no source, machine or target flags
 and neither prepares packages nor executes. An invalid or noncanonical
 artifact returns status 1; inspection grants no runtime authority.
+
+A host can pass `--max-psi-input-bytes <bytes>` to inspect, run, or compile
+a saved artifact. The CLI refuses an oversized file before decoding it.
+Running either engine and compiling a saved artifact still require the
+producer's exact manifest identity through `--trusted-artifact`.
+With `--emit-psi`, `--max-psi-output-bytes <bytes>` limits the new artifact.
+If it exceeds the quota, an existing destination keeps its previous contents.
+Omitting either option leaves the encoded byte count uncapped for that operation.
 
 Inspecting from source also accepts `--output <file>` to save the canonical
 artifact for later inspection. The caller chooses that host path; artifact

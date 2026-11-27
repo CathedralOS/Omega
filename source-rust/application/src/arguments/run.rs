@@ -140,7 +140,11 @@ pub(super) fn parse_arguments(
                 private_entry_ram
                     .push(psi_entry_memory::PrivateEntryRamInitialization { position, contents });
             }
-            Some("--max-psi-input-bytes") => super::parse_byte_limit(arguments, "--max-psi-input-bytes", &mut max_psi_input_bytes)?,
+            Some("--max-psi-input-bytes") => super::parse_byte_limit(
+                arguments,
+                "--max-psi-input-bytes",
+                &mut max_psi_input_bytes,
+            )?,
             Some("--trusted-artifact") => {
                 super::parse_trusted_artifact(arguments, &mut trusted_artifact)?
             }
@@ -213,7 +217,9 @@ pub(super) fn parse_arguments(
             build_inputs,
         )?)
     };
-    let saved = main_path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("psi"));
+    let saved = main_path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"));
     if !build_directories.is_empty() && saved {
         return Err("Build directory mappings require a source Build".into());
     }

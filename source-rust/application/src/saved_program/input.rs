@@ -2,14 +2,20 @@
 use diagnostics::Diagnostic;
 
 /// The receiving host may bound the encoded bytes before any Psi decoding.
-pub(crate) fn read_artifact(path: &std::path::Path, max_bytes: Option<u64>) -> std::io::Result<Vec<u8>> {
+pub(crate) fn read_artifact(
+    path: &std::path::Path,
+    max_bytes: Option<u64>,
+) -> std::io::Result<Vec<u8>> {
     use std::io::{Error, ErrorKind, Read};
     let mut file = std::fs::File::open(path)?;
     let mut bytes = Vec::new();
     if let Some(limit) = max_bytes {
-        let exceeded = || Error::new(ErrorKind::FileTooLarge, format!(
-            "saved Psi exceeds the host input limit of {limit} bytes"
-        ));
+        let exceeded = || {
+            Error::new(
+                ErrorKind::FileTooLarge,
+                format!("saved Psi exceeds the host input limit of {limit} bytes"),
+            )
+        };
         if file.metadata()?.len() > limit {
             return Err(exceeded());
         }

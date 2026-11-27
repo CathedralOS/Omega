@@ -184,12 +184,16 @@ fn parse_command(arguments: &mut Arguments) -> Result<Invocation, UsageError> {
     .map_err(UsageError::from)
 }
 
-fn parse_byte_limit(arguments: &mut Arguments, flag: &str, slot: &mut Option<u64>) -> Result<(), String> {
+fn parse_byte_limit(
+    arguments: &mut Arguments,
+    flag: &str,
+    slot: &mut Option<u64>,
+) -> Result<(), String> {
     set_once(slot, flag, || {
         let value = take_text(arguments, flag)?;
-        value.parse::<u64>().map_err(|_| {
-            format!("{flag} requires a nonnegative integer byte count")
-        })
+        value
+            .parse::<u64>()
+            .map_err(|_| format!("{flag} requires a nonnegative integer byte count"))
     })
 }
 
@@ -454,6 +458,52 @@ mod tests {
         parse(arguments.iter().map(OsString::from))
             .map(|(command, _)| command)
             .map_err(|error| error.message)
+    }
+
+    #[test]
+    fn psi_byte_limits_require_the_matching_saved_file_operation() {
+        for (command, reason) in [
+            (
+                "--max-psi-input-bytes 1 main.omg",
+                "applies to a saved .psi program",
+            ),
+            (
+                "run --max-psi-input-bytes 1 main.omg",
+                "applies to a saved .psi program",
+            ),
+            (
+                "psi inspect --machine main --max-psi-input-bytes 1 main.omg",
+                "requires --artifact",
+            ),
+            ("--max-psi-output-bytes 1 main.omg", "requires --emit-psi"),
+            ("--max-psi-input-bytes 1k program.psi", "integer byte count"),
+            (
+                "--max-psi-input-bytes 1 --max-psi-input-bytes 2 program.psi",
+                "duplicate --max-psi-input-bytes",
+            ),
+        ] {
+            let args: Vec<_> = command.split_ascii_whitespace().collect();
+            let err = parse_slice(&args)
+                .err()
+                .expect("inapplicable or malformed byte limit");
+            assert!(err.contains(reason), "{command}: {err}");
+        }
+        match parse_slice(&[
+            "psi",
+            "inspect",
+            "--max-psi-input-bytes",
+            "0",
+            "--artifact",
+            "x.psi",
+        ])
+        .unwrap()
+        {
+            Invocation::InspectTerminal(InspectTerminalArguments::Artifact {
+                max_psi_input_bytes,
+                ..
+            }) => assert_eq!(max_psi_input_bytes, Some(0)),
+            _ => panic!("expected saved artifact inspection"),
+        }
     }
 
     #[test]

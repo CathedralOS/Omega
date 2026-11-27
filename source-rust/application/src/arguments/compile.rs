@@ -167,7 +167,11 @@ pub(super) fn parse_arguments(
             continue;
         }
         if argument == "--max-psi-output-bytes" {
-            super::parse_byte_limit(arguments, "--max-psi-output-bytes", &mut max_psi_output_bytes)?;
+            super::parse_byte_limit(
+                arguments,
+                "--max-psi-output-bytes",
+                &mut max_psi_output_bytes,
+            )?;
             continue;
         }
         if argument == "--max-psi-input-bytes" {

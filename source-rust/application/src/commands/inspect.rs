@@ -37,7 +37,10 @@ pub(crate) fn run(arguments: InspectTerminalArguments, diagnostics: DiagnosticOu
             };
             (request.machine.clone(), inspect_terminal(&request), output)
         }
-        InspectTerminalArguments::Artifact { path, max_psi_input_bytes } => {
+        InspectTerminalArguments::Artifact {
+            path,
+            max_psi_input_bytes,
+        } => {
             let bytes = read_artifact_or_exit(&path, max_psi_input_bytes);
             (
                 "artifact".to_owned(),
