@@ -89,8 +89,17 @@ reader. A contract's class of such data, `value as Quotient`, is the
 quotient's declaration applied to `value`; an Identity of two classes also
 records the quotient's relation read at their representatives
 (`QuotientSoundness`), from which stage 06 may prove it by soundness.
-The reader still refuses generic quotient data. The
-[quotient formation rule](../../../../../../wiki/spec/proofs/quotients.md#formation-and-representation) specifies explicit arguments for the relation and its named conformance.
+A generic quotient (`data Counted<T> = Tagged<T> % same_count<T> requires
+same_count<T> satisfies MereEquivalence<Tagged<T>, same_count<T>> as
+SameCount<T>;`) is read only at a closed application, as
+[quotient formation](../../../../../../wiki/spec/proofs/quotients.md#formation-and-representation)
+asks. Typed preparation
+closes the application's relation and named conformance at its arguments
+(`specialization/quotients.rs` in stage 04), and the reader takes them
+like a closed quotient's. An application whose relation or conformance
+does not close, or whose conformance proves its laws for another carrier
+or relation, is refused by name; the template itself is not a declaration
+of the signature.
 
 An operation on a quotient is a machine whose whole body is
 `Quotient::lift::<op, respects>(..)`, `Quotient::lift::<op, respects,

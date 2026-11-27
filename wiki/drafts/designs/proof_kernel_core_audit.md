@@ -1791,6 +1791,23 @@ same_sign> as SameSign;` is read into the mathematical signature when
   `seq_laws`: `a_machine_generic_over_types_is_judged_at_each_closed_application`,
   `a_proposition_generic_over_types_is_read_at_each_closed_application`, and
   a false law of each refused as unproved.
+- **Generic quotients (2026-11-27).** A quotient may be declared once for
+  every type, with the relation's and the named conformance's arguments
+  written after `%` and `as` as
+  [quotient formation](../../spec/proofs/quotients.md#formation-and-representation)
+  asks. The parser, name resolution and typed trees carry the argument
+  lists; a closed application's typed view instantiates its carrier and
+  arguments. Typed preparation closes the relation (the generated
+  proposition of the previous entry) and generates a closed copy of the
+  named conformance with its rows at the application
+  (`specialization/quotients.rs`). Stage 05 reads the closed application
+  like an authored quotient, skips the template and its generic rows, and
+  refuses an application whose relation or conformance does not close, or
+  whose conformance proves its laws for another carrier or relation.
+  Tests in `quotient`: classes of related representatives of a generic
+  quotient are judged equal and the unrelated twin is unproved; a missing
+  or extra conformance argument, a conformance for another carrier and one
+  for another relation are each refused by name.
 
 **Step 6 as built (2026-11-24): data indexed by values, theorems over it and
 the machines that run with its evidence.** The three `source_indexed_*`

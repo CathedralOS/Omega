@@ -106,6 +106,26 @@ impl<'t> Program<'t> {
                 .all(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
     }
 
+    /// Whether `machine` realizes a row of a conformance generic over types
+    /// only (`SameCount<T> satisfies ...`): each closed application of that
+    /// conformance has its own copy of the row, which the mathematical
+    /// signature reads instead.
+    pub(crate) fn conformance_template_row(&self, machine: &Machine) -> bool {
+        let typed = self.typed;
+        self.mathematical
+            && typed.conformances().iter().any(|conformance| {
+                let parameters = typed.conformance_type_parameters(conformance);
+                !parameters.is_empty()
+                    && parameters
+                        .iter()
+                        .all(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+                    && conformance
+                        .rows
+                        .iter()
+                        .any(|row| row.realization_machine == machine.symbol)
+            })
+    }
+
     /// The declared signature of a machine parameter of a generic
     /// mathematical machine.
     pub(super) fn callable_parameter(&self, symbol: SymbolHandle) -> Option<&'t StateSignature> {

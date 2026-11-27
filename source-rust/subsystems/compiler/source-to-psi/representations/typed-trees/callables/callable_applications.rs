@@ -6521,17 +6521,62 @@ pub(crate) mod signatures {
                             .rev()
                             .find(|(symbol, _)| *symbol == application.proposition)
                         {
-                            let crate::source_state::types::TypeReferenceNode::Named {
-                                symbol,
-                                name,
-                            } = program.type_reference_table.type_reference(*replacement)
-                            else {
-                                return Err(
-                                    "applied callable proposition head needs a named proposition operand",
-                                );
-                            };
-                            application.proposition = *symbol;
-                            application.name = name.clone();
+                            match program.type_reference_table.type_reference(*replacement) {
+                                crate::source_state::types::TypeReferenceNode::Named {
+                                    symbol,
+                                    name,
+                                } => {
+                                    application.proposition = *symbol;
+                                    application.name = name.clone();
+                                }
+                                // A proposition generic over types, applied
+                                // at the operand's arguments (`same_count<T>`).
+                                crate::source_state::types::TypeReferenceNode::Generic {
+                                    base_symbol,
+                                    base_name,
+                                    lifetime_arguments,
+                                    arguments,
+                                } if lifetime_arguments.is_empty()
+                                    && application.binder_arguments.is_empty()
+                                    && program.symbols.symbols().nodes().is_valid(*base_symbol)
+                                    && program.symbols.get(*base_symbol).kind
+                                        == symbols::SymbolKind::Proposition =>
+                                {
+                                    application.proposition = *base_symbol;
+                                    application.name = base_name.clone();
+                                    let mut binder_arguments = Vec::new();
+                                    for &argument in program
+                                        .type_reference_table
+                                        .type_reference_handles(*arguments)
+                                    {
+                                        let crate::source_state::types::TypeReferenceNode::Named {
+                                            symbol,
+                                            name,
+                                        } = program.type_reference_table.type_reference(argument)
+                                        else {
+                                            return Err(
+                                                "applied callable proposition operand applies a type that is not named",
+                                            );
+                                        };
+                                        binder_arguments.push(
+                                            crate::source_state::proposition::PropositionBinderArgument {
+                                                kind: crate::source_state::proposition::PropositionBinderArgumentKind::Type,
+                                                path: vec![name.clone()].into_boxed_slice(),
+                                                const_literal: None,
+                                                evidence_projection: None,
+                                                symbol: *symbol,
+                                            },
+                                        );
+                                    }
+                                    application.binder_arguments =
+                                        binder_arguments.into_boxed_slice();
+                                }
+                                _ => {
+                                    return Err(
+                                        "applied callable proposition head needs a named proposition operand",
+                                    );
+                                }
+                            }
                         } else {
                             application.proposition = self.symbol(application.proposition);
                         }
@@ -9215,6 +9260,22 @@ impl TypedTrees {
         CallableApplication {
             region_scope: declaration,
             lifetimes,
+            ..CallableApplication::default()
+        }
+        .type_reference(self, original)
+    }
+
+    /// `original` with each type parameter in `substitutions` replaced by
+    /// its type, wherever it is written.
+    pub fn substitute_type_parameters(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        declaration: SymbolHandle,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        CallableApplication {
+            region_scope: declaration,
+            types: substitutions.to_vec(),
             ..CallableApplication::default()
         }
         .type_reference(self, original)

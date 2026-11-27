@@ -848,6 +848,33 @@ impl<'source> ApplicationPreparation<'source> {
             .type_reference_table
             .instantiate(definition.predicate_subject_type, &substitutions)
             .map_err(str::to_owned)?;
+        // A quotient application is the quotient of its carrier at these
+        // arguments, by its relation and conformance at them.
+        if let Some(quotient) = &mut definition.quotient {
+            let table = &mut self.source.type_reference_table;
+            quotient.carrier = table
+                .instantiate(quotient.carrier, &substitutions)
+                .map_err(str::to_owned)?;
+            let mut span = |span: HandleSpan<TypeReferenceHandle>| {
+                let applied = table
+                    .type_reference_handles(span)
+                    .to_vec()
+                    .into_iter()
+                    .map(|argument| table.instantiate(argument, &substitutions))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(str::to_owned)?;
+                Ok::<_, String>(table.insert_type_reference_handles(applied))
+            };
+            quotient.relation_arguments = span(quotient.relation_arguments)?;
+            if let Some(selection) = &mut quotient.equivalence {
+                selection.relation_arguments = span(selection.relation_arguments)?;
+                selection.trait_arguments = span(selection.trait_arguments)?;
+                selection.conformance_arguments = span(selection.conformance_arguments)?;
+            }
+            // The carrier at these arguments is read like any other type.
+            let carrier = quotient.carrier;
+            self.reference(carrier)?;
+        }
         let mut children = Vec::new();
         for member in &mut members {
             match member {
