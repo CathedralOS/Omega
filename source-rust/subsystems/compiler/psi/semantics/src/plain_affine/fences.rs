@@ -110,7 +110,7 @@ fn reach(reach: Option<ExternalReach>) -> Reach {
 /// The fences of one module's machines and boundary requirements. The tables
 /// are built on the first call made inside an open window, then shared by
 /// every walk over that module.
-pub(super) struct CallFences<'m> {
+pub(crate) struct CallFences<'m> {
     module: &'m TerminalModule,
     tables: OnceLock<Tables>,
 }
@@ -123,7 +123,7 @@ struct Tables {
 }
 
 impl<'m> CallFences<'m> {
-    pub(super) const fn new(module: &'m TerminalModule) -> Self {
+    pub(crate) const fn new(module: &'m TerminalModule) -> Self {
         Self {
             module,
             tables: OnceLock::new(),

@@ -94,6 +94,24 @@ pub fn verify_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
 ) -> Result<(), &'static str> {
+    verify_machine_with(module, None, machine)
+}
+
+/// `verify_machine` over the bundle's module. The ownership walk that
+/// authenticates the completion receipts reuses the bundle's descriptor
+/// rows instead of adapting the machine's closure again.
+pub fn verify_machine_in(
+    analyses: &crate::module_analyses::ModuleAnalyses<'_>,
+    machine: &TerminalMachine,
+) -> Result<(), &'static str> {
+    verify_machine_with(analyses.module(), Some(analyses), machine)
+}
+
+fn verify_machine_with(
+    module: &TerminalModule,
+    analyses: Option<&crate::module_analyses::ModuleAnalyses<'_>>,
+    machine: &TerminalMachine,
+) -> Result<(), &'static str> {
     let expected = for_machine(module, machine)?;
     let mut actual = Vec::new();
     let mut used_boundaries = BTreeSet::new();
@@ -118,7 +136,13 @@ pub fn verify_machine(
             }
         }
         // The equation cannot authenticate the completion receipt it consumes.
-        crate::plain_affine::verify_claims_in(module, machine.id).map_err(
+        match analyses {
+            Some(analyses) => analyses
+                .affine(machine.id)
+                .and_then(|walks| walks.verify_claims()),
+            None => crate::plain_affine::verify_claims_in(module, machine.id),
+        }
+        .map_err(
             |_| "boundary content completion receipt disagrees with the live claim frontier",
         )?;
     }

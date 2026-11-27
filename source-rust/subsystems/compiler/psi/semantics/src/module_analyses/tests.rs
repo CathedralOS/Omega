@@ -18,6 +18,8 @@ use terminal_psi::{
     ValueDeclaration,
 };
 
+mod affine;
+
 const ROOT: u64 = 1;
 const SELECTING: u64 = 2;
 const LEAF: u64 = 3;
@@ -117,11 +119,8 @@ fn dynamic_call(first_operation: u64) -> Vec<Operation> {
     ]
 }
 
-/// The root calls machines 2 and 3. Machine 4 calls a machine the module does
-/// not declare, so its row fails. Machine 5 is the only realization of the
-/// dynamic slot.
-fn module(dynamic: bool) -> TerminalModule {
-    let mut module = TerminalModule::for_entry(id(ROOT));
+/// Declares one dynamic interface whose only slot `realization` implements.
+fn declare_dynamic_slot(module: &mut TerminalModule, realization: u64) {
     module
         .execution
         .dynamic_dispatch
@@ -150,8 +149,16 @@ fn module(dynamic: bool) -> TerminalModule {
             id: 0,
             interface: 0,
             implementation_identity: TerminalIdentityIndex(9),
-            rows: vec![Some(id(REALIZATION))],
+            rows: vec![Some(id(realization))],
         });
+}
+
+/// The root calls machines 2 and 3. Machine 4 calls a machine the module does
+/// not declare, so its row fails. Machine 5 is the only realization of the
+/// dynamic slot.
+fn module(dynamic: bool) -> TerminalModule {
+    let mut module = TerminalModule::for_entry(id(ROOT));
+    declare_dynamic_slot(&mut module, REALIZATION);
     // Declaration order differs from identity order, so module order and
     // sorted lookup are both exercised.
     module.machines = vec![
