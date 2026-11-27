@@ -793,7 +793,7 @@ the first slice of the
   clauses name it like any formal, and no runtime lane: Terminal Psi declares
   it in `MachineContract::erased_scalar_formals`, not in `parameters` or
   `parameter_order`
-  ([encoding](../../../../../../wiki/spec/terminal-psi/encoding.md): "Erased
+  ([encoding](../../../psi/artifact/wire/encoding.md): "Erased
   formals occupy no tag."). Its identity comes after the result
   pseudo-value; `Signature::formal_values` is the one numbering the reader
   and lowering share.
