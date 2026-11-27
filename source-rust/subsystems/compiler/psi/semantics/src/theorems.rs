@@ -203,7 +203,9 @@ fn does_no_work(machine: &terminal_psi::TerminalMachine) -> bool {
 /// a citation of it is a fact-only invocation, which emits no call
 /// (contracts.md, "Citation and induction": "erase the call if fact-only").
 /// Its subjects are its scalar formals and then its erased scalar formals,
-/// numbered from one, and its implication is its `requires` and `ensures`.
+/// numbered from one, or, when it has a record formal, its formals in header
+/// order with each record's scalar fields in its place (`data_subjects`).
+/// Its implication is its `requires` and `ensures`.
 /// The named machine is checked as any machine is, so its `ensures` hold
 /// wherever its `requires` do.
 pub fn named_contract(
@@ -220,8 +222,10 @@ pub fn named_contract(
     let contract = &machine.contract;
     let refusal = if !matches!(contract.result, terminal_psi::TerminalMachineResult::Unit) {
         Some("named theorem application names a machine with a result")
-    } else if !contract.structural_parameters.is_empty() {
-        Some("named theorem application names a machine with a structural formal")
+    } else if !contract.structural_parameters.is_empty()
+        && !contract.erased_scalar_formals.is_empty()
+    {
+        Some("named theorem application names a machine with a record formal and an erased formal")
     } else if !contract.erased_proof_formals.is_empty() {
         Some("named theorem application names a machine with a proof formal")
     } else if !contract.crash_routes.is_empty() {
@@ -236,7 +240,11 @@ pub fn named_contract(
         || !contract.membership_ensures.is_empty()
     {
         Some("named theorem application names a machine with a guarantee about its outcome")
-    } else if !does_no_work(machine) {
+    } else if !does_no_work(machine)
+        && (contract.structural_parameters.is_empty() || !returns_without_running(machine))
+    {
+        // A record formal's root is discarded as the body returns, which
+        // runs nothing.
         Some("named theorem application names a machine whose body does work")
     } else {
         None
@@ -244,21 +252,35 @@ pub fn named_contract(
     if let Some(refusal) = refusal {
         return Err(refusal);
     }
-    let parameters: Vec<_> = contract
-        .parameters
+    let ensures: Vec<_> = contract
+        .ensures
         .iter()
-        .chain(&contract.erased_scalar_formals)
-        .cloned()
+        .map(|clause| clause.proposition.clone())
         .collect();
-    let named = TheoremContract {
-        parameters,
-        requires: contract.requires.clone(),
-        ensures: contract
-            .ensures
-            .iter()
-            .map(|clause| clause.proposition.clone())
-            .collect(),
-        proof_parameters: Vec::new(),
+    let named = if contract.structural_parameters.is_empty() {
+        TheoremContract {
+            parameters: contract
+                .parameters
+                .iter()
+                .chain(&contract.erased_scalar_formals)
+                .cloned()
+                .collect(),
+            requires: contract.requires.clone(),
+            ensures,
+            proof_parameters: Vec::new(),
+        }
+    } else {
+        // A record formal is one subject for each of its scalar fields, as
+        // in a citation (`data_subjects`).
+        let subjects = data_subjects::machine_subjects(module, contract)?;
+        let (parameters, requires, ensures) =
+            data_subjects::flatten(&subjects, &contract.requires, &ensures)?;
+        TheoremContract {
+            parameters,
+            requires,
+            ensures,
+            proof_parameters: Vec::new(),
+        }
     };
     contract_subjects(&named)?;
     Ok(named)
