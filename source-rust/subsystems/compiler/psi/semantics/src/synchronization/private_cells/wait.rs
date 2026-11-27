@@ -1,7 +1,7 @@
 //! Apply the selected machine's retry condition to this call's borrowed storage.
 
-use super::super::progress::{ProgressFailure, ProgressScope};
-use super::super::spin::{CellUpdate, Observation, SpinCondition, SpinWait, WaitRule};
+use super::super::progress::{ProgressFailure, ProgressScope, ScalarFact};
+use super::super::spin::{CellUpdate, Observation, Operand, SpinCondition, SpinWait, WaitRule};
 use super::activation::Bindings;
 use super::storage::{Storage, Stored};
 use semantic_vocabulary::Proposition;
@@ -12,6 +12,7 @@ pub(super) fn apply(
     bindings: &Bindings,
     memory: &mut Storage,
     arguments: &[StructuralArgument],
+    scalar: impl Fn(usize) -> Option<ScalarFact>,
     requirements: &[Proposition],
     scope: ProgressScope,
 ) -> Result<(), ProgressFailure> {
@@ -23,15 +24,32 @@ pub(super) fn apply(
         let base = memory.locate(&bindings.places, actual.place, &actual.path)?;
         memory.project(base, path)
     };
+    let pivot = |mut test: SpinCondition| {
+        let mut input = None;
+        if let Operand::Parameter {
+            position,
+            scalar_type,
+        } = test.comparison.pivot
+        {
+            match scalar(position).filter(|fact| fact.ty() == scalar_type) {
+                Some(ScalarFact::Literal(value)) => test.comparison.pivot = Operand::Literal(value),
+                Some(ScalarFact::EntryInput(formal)) => input = Some(formal),
+                None => {}
+            }
+        }
+        (test, input)
+    };
     match &wait.0 {
         WaitRule::Cell(cell) => {
             let location = locate(cell.subject.parameter, &cell.subject.path)
                 .ok_or(ProgressFailure::Unproved)?;
             let stored = memory.get(&location);
+            let (condition, input) = pivot(cell.while_value);
             let cause = classify(
                 memory,
                 &location,
-                cell.while_value,
+                condition,
+                input,
                 cell.update,
                 requirements,
             );
@@ -51,16 +69,25 @@ pub(super) fn apply(
                 let Some(location) = locate(subject.parameter, &subject.path) else {
                     return (Observation::Unproved, None);
                 };
-                let observation =
-                    match classify(memory, &location, test, CellUpdate::Observe, requirements) {
-                        None => Observation::Known(false),
-                        Some(ProgressFailure::Deadlock) => Observation::Known(true),
-                        Some(ProgressFailure::Unproved | ProgressFailure::UnprovedImport) => {
-                            Observation::Unproved
-                        }
-                        Some(ProgressFailure::UnprovedExternal) => Observation::Supplied,
-                    };
-                let stable = (!location.includes_shared()).then_some(location);
+                let (test, input) = pivot(test);
+                let observation = match classify(
+                    memory,
+                    &location,
+                    test,
+                    input,
+                    CellUpdate::Observe,
+                    requirements,
+                ) {
+                    None => Observation::Known(false),
+                    Some(ProgressFailure::Deadlock) => Observation::Known(true),
+                    Some(ProgressFailure::Unproved | ProgressFailure::UnprovedImport) => {
+                        Observation::Unproved
+                    }
+                    Some(ProgressFailure::UnprovedExternal) => Observation::Supplied,
+                };
+                let stable = (!location.includes_shared()
+                    && test.comparison.pivot.literal().is_some())
+                .then_some((location, test));
                 (observation, stable)
             });
             match retry {
@@ -78,10 +105,11 @@ fn classify(
     memory: &Storage,
     location: &super::storage::Location,
     condition: SpinCondition,
+    pivot_input: Option<terminal_psi::ValueDeclaration>,
     update: CellUpdate,
     requirements: &[Proposition],
 ) -> Option<ProgressFailure> {
-    let assess = |stored: &Stored| failure(stored, condition, update, requirements);
+    let assess = |stored: &Stored| failure(stored, condition, pivot_input, update, requirements);
     let cause = assess(&memory.get(location))?;
     Some(
         if memory.only_caller_can_block(location, |stored| assess(stored).is_some()) {
@@ -95,18 +123,19 @@ fn classify(
 fn failure(
     stored: &Stored,
     condition: SpinCondition,
+    pivot_input: Option<terminal_psi::ValueDeclaration>,
     update: CellUpdate,
     requirements: &[Proposition],
 ) -> Option<ProgressFailure> {
     let mut all_block = true;
     let mut can_block = false;
     let visited = stored.visit_scalars(condition.comparison.pivot.scalar_type(), |value| {
-        let cause = condition.failure(Some(value), update, requirements);
+        let cause = condition.failure(Some(value), pivot_input, update, requirements);
         all_block &= cause == Some(ProgressFailure::Deadlock);
         can_block |= cause.is_some();
     });
     if visited.is_none() {
-        return condition.failure(None, update, requirements);
+        return condition.failure(None, pivot_input, update, requirements);
     }
     can_block.then_some(if all_block {
         ProgressFailure::Deadlock

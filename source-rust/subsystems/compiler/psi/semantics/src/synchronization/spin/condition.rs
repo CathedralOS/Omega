@@ -3,11 +3,58 @@
 
 use super::Scalar;
 use crate::synchronization::progress::ScalarFact;
+use semantic_vocabulary::ScalarType;
 use std::cmp::Ordering;
+
+/// Scalar side of a retry comparison, in the selected machine's signature.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in super::super) enum Operand {
+    Literal(Scalar),
+    Parameter {
+        position: usize,
+        scalar_type: ScalarType,
+    },
+}
+
+impl Operand {
+    pub(in super::super) fn literal(self) -> Option<Scalar> {
+        match self {
+            Self::Literal(value) => Some(value),
+            Self::Parameter { .. } => None,
+        }
+    }
+
+    pub(in super::super) fn scalar_type(self) -> ScalarType {
+        match self {
+            Self::Literal(value) => value.scalar_type(),
+            Self::Parameter { scalar_type, .. } => scalar_type,
+        }
+    }
+
+    pub(super) fn formals<W>(
+        machine: &terminal_psi::TerminalMachine,
+        word: impl Fn(Self) -> W,
+    ) -> super::Facts<semantic_vocabulary::ValueId, W> {
+        machine
+            .parameters
+            .iter()
+            .enumerate()
+            .map(|(position, formal)| {
+                (
+                    formal.id,
+                    word(Self::Parameter {
+                        position,
+                        scalar_type: formal.scalar_type,
+                    }),
+                )
+            })
+            .collect()
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in super::super) struct Comparison {
-    pub(in super::super) pivot: Scalar,
+    pub(in super::super) pivot: Operand,
     pub(in super::super) order: Ordering,
     pub(in super::super) mask: Option<Scalar>,
 }
@@ -47,7 +94,7 @@ impl Comparison {
 
     pub(super) fn equal(pivot: Scalar) -> Self {
         Self {
-            pivot,
+            pivot: Operand::Literal(pivot),
             order: Ordering::Equal,
             mask: None,
         }
@@ -63,12 +110,12 @@ pub(in super::super) struct SpinCondition {
 impl SpinCondition {
     pub(in super::super) fn matches(self, observed: Scalar) -> Option<bool> {
         let actual = ScalarFact::Literal(masked(observed, self.comparison.mask)?).known_integer();
-        let pivot = ScalarFact::Literal(self.comparison.pivot).known_integer();
+        let pivot = ScalarFact::Literal(self.comparison.pivot.literal()?).known_integer();
         let ((ty, actual), (expected, pivot)) = actual.zip(pivot)?;
         (ty == expected).then(|| self.accepts(actual.cmp(&pivot)))
     }
 
-    pub(super) fn accepts(self, order: Ordering) -> bool {
+    pub(in super::super) fn accepts(self, order: Ordering) -> bool {
         (self.comparison.order == order) == self.positive
     }
 
@@ -77,9 +124,18 @@ impl SpinCondition {
     /// adjacent integers and avoids overflowing when either pivot is an extreme.
     fn disjoint(self, other: Self) -> bool {
         use Ordering::{Equal, Greater, Less};
-        let Some(((ty, left), (other_ty, right))) = ScalarFact::Literal(self.comparison.pivot)
-            .known_integer()
-            .zip(ScalarFact::Literal(other.comparison.pivot).known_integer())
+        let Some(((ty, left), (other_ty, right))) = self
+            .comparison
+            .pivot
+            .literal()
+            .and_then(|p| ScalarFact::Literal(p).known_integer())
+            .zip(
+                other
+                    .comparison
+                    .pivot
+                    .literal()
+                    .and_then(|p| ScalarFact::Literal(p).known_integer()),
+            )
         else {
             return false;
         };
@@ -131,7 +187,7 @@ impl SpinCondition {
                     && let Some(ScalarFact::Literal(pivot)) = ScalarFact::from_integer(ty, raw)
                     && self.disjoint(Self {
                         comparison: Comparison {
-                            pivot,
+                            pivot: Operand::Literal(pivot),
                             order,
                             mask: None,
                         },
@@ -148,7 +204,7 @@ impl SpinCondition {
     /// A one-sided integer comparison is monotone across the entire
     /// representable domain. If neither end blocks, no resident word can.
     pub(in super::super) fn excludes_every_word(self) -> bool {
-        let Scalar::Integer { scalar_type, .. } = self.comparison.pivot else {
+        let Operand::Literal(Scalar::Integer { scalar_type, .. }) = self.comparison.pivot else {
             return false;
         };
         if self.comparison.order == Ordering::Equal || self.comparison.mask.is_some() {
@@ -168,7 +224,11 @@ impl SpinCondition {
         if self.comparison.mask.is_some() {
             return None;
         }
-        match (self.comparison.order, self.positive, self.comparison.pivot) {
+        match (
+            self.comparison.order,
+            self.positive,
+            self.comparison.pivot.literal()?,
+        ) {
             (Ordering::Equal, true, pivot) => Some(pivot),
             (Ordering::Equal, false, Scalar::Boolean(bit)) => Some(Scalar::Boolean(!bit)),
             _ => None,

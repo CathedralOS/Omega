@@ -171,9 +171,26 @@ impl SpinCondition {
     pub(super) fn failure(
         self,
         initial: Option<ScalarFact>,
+        pivot_input: Option<ValueDeclaration>,
         update: CellUpdate,
         requires: &[Proposition],
     ) -> Option<ProgressFailure> {
+        if self.comparison.pivot.literal().is_none() {
+            // Both sides can come from one entry argument, for every possible
+            // value of it. An observing retry preserves that identity.
+            if let Some(ScalarFact::EntryInput(resident)) = initial
+                && Some(resident) == pivot_input
+                && self.comparison.mask.is_none()
+            {
+                if !self.accepts(std::cmp::Ordering::Equal) {
+                    return None;
+                }
+                if update == CellUpdate::Observe {
+                    return Some(ProgressFailure::Deadlock);
+                }
+            }
+            return Some(ProgressFailure::Unproved);
+        }
         if let Some(ScalarFact::Literal(value)) = initial
             && let Some(blocked) = self.matches(value)
         {

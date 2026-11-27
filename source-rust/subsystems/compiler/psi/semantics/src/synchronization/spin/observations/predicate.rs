@@ -110,16 +110,18 @@ impl Predicate {
         }
     }
 
-    pub(in super::super) fn inputs(&mut self) -> impl Iterator<Item = &mut Subject> {
+    pub(in super::super) fn inputs(
+        &mut self,
+    ) -> impl Iterator<Item = (&mut Subject, &mut SpinCondition)> {
         self.nodes.iter_mut().filter_map(|node| match node {
-            Node::Observation(subject, _) => Some(subject),
+            Node::Observation(subject, test) => Some((subject, test)),
             Node::Both(..) | Node::Select(..) => None,
         })
     }
 
     pub(in super::super::super) fn evaluate<K: Eq + std::hash::Hash>(
         &self,
-        mut observe: impl FnMut(&Subject, SpinCondition) -> (Observation, Option<K>),
+        mut observe: impl FnMut(&Subject, SpinCondition) -> (Observation, Option<(K, SpinCondition)>),
     ) -> Observation {
         let mut answers = vec![Observation::Known(false); self.nodes.len() + 1];
         let mut words = StableWords::default();
@@ -127,10 +129,10 @@ impl Predicate {
             if let Node::Observation(subject, test) = node {
                 let (answer, stable_word) = observe(subject, *test);
                 answers[index + 1] = answer;
-                if let Some(word) = stable_word
+                if let Some((word, known_test)) = stable_word
                     && answer == Observation::Unproved
                 {
-                    words.record(word, index + 1, *test);
+                    words.record(word, index + 1, known_test);
                 }
             }
         }
