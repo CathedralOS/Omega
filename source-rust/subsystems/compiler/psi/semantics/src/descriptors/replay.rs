@@ -308,22 +308,6 @@ pub(crate) fn result_origins(
         .map(|origin| result_origin(types, machine, origin))
         .collect()
 }
-pub(crate) fn return_origins(
-    types: &[StructuralTypeDeclaration],
-    machines: &[DescriptorMachine],
-    identity: MachineId,
-    position: DescriptorPosition,
-    location: &DescriptorLocation,
-) -> Option<Vec<DescriptorResultOrigin>> {
-    let mut replay = Replay::new(types, machines);
-    let machine = replay.machine(identity)?;
-    let states = replay.states(identity, 0)?;
-    replay
-        .read(machine, states.get(&position)?, location)?
-        .iter()
-        .map(|origin| result_origin(types, machine, replay.exported(machine, origin)?))
-        .collect()
-}
 pub(crate) fn return_slots_have_external_backing(
     types: &[StructuralTypeDeclaration],
     machines: &[DescriptorMachine],

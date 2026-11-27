@@ -303,54 +303,6 @@ pub fn result_access<'types>(
         .filter(|access| matches!(access, terminal_psi::reading_borrow_pair_pattern!()))
 }
 
-pub fn result_origins(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-) -> Option<Vec<DescriptorResultOrigin>> {
-    let result = machine.result.structural()?;
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !is_shared_descriptor(module.types.structural_types.iter(), result.structural_type)
-    {
-        return None;
-    }
-    reconstruct_result_origins(
-        &module.types.structural_types,
-        &terminal_graph(module),
-        machine.id,
-    )
-}
-
-pub fn return_origins(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    source: PlaceId,
-) -> Option<Vec<DescriptorResultOrigin>> {
-    let result = machine.result.structural()?;
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !is_shared_descriptor(module.types.structural_types.iter(), result.structural_type)
-    {
-        return None;
-    }
-    let graph = terminal_graph(module);
-    let row = descriptor_machine(&graph, machine.id)?;
-    let mut origins = Vec::new();
-    for (position, location) in row
-        .returns
-        .as_ref()?
-        .iter()
-        .filter(|(_, location)| location.root == source && location.path.is_empty())
-    {
-        origins.extend(replay::return_origins(
-            &module.types.structural_types,
-            &graph,
-            machine.id,
-            *position,
-            location,
-        )?);
-    }
-    (!origins.is_empty()).then_some(origins)
-}
-
 pub fn reconstruct_return_slots_external(
     types: &[StructuralTypeDeclaration],
     machines: &[DescriptorMachine],
@@ -370,53 +322,6 @@ pub fn reconstruct_return_slots_external(
     }
     replay::return_slots_have_external_backing(types, machines, identity, position, source)
         .is_some()
-}
-
-pub fn return_slots_have_external_backing(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    source: PlaceId,
-) -> bool {
-    let graph = terminal_graph(module);
-    let Some(row) = descriptor_machine(&graph, machine.id) else {
-        return false;
-    };
-    let Some(returns) = &row.returns else {
-        return false;
-    };
-    let mut found = false;
-    for (position, location) in returns
-        .iter()
-        .filter(|(_, location)| location.root == source && location.path.is_empty())
-    {
-        found = true;
-        if replay::return_slots_have_external_backing(
-            &module.types.structural_types,
-            &graph,
-            machine.id,
-            *position,
-            location.root,
-        )
-        .is_none()
-        {
-            return false;
-        }
-    }
-    found
-}
-
-pub fn call_origins(
-    module: &TerminalModule,
-    caller: &TerminalMachine,
-    operation: &Operation,
-) -> Option<Vec<DescriptorCallOrigin>> {
-    let graph = terminal_graph(module);
-    call_origins_in(
-        &mut DescriptorAnalysis::new(&module.types.structural_types, &graph),
-        module,
-        caller,
-        operation,
-    )
 }
 
 pub fn call_origins_in(
@@ -881,67 +786,6 @@ impl DescriptorMachine {
 pub struct DescriptorCasePredicate {
     pub subject: descriptor_lifetimes::DescriptorFlowSource,
     pub case: semantic_vocabulary::StructuralCaseId,
-}
-
-pub(crate) struct ZeroedCaseTable<'a> {
-    index: descriptor_lifetimes::locations::StructuralTypeIndex<'a>,
-    by_position: Vec<
-        Option<
-            Vec<(
-                Vec<descriptor_lifetimes::DescriptorPathSegment>,
-                semantic_vocabulary::StructuralCaseId,
-            )>,
-        >,
-    >,
-}
-
-impl<'a> ZeroedCaseTable<'a> {
-    pub(crate) fn new(types: &'a [StructuralTypeDeclaration]) -> Self {
-        let index = descriptor_lifetimes::locations::StructuralTypeIndex::new(types);
-        let by_position = vec![None; index.len()];
-        Self { index, by_position }
-    }
-
-    pub(crate) fn predicates_for(
-        &mut self,
-        root: PlaceId,
-        structural_type: StructuralTypeId,
-    ) -> Vec<DescriptorCasePredicate> {
-        let Some(position) = self.index.position(structural_type) else {
-            return Vec::new();
-        };
-        let rows = self.by_position[position].get_or_insert_with(|| {
-            let Some(selections) =
-                crate::structural::zeroed_structural::zeroed_sum_selections_indexed(
-                    &self.index,
-                    structural_type,
-                )
-            else {
-                return Vec::new();
-            };
-            let mut resolved = Vec::with_capacity(selections.len());
-            for (path, case) in selections {
-                let Some(location) =
-                    self.index
-                        .descriptor_location(root, structural_type, &path, None)
-                else {
-                    return Vec::new();
-                };
-                resolved.push((location.path, case));
-            }
-            resolved
-        });
-        rows.iter()
-            .map(|(path, case)| DescriptorCasePredicate {
-                subject: DescriptorLocation {
-                    root,
-                    path: path.clone(),
-                }
-                .into(),
-                case: *case,
-            })
-            .collect()
-    }
 }
 
 pub fn zeroed_case_predicates(
@@ -1658,19 +1502,7 @@ pub(crate) fn terminal_graph_closure(
         .collect()
 }
 
-// Saved modules can use sparse identities. Sort declarations once;
-// do not reserve storage up to the largest identity.
-fn terminal_machine_roster(
-    module: &TerminalModule,
-) -> Result<Vec<&TerminalMachine>, DescriptorGraphError> {
-    let mut machines = module.machines.iter().collect::<Vec<_>>();
-    machines.sort_unstable_by_key(|machine| machine.id);
-    if let Some(pair) = machines.windows(2).find(|pair| pair[0].id == pair[1].id) {
-        return Err(DescriptorGraphError::MissingOrAmbiguousMachine(pair[1].id));
-    }
-    Ok(machines)
-}
-
+// Row adaptation reads the module's machines sorted by identity.
 fn terminal_graph_machine<'a>(
     machines: &[&'a TerminalMachine],
     identity: MachineId,
@@ -1706,107 +1538,10 @@ fn terminal_graph_rows_with_generic_calls(
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     generic_calls: GenericCallInputs<'_>,
 ) -> Vec<Result<DescriptorMachine, DescriptorGraphError>> {
-    let machines = match terminal_machine_roster(module) {
-        Ok(machines) => machines,
-        Err(error) => return vec![Err(error)],
-    };
-    let mut zeroed_cases = ZeroedCaseTable::new(&module.types.structural_types);
-    let mut pending: Vec<_> = roots.into_iter().collect();
-    let mut reached = BTreeMap::new();
-    while let Some(identity) = pending.pop() {
-        if reached.contains_key(&identity) {
-            continue;
-        }
-        let Some(body) = terminal_graph_machine(&machines, identity) else {
-            reached.insert(
-                identity,
-                Err(DescriptorGraphError::MissingOrAmbiguousMachine(identity)),
-            );
-            continue;
-        };
-        let graph = match terminal_flow::adapt(
-            module,
-            &machines,
-            body,
-            kind,
-            selected_calls,
-            None,
-            generic_calls,
-            &mut zeroed_cases,
-        ) {
-            Ok(graph) => graph,
-            Err(error) => {
-                reached.insert(identity, Err(error));
-                continue;
-            }
-        };
-        for (_, call) in graph.known_invocations() {
-            match &call.target {
-                DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
-                DescriptorInvocationTarget::Public {
-                    effects_machine,
-                    realizations,
-                    ..
-                } => {
-                    pending.extend(effects_machine);
-                    pending.extend(realizations);
-                }
-                DescriptorInvocationTarget::Provider { .. } => {}
-            }
-        }
-        reached.insert(identity, Ok(graph));
+    match crate::module_analyses::ModuleAnalyses::new(module) {
+        Ok(analyses) => analyses.closure_rows(kind, roots, selected_calls, generic_calls),
+        Err(error) => vec![Err(error)],
     }
-    let mut rows: Vec<_> = module
-        .machines
-        .iter()
-        .filter_map(|body| reached.remove(&body.id))
-        .collect();
-    // Missing call targets have no module row, but their failure must
-    // remain visible to both complete and optional consumers.
-    rows.extend(reached.into_values());
-    if !rows
-        .iter()
-        .filter_map(|row| row.as_ref().ok())
-        .any(|graph| {
-            terminal_graph_machine(&machines, graph.id).is_some_and(|body| {
-                body.operations().any(|operation| {
-                    matches!(operation.kind, OperationKind::CallDynamic { .. })
-                })
-            })
-        })
-    {
-        return rows;
-    }
-    let mut initial = Vec::with_capacity(rows.len());
-    let mut failures = Vec::new();
-    for row in rows {
-        match row {
-            Ok(graph) => initial.push(graph),
-            Err(error) => failures.push(Err(error)),
-        }
-    }
-    let mut rows = Vec::with_capacity(initial.len() + failures.len());
-    for graph in &initial {
-        let identity = graph.id;
-        let Some(body) = terminal_graph_machine(&machines, identity) else {
-            rows.push(Err(DescriptorGraphError::MissingOrAmbiguousMachine(
-                identity,
-            )));
-            continue;
-        };
-        rows.push(terminal_flow::adapt(
-            module,
-            &machines,
-            body,
-            kind,
-            selected_calls,
-            Some(&initial),
-            generic_calls,
-            &mut zeroed_cases,
-        ));
-    }
-    rows.extend(failures);
-    rows
 }
 
 pub fn terminal_reference_graph_from(
@@ -1843,49 +1578,9 @@ pub(crate) fn terminal_graph_for(
     kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
 ) -> Option<Vec<DescriptorMachine>> {
-    let machines = terminal_machine_roster(module).ok()?;
-    let mut zeroed_cases = ZeroedCaseTable::new(&module.types.structural_types);
-    let initial = module
-        .machines
-        .iter()
-        .map(|machine| {
-            terminal_flow::adapt(
-                module,
-                &machines,
-                machine,
-                kind,
-                selected_calls,
-                None,
-                GenericCallInputs::default(),
-                &mut zeroed_cases,
-            )
-            .ok()
-        })
-        .collect::<Option<Vec<_>>>()?;
-    if !module.machines.iter().any(|machine| {
-        machine
-            .operations()
-            .any(|operation| matches!(operation.kind, OperationKind::CallDynamic { .. }))
-    }) {
-        return Some(initial);
-    }
-    module
-        .machines
-        .iter()
-        .map(|machine| {
-            terminal_flow::adapt(
-                module,
-                &machines,
-                machine,
-                kind,
-                selected_calls,
-                Some(&initial),
-                GenericCallInputs::default(),
-                &mut zeroed_cases,
-            )
-            .ok()
-        })
-        .collect()
+    crate::module_analyses::ModuleAnalyses::new(module)
+        .ok()?
+        .module_rows(kind, selected_calls)
 }
 
 pub(crate) fn terminal_definition(
@@ -1948,43 +1643,6 @@ pub(crate) fn terminal_definition(
         }
         _ => Some(DescriptorDefinition::Local),
     }
-}
-
-pub fn source_origins(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    position: DescriptorPosition,
-    location: &DescriptorLocation,
-) -> Option<Vec<DescriptorCallOrigin>> {
-    reconstruct_source_origins(
-        &module.types.structural_types,
-        &terminal_graph(module),
-        machine.id,
-        position,
-        location,
-    )
-}
-pub fn stored_effects(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-) -> Option<Vec<DescriptorStoredEffect>> {
-    reconstruct_stored_effects(
-        &module.types.structural_types,
-        &terminal_graph(module),
-        machine.id,
-    )
-}
-pub fn call_stored_effects(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    operation: &Operation,
-) -> Option<Vec<DescriptorStoredCallEffect>> {
-    let graph = terminal_graph(module);
-    call_stored_effects_in(
-        &mut DescriptorAnalysis::new(&module.types.structural_types, &graph),
-        machine,
-        operation,
-    )
 }
 
 pub fn call_stored_effects_in(

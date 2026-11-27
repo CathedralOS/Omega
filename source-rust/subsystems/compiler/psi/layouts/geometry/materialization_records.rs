@@ -1,9 +1,6 @@
 pub mod field_identities {
-    use crate::layout_reports::{
-        ConventionalSumLayoutReport, LayoutFieldEntryReport, LayoutPlanReport,
-    };
+    use crate::layout_reports::{LayoutFieldEntryReport, LayoutPlanReport};
     use crate::materialization_records::MaterializationDiagnostic;
-    use crate::symbolic_values::SymbolicFieldValue;
 
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -159,26 +156,6 @@ pub mod field_identities {
         )
     }
 
-    pub fn validate_conventional_sum_materialization_identities(
-        layout: &ConventionalSumLayoutReport,
-    ) -> Result<(), MaterializationDiagnostic> {
-        validate_member_identities(
-            layout.cases.iter().flat_map(|case| {
-                [(case.case.as_str(), case.member_identity)]
-                    .into_iter()
-                    .chain(
-                        case.payload_fields
-                            .iter()
-                            .map(|payload| (payload.field.as_str(), payload.member_identity)),
-                    )
-            }),
-            |prior, field| format!("sum interior identity names both `{prior}` and `{field}`"),
-            |field| {
-                format!("sum interior field `{field}` does not retain the same stable identity")
-            },
-        )
-    }
-
     /// Each stable identity names one member, and each member name keeps one
     /// stable identity across all of its fragments.
     fn validate_member_identities<'a>(
@@ -217,42 +194,6 @@ pub mod field_identities {
             Some(index) => format!("[{index}]"),
             None => String::new(),
         }
-    }
-
-    pub fn symbolic_path_display(symbolic: &SymbolicFieldValue) -> String {
-        let mut display = format!(
-            "{}{}",
-            symbolic.field,
-            symbolic_index_display(symbolic.element_index)
-        );
-        let mut segment = symbolic.inner.as_ref();
-        while let Some(inner) = segment {
-            display.push('.');
-            display.push_str(&inner.field);
-            display.push_str(&symbolic_index_display(inner.element_index));
-            segment = inner.inner();
-        }
-        display
-    }
-
-    type SymbolicPathHop<'a> = (&'a str, Option<u64>, Option<u64>);
-
-    pub fn symbolic_path_hops(symbolic: &SymbolicFieldValue) -> Vec<SymbolicPathHop<'_>> {
-        let mut hops = vec![(
-            symbolic.field.as_str(),
-            symbolic.member_identity,
-            symbolic.element_index,
-        )];
-        let mut segment = symbolic.inner.as_ref();
-        while let Some(inner) = segment {
-            hops.push((
-                inner.field.as_str(),
-                inner.member_identity,
-                inner.element_index,
-            ));
-            segment = inner.inner();
-        }
-        hops
     }
 }
 
