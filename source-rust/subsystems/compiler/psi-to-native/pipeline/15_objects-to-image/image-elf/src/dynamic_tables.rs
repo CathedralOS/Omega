@@ -150,7 +150,7 @@ pub(crate) fn build_dynamic_import_tables(
             "ELF dynamic-section planning requires at least one referenced import",
         ));
     }
-    let ordered = ordered_import_requests(imports)?;
+    let ordered = ordered_import_requests(imports);
     let mut interpreter = interpreter_path.to_vec();
     interpreter.push(0);
     let contents = derive_import_contents(&ordered, interpreter)?;
@@ -161,7 +161,7 @@ pub(crate) fn build_dynamic_import_tables(
 pub(crate) fn derive_shared_import_contents(
     imports: &[ElfImportRequest],
 ) -> Result<ElfDynamicSectionContents, Diagnostic> {
-    let ordered = ordered_import_requests(imports)?;
+    let ordered = ordered_import_requests(imports);
     derive_import_contents(&ordered, Vec::new())
 }
 
@@ -425,9 +425,7 @@ pub(crate) fn encode_dynamic_table(
     Ok(bytes)
 }
 
-fn ordered_import_requests(
-    imports: &[ElfImportRequest],
-) -> Result<Vec<OrderedImport<'_>>, Diagnostic> {
+fn ordered_import_requests(imports: &[ElfImportRequest]) -> Vec<OrderedImport<'_>> {
     let mut ordered = imports
         .iter()
         .enumerate()
@@ -438,30 +436,27 @@ fn ordered_import_requests(
                 symbol,
                 version,
                 ..
-            } => Ok(OrderedImport {
+            } => OrderedImport {
                 request_index,
                 compatibility_report_identity: *compatibility_report_identity,
                 object,
                 symbol,
                 version,
-            }),
+            },
             ElfImportLocator::Component {
                 locator,
                 object,
                 symbol,
-            } => Ok(OrderedImport {
+            } => OrderedImport {
                 request_index,
                 compatibility_report_identity: locator
                     .non_authoritative_compatibility_fingerprint(),
                 object,
                 symbol,
                 version: &[],
-            }),
-            ElfImportLocator::StringBackedBootstrap { .. } => Err(Diagnostic::error(
-                "string-backed ELF import reached normalized dynamic-section planning",
-            )),
+            },
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Vec<_>>();
     ordered.sort_by(|left, right| {
         (
             left.symbol,
@@ -476,7 +471,7 @@ fn ordered_import_requests(
                 right.compatibility_report_identity,
             ))
     });
-    Ok(ordered)
+    ordered
 }
 
 fn canonical_strings(ordered: &[OrderedImport<'_>]) -> Vec<Vec<u8>> {

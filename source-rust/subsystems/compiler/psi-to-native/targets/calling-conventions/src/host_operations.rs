@@ -3,10 +3,8 @@ We maintain the keyed catalog of host capabilities (`HostCapability`) and host
 operations (`HostOperation`) with process-wide interning for custom authored
 names, the external binding rows (`ExternalBindingRow`, `ExternalBindingKind`)
 that connect a bodyless external leaf to its foreign locator or table dispatch
-mechanism, the Darwin and Windows import library mappings
-(`DARWIN_LIBOBJC_PATH`, `darwin_import_library`, `windows_import_library`), and
-x86-64 interrupt gate address fragment assembly (`InterruptGateAddress`,
-`interrupt_gate_address`). Both directions of our capability and operation
+mechanism, and x86-64 interrupt gate address fragment assembly
+(`InterruptGateAddress`, `interrupt_gate_address`). Both directions of our capability and operation
 catalogs read one table so authored spellings and enum keys never drift, while
 custom names outside the built-in catalog intern to a stable index for the life
 of the process.
@@ -378,105 +376,6 @@ pub enum ExternalBindingKind {
     VtableSlot { index: i64 },
     VtableField { field: String, byte_offset: u32 },
     TableFunction { field: String, byte_offset: u32 },
-}
-
-const DARWIN_LIBSYSTEM_PATH: &str = "/usr/lib/libSystem.B.dylib";
-pub const DARWIN_LIBOBJC_PATH: &str = "/usr/lib/libobjc.A.dylib";
-const DARWIN_COREGRAPHICS_PATH: &str =
-    "/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics";
-
-pub fn darwin_import_library(symbol: &str) -> &'static str {
-    if symbol.starts_with("_objc_")
-        || symbol.starts_with("_sel_")
-        || symbol.starts_with("_class_")
-        || symbol.starts_with("_object_")
-        || symbol.starts_with("_method_")
-        || symbol.starts_with("_ivar_")
-        || symbol.starts_with("_protocol_")
-    {
-        return DARWIN_LIBOBJC_PATH;
-    }
-    if symbol.starts_with("_CG") {
-        return DARWIN_COREGRAPHICS_PATH;
-    }
-    DARWIN_LIBSYSTEM_PATH
-}
-
-macro_rules! row {
-    ($a:expr => $b:expr => $c:expr => $d:expr) => {
-        ($a, $b, $c, $d)
-    };
-}
-
-const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
-    ("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
-    ("Stdin", "read_file", "Kernel32.dll", "ReadFile"),
-    ("Stdin", "read", "Kernel32.dll", "ReadFile"),
-    ("Stdout", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
-    ("Stdout", "write", "Kernel32.dll", "WriteFile"),
-    ("Stdout", "write_file", "Kernel32.dll", "WriteFile"),
-    ("Stderr", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
-    ("Stderr", "write", "Kernel32.dll", "WriteFile"),
-    ("Stderr", "write_file", "Kernel32.dll", "WriteFile"),
-    ("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
-    ("Clock", "sleep", "Kernel32.dll", "Sleep"),
-    ("Clock", "tick_count", "Kernel32.dll", "GetTickCount64"),
-    row!("Clock" => "monotonic_ticks" => "Kernel32.dll" => "QueryPerformanceCounter"),
-    row!("Clock" => "monotonic_ticks_per_second" => "Kernel32.dll" => "QueryPerformanceFrequency"),
-    row!("Clock" => "wall_clock_raw" => "Kernel32.dll" => "GetSystemTimePreciseAsFileTime"),
-    ("Input", "key_state", "User32.dll", "GetAsyncKeyState"),
-    ("Gui", "dc_create", "Gdi32.dll", "CreateCompatibleDC"),
-    ("Gui", "get_dc", "User32.dll", "GetDC"),
-    ("Gui", "window_create", "User32.dll", "CreateWindowExA"),
-    ("Gui", "blit", "Gdi32.dll", "StretchDIBits"),
-    ("Gui", "msg_peek", "User32.dll", "PeekMessageW"),
-    ("Gui", "msg_translate", "User32.dll", "TranslateMessage"),
-    ("Gui", "msg_dispatch", "User32.dll", "DispatchMessageW"),
-    ("Gui", "is_window", "User32.dll", "IsWindow"),
-    ("Gui", "window_destroy", "User32.dll", "DestroyWindow"),
-    row!("Gui" => "foreground_window" => "User32.dll" => "GetForegroundWindow"),
-    ("Filesystem", "open", "msvcrt.dll", "_open"),
-    ("Filesystem", "open_create", "msvcrt.dll", "_open"),
-    ("Filesystem", "creat", "msvcrt.dll", "_creat"),
-    ("Filesystem", "read", "msvcrt.dll", "_read"),
-    ("Filesystem", "write", "msvcrt.dll", "_write"),
-    ("Filesystem", "close", "msvcrt.dll", "_close"),
-    ("Filesystem", "unlink", "msvcrt.dll", "_unlink"),
-    ("Filesystem", "lseek", "msvcrt.dll", "_lseeki64"),
-    ("Filesystem", "mkdir", "msvcrt.dll", "_mkdir"),
-    ("Filesystem", "rmdir", "msvcrt.dll", "_rmdir"),
-    ("Filesystem", "rename", "msvcrt.dll", "rename"),
-    ("Filesystem", "dup", "msvcrt.dll", "_dup"),
-    ("Filesystem", "fsync", "msvcrt.dll", "_commit"),
-    ("Filesystem", "chmod", "msvcrt.dll", "_chmod"),
-    ("Filesystem", "stat", "msvcrt.dll", "_stat64"),
-    ("Filesystem", "fstat", "msvcrt.dll", "_fstat64"),
-    ("Filesystem", "find_first", "Kernel32.dll", "FindFirstFileA"),
-    ("Filesystem", "find_next", "Kernel32.dll", "FindNextFileA"),
-    ("Filesystem", "find_close", "Kernel32.dll", "FindClose"),
-    row!("Filesystem" => "create_hard_link" => "Kernel32.dll" => "CreateHardLinkA"),
-    row!("Filesystem" => "open_path_handle" => "Kernel32.dll" => "CreateFileA"),
-    ("Filesystem", "close_handle", "Kernel32.dll", "CloseHandle"),
-    row!("Filesystem" => "get_osfhandle" => "msvcrt.dll" => "_get_osfhandle"),
-    (
-        "Filesystem",
-        "final_path_name_by_handle",
-        "Kernel32.dll",
-        "GetFinalPathNameByHandleA",
-    ),
-    ("Filesystem", "set_file_time", "Kernel32.dll", "SetFileTime"),
-    ("Filesystem", "lock_file_ex", "Kernel32.dll", "LockFileEx"),
-    ("Filesystem", "unlock_file", "Kernel32.dll", "UnlockFile"),
-    row!("Filesystem" => "get_last_error" => "Kernel32.dll" => "GetLastError"),
-    ("Filesystem", "ftruncate", "msvcrt.dll", "_chsize_s"),
-    ("Filesystem", "read_errno", "msvcrt.dll", "_errno"),
-];
-
-pub fn windows_import_library(symbol: &str) -> Option<&'static str> {
-    WINDOWS_IMPORT_ROWS
-        .iter()
-        .find(|(_, _, _, row_symbol)| *row_symbol == symbol)
-        .map(|(_, _, library, _)| *library)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

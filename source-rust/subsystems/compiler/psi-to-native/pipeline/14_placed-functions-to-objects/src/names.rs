@@ -125,15 +125,11 @@ pub fn object_function_reference(
 }
 
 pub fn entry_symbol_name(target: NativeTarget) -> String {
-    object_target_policy(target)
-        .expect("no object policy is declared for this (architecture, object-format) pair")
-        .entry_symbol_name
-        .to_owned()
+    object_target_policy(target).entry_symbol_name.to_owned()
 }
 
 pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
-    let policy = object_target_policy(target)
-        .expect("no object policy is declared for this (architecture, object-format) pair");
+    let policy = object_target_policy(target);
     match kind {
         SectionKind::Text => policy.text_section_name,
         SectionKind::Data => policy.data_section_name,

@@ -305,16 +305,19 @@ pub(crate) fn emit_pe(
         bytes.resize(sections.reloc_raw + sections.reloc_raw_size, 0);
     }
 
+    // The writer owns the image, so the output takes its final section bytes.
+    let text_bytes = image.memory.text.len();
+    let data_bytes = image.memory.data.len();
     Ok(ExecutableImageOutput {
         final_image_layout: layout,
-        final_text_bytes: image.memory.text.clone(),
-        final_data_bytes: image.memory.data.clone(),
+        final_text_bytes: std::mem::take(&mut image.memory.text),
+        final_data_bytes: std::mem::take(&mut image.memory.data),
         final_import_data_bytes: import_table.bytes,
         bytes,
         file_name: "omega-program.exe".to_owned(),
         format: isa.format_name().to_owned(),
-        text_bytes: image.memory.text.len(),
-        data_bytes: image.memory.data.len(),
+        text_bytes,
+        data_bytes,
         bss_bytes: image.memory.bss_size,
         symbols: image.symbol_table.symbols.len(),
         imports: image.symbol_table.imports.len(),
@@ -420,11 +423,17 @@ mod tests {
                             kind: SymbolKind::Import,
                             ..Default::default()
                         });
+                        let locator = target::normalize_foreign_locator(
+                            target::ForeignLocatorCandidate::PeByName {
+                                library: b"KERNEL32.dll".to_vec(),
+                                export: b"ExitProcess".to_vec(),
+                            },
+                            target::TargetProfile::WindowsX64,
+                        )
+                        .expect("valid KERNEL32 locator");
                         image.symbol_table.imports.insert(FinalImageImport {
                             symbol_handle,
-                            import: FinalImageImportPlan::StringBackedBootstrap {
-                                library: "KERNEL32.dll".into(),
-                            },
+                            import: FinalImageImportPlan::Normalized(locator.into()),
                         });
                         image::test_support::install_imports(&mut image);
                         names.push(b".rdata\0\0");

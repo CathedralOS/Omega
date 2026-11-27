@@ -1311,9 +1311,6 @@ mod symbols {
     pub enum FinalImageImportPlan {
         #[default]
         None,
-        StringBackedBootstrap {
-            library: String,
-        },
         Normalized(target::NormalizedImportLocator),
     }
 

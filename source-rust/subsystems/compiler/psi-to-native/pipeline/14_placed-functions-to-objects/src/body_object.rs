@@ -106,7 +106,6 @@ impl FunctionObjectSections {
                 offset,
                 size: length,
                 kind: SymbolKind::Function,
-                import_library: String::new(),
             });
             if placed.machine == text.semantic_entry {
                 object.layout.entry_symbol = symbol;

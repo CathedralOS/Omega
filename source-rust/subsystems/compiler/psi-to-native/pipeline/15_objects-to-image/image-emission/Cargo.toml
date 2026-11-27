@@ -7,9 +7,6 @@ version.workspace = true
 [lib]
 name = "image_emission"
 
-[features]
-test-support = []
-
 [dependencies]
 structural-storage-queries = { path = "../../../representations/structural-storage/queries" }
 native-execution-reach = { path = "../../../representations/target-bound-program/execution-reach" }
@@ -62,6 +59,5 @@ frame-planning = { package = "post-allocation-machine-to-framed-machine", path =
 native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encoding" }
 isa-x86_64 = { path = "../../11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
 optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
-image-emission = { path = ".", features = ["test-support"] }
 layout-plans = { path = "../../../../psi/layouts/geometry" }
 optimization-core = { path = "../../../representations/optimization-records" }

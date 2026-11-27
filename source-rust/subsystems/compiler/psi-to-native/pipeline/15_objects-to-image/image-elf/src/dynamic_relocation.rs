@@ -554,12 +554,7 @@ pub(crate) fn resolve_dynamic_relocations(
     for slot in &plan.linkage.slots {
         let request = &plan.imports[slot.request_index];
         let (ElfImportLocator::Versioned { symbol, .. }
-        | ElfImportLocator::Component { symbol, .. }) = &request.locator
-        else {
-            return Err(Diagnostic::error(
-                "dynamic ELF slot binds a non-versioned import locator",
-            ));
-        };
+        | ElfImportLocator::Component { symbol, .. }) = &request.locator;
         let symbol = String::from_utf8(symbol.clone())
             .map_err(|_| Diagnostic::error("dynamic ELF import symbol spelling is not UTF-8"))?;
         import_regions.push(FinalDataRegion {

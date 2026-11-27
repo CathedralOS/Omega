@@ -295,7 +295,7 @@ mod stack {
 }
 
 use super::{Error, attribution, host, source};
-use crate::{ObjectArtifact, ObjectFunction};
+use crate::ObjectArtifact;
 use object_file::{SectionKind, SymbolKind, SymbolSection, entry_symbol_name};
 
 pub(crate) fn validate_available(artifact: &ObjectArtifact) -> Result<(), Error> {
@@ -595,9 +595,7 @@ fn validate(
             || symbol.size != length
             || symbol.kind != SymbolKind::Function
             || symbol.section != SymbolSection::Section(SectionKind::Text)
-            || !symbol.import_library.is_empty()
             || (entry && layout.entry_symbol != symbol_handle)
-            || !empty_unsupported_records(function)
         {
             return Err(Error::Mismatch(
                 "shared object function or symbol differs from current data",
@@ -688,7 +686,6 @@ fn validate(
             || symbol.size != length
             || symbol.kind != SymbolKind::Function
             || symbol.name.is_empty()
-            || !symbol.import_library.is_empty()
             || artifact
                 .text_bytes
                 .get(private_offset..private_offset + length)
@@ -707,21 +704,4 @@ fn validate(
             .map_err(|_| Error::Mismatch("hosted receiver binding differs from replayed object"))?;
     }
     Ok(())
-}
-
-fn empty_unsupported_records(function: &ObjectFunction) -> bool {
-    function.structural_call_scalar_return.is_none()
-        && function.x86_floating_control.is_none()
-        && function.internal_unit_scalar_calls.is_empty()
-        && function.installed_provider_unit_scalar_calls.is_empty()
-        && function.unit_scalar_homes.is_empty()
-        && function.unit_integer_constants.is_empty()
-        && function.unit_affine_scalar_records.is_empty()
-        && function.unit_structural_scalar_field_stores.is_empty()
-        && function.unit_write_only_primitive_stores.is_empty()
-        && function.scalar_structural_scalar_field_stores.is_empty()
-        && function.unit_continuations.is_empty()
-        && function.scalar_affine_cleanup.is_none()
-        && function.scalar_control_affine_cleanups.is_empty()
-        && function.structural_return.is_none()
 }

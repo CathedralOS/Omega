@@ -74,9 +74,8 @@ pub use callback_materializations::{
     callback_requirement_id, nominal_callback_native_parameter_id,
 };
 pub use host_operations::{
-    DARWIN_LIBOBJC_PATH, ExternalBindingKind, ExternalBindingRow, FunctionFieldLocation,
-    HostCapability, HostOperation, InterruptGateAddress, darwin_import_library,
-    interrupt_gate_address, windows_import_library,
+    ExternalBindingKind, ExternalBindingRow, FunctionFieldLocation, HostCapability, HostOperation,
+    InterruptGateAddress, interrupt_gate_address,
 };
 pub use plans::{
     BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallingPolicy,

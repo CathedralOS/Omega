@@ -34,12 +34,6 @@ impl FinalImage {
             FinalImageImportPlan::Normalized(locator) => {
                 Ok(ImportCodeIdentity::Normalized(locator.clone()))
             }
-            FinalImageImportPlan::StringBackedBootstrap { library } => {
-                Ok(ImportCodeIdentity::StringBackedBootstrap {
-                    library: library.clone(),
-                    symbol: self.symbol_table.symbols.get(symbol).name.clone(),
-                })
-            }
         }
     }
 

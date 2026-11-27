@@ -87,7 +87,6 @@ fn object_plan(target: NativeTarget) -> (ObjectPlan, ObjectSymbolHandle) {
         offset: 0,
         size: TEXT_BYTES.len(),
         kind: SymbolKind::Function,
-        import_library: String::new(),
     });
     object.layout.entry_symbol = entry;
     object.layout.symbols.insert(SymbolPlan {
@@ -96,7 +95,6 @@ fn object_plan(target: NativeTarget) -> (ObjectPlan, ObjectSymbolHandle) {
         offset: 0,
         size: 8,
         kind: SymbolKind::Object,
-        import_library: String::new(),
     });
     (object, entry)
 }

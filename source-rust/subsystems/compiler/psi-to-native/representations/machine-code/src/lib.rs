@@ -36,11 +36,7 @@ pub(crate) use ::wire::digest_encoder;
 
 use register_model::RegisterViewId;
 use selected_instructions::{MachineIdentityBytes, SelectedBlockId, SelectedInstructionId};
-use semantic_vocabulary::{BlockId, EdgeId, InvocationSite, MachineId, OperationId, PlaceId};
-use target::NativeTarget;
-use terminal_psi::{
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-};
+use semantic_vocabulary::{InvocationSite, MachineId, OperationId, PlaceId};
 
 pub(crate) mod codec_bytes {
     pub(crate) use ::wire::codec_bytes::push_encoded;
@@ -282,74 +278,6 @@ pub mod image_addresses {
     }
 }
 
-pub mod instructions {
-    use super::*;
-
-    pub mod x86_fma {
-        use super::*;
-
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub struct X86FloatingControlRecord {
-            pub target: NativeTarget,
-            pub canonical_mxcsr: u32,
-            pub canonical_slot_byte_offset: u32,
-            pub saved_slot_byte_offset: u32,
-            pub save_offset: usize,
-            pub save_byte_count: usize,
-            pub canonical_store_offset: usize,
-            pub canonical_store_byte_count: usize,
-            pub install_offset: usize,
-            pub install_byte_count: usize,
-            pub restore_offset: usize,
-            pub restore_byte_count: usize,
-        }
-    }
-    pub use x86_fma::X86FloatingControlRecord;
-}
-
-pub mod ownership {
-    use super::*;
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct UnitAffineCleanupRecord {
-        pub psi_edge: EdgeId,
-        pub structural_types: structural_storage::structural_type_catalog::StructuralTypeCatalog, // Verifier-owned type closure retained to reconstruct the exact residual partition.
-        pub locals: Vec<(
-            OperationId,
-            StructuralPlaceDeclaration,
-            StructuralTypeDeclaration,
-        )>,
-        pub actions: Vec<TerminalAffineCleanupAction>, // Exact semantic execution order for every cleanup committed by this edge.
-        pub code_offset: usize,
-        pub byte_count: usize,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct UnitContinuationRecord {
-        pub operation_ordinal: usize,
-        pub successor_operation_ordinal: usize,
-        pub source_block: BlockId,
-        pub target_block: BlockId,
-        pub bindings: Vec<operation_operands::values::ValueBinding>,
-        pub cleanup: UnitAffineCleanupRecord, // Zero-byte cleanup boundary before the successor's first operation.
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct ScalarControlAffineCleanupRecord {
-        pub cleanup: UnitAffineCleanupRecord,
-        pub preservation: ScalarCleanupPreservationEvidence,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct ScalarCleanupPreservationEvidence {
-        pub frame: crate::StackAdjustmentPair,
-        pub result_byte_offset: u32,
-        pub result_store_offset: usize,
-        pub result_load_offset: usize,
-        pub aarch64_return_link: Option<crate::Aarch64ReturnLinkEvidence>,
-    }
-}
-
 pub mod provenance {
     use super::*;
 
@@ -375,7 +303,6 @@ pub mod provenance {
 
 pub mod boundary;
 pub mod calls;
-pub mod control_flow;
 pub mod encoding;
 pub mod fragments;
 pub mod functions;
@@ -392,12 +319,6 @@ pub use boundary::{
     ProviderExecutionRecord, derive_completion_provider_custody, execution, ports, settlements,
 };
 pub use calls::*;
-pub use control_flow::{
-    BooleanStructuralConditionEvidence, ScalarConditionalBranchEvidence,
-    ScalarConditionalCondition, ScalarControlBlockEvidence, ScalarControlFlowEvidence,
-    ScalarControlTerminatorEvidence, ScalarDirectConditionalBranchEvidence,
-    ScalarDivisionBranchEvidence, ScalarJoinBranchEvidence,
-};
 pub use encoding::{
     DeferredControlEncodingReason, ResolvedPhysicalAddress, SelectedFormDecodedFootprint,
     SelectedFormDecodedFootprintHandle, SelectedFormEncodedByteSpan, SelectedFormEncodedRowStore,
@@ -426,7 +347,6 @@ pub use image_addresses::{
     ByteLiteralReference, FunctionFragmentImageAddressFixup, ImageAddressFields,
     PlacedImageAddress, SelectedFormImageAddressFixup,
 };
-pub use instructions::*;
 pub use layout::text_section::{
     InternalMachineCallResolutionKind, InternalMachineCallResolutionState,
     NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState, PlacedBlockSpan,
@@ -443,7 +363,6 @@ pub use layout::{
     ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy, X86BranchRelaxationIdentity,
     X86BranchRelaxationRoots, resolved_machine_layout_identity,
 };
-pub use ownership::*;
 pub use provenance::*;
 pub use storage::*;
 

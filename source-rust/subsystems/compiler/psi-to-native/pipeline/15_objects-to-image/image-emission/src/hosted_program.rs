@@ -63,7 +63,6 @@ pub(crate) fn prepare(
                 offset: 0,
                 size: 0,
                 kind: object_file::SymbolKind::Import,
-                import_library: String::new(),
             });
             object
                 .layout
