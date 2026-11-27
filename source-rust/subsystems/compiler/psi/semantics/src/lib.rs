@@ -27,9 +27,13 @@ pub use domain_issuance::DeniedEstablishment;
 pub mod float_meaning_sources;
 pub mod inhabitation;
 mod membership_facts;
+pub mod module_analyses;
 pub use membership_facts::{
     BodyMemberships, MembershipTest, TestedMembership, test_memberships,
     validate_boundary_normal_memberships,
+};
+pub use module_analyses::{
+    DescriptorRowFamily, DescriptorRowView, DescriptorRows, MachineSlots, ModuleAnalyses,
 };
 pub mod normal_completion;
 pub mod numeric_primitives;

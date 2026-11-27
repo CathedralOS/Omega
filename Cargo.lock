@@ -2264,7 +2264,6 @@ dependencies = [
  "closed-predicates",
  "mathematical-kernel",
  "numerics",
- "record-storage",
  "semantic-vocabulary",
  "terminal-psi",
 ]
@@ -3666,7 +3665,6 @@ dependencies = [
  "semantic-vocabulary",
  "service-surface",
  "source-provenance",
- "source-text",
  "terminal-psi",
  "wire",
  "worker-budget",

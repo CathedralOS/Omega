@@ -182,7 +182,7 @@ pub(crate) fn adapt(
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     selector_graph: Option<&[DescriptorMachine]>,
     generic_calls: super::GenericCallInputs<'_>,
-    zeroed_cases: &mut super::ZeroedCaseTable<'_>,
+    zeroed_cases: &crate::module_analyses::ZeroedCases<'_>,
 ) -> Result<DescriptorMachine, super::DescriptorGraphError> {
     // Setup failures have no operation. Reuse the same typed error
     // as the reader advances, so a later failure keeps its real site.
@@ -215,7 +215,7 @@ fn adapt_flow(
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
     selector_graph: Option<&[DescriptorMachine]>,
     generic_calls: super::GenericCallInputs<'_>,
-    zeroed_cases: &mut super::ZeroedCaseTable<'_>,
+    zeroed_cases: &crate::module_analyses::ZeroedCases<'_>,
     failure: &mut super::DescriptorGraphError,
 ) -> Option<DescriptorMachine> {
     let super::DescriptorGraphError::IncompleteMachine {

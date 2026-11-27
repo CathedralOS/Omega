@@ -220,7 +220,7 @@ impl PayloadSources<'_> {
 pub struct PayloadMembershipHistory<'input> {
     types: &'input [StructuralTypeDeclaration],
     domains: &'input [terminal_psi::StructuralDomainDeclaration],
-    graph: &'input [DescriptorMachine],
+    graph: crate::module_analyses::DescriptorRowView<'input>,
     descriptor: Option<&'input DescriptorMachine>,
     sources: PayloadSources<'input>,
     incoming: Option<Option<payload_reachability::IncomingFlow>>,
@@ -253,14 +253,15 @@ impl<'input> PayloadMembershipHistory<'input> {
     pub fn new(
         types: &'input [StructuralTypeDeclaration],
         domains: &'input [terminal_psi::StructuralDomainDeclaration],
-        graph: &'input [DescriptorMachine],
+        graph: impl Into<crate::module_analyses::DescriptorRowView<'input>>,
         machine: &'input TerminalMachine,
     ) -> Self {
+        let graph = graph.into();
         Self {
             types,
             domains,
             graph,
-            descriptor: descriptor_machine(graph, machine.id),
+            descriptor: graph.find(machine.id),
             sources: PayloadSources::Terminal(machine),
             incoming: None,
             analysis: None,
@@ -271,12 +272,14 @@ impl<'input> PayloadMembershipHistory<'input> {
     pub fn for_current_contracts(
         types: &'input [StructuralTypeDeclaration],
         domains: &'input [terminal_psi::StructuralDomainDeclaration],
-        graph: &'input [DescriptorMachine],
+        graph: impl Into<crate::module_analyses::DescriptorRowView<'input>>,
         identity: MachineId,
         parameters: &'input [terminal_psi::StructuralParameterDeclaration],
         contracts: &'input [(PlaceId, PayloadMembershipContract)],
     ) -> Result<Self, &'static str> {
-        let current = descriptor_machine(graph, identity)
+        let graph = graph.into();
+        let current = graph
+            .find(identity)
             .ok_or("current payload machine is absent")?;
         for (index, (root, contract)) in contracts.iter().enumerate() {
             if current.place_types.get(root) != Some(&contract.carrier)

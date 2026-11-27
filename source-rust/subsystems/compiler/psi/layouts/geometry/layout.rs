@@ -187,39 +187,6 @@ mod placement {
             self.installation_scope
         }
 
-        pub fn joined_with_layout(
-            mut self,
-            layout_alignment: u64,
-            byte_len: usize,
-        ) -> Result<Self, MaterializationDiagnostic> {
-            if layout_alignment == 0 {
-                return Err(MaterializationDiagnostic(
-                    "layout alignment must be nonzero".into(),
-                ));
-            }
-            self.alignment = checked_lcm(self.alignment, layout_alignment).ok_or_else(|| {
-                MaterializationDiagnostic(format!(
-                    "placement alignment {} and layout alignment {layout_alignment} have no representable common multiple",
-                    self.alignment
-                ))
-            })?;
-            if let Some(range) = self.permitted_range {
-                let range_len = range.end_exclusive - range.start_inclusive;
-                let byte_len = u64::try_from(byte_len).map_err(|_| {
-                    MaterializationDiagnostic(
-                        "materialization length cannot be represented as an address range".into(),
-                    )
-                })?;
-                if byte_len > range_len {
-                    return Err(MaterializationDiagnostic(format!(
-                        "{}-byte materialization cannot fit in permitted range {:#x}..{:#x}",
-                        byte_len, range.start_inclusive, range.end_exclusive
-                    )));
-                }
-            }
-            Ok(self)
-        }
-
         pub fn validate_site(
             self,
             byte_len: usize,
@@ -311,20 +278,6 @@ mod placement {
             width_bits: u16,
         },
         RuntimeWriter(MaterializationWrite),
-    }
-
-    const fn checked_lcm(left: u64, right: u64) -> Option<u64> {
-        let divisor = gcd(left, right);
-        (left / divisor).checked_mul(right)
-    }
-
-    const fn gcd(mut left: u64, mut right: u64) -> u64 {
-        while right != 0 {
-            let remainder = left % right;
-            left = right;
-            right = remainder;
-        }
-        left
     }
 }
 mod private_callback_placements {
@@ -628,9 +581,7 @@ mod private_callback_placements {
 }
 mod symbolic_values {
     use crate::layout_reports::{
-        CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT, ConventionalRecordSumChildHop,
-        ConventionalRecordSumChildInterior, ConventionalRecursiveRecordSumPathsLayoutReport,
-        ConventionalSumLayoutReport, LayoutPlanReport,
+        ConventionalRecordSumChildHop, ConventionalSumLayoutReport, LayoutPlanReport,
     };
     use crate::materialization_records::MaterializationDiagnostic;
     use crate::materialization_records::field_values::validate_authored_width;
@@ -914,110 +865,6 @@ mod symbolic_values {
             ) -> new_record_array
         );
 
-        pub fn from_recursive_sum_paths(
-            report: &ConventionalRecursiveRecordSumPathsLayoutReport,
-        ) -> Result<Vec<Self>, MaterializationDiagnostic> {
-            Self::fold_recursive_sum_paths(report, 0)
-        }
-
-        fn fold_recursive_sum_paths(
-            report: &ConventionalRecursiveRecordSumPathsLayoutReport,
-            depth: usize,
-        ) -> Result<Vec<Self>, MaterializationDiagnostic> {
-            let mut carriers = Vec::new();
-            carriers
-                .try_reserve_exact(report.children.len())
-                .map_err(|_| {
-                    MaterializationDiagnostic(
-                        "recursive record/sum path carrier fold exceeds compiler resources".into(),
-                    )
-                })?;
-            for child in &report.children {
-                let carrier = match (&child.hop, &child.interior) {
-                    (
-                        ConventionalRecordSumChildHop::Field,
-                        ConventionalRecordSumChildInterior::Sum(layout),
-                    ) => match child.member_identity {
-                        Some(identity) => {
-                            Self::new_sum_numbered(child.field.clone(), identity, layout.clone())
-                        }
-                        None => Self::new_sum(child.field.clone(), layout.clone()),
-                    },
-                    (
-                        ConventionalRecordSumChildHop::Index {
-                            element_count,
-                            element_stride,
-                        },
-                        ConventionalRecordSumChildInterior::Sum(layout),
-                    ) => match child.member_identity {
-                        Some(identity) => Self::new_sum_array_numbered(
-                            child.field.clone(),
-                            identity,
-                            layout.clone(),
-                            *element_count,
-                            *element_stride,
-                        ),
-                        None => Self::new_sum_array(
-                            child.field.clone(),
-                            layout.clone(),
-                            *element_count,
-                            *element_stride,
-                        ),
-                    },
-                    (hop, ConventionalRecordSumChildInterior::Record(inner)) => {
-                        if depth + 1 >= CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT {
-                            return Err(MaterializationDiagnostic(format!(
-                                "recursive record/sum path report nests beyond the compiler's {CONVENTIONAL_RECORD_PATH_DEPTH_LIMIT}-segment record path bound"
-                            )));
-                        }
-                        let mut carrier = match (hop, child.member_identity) {
-                            (ConventionalRecordSumChildHop::Field, Some(identity)) => {
-                                Self::new_numbered(
-                                    child.field.clone(),
-                                    identity,
-                                    inner.outer_layout.clone(),
-                                )
-                            }
-                            (ConventionalRecordSumChildHop::Field, None) => {
-                                Self::new(child.field.clone(), inner.outer_layout.clone())
-                            }
-                            (
-                                ConventionalRecordSumChildHop::Index {
-                                    element_count,
-                                    element_stride,
-                                },
-                                Some(identity),
-                            ) => Self::new_record_array_numbered(
-                                child.field.clone(),
-                                identity,
-                                inner.outer_layout.clone(),
-                                *element_count,
-                                *element_stride,
-                            ),
-                            (
-                                ConventionalRecordSumChildHop::Index {
-                                    element_count,
-                                    element_stride,
-                                },
-                                None,
-                            ) => Self::new_record_array(
-                                child.field.clone(),
-                                inner.outer_layout.clone(),
-                                *element_count,
-                                *element_stride,
-                            ),
-                        };
-                        for nested in Self::fold_recursive_sum_paths(inner, depth + 1)? {
-                            carrier = carrier.with_inner_layout(nested);
-                        }
-                        carrier
-                    }
-                };
-                carriers.push(carrier);
-            }
-            Ok(carriers)
-        }
-
         pub fn with_inner_layout(mut self, inner: SymbolicFieldInnerLayout) -> Self {
             self.inner_layouts.push(inner);
             self
@@ -1078,23 +925,12 @@ pub use symbolic_values::{
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
     use crate::{
-        ByteOrder, ConsumptionInstant, ConventionalRecordSumChildHop,
-        ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
-        ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumCaseLayoutReport,
+        ByteOrder, ConsumptionInstant, ConventionalSumCaseLayoutReport,
         ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, DataSymbolId,
         EntryStubId, IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport,
         LayoutPlanReport, MaterializationContext, PlacementConstraints, PlacementPhase,
-        RelocationTarget, SymbolicFieldInnerLayout, SymbolicFieldPathSegment,
+        RelocationTarget,
     };
-
-    pub fn symbolic_path(segments: &[&str]) -> SymbolicFieldPathSegment {
-        let (innermost, outer) = segments.split_last().expect("a path needs a head");
-        let mut segment = SymbolicFieldPathSegment::new(*innermost);
-        for name in outer.iter().rev() {
-            segment = SymbolicFieldPathSegment::new(*name).with_inner_segment(segment);
-        }
-        segment
-    }
 
     pub fn post_handoff_context_with(placement: PlacementConstraints) -> MaterializationContext {
         MaterializationContext {
@@ -1208,48 +1044,6 @@ pub mod test_support {
         }
     }
 
-    pub fn deeply_nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
-        (
-            LayoutPlanReport {
-                schema_report_fingerprint: 1,
-                entries: vec![
-                    layout_field_entry("header", LayoutPlacementReport::At { offset: 0 }),
-                    layout_field_entry("slot", LayoutPlacementReport::At { offset: 8 }),
-                ],
-                offsets: Some(vec![0, 8]),
-                size: Some(40),
-                align: 8,
-            },
-            SymbolicFieldInnerLayout::new(
-                "slot",
-                LayoutPlanReport {
-                    schema_report_fingerprint: 2,
-                    entries: vec![
-                        layout_field_entry("pad", LayoutPlacementReport::At { offset: 0 }),
-                        layout_field_entry("sub", LayoutPlacementReport::At { offset: 8 }),
-                    ],
-                    offsets: Some(vec![0, 8]),
-                    size: Some(32),
-                    align: 8,
-                },
-            )
-            .with_inner_layout(SymbolicFieldInnerLayout::new(
-                "sub",
-                LayoutPlanReport {
-                    schema_report_fingerprint: 3,
-                    entries: vec![
-                        layout_field_entry("entry", LayoutPlacementReport::At { offset: 0 }),
-                        layout_field_entry("flags", LayoutPlacementReport::At { offset: 8 }),
-                        layout_field_entry("args", LayoutPlacementReport::At { offset: 16 }),
-                    ],
-                    offsets: Some(vec![0, 8, 16]),
-                    size: Some(24),
-                    align: 8,
-                },
-            )),
-        )
-    }
-
     pub fn sum_layout() -> ConventionalSumLayoutReport {
         ConventionalSumLayoutReport {
             schema_report_fingerprint: 7,
@@ -1303,18 +1097,6 @@ pub mod test_support {
         }
     }
 
-    pub fn writer_field_offsets(plan: &crate::SymbolicMaterializationPlan) -> Vec<(&str, u64)> {
-        plan.actions
-            .iter()
-            .map(|action| match action {
-                crate::MaterializationAction::RuntimeWriter(write) => {
-                    (write.field.as_str(), write.container_byte_offset)
-                }
-                other => panic!("an unresolved symbolic derives a runtime writer, found {other:?}"),
-            })
-            .collect()
-    }
-
     pub fn stored_integer_layout() -> LayoutPlanReport {
         LayoutPlanReport {
             schema_report_fingerprint: 1,
@@ -1344,58 +1126,6 @@ pub mod test_support {
             offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
             size: Some(size),
             align: 8,
-        }
-    }
-
-    pub fn recursive_record_array_report() -> ConventionalRecursiveRecordSumPathsLayoutReport {
-        let element = || ConventionalRecursiveRecordSumPathsLayoutReport {
-            outer_layout: record_layout(3, &[("choice", 0), ("pad", 24)], 32),
-            children: vec![ConventionalRecordSumChildLayoutReport {
-                field: "choice".into(),
-                member_identity: None,
-                hop: ConventionalRecordSumChildHop::Field,
-                interior: ConventionalRecordSumChildInterior::Sum(sum_layout()),
-            }],
-        };
-        ConventionalRecursiveRecordSumPathsLayoutReport {
-            outer_layout: record_layout(1, &[("header", 0), ("middle", 8)], 128),
-            children: vec![ConventionalRecordSumChildLayoutReport {
-                field: "middle".into(),
-                member_identity: None,
-                hop: ConventionalRecordSumChildHop::Field,
-                interior: ConventionalRecordSumChildInterior::Record(
-                    ConventionalRecursiveRecordSumPathsLayoutReport {
-                        outer_layout: record_layout(
-                            2,
-                            &[("inner", 0), ("route", 32), ("neighbors", 56)],
-                            120,
-                        ),
-                        children: vec![
-                            ConventionalRecordSumChildLayoutReport {
-                                field: "inner".into(),
-                                member_identity: None,
-                                hop: ConventionalRecordSumChildHop::Field,
-                                interior: ConventionalRecordSumChildInterior::Record(element()),
-                            },
-                            ConventionalRecordSumChildLayoutReport {
-                                field: "route".into(),
-                                member_identity: None,
-                                hop: ConventionalRecordSumChildHop::Field,
-                                interior: ConventionalRecordSumChildInterior::Sum(sum_layout()),
-                            },
-                            ConventionalRecordSumChildLayoutReport {
-                                field: "neighbors".into(),
-                                member_identity: None,
-                                hop: ConventionalRecordSumChildHop::Index {
-                                    element_count: 2,
-                                    element_stride: 32,
-                                },
-                                interior: ConventionalRecordSumChildInterior::Record(element()),
-                            },
-                        ],
-                    },
-                ),
-            }],
         }
     }
 

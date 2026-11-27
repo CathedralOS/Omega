@@ -11,7 +11,7 @@
 //! would have reached the same answer (`Replay::adopted_summary`).
 
 use super::engine::Summary;
-use crate::descriptors::descriptor_results::{DescriptorMachine, DescriptorSlotKind};
+use crate::descriptors::descriptor_results::DescriptorSlotKind;
 use semantic_vocabulary::MachineId;
 use std::sync::OnceLock;
 use terminal_psi::generic_calls::NominalCallType;
@@ -97,7 +97,7 @@ impl<'m> ModuleSummaries<'m> {
         &self,
         types: &[StructuralTypeDeclaration],
         slot_kind: DescriptorSlotKind,
-        rows: &[DescriptorMachine],
+        rows: crate::module_analyses::DescriptorRowView<'_>,
         nominal_calls: &[NominalCallType],
     ) -> bool {
         slot_kind == DescriptorSlotKind::BorrowedStorage

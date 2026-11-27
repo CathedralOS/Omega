@@ -382,7 +382,7 @@ pub fn require_unchanged_entry_storage(
 
 pub(crate) fn require_unchanged_entry_storage_with_incoming(
     types: &[StructuralTypeDeclaration],
-    graph: &[DescriptorMachine],
+    graph: crate::module_analyses::DescriptorRowView<'_>,
     analysis: &mut DescriptorAnalysis<'_>,
     identity: MachineId,
     observation: DescriptorPosition,
@@ -392,8 +392,9 @@ pub(crate) fn require_unchanged_entry_storage_with_incoming(
     if !analysis.uses_source_graph(types, graph) {
         return Err("entry storage analysis belongs to another immutable source graph");
     }
-    let machine =
-        descriptor_machine(graph, identity).ok_or("entry payload machine is absent")?;
+    let machine = graph
+        .find(identity)
+        .ok_or("entry payload machine is absent")?;
     require_unchanged_from(
         machine,
         analysis,

@@ -99,12 +99,12 @@ pub struct DescriptorSourceObservation {
 }
 
 impl<'a> DescriptorAnalysis<'a> {
-    pub(crate) fn uses_source_graph(
+    pub(crate) fn uses_source_graph<'rows>(
         &self,
         types: &[StructuralTypeDeclaration],
-        machines: &[DescriptorMachine],
+        machines: impl Into<crate::module_analyses::DescriptorRowView<'rows>>,
     ) -> bool {
-        std::ptr::eq(self.replay.types, types) && std::ptr::eq(self.replay.machines, machines)
+        std::ptr::eq(self.replay.types, types) && self.replay.machines.same_rows(machines.into())
     }
 
     pub(crate) fn slot_kind(&self) -> DescriptorSlotKind {
@@ -209,85 +209,12 @@ impl<'a> DescriptorAnalysis<'a> {
 
     pub fn new(
         types: &'a [StructuralTypeDeclaration],
-        machines: &'a [DescriptorMachine],
+        machines: impl Into<crate::module_analyses::DescriptorRowView<'a>>,
     ) -> Self {
         Self {
             replay: Replay::new(types, machines),
             storage_queries: StorageQueries::default(),
             flows: Vec::new(),
-        }
-    }
-    pub fn flow_feasibility(
-        &mut self,
-        identity: MachineId,
-    ) -> BTreeMap<DescriptorPosition, FlowFeasibility> {
-        let Some(machine) = self.replay.machine(identity) else {
-            return BTreeMap::new();
-        };
-        let usable = self.replay.prepare_states(identity).is_some();
-        let states = self
-            .replay
-            .snapshots
-            .get(&identity)
-            .and_then(|cached| cached.ready())
-            .map(|prepared| &prepared.before);
-        machine
-            .flow
-            .keys()
-            .map(|position| {
-                (
-                    *position,
-                    if !usable {
-                        FlowFeasibility::Unknown
-                    } else if states.is_some_and(|states| states.contains_key(position)) {
-                        FlowFeasibility::Possible
-                    } else {
-                        FlowFeasibility::ProvedImpossible
-                    },
-                )
-            })
-            .collect()
-    }
-    pub fn edge_feasibility(
-        &mut self,
-        identity: MachineId,
-        position: DescriptorPosition,
-        ordinal: usize,
-    ) -> FlowFeasibility {
-        if self.replay.prepare_states(identity).is_none() {
-            return FlowFeasibility::Unknown;
-        }
-        let Some(machine) = self.replay.machine(identity) else {
-            return FlowFeasibility::Unknown;
-        };
-        let Some(step) = machine.flow.get(&position) else {
-            return FlowFeasibility::Unknown;
-        };
-        if step.successors.get(ordinal).is_none() {
-            return FlowFeasibility::Unknown;
-        }
-        let Some(before) = self
-            .replay
-            .snapshots
-            .get(&identity)
-            .and_then(|cached| cached.ready())
-            .map(|prepared| &prepared.before)
-            .and_then(|states| states.get(&position))
-        else {
-            return FlowFeasibility::ProvedImpossible;
-        };
-        let Some((predicate, truth)) = machine
-            .case_successors
-            .get(&position)
-            .and_then(|cases| cases.get(ordinal))
-        else {
-            return FlowFeasibility::Possible;
-        };
-        let mut state = before.clone();
-        match super::case_flow::select(&self.replay, machine, &mut state, predicate, *truth) {
-            Some(false) => FlowFeasibility::ProvedImpossible,
-            Some(true) => FlowFeasibility::Possible,
-            None => FlowFeasibility::Unknown,
         }
     }
     pub fn case_feasibility(
@@ -369,7 +296,7 @@ impl<'a> DescriptorAnalysis<'a> {
 
     pub fn with_reference_slots(
         types: &'a [StructuralTypeDeclaration],
-        machines: &'a [DescriptorMachine],
+        machines: impl Into<crate::module_analyses::DescriptorRowView<'a>>,
     ) -> Self {
         Self {
             replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::References),
@@ -380,7 +307,7 @@ impl<'a> DescriptorAnalysis<'a> {
 
     pub fn with_borrowed_storage_slots(
         types: &'a [StructuralTypeDeclaration],
-        machines: &'a [DescriptorMachine],
+        machines: impl Into<crate::module_analyses::DescriptorRowView<'a>>,
     ) -> Self {
         Self {
             replay: Replay::with_slot_kind(
@@ -418,7 +345,7 @@ impl<'a> DescriptorAnalysis<'a> {
 
     pub fn with_access_origins(
         types: &'a [StructuralTypeDeclaration],
-        machines: &'a [DescriptorMachine],
+        machines: impl Into<crate::module_analyses::DescriptorRowView<'a>>,
     ) -> Self {
         Self {
             replay: Replay::with_slot_kind(types, machines, DescriptorSlotKind::AccessOrigins),
@@ -426,8 +353,8 @@ impl<'a> DescriptorAnalysis<'a> {
             flows: Vec::new(),
         }
     }
-    pub(crate) fn compatibility_machines(&self) -> &[DescriptorMachine] {
-        self.replay.machines
+    pub(crate) fn compatibility_machines(&self) -> impl Iterator<Item = &DescriptorMachine> {
+        self.replay.machines.iter()
     }
     pub(crate) fn compatibility_ingress(
         &self,
@@ -1011,15 +938,6 @@ impl<'a> DescriptorAnalysis<'a> {
     ) -> Option<Vec<DescriptorSourceOrigin>> {
         self.substitute_call_source_with_target(identity, position, owner, origin, false)
     }
-    pub fn substitute_stored_effect_source(
-        &mut self,
-        identity: MachineId,
-        position: DescriptorPosition,
-        origin: &DescriptorSourceOrigin,
-    ) -> Option<Vec<DescriptorSourceOrigin>> {
-        let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
-        self.substitute_stored_effect_source_at(identity, position, owner, origin)
-    }
     pub fn substitute_stored_effect_source_at(
         &mut self,
         identity: MachineId,
@@ -1164,15 +1082,6 @@ impl<'a> DescriptorAnalysis<'a> {
         })
     }
 
-    pub fn substitute_call_storage(
-        &mut self,
-        identity: MachineId,
-        position: DescriptorPosition,
-        origin: &DescriptorCallOrigin,
-    ) -> Option<DescriptorCallOrigin> {
-        let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
-        self.substitute_call_storage_at(identity, position, owner, origin)
-    }
     pub fn substitute_call_storage_at(
         &mut self,
         identity: MachineId,
@@ -1414,14 +1323,6 @@ impl<'a> DescriptorAnalysis<'a> {
                 })
             })
             .collect()
-    }
-    pub fn symbolic_call_stored_effects(
-        &mut self,
-        identity: MachineId,
-        position: DescriptorPosition,
-    ) -> Option<Vec<DescriptorStoredCallEffect<DescriptorSourceOrigin>>> {
-        let owner = self.replay.machine(identity)?.direct_call(position)?.owner;
-        self.symbolic_call_stored_effects_at(identity, position, owner)
     }
     pub fn symbolic_call_stored_effects_at(
         &mut self,

@@ -1260,48 +1260,5 @@ fn resolve_reached_value(
     ))
 }
 
-/// Substitute one real invocation's actuals into a value summary of its body.
-/// Remaining inputs continue to name their supplying caller; this operation
-/// never collects unrelated callers or treats signature eligibility as code.
-pub fn resolve_callable_value_at_invocation(
-    program: &CallableValueProgram<'_>,
-    query: CallableValueQuery,
-    caller: MachineId,
-    invocation: &CallableInvocation,
-) -> CallableValueResult<CallableValuePossibilities> {
-    program.validate_occurrence(caller, invocation)?;
-    let machine = query.machine();
-    let selected = match invocation.target {
-        CallableInvocationTarget::Machine(callee) => callee == machine,
-        CallableInvocationTarget::Value(value, contract) => {
-            let values =
-                resolve_callable_value(program, program.scalar_query(caller, value, contract)?)?;
-            values.descriptors.iter().any(|id| {
-                program.catalog.descriptor(*id).is_some_and(|descriptor| {
-                    descriptor.contract == contract && descriptor.machine == machine
-                })
-            })
-        }
-        CallableInvocationTarget::Opaque => false,
-    };
-    if !selected {
-        return Err("callable input substitution has no actual code selection for this body");
-    }
-    program.validate_actuals(caller, machine, invocation)?;
-    let mut values = resolve_callable_value(program, query)?;
-    let inputs = std::mem::take(&mut values.inputs);
-    for input in inputs {
-        if input.machine != machine {
-            return Err("callable input substitution retained another body's formal");
-        }
-        let actual = program.input_actual(&input, caller, invocation)?;
-        values.join(match actual {
-            CallableActualValue::Value(query) => resolve_callable_value(program, query)?,
-            CallableActualValue::Ceiling(contract) => CallableValuePossibilities::ceiling(contract),
-        });
-    }
-    Ok(values)
-}
-
 #[cfg(test)]
 mod tests;

@@ -357,7 +357,7 @@ pub(crate) struct Replay<'a> {
     pub(crate) types: &'a [StructuralTypeDeclaration],
     pub(crate) type_index: descriptor_lifetimes::locations::StructuralTypeIndex<'a>,
     pub(crate) slot_kind: DescriptorSlotKind,
-    pub(crate) machines: &'a [DescriptorMachine],
+    pub(crate) machines: crate::module_analyses::DescriptorRowView<'a>,
     pub(crate) summaries: BTreeMap<MachineId, Option<Summary>>,
     pub(crate) snapshots: BTreeMap<MachineId, PreparedStateCache>,
     /// Completed summaries this module's other analyses may already hold.
@@ -439,20 +439,20 @@ impl Drop for DescriptorReadGuard<'_> {
 impl<'a> Replay<'a> {
     pub(crate) fn new(
         types: &'a [StructuralTypeDeclaration],
-        machines: &'a [DescriptorMachine],
+        machines: impl Into<crate::module_analyses::DescriptorRowView<'a>>,
     ) -> Self {
         Self::with_slot_kind(types, machines, DescriptorSlotKind::Views)
     }
     pub(crate) fn with_slot_kind(
         types: &'a [StructuralTypeDeclaration],
-        machines: &'a [DescriptorMachine],
+        machines: impl Into<crate::module_analyses::DescriptorRowView<'a>>,
         slot_kind: DescriptorSlotKind,
     ) -> Self {
         Self {
             types,
             type_index: descriptor_lifetimes::locations::StructuralTypeIndex::new(types),
             slot_kind,
-            machines,
+            machines: machines.into(),
             summaries: BTreeMap::new(),
             snapshots: BTreeMap::new(),
             shared: None,
@@ -812,12 +812,7 @@ impl<'a> Replay<'a> {
     }
 
     pub(crate) fn machine(&self, identity: MachineId) -> Option<&'a DescriptorMachine> {
-        let mut rows = self
-            .machines
-            .iter()
-            .filter(|machine| machine.id == identity);
-        let row = rows.next()?;
-        rows.next().is_none().then_some(row)
+        self.machines.unique(identity)
     }
     pub(crate) fn parameter(
         &self,
