@@ -161,7 +161,9 @@ fn separate_bits_of_one_runtime_word_can_enable_different_branches() {
 
 #[test]
 fn separate_loads_of_a_supplied_shared_word_can_observe_different_values() {
-    let source = supplied("a < 5 && b > 8", "0")
-        .replace("await_change(@left, external)", "await_change(external, external)");
+    let source = supplied("a < 5 && b > 8", "0").replace(
+        "await_change(@left, external)",
+        "await_change(external, external)",
+    );
     super::requires_an_external_enabler(&source, "await_change");
 }

@@ -457,7 +457,8 @@ pub(crate) mod errors {
     use terminal_work::WorkMeterError;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TerminalInterpretError {        UnsuppliedErasedEntryInputs {
+    pub enum TerminalInterpretError {
+        UnsuppliedErasedEntryInputs {
             machine: MachineId,
             reason: &'static str,
         },
@@ -701,7 +702,8 @@ pub(crate) mod errors {
     pub use psi_provider_selections::ProviderInstallationError;
 
     #[derive(Debug)]
-    pub enum TerminalArtifactInterpretError {        Synchronization(psi_provider_selections::PrivateWaitFailure),
+    pub enum TerminalArtifactInterpretError {
+        Synchronization(psi_provider_selections::PrivateWaitFailure),
         ArtifactDecode(terminal_codec::CanonicalTerminalArtifactError),
         SemanticDecode(terminal_codec::CodecError),
         Execution(TerminalInterpretError),
@@ -1592,8 +1594,13 @@ pub(crate) mod values {
                             Ok::<_, TerminalInterpretError>(())
                         };
                         let mut add_fields = |fields: &[StructuralFieldDeclaration]| {
-                            for field in fields.iter().rev().filter(|field| !field.relevance.is_erased()) {
-                                if let StructuralFieldType::Structural(identity) = field.field_type {
+                            for field in fields
+                                .iter()
+                                .rev()
+                                .filter(|field| !field.relevance.is_erased())
+                            {
+                                if let StructuralFieldType::Structural(identity) = field.field_type
+                                {
                                     child(identity)?;
                                 } else if !Self::is_plain_leaf(&field.field_type) {
                                     return Err(malformed());
@@ -2082,7 +2089,8 @@ pub(crate) mod values {
                 Arc::get_mut(&mut program)
                     .unwrap()
                     .fixture_module_mut()
-                    .types.structural_types = declarations;
+                    .types
+                    .structural_types = declarations;
                 let mut execution =
                     crate::engine::execution::TerminalExecution::start_with_program(
                         program,

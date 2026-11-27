@@ -292,9 +292,9 @@ pub(crate) mod instance {
         use build_model::accounting::EvaluationInvocationAccount;
         use std::collections::BTreeMap;
 
-        use semantic_vocabulary::{BoundaryMachineId, OperationId};
         use psi_provider_selections::AdmittedComponentProvider;
         use psi_scalar_applications::AdmittedScalarApplications;
+        use semantic_vocabulary::{BoundaryMachineId, OperationId};
         use terminal_work::ExecutionMeter;
 
         use super::{ComponentOwnedReturn, TerminalImportBinding, TerminalInstance};
@@ -1569,7 +1569,8 @@ pub(crate) mod instance {
             &mut self,
             effect: &TerminalEffect,
         ) -> Result<crate::TerminalAbandonedEffect, TerminalEffectRejection> {
-            self.adapter_for(effect)?.request_effect_cancellation(effect)
+            self.adapter_for(effect)?
+                .request_effect_cancellation(effect)
         }
 
         fn settle_abandoned_effect(
@@ -2166,13 +2167,16 @@ pub(crate) mod program {
                 {
                     return Err(TerminalInterpretError::TargetLayoutSelectionIdentityMismatch);
                 }
-            } else if let Some(application) = self.catalogs.layouts.target_layout_applications.first() {
+            } else if let Some(application) =
+                self.catalogs.layouts.target_layout_applications.first()
+            {
                 return Err(TerminalInterpretError::TargetLayoutSelectionMissing(
                     application.id,
                 ));
             } else if self
                 .catalogs
-                .access.access_lifecycle_plans
+                .access
+                .access_lifecycle_plans
                 .iter()
                 .any(|plan| plan.target.is_some())
             {
@@ -2238,11 +2242,10 @@ pub(crate) mod program {
         pub(crate) fn access_lifecycle_plans(
             &self,
         ) -> &[terminal_psi::TerminalAccessLifecyclePlan] {
-            self.target_layouts
-                .as_ref()
-                .map_or(self.catalogs.access.access_lifecycle_plans.as_slice(), |layouts| {
-                    layouts.resolved_lifecycles()
-                })
+            self.target_layouts.as_ref().map_or(
+                self.catalogs.access.access_lifecycle_plans.as_slice(),
+                |layouts| layouts.resolved_lifecycles(),
+            )
         }
 
         pub(crate) fn structural_declaration(
@@ -2260,7 +2263,8 @@ pub(crate) mod program {
 
         pub(crate) fn has_provider(&self, boundary: &BoundaryMachineId) -> bool {
             self.catalogs
-                .interfaces.provider_candidates
+                .interfaces
+                .provider_candidates
                 .binary_search_by_key(boundary, |candidate| candidate.boundary)
                 .is_ok()
         }
@@ -2505,8 +2509,9 @@ pub(crate) mod program {
 
         /// Whether this program runs without producer trust.
         pub fn is_contained(&self) -> bool {
-            self.closed_module()
-                .is_ok_and(terminal_codec::ClosedTerminalModule::admitted_for_contained_interpretation)
+            self.closed_module().is_ok_and(
+                terminal_codec::ClosedTerminalModule::admitted_for_contained_interpretation,
+            )
         }
 
         /// [`Self::admit`] for a program that outlives the borrowed witness.
@@ -2718,8 +2723,7 @@ pub(crate) mod program {
                     "external completion requires separate domain admission",
                 ));
             }
-            if installation.supplies.contains_key(&boundary)
-            {
+            if installation.supplies.contains_key(&boundary) {
                 return Err(rejected(
                     "external supply duplicates or competes with a selected supply",
                 ));
@@ -2916,16 +2920,19 @@ pub(crate) mod program {
             crate::engine::execution::TerminalExecution<'artifact>,
             TerminalArtifactInterpretError,
         > {
-            let (execution, _) = self.prepare_execution(TerminalInstantiation {
-                float_evaluation: Default::default(),
-                scalar_arguments,
-                structural_inputs,
-                installation,
-                account: None,
-                entry_results: None,
-                scalar_application: None,
-                scalar_admission: None,
-            }, None)?;
+            let (execution, _) = self.prepare_execution(
+                TerminalInstantiation {
+                    float_evaluation: Default::default(),
+                    scalar_arguments,
+                    structural_inputs,
+                    installation,
+                    account: None,
+                    entry_results: None,
+                    scalar_application: None,
+                    scalar_admission: None,
+                },
+                None,
+            )?;
             if let Some(failure) = self
                 .invocation_progress_failure(
                     &execution,
@@ -3007,7 +3014,8 @@ pub(crate) mod program {
                 && !self
                     .program
                     .catalogs
-                    .scalars.scalar_applications
+                    .scalars
+                    .scalar_applications
                     .conditions
                     .is_empty()
             {
@@ -3511,7 +3519,8 @@ pub(crate) mod program {
             };
             let row = artifact
                 .semantic_module()
-                .access.access_view_inputs
+                .access
+                .access_view_inputs
                 .iter()
                 .find(|row| row.machine == entry)
                 .expect("actual direct placed row")

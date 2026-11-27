@@ -67,21 +67,24 @@ impl AdmittedProviderSelections {
         }
         let module = artifact.module();
         module
-            .scalars.folded_constants
+            .scalars
+            .folded_constants
             .validate(module)
             .map_err(str::to_owned)?;
         if module.scalars.folded_constants.target.as_deref() != Some(target) {
             return Err("folded constant closure belongs to another target".into());
         }
         let expected: Vec<_> = module
-            .scalars.folded_constants
+            .scalars
+            .folded_constants
             .dependencies
             .iter()
             .filter(|dependency| dependency.target == target)
             .cloned()
             .collect();
         module
-            .scalars.folded_constants
+            .scalars
+            .folded_constants
             .validate_plan_inputs(target, plan_preimages)
             .map_err(str::to_owned)?;
         let mut historical = Vec::new();
@@ -90,7 +93,8 @@ impl AdmittedProviderSelections {
                 continue;
             };
             let candidate = module
-                .interfaces.provider_candidates
+                .interfaces
+                .provider_candidates
                 .iter()
                 .find(|candidate| {
                     candidate.boundary == association.boundary
@@ -102,9 +106,7 @@ impl AdmittedProviderSelections {
             if self.providers.contains_key(&candidate.boundary)
                 && !self.contains_candidate(candidate)
             {
-                return Err(
-                    "runtime provider substitutes the folded constant realization".into(),
-                );
+                return Err("runtime provider substitutes the folded constant realization".into());
             }
             historical.push(ProviderInstallationSelection {
                 boundary: candidate.boundary,
@@ -147,8 +149,7 @@ impl AdmittedProviderSelections {
                     && installed.provider_declaration == candidate.provider_declaration
                     && installed.declaration_application == candidate.declaration_application
                     && installed.receiving_application == candidate.receiving_application
-                    && installed.receiving_region_arguments
-                        == candidate.receiving_region_arguments
+                    && installed.receiving_region_arguments == candidate.receiving_region_arguments
             })
     }
 
@@ -199,11 +200,7 @@ pub fn admit_provider_execution_installation(
     code: terminal_codec::TerminalExecutionView<'_>,
     selections: &[ProviderInstallationSelection],
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
-    admit_provider_selections(
-        code.module(),
-        code.custody_identity(),
-        selections,
-    )
+    admit_provider_selections(code.module(), code.custody_identity(), selections)
 }
 
 pub fn admit_provider_installation(
@@ -239,10 +236,8 @@ fn admit_provider_selections(
 ) -> Result<AdmittedProviderSelections, ProviderInstallationError> {
     let mut installed = BTreeMap::new();
     if !selections.is_empty() {
-        let mut candidates_by_boundary = BTreeMap::<
-            BoundaryMachineId,
-            Vec<&terminal_psi::ProviderCandidateConformance>,
-        >::new();
+        let mut candidates_by_boundary =
+            BTreeMap::<BoundaryMachineId, Vec<&terminal_psi::ProviderCandidateConformance>>::new();
         for candidate in &module.interfaces.provider_candidates {
             candidates_by_boundary
                 .entry(candidate.boundary)
@@ -250,7 +245,8 @@ fn admit_provider_selections(
                 .push(candidate);
         }
         let callable_boundaries: BTreeSet<BoundaryMachineId> = module
-            .interfaces.boundary_machines
+            .interfaces
+            .boundary_machines
             .iter()
             .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
             .map(|boundary| boundary.id)
@@ -289,9 +285,11 @@ fn admit_provider_selections(
                 });
             };
             terminal_semantics::provider_candidates::conservation::verify(module, candidate)
-                .map_err(|reason| ProviderInstallationError::SemanticDecode(
-                    terminal_codec::CodecError::MalformedStructuralFoundation(reason),
-                ))?;
+                .map_err(|reason| {
+                    ProviderInstallationError::SemanticDecode(
+                        terminal_codec::CodecError::MalformedStructuralFoundation(reason),
+                    )
+                })?;
             installed.insert(
                 selection.boundary,
                 AdmittedProviderSelection {

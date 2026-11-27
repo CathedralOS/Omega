@@ -166,11 +166,21 @@ pub fn admit_component_provider<'receiver>(
         provider_boundary: selected.boundary,
         candidate: selected.candidate,
         selection,
-        progress: if let Some(wait) =
-            component_spin_wait(receiver.module(), receiving, provider.module(), selected.candidate)
-        {
+        progress: if let Some(wait) = component_spin_wait(
+            receiver.module(),
+            receiving,
+            provider.module(),
+            selected.candidate,
+        ) {
             ImportProgress::Waiting(wait)
-        } else if private_wait_failure(provider.module(), selected.candidate, ProgressScope::Executable, |_| None).is_some() {
+        } else if private_wait_failure(
+            provider.module(),
+            selected.candidate,
+            ProgressScope::Executable,
+            |_| None,
+        )
+        .is_some()
+        {
             ImportProgress::Unresolved
         } else {
             ImportProgress::Closed

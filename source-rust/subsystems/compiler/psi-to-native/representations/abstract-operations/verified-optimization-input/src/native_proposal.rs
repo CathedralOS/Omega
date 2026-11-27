@@ -527,7 +527,8 @@ mod proposal {
                 continue;
             };
             if let build_providers::plans::ProviderBinding::CheckedAdapter {
-                machine_identity, ..
+                machine_identity,
+                ..
             } = &row.binding
             {
                 let machine = selected

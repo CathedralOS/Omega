@@ -70,10 +70,10 @@ the other two as a `ConflictingUse`.
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{MachineId, ObligationId};
 use terminal_check_tables::RootPurpose;
-use terminal_semantics::synchronization::ProgressScope;
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::program::{Branch, Elaboration, SourceOrigin};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
+use terminal_semantics::synchronization::ProgressScope;
 
 use crate::{Discharge, ImpossibleArm, describe, refusal};
 
@@ -1103,18 +1103,18 @@ fn check_affine(
     let mut unsupported = Unsupported::default();
     let reference_ends =
         terminal_semantics::reference_ends::candidates_in(analyses).map_err(|error| {
-        fall_back_or_defect(
-            Roster::of(elaboration).locate(refusal(
-                RefusalReason::Unsupported,
-                error.machine,
-                error
-                    .operation
-                    .map(Construct::Operation)
-                    .unwrap_or(Construct::Machine),
-                &error.detail,
-            )),
-        )
-    })?;
+            fall_back_or_defect(
+                Roster::of(elaboration).locate(refusal(
+                    RefusalReason::Unsupported,
+                    error.machine,
+                    error
+                        .operation
+                        .map(Construct::Operation)
+                        .unwrap_or(Construct::Machine),
+                    &error.detail,
+                )),
+            )
+        })?;
     // Plans are computed on the workers, then read in machine order: the
     // first deciding refusal and the noted machines are those one pass meets.
     let plans = plan_affine_machines(analyses, &reference_ends);
@@ -1609,7 +1609,9 @@ fn conclude(
                 );
                 return fall_back_or_defect(Roster::of(&elaboration).locate(violation));
             }
-            ProgressFailure::Unproved | ProgressFailure::UnprovedExternal | ProgressFailure::UnprovedImport => {
+            ProgressFailure::Unproved
+            | ProgressFailure::UnprovedExternal
+            | ProgressFailure::UnprovedImport => {
                 let sources =
                     terminal_check_tables::row(&elaboration.sources, machine, machine, at)?;
                 unproved.push(UnprovedObligation {

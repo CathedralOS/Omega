@@ -568,18 +568,29 @@ machine dispatch(signal: @|signals|::Signal) reaches |signals|::Wait invokes |si
                 let failure =
                     failure.expect("an unprojected or unvisited input obligation stays open");
                 assert_eq!(failure.cause, ProgressFailure::UnprovedImport);
-                if !use_descriptor { assert_eq!(failure.machine, entry); }
+                if !use_descriptor {
+                    assert_eq!(failure.machine, entry);
+                }
             } else if provider.ends_with("::ObservedWait") && requires.is_empty() {
                 let failure =
                     failure.expect("the installed provider may never see an enabled value");
                 assert_eq!(failure.cause, ProgressFailure::Unproved);
-                if !use_descriptor { assert_eq!(failure.machine, entry); }
-                let call = root.machine(failure.machine).unwrap().operations()
-                    .find(|op| op.id == failure.operation).unwrap();
+                if !use_descriptor {
+                    assert_eq!(failure.machine, entry);
+                }
+                let call = root
+                    .machine(failure.machine)
+                    .unwrap()
+                    .operations()
+                    .find(|op| op.id == failure.operation)
+                    .unwrap();
                 if use_descriptor {
                     assert!(call.kind.callable_invocation().is_some(), "{call:?}");
                 } else {
-                    assert_eq!(call.declared_invocation().unwrap().callee, terminal_psi::TargetMachineCallable::Boundary(slot.id));
+                    assert_eq!(
+                        call.declared_invocation().unwrap().callee,
+                        terminal_psi::TargetMachineCallable::Boundary(slot.id)
+                    );
                 }
             } else {
                 assert_eq!(failure, None, "{provider} with {requires}");
