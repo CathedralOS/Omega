@@ -35,9 +35,9 @@ pub(super) fn apply(
         WaitRule::Observations(predicate) => {
             let retry = predicate.evaluate(|subject, test| {
                 let Some(location) = locate(subject.parameter, &subject.path) else {
-                    return Observation::Untracked;
+                    return (Observation::Untracked, None);
                 };
-                match failure(
+                let observation = match failure(
                     &memory.get(&location),
                     test,
                     CellUpdate::Observe,
@@ -46,7 +46,8 @@ pub(super) fn apply(
                     None => Observation::Known(false),
                     Some(ProgressFailure::Deadlock) => Observation::Known(true),
                     Some(ProgressFailure::Unproved) => Observation::Unproved,
-                }
+                };
+                (observation, Some(location))
             });
             match retry {
                 Observation::Known(false) => Some(Ok(())),
