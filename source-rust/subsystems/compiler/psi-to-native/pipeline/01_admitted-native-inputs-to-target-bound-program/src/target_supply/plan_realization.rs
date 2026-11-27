@@ -552,6 +552,15 @@ pub fn realize_target_supply(
     }
     let logical = request.logical.providers();
     let mut plans = Vec::with_capacity(logical.len());
+    // Each provider names the reached boundaries it covers. Look them up by
+    // sorted boundary instead of rescanning every covered list per boundary.
+    let mut reached_order = request
+        .reached
+        .iter()
+        .enumerate()
+        .map(|(ordinal, boundary)| (*boundary, ordinal))
+        .collect::<Vec<_>>();
+    reached_order.sort_unstable();
     let mut covered = vec![false; request.reached.len()];
     for selected in logical {
         let mut plan = checked_plan(module, selected, &request.calling_applications)?;
@@ -574,8 +583,14 @@ pub fn realize_target_supply(
             )?);
         }
         plans.push(plan);
-        for (ordinal, boundary) in request.reached.iter().enumerate() {
-            covered[ordinal] |= selected.covered.contains(boundary);
+        for boundary in &selected.covered {
+            let first = reached_order.partition_point(|(reached, _)| reached < boundary);
+            for (_, ordinal) in reached_order[first..]
+                .iter()
+                .take_while(|(reached, _)| reached == boundary)
+            {
+                covered[*ordinal] = true;
+            }
         }
     }
     let mut direct_boundary_leaves = direct_leaves(
@@ -588,7 +603,7 @@ pub fn realize_target_supply(
         request.reached,
     )?;
     let primitive_schemas = crate::compiler_primitive_schemas(module)?;
-    for leaf in crate::direct_compiler_primitive_leaves(
+    let primitive_leaves = crate::direct_compiler_primitive_leaves(
         module,
         &primitive_schemas,
         request.target,
@@ -600,14 +615,28 @@ pub fn realize_target_supply(
             .map(|diagnostic| diagnostic.message)
             .collect::<Vec<_>>()
             .join("; ")
-    })? {
-        if !direct_boundary_leaves.iter().any(|known| {
-            known.declaration_identity == leaf.declaration_identity
-                && known.callable_identity == leaf.callable_identity
-        }) {
-            direct_boundary_leaves.push(leaf);
+    })?;
+    // A primitive leaf joins only when no earlier leaf has its key.
+    let mut known = direct_boundary_leaves
+        .iter()
+        .map(super::direct_leaf_key)
+        .collect::<Vec<_>>();
+    known.sort_unstable();
+    let mut joins = vec![false; primitive_leaves.len()];
+    for (joined, leaf) in joins.iter_mut().zip(&primitive_leaves) {
+        let key = super::direct_leaf_key(leaf);
+        if let Err(position) = known.binary_search(&key) {
+            known.insert(position, key);
+            *joined = true;
         }
     }
+    direct_boundary_leaves.extend(
+        primitive_leaves
+            .into_iter()
+            .zip(joins)
+            .filter_map(|(leaf, joined)| joined.then_some(leaf)),
+    );
+    let leaf_keys = super::sorted_leaf_keys(&direct_boundary_leaves);
     let mut missing = Vec::new();
     for (ordinal, boundary) in request.reached.iter().enumerate() {
         if covered[ordinal] {
@@ -620,9 +649,9 @@ pub fn realize_target_supply(
             .declaration
             .as_ref()
             .ok_or("reached boundary has no genuine checked declaration")?;
-        if !direct_boundary_leaves.iter().any(|leaf| {
-            super::matches_direct_leaf(&module.identities, row.kind, declaration, leaf)
-        }) {
+        if !super::boundary_leaf_key(&module.identities, row.kind, declaration)
+            .is_some_and(|key| !super::entries_with_key(&leaf_keys, key).is_empty())
+        {
             missing.push(*boundary);
         }
     }
