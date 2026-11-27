@@ -292,7 +292,7 @@ public machine encode_two(source: @[u16; 2], output: @mutable [u8; 8]) -> i32 {
         );
     }
 
-    fs::write(&main, original).unwrap();
+    fs::write(&main, &original).unwrap();
     let update = Command::new(env!("CARGO_BIN_EXE_omega"))
         .current_dir(&consumer)
         .env("OMEGA_LIBRARY_ROOT", &library_root)
@@ -321,5 +321,51 @@ public machine encode_two(source: @[u16; 2], output: @mutable [u8; 8]) -> i32 {
     assert!(
         accepted.contains("accepted-policy equal-to-fresh"),
         "{accepted}"
+    );
+
+    // The accepted source graph above pins the original package contents.
+    fs::remove_file(consumer.join("omega.lock")).unwrap();
+    fs::copy(
+        library_root.join("system/calling.omg"),
+        library.join("calling.omg"),
+    )
+    .unwrap();
+    let custom = original.replace(
+        "boundary trait WindowsFilesystemUtf8Io {",
+        "boundary trait WindowsFilesystemUtf8Io: |abi|::Calling<CheckedPolicy> {",
+    );
+    let custom = format!(
+        r#"use calling.omg as abi;
+public CheckedPolicy satisfies |abi|::CallingPolicy {{
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {{
+        let mutable empty: |abi|::BoundaryEntryPlan;
+        transition {{ _ -> |abi|::BoundaryPlanResult::Accepted {{ plan: empty }} }}
+    }}
+}}
+{custom}"#
+    );
+    fs::write(&main, &custom).unwrap();
+    let unused = audit(3);
+    assert!(
+        unused.split("tag unused_generic").skip(1).any(|binding| {
+            binding
+                .split_once("field custom_calling_policy")
+                .and_then(|(_, fields)| fields.split_once("field source_occurrence"))
+                .is_some_and(|(policy, _)| policy.contains("CheckedPolicy"))
+        }),
+        "{unused}"
+    );
+    let predicate_binders = custom
+        .replace("[u16; Units]", "[u16; 1]")
+        .replace("[u8; Bytes]", "[u8; 4]");
+    fs::write(&main, predicate_binders).unwrap();
+    assert!(audit(3).contains("<Units, Bytes>"));
+
+    fs::write(main, format!("{custom}{client}")).unwrap();
+    let rejected = audit(1);
+    assert!(
+        rejected
+            .contains("plan places 0 parameters for a boundary signature with 8 native parameters"),
+        "{rejected}"
     );
 }

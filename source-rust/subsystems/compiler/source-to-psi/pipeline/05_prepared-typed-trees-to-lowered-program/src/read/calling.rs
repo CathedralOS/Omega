@@ -128,9 +128,14 @@ impl Program<'_> {
                     "Calling requirement lost its prepared source contract application",
                 )
             })?;
-        let (signature, _) = self
-            .boundary_signature(context, source)
-            .map_err(|refusal| self.read_failure_at(refusal, requirement, "the Calling header"))?;
+        let signature = if source.type_parameters.is_empty() {
+            self.boundary_signature(context, source)
+                .map(|(signature, _)| signature)
+        } else {
+            let scope = self.applied_scope(context, scope)?;
+            self.static_requirement_signature(context, source, scope, true, true)
+        }
+        .map_err(|refusal| self.read_failure_at(refusal, requirement, "the Calling header"))?;
         self.admitted_declarations.include(owner.symbol);
         Ok(signature)
     }
@@ -190,6 +195,14 @@ impl Program<'_> {
             })?;
         self.prepare_calling_header_dependencies(context, applied)
             .map_err(|refusal| self.read_failure_at(refusal, requirement, "the Calling header"))?;
+        // A template whose local operands determine its storage has its own
+        // check form. Concrete calls supply the ABI storage descriptions.
+        if !applied.type_parameters.is_empty() && self.checked_as_template(applied) {
+            if !self.generic_templates.contains(&declared.symbol) {
+                self.generic_templates.push(declared.symbol);
+            }
+            return Ok(());
+        }
         let header = SourceCallingHeader {
             requirement,
             declaring: declaring.environment(),
@@ -491,6 +504,8 @@ impl Program<'_> {
                     source.symbol,
                     prepared,
                 )?;
+                // The census returns an empty roster for an unused generic
+                // requirement. Its checked policy still belongs to the schema.
                 for &id in &signature.abi_signatures {
                     let mut rows = catalog
                         .abi_signatures()
@@ -523,12 +538,6 @@ impl Program<'_> {
                             .signatures
                             .push(SourceCallingSignature { id, row: row_index });
                     }
-                }
-                if signature.abi_signatures.is_empty() {
-                    return Err(crate::read::unavailable(
-                        context,
-                        "Calling requirement has no prepared ABI application",
-                    ));
                 }
             }
             let new_instance = SourceCallingInstance {

@@ -92,15 +92,13 @@ fn selected_calling_policy(
         for instance in request
             .instances
             .as_ref()
-            .map_err(|reasons| unavailable(&reasons.join(", ")))?
+            .map_err(|reasons| unavailable(reasons.join(", ")))?
         {
             if module.identities.text(instance.declaring_application) != Some(application) {
                 continue;
             }
-            let terminal_psi::TargetMachineCallable::Machine(id) = *instance
-                .policy
-                .as_ref()
-                .map_err(|reason| unavailable(reason))?
+            let terminal_psi::TargetMachineCallable::Machine(id) =
+                *instance.policy.as_ref().map_err(unavailable)?
             else {
                 return Err(unavailable(
                     "the generic import's selected calling policy machine",
