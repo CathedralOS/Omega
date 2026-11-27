@@ -22,6 +22,12 @@ use super::{
 };
 use crate::Unserved;
 
+/// The place the outermost binder of a for-every definition is named by in
+/// a clause, each nested binder the place below it
+/// (`semantic_vocabulary::Proposition::Universal`). Formals and results take
+/// places from 1 up, so no formal reaches these.
+pub(crate) const UNIVERSAL_BINDER_PLACE: u64 = u64::MAX >> 1;
+
 pub(super) enum DefinitionBinder {
     Level(SymbolHandle),
     Value(SymbolHandle, semantic_vocabulary::ScalarType),
@@ -176,6 +182,9 @@ impl<'t> Program<'t> {
             .ok_or_else(|| {
                 unserved("call in a premise without a transparent mathematical declaration")
             })?;
+        if let Some((binders, body)) = self.universal_definition(definition) {
+            return self.universal_application(id, scope, call, definition, &binders, body);
+        }
         // A definition typing could not finish holds a deferred request
         // (`crate::source_state::deferred_refusals`); its body is never read through.
         self.served(id, definition.symbol)?;
@@ -532,6 +541,11 @@ impl<'t> Program<'t> {
         {
             return Err(unserved("mathematical predicate has no exact declaration"));
         }
+        // A for-every definition is read where it is applied, with the
+        // written arguments for its formals (`universal_application`).
+        if self.universal_definition(definition).is_some() {
+            return Ok(definition.body.clone());
+        }
         let binders = self.definition_binders(id, definition)?;
         let parameters = self.typed.mathematical_parameters(definition.parameters);
         if parameters.len() != definition.parameters.len() {
@@ -593,6 +607,146 @@ impl<'t> Program<'t> {
             });
         }
         Ok(body)
+    }
+
+    /// The binders and the body of a for-every definition: a definition with
+    /// no static binders whose body is a dependent arrow over values of
+    /// named data, `let agree(x: D, y: D): |proof|::Type<0> = (n: E) -> P`.
+    /// The dependent arrow of `IsMere` ranges over a type parameter instead.
+    pub(super) fn universal_definition(
+        &self,
+        definition: &MathematicalDefinition,
+    ) -> Option<(
+        Vec<crate::source_state::mathematical::MathematicalParameter>,
+        ExpressionHandle,
+    )> {
+        let typed = self.typed;
+        if !typed
+            .data_type_parameters
+            .span_or_empty(definition.binders)
+            .is_empty()
+            || self.predicate_result(definition) != Some(FixedCoreDeclaration::Type)
+        {
+            return None;
+        }
+        let MathematicalBody::DependentArrow { binders, body } = &definition.body else {
+            return None;
+        };
+        let arrow_binders: Vec<_> = typed
+            .mathematical_parameters(*binders)
+            .iter()
+            .cloned()
+            .collect();
+        let over_data = |binder: &crate::source_state::mathematical::MathematicalParameter| {
+            let MathematicalType::Ordinary(reference) = typed.mathematical_type(binder.ty) else {
+                return false;
+            };
+            let TypeReferenceNode::Named { symbol, .. } =
+                typed.type_reference_table.type_reference(*reference)
+            else {
+                return false;
+            };
+            typed.symbols.symbols().nodes().is_valid(*symbol)
+                && typed.symbols.get(*symbol).kind != symbols::SymbolKind::TypeParameter
+        };
+        (!arrow_binders.is_empty() && arrow_binders.iter().all(over_data))
+            .then_some((arrow_binders, *body))
+    }
+
+    /// A for-every definition applied in a clause: its body read with the
+    /// written arguments for its formals, as a named proposition's formula
+    /// is, and its binder named by a place no formal occupies.
+    fn universal_application(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &TableCallExpression,
+        definition: &MathematicalDefinition,
+        binders: &[crate::source_state::mathematical::MathematicalParameter],
+        body: ExpressionHandle,
+    ) -> Checked<MathematicalPredicateBody> {
+        let unserved = |what| refuse_at(id, Unserved::Contract(what));
+        let typed = self.typed;
+        if call.receiver.is_valid()
+            || !call.evidence_arguments.is_empty()
+            || !call.machine_arguments.is_empty()
+        {
+            return Err(unserved(
+                "for-every definition applied with a static argument",
+            ));
+        }
+        let parameters = typed.mathematical_parameters(definition.parameters);
+        let arguments = typed.expression_table.expression_handles(call.arguments);
+        if parameters.len() != definition.parameters.len() || parameters.len() != arguments.len() {
+            return Err(unserved(
+                "for-every definition applied to the wrong number of arguments",
+            ));
+        }
+        if self
+            .applied_propositions
+            .iter()
+            .any(|applied| applied.declaration == Some(definition.symbol))
+        {
+            return Err(unserved("recursive for-every definition"));
+        }
+        let mut bound = Vec::with_capacity(binders.len());
+        for (position, binder) in binders.iter().enumerate() {
+            let MathematicalType::Ordinary(reference) = typed.mathematical_type(binder.ty) else {
+                return Err(unserved("for-every definition over a higher-order value"));
+            };
+            let value_type = self.value_type(id, *reference)?;
+            let crate::body::ValueType::Record(carrier, _, _) = value_type else {
+                return Err(unserved(
+                    "for-every definition over a value other than data",
+                ));
+            };
+            let depth = u64::try_from(self.universal_binders.len() + position)
+                .map_err(|_| unserved("for-every binder depth"))?;
+            let place = semantic_vocabulary::PlaceId::new(UNIVERSAL_BINDER_PLACE - depth)
+                .ok_or_else(|| unserved("for-every binder place"))?;
+            bound.push((binder.symbol, place, value_type, carrier));
+        }
+        self.applied_propositions
+            .push(super::contracts::AppliedProposition {
+                declaration: Some(definition.symbol),
+                arguments: parameters
+                    .iter()
+                    .zip(arguments)
+                    .map(|(parameter, &argument)| (parameter.symbol, argument))
+                    .collect(),
+            });
+        let depth = self.universal_binders.len();
+        self.universal_binders.extend(
+            bound
+                .iter()
+                .map(|&(symbol, place, value_type, _)| (symbol, place, value_type)),
+        );
+        let read = self.clause(id, scope, body);
+        self.universal_binders.truncate(depth);
+        self.applied_propositions.pop();
+        let body = bound
+            .iter()
+            .rev()
+            .fold(read?, |body, &(_, place, _, carrier)| {
+                Proposition::Universal {
+                    carrier,
+                    binder: place,
+                    body: Box::new(body),
+                }
+            });
+        Ok(MathematicalPredicateBody::Proposition(body))
+    }
+
+    /// The place a clause names a binder of a for-every definition by.
+    pub(super) fn universal_binder(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<(semantic_vocabulary::PlaceId, crate::body::ValueType)> {
+        self.universal_binders
+            .iter()
+            .rev()
+            .find(|(bound, _, _)| *bound == symbol)
+            .map(|&(_, place, value_type)| (place, value_type))
     }
 
     /// The level, value, and type binders of a definition, in declared order.

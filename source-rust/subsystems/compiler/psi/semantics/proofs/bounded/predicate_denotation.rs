@@ -127,7 +127,7 @@ mod value_equalities {
                         }
                     }
                 }
-                Proposition::IsMere(inner) => {
+                Proposition::IsMere(inner) | Proposition::Universal { body: inner, .. } => {
                     **inner = self.proposition(inner, budget, depth + 1)?;
                 }
                 Proposition::IeeeFloatComparison { .. }

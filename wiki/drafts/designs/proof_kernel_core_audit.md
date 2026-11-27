@@ -1743,6 +1743,23 @@ same_sign> as SameSign;` is read into the mathematical signature when
   the point search also searches what each point computes to. Tests:
   `an_operation_lifted_with_two_classes_computes_at_both`,
   `an_operation_lifted_with_two_classes_needs_a_congruence_for_each`.
+- **For every value (2026-11-27).** A `let` with no static binders whose
+  body is a dependent arrow over named data,
+  `let agree(x: D): |proof|::Type<0> = (n: E) -> P`, is a premise for every
+  value: `Proposition::Universal` (wire tag 25), read where it is applied
+  with the written arguments for its formals, as a named proposition's
+  formula is, and its binders named by places counted down from
+  `UNIVERSAL_BINDER_PLACE`, which no formal reaches. The signature states
+  it as a kernel `Pi` over the data. A law uses one by instantiation: the
+  search applies each citation whose type is a `Pi` at every closed value
+  of its domain the goal names, as written or computed, and the
+  applications that are `Pi`s again in turn (at most 64 applications), so
+  a cited law's premise at a computed index such as `S(m)` is met at that
+  index. Nothing proves a `Pi` conclusion yet: how source does it is
+  [an owner question](../../../OWNER_QUESTIONS.md#for-every-conclusion). The
+  `Real` quotient's relation needs this, and the boxed squash of
+  [its spelling question](../../../OWNER_QUESTIONS.md#boxed-squash-relation-spelling).
+  Tests: `tests::for_every`.
 - **Not done:**
   - A lifted operation is a definition only where the kernel's `lift`
     gives one (2026-11-27): one or two classes in, a class or plain data out (the
