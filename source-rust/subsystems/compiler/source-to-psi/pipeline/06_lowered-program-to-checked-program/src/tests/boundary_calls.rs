@@ -126,17 +126,41 @@ fn a_boundary_call_selects_its_structural_const_by_value() {
             Runtime::register::<u32, worker, Storage::Split>(second)
         }
     "#;
-    let prepared = crate::preparation::prepare_typed_trees(typed(source), &[], &[])
-        .unwrap()
-        .into_inner();
-    let verdict = judge(lower_boundary(
-        prepared,
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xbc; 32]).unwrap();
+    let trees = try_typed_in_package(source, Some(package)).unwrap();
+    let entry = entry(&trees);
+    let prepared = crate::preparation::prepare_typed_trees(trees, &[], &[]).unwrap();
+    let lowered = crate::lowering::prepare_compilation(
+        &prepared,
+        crate::lowering::Compilation {
+            entries: &[entry],
+            subjects: &[Some(package)],
+            purpose: source_provenance::DependencyScope::Product,
+            declaration_metadata: &[],
+            selected: &[],
+            calling: None,
+            providers: None,
+            bindings: &[],
+            supplies: &[],
+        },
         terminal_codec::TerminalPublication::Portable,
-    ))
+    )
     .unwrap();
-    let RouteVerdict::Accepted(accepted) = verdict else {
-        panic!("{verdict:?}")
+    let mut verdicts = crate::judge_compilation(lowered.program).into_iter();
+    let Ok(RouteVerdict::Accepted(accepted)) = verdicts.next().unwrap() else {
+        panic!("closed boundary calls must type-check");
     };
+    let checks = verdicts.collect::<Vec<_>>();
+    assert!(
+        !checks.is_empty(),
+        "the package must also check the generic declaration"
+    );
+    for verdict in checks {
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "{verdict:?}"
+        );
+    }
     let publication = accepted.publish().unwrap();
     let reopened =
         terminal_codec::CanonicalTerminalArtifact::from_bytes(&publication.artifact.to_bytes())
