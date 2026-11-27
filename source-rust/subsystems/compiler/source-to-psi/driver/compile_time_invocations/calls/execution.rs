@@ -233,7 +233,6 @@ impl PreparedBuildMachineEntry {
         terminal_interpreter::TerminalProgram::borrow(view)
             .map_err(|error| error.to_string())?
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
-                assembly_returns: None,
                 native_code_layouts: None,
                 x86_flags: None,
                 memory_ordering: None,

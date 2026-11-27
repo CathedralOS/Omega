@@ -2081,7 +2081,6 @@ fn check_aggregate_reference_formation(control: AggregateReferenceControl) {
     assert!(layouts.resolved_lifecycles().is_empty());
     let supplies = program
         .admit_runtime_supplies(crate::boundary::effects::TerminalRuntimeSupplyRequest {
-            assembly_returns: None,
             native_code_layouts: None,
             x86_flags: None,
             memory_ordering: None,

@@ -2380,7 +2380,6 @@ dependencies = [
 name = "psi-target-layouts"
 version = "0.1.0"
 dependencies = [
- "language-core",
  "layout-plans",
  "semantic-vocabulary",
  "terminal-codec",

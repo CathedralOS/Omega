@@ -118,7 +118,6 @@ pub struct NativeBindingRuntimeInputs<'a> {
 
 #[derive(Debug, Clone)]
 pub struct TerminalRuntimeHostProvisions<A> {
-    assembly_returns: Option<psi_target_layouts::AssemblyReturnPlans>,
     selection_identities: terminal_psi::TerminalIdentityTable,
     installation: Option<psi_provider_selections::AdmittedProviderSelections>,
     host: Vec<TerminalRuntimeHostProvision>,
@@ -299,7 +298,6 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
             });
         }
         Ok(Self {
-            assembly_returns: input.assembly_returns()?,
             selection_identities: selected.identities().clone(),
             installation: installation.cloned(),
             host,
@@ -310,10 +308,6 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
 }
 
 impl<A> TerminalRuntimeHostProvisions<A> {
-    pub fn assembly_returns(&self) -> Option<&psi_target_layouts::AssemblyReturnPlans> {
-        self.assembly_returns.as_ref()
-    }
-
     /// Transform only the owned auxiliary products. Stored refusals stay attached
     /// to their boundary: an unused unsupported adapter is not a root refusal.
     pub fn map_adapters<B>(
@@ -321,7 +315,6 @@ impl<A> TerminalRuntimeHostProvisions<A> {
         mut transform: impl FnMut(A) -> Result<B, String>,
     ) -> TerminalRuntimeHostProvisions<B> {
         TerminalRuntimeHostProvisions {
-            assembly_returns: self.assembly_returns,
             selection_identities: self.selection_identities,
             installation: self.installation,
             host: self.host,

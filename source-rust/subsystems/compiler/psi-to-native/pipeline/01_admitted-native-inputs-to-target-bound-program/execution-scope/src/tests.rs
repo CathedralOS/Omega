@@ -191,6 +191,8 @@ fn assembly_target_applies_to_a_body_emitted_for_a_dispatch_table() {
         "{reason}"
     );
 }
+
+#[test]
 fn assembly_return_must_initialize_the_selected_plans_exact_result_view() {
     fn returned(slot: usize) -> TerminalModule {
         let view = terminal_psi::AsmRegisterView::from_scratch_slot(slot).unwrap();

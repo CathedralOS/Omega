@@ -253,22 +253,6 @@ impl NativeExecutionScope {
             .map(|index| &self.assembly_returns[index])
     }
 
-    pub fn assembly_return_environment(
-        &self,
-        artifact: TerminalArtifactView<'_>,
-    ) -> Result<Option<psi_target_layouts::AssemblyReturnPlans>, &'static str> {
-        if self.assembly_returns.is_empty() {
-            return Ok(None);
-        }
-        let machines = self.assembly_returns.iter().map(|plan| plan.machine);
-        psi_target_layouts::AssemblyReturnPlans::admit(
-            artifact,
-            self.reach.target_context(),
-            machines,
-        )
-        .map(Some)
-    }
-
     pub fn artifact_identity(&self) -> TerminalArtifactIdentity {
         self.source.artifact
     }

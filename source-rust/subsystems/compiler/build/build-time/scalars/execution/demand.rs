@@ -64,7 +64,6 @@ pub(super) fn discover<'artifact>(
                     extend_unique(&mut demanded, conditions.applications()?);
                     let installation = program
                         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
-                            assembly_returns: None,
                             native_code_layouts: None,
                             entry: Some(*entry),
                             installation: Some(observations.providers()),

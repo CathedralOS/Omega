@@ -104,7 +104,7 @@ impl Program<'_> {
                     let predicate = self.clause(id, &scope, expression)?;
                     let mut initialized_operands = true;
                     let complete = predicate.visit_value_ids(|value| {
-                        initialized_operands &= values[..initialized.len()].contains(&value)
+                        initialized_operands &= values[..initialized.len()].contains(&Some(value))
                     });
                     if !complete || !initialized_operands {
                         return Err(reject(

@@ -8,7 +8,6 @@ version.workspace = true
 path = "admission.rs"
 
 [dependencies]
-language-core = { path = "../../../foundation/language-core" }
 layout-plans = { path = "../../layouts/geometry" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-codec = { path = "../../artifact/codec" }

@@ -54,7 +54,6 @@ pub(super) fn prepare<'host, 'artifact>(
     }
     let mut supplies = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
-            assembly_returns: runtime.host_provisions().assembly_returns(),
             native_code_layouts: None,
             x86_flags,
             memory_ordering,

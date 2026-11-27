@@ -2547,7 +2547,6 @@ pub(crate) mod program {
                 .installation
                 .map(TerminalRuntimeSupplies::from)
                 .unwrap_or_else(|| TerminalRuntimeSupplies {
-                    assembly_returns: None,
                     provider_selections: None,
                     x86_flags: None,
                     memory_ordering: None,
@@ -2598,13 +2597,6 @@ pub(crate) mod program {
             }
             installation.memory_ordering = request.memory_ordering;
             installation.x86_flags = request.x86_flags;
-            if request
-                .assembly_returns
-                .is_some_and(|plans| Some(plans.target()) != request.target_machines)
-            {
-                return Err(TerminalInterpretError::TargetContextIdentityMismatch);
-            }
-            installation.assembly_returns = request.assembly_returns.cloned();
             installation.target_machines = request.target_machines.cloned();
             installation.entry = request.entry;
             installation.target_layouts = request.target_layouts.cloned().map(std::sync::Arc::new);
@@ -3187,11 +3179,11 @@ pub(crate) mod program {
             TerminalMachineResult, Terminator, ValueDeclaration,
         };
 
-        #[test]
-        fn a_reached_register_return_requires_its_installed_result_placement() {
+        fn artifact(register: &str) -> terminal_codec::CanonicalTerminalArtifact {
             let mut module = (**empty_program().catalogs).clone();
             let body = &mut module.machines[0];
-            let returned = AsmRegisterView::from_scratch_slot(0).unwrap();
+            let (slot, _, _) = language_core::inline_assembly::scratch_register(register).unwrap();
+            let returned = AsmRegisterView::from_scratch_slot(slot).unwrap();
             let value = ValueDeclaration {
                 id: ValueId::new(1).unwrap(),
                 scalar_type: ScalarType::Integer(
@@ -3214,63 +3206,52 @@ pub(crate) mod program {
                 cleanup_actions: Vec::new(),
             };
             body.blocks[0].assembly_exit = Some(AssemblyExitConstraint::ScalarReturn(returned));
-            let machine = body.id;
             let record =
                 terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
-            let artifact =
-                terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
-                    .unwrap();
-            let program = TerminalProgram::borrow(artifact.view()).unwrap();
-            let target =
-                psi_target_layouts::terminal_target_context(artifact.view(), "linux_x86_64");
-            let request = TerminalRuntimeSupplyRequest {
-                entry: None,
-                installation: None,
-                host_imports: &[],
-                external_completions: &[],
-                target_machines: Some(&target),
-                target_layouts: None,
-                native_code_layouts: None,
-                memory_ordering: None,
-                x86_flags: None,
-                assembly_returns: None,
-            };
-            let supplies = program.admit_runtime_supplies(request).unwrap();
-            assert!(matches!(
-                program.execution_requirements(Some(&supplies)),
-                Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "assembly return register has no matching installed calling plan"
-                ))
-            ));
-            let plans =
-                psi_target_layouts::AssemblyReturnPlans::admit(artifact.view(), &target, [machine])
-                    .unwrap();
-            let supplies = program
-                .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
-                    assembly_returns: Some(&plans),
-                    ..request
-                })
-                .unwrap();
-            assert!(program.execution_requirements(Some(&supplies)).is_ok());
+            terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None).unwrap()
+        }
 
-            // An otherwise valid artifact can name a different working register. A custom
-            // embedder choosing the matching target still cannot install that as its ABI result.
-            let mut forged = artifact.semantic_module().clone();
-            forged.machines[0].blocks[0].assembly_exit =
-                Some(AssemblyExitConstraint::ScalarReturn(
-                    AsmRegisterView::from_scratch_slot(2).unwrap(),
-                ));
-            let record =
-                terminal_codec::build_identity_optimization_execution_record(&forged).unwrap();
-            let forged =
-                terminal_codec::CanonicalTerminalArtifact::from_parts(forged, record, None)
-                    .unwrap();
-            let target = psi_target_layouts::terminal_target_context(forged.view(), "linux_x86_64");
-            assert_eq!(
-                psi_target_layouts::AssemblyReturnPlans::admit(forged.view(), &target, [machine])
-                    .unwrap_err(),
-                "authored assembly register does not hold this calling convention's scalar result",
-            );
+        #[test]
+        fn a_reached_register_return_requires_its_installed_result_placement() {
+            for (name, correct, wrong) in
+                [("linux_x86_64", "eax", "ecx"), ("macos_arm64", "w0", "w1")]
+            {
+                for (register, compatible) in [(correct, true), (wrong, false)] {
+                    let artifact = artifact(register);
+                    let program = TerminalProgram::borrow(artifact.view()).unwrap();
+                    assert!(matches!(
+                        program.execution_requirements(None),
+                        Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                            "assembly catalog target requirement is not established by the target environment"
+                        ))
+                    ));
+                    let target = psi_target_layouts::terminal_target_context(artifact.view(), name);
+                    let supplies = program
+                        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+                            entry: None,
+                            installation: None,
+                            host_imports: &[],
+                            external_completions: &[],
+                            target_machines: Some(&target),
+                            target_layouts: None,
+                            native_code_layouts: None,
+                            memory_ordering: None,
+                            x86_flags: None,
+                        })
+                        .unwrap();
+                    let result = program.execution_requirements(Some(&supplies));
+                    if compatible {
+                        result.unwrap();
+                    } else {
+                        assert!(matches!(
+                            result,
+                            Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "authored assembly register does not hold this calling convention's scalar result"
+                            ))
+                        ));
+                    }
+                }
+            }
         }
     }
 
@@ -3600,7 +3581,6 @@ pub(crate) mod program {
                 let installation = program
                     .admit_runtime_supplies(
                         crate::boundary::effects::TerminalRuntimeSupplyRequest {
-                            assembly_returns: None,
                             native_code_layouts: None,
                             x86_flags: None,
                             memory_ordering: None,

@@ -405,7 +405,6 @@ fn interpreted_build_checks_and_executes_the_provider_chosen_for_its_source() {
         let program = TerminalProgram::borrow(artifact).unwrap();
         let supplies = program
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
-                assembly_returns: None,
                 installation: Some(&checked),
                 native_code_layouts: None,
                 host_imports: &[],

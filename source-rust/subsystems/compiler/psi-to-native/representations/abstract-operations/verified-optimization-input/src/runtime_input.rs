@@ -60,15 +60,6 @@ impl AdmittedRuntimeInput<'_> {
         Ok(scope)
     }
 
-    pub(super) fn assembly_returns(
-        &self,
-    ) -> Result<Option<psi_target_layouts::AssemblyReturnPlans>, &'static str> {
-        match self.native_scope {
-            Some(scope) => scope.assembly_return_environment(self.artifact.artifact().view()),
-            None => Ok(None),
-        }
-    }
-
     pub fn identity(&self) -> terminal_psi::TerminalPsiIdentity {
         self.artifact.artifact().view().identity()
     }

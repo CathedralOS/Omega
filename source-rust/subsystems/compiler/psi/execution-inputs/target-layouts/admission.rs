@@ -3,9 +3,7 @@
 mod target_context;
 pub use layout_plans::LayoutTargetFacts;
 use semantic_vocabulary::StructuralTypeId;
-pub use target_context::{
-    AssemblyReturnPlans, TerminalEntryError, TerminalTargetContext, terminal_target_context,
-};
+pub use target_context::{TerminalEntryError, TerminalTargetContext, terminal_target_context};
 use terminal_psi::{
     LayoutApplicationId, StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalIdentityIndex, TerminalPsiIdentity,
