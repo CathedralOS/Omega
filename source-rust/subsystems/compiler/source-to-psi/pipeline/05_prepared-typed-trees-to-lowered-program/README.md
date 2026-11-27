@@ -140,17 +140,27 @@ result of that type is still refused. Generic data is declared once, from its
 template, as one block whose former takes a uniform `Type 0` parameter per type
 parameter (`GenericPlainData`). An application such as `Seq<u64>` is that block
 at the argument types: definitions laid out as plain data, so laws over the
-application read and judge as over any plain data. The template is refused when
-a field applies a parameter inside another type (a field `Seq<T>` of
-`Tagged<T>`, a nested inductive), when it holds itself at other arguments than
-its own parameters, or when a parameter is not a type.
+application read and judge as over any plain data. When the template has no
+such form, because a field applies a parameter inside another type (a field
+`Seq<T>` of `Tagged<T>`) or the data holds itself at other arguments than its
+own parameters, each application is declared as written instead: `Tagged<u64>`
+is plain data with a `Seq<u64>` payload.
 
 Data that reaches itself only through another data type that reaches it back
 (`data Even { case Zero; case Next(odd: Odd); }` with `data Odd { case
-Next(even: Even); }`) is one mutual block: the data types that reach each
-other through their fields (`proof_stratum::mutual_block`), declared together
+Next(even: Even); }`) is one mutual block: the records of such data that reach
+each other through their fields (`signature::record_block`), declared together
 as one native inductive declaration with a former, constructors and a
-recursor per member (`PlainData::block`). A machine by cases over one member
+recursor per member (`PlainData::block`). The block is found among the
+records the program uses, so a closed application of generic data is a
+member as written. `Tree<u64>` and `Forest<u64>`, applications of a generic
+`Tree<T>` and `Forest<T>` that hold each other, are one block. A `Rose` with a
+field `children: Seq<Rose>` is a nested inductive: `proof_stratum` reaches
+`Rose` through the type argument of `Seq<Rose>`, and `Rose` and `Seq<Rose>`
+are one block, while `Seq<u64>` elsewhere in the program stays the generic
+declaration at `u64`. A case a law writes (`Seq::Empty`) is read at the
+application its value is of, since every application of `Seq` has the same
+case symbols. A machine by cases over one member
 that calls machines over the others is read with every machine of its group
 (`mutual_group`, one per member) as one application of its member's recursor,
 whose motives are the group's results; a call must be at a field of the
