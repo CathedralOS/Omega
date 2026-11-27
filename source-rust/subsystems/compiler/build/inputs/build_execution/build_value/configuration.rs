@@ -215,7 +215,7 @@ mod tests {
         assert!(
             !fields(&mut original)
                 .iter()
-                .any(|(name, _)| matches!(name.as_str(), "privileged_services" | "freestanding"))
+                .any(|(name, _)| matches!(name.as_str(), "privileged_services" | "freestanding" | "inputs"))
         );
         assert!(
             fields(&mut original)
