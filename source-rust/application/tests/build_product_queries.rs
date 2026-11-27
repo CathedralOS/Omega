@@ -17,7 +17,7 @@ compiles. As a Build library supplied at invocation, the alias names no Product
 dependency, so the path names nothing and the Build is refused for it.
 
 The invoker can supply a different Build library under the Product alias.
-A query issued by a generated helper uses its own package as its origin.
+A query issued by a generated helper reads its file alias in its own package.
 The tests run the selected entry on the native and Psi engines.
 
 */
@@ -285,8 +285,9 @@ machine build(plan: @mutable BuildPlan) {
             ),
             (
                 "vendor/asset.txt",
-                r#"public machine select(builder: @mutable BuildPlan, slot: @[u8]) -> ProductEntryRef {
-    BuildDeclarations::entry(@builder.declarations, "launch", slot)
+                r#"use main.omg as product;
+public machine select(builder: @mutable BuildPlan, slot: @[u8]) -> ProductEntryRef {
+    BuildDeclarations::entry(@builder.declarations, "|product|::launch", slot)
 }"#,
             ),
             (
