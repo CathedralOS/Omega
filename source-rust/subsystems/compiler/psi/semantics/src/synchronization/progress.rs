@@ -3,6 +3,7 @@
 //! across calls; an unrelated machine's local value number is never evidence.
 
 pub(super) mod comparison;
+pub(super) mod condition;
 
 use super::facts::Facts;
 use super::spin::{CellUpdate, Operand, SpinCondition};
@@ -281,8 +282,9 @@ impl SpinCondition {
         initial: Option<ScalarFact>,
         pivot_input: Option<ScalarFact>,
         update: Option<CellUpdate<ScalarFact>>,
-        requires: &[Proposition],
+        evidence: &comparison::Evidence<'_>,
     ) -> Option<ProgressFailure> {
+        let requires = &evidence.obligations;
         let pivot = pivot_input.map(|input| input.under(requires));
         if let Some(ScalarFact::Literal(literal)) = pivot {
             self.comparison.pivot = Operand::Literal(literal);
@@ -309,7 +311,7 @@ impl SpinCondition {
                 resolved_pivot?,
                 self.comparison.order,
                 self.positive,
-                requires,
+                evidence,
             )
         };
         if let Some(initial) = initial

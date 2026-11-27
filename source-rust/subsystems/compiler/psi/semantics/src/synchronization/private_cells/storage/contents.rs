@@ -45,7 +45,7 @@ impl ScalarWitness {
         path: &[Assumption],
     ) {
         let relevant =
-            |fact: &Assumption| matches!(value, ScalarFact::EntryInput(_)) && fact.mentions(value);
+            |fact: &Assumption| value.literal().is_none() && fact.mentions(value);
         if let Some(existing) = values.iter_mut().find(|candidate| candidate.value == value) {
             existing
                 .when

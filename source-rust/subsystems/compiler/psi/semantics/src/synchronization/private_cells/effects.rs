@@ -6,7 +6,7 @@ mod calls;
 mod guards;
 mod receive;
 mod sequence;
-use super::condition::Selector;
+use crate::synchronization::progress::condition::Selector;
 
 use super::activation::Bindings;
 use super::storage::{Storage, Stored};
@@ -96,7 +96,7 @@ impl NormalReturn {
     }
 
     fn assume(&mut self, condition: Decision) -> bool {
-        if let Some(literal) = condition.selector.answer(&|_| None, &[]) {
+        if let Some(literal) = condition.selector.answer(&|_| None, &Default::default()) {
             return literal == condition.answer;
         }
         if let Some(previous) = self

@@ -4,7 +4,7 @@
 use super::super::facts::Facts;
 use super::super::progress::ScalarFact;
 use super::super::spin::{CellUpdate, constant};
-use super::condition::Assumption;
+use crate::synchronization::progress::condition::Assumption;
 use super::storage::{Location, Storage, Stored};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ValueId};
