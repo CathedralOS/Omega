@@ -104,6 +104,52 @@ machine build(plan: @mutable BuildPlan) blocks {
     run(granted.clone(), "read_grammar");
     run(DirectoryMappings::default(), "ungranted");
 
+    fs::write(host.join("sql.txt"), b"AB").unwrap();
+    fs::write(&entry, r#"use {system}/filesystem.omg as files;
+use {system}/filesystem_host.omg as paths;
+
+machine build(plan: @mutable BuildPlan) blocks {
+    let opened: |files|::OpenResult = block |files|::Filesystem::open("/grammar/sql.txt" as + |paths|::Path);
+    transition opened {
+        |files|::OpenResult::Ok { file } -> block consume(plan, file),
+        _ -> failed()
+    }
+    machine consume(plan: @mutable BuildPlan, file: |files|::File) blocks {
+        let mutable first: [u8; 1];
+        let mutable second: [u8; 1];
+        let a: |files|::IoResult = block |files|::Filesystem::read(file, @mutable first[..], 1u64);
+        let b: |files|::IoResult = block |files|::Filesystem::read(file, @mutable second[..], 1u64);
+        let end: |files|::IoResult = block |files|::Filesystem::read(file, @mutable second[..], 1u64);
+        let closed: |files|::UnitResult = block |files|::Filesystem::close(file);
+        let duplicate: |files|::UnitResult = block |files|::Filesystem::close(file);
+        transition closed_again(duplicate) && read_count(a, 1u64) && read_count(b, 1u64) && read_count(end, 0u64) && first[0] == 65u8 && second[0] == 66u8 {
+            true -> finish(plan, closed),
+            _ -> failed()
+        }
+    }
+    machine closed_again(value: |files|::UnitResult) -> bool {
+        transition value {
+            |files|::UnitResult::Error { kind } -> invalid_file(kind),
+            _ -> false
+        }
+        machine invalid_file(kind: |files|::ErrorKind) -> bool {
+            transition kind { |files|::ErrorKind::BadDescriptor -> true, _ -> false }
+        }
+    }
+    machine read_count(value: |files|::IoResult, expected: u64) -> bool {
+        transition value { |files|::IoResult::Ok { count } -> { count == expected }, _ -> false }
+    }
+    machine finish(plan: @mutable BuildPlan, closed: |files|::UnitResult) {
+        transition closed {
+            |files|::UnitResult::Ok -> { plan.product = BuildProduct::Package { name: "stream_reader" }; },
+            _ -> failed()
+        }
+    }
+    machine failed() { crash Trap; }
+}
+"#).unwrap();
+    run(granted.clone(), "stream_reader");
+
     fs::write(&entry, r#"use {system}/filesystem.omg as files;
 use {system}/filesystem_host.omg as paths;
 machine build(plan: @mutable BuildPlan) blocks {

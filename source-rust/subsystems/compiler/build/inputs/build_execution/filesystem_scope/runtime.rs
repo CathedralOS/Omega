@@ -8,6 +8,11 @@
 // `BuildOutputObligation` and `BuildOutputReceipt`
 // observations into `BuildFilesystemEffects`.
 
+mod mapped;
+mod readers;
+pub use readers::BuildFileError;
+
+use super::runtime_directory::FileReader;
 use super::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope};
 use crate::build_execution::message;
 use crate::build_execution::observations::{
@@ -33,18 +38,15 @@ pub struct BuildFilesystemEffects {
 }
 
 struct OpenFile {
-    root: FilesystemGrantRootIdentity,
+    root: BuildFilesystemRoot,
+    provider: FilesystemObservationProvider,
     path: Vec<u8>,
     storage: FileStorage,
     _handle: EvaluationStorageLease,
 }
 
-enum FileStorage {    Captured {
-        cursor: u64,
-    },
-    Opened {
-        file: std::fs::File,
-    },
+enum FileStorage {
+    Reader(FileReader),
     Output {
         file: std::fs::File,
         writer: FilesystemOpenDescriptor,
@@ -60,6 +62,16 @@ pub struct BuildFilesystemRuntime {
     sealed: Vec<(Vec<u8>, usize)>,
     incomplete_attempt: Option<usize>,
     refused: Option<String>,
+}
+
+fn grant_root(root: FilesystemGrantRootIdentity) -> Result<BuildFilesystemRoot, String> {
+    if root == BUILD_SOURCE_ROOT_IDENTITY {
+        Ok(BuildFilesystemRoot::Source)
+    } else if root == BUILD_OUTPUT_ROOT_IDENTITY {
+        Ok(BuildFilesystemRoot::Output)
+    } else {
+        Err("unknown Build filesystem root".into())
+    }
 }
 
 fn staging_create_error(
@@ -261,13 +273,7 @@ impl BuildFilesystemRuntime {
         access: FilesystemGrantAccess,
         descriptor: Option<i32>,
     ) -> Result<usize, String> {
-        let meaning = if root == BUILD_SOURCE_ROOT_IDENTITY {
-            BuildFilesystemRoot::Source
-        } else if root == BUILD_OUTPUT_ROOT_IDENTITY {
-            BuildFilesystemRoot::Output
-        } else {
-            return Err("unknown Build input root".into());
-        };
+        let meaning = grant_root(root)?;
         let provider = if root == BUILD_OUTPUT_ROOT_IDENTITY
             || (root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some())
         {
@@ -287,6 +293,20 @@ impl BuildFilesystemRuntime {
         access: FilesystemGrantAccess,
         descriptor: Option<i32>,
     ) -> Result<usize, String> {
+        let handle = descriptor
+            .map(logical_handle)
+            .transpose()?
+            .map(FilesystemLogicalHandleInputResolution::Resolved);
+        self.begin_observation(operation, provider, Some((meaning, path, access)), handle)
+    }
+
+    fn begin_observation(
+        &mut self,
+        operation: FilesystemHostOperation,
+        provider: FilesystemObservationProvider,
+        authorized: Option<(BuildFilesystemRoot, &[u8], FilesystemGrantAccess)>,
+        handle: Option<FilesystemLogicalHandleInputResolution>,
+    ) -> Result<usize, String> {
         if self.incomplete_attempt.is_some() || self.refused.is_some() {
             return Err("Build filesystem activation has already failed".into());
         }
@@ -295,13 +315,13 @@ impl BuildFilesystemRuntime {
             .account
             .reserve_site(
                 0,
-                3 + 2 * u64::from(descriptor.is_some()),
-                path.len() as u64,
+                3 + 2 * u64::from(handle.is_some()),
+                authorized.map_or(0, |(_, path, _)| path.len() as u64),
             )
             .map_err(|error| error.to_string())?;
         let mut input = Vec::new();
         let mut retired_logical_handles = Vec::new();
-        if let Some(descriptor) = descriptor {
+        if let Some(resolution) = handle {
             input
                 .try_reserve(1)
                 .map_err(|_| "cannot retain filesystem handle operand")?;
@@ -311,7 +331,7 @@ impl BuildFilesystemRuntime {
             input.push(FilesystemLogicalHandleInput::new(
                 0,
                 FilesystemLogicalHandleKind::Descriptor,
-                FilesystemLogicalHandleInputResolution::Resolved(logical_handle(descriptor)?),
+                resolution,
             ));
         }
         let mut authorized_paths = Vec::new();
@@ -319,15 +339,17 @@ impl BuildFilesystemRuntime {
         grant_refusals
             .try_reserve(1)
             .map_err(|_| "cannot retain filesystem grant refusal")?;
-        authorized_paths
-            .try_reserve(1)
-            .map_err(|_| "cannot retain authorized filesystem path")?;
-        authorized_paths.push(BuildFilesystemAuthorizedPath {
-            operand_ordinal: 0,
-            access,
-            root: meaning,
-            relative_path: copy_bytes(path)?,
-        });
+        if let Some((root, path, access)) = authorized {
+            authorized_paths
+                .try_reserve(1)
+                .map_err(|_| "cannot retain authorized filesystem path")?;
+            authorized_paths.push(BuildFilesystemAuthorizedPath {
+                operand_ordinal: 0,
+                access,
+                root,
+                relative_path: copy_bytes(path)?,
+            });
+        }
         let ordinal = self.effects.attempts.len();
         self.effects
             .attempts
@@ -422,24 +444,44 @@ impl BuildFilesystemRuntime {
         } else {
             None
         };
-        if live_source.is_none() {
-            use build_output::SourceSnapshotError;
-            if let Err(reason) = self.snapshot(root)?.open_file(path) {
-                let error = match reason {
-                    SourceSnapshotError::NotFound => 2,
-                    SourceSnapshotError::NotDirectory => 20,
-                    SourceSnapshotError::NotFile => 21,
-                    SourceSnapshotError::SymlinkTraversal => 40,
-                    SourceSnapshotError::InvalidPath => 22,
-                    SourceSnapshotError::InvalidRange | SourceSnapshotError::NotSymlink => {
-                        return Err(format!(
-                            "unexpected error opening a captured Build source: {reason:?}"
-                        ));
-                    }
-                };
-                return Ok(self.complete_attempt(ordinal, -1, error) as i32);
-            }
-        }
+        let reader = match live_source {
+            Some(source) => match source.open_read(path) {
+                Ok(file) => FileReader::Live(file),
+                Err(error) => {
+                    return Ok(
+                        self.complete_attempt(ordinal, -1, error.raw_os_error().unwrap_or(5))
+                            as i32,
+                    );
+                }
+            },
+            None => match self.snapshot(root)?.open_file(path) {
+                Ok(bytes) => FileReader::Captured(std::io::Cursor::new(bytes.clone())),
+                Err(reason) => {
+                    use build_output::SourceSnapshotError::*;
+                    let errno = match reason {
+                        NotFound => 2,
+                        NotDirectory => 20,
+                        NotFile => 21,
+                        SymlinkTraversal => 40,
+                        InvalidPath => 22,
+                        InvalidRange | NotSymlink => {
+                            return Err(format!("unexpected snapshot open error {reason:?}"));
+                        }
+                    };
+                    return Ok(self.complete_attempt(ordinal, -1, errno) as i32);
+                }
+            },
+        };
+        self.retain_reader(ordinal, grant_root(root)?, path, reader)
+    }
+
+    fn retain_reader(
+        &mut self,
+        ordinal: usize,
+        root: BuildFilesystemRoot,
+        path: &[u8],
+        reader: FileReader,
+    ) -> Result<i32, String> {
         let handle = message(self.account.reserve_site(1, 1, path.len() as u64))?;
         let descriptor = i32::try_from(self.descriptors.len())
             .ok()
@@ -449,101 +491,14 @@ impl BuildFilesystemRuntime {
             .try_reserve(1)
             .map_err(|_| "cannot retain Build descriptor")?;
         let retained_path = copy_bytes(path)?;
-        let storage = match live_source {
-            Some(source) => match source.open_read(path) {
-                Ok(file) => FileStorage::Opened { file },
-                Err(error) => {
-                    return Ok(
-                        self.complete_attempt(ordinal, -1, error.raw_os_error().unwrap_or(5))
-                            as i32,
-                    );
-                }
-            },
-            None => FileStorage::Captured { cursor: 0 },
-        };
         self.descriptors.push(Some(OpenFile {
             root,
+            provider: self.effects.attempts[ordinal].provider,
             path: retained_path,
-            storage,
+            storage: FileStorage::Reader(reader),
             _handle: handle,
         }));
         self.complete_logical_handle(ordinal, descriptor)
-    }
-
-    /// An absolute path is resolved exclusively within this activation's caller-issued
-    /// directories. Reads and writes still consume the evaluated call's work budget.
-    fn mapped_operation(
-        &mut self,
-        path: &[u8],
-        access: FilesystemGrantAccess,
-        operation: FilesystemHostOperation,
-        perform: impl FnOnce(
-            &super::runtime_directory::BuildDirectory,
-            &[u8],
-            &EvaluationInvocationAccount,
-        ) -> Result<std::io::Result<usize>, String>,
-    ) -> Result<Result<usize, std::io::ErrorKind>, String> {
-        use platform_custody::directory_mappings::DirectoryAccess;
-        use std::io::ErrorKind;
-        let relative = path
-            .strip_prefix(b"/")
-            .ok_or("mapped path must be absolute")?;
-        let mapping = self
-            .effects
-            .scope
-            .directories
-            .resolve_file(path)
-            .map(|(mapping, file)| (mapping.clone(), file));
-        let provider = mapping
-            .as_ref()
-            .map_or(FilesystemObservationProvider::RealScoped, |(mapping, _)| {
-                mapping.backing().provider()
-            });
-        let ordinal = self.begin_path_attempt(
-            operation,
-            BuildFilesystemRoot::MappedDirectories,
-            provider,
-            relative,
-            access,
-            None,
-        )?;
-        let result = match mapping {
-            Ok((directory, _))
-                if access == FilesystemGrantAccess::Write
-                    && directory.access() == DirectoryAccess::ReadOnly =>
-            {
-                self.refuse_access(ordinal, access);
-                return Ok(Err(ErrorKind::PermissionDenied));
-            }
-            Ok((directory, file)) => perform(directory.backing(), file, &self.account)?,
-            Err(error) if error.kind() == ErrorKind::PermissionDenied => {
-                self.refuse_access(ordinal, access);
-                return Ok(Err(error.kind()));
-            }
-            Err(error) => Err(error),
-        };
-        match result {
-            Ok(count) => {
-                self.complete_attempt(
-                    ordinal,
-                    i64::try_from(count).map_err(|_| "mapped size exceeds i64")?,
-                    0,
-                );
-                Ok(Ok(count))
-            }
-            Err(error) => {
-                let kind = error.kind();
-                let errno = match kind {
-                    std::io::ErrorKind::NotFound => 2,
-                    std::io::ErrorKind::PermissionDenied => 13,
-                    std::io::ErrorKind::IsADirectory => 21,
-                    std::io::ErrorKind::InvalidInput => 22,
-                    _ => error.raw_os_error().unwrap_or(5),
-                };
-                self.complete_attempt(ordinal, -1, errno);
-                Ok(Err(kind))
-            }
-        }
     }
 
     /// Open, read and close the admitted captured file using ordinary observation
@@ -554,7 +509,6 @@ impl BuildFilesystemRuntime {
         buffer: &mut [u8],
         count: u64,
     ) -> Result<Result<u64, std::io::ErrorKind>, String> {
-        const ROOT: FilesystemGrantRootIdentity = BUILD_SOURCE_ROOT_IDENTITY;
         use std::io::ErrorKind;
         if count > buffer.len() as u64 {
             return Ok(Err(ErrorKind::InvalidInput));
@@ -565,52 +519,27 @@ impl BuildFilesystemRuntime {
                     path,
                     FilesystemGrantAccess::Read,
                     FilesystemHostOperation::Read,
-                    |directory, file, _| Ok(directory.read(file, &mut buffer[..count as usize])),
+                    |directory, file, _| {
+                        Ok(directory
+                            .open_read(file)
+                            .and_then(|mut f| f.read(&mut buffer[..count as usize])))
+                    },
                 )
                 .map(|result| result.map(|bytes| bytes as u64));
         }
-        if !filesystem_authority::source_snapshot_path_is_canonical(path, false) {
-            return Ok(Err(ErrorKind::InvalidInput));
-        }
-        // The package remains read-only even if an explicitly granted Output
-        // operation used the same spelling in the independent staging tree.
-        let absent = matches!(
-            self.snapshot(ROOT)?.lookup(path),
-            Err(build_output::SourceSnapshotError::NotFound)
-        );
-        let has_writer =
-            |file: &OpenFile| file.root == BUILD_OUTPUT_ROOT_IDENTITY && file.path == path;
-        let root = if absent && self.sealed.iter().any(|(name, _)| name == path) {
-            BUILD_OUTPUT_ROOT_IDENTITY
-        } else if absent && self.descriptors.iter().flatten().any(has_writer) {
-            return Ok(Err(ErrorKind::PermissionDenied));
-        } else {
-            ROOT
+        let descriptor = match self.open_file(path)? {
+            Ok(descriptor) => descriptor,
+            Err(kind) => return Ok(Err(kind)),
         };
-        let descriptor = self.open(root, path, 0)?;
-        if descriptor < 0 {
-            let attempt = self
-                .effects
-                .attempts
-                .last()
-                .ok_or("missing snapshot open observation")?;
-            let kind = match attempt.post_error {
-                2 => ErrorKind::NotFound,
-                20 | 22 => ErrorKind::InvalidInput,
-                21 => ErrorKind::IsADirectory,
-                40 => ErrorKind::PermissionDenied,
-                value => return Err(format!("unexpected snapshot open error {value}")),
-            };
-            return Ok(Err(kind));
-        }
-        let read = self.read(root, descriptor, buffer, count);
-        let closed = self.close(root, descriptor)?;
-        if closed != 0 {
+        let read = self.read_handle(descriptor, buffer, count);
+        if self.close_handle(descriptor)?.is_err() {
             return Err("could not close an admitted snapshot file".into());
         }
-        Ok(Ok(
-            u64::try_from(read?).map_err(|_| "could not read an admitted snapshot file")?
-        ))
+        match read? {
+            Ok(length) => Ok(Ok(length)),
+            Err(BuildFileError::Io(kind)) => Ok(Err(kind)),
+            Err(BuildFileError::BadDescriptor) => Err("new snapshot descriptor disappeared".into()),
+        }
     }
 
     /// The installed writer sees fresh private files beside the read-only package.
@@ -776,64 +705,43 @@ impl BuildFilesystemRuntime {
         count: u64,
     ) -> Result<i64, String> {
         let slot = self.descriptor_slot(root, descriptor)?;
+        self.read_slot(slot, descriptor, buffer, count)
+    }
+
+    fn read_slot(
+        &mut self,
+        slot: usize,
+        descriptor: i32,
+        buffer: &mut [u8],
+        count: u64,
+    ) -> Result<i64, String> {
         let file = self.descriptors[slot]
             .as_ref()
             .ok_or("closed Build descriptor")?;
-        let cursor = match &file.storage {
-            FileStorage::Captured { cursor } => Some(*cursor),
-            FileStorage::Opened { .. } => None,
-            FileStorage::Output { .. } => {
-                return Err("BuildSource read requires an input descriptor".into());
-            }
-        };
-        let (path, _path_storage) = self.descriptor_path(slot)?;
+        let (root, provider) = (file.root, file.provider);
         if count > buffer.len() as u64 {
             return Err("Build read exceeds the supplied buffer".into());
         }
-        let ordinal = self.begin_attempt(
+        let (path, _path_storage) = self.descriptor_path(slot)?;
+        let ordinal = self.begin_path_attempt(
             FilesystemHostOperation::Read,
             root,
+            provider,
             &path,
             FilesystemGrantAccess::Read,
             Some(descriptor),
         )?;
-        let length = if let Some(cursor) = cursor {
-            let bytes = self
-                .snapshot(root)?
-                .read(&path, cursor, count)
-                .map_err(|error| format!("captured Build read failed: {error:?}"))?;
-            let length = bytes.len();
-            buffer[..length].copy_from_slice(bytes);
-            if let Some(OpenFile {
-                storage: FileStorage::Captured { cursor },
-                ..
-            }) = self.descriptors[slot].as_mut()
-            {
-                *cursor = cursor
-                    .checked_add(length as u64)
-                    .ok_or("Build read cursor overflowed")?;
-            }
-            length
-        } else {
-            let Some(OpenFile {
-                storage: FileStorage::Opened { file },
-                ..
-            }) = self.descriptors[slot].as_mut()
-            else {
-                return Err("live Build Source lost its admitted descriptor".into());
-            };
-            match file.read(&mut buffer[..count as usize]) {
-                Ok(length) => length,
-                Err(error) => {
-                    return Ok(self.complete_attempt(
-                        ordinal,
-                        -1,
-                        error.raw_os_error().unwrap_or(5),
-                    ));
-                }
-            }
+        let Some(OpenFile {
+            storage: FileStorage::Reader(reader),
+            ..
+        }) = self.descriptors[slot].as_mut()
+        else {
+            return Err("Build read requires an input descriptor".into());
         };
-        Ok(self.complete_attempt(ordinal, length as i64, 0))
+        Ok(match reader.read(&mut buffer[..count as usize]) {
+            Ok(length) => self.complete_attempt(ordinal, length as i64, 0),
+            Err(error) => self.complete_attempt(ordinal, -1, error.raw_os_error().unwrap_or(5)),
+        })
     }
 
     fn staging_entry(
@@ -898,7 +806,8 @@ impl BuildFilesystemRuntime {
         };
         let writer = prepared.commit().map_err(|error| error.to_string())?;
         self.descriptors.push(Some(OpenFile {
-            root: BUILD_OUTPUT_ROOT_IDENTITY,
+            root: BuildFilesystemRoot::Output,
+            provider: FilesystemObservationProvider::RealScoped,
             path: retained_path,
             storage: FileStorage::Output {
                 file,
@@ -959,27 +868,36 @@ impl BuildFilesystemRuntime {
         descriptor: i32,
     ) -> Result<i32, String> {
         let slot = self.descriptor_slot(root, descriptor)?;
+        self.close_slot(slot, descriptor)
+    }
+
+    fn close_slot(&mut self, slot: usize, descriptor: i32) -> Result<i32, String> {
+        let file = self.descriptors[slot]
+            .as_ref()
+            .ok_or("closed Build descriptor")?;
+        let (root, provider) = (file.root, file.provider);
         let (path, _path_storage) = self.descriptor_path(slot)?;
-        let ordinal = self.begin_attempt(
+        let ordinal = self.begin_path_attempt(
             FilesystemHostOperation::Close,
             root,
+            provider,
             &path,
             FilesystemGrantAccess::Read,
             Some(descriptor),
         )?;
-        let storage = message(self.account.reserve_site(0, 1, path.len() as u64))?;
-        self.sealed
-            .try_reserve(1)
-            .map_err(|_| "cannot retain sealed output")?;
-        self.effects
-            .storage
-            .try_reserve(1)
-            .map_err(|_| "cannot retain sealed output reservation")?;
         if let Some(OpenFile {
             storage: FileStorage::Output { file, writer, .. },
             ..
         }) = self.descriptors[slot].as_mut()
         {
+            let storage = message(self.account.reserve_site(0, 1, path.len() as u64))?;
+            self.sealed
+                .try_reserve(1)
+                .map_err(|_| "cannot retain sealed output")?;
+            self.effects
+                .storage
+                .try_reserve(1)
+                .map_err(|_| "cannot retain sealed output reservation")?;
             file.flush().map_err(|error| error.to_string())?;
             self.effects
                 .scope
@@ -1009,7 +927,7 @@ impl BuildFilesystemRuntime {
             .and_then(|value| usize::try_from(value).ok())
             .ok_or("invalid Build descriptor")?;
         match self.descriptors.get(slot).and_then(Option::as_ref) {
-            Some(file) if file.root == root => Ok(slot),
+            Some(file) if file.root == grant_root(root)? => Ok(slot),
             _ => Err("Build descriptor is closed or belongs to another root".into()),
         }
     }
@@ -1373,6 +1291,84 @@ mod tests {
                 .iter()
                 .all(|attempt| attempt.provider == FilesystemObservationProvider::Captured)
         );
+    }
+
+    #[test]
+    fn installed_file_handles_keep_their_backing_and_independent_offsets() {
+        use super::super::runtime_directory::BuildDirectory;
+        use platform_custody::{
+            bound_directory::BoundDirectory, directory_mappings::DirectoryAccess,
+        };
+        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "streaming-build-files",
+            false,
+        )
+        .unwrap();
+        let mut scope = scope(temporary.path(), "session");
+        let live = temporary.path().join("live");
+        std::fs::create_dir(&live).unwrap();
+        std::fs::write(live.join("asset"), b"world").unwrap();
+        scope
+            .directories
+            .insert(
+                "/live",
+                BuildDirectory::caller(BoundDirectory::bind(&live).unwrap()),
+                DirectoryAccess::ReadOnly,
+            )
+            .unwrap();
+        scope
+            .directories
+            .insert(
+                "/package",
+                BuildDirectory::captured(scope.captured_source_input.as_ref().unwrap(), b"")
+                    .unwrap(),
+                DirectoryAccess::ReadOnly,
+            )
+            .unwrap();
+        let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
+        assert_eq!(
+            runtime.open_file(b"/outside/asset").unwrap(),
+            Err(std::io::ErrorKind::PermissionDenied)
+        );
+        for (path, expected) in [
+            (b"asset".as_slice(), b"hello"),
+            (b"/package/asset", b"hello"),
+            (b"/live/asset", b"world"),
+        ] {
+            let a = runtime.open_file(path).unwrap().unwrap();
+            let b = runtime.open_file(path).unwrap().unwrap();
+            if path == b"/live/asset" {
+                std::fs::rename(live.join("asset"), live.join("original")).unwrap();
+                std::fs::write(live.join("asset"), b"other").unwrap();
+            }
+            let mut bytes = [0xff; 6];
+            assert_eq!(runtime.read_handle(a, &mut bytes, 2).unwrap(), Ok(2));
+            assert_eq!(&bytes[..2], &expected[..2]);
+            assert_eq!(runtime.read_handle(b, &mut bytes, 6).unwrap(), Ok(5));
+            assert_eq!(&bytes[..5], expected);
+            assert_eq!(runtime.read_handle(a, &mut bytes, 6).unwrap(), Ok(3));
+            assert_eq!(&bytes[..3], &expected[2..]);
+            let after = bytes;
+            assert_eq!(runtime.read_handle(a, &mut bytes, 6).unwrap(), Ok(0));
+            assert_eq!(bytes, after);
+            assert_eq!(runtime.close_handle(a).unwrap(), Ok(()));
+            assert_eq!(
+                runtime.read_handle(a, &mut bytes, 1).unwrap(),
+                Err(BuildFileError::BadDescriptor)
+            );
+            assert_eq!(
+                runtime.close_handle(a).unwrap(),
+                Err(BuildFileError::BadDescriptor)
+            );
+            assert_eq!(runtime.close_handle(b).unwrap(), Ok(()));
+        }
+        assert_eq!(
+            runtime.close_handle(u64::MAX).unwrap(),
+            Err(BuildFileError::BadDescriptor)
+        );
+        let effects = runtime.finish().unwrap();
+        assert!(effects.attempts.last().unwrap().authorized_paths.is_empty());
+        assert_eq!(effects.attempts.last().unwrap().post_error, 9);
     }
 
     #[test]

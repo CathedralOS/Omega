@@ -22,7 +22,9 @@ pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_buil
 pub use completed_outputs::RetainedBuildOutputs;
 pub use execution_inputs::{BuildExecutionContract, BuildExecutionInputs};
 pub use filesystem_scope::preparation::prepare_filesystem_scope;
-pub use filesystem_scope::runtime::{BuildFilesystemEffects, BuildFilesystemRuntime};
+pub use filesystem_scope::runtime::{
+    BuildFileError, BuildFilesystemEffects, BuildFilesystemRuntime,
+};
 pub use filesystem_scope::runtime_directory::{BuildDirectory, BuildDirectoryMappings};
 pub use filesystem_scope::successor_directory::SuccessorDirectory;
 pub use filesystem_scope::{
