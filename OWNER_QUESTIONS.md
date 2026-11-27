@@ -213,33 +213,31 @@ Should these obligations bind every Psi receiver as part of the product
 specification, with the tags and field layouts maintained beside the codec?
 
 <a id="bundle-evidence-field-type"></a>
-### 5. Which field type makes a record field mathematical evidence rather than a callable selection?
+### 5. Citing a machine stored in an ordinary callable field
 
-A proof argument "may cite a named theorem, instantiate another theorem, or
-project checked evidence from a bundle", and "an explicitly typed
-mathematical-evidence field uses the general logical-evidence application rule,
-also in ordinary records"
-([logical hypotheses](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) ·
-[operation records](wiki/spec/language/conformances.md#implementations-are-operation-records)).
-The same section also says "an ordinary field whose declared type is a
-structural callable is different: it requires that callable contract". A
-logical contract is written as a structural callable alias, as in
-`data NonzeroIsPositive = machine(n: u8) requires n != 0u8 ensures n > 0u8;`.
-So `data Laws { step: NonzeroIsPositive; }` declares a callable field, and the
-spec names no other way to type a field as that contract's evidence.
+**Owner ruling, 2026-11-27.** Passing a machine through a callable field
+preserves the checked facts about that selection. The ordinary field spelling
+supports both invocation and theorem citation. The use site determines which
+checks apply.
 
-The compiler follows the callable reading today. `Laws { step: nonzero_is_positive }`
-asks for a service ceiling, and once given one it fails constant evaluation
-because the record holds a callable. So `use_step::<U8_LAWS.step>(7u8)` has no
-evidence to project.
+For a field declared `step: NonzeroIsPositive`, `laws.step(n)` invokes the
+selected machine under its callable contract. In `use_step::<laws.step>(n)`,
+the checker may use the selected machine's evidence for the complete aliased
+implication. It checks the proof's premises for the actual argument. Citing
+the field executes no callback. A guarantee that depends on normal return or
+on a change to storage keeps that condition.
 
-**Recommend that a field of a logical alias type marked `[erased]` holds that
-alias's evidence**, as in `step [erased]: NonzeroIsPositive;`. Erasure already
-means "without runtime storage" for record fields, and a logical contract has
-nothing to store. Its initializer is checked as a proof argument is, and
-projecting it supplies that checked citation. Alternatively, a distinct type
-former could name the evidence type of an alias.
-Which spelling declares an evidence field?
+Storing a callable requires ordinary callable refinement. When a proof is
+requested, the evidence must cover every selection still possible at that
+point. Reassigning the field cannot carry a previous selection's proof over
+to its replacement. A callable can therefore remain valid to invoke even
+when a particular theorem citation is refused.
+
+**Specification follow-up for the owners.** The operation-record rule says
+that a structural callable field “requires that callable contract.” Keep that
+construction rule and state that projecting the selected machine in a proof
+argument may cite its checked logical evidence under the rules above. The
+compiler work is tracked under PROOF-KERNEL-CORE. [Operation records](wiki/spec/language/conformances.md#implementations-are-operation-records) · [Logical hypotheses](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) · [Callable storage and evidence](wiki/spec/language/machine_values.md#invocation-storage-and-evidence) · [Compiler tasks](TASKS.md)
 
 <a id="address-subject-lower-bound"></a>
 ### 6. May an address subject assume the scalar lower bound `0 <= n`?
