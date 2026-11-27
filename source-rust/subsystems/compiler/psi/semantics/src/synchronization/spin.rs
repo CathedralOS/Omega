@@ -6,6 +6,7 @@ mod cases;
 mod condition;
 mod observations;
 use condition::Comparison;
+pub(super) use condition::Operand;
 pub(super) use condition::SpinCondition;
 pub(super) use observations::Observation;
 
@@ -92,6 +93,7 @@ enum Word {
     Literal(Scalar),
     Observed,
     Masked(Scalar),
+    Argument(Operand),
     Test(SpinCondition),
 }
 
@@ -99,6 +101,14 @@ impl Word {
     fn literal(self) -> Option<Scalar> {
         match self {
             Self::Literal(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    fn operand(self) -> Option<Operand> {
+        match self {
+            Self::Literal(value) => Some(Operand::Literal(value)),
+            Self::Argument(value) => Some(value),
             _ => None,
         }
     }
@@ -134,13 +144,13 @@ impl Word {
                 positive,
             })),
             Self::Test(mut test) if comparison.order.is_eq() => {
-                let Scalar::Boolean(value) = comparison.pivot else {
+                let Scalar::Boolean(value) = comparison.pivot.literal()? else {
                     return None;
                 };
                 test.positive = test.positive == (value == positive);
                 Some(Self::Test(test))
             }
-            Self::Test(_) => None,
+            Self::Test(_) | Self::Argument(_) => None,
             Self::Literal(value) => Some(Self::Literal(Scalar::Boolean(condition.matches(value)?))),
         }
     }
@@ -159,6 +169,7 @@ pub(super) struct Subject {
 pub(super) struct ForwardedWait {
     pub(super) callee: TargetMachineCallable,
     borrowed: Vec<Subject>,
+    scalars: Vec<Option<Operand>>,
 }
 
 impl SpinWait {
@@ -171,7 +182,7 @@ impl SpinWait {
         match &mut self.0 {
             WaitRule::Cell(cell) => map(&mut cell.subject)?,
             WaitRule::Observations(predicate) => {
-                for subject in predicate.inputs() {
+                for (subject, _) in predicate.inputs() {
                     map(subject)?;
                 }
             }
@@ -182,7 +193,29 @@ impl SpinWait {
 
 impl ForwardedWait {
     /// Substitute the actual borrowed argument for each formal in the predicate.
-    pub(super) fn apply(&self, spin: SpinWait) -> Option<SpinWait> {
+    pub(super) fn apply(&self, mut spin: SpinWait) -> Option<SpinWait> {
+        let remap = |test: &mut SpinCondition| -> Option<()> {
+            if let Operand::Parameter {
+                position,
+                scalar_type,
+            } = test.comparison.pivot
+            {
+                let actual = (*self.scalars.get(position)?)?;
+                if actual.scalar_type() != scalar_type {
+                    return None;
+                }
+                test.comparison.pivot = actual;
+            }
+            Some(())
+        };
+        match &mut spin.0 {
+            WaitRule::Cell(cell) => remap(&mut cell.while_value)?,
+            WaitRule::Observations(predicate) => {
+                for (_, test) in predicate.inputs() {
+                    remap(test)?;
+                }
+            }
+        }
         spin.map_subjects(|subject| {
             let supplied = self.borrowed.get(subject.parameter)?;
             let mut projected = supplied.path.clone();
@@ -330,6 +363,11 @@ impl Trace {
             self.forwarded = Some(ForwardedWait {
                 callee: call.callee,
                 borrowed,
+                scalars: call
+                    .arguments
+                    .iter()
+                    .map(|id| self.scalar(*id).and_then(Word::operand))
+                    .collect(),
             });
             return Some(false);
         }
@@ -433,7 +471,7 @@ impl Trace {
                     let (_, _, order, positive) = Comparison::operands(&operation.kind)?;
                     let left = self.scalar(*left)?;
                     let right = self.scalar(*right)?;
-                    if let Some(pivot) = right.literal() {
+                    if let Some(pivot) = right.operand() {
                         left.compare(
                             Comparison {
                                 pivot,
@@ -445,7 +483,7 @@ impl Trace {
                     } else {
                         right.compare(
                             Comparison {
-                                pivot: left.literal()?,
+                                pivot: left.operand()?,
                                 order: order.reverse(),
                                 mask: None,
                             },
@@ -463,7 +501,7 @@ impl Trace {
     fn branch(&mut self, condition: ValueId, equal_case: bool) -> Option<bool> {
         let condition = match self.scalar(condition)? {
             Word::Literal(Scalar::Boolean(known)) => return Some(known),
-            Word::Literal(_) | Word::Masked(_) => return None,
+            Word::Literal(_) | Word::Masked(_) | Word::Argument(_) => return None,
             Word::Observed => SpinCondition {
                 comparison: Comparison::equal(Scalar::Boolean(true)),
                 positive: true,
@@ -529,6 +567,7 @@ fn trace(
 ) -> Option<(Trace, Completion)> {
     let mut state = Trace {
         subjects: Subjects::at_entry(machine),
+        values: Operand::formals(machine, Word::Argument),
         ..Trace::default()
     };
     let mut seen = Facts::<BlockId, usize>::default();

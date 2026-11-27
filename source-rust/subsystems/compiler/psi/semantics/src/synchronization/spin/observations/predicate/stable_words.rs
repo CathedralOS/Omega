@@ -26,7 +26,11 @@ impl<K> Default for StableWords<K> {
 
 impl<K: Eq + Hash> StableWords<K> {
     pub(super) fn record(&mut self, home: K, node: usize, condition: SpinCondition) {
-        let Some((ty, pivot)) = ScalarFact::Literal(condition.comparison.pivot).known_integer()
+        let Some((ty, pivot)) = condition
+            .comparison
+            .pivot
+            .literal()
+            .and_then(|p| ScalarFact::Literal(p).known_integer())
         else {
             return;
         };
