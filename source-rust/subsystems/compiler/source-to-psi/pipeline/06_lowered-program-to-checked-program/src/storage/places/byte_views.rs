@@ -985,7 +985,6 @@ impl<'a> Storage<'a> {
         references: &mut super::DescriptorAnalysis<'a>,
         operation: &Operation,
     ) -> Checked<()> {
-        use terminal_semantics::descriptor_results::DescriptorCallOrigin;
         let (source, typed) = match &operation.kind {
             OperationKind::ByteSequenceSubslice { source, .. } => (source, false),
             OperationKind::ElementViewSubslice { source, .. } => (source, true),
@@ -1067,6 +1066,42 @@ impl<'a> Storage<'a> {
                 "a subslice without matching source and result access",
             ));
         }
+        self.authenticated_view_backing(
+            references,
+            operation,
+            source,
+            typed,
+            element,
+            access,
+            &is_descriptor,
+        )?;
+        // Storage::uses separately proves the selected descriptor is available
+        // on every arrival; the descriptor graph above identifies its backing.
+        if !matches!(
+            self.shape(&self.argument(source, concerns)?, concerns)?,
+            Shape::Typed(_) | Shape::View
+        ) {
+            return Err(self.foreign(concerns, "a subslice source is not a descriptor"));
+        }
+        Ok(())
+    }
+
+    /// Every arrival of the view `source` reaches backing this machine may
+    /// lend with `access`: an incoming view parameter, a fixed array or
+    /// bounded bytes it measured, or (shared bytes) a literal.
+    #[allow(clippy::too_many_arguments)]
+    fn authenticated_view_backing(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        operation: &Operation,
+        source: &terminal_psi::StructuralArgument,
+        typed: bool,
+        element: Option<semantic_vocabulary::StructuralTypeId>,
+        access: StructuralAccess,
+        is_descriptor: &dyn Fn(&StructuralTypeShape) -> bool,
+    ) -> Checked<()> {
+        use terminal_semantics::descriptor_results::DescriptorCallOrigin;
+        let concerns = Construct::Operation(operation.id);
         let location = self
             .argument(source, concerns)?
             .descriptor_location()
@@ -1156,15 +1191,157 @@ impl<'a> Storage<'a> {
                 ));
             }
         }
-        // Storage::uses separately proves the selected descriptor is available
-        // on every arrival; the descriptor graph above identifies its backing.
+        Ok(())
+    }
+
+    /// A shared reference to a view's whole window as `[T; N]`: one affine
+    /// unqualified carrier, formed from a shared view of `T` whose every
+    /// arrival reaches authenticated backing.
+    pub(super) fn fixed_array_view(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        operation: &Operation,
+    ) -> Checked<()> {
+        let OperationKind::ElementViewFixedArray { source, extent, .. } = &operation.kind else {
+            unreachable!()
+        };
+        let concerns = Construct::Operation(operation.id);
+        let result = operation.result.as_structural().ok_or_else(|| {
+            self.foreign(concerns, "a fixed-array reference has no carrier result")
+        })?;
+        let StructuralTypeShape::Reference {
+            referent,
+            access: StructuralAccess::SharedBorrow,
+        } = self.declaration(result.structural_type, concerns)?.shape
+        else {
+            return Err(self.unsupported(
+                concerns,
+                "a fixed-array reference that is not a shared reference",
+            ));
+        };
+        let StructuralTypeShape::FixedArray {
+            element: array_element,
+            length,
+        } = self.declaration(referent, concerns)?.shape
+        else {
+            return Err(self.foreign(concerns, "a fixed-array reference to no fixed array"));
+        };
+        if result.multiplicity != StructuralMultiplicity::Affine
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !result.additional_input_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || length.literal() != Some(*extent)
+            || self.root_kind(result.place, concerns)?
+                != (StructuralPlaceKind::OperationResult {
+                    producer: operation.id,
+                    structural_type: result.structural_type,
+                })
+        {
+            return Err(self.foreign(
+                concerns,
+                "a fixed-array reference must produce one affine carrier of its stated extent",
+            ));
+        }
+        let access = StructuralAccess::SharedBorrow;
+        let selected = self.byte_shape(source.place, &source.path, concerns)?;
+        let (typed, element) = match selected {
+            StructuralTypeShape::ElementView { element, .. } => (true, Some(element)),
+            _ => (false, None),
+        };
+        let matching_element = match element {
+            Some(element) => element == array_element,
+            None => is_plain_byte_element(self.declaration(array_element, concerns)?),
+        };
+        let is_descriptor = |shape: &StructuralTypeShape| {
+            if typed {
+                matches!(
+                    shape,
+                    StructuralTypeShape::ElementView {
+                        element: selected,
+                        access: declared,
+                    } if Some(*selected) == element && declared.is_none_or(|declared| access.admits_referent(declared))
+                )
+            } else {
+                matches!(shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { access: declared })
+                    if declared.is_none_or(|declared| access.admits_referent(declared)))
+            }
+        };
+        if !matching_element
+            || !is_descriptor(&selected)
+            || source.access != access
+            || !self.descriptor_access(source.place, &source.path, concerns, access)?
+        {
+            return Err(self.unsupported(
+                concerns,
+                "a fixed-array reference without a matching shared view",
+            ));
+        }
+        self.authenticated_view_backing(
+            references,
+            operation,
+            source,
+            typed,
+            element,
+            access,
+            &is_descriptor,
+        )?;
         if !matches!(
             self.shape(&self.argument(source, concerns)?, concerns)?,
             Shape::Typed(_) | Shape::View
         ) {
-            return Err(self.foreign(concerns, "a subslice source is not a descriptor"));
+            return Err(self.foreign(concerns, "a fixed-array reference source is not a view"));
         }
         Ok(())
+    }
+
+    /// The fixed-array reference owes its view's measured length equal to
+    /// its extent; the measurement is the operation directly before it.
+    pub(super) fn fixed_array_goal(
+        &self,
+        operation: &Operation,
+        types: &IdTable<ValueId, ScalarType>,
+    ) -> Checked<Proposition> {
+        let OperationKind::ElementViewFixedArray { source, length, .. } = &operation.kind else {
+            unreachable!()
+        };
+        let concerns = Construct::Operation(operation.id);
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let measured = after
+            .checked_sub(2)
+            .and_then(|position| self.block(block).ok()?.operations.get(position))
+            .is_some_and(|measurement| {
+                let same_source = match &measurement.kind {
+                    OperationKind::ByteSequenceLength { source: measured } => measured == source,
+                    OperationKind::ElementViewLength { source: measured } => {
+                        terminal_semantics::same_descriptor_coordinate(measured, source)
+                    }
+                    _ => false,
+                };
+                same_source
+                    && measurement
+                        .result
+                        .scalar_ref()
+                        .is_some_and(|result| result.id == *length)
+            });
+        if !measured || types.get(*length).copied() != Some(count_type()) {
+            return Err(self.unsupported(
+                concerns,
+                "a fixed-array reference whose length is not its view's measurement directly before it",
+            ));
+        }
+        terminal_semantics::operation_safety_goal(operation, types)
+            .map_err(crate::semantics_refusal(self.machine, operation.id))?
+            .map(|(_, goal)| goal)
+            .ok_or_else(|| {
+                self.foreign(
+                    concerns,
+                    "a fixed-array reference has no canonical extent goal",
+                )
+            })
     }
 
     pub(super) fn subslice_goal(

@@ -147,6 +147,7 @@ pub enum StructuralEffectAction {    EstablishNativeCodeLayout,
     ReadElementView,
     WriteElementView,
     EstablishElementViewSubslice,
+    EstablishElementViewFixedArray,
     ReadBooleanField,
     ReadScalarField,
     EmitPortWrite,
@@ -180,6 +181,7 @@ pub enum StructuralEffectGoalShape {
     ByteLengthWithinOwnerCapacity,
     ElementIndexInBounds,
     ElementRangeInBounds,
+    ElementExtentMatchesArray,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -288,6 +290,9 @@ const fn structural_effect_leaf(
             StructuralEffectAction::EstablishElementViewSubslice => {
                 StructuralEffectGoalShape::ElementRangeInBounds
             }
+            StructuralEffectAction::EstablishElementViewFixedArray => {
+                StructuralEffectGoalShape::ElementExtentMatchesArray
+            }
             _ => StructuralEffectGoalShape::None,
         },
         frontier,
@@ -390,6 +395,7 @@ structural_effect_rows! {
     ElementViewRead => (Scalar, ExactImmutableElementView, ReadElementView, None, RequiresAndKeepsStructuralPlace),
     ElementViewWrite => (Unit, ExactMutableElementView, WriteElementView, None, RequiresAndKeepsStructuralPlace),
     ElementViewSubslice => (Structural, ExactImmutableElementView, EstablishElementViewSubslice, None, RequiresViewAndEstablishesBorrowedView),
+    ElementViewFixedArray => (Structural, ExactImmutableElementView, EstablishElementViewFixedArray, None, CapturesLoanAndAddsReferenceCarrier),
     ByteSequenceRead => (Byte, ExactImmutableByteView, ReadByteSequence, None, RequiresAndKeepsStructuralPlace),
     ByteSequenceWrite => (Unit, ExactMutableByteView, WriteByteSequence, None, RequiresAndKeepsStructuralPlace),
     ByteSequenceLength => (ByteCount, ExactByteViewMetadata, ReadByteSequenceLength, None, RequiresAndKeepsStructuralPlace),
@@ -427,6 +433,15 @@ pub fn validate_structural_effect_semantic_rows(
         validate_structural_effect_schema(tag, row.schema)?;
     }
     Ok(())
+}
+
+/// `ElementViewFixedArray` borrows a measured view's whole window as a
+/// reference carrier.
+fn fixed_array_schema(schema: StructuralEffectLeafSchema) -> bool {
+    schema.result == StructuralEffectResultShape::Structural
+        && schema.custody == StructuralEffectCustody::ExactImmutableElementView
+        && schema.external_effect == StructuralEffectExternalEffect::None
+        && schema.frontier == StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier
 }
 
 fn validate_structural_effect_schema(
@@ -490,6 +505,9 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EstablishElementViewSubslice => {
             OperationSemanticTag::ElementViewSubslice
         }
+        StructuralEffectAction::EstablishElementViewFixedArray => {
+            OperationSemanticTag::ElementViewFixedArray
+        }
         StructuralEffectAction::WriteByteSequence => OperationSemanticTag::ByteSequenceWrite,
         StructuralEffectAction::ReadByteSequence => OperationSemanticTag::ByteSequenceRead,
         StructuralEffectAction::ReadByteSequenceLength => {
@@ -547,6 +565,9 @@ fn validate_structural_effect_schema(
         }
         StructuralEffectAction::EstablishElementViewSubslice => {
             StructuralEffectGoalShape::ElementRangeInBounds
+        }
+        StructuralEffectAction::EstablishElementViewFixedArray => {
+            StructuralEffectGoalShape::ElementExtentMatchesArray
         }
         _ => StructuralEffectGoalShape::None,
     };
@@ -779,6 +800,7 @@ fn validate_structural_effect_schema(
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
             }
+            StructuralEffectAction::EstablishElementViewFixedArray => fixed_array_schema(schema),
         } && schema.work == StructuralEffectWorkPolicy::ConsumeOne;
     valid
         .then_some(())

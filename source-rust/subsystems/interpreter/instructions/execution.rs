@@ -3872,6 +3872,7 @@ pub(crate) mod execution {
                                         ElementViewRead => flow execute_element_view_read,
                                         ElementViewWrite => flow execute_element_view_write,
                                         ElementViewSubslice => advance execute_element_view_subslice,
+                                        ElementViewFixedArray => advance execute_element_view_fixed_array,
                                         ByteSequenceSubslice => advance execute_byte_sequence_subslice,
                                         ByteSequenceWrite => advance execute_byte_sequence_write,
                                         ByteSequencePredicate => flow execute_byte_sequence_predicate,

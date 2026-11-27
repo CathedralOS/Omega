@@ -35,6 +35,26 @@ enum CaptureComparison {
 }
 
 impl Backing {
+    /// The incoming places whose payload every captured region of this
+    /// backing selects directly, when there is at least one region and each
+    /// is such a selection.
+    pub(super) fn captured_argument_sources(&self) -> Option<Vec<PlaceId>> {
+        if self.regions.is_empty() {
+            return None;
+        }
+        self.regions
+            .iter()
+            .map(|region| match &region.origin {
+                Some(DescriptorCallOrigin::Argument { source, projection })
+                    if !projection.indirect =>
+                {
+                    Some(*source)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
     pub(super) fn direct(place: Lineage) -> Self {
         Self {
             place: place.clone(),

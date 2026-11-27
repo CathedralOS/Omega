@@ -1509,6 +1509,27 @@ impl<'a> Replay<'a> {
                             }
                             let suffix = &full[prefix_path.len() + 1..];
                             let root_type = *machine.place_types.get(source)?;
+                            // A fixed-array reference to an incoming view's window
+                            // names that window of the view's payload, which
+                            // has no storage path in this machine.
+                            if crate::descriptor_results::is_descriptor(
+                                self.types.iter(),
+                                root_type,
+                            ) && self.parameter(machine, *source).is_some()
+                            {
+                                projected.push(self.append_storage_capture(
+                                    machine,
+                                    state,
+                                    &StorageResolution::Projected(DescriptorCallOrigin::Argument {
+                                        source: *source,
+                                        projection: projection.clone(),
+                                    }),
+                                    suffix,
+                                    depth,
+                                    expansions.clone(),
+                                )?);
+                                continue;
+                            }
                             let candidates = match projection.captured_address_path() {
                                 Ok(path) if path.contains(&StructuralPathSegment::Referent) => {
                                     unavailable.get_or_insert(

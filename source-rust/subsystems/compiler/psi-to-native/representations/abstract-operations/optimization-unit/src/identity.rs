@@ -3567,6 +3567,7 @@ pub(crate) mod operation_encoding {
             | O::ByteSequenceSubslice { .. }
             | O::EstablishElementView { .. }
             | O::ElementViewSubslice { .. }
+            | O::ElementViewFixedArray { .. }
             | O::EstablishPrimitiveLocal { .. }
             | O::PrimitiveLocalStore { .. }
             | abstract_operations::primitive_storage_observation_pattern!(..)
@@ -5293,6 +5294,21 @@ pub(crate) mod operation_encoding {
                     bytes.id(*start);
                     bytes.id(*end);
                     bytes.id(*length);
+                    bytes.id(*obligation);
+                }
+                O::ElementViewFixedArray {
+                    psi_operation,
+                    result,
+                    source,
+                    length,
+                    extent,
+                    obligation,
+                } => {
+                    tag!(bytes, 139, psi_operation);
+                    encode_structural_operation_result(bytes, result);
+                    encode_structural_argument(bytes, source);
+                    bytes.id(*length);
+                    bytes.u64(*extent);
                     bytes.id(*obligation);
                 }
                 O::EstablishElementView {

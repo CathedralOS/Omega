@@ -6927,6 +6927,112 @@ pub(crate) mod storage_foundations {
             Ok(())
         }
 
+        /// A fixed-array reference to a whole view: a shared reference to
+        /// `[T; extent]` whose element is the view's, measured from its exact
+        /// descriptor just before.
+        pub(crate) fn validate_element_view_fixed_array(
+            module: &TerminalModule,
+            machine: &TerminalMachine,
+            operation: &Operation,
+            previous: Option<&Operation>,
+        ) -> Result<(), CodecError> {
+            let OperationKind::ElementViewFixedArray {
+                source,
+                length,
+                extent,
+                ..
+            } = &operation.kind
+            else {
+                unreachable!("dispatched validate_element_view_fixed_array")
+            };
+            let Some(result) = operation.result.structural() else {
+                return malformed("element-view fixed array requires a structural result");
+            };
+            if result.multiplicity != StructuralMultiplicity::Affine
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+            {
+                return malformed(
+                    "element-view fixed array requires one affine unqualified reference carrier",
+                );
+            }
+            if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                return malformed("element-view fixed array requires shared descriptor access");
+            }
+            let Some(root) = structural_place_type(machine, source.place) else {
+                return malformed("element-view fixed array has no source declaration");
+            };
+            let selected = validate_structural_path(module, root, &source.path)?;
+            let byte = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid");
+            let (element, measured) = match module.structural_type(selected).map(|row| &row.shape)
+            {
+                Some(StructuralTypeShape::ElementView { element, .. }) => (
+                    Some(*element),
+                    is_element_view_measurement(previous, source, *length),
+                ),
+                Some(shape) if shape.is_borrowed_byte_view() => (
+                    None,
+                    previous.is_some_and(|measurement| {
+                        measurement
+                            .result
+                            .scalar_ref()
+                            .is_some_and(|result| result.id == *length)
+                            && matches!(
+                                &measurement.kind,
+                                OperationKind::ByteSequenceLength { source: observed }
+                                    if terminal_semantics::same_descriptor_coordinate(observed, source)
+                            )
+                    }),
+                ),
+                _ => {
+                    return malformed(
+                        "element-view fixed array requires an element or byte view source",
+                    );
+                }
+            };
+            let Some(StructuralTypeShape::Reference {
+                referent,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            }) = module
+                .structural_type(result.structural_type)
+                .map(|row| &row.shape)
+            else {
+                return malformed("element-view fixed array requires a shared reference result");
+            };
+            if !module
+                .structural_type(*referent)
+                .is_some_and(|row| match &row.shape {
+                    StructuralTypeShape::FixedArray {
+                        element: array_element,
+                        length: array_length,
+                    } => {
+                        array_length.literal() == Some(*extent)
+                            && match element {
+                                Some(element) => *array_element == element,
+                                None => module.structural_type(*array_element).is_some_and(|row| {
+                                    row.shape
+                                        == StructuralTypeShape::PrimitiveScalar(
+                                            ScalarType::Integer(byte),
+                                        )
+                                }),
+                            }
+                    }
+                    _ => false,
+                })
+            {
+                return malformed(
+                    "element-view fixed array requires the view's element at its stated extent",
+                );
+            }
+            if !measured {
+                return malformed(
+                    "element-view fixed array length does not measure its exact descriptor",
+                );
+            }
+            Ok(())
+        }
+
         pub(crate) fn validate_element_view_length(
             module: &TerminalModule,
             machine: &TerminalMachine,
@@ -12465,6 +12571,11 @@ fn validate_operation_foundation(
         }
         OperationKind::ElementViewSubslice { .. } => {
             storage_foundations::validate_element_view_subslice(
+                module, machine, operation, previous,
+            )?
+        }
+        OperationKind::ElementViewFixedArray { .. } => {
+            storage_foundations::validate_element_view_fixed_array(
                 module, machine, operation, previous,
             )?
         }

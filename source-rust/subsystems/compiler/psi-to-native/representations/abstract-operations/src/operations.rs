@@ -317,6 +317,15 @@ pub enum AbstractOperation {    EstablishActivationClaim {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// A shared reference to a view's whole window as `[T; extent]`.
+    ElementViewFixedArray {
+        psi_operation: OperationId,
+        result: OperationResult,
+        source: StructuralArgument,
+        length: ValueId,
+        extent: u64,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     WriteOnlyPrimitiveStore {
         psi_operation: OperationId,
         destination: super::StructuralScalarStoreDestination,
@@ -867,7 +876,8 @@ macro_rules! structural_paths_of {
             | AbstractOperation::ElementViewLength { source, .. }
             | AbstractOperation::ByteSequenceLength { source, .. }
             | AbstractOperation::ByteSequenceSubslice { source, .. }
-            | AbstractOperation::ElementViewSubslice { source, .. } => vec![source.path.$as()],
+            | AbstractOperation::ElementViewSubslice { source, .. }
+            | AbstractOperation::ElementViewFixedArray { source, .. } => vec![source.path.$as()],
             AbstractOperation::EstablishStructuralArray {
                 elements: structural_arguments,
                 ..
@@ -1135,6 +1145,7 @@ impl AbstractOperation {
             | Self::EstablishRecord { result, .. }
             | Self::EstablishReference { result, .. }
             | Self::EstablishAccessReference { result, .. }
+            | Self::ElementViewFixedArray { result, .. }
             | Self::CallStructural {
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
@@ -1262,6 +1273,7 @@ impl AbstractOperation {
             | Self::ElementViewRead { psi_operation, .. }
             | Self::ElementViewWrite { psi_operation, .. }
             | Self::ElementViewSubslice { psi_operation, .. }
+            | Self::ElementViewFixedArray { psi_operation, .. }
             | Self::BooleanNot { psi_operation, .. }
             | Self::BooleanEqual { psi_operation, .. }
             | Self::IntegerEqual { psi_operation, .. }

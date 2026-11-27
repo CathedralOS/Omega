@@ -550,6 +550,9 @@ impl Lowering<'_> {
             ExpressionKind::CollectionSubslice { .. } | ExpressionKind::CollectionView { .. } => {
                 Err(self.internal("a byte descriptor is used as a scalar"))
             }
+            ExpressionKind::CollectionFixedArray { .. } => {
+                Err(self.internal("a fixed-array reference is used as a scalar"))
+            }
             ExpressionKind::Payload { base, case, field } => {
                 self.read_payload(base, *case, *field, expression)
             }

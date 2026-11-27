@@ -1145,6 +1145,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::CollectionView { base: operand, .. }
+        | ExpressionKind::CollectionFixedArray { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::ByteSequencePredicate { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
@@ -2790,6 +2791,83 @@ impl<'a> Lowering<'a> {
                     kind,
                 ));
                 self.point = Some(ProgramPoint::AfterOperation(operation));
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )?;
+                Ok(Reached::Value(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
+            ExpressionKind::CollectionFixedArray { base, extent } => {
+                // The reference covers the captured view's whole window, and
+                // owes that window's measured length equal to its extent.
+                let captured = continuing!(self.record(base));
+                let Some(ValueType::Record(view, _, _)) = base.result else {
+                    return Err(self.internal("a fixed-array cast lost its view"));
+                };
+                let shape = &self.record_type(view)?.shape;
+                if !matches!(
+                    shape,
+                    StorageShape::ElementView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                        ..
+                    } | StorageShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(StructuralAccess::SharedBorrow),
+                        }
+                    )
+                ) {
+                    return Err(self.internal("a fixed-array cast of a view that is not shared"));
+                }
+                let reads_length = shape
+                    .length_operation()
+                    .ok_or_else(|| self.internal("a fixed-array cast has no readable view"))?;
+                let source = StructuralArgument {
+                    place: captured,
+                    path: Vec::new(),
+                    access: StructuralAccess::SharedBorrow,
+                };
+                let exact = self.exact_root(captured)?;
+                self.name_contents(exact, ValueType::record(view))?;
+                self.project(exact, Segment::Extent)?;
+                let count = ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .expect("u64 is valid"),
+                );
+                let measurement = self.operation_identity(expression.source);
+                let Value::Scalar(length) =
+                    self.emit(measurement, Some(count), reads_length(source.clone()))?
+                else {
+                    return Err(self.internal("a view length is not scalar"));
+                };
+                let operation = self.operation_identity(expression.source);
+                let before = self.here()?;
+                let obligation = self.obligation(
+                    ObligationKind::OperationSafety {
+                        site: ExecutionSite::Operation(operation),
+                    },
+                    before,
+                    expression.source,
+                );
+                let (root, place) = self.produce(
+                    operation,
+                    value_type,
+                    OperationKind::ElementViewFixedArray {
+                        source,
+                        length,
+                        extent: *extent,
+                        obligation,
+                    },
+                )?;
                 self.write(
                     place,
                     ProgramPoint::AfterOperation(operation),

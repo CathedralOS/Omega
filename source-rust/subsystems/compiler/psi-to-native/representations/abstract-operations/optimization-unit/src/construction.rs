@@ -443,6 +443,11 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             obligation,
             ..
         }
+        | O::ElementViewFixedArray {
+            psi_operation,
+            obligation,
+            ..
+        }
         | O::EstablishElementView {
             psi_operation,
             region:
@@ -611,6 +616,7 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
         | O::EstablishElementView { .. }
         | O::ElementViewWrite { .. }
         | O::ElementViewSubslice { .. }
+        | O::ElementViewFixedArray { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::MoveStructuralField { .. }
@@ -720,6 +726,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::ElementViewSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],
+        O::ElementViewFixedArray { length, .. } => vec![*length],
         O::EstablishElementView {
             region: terminal_psi::ElementViewRegion::WholeRepresentation { source_length, .. },
             ..
@@ -893,7 +900,8 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(source.place);
             places.insert(result.place);
         }
-        O::ElementViewSubslice { source, result, .. } => {
+        O::ElementViewSubslice { source, result, .. }
+        | O::ElementViewFixedArray { source, result, .. } => {
             places.insert(source.place);
             places.insert(result.place);
         }
@@ -1122,6 +1130,7 @@ pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent>
         | O::ElementViewRead { .. }
         | O::ElementViewWrite { .. }
         | O::ElementViewSubslice { .. }
+        | O::ElementViewFixedArray { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::MoveStructuralField { .. }

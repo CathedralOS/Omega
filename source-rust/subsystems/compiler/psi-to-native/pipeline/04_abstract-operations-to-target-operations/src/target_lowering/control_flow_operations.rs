@@ -815,6 +815,12 @@ pub(crate) mod operations {
             AbstractOperation::ReleaseReference { .. } => {
                 super::references::release(operation, site)
             }
+            AbstractOperation::ElementViewFixedArray { psi_operation, .. } => {
+                Err(LoweringError::UnsupportedFixedArrayViewReference {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                })
+            }
             AbstractOperation::SelectMachine {
                 psi_operation,
                 result,

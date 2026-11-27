@@ -10545,6 +10545,7 @@ mod value_custody {
                 | O::EstablishElementView { source, .. }
                 | O::ElementViewLength { source, .. }
                 | O::ElementViewSubslice { source, .. }
+                | O::ElementViewFixedArray { source, .. }
                 | O::ByteSequenceLength { source, .. }
                 | O::ByteSequenceSubslice { source, .. }
                 | O::GlobalDescriptorTable { source, .. } => {

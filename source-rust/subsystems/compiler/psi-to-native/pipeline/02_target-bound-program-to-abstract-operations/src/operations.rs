@@ -1187,6 +1187,24 @@ mod machine {
                             obligation: *obligation,
                         })
                     }
+                    OperationKind::ElementViewFixedArray {
+                        source,
+                        length,
+                        extent,
+                        obligation,
+                    } => {
+                        let Some(result) = operation.result.structural().cloned() else {
+                            return Err(LoweringError::UnsupportedReferenceCustody(operation.id));
+                        };
+                        Ok(AbstractOperation::ElementViewFixedArray {
+                            psi_operation: operation.id,
+                            result,
+                            source: source.clone(),
+                            length: *length,
+                            extent: *extent,
+                            obligation: *obligation,
+                        })
+                    }
                     OperationKind::EstablishScalarArray { .. }
                     | OperationKind::EstablishStructuralArray { .. }
                     | OperationKind::EstablishScalarCase { .. }

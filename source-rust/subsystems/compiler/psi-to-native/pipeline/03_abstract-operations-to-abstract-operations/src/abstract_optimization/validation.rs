@@ -1478,6 +1478,7 @@ pub(crate) mod place_observations {
             | O::ByteSequenceRead { .. }
             | O::ByteSequenceSubslice { .. }
             | O::ElementViewSubslice { .. }
+            | O::ElementViewFixedArray { .. }
             | O::ByteSequenceLength { .. }
             | O::ElementViewLength { .. }
             | abstract_operations::byte_len_or_field_read_pattern!(..)
@@ -1651,7 +1652,8 @@ pub(crate) mod place_observations {
             O::ByteSequenceLength { source, .. }
             | O::ElementViewLength { source, .. }
             | O::ByteSequenceSubslice { source, .. }
-            | O::ElementViewSubslice { source, .. } => {
+            | O::ElementViewSubslice { source, .. }
+            | O::ElementViewFixedArray { source, .. } => {
                 references.insert(source.place);
             }
             O::PrimitiveLocalStore { destination, .. }
@@ -1750,6 +1752,7 @@ pub(crate) mod place_observations {
             O::EstablishPrimitiveLocal { result, .. }
             | O::ByteSequenceSubslice { result, .. }
             | O::ElementViewSubslice { result, .. }
+            | O::ElementViewFixedArray { result, .. }
             | O::EstablishScalarArray { result, .. }
             | O::EstablishStructuralArray { result, .. }
             | abstract_operations::establish_case_or_record_result_pattern!(result)
@@ -2440,6 +2443,7 @@ pub(crate) mod relocation_rewrites {
                     | O::ElementViewLength { source, .. }
                     | O::ByteSequenceSubslice { source, .. }
                     | O::ElementViewSubslice { source, .. }
+                    | O::ElementViewFixedArray { source, .. }
                         if source.place == picked =>
                     {
                         member && !consumed
@@ -2725,6 +2729,7 @@ pub(crate) mod relocation_rewrites {
                 substitute(end, substitution);
                 substitute(length, substitution);
             }
+            O::ElementViewFixedArray { length, .. } => substitute(length, substitution),
             O::NearestIeeeFloatFusedMultiplyAdd {
                 left,
                 right,
@@ -2772,7 +2777,8 @@ pub(crate) mod relocation_rewrites {
             O::ByteSequenceLength { source, .. }
             | O::ElementViewLength { source, .. }
             | O::ByteSequenceSubslice { source, .. }
-            | O::ElementViewSubslice { source, .. } => &mut source.place,
+            | O::ElementViewSubslice { source, .. }
+            | O::ElementViewFixedArray { source, .. } => &mut source.place,
             _ => return false,
         };
         if *source != parameter {
