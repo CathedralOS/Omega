@@ -5,6 +5,7 @@ mod activation;
 mod admission;
 mod build_evaluation;
 pub mod host;
+mod settings;
 
 pub use activation::preparation::PreparedBuildExecution;
 pub use activation::{

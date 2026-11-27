@@ -15,7 +15,6 @@ build-model = { path = "../model" }
 language-core = { path = "../../foundation/language-core" }
 build-program-launch = { path = "authority/program" }
 bounded-process = { path = "../../../../foundation/bounded-process" }
-build-settings = { path = "../settings" }
 build-evaluation-result = { path = "result" }
 psi-authorization = { path = "../../psi/artifact/authorization" }
 psi-provider-selections = { path = "../../psi/execution-inputs/providers" }

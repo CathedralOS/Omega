@@ -17,7 +17,6 @@ members = [
     "source-rust/subsystems/compiler",
     "source-rust/subsystems/compiler/build",
     "source-rust/subsystems/compiler/build/publication",
-    "source-rust/subsystems/compiler/build/settings",
     "source-rust/subsystems/compiler/build/evaluation",
     "source-rust/subsystems/compiler/build/evaluation/result",
     "source-rust/subsystems/compiler/build/evaluation/authority/program",

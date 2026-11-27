@@ -275,7 +275,6 @@ dependencies = [
  "build-filesystem",
  "build-model",
  "build-program-launch",
- "build-settings",
  "build-time-evaluation",
  "declaration-scope",
  "diagnostics",
@@ -362,17 +361,6 @@ dependencies = [
  "target",
  "terminal-psi",
  "wire",
-]
-
-[[package]]
-name = "build-settings"
-version = "0.1.0"
-dependencies = [
- "build-model",
- "package-compilation",
- "semantic-vocabulary",
- "terminal-interpreter",
- "terminal-psi",
 ]
 
 [[package]]

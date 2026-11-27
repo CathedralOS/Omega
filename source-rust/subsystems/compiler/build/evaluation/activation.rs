@@ -23,7 +23,7 @@ than a callback loop:
    permanently poisons the activation rather than letting later steps conceal an
    incomplete provider installation or failed query.
 4. On normal return (`complete`), we extract the plain settings from borrowed
-   entry `0` (`build_settings::extract`), close the interpreter instance before
+   entry `0` (`crate::settings::extract`), close the interpreter instance before
    draining host selections and logs, validate the authored project role
    (`project::destination`), and return `ReturnedBuild` with its complete
    request and demanded-source ledgers attached for coordinator source-join
@@ -921,7 +921,7 @@ impl TerminalBuildActivation {
             return Err("Build completion requires its normal interpreter return".into());
         }
         let (settings, optimization_report) =
-            build_settings::extract(&self.instance, &self.host.machine)?;
+            crate::settings::extract(&self.instance, &self.host.machine)?;
         let destination = project::destination(
             &self.instance,
             &self.host.machine,
