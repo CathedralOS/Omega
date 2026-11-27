@@ -63,8 +63,14 @@ dispatches is lowered instead, with every machine declared inside it: a call
 of a machine parameter, or of a generic machine at some machines, is an
 `ExpressionKind::Applied` the signature reader applies to the parameter's
 variable or to the passed definitions (`read/templates.rs`,
-`mathematical_application`). A body that is not generic calls or cites a
-generic machine at concrete machines through the same form. A named proposition declared as
+`mathematical_application`). So is a generic machine that states nothing,
+which a law reads in place, and any other generic body the clause reader
+cannot read as terms. A generic machine's machine parameters are arguments
+of every definition the signature makes for it: its definition by cases,
+its definition over fuel and each dispatch on a computed value, so a call
+of itself may pass other machines. A body that is not generic calls or cites
+a generic machine at concrete machines through the same form, and a call
+owes the callee's premises at the machines and arguments it passes. A named proposition declared as
 one formula is read where a clause of such a machine applies it: the formula,
 with each parameter standing for the argument written for it. Its declaration
 adds nothing to the signature. A quotient of mathematical data

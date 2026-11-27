@@ -1,0 +1,55 @@
+// The twin of `pass/cited_through_a_generic_helper` at `succ`. The helper
+// cites the generic law at `succ`, whose premise `succ(a) = a` does not
+// hold, so the law is refused.
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/foundation.omg as proof;
+
+data Peano {
+    case Zero;
+    case Succ(pred: Peano);
+}
+
+machine twice<machine Step>(a: Peano) -> Peano
+requires machine Step(a: Peano) -> Peano terminates;
+{
+    let once: Peano = Step(a);
+    transition { _ -> (Step(once)) }
+}
+
+machine twice_keeps_a_fixed_point<machine Step>(a: Peano)
+requires machine Step(a: Peano) -> Peano terminates;
+requires
+    |proof|::Identity::<Peano>(Step(a), a)
+ensures
+    |proof|::Identity::<Peano>(twice::<Step>(a), a)
+{
+}
+
+machine argue_twice<machine Step>(a: Peano)
+requires machine Step(a: Peano) -> Peano terminates;
+{
+    twice_keeps_a_fixed_point::<Step>(a);
+}
+
+machine succ(a: Peano) -> Peano
+{
+    transition { _ -> Peano::Succ { pred: a } }
+}
+
+machine twice_succ_keeps(a: Peano)
+ensures
+    |proof|::Identity::<Peano>(twice::<succ>(a), a)
+{
+    argue_twice::<succ>(a);
+}
+
+data Main { }
+machine exit_with_status(main: @mutable Main) reaches |process_exit|::ProcessExit {
+    |process_exit|::ProcessExit::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches |process_exit|::ProcessExit {
+    let mutable entry_storage: Main;
+    block exit_with_status(@mutable entry_storage);
+}
