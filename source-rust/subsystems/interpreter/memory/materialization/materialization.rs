@@ -6,22 +6,6 @@ pub(crate) mod field_codec {
     };
     use layout_plans::{ByteOrder, LayoutPlacementReport, LayoutPlanReport};
 
-    pub fn update_scalar_field(
-        layout: &LayoutPlanReport,
-        value: &layout_plans::field_values::ScalarFieldValue,
-        byte_order: ByteOrder,
-        destination: &mut [u8],
-    ) -> Result<(), MaterializationDiagnostic> {
-        let extent = fixed_layout_byte_len(layout, "scalar field replacement")?;
-        let source = destination.get(..extent).ok_or_else(|| {
-            MaterializationDiagnostic("scalar field replacement exceeds supplied storage".into())
-        })?;
-        let mut staged = source.to_vec();
-        stage_scalar_field(layout, value, byte_order, &mut staged)?;
-        destination[..extent].copy_from_slice(&staged);
-        Ok(())
-    }
-
     pub fn stage_scalar_field(
         layout: &LayoutPlanReport,
         value: &layout_plans::field_values::ScalarFieldValue,
@@ -44,28 +28,9 @@ pub(crate) mod field_codec {
             ));
         }
         for entry in entries {
-            crate::storage_materialization::symbolic_materialization::apply_scalar_entry(
-                staged, byte_order, entry, value,
-            )?;
+            super::apply_scalar_entry(staged, byte_order, entry, value)?;
         }
         Ok(())
-    }
-
-    pub fn decode_aggregate_field(
-        layout: &LayoutPlanReport,
-        field: &AggregateFieldSchema,
-        byte_order: ByteOrder,
-        source: &[u8],
-    ) -> Result<Vec<u8>, MaterializationDiagnostic> {
-        let prepared = prepare_aggregate_field(layout, field, byte_order, source)?;
-        let width = prepared.width();
-        let mut decoded = Vec::new();
-        decoded
-            .try_reserve_exact(width)
-            .map_err(|_| MaterializationDiagnostic("field exceeds available storage".into()))?;
-        decoded.resize(width, 0);
-        prepared.copy_into(&mut decoded)?;
-        Ok(decoded)
     }
 
     pub fn decode_aggregate_field_into(
@@ -286,16 +251,26 @@ pub(crate) mod field_codec {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::storage_materialization::stage_aggregate_layout;
         use crate::storage_materialization::test_support::{
             layout_field_entry, numbered_layout_field_entry,
         };
-        use crate::storage_materialization::{
-            materialize_aggregate_layout_into, stage_aggregate_layout,
-        };
         use layout_plans::{AggregateFieldValue, IntegerInterpretation};
 
+        fn decode_aggregate_field(
+            layout: &LayoutPlanReport,
+            field: &AggregateFieldSchema,
+            byte_order: ByteOrder,
+            source: &[u8],
+        ) -> Result<Vec<u8>, MaterializationDiagnostic> {
+            let width = prepare_aggregate_field(layout, field, byte_order, source)?.width();
+            let mut decoded = vec![0; width];
+            decode_aggregate_field_into(layout, field, byte_order, source, &mut decoded)?;
+            Ok(decoded)
+        }
+
         #[test]
-        fn scalar_replacement_preserves_neighbours_padding_and_failed_writes() {
+        fn scalar_staging_preserves_neighbours_and_padding() {
             let layout = LayoutPlanReport {
                 schema_report_fingerprint: 0,
                 offsets: None,
@@ -325,10 +300,7 @@ pub(crate) mod field_codec {
             for order in [ByteOrder::LittleEndian, ByteOrder::BigEndian] {
                 let mut image = [0xa5; 12];
                 let value = layout_plans::ScalarFieldValue::new("small", 8, 2).unwrap();
-                let mut scratch = image;
-                stage_scalar_field(&layout, &value, order, &mut scratch).unwrap();
-                update_scalar_field(&layout, &value, order, &mut image).unwrap();
-                assert_eq!(scratch, image);
+                stage_scalar_field(&layout, &value, order, &mut image).unwrap();
                 let changed = if order == ByteOrder::LittleEndian {
                     0
                 } else {
@@ -349,16 +321,14 @@ pub(crate) mod field_codec {
                 );
                 let signed =
                     layout_plans::ScalarFieldValue::new("signed", 64, (-2_i64) as u64).unwrap();
-                stage_scalar_field(&layout, &signed, order, &mut scratch).unwrap();
-                update_scalar_field(&layout, &signed, order, &mut image).unwrap();
-                assert_eq!(scratch, image);
+                stage_scalar_field(&layout, &signed, order, &mut image).unwrap();
                 expected[4] = 0xfe;
                 assert_eq!(image, expected);
                 let too_large = layout_plans::ScalarFieldValue::new("signed", 64, 128).unwrap();
-                assert!(update_scalar_field(&layout, &too_large, order, &mut image).is_err());
+                assert!(stage_scalar_field(&layout, &too_large, order, &mut image).is_err());
                 assert_eq!(image, expected);
                 let missing = layout_plans::ScalarFieldValue::new("absent", 8, 0).unwrap();
-                assert!(update_scalar_field(&layout, &missing, order, &mut image).is_err());
+                assert!(stage_scalar_field(&layout, &missing, order, &mut image).is_err());
                 assert_eq!(image, expected);
 
                 let mut invalid = layout.clone();
@@ -366,9 +336,7 @@ pub(crate) mod field_codec {
                     "small",
                     LayoutPlacementReport::At { offset: 8 },
                 ));
-                let mut atomic = [0xa5; 12];
-                assert!(update_scalar_field(&invalid, &value, order, &mut atomic).is_err());
-                assert_eq!(atomic, [0xa5; 12]);
+                let atomic = [0xa5; 12];
                 let mut private = atomic;
                 assert!(stage_scalar_field(&invalid, &value, order, &mut private).is_err());
                 assert_ne!(private[..8], atomic[..8]);
@@ -433,8 +401,7 @@ pub(crate) mod field_codec {
                     AggregateFieldValue::new("bytes", vec![1, 9, 2, 8, 3, 7, 4, 6]).unwrap(),
                 ];
                 let mut image = vec![0xa5; 16];
-                materialize_aggregate_layout_into(&layout, &schemas, &values, order, &mut image)
-                    .unwrap();
+                stage_aggregate_layout(&layout, &schemas, &values, order, &mut image).unwrap();
                 let borrowed = values
                     .iter()
                     .map(|value| {
@@ -486,7 +453,7 @@ pub(crate) mod field_codec {
                 AggregateFieldSchema::new_repeated_numbered("new_name", 91, 2, 2, 3).unwrap();
             let original = AggregateFieldValue::new("new_name", vec![1, 2, 3, 4, 5, 6]).unwrap();
             let mut image = vec![0; 10];
-            materialize_aggregate_layout_into(
+            stage_aggregate_layout(
                 &layout,
                 std::slice::from_ref(&schema),
                 std::slice::from_ref(&original),
@@ -577,25 +544,7 @@ pub(crate) mod field_codec {
 
 pub(crate) mod stored_integer_writes {
     pub(crate) use layout_plans::stored_integer_checks::*;
-    use layout_plans::{ByteOrder, MaterializationDiagnostic, MaterializationWrite};
-    pub fn apply_write(
-        bytes: &mut [u8],
-        byte_order: ByteOrder,
-        write: &MaterializationWrite,
-        source_value: u64,
-    ) -> Result<(), MaterializationDiagnostic> {
-        apply_fragment(
-            bytes,
-            byte_order,
-            &write.field,
-            write.container_byte_offset,
-            write.container_width_bits,
-            write.destination_lsb,
-            write.source_lsb,
-            write.width,
-            source_value,
-        )
-    }
+    use layout_plans::{ByteOrder, MaterializationDiagnostic};
 
     pub(crate) fn container_range(
         container_byte_offset: u64,
@@ -666,13 +615,12 @@ pub(crate) mod stored_integer_writes {
     }
 }
 
-use layout_plans::{MaterializationDiagnostic, SymbolicMaterializationPlan};
+use layout_plans::MaterializationDiagnostic;
 
 use crate::storage_materialization::materialization::stored_integer_writes::{
-    apply_write, byte_sized_width, container_range, low_mask, read_container, scalar_fragment,
-    validate_fragment, validate_write, validate_write_source_value,
+    apply_fragment, byte_sized_width, container_range, low_mask, read_container, scalar_fragment,
+    validate_fragment, validate_stored_integer_value,
 };
-use crate::storage_materialization::symbolic_materialization::apply_scalar_entry;
 use layout_plans::field_identities::{
     index_supplied_fields, materialization_field_key, planned_entries_by_key,
     validate_materialization_field_identities, validate_supplied_field_coverage,
@@ -681,7 +629,7 @@ use layout_plans::field_values::{
     AggregateFieldSchema, AggregateFieldShape, AggregateFieldValue, ScalarFieldSchema,
     ScalarFieldValue,
 };
-use layout_plans::{ByteOrder, MaterializationAction};
+use layout_plans::{ByteOrder, LayoutFieldEntryReport};
 use layout_plans::{IntegerInterpretation, LayoutPlacementReport, LayoutPlanReport};
 
 fn checked_buffer_len(
@@ -719,44 +667,6 @@ fn checked_aggregate_bytes<'a, Bytes: AsRef<[u8]>>(
     Ok((bytes, expected_size))
 }
 
-pub fn materialize_resolved_into(
-    plan: &SymbolicMaterializationPlan,
-    destination: &mut [u8],
-) -> Result<(), MaterializationDiagnostic> {
-    if destination.len() < plan.byte_len {
-        return Err(MaterializationDiagnostic(format!(
-            "materialization needs {} bytes, destination has {}",
-            plan.byte_len,
-            destination.len()
-        )));
-    }
-    let resolved_writes = plan
-        .actions
-        .iter()
-        .map(|action| match action {
-            MaterializationAction::ResolvedWrite {
-                write,
-                source_value,
-            } => Ok((write, *source_value)),
-            other => Err(MaterializationDiagnostic(format!(
-                "materialization still contains an unresolved action: {other:?}"
-            ))),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    for &(write, source_value) in &resolved_writes {
-        validate_write(plan.byte_len, write)?;
-        validate_write_source_value(write, source_value, "resolved symbolic")?;
-    }
-
-    let mut staged = destination[..plan.byte_len].to_vec();
-    for (write, source_value) in resolved_writes {
-        apply_write(&mut staged, plan.byte_order, write, source_value)?;
-    }
-    destination[..plan.byte_len].copy_from_slice(&staged);
-    Ok(())
-}
-
 pub(crate) fn fixed_layout_byte_len(
     layout: &LayoutPlanReport,
     materialization: &str,
@@ -775,61 +685,6 @@ pub(crate) fn fixed_layout_byte_len(
                 ))
             })
         })
-}
-
-pub fn materialize_scalar_layout_into(
-    layout: &LayoutPlanReport,
-    values: &[ScalarFieldValue],
-    byte_order: ByteOrder,
-    destination: &mut [u8],
-) -> Result<(), MaterializationDiagnostic> {
-    let byte_len = checked_buffer_len(
-        layout,
-        destination.len(),
-        "scalar materialization",
-        "destination",
-    )?;
-    validate_materialization_field_identities(layout)?;
-    let supplied =
-        index_supplied_fields(values, "scalar", "supplied", |value: &ScalarFieldValue| {
-            (value.field.as_str(), value.member_identity)
-        })?;
-    validate_supplied_field_coverage(
-        layout,
-        &supplied,
-        "supplied scalar value",
-        "supplied scalar field",
-    )?;
-
-    let mut staged = vec![0_u8; byte_len];
-    for entry in &layout.entries {
-        let key = materialization_field_key(&entry.field, entry.member_identity);
-        let value = supplied
-            .value(&key)
-            .expect("complete field set validated above");
-        apply_scalar_entry(&mut staged, byte_order, entry, value)?;
-    }
-    destination[..byte_len].copy_from_slice(&staged);
-    Ok(())
-}
-
-pub fn materialize_aggregate_layout_into(
-    layout: &LayoutPlanReport,
-    fields: &[AggregateFieldSchema],
-    values: &[AggregateFieldValue],
-    byte_order: ByteOrder,
-    destination: &mut [u8],
-) -> Result<(), MaterializationDiagnostic> {
-    let byte_len = checked_buffer_len(
-        layout,
-        destination.len(),
-        "aggregate materialization",
-        "destination",
-    )?;
-    let mut staged = vec![0_u8; byte_len];
-    stage_aggregate_layout(layout, fields, values, byte_order, &mut staged)?;
-    destination[..byte_len].copy_from_slice(&staged);
-    Ok(())
 }
 
 pub fn stage_aggregate_layout<Bytes: AsRef<[u8]>>(
@@ -1232,4 +1087,34 @@ pub fn decode_scalar_layout(
             })
         })
         .collect()
+}
+
+pub(crate) fn apply_scalar_entry(
+    bytes: &mut [u8],
+    byte_order: ByteOrder,
+    entry: &LayoutFieldEntryReport,
+    value: &ScalarFieldValue,
+) -> Result<(), MaterializationDiagnostic> {
+    validate_stored_integer_value(entry, value)?;
+    let fragment = scalar_fragment(entry, value.width_bits)?;
+    validate_fragment(
+        bytes.len(),
+        &value.field,
+        fragment.container_byte_offset,
+        fragment.container_width_bits,
+        fragment.destination_lsb,
+        fragment.source_lsb,
+        fragment.width,
+    )?;
+    apply_fragment(
+        bytes,
+        byte_order,
+        &value.field,
+        fragment.container_byte_offset,
+        fragment.container_width_bits,
+        fragment.destination_lsb,
+        fragment.source_lsb,
+        fragment.width,
+        value.value,
+    )
 }
