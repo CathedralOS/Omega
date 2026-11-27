@@ -179,7 +179,7 @@ pub(crate) mod rematerialization {
                 custody: prefix_custody,
             } = pressure;
             let manifest = project_post_allocation_optimization_manifest(
-                prefix_custody.source().manifest(),
+                prefix_custody.source().core(),
                 source.record(),
                 &[
                     PostAllocationSelectedTransformation::PressureRematerialization(
@@ -1532,9 +1532,8 @@ pub(crate) mod fixed_view {
             ValidatedAllocatorAvailability,
         };
         use optimization_core::{
-            OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
-            OptimizationWorkUsage, OptimizedAbstractPlanProjectionIdentity,
-            PrePhysicalOptimizationManifestIdentity,
+            OptimizationSelectionIdentity, OptimizationSelections, OptimizationUnitIdentity,
+            OptimizationWorkUsage,
         };
         use register_environment::ValidatedTargetRegisterEnvironment;
 
