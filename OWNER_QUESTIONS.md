@@ -159,8 +159,54 @@ hold. Alternatively, remove these sections from the package-review spec and
 the evidence schema now, and delete the decoders and the vocabulary together.
 Should package review report these sections?
 
+<a id="theorem-contract-proof-parameters-encoding"></a>
+### 4. May the encoding spec describe a theorem contract's own proof parameters?
+
+A logical contract may take a proof parameter in its own header
+([logical hypotheses](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use):
+"If the contract itself takes a proof parameter, that parameter belongs to the
+contract's own header. The outer caller supplies one proof of the whole
+contract."). The compiler now carries this as Psi format marker 300, so these
+sentences of [logical theorem parameters](wiki/spec/terminal-psi/encoding.md#logical-theorem-parameters)
+no longer describe the bytes:
+
+- "| theorem contract | counted scalar formal declarations + counted requires
+  propositions + counted ensures propositions |"
+- "| theorem application | owner machine id + edge id + successor block id +
+  proof source + counted fixed scalar subjects + counted premise obligation ids |"
+- The marker paragraph names 299 as the latest marker.
+
+Proposed text. Add before the marker 299 paragraph: "Marker 300 ends each
+theorem contract with its counted proof parameters, as in
+`machine<Inner: NonzeroIsPositive>(n: u8)`, and each theorem application with
+the counted proofs it gives them, as in `Step::<inner>(n)`. Readers reject
+earlier markers before reading the payload, so a saved program from marker 299
+or earlier must be rebuilt." Replace the contract row with "| theorem contract
+| theorem hypothesis + counted theorem hypotheses |" and "| theorem hypothesis |
+counted scalar formal declarations + counted requires propositions + counted
+ensures propositions |". End the application row with "+ counted theorem
+instantiations". Add after the instantiation paragraph: "A theorem contract's
+hypotheses are its own proof parameters, in its header order; each is a
+contract with none of its own. Its complete type binds them after its subjects
+and before its premises: `Π subjects. Π hypotheses. Π premises. conclusion`.
+Each hypothesis's type arrives with the declarations it names, appended after
+the subjects', so the same contract always has the same type. A supply for such
+a parameter names a machine whose own proof formals have exactly those
+contracts, in order, and carries no instantiation; its derivations are
+unchanged. An application of such a parameter carries one instantiation for
+each hypothesis, checked as a supply's instantiation is against that
+hypothesis. Every other application carries none."
+
+The marker 299 paragraph and the theorem supply and instantiation rows were
+added by an agent in #6291, which merged half an hour after the ruling that
+only owners edit `wiki/spec/`. Keep or rewrite them as you see fit.
+
+**Recommend adopting the proposed text.** Psi encoding design is delegated,
+and the spec page is the only description a separate reader has of these rows.
+Should the encoding spec describe them this way?
+
 <a id="generic-quotient-selection"></a>
-### 4. How does a generic quotient declaration name its relation and select its conformance?
+### 5. How does a generic quotient declaration name its relation and select its conformance?
 
 The quotient contract interprets a carrier family `C<I>` and a relation over
 it through a total carrier, and says generic selection follows the

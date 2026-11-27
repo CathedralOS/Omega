@@ -498,6 +498,26 @@ impl Program<'_> {
     }
 }
 
+/// The rejection for a call that names a point inside a machine's body other
+/// than its entry. `wiki/spec/language/machines.md`, "Nested machines and
+/// identity": a call "invokes its entry, not a saved activation or a private
+/// point inside its body", and the source `state` declaration is retired, so
+/// no source name denotes such a point. The rule holds for a runtime call and
+/// for a call a clause unfolds alike. Resolution gives a call only a machine
+/// or its entry state, so reaching this means the typed trees named another
+/// state: it is refused as the rule, never read as the machine's entry.
+pub(super) fn call_inside_a_machine_body(id: MachineId) -> Refusal {
+    Refusal {
+        reason: terminal_check_tables::RefusalReason::Violation,
+        site: terminal_check_tables::RefusalSite::Machine(id, crate::Construct::Machine),
+        source_span: None,
+        detail: String::from(
+            "a call runs a machine from its entry; this call names a point inside a \
+             machine's body other than its entry",
+        ),
+    }
+}
+
 /// The rejection for a reference to a scalar supplied where a value is
 /// read. `wiki/spec/language/expressions.md`, "Explicit dereference": "Omega
 /// never inserts a dereference to satisfy an expected value type, including

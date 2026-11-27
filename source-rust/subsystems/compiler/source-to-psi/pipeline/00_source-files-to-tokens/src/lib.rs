@@ -6,12 +6,11 @@
 
 mod literals {
     mod numbers;
-    pub(super) mod quoted_bytes;
+    mod quoted_bytes;
 }
 
 use arena::Arena;
 use diagnostics::Diagnostic;
-use literals::quoted_bytes::decode_string_literal;
 use rayon::prelude::*;
 use source_files::{LoadedSource, LoadedSources};
 use source_text::{SourcePosition, Span};
@@ -87,11 +86,6 @@ struct ByteScanner<'source> {
     offset: usize,
 }
 
-struct LexedToken {
-    kind: TokenKind,
-    span: Span,
-}
-
 impl<'source> ByteScanner<'source> {
     fn new(source: &'source str) -> Self {
         Self { source, offset: 0 }
@@ -113,18 +107,17 @@ impl<'source> ByteScanner<'source> {
         while let Some(first) = self.peek() {
             let start = self.offset;
             self.offset += 1;
-            let token = self.scan_token(start, first)?;
-            if token.kind == TokenKind::StringLiteral {
-                let spelling = &self.source[start..self.offset];
-                tokens.push_decoded(token.span, |bytes| decode_string_literal(spelling, bytes));
+            if first == b'"' {
+                tokens.try_push_decoded(|out| self.scan_quoted(start, out))?;
             } else {
-                tokens.push_source(token.kind, token.span);
+                let kind = self.scan_token(start, first)?;
+                tokens.push_source(kind, Span::new(start, self.offset));
             }
         }
         Ok(())
     }
 
-    fn scan_token(&mut self, start: usize, first: u8) -> Result<LexedToken, LexError> {
+    fn scan_token(&mut self, start: usize, first: u8) -> Result<TokenKind, LexError> {
         let kind = match first {
             b' ' | b'\t' | b'\r' | b'\n' => {
                 while matches!(self.peek(), Some(b' ' | b'\t' | b'\r' | b'\n')) {
@@ -157,11 +150,10 @@ impl<'source> ByteScanner<'source> {
                     .map(TokenKind::Keyword)
                     .unwrap_or(TokenKind::Identifier)
             }
-            b'0'..=b'9' => return Ok(self.scan_number(start, first)),
+            b'0'..=b'9' => self.scan_number(first),
             b'.' if self.peek().is_some_and(|next| next.is_ascii_digit()) => {
-                return Ok(self.scan_number(start, first));
+                self.scan_number(first)
             }
-            b'"' => return self.scan_quoted(start),
             _ => {
                 let Some((lexeme, kind)) = PunctuationKind::matching_prefix(&self.bytes()[start..])
                 else {
@@ -175,10 +167,7 @@ impl<'source> ByteScanner<'source> {
                 TokenKind::Punctuation(kind)
             }
         };
-        Ok(LexedToken {
-            kind,
-            span: Span::new(start, self.offset),
-        })
+        Ok(kind)
     }
 
     fn scan_block_comment(&mut self, start: usize) -> Result<(), LexError> {

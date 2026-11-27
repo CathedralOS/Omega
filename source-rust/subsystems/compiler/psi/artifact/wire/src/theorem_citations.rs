@@ -109,39 +109,14 @@ pub fn theorem_citation_actual(
                     source,
                     position,
                     supply,
-                    |expected, key| match supply.source {
-                        TheoremSource::Formal(_) => Ok(()),
-                        TheoremSource::Named(inner) => {
-                            let inner = module
-                                .machine(inner)
-                                .ok_or("instantiating theorem has no source machine")?;
-                            let theorem = terminal_semantics::theorems::denote_citation(
-                                expected,
-                                &inner.contract,
-                                0,
-                                &supply.derivations,
-                                budget,
-                            )?;
-                            if crate::theorem_implication_key(
-                                &theorem.denotation.arena,
-                                &theorem.denotation.certificate,
-                            )
-                            .map_err(
-                                |_| "instantiating theorem has no canonical mathematical type",
-                            )? != key
-                            {
-                                return Err(
-                                    "instantiating theorem proves another complete implication",
-                                );
-                            }
-                            Ok(())
-                        }
-                    },
+                    |expected, key| named_supply(module, expected, key, supply, budget),
                 )?;
             }
+            let formals = terminal_semantics::theorems::proof_formal_contracts(module, source)?;
             let theorem = terminal_semantics::theorems::denote_citation(
                 &context.parameter.contract,
                 &supplied.contract,
+                &formals,
                 citation.instantiation.len(),
                 &citation.derivations,
                 budget,
@@ -218,6 +193,11 @@ pub fn validate_theorem_evidence(
         if *actual != theorem_citation_actual(module, citation, budget)? {
             return Err("theorem argument differs from its checked source derivation");
         }
+    }
+    for application in &module.proofs.theorem_applications {
+        validate_application_supplies(module, application, |expected, key, supply| {
+            named_supply(module, expected, key, supply, budget)
+        })?;
     }
     Ok(())
 }
@@ -400,25 +380,14 @@ pub(crate) fn validate_received_theorems(module: &TerminalModule) -> Result<(), 
                         source,
                         position,
                         supply,
-                        |expected, _| {
-                            let TheoremSource::Named(inner) = supply.source else {
-                                return Ok(());
-                            };
-                            let inner = module
-                                .machine(inner)
-                                .ok_or("instantiating theorem has no source machine")?;
-                            let goals = terminal_semantics::theorems::recorded_citation_goals(
-                                expected,
-                                &inner.contract,
-                                0,
-                            )?;
-                            recorded_roles(&supply.derivations, goals)
-                        },
+                        |expected, _| recorded_supply(module, expected, supply),
                     )?;
                 }
+                let formals = terminal_semantics::theorems::proof_formal_contracts(module, source)?;
                 let goals = terminal_semantics::theorems::recorded_citation_goals(
                     &context.parameter.contract,
                     &supplied.contract,
+                    &formals,
                     citation.instantiation.len(),
                 )?;
                 recorded_roles(&citation.derivations, goals)?;
@@ -436,6 +405,11 @@ pub(crate) fn validate_received_theorems(module: &TerminalModule) -> Result<(), 
             }
             _ => return Err("theorem argument differs from its recorded source"),
         }
+    }
+    for application in &module.proofs.theorem_applications {
+        validate_application_supplies(module, application, |expected, _, supply| {
+            recorded_supply(module, expected, supply)
+        })?;
     }
     Ok(())
 }
@@ -663,4 +637,125 @@ fn carrier_key<'a>(
         .find(|row| row.type_identity == formal.type_identity)
         .map(|row| row.carrier_key.as_slice())
         .ok_or("theorem formal has no mathematical carrier")
+}
+
+/// A named theorem supplied for `expected` replays its three derivations and
+/// must prove exactly the implication `key` names.
+fn named_supply(
+    module: &TerminalModule,
+    expected: &terminal_psi::TheoremContract,
+    key: &[u8],
+    supply: &terminal_psi::TheoremInstantiation,
+    budget: &mut Budget,
+) -> Result<(), &'static str> {
+    let TheoremSource::Named(inner) = supply.source else {
+        return Ok(());
+    };
+    let machine = module
+        .machine(inner)
+        .ok_or("instantiating theorem has no source machine")?;
+    let formals = terminal_semantics::theorems::proof_formal_contracts(module, inner)?;
+    let theorem = terminal_semantics::theorems::denote_citation(
+        expected,
+        &machine.contract,
+        &formals,
+        0,
+        &supply.derivations,
+        budget,
+    )?;
+    if crate::theorem_implication_key(&theorem.denotation.arena, &theorem.denotation.certificate)
+        .map_err(|_| "instantiating theorem has no canonical mathematical type")?
+        != key
+    {
+        return Err("instantiating theorem proves another complete implication");
+    }
+    Ok(())
+}
+
+/// A named theorem supplied for `expected` keeps its derivations' roles.
+fn recorded_supply(
+    module: &TerminalModule,
+    expected: &terminal_psi::TheoremContract,
+    supply: &terminal_psi::TheoremInstantiation,
+) -> Result<(), &'static str> {
+    let TheoremSource::Named(inner) = supply.source else {
+        return Ok(());
+    };
+    let machine = module
+        .machine(inner)
+        .ok_or("instantiating theorem has no source machine")?;
+    let formals = terminal_semantics::theorems::proof_formal_contracts(module, inner)?;
+    let goals = terminal_semantics::theorems::recorded_citation_goals(
+        expected,
+        &machine.contract,
+        &formals,
+        0,
+    )?;
+    recorded_roles(&supply.derivations, goals)
+}
+
+/// The canonical identity of a contract's complete implication.
+fn implication_key(contract: &terminal_psi::TheoremContract) -> Result<Vec<u8>, &'static str> {
+    let expected = terminal_semantics::theorems::contract_type(contract, &mut Budget::default())?;
+    crate::theorem_implication_key(
+        &expected.arena,
+        &mathematical_kernel::MathematicalCertificate {
+            signature: expected.signature,
+            level_arity: 0,
+            context: Vec::new(),
+            term: expected.ty,
+            expected: expected.ty,
+        },
+    )
+    .map_err(|_| "logical contract has no canonical mathematical type")
+}
+
+/// The proofs an application gives its contract's own proof parameters,
+/// such as `inner` in `Step::<inner>(n)`. A forwarded formal of the owner
+/// must state the same implication; a named one is handed to `check`.
+fn validate_application_supplies(
+    module: &TerminalModule,
+    application: &terminal_psi::TheoremApplication,
+    mut check: impl FnMut(
+        &terminal_psi::TheoremContract,
+        &[u8],
+        &terminal_psi::TheoremInstantiation,
+    ) -> Result<(), &'static str>,
+) -> Result<(), &'static str> {
+    if application.instantiation.is_empty() {
+        return Ok(());
+    }
+    let owner = module
+        .machine(application.machine)
+        .ok_or("logical application has no owner")?;
+    let applied =
+        terminal_semantics::theorems::applied(module, application.machine, application.source)?;
+    if applied.proof_parameters.len() != application.instantiation.len() {
+        return Err("logical use needs one proof for each of its contract's own proof parameters");
+    }
+    for (expected, supply) in applied
+        .proof_parameters
+        .iter()
+        .zip(&application.instantiation)
+    {
+        let key = implication_key(expected)?;
+        match supply.source {
+            TheoremSource::Formal(source) => {
+                if !supply.derivations.is_empty() {
+                    return Err("forwarded theorem acquired an unrelated derivation");
+                }
+                terminal_semantics::theorems::parameter(module, owner.id, source)?;
+                let formal = owner
+                    .contract
+                    .erased_proof_formals
+                    .get(source as usize)
+                    .ok_or("forwarded theorem has no exact invocation formal")?;
+                if carrier_key(module, formal)? != key.as_slice() {
+                    return Err("forwarded theorem has another complete implication");
+                }
+            }
+            TheoremSource::Named(_) => check(expected, &key, supply)?,
+        }
+    }
+    Ok(())
 }

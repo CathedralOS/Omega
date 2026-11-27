@@ -3,11 +3,9 @@
 
 macro_rules! define_keywords {
     ($($spelling:literal => $kind:ident),* $(,)?) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub enum KeywordKind {
             $($kind,)*
-            #[default]
-            Unknown,
         }
         impl KeywordKind {
             pub fn from_lexeme(lexeme: &str) -> Option<Self> {
@@ -19,7 +17,6 @@ macro_rules! define_keywords {
             pub fn lexeme(self) -> &'static str {
                 match self {
                     $(Self::$kind => $spelling,)*
-                    Self::Unknown => "<unknown>",
                 }
             }
         }

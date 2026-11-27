@@ -131,9 +131,6 @@ impl Program<'_> {
         let typed = self.typed;
         let (declaration, state) = self.declaration(id, machine)?;
         self.served(id, machine)?;
-        if call.target_symbol != machine && call.target_symbol != state.symbol {
-            return unserved("call in a clause of a state other than the entry");
-        }
         if self
             .unfolding_calls
             .iter()
@@ -293,8 +290,7 @@ impl Program<'_> {
             return unserved("call in a clause without a resolved target");
         }
         let machine = match self.typed.symbols.get(target).kind {
-            SymbolKind::Machine => target,
-            SymbolKind::State => self.typed.symbols.get(target).parent,
+            SymbolKind::Machine | SymbolKind::State => self.call_target_symbol(id, target)?,
             _ => return unserved("call in a clause of something that is not a machine"),
         };
         self.direct_selection(
@@ -327,8 +323,10 @@ impl Program<'_> {
         let typed = self.typed;
         let (declaration, state) = self.declaration(id, machine)?;
         self.served(id, machine)?;
-        if target != machine && target != state.symbol {
-            return unserved("call in a clause of a state other than the entry");
+        // A clause runs the called machine from its entry, like any call
+        // (`call_target_symbol`); the target must name the machine unfolded.
+        if self.call_target_symbol(id, target)? != machine {
+            return unserved("call in a clause names another machine than the one it unfolds");
         }
         if self
             .unfolding_calls
