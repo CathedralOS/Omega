@@ -1,6 +1,7 @@
 // Expected exit: 0
 use pipeline/source_files_to_tokens/lexer.omg;
 use pipeline/tokens_to_syntax_trees/parser.omg;
+use pipeline/tokens_to_syntax_trees/parser_state.omg;
 use representations/syntax_trees/syntax_trees.omg as syntax;
 use representations/source_files/source.omg;
 
@@ -21,18 +22,18 @@ machine append_input(scanner: @mutable |lexer|::Lexer, text: @[u8]) crashes Trap
     machine done() {}
 }
 
-machine parse_source(parser: @mutable |parser|::Parser, text: @[u8]) crashes Trap {
+machine parse_source(parser: @mutable |parser_state|::Parser, text: @[u8]) crashes Trap {
     let mutable scanner: |lexer|::Lexer;
     |lexer|::lexer_initialize(@mutable scanner, 7 as +Trapping);
     append_input(@mutable scanner, text);
     |lexer|::tokenize(@mutable scanner);
-    |parser|::parser_initialize(parser);
+    |parser_state|::parser_initialize(parser);
     |parser|::parse(parser, |source|::SourceId { value: 7 as +Trapping },
         scanner.source.length as +Trapping, @scanner.output);
 }
 
 machine main() crashes Trap {
-    let mutable parser: |parser|::Parser;
+    let mutable parser: |parser_state|::Parser;
     parse_source(@mutable parser, "machine test<const K: u64>(x: u64) -> bool requires x in B<K> { x in u64::AtMost::<K> & Other::<8, K> }");
     transition parser.output.accepted && parser.output.name_path_count == 3 && parser.output.type_argument_count == 4 {
         true -> arguments(@parser.output),
@@ -64,7 +65,7 @@ machine main() crashes Trap {
     }
 
     machine canonical_contract() {
-        let mutable parser: |parser|::Parser;
+        let mutable parser: |parser_state|::Parser;
         parse_source(@mutable parser, "machine test<const K: u64>(x: u64) -> bool requires x in AtMost::<K> { true }");
         let path: |syntax|::NamePath = parser.output.name_paths[0];
         transition parser.output.accepted && parser.output.name_path_count == 1 && parser.output.type_argument_count == 1
@@ -74,7 +75,7 @@ machine main() crashes Trap {
     }
 
     machine malformed() {
-        let mutable parser: |parser|::Parser;
+        let mutable parser: |parser_state|::Parser;
         parse_source(@mutable parser, "machine f(x: u64) -> bool { x in AtMost::<8,> }");
         transition !parser.output.accepted && parser.output.diagnostic.code == |syntax|::ParseDiagnosticCode::ExpectedStaticArgument
             && parser.output.diagnostic.source_span.span.start == 44 {
@@ -83,7 +84,7 @@ machine main() crashes Trap {
     }
 
     machine lifetime() {
-        let mutable parser: |parser|::Parser;
+        let mutable parser: |parser_state|::Parser;
         parse_source(@mutable parser, "machine f(x: u64) -> bool { x in AtMost::<'a> }");
         transition !parser.output.accepted && parser.output.diagnostic.code == |syntax|::ParseDiagnosticCode::ExpectedStaticArgument
             && parser.output.diagnostic.source_span.span.start == 42 {
@@ -92,7 +93,7 @@ machine main() crashes Trap {
     }
 
     machine bare_expression() {
-        let mutable parser: |parser|::Parser;
+        let mutable parser: |parser_state|::Parser;
         parse_source(@mutable parser, "machine f(x: u64) -> bool { x in AtMost<8> }");
         transition !parser.output.accepted && parser.output.diagnostic.code == |syntax|::ParseDiagnosticCode::UnsupportedDomainArguments {
             true -> done(), _ -> wrong()

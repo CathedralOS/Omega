@@ -7,6 +7,7 @@ use {psi}/pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
 use {psi}/pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
 use {psi}/pipeline/syntax_trees_to_symbol_resolved_trees/resolver.omg;
 use {psi}/pipeline/tokens_to_syntax_trees/parser.omg;
+use {psi}/pipeline/tokens_to_syntax_trees/parser_state.omg;
 use {psi}/pipeline/typed_trees_to_checked_trees/checker.omg;
 use {psi}/representations/lowered_program/scalar.omg as scalar_program;
 use {psi}/representations/source_files/source.omg;
@@ -31,7 +32,7 @@ public data CompilationStatus [copy] {
 
 public data Compilation {
     sources: |source|::SourceSet;
-    parser: |parser|::Parser;
+    parser: |parser_state|::Parser;
     output: |emit|::AlphaEmitter;
     status: CompilationStatus;
     diagnostic: |source|::SourceSpan;
@@ -39,7 +40,7 @@ public data Compilation {
 
 public machine compilation_clear(compilation: @mutable Compilation) {
     |source|::source_set_clear(@mutable compilation.sources);
-    |parser|::parser_initialize(@mutable compilation.parser);
+    |parser_state|::parser_initialize(@mutable compilation.parser);
     compilation.output.complete = false;
     compilation.output.length = 0;
     compilation.status = CompilationStatus::Collecting;
