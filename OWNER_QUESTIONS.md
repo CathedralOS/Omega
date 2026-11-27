@@ -65,46 +65,8 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="native-abstract-operations-phase"></a>
-### 1. Does native lowering keep an abstract-operations phase?
-
-The optimization contract lists the phases a build selection projects into:
-"Psi, abstract operations, target operations/instruction selection,
-pre-allocation, allocation recovery, post-allocation, and resolved layout".
-No other specification page names an abstract-operations phase. The
-specification names no Rust type for either phase, and the Terminal Psi
-product contract places every Psi pass before publication.
-[Exact selection](wiki/spec/build/optimizations.md#exact-selection) ·
-[Optimization ordering](wiki/spec/terminal-psi/product.md#optimization-ordering)
-
-No optimization belongs to the abstract-operations phase. Native Stage 03
-refuses any selection for it. The nine passes Stage 03 can run are Psi passes,
-and the native driver's post-Terminal selections cannot contain one, so in
-every build Stage 03 builds its optimization unit, runs nothing, and checks that
-the plan is unchanged. The `AbstractOperation` enum repeats 77 of its 94
-variant names from Terminal Psi's `OperationKind`. The target-operations phase
-owns two rewrites (`UnsignedPowerOfTwoRemainderMask`, `X86ScaledIndexedLoad`).
-Stage 05 instruction selection applies them. Stage 05 reads the legalized plan
-and never names Stage 04's `TargetOperationPlan`.
-[Stage 03 entry](source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/mod.rs) ·
-[Phase list](source-rust/subsystems/compiler/foundation/optimization-selections/src/lib.rs) ·
-[Stage 05 rewrites](source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/lib.rs)
-
-Native Stages 02 to 04 and the abstract-operations representation hold about
-132,000 lines of Rust, tests included. Nobody has measured how much a direct
-lowering would delete. Legalization and the target replay record that the
-requested object audit reads would have to move, not disappear.
-
-**Recommend retiring the abstract-operations phase:** drop it from the phase
-list and let the native compiler lower the target-bound program straight to
-the legalized plan Stage 05 reads, keeping the target-operations/instruction
-selection phase for its two rewrites. Deleting `TargetOperationPlan` is then
-implementation work. Alternatively, keep the phase as the place for future
-target-neutral native rewrites, and keep Stages 02 to 04 as they are. Which
-should the phase list say?
-
 <a id="stage-05-unselected-rewrites"></a>
-### 2. Are Stage 05 call inlining and vector promotion legalization or optimizations?
+### 1. Are Stage 05 call inlining and vector promotion legalization or optimizations?
 
 The optimization contract says no "compiler default, build mode, or broad
 `O1`/`O2`/`O3` level implicitly enables an optimization", and that "mandatory
@@ -131,7 +93,7 @@ at all. Alternatively, classify both as mandatory legalization and keep them
 on in Stage 05. Which are they?
 
 <a id="windows-handle-release-replay"></a>
-### 3. Does the product offer receiver admission, or does the Windows handle release proof wait?
+### 2. Does the product offer receiver admission, or does the Windows handle release proof wait?
 
 The permission contract says ordinary production requires no receiving policy,
 and "an explicitly requested deployment compatibility check applies the

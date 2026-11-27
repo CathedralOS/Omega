@@ -57,6 +57,29 @@ measurement and entry planning in [`object_emission.rs`](driver/image/object_emi
 | 14 relocation-free object | 5,776 | `PublishedFunctionObject` | 15 |
 | 15 objects and image | 51,561 | `FinishedNativeImage` | Build publication |
 
+## Optimization phases
+
+The [optimization contract](../../../../wiki/spec/build/optimizations.md#exact-selection)
+requires each optimization to have one phase owner. It leaves the list of
+phases to this compiler. That list is `OptimizationExecutionPhase` in
+[`optimization-selections`](../foundation/optimization-selections/src/lib.rs). The
+table shows each phase's catalog entry count and the native stages that name the
+phase, measured on `baa76c5b222e`.
+
+| Phase | Catalog entries | Stages naming it |
+| --- | --- | --- |
+| `Psi` | 9 | none; runs before Terminal Psi publication |
+| `AbstractOperations` | 0 | 03 |
+| `TargetOperations` | 2 | 04 (rewrites applied in 05) |
+| `SelectedLowering` | 23 | 06, 07, 12, 13 |
+| `PreAllocation` | 10 | 06, 07 |
+| `AllocationRecovery` | 2 | 06, 07, 13 |
+| `PostAllocationMachine` | 9 | 08, 13 |
+| `FunctionRelativeLayout` | 1 | 12, 13 |
+
+No optimization belongs to `AbstractOperations`, so Stage 03 never changes
+a body. `TASKS.md` **NATIVE-ABSTRACT-PHASE-RETIREMENT** tracks its removal.
+
 ## Plan identities
 
 Stages 03–14 hash their in-memory plans with SHA-256 and hand the hashes on.

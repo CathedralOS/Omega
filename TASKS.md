@@ -92,6 +92,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Pipeline route
 
+- **NATIVE-ABSTRACT-PHASE-RETIREMENT.** Delete native Stage 03 and the `AbstractOperations` optimization phase; no catalog entry selects it ([phase list](source-rust/subsystems/compiler/psi-to-native/README.md#optimization-phases)). Then decide whether the abstract-operations representation passes the [representation test](wiki/spec/build/optimizations.md#phase-and-product-boundaries). Stage 15 image emission and `verification/` replay against `AbstractOperationPlan` and `TargetOperationPlan`, so retiring the representation moves those checks rather than deleting them. Ends when Stage 03 and the phase variant are gone.
 - **PIPELINE-ARCHITECTURE-ENFORCEMENT.** (covers **LOC-VALUE-CUSTODY**, **IMAGE-SELF-REPLAY-DELETED**) Check the [source and native pipelines](source-rust/subsystems/compiler/README.md) through the shipped compiler entry for multiple targets, multiple callable roots and independently produced components.
   - Trace value custody from checked Psi through native verification on this route. Qualify the resulting executable on `linux_x86_64`.
   - Verify Build effects execute once per admitted context and that matching targets share the checked source and portable program. Exercise differing grants, source inputs and execution profiles under the [dependency context rules](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).

@@ -20,9 +20,10 @@ explicit request. No target, environment variable, compiler default, build
 mode, or broad `O1`/`O2`/`O3` level implicitly enables an optimization.
 
 Every optimization has exactly one phase owner. The complete selection projects
-into closed phase-local sets for Psi, abstract operations, target
-operations/instruction selection, pre-allocation, allocation recovery,
-post-allocation, and resolved layout. A stage consumes only its projection; downstream coordinators must not
+into closed phase-local sets, one for each optimization phase the compiler
+defines; Psi is always the first. Which native phases exist is a compiler
+decision recorded in the native compiler's documentation, not language
+semantics. A stage consumes only its projection; downstream coordinators must not
 rescan the global selection to construct another schedule. Projection retains
 the complete build-selection identity so evidence from different builds cannot
 be silently recombined. Psi-local pass identities do not import target-specific
