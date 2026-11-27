@@ -148,7 +148,7 @@ fn advance<'m>(
             };
             if memory
                 .get(&location)
-                .visit_scalars(spin.while_value.value.scalar_type(), |value| {
+                .visit_scalars(spin.while_value.comparison.pivot.scalar_type(), |value| {
                     observe(Some(value))
                 })
                 .is_none()

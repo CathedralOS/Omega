@@ -3,6 +3,10 @@
 //! access, the other must return, and neither may have any unaccounted effect.
 
 mod cases;
+mod condition;
+use condition::Comparison;
+pub(super) use condition::SpinCondition;
+use std::cmp::Ordering;
 
 use super::facts::Facts;
 use cases::CaseValue;
@@ -53,18 +57,6 @@ impl CellUpdate {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct SpinCondition {
-    pub(super) value: Scalar,
-    equal: bool,
-}
-
-impl SpinCondition {
-    pub(super) fn matches(self, observed: Scalar) -> bool {
-        (observed == self.value) == self.equal
-    }
-}
-
 pub(super) fn constant(operation: &Operation) -> Option<Scalar> {
     match operation.kind {
         OperationKind::IntegerConstant { value } => {
@@ -93,18 +85,27 @@ impl Word {
         }
     }
 
-    fn equal(self, value: Scalar) -> Option<Self> {
+    fn compare(self, comparison: Comparison, positive: bool) -> Option<Self> {
+        let condition = SpinCondition {
+            comparison,
+            positive,
+        };
         match self {
-            Self::Observed => Some(Self::Test(SpinCondition { value, equal: true })),
-            Self::Test(mut condition) => {
-                let Scalar::Boolean(value) = value else {
+            Self::Observed => Some(Self::Test(condition)),
+            Self::Test(mut test) if comparison.order == Ordering::Equal => {
+                let Scalar::Boolean(value) = comparison.pivot else {
                     return None;
                 };
-                condition.equal = condition.equal == value;
-                Some(Self::Test(condition))
+                test.positive = test.positive == (value == positive);
+                Some(Self::Test(test))
             }
-            Self::Literal(left) => Some(Self::Literal(Scalar::Boolean(left == value))),
+            Self::Test(_) => None,
+            Self::Literal(value) => Some(Self::Literal(Scalar::Boolean(condition.matches(value)?))),
         }
+    }
+
+    fn equal(self, value: Scalar) -> Option<Self> {
+        self.compare(Comparison::equal(value), true)
     }
 }
 
@@ -146,7 +147,7 @@ struct Trace {
     forwarded: Option<ForwardedWait>,
     values: Facts<ValueId, Word>,
     read: Option<Read>,
-    tested: Option<Scalar>,
+    tested: Option<Comparison>,
 }
 
 /// A new trip through a block must agree on the original resource and values
@@ -304,13 +305,26 @@ impl Trace {
                     self.scalar(*operand)?.equal(Scalar::Boolean(false))?
                 }
                 OperationKind::IntegerEqual { left, right }
-                | OperationKind::BooleanEqual { left, right } => {
+                | OperationKind::BooleanEqual { left, right }
+                | OperationKind::IntegerLessThan { left, right }
+                | OperationKind::IntegerLessOrEqual { left, right } => {
+                    let (order, positive) = match operation.kind {
+                        OperationKind::IntegerLessThan { .. } => (Ordering::Less, true),
+                        OperationKind::IntegerLessOrEqual { .. } => (Ordering::Greater, false),
+                        _ => (Ordering::Equal, true),
+                    };
                     let left = self.scalar(*left)?;
                     let right = self.scalar(*right)?;
-                    if let Some(value) = right.literal() {
-                        left.equal(value)?
+                    if let Some(pivot) = right.literal() {
+                        left.compare(Comparison { pivot, order }, positive)?
                     } else {
-                        right.equal(left.literal()?)?
+                        right.compare(
+                            Comparison {
+                                pivot: left.literal()?,
+                                order: order.reverse(),
+                            },
+                            positive,
+                        )?
                     }
                 }
                 _ => return None,
@@ -325,19 +339,19 @@ impl Trace {
             Word::Literal(Scalar::Boolean(known)) => return Some(known),
             Word::Literal(_) => return None,
             Word::Observed => SpinCondition {
-                value: Scalar::Boolean(true),
-                equal: true,
+                comparison: Comparison::equal(Scalar::Boolean(true)),
+                positive: true,
             },
             Word::Test(condition) => condition,
         };
         if self
             .tested
-            .is_some_and(|expected| expected != condition.value)
+            .is_some_and(|expected| expected != condition.comparison)
         {
             return None;
         }
-        self.tested = Some(condition.value);
-        Some(equal_case == condition.equal)
+        self.tested = Some(condition.comparison);
+        Some(equal_case == condition.positive)
     }
 
     fn transfer(
@@ -491,14 +505,14 @@ pub fn spin_wait(module: &TerminalModule, machine: &TerminalMachine) -> Option<S
         return None;
     }
     let read = equal_trace.read?;
-    let value = equal_trace.tested?;
+    let comparison = equal_trace.tested?;
     Some(SpinWait {
         parameter: read.cell.parameter,
         path: read.cell.path,
         update: read.update,
         while_value: SpinCondition {
-            value,
-            equal: equal == Completion::Retries,
+            comparison,
+            positive: equal == Completion::Retries,
         },
     })
 }
