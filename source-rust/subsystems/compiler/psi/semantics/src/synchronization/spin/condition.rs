@@ -12,6 +12,25 @@ pub(in super::super) struct Comparison {
 }
 
 impl Comparison {
+    pub(super) fn operands(
+        kind: &terminal_psi::OperationKind,
+    ) -> Option<(
+        semantic_vocabulary::ValueId,
+        semantic_vocabulary::ValueId,
+        Ordering,
+        bool,
+    )> {
+        use terminal_psi::OperationKind as Op;
+        match *kind {
+            Op::IntegerEqual { left, right } | Op::BooleanEqual { left, right } => {
+                Some((left, right, Ordering::Equal, true))
+            }
+            Op::IntegerLessThan { left, right } => Some((left, right, Ordering::Less, true)),
+            Op::IntegerLessOrEqual { left, right } => Some((left, right, Ordering::Greater, false)),
+            _ => None,
+        }
+    }
+
     pub(super) fn equal(pivot: Scalar) -> Self {
         Self {
             pivot,

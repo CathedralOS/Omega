@@ -2,6 +2,7 @@
 
 mod suspending_calls;
 mod borrowed_cells;
+mod multiple_cells;
 mod threshold_waits;
 
 use super::build_purpose::{execute_unit, judge_build};
