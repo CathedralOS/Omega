@@ -155,61 +155,8 @@ representations the build provides and the package requires.
 and [critical service audit policy](wiki/spec/packages/review.md#critical-service-audit-policy).
 CLI filters can be considered later.
 
-<a id="psi-receiving-rules-outside-spec"></a>
-### 4. Should the specification restate the Psi receiving rules that moved with the wire encoding?
-
-The Psi wire encoding moved out of `wiki/spec/` on Jarod's word that the
-compiler's file format is not language specification. It now sits beside the
-codec as [encoding.md](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md),
-and agents keep it current with the code. The page is mostly tags and field
-layouts, but some paragraphs state what a reader must check or what a row
-grants, and no page in `wiki/spec/` restates them:
-
-- [Scalar completion prerequisites](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#scalar-completion-prerequisites)
-  and the return-origin paragraphs after the origin table. [Scalar qualifications](wiki/spec/terminal-psi/calls_and_outcomes.md#scalar-qualifications)
-  summarizes them and links to this page for the rest.
-- The prerequisite and completed-result roles under
-  [retained scalar conditions](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#retained-scalar-conditions-and-application-scope).
-- [Retained access custody](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#retained-access-custody),
-  [installation and semantic-code attribution](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#installation-and-semantic-code-attribution)
-  and [register event service authority](source-rust/subsystems/compiler/psi/artifact/wire/encoding.md#register-event-service-authority).
-
-The layout and the rules share sentences, so an agent could not leave the rules
-behind without writing new specification text. The same change repointed the
-links to this page in five specification pages
-(`build/optimizations.md` and `terminal-psi/` `product.md`,
-`calls_and_outcomes.md`, `fact_validity.md`, `dynamic_dispatch.md`) and changed
-no other specification text.
-
-Psi is intended for exchange between implementations. Its current encoding can
-change during development. The codec page can describe the bytes for each
-revision while the product specification states what a receiver may conclude
-from them. For example, a register observation carrying no service can decode
-successfully on a host that has no authority to execute it.
-
-**Proposed text for the owners of the Psi product specification**
-
-- At a scalar completion, check the prerequisites of the exact applied domain
-  on that incoming edge and argument. A cycle of memberships needs independent
-  support. Check each return origin against its actual return or completion
-  and the issuer required by its route. The origin records the checker's
-  decision and cannot itself prove the predicate.
-- Discharge a retained prerequisite before the call or operation it protects.
-  A completed-result judgment may use observations from independently admitted
-  execution. It cannot authorize that execution.
-- A retained access view identifies the checked source binding. Using its
-  storage still requires live access. An installation record binds the image
-  to its target and provider decisions. A receiver checks those commitments
-  and obtains separate admission and access authority before execution.
-- Check a register event's service against its catalog operation. Even an
-  observation that requires no service still requires target and environment
-  admission.
-
-Should these obligations bind every Psi receiver as part of the product
-specification, with the tags and field layouts maintained beside the codec?
-
 <a id="bundle-evidence-field-type"></a>
-### 5. Citing a machine stored in an ordinary callable field
+### 4. Citing a machine stored in an ordinary callable field
 
 **Owner ruling, 2026-11-27.** Passing a machine through a callable field
 preserves the checked facts about that selection. The ordinary field spelling
@@ -236,7 +183,7 @@ argument may cite its checked logical evidence under the rules above. The
 compiler work is tracked under PROOF-KERNEL-CORE. [Operation records](wiki/spec/language/conformances.md#implementations-are-operation-records) · [Logical hypotheses](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) · [Callable storage and evidence](wiki/spec/language/machine_values.md#invocation-storage-and-evidence) · [Compiler tasks](TASKS.md)
 
 <a id="address-subject-lower-bound"></a>
-### 6. Numeric addresses have a lower bound of zero on every target
+### 5. Numeric addresses have a lower bound of zero on every target
 
 **Owner ruling, 2026-11-27.** Every numeric `address` is zero or positive.
 The proof checker may use `0 <= n` for any value `n: address` before target
@@ -255,7 +202,7 @@ fixed-integer endpoint cases. The mathematical rule for a selected address
 width continues to apply. [Elementary certificate rules](wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules)
 
 <a id="fixed-extent-view-of-a-slice"></a>
-### 7. Explicit casts between slices and fixed-array references
+### 6. Explicit casts between slices and fixed-array references
 
 **Owner ruling, 2026-11-27.** Use ordinary checked `as` to convert between
 `@[T]` and `@[T; N]`. The author writes the conversion at the call site
