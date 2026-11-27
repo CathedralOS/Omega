@@ -11,7 +11,7 @@ mod subject;
 use subject::Subjects;
 pub(super) use subject::{Subject, fixed_extent, type_path};
 mod update;
-use condition::Comparison;
+pub(super) use condition::Comparison;
 pub(super) use condition::Operand;
 pub(super) use condition::SpinCondition;
 pub(super) use observations::Observation;

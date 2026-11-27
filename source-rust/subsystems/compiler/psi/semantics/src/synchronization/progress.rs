@@ -3,7 +3,7 @@
 //! across calls; an unrelated machine's local value number is never evidence.
 
 use super::facts::Facts;
-use super::spin::{CellUpdate, SpinCondition};
+use super::spin::{CellUpdate, Operand, SpinCondition};
 use crate::entry_values::TerminalScalarValue as Scalar;
 use semantic_vocabulary::{
     IntegerValue, MachineId, OperationId, Proposition, ScalarTerm, ScalarType,
@@ -174,7 +174,29 @@ pub(super) fn entry_scalars(
     values
 }
 
+impl Operand {
+    pub(super) fn binding(self, scalar: &impl Fn(usize)->Option<ScalarFact>) -> Option<ScalarFact> {
+        match self {
+            Self::Literal(value) => Some(ScalarFact::Literal(value)),
+            Self::Parameter {position, scalar_type} => scalar(position).filter(|fact|fact.ty()==scalar_type),
+        }
+    }
+}
+
 impl SpinCondition {
+    pub(super) fn with_actuals(mut self, resolve: impl Fn(Operand)->Option<ScalarFact>)->(Self,Option<ValueDeclaration>){
+        let mut input=None;
+        if let Some(mask)=self.comparison.mask && let Some(ScalarFact::Literal(value))=resolve(mask){
+            self.comparison.mask=Some(Operand::Literal(value));
+        }
+        match resolve(self.comparison.pivot){
+            Some(ScalarFact::Literal(value))=>self.comparison.pivot=Operand::Literal(value),
+            Some(ScalarFact::EntryInput(formal))=>input=Some(formal),
+            None=>{}
+        }
+        (self,input)
+    }
+
     /// Is the input known to avoid retry under the selected entry contract?
     /// Substituting the retry literal into an ordinary checked requirement
     /// discharges common bounds and inequalities without enumerating inputs.

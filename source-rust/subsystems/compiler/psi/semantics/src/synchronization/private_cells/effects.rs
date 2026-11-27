@@ -4,7 +4,10 @@
 
 mod calls;
 mod guards;
+mod receive;
+mod selector;
 mod sequence;
+use selector::Selector;
 
 use super::activation::Bindings;
 use super::storage::{Storage, Stored};
@@ -33,17 +36,39 @@ enum Effect {
     Write(AtomicWrite),
 }
 
-/// Effects derived from the exact selected body, ordered before its normal return.
-#[derive(Default, Clone, Debug, PartialEq, Eq)]
-pub struct NormalEffects(Vec<Effect>);
+/// Every retained alternative is a complete normal return. Its conditions
+/// refer only to scalar inputs, and its events name the borrowed words as
+/// observed in that alternative's execution order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NormalEffects {
+    paths: Vec<ReturnPath>,
+}
 
-impl NormalEffects {
-    /// Two writes to the same symbolic word have one observable poststate.
-    /// An intervening acquisition observes storage and keeps both writes.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct ReturnPath {
+    when: Vec<Decision>,
+    events: Vec<Effect>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Decision {
+    selector: Selector,
+    answer: bool,
+}
+
+impl Default for NormalEffects {
+    fn default() -> Self {
+        Self {
+            paths: vec![ReturnPath::default()],
+        }
+    }
+}
+
+impl ReturnPath {
     fn compact_stores(&mut self) {
         let mut later = std::collections::BTreeSet::new();
-        self.0.reverse();
-        self.0.retain(|effect| match effect {
+        self.events.reverse();
+        self.events.retain(|effect| match effect {
             Effect::Write(write) => write
                 .subject
                 .fixed_path()
@@ -53,33 +78,101 @@ impl NormalEffects {
                 true
             }
         });
-        self.0.reverse();
+        self.events.reverse();
+    }
+
+    fn assume(&mut self, condition: Decision) -> bool {
+        if let Some(literal) = condition.selector.answer(&|_| None, &[]) {
+            return literal == condition.answer;
+        }
+        if let Some(previous) = self
+            .when
+            .iter()
+            .find(|guard| guard.selector == condition.selector)
+        {
+            return previous.answer == condition.answer;
+        }
+        self.when.push(condition);
+        true
+    }
+
+    fn size(&self) -> usize {
+        1 + self.events.len() + self.when.len()
+    }
+}
+
+impl NormalEffects {
+    fn none() -> Self {
+        Self { paths: Vec::new() }
+    }
+
+    fn assume(&mut self, condition: Decision) {
+        self.paths.retain_mut(|path| path.assume(condition));
+    }
+
+    fn push(&mut self, effect: Effect) {
+        for path in &mut self.paths {
+            path.events.push(effect.clone());
+        }
+    }
+
+    fn compact_stores(&mut self) {
+        for path in &mut self.paths {
+            path.compact_stores();
+        }
+    }
+
+    fn add_returns(&mut self, mut other: Self, limit: usize) -> Option<()> {
+        self.paths.append(&mut other.paths);
+        (self.paths.len() <= limit).then_some(())
     }
 
     fn append_call(&mut self, callee: Self, program_size: usize) -> Option<()> {
-        // A forwarding wrapper retains its complete callee. Multiple calls
-        // must not expand a bounded source graph into exponentially many events.
-        let limit = program_size.max(callee.0.len());
-        self.0.extend(callee.0);
-        if self.0.len() > limit {
-            self.compact_stores();
+        let limit = program_size
+            .saturating_add(1)
+            .max(callee.paths.iter().map(ReturnPath::size).sum());
+        let mut results = Vec::new();
+        let mut size = 0;
+        for prefix in &self.paths {
+            for suffix in &callee.paths {
+                let mut path = prefix.clone();
+                if !suffix.when.iter().all(|condition| path.assume(*condition)) {
+                    continue;
+                }
+                path.events.extend_from_slice(&suffix.events);
+                if size + path.size() > limit {
+                    path.compact_stores();
+                }
+                size += path.size();
+                if size > limit {
+                    return None;
+                }
+                results.push(path);
+            }
         }
-        (self.0.len() <= limit).then_some(())
+        self.paths = results;
+        Some(())
     }
 
     pub fn requires_progress(&self) -> bool {
-        self.0
+        self.paths
             .iter()
-            .any(|event| matches!(event, Effect::Acquire(_)))
+            .flat_map(|p| &p.events)
+            .any(|e| matches!(e, Effect::Acquire(_)))
     }
 
     pub(in crate::synchronization) fn map_operands(
         &mut self,
         mut apply: impl FnMut(Operand) -> Option<Operand>,
     ) -> Option<()> {
-        for event in &mut self.0 {
-            if let Effect::Write(write) = event {
-                write.value = apply(write.value)?;
+        for path in &mut self.paths {
+            for condition in &mut path.when {
+                condition.selector.map_operands(&mut apply)?;
+            }
+            for event in &mut path.events {
+                if let Effect::Write(write) = event {
+                    write.value = apply(write.value)?;
+                }
             }
         }
         Some(())
@@ -89,73 +182,15 @@ impl NormalEffects {
         &mut self,
         mut apply: impl FnMut(&mut Subject) -> Option<()>,
     ) -> Option<()> {
-        for event in &mut self.0 {
-            apply(match event {
-                Effect::Acquire(acquisition) => &mut acquisition.subject,
-                Effect::Write(write) => &mut write.subject,
-            })?;
+        for path in &mut self.paths {
+            for event in &mut path.events {
+                apply(match event {
+                    Effect::Acquire(acquisition) => &mut acquisition.subject,
+                    Effect::Write(write) => &mut write.subject,
+                })?;
+            }
         }
         Some(())
     }
 
-    pub(super) fn apply(
-        &self,
-        memory: &mut Storage,
-        bindings: &Bindings<'_>,
-        actuals: &[terminal_psi::StructuralArgument],
-        scalar: impl Fn(usize) -> Option<ScalarFact>,
-        requirements: &[semantic_vocabulary::Proposition],
-        scope: ProgressScope,
-    ) -> Option<Result<(), ProgressFailure>> {
-        let locate = |memory: &Storage, subject: &Subject| {
-            let actual = actuals.get(subject.parameter)?;
-            if actual.access == terminal_psi::StructuralAccess::Owned {
-                return None;
-            }
-            let root = memory.locate(bindings, actual.place, &actual.path)?;
-            memory.project(root, &subject.fixed_path()?)
-        };
-        for event in &self.0 {
-            match event {
-                Effect::Acquire(acquisition) => {
-                    let Some(place) = locate(memory, &acquisition.subject) else {
-                        return Some(Err(ProgressFailure::UnprovedImport));
-                    };
-                    let observed = super::wait::classify(
-                        memory,
-                        &place,
-                        acquisition.blocked,
-                        None,
-                        Some(acquisition.update),
-                        requirements,
-                    );
-                    if let Err(cause) = super::wait::require_progress(observed, scope) {
-                        return Some(Err(cause));
-                    }
-                    memory.set(
-                        &place,
-                        Stored::Scalar(ScalarFact::Literal(acquisition.held)),
-                    );
-                }
-                Effect::Write(write) => {
-                    let Some(place) = locate(memory, &write.subject) else {
-                        // The caller still owes outstanding acquisitions. A write alone has no
-                        // progress premise and can instead obscure a later wait.
-                        return self
-                            .requires_progress()
-                            .then_some(Err(ProgressFailure::UnprovedImport));
-                    };
-                    let value = match write.value {
-                        Operand::Literal(value) => Some(ScalarFact::Literal(value)),
-                        Operand::Parameter {
-                            position,
-                            scalar_type,
-                        } => scalar(position).filter(|fact| fact.ty() == scalar_type),
-                    };
-                    memory.set(&place, Stored::from(value));
-                }
-            }
-        }
-        Some(Ok(()))
-    }
 }
