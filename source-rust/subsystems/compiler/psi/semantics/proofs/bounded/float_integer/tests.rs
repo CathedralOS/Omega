@@ -139,7 +139,7 @@ fn graph(value: IeeeFloatValue, result: i128, saturating: bool) -> Proposition {
         ),
     )
     .unwrap();
-    Proposition::FloatIntegerConversion(
+    Proposition::FloatIntegerConversion(Box::new(
         FloatIntegerConversion::new(
             ScalarTerm::IeeeFloatLiteral(value),
             ScalarTerm::Integer {
@@ -149,7 +149,7 @@ fn graph(value: IeeeFloatValue, result: i128, saturating: bool) -> Proposition {
             operation.contract_identity(),
         )
         .unwrap(),
-    )
+    ))
 }
 
 #[test]

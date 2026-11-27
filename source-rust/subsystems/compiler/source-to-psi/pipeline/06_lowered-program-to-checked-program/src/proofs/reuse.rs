@@ -2739,14 +2739,14 @@ mod meaning_unification_tests {
             ),
         )
         .unwrap();
-        let graph = Proposition::FloatIntegerConversion(
+        let graph = Proposition::FloatIntegerConversion(Box::new(
             semantic_vocabulary::FloatIntegerConversion::new(
                 source,
                 ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Integer(target)),
                 operation.contract_identity(),
             )
             .unwrap(),
-        );
+        ));
         let mapped = transport.proposition(&graph).unwrap();
         let Proposition::FloatIntegerConversion(mapped) = mapped else {
             unreachable!()
