@@ -1,6 +1,6 @@
 //! Receiving-host provider inputs for one authorized portable artifact and target.
 #![forbid(unsafe_code)]
-pub use provider_acceptance::{
+pub use build_providers::acceptance::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, ServiceTerminalAuthorityPermission,
 };
 pub use semantic_vocabulary::{

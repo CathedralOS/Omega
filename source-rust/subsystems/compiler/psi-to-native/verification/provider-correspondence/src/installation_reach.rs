@@ -7,7 +7,7 @@
 // row only when the entire selected closure has a single publisher.
 
 use diagnostics::Diagnostic;
-use selected_provider_plans::InstallationReachResolution;
+use build_providers::selections::InstallationReachResolution;
 use terminal_psi::{TerminalIdentityTable, TerminalIdentityTableBuilder};
 
 pub struct InstallationReachRow {

@@ -1,7 +1,7 @@
 //! Match authored provider applications to the exact plan selected for the target.
 use diagnostics::Diagnostic;
-use provider_plans::ProviderPlan;
-use selected_provider_plans::SelectedProviderPlanFacts;
+use build_providers::plans::ProviderPlan;
+use build_providers::selections::SelectedProviderPlanFacts;
 use symbols::root_grants::{AuthoredRootGrant, RootGrantSubject};
 
 fn application_key(plan: &ProviderPlan) -> (&str, &str) {

@@ -8,11 +8,11 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+build-providers = { path = "../../../build/providers" }
 target-bound-program = { path = "../../representations/target-bound-program" }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "../01_admitted-native-inputs-to-target-bound-program" }
 native-behavior-exclusions = { path = "../../verification/behavior-exclusions" }
 target-provider-admission = { path = "../../verification/target-providers" }
-selected-provider-plans = { path = "../../../build/providers/selections" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }
 psi-scalar-applications = { path = "../../../psi/execution-inputs/scalar-applications" }
 psi-entry-memory = { path = "../../../psi/execution-inputs/entry-memory" }

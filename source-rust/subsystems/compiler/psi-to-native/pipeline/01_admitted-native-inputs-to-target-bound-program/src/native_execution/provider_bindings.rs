@@ -9,7 +9,7 @@ use verified_optimization_input::TerminalNativeRealizationProposal;
 
 fn selected_intrinsic_provenance<'a>(
     proposal: &'a TerminalNativeRealizationProposal,
-    selection: &'a selected_provider_plans::SelectedProviderPlanFacts,
+    selection: &'a build_providers::selections::SelectedProviderPlanFacts,
 ) -> Result<Vec<CompilerIntrinsicPlanProvenance<'a>>, Vec<Diagnostic>> {
     static NON_INTRINSIC_EXECUTION: [Option<
         native_intrinsics::CompilerIntrinsicExecutionIdentity,
@@ -71,7 +71,7 @@ pub(super) fn callable_coverage(
     proposal: &TerminalNativeRealizationProposal,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     scope: &NativeExecutionScope,
-    selection: &selected_provider_plans::SelectedProviderPlanFacts,
+    selection: &build_providers::selections::SelectedProviderPlanFacts,
 ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
     let provenance = selected_intrinsic_provenance(proposal, selection)?;
     proposal.settle_scoped_boundary_applications(artifact, scope, selection, &provenance)

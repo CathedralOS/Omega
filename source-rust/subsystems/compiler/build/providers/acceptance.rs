@@ -1,6 +1,4 @@
 //! Host acceptance of an exact service declaration and its allowed terminal operations.
-#![forbid(unsafe_code)]
-
 mod permissions;
 pub use permissions::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::{

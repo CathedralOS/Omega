@@ -9,7 +9,7 @@ use super::input::PolicySource;
 use super::provider_rows::{ChoiceKey, ProviderChoice};
 use super::services::{ReviewedService, reviewed_services};
 use diagnostics::Diagnostic;
-use provider_plans::{
+use build_providers::plans::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
 use review_evidence::record::{
@@ -472,7 +472,7 @@ impl PreparedProviders<'_> {
 impl PreparedRow {
     fn finish(
         &self,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         service_ids: &[(String, ServiceId)],
@@ -512,7 +512,7 @@ impl PreparedRow {
     }
     fn installation_reach(
         &self,
-        selected: &selected_provider_plans::SelectedProviderPlanFacts,
+        selected: &build_providers::selections::SelectedProviderPlanFacts,
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         service_ids: &[(String, ServiceId)],

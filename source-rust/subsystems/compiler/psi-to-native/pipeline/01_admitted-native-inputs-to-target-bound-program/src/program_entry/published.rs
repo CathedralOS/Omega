@@ -54,7 +54,7 @@ impl PublishedEntryNomination {
 pub fn plan_published_entry_calling_conventions(
     nomination: &PublishedEntryNomination,
     artifact: &Arc<CanonicalTerminalArtifact>,
-    providers: &[provider_plans::ProviderPlan],
+    providers: &[build_providers::plans::ProviderPlan],
     requester: DeclarationCustody,
     permissions: Option<&ProductDeclarationScope>,
 ) -> Result<SelectedCompilerProgramEntry, Vec<Diagnostic>> {
@@ -68,7 +68,7 @@ pub fn plan_published_entry_calling_conventions(
     let declared = module
         .service_schema(contract.schema_declaration, contract.schema_application)
         .map_err(refuse)?;
-    let schema = provider_plans::ServiceSchema::from_declaration(std::sync::Arc::clone(
+    let schema = build_providers::plans::ServiceSchema::from_declaration(std::sync::Arc::clone(
         &declared.surface,
     ));
     let declaring_schema = module
@@ -127,7 +127,7 @@ pub fn plan_published_entry_calling_conventions(
 }
 
 fn requirement_identity<'schema>(
-    schema: &'schema provider_plans::ServiceSchema,
+    schema: &'schema build_providers::plans::ServiceSchema,
     nominated: &str,
 ) -> Result<&'schema str, String> {
     let method = schema.declaration.entry_requirement(nominated)?;
@@ -142,7 +142,7 @@ fn requirement_identity<'schema>(
 
 fn admit_entry_schema(
     slot: target::ProgramEntrySlotDeclaration,
-    schema: &provider_plans::ServiceSchema,
+    schema: &build_providers::plans::ServiceSchema,
     custody: semantic_vocabulary::compiler_evaluation::DeclarationCustody,
 ) -> Result<(), String> {
     use semantic_vocabulary::compiler_evaluation::DeclarationCustody;

@@ -9,12 +9,12 @@ version.workspace = true
 path = "package_manager.rs"
 
 [dependencies]
+build-providers = { path = "../compiler/build/providers" }
 build-model = { path = "../compiler/build/model" }
 project-build = { path = "../compiler/build" }
 build-evaluation-result = { path = "../compiler/build/evaluation/result" }
 source-completion-accounting = { path = "../compiler/source-to-psi/representations/evaluation-receipts" }
 installation-conditions = { path = "../compiler/psi-to-native/verification/installation-admission/conditions" }
-provider-acceptance = { path = "../compiler/build/providers/acceptance" }
 host-provider-inputs = { path = "../compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../compiler/foundation/declaration-scope" }
 record-storage = { path = "../../foundation/record-storage" }

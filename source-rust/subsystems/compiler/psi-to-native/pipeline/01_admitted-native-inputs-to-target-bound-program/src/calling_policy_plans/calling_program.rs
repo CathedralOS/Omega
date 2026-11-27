@@ -53,7 +53,7 @@ impl CallingProgram {
         policy: &terminal_psi::CallingPolicyInstance,
         target: target::TargetProfile,
         declaration: semantic_vocabulary::CallingSignatureId,
-        providers: &[provider_plans::ProviderPlan],
+        providers: &[build_providers::plans::ProviderPlan],
         admission: super::TerminalCallingPolicyAdmission,
     ) -> Result<BoundaryCallingApplication, String> {
         let owner = self
@@ -152,7 +152,7 @@ impl CallingProgram {
         declaration: &semantic_vocabulary::CallingAbiIdentity,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
-        providers: &[provider_plans::ProviderPlan],
+        providers: &[build_providers::plans::ProviderPlan],
     ) -> Result<CanonicalCallingSignature, String> {
         let demand = psi_scalar_applications::CallingAbiStorageDemand::new(
             self.artifact.view(),
@@ -174,7 +174,7 @@ impl CallingProgram {
         demand: &psi_scalar_applications::CallingAbiStorageDemand,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
-        providers: &[provider_plans::ProviderPlan],
+        providers: &[build_providers::plans::ProviderPlan],
         describe: impl FnOnce(
             &dyn Fn(
                 semantic_vocabulary::ScalarApplicationId,

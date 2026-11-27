@@ -8,8 +8,8 @@ use super::{
 };
 use crate::hex_digest;
 use crate::lock::{AcceptedPackageCompilation, PackageCheckedContext, PackageLockError as Error};
-use provider_acceptance::ServiceTerminalAuthorityPermission;
-use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
+use build_providers::acceptance::ServiceTerminalAuthorityPermission;
+use build_providers::acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use semantic_vocabulary::PackageKeyIdentity;
 use semantic_vocabulary::provider_identity::{ProviderPlanDigest, ServiceSchemaDigest};
 use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};

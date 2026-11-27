@@ -13,12 +13,12 @@ use crate::declarations::{DependencyPurpose, purpose_slot};
 use crate::lock::PackageOccurrenceRoster;
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
+use build_providers::acceptance::AcceptedSemanticBinding;
 use diagnostics::Diagnostic;
 use package_compilation::{
     ConsumedSourceUnit, IndependentComponentDescription, PackageCompilationInputError,
     PackageCompilationInputs, derive_source_consumption_commitment,
 };
-use provider_acceptance::AcceptedSemanticBinding;
 use source_acquisition::ImmutableSourceResolution;
 use std::collections::BTreeMap;
 use std::sync::Arc;

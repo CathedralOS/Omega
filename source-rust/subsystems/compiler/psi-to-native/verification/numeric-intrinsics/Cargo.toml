@@ -8,14 +8,13 @@ version.workspace = true
 path = "admission.rs"
 
 [dependencies]
+build-providers = { path = "../../../build/providers" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 numerics = { path = "../../../foundation/numerics" }
 provider-correspondence = { path = "../provider-correspondence" }
-provider-plans = { path = "../../../build/providers/plans" }
-selected-provider-plans = { path = "../../../build/providers/selections" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }

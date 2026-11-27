@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+build-providers = { path = "../../../build/providers" }
 build-model = { path = "../../../build/model" }
 service-surface = { path = "../../../psi/interfaces/service-surface" }
 component-description = { path = "../../verification/component-description" }
@@ -17,13 +18,10 @@ boundary-applications = { path = "../../representations/operation-evidence/bound
 native-execution-scope = { path = "execution-scope" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 build-value-projection = { path = "../../../build/evaluation/values/projection" }
-provider-acceptance = { path = "../../../build/providers/acceptance" }
 native-binding-admission = { path = "../../verification/native-bindings" }
 direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }
-selected-provider-plans = { path = "../../../build/providers/selections" }
 target-provider-admission = { path = "../../verification/target-providers" }
-provider-plans = { path = "../../../build/providers/plans" }
 build-scalar-evaluation = { path = "../../../build/evaluation/scalars" }
 psi-provider-selections = { path = "../../../psi/execution-inputs/providers" }
 psi-target-layouts = { path = "../../../psi/execution-inputs/target-layouts" }
