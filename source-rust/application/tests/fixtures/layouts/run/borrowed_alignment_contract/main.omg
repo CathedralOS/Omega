@@ -2,10 +2,20 @@ machine alignment(value: @u64) -> u64
 ensures result == align_of(value)
 { align_of(value) }
 
+trait WordAlignment {
+    machine measure(word: @u64) -> u64
+    ensures result == align_of(word);
+}
+
+WordMeasurement satisfies WordAlignment {
+    machine measure(word: @u64) -> u64 { align_of(word) }
+}
+
 public machine main() crashes Trap {
     let cell: u64 = 42u64;
     let n: u64 = alignment(@cell);
-    transition n >= 8u64 { true -> done(), false -> wrong() }
+    let through_requirement: u64 = WordMeasurement::measure(@cell);
+    transition n >= 8u64 && n == through_requirement { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }
