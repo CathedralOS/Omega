@@ -1758,6 +1758,27 @@ impl Program<'_> {
                     None => text.push_text(&table.display_name(expression)),
                 }
             }
+            // A case of data as written: `Nat::Succ { prev: n }`.
+            ExpressionNode::StructLiteral(literal) => {
+                text.push_text(literal.type_name.as_str());
+                if let Some(case) = &literal.case_name {
+                    text.push_text("::");
+                    text.push_text(case.as_str());
+                }
+                let fields = table.struct_fields(literal.fields);
+                if !fields.is_empty() {
+                    text.push_text(" { ");
+                    for (position, field) in fields.iter().enumerate() {
+                        if position != 0 {
+                            text.push_text(", ");
+                        }
+                        text.push_text(field.name.as_str());
+                        text.push_text(": ");
+                        self.write_clause_text(slots, field.value, text);
+                    }
+                    text.push_text(" }");
+                }
+            }
             _ => text.push_text(&table.display_name(expression)),
         }
     }
@@ -1918,6 +1939,9 @@ impl Program<'_> {
                 // fields are that argument's.
                 if let Some(actual) = self.proposition_argument(path.symbol) {
                     return self.read_projection(id, scope, actual);
+                }
+                if let Some((place, value_type)) = self.universal_binder(path.symbol) {
+                    return Ok(Some((place, Vec::new(), value_type)));
                 }
                 let Some(subject) = scope.subject else {
                     // A scope that reads no formal storage names none here,

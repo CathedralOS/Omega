@@ -25,7 +25,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 use std::collections::{BTreeSet, HashMap};
-use target_vocabulary::CallSiteOwner;
+use target_vocabulary::{CallSiteOwner, NativeCallOrigin};
 
 const MAX_INLINED_CALLEE_INSTRUCTIONS: usize = 16384;
 const MAX_INLINED_CALLEE_BLOCKS: usize = 1024;
@@ -393,6 +393,13 @@ fn check_inline_eligibility(
         .calls
         .iter()
         .find(|contract| contract.instruction == call_inst.id)?;
+    // A call to a selected provider or the program entry realizes a Terminal
+    // boundary call. Physical evidence rejoins that boundary occurrence to this
+    // exact call, its stack custody and its callee, so the call stays a call,
+    // as boundary settlements and normalized foreign calls do above.
+    if !matches!(contract.call.source, NativeCallOrigin::Authored) {
+        return None;
+    }
     let CallSiteOwner::Operation(call_op) = contract.owner else {
         return None;
     };

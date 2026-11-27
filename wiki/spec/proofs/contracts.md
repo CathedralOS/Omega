@@ -85,23 +85,35 @@ Independent checked law evidence may establish either direction:
 
 | Law premise | Conclusion | Use |
 | --- | --- | --- |
-| Selected `equal(a, b) == true` | `\|proof\|::Identity::<T>(a, b)` | Substitute identical subjects under the ordinary identity rules. |
-| `\|proof\|::Identity::<T>(a, b)` | Selected `equal(a, b) == true` | Establish that comparison from identity. |
+| Selected `equals(@a, @b) == true` | `\|proof\|::Identity::<T>(a, b)` | Substitute identical subjects under the ordinary identity rules. |
+| `\|proof\|::Identity::<T>(a, b)` | Selected `equals(@a, @b) == true` | Establish that comparison from identity. |
 
-These are additional trait/conformance evidence, not optional members of
-`Equatable`. Each selected conformance still supplies its complete row set.
-A combined evidence trait may require both directions. Recognize the checked
-law's form and exact applied equality row, not its name or another visible
-implementation for the same `T`. Retain its premises, generic substitution,
-subjects, value versions and assumption closure. A cited standalone theorem
-may supply the same evidence; it is not automatically discovered by spelling.
+The core evidence traits `EqualImpliesIdentity<T>` and `IdentityImpliesEqual<T>`
+each inherit `Equatable<T>` and add the theorem for their respective direction.
+A trait inheriting both shares one inherited `equals` member. Each law refers
+to the final selected implementation of that member, including its generic
+arguments. Applying the law to `a == b` requires the operator to select that
+same applied comparison.
+
+Either evidence bound guarantees that its inherited `equals` is admissible in
+a proof clause. Every conformance must establish `reaches none crashes none
+terminates` for that operation. This lets a generic caller with evidence
+parameter `E` use `E::equals(@a, @b)` in a clause and cite the corresponding
+theorem from `E`. Plain `Equatable<T>` requires only the executable comparison.
+Check the theorem's premises, subjects, value versions, and assumption closure
+at each use. An explicitly cited standalone theorem about the same applied
+comparison can supply the same evidence.
 
 Authorized core synthesis proves each direction only when the corresponding
 component laws justify it. It must not grant substitution to IEEE float equality
 or to a structural comparison containing such a component without further
-evidence. For example, case-insensitive equality can reflect identity without
-implying it. Same-carrier integer equality can support both directions;
-cross-carrier numerical equality is not an ill-typed same-carrier `Id`.
+evidence. For raw floats, write `a == b` for IEEE comparison and
+`|proof|::Identity::<f32>(a, b)` (or the `f64` application) for exact
+same-format bits. IEEE equality accepts positive and negative zero even though
+their signs differ. A NaN has the same bits as itself and compares unequal to
+itself under IEEE equality. See [float equality and source identity](../terminal-psi/mathematical_values.md#float-equality-and-source-identity).
+Same-carrier integer equality can support both directions. Cross-carrier
+numerical equality requires its own typed relation.
 
 Compiler-synthesized structural equality is proof-transparent through its
 ordinary checked body: a true record comparison yields each selected field

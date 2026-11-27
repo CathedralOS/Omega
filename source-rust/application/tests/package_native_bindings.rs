@@ -157,11 +157,215 @@ machine build(plan: @mutable BuildPlan) {
     let report = String::from_utf8(output.stdout).unwrap();
     assert_eq!(output.status.code(), Some(3), "{report}");
     assert!(report.contains("fresh-analysis complete"), "{report}");
+    let bindings: Vec<_> = report
+        .lines()
+        .filter(|line| line.starts_with("  native binding "))
+        .collect();
+    assert_eq!(bindings.len(), 2, "{report}");
     for (export, extent) in [("ReadFour", 4), ("ReadEight", 8)] {
+        let line = bindings
+            .iter()
+            .find(|line| line.ends_with(&format!(r#" -> DLL "probe.dll" export "{export}""#)))
+            .unwrap();
+        assert!(
+            line.contains(r#""probe"::"#)
+                && line.contains(&format!("<index-expression(integer({extent}))>")),
+            "{line}"
+        );
         let (before_export, _) = report.split_once(&format!("bytes \"{export}\"")).unwrap();
         let (_, binding) = before_export
             .rsplit_once("\n          field application {")
             .unwrap();
         assert!(binding.contains(&format!("literal({extent})")), "{binding}");
     }
+}
+
+#[test]
+fn package_review_discloses_the_windows_utf8_import_without_any_converter_callers() {
+    let scratch = TemporaryDirectory::create("unused-generic-windows-converter", false).unwrap();
+    let consumer = scratch.path().join("consumer");
+    let library = scratch.path().join("windows");
+    fs::create_dir(&consumer).unwrap();
+    fs::create_dir(&library).unwrap();
+    fs::write(
+        consumer.join("build.omg"),
+        r#"use {omega}/build/dependency.omg;
+use main.omg as app;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Application { name: "consumer" };
+    _ = Build::dependency(plan, |dependency|::from_source(Source::Path { location: "../windows" }));
+    Build::bind(plan, windows_x86_64::ProgramEntry, |app|::main);
+}"#,
+    )
+    .unwrap();
+    fs::write(consumer.join("main.omg"), "public machine main() {}").unwrap();
+    let library_root = support::repository_root().join("source/library");
+    // Use the system package's own boundary with both capacity binders and its
+    // predicates. None of the path, reparse or directory clients are in this product.
+    fs::copy(
+        library_root.join("system/targets/windows_x86_64/windows_filesystem_path_query_native.omg"),
+        library.join("main.omg"),
+    )
+    .unwrap();
+    fs::write(
+        library.join("build.omg"),
+        r#"use main.omg as api;
+use {omega}/language/core/external_binding.omg as native;
+machine build(plan: @mutable BuildPlan) {
+    plan.product = BuildProduct::Package { name: "windows" };
+    Build::bind_native::<|api|::WindowsFilesystemUtf8Io::utf8>(plan, windows_x86_64,
+        |native|::ForeignBinding::DllImport { import: |native|::DllImport::PeByName {
+            library: "kernel32.dll", export: "WideCharToMultiByte"
+        } });
+}"#,
+    )
+    .unwrap();
+    let audit = |exit| {
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .current_dir(&consumer)
+            .env("OMEGA_LIBRARY_ROOT", &library_root)
+            .args([
+                "packages",
+                "audit",
+                "--offline",
+                "--target",
+                "windows_x86_64",
+                "--details",
+            ])
+            .output()
+            .unwrap();
+        let report = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(exit),
+            "{report}\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        report
+    };
+    let report = audit(3);
+    assert!(report.contains("fresh-analysis complete"), "{report}");
+    assert!(
+        report
+            .lines()
+            .any(|line| line.contains("unused generic native import")
+                && line.contains("utf8")
+                && line.contains("<Units, Bytes>")
+                && line.contains(r#"export "WideCharToMultiByte""#)),
+        "{report}"
+    );
+    assert!(
+        report.contains(r#"bytes "WideCharToMultiByte""#),
+        "{report}"
+    );
+    assert!(report.contains("tag unused_generic"), "{report}");
+
+    let client = r#"
+public machine encode_one(source: @[u16; 1], output: @mutable [u8; 4]) -> i32 {
+    let count: i32 = WindowsFilesystemUtf8Io::utf8::<1, 4>(65001, 128, source, 1, output, 4, 0, 0);
+    transition { _ -> (count) }
+}
+public machine encode_two(source: @[u16; 2], output: @mutable [u8; 8]) -> i32 {
+    let count: i32 = WindowsFilesystemUtf8Io::utf8::<2, 8>(65001, 128, source, 2, output, 8, 0, 0);
+    transition { _ -> (count) }
+}
+"#;
+    let main = library.join("main.omg");
+    let original = fs::read_to_string(&main).unwrap();
+    fs::write(&main, format!("{original}{client}")).unwrap();
+    let used = audit(3);
+    assert!(used.contains("fresh-analysis complete"), "{used}");
+    assert!(!used.contains("tag unused_generic"), "{used}");
+    let applications: Vec<_> = used.split(r#"bytes "WideCharToMultiByte""#).collect();
+    assert_eq!(applications.len(), 3, "{used}");
+    for buffer in [4, 8] {
+        assert!(
+            applications[..2].iter().any(|prefix| {
+                prefix
+                    .rsplit_once("\n          field application {")
+                    .is_some_and(|(_, row)| {
+                        row.contains(&format!("literal({buffer})"))
+                            && row.contains("field calling {")
+                    })
+            }),
+            "{used}"
+        );
+    }
+
+    fs::write(&main, &original).unwrap();
+    let update = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .current_dir(&consumer)
+        .env("OMEGA_LIBRARY_ROOT", &library_root)
+        .args([
+            "packages",
+            "update",
+            "--offline",
+            "--target",
+            "windows_x86_64",
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "main.omg",
+            "--dangerously-accept-all",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        update.status.success(),
+        "{}",
+        String::from_utf8_lossy(&update.stderr)
+    );
+    let lock = fs::read_to_string(consumer.join("omega.lock")).unwrap();
+    assert!(lock.contains("tag unused_generic"), "{lock}");
+    let accepted = audit(0);
+    assert!(
+        accepted.contains("accepted-policy equal-to-fresh"),
+        "{accepted}"
+    );
+
+    // The accepted source graph above pins the original package contents.
+    fs::remove_file(consumer.join("omega.lock")).unwrap();
+    fs::copy(
+        library_root.join("system/calling.omg"),
+        library.join("calling.omg"),
+    )
+    .unwrap();
+    let custom = original.replace(
+        "boundary trait WindowsFilesystemUtf8Io {",
+        "boundary trait WindowsFilesystemUtf8Io: |abi|::Calling<CheckedPolicy> {",
+    );
+    let custom = format!(
+        r#"use calling.omg as abi;
+public CheckedPolicy satisfies |abi|::CallingPolicy {{
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {{
+        let mutable empty: |abi|::BoundaryEntryPlan;
+        transition {{ _ -> |abi|::BoundaryPlanResult::Accepted {{ plan: empty }} }}
+    }}
+}}
+{custom}"#
+    );
+    fs::write(&main, &custom).unwrap();
+    let unused = audit(3);
+    assert!(
+        unused.split("tag unused_generic").skip(1).any(|binding| {
+            binding
+                .split_once("field custom_calling_policy")
+                .and_then(|(_, fields)| fields.split_once("field source_occurrence"))
+                .is_some_and(|(policy, _)| policy.contains("CheckedPolicy"))
+        }),
+        "{unused}"
+    );
+    let predicate_binders = custom
+        .replace("[u16; Units]", "[u16; 1]")
+        .replace("[u8; Bytes]", "[u8; 4]");
+    fs::write(&main, predicate_binders).unwrap();
+    assert!(audit(3).contains("<Units, Bytes>"));
+
+    fs::write(main, format!("{custom}{client}")).unwrap();
+    let rejected = audit(1);
+    assert!(
+        rejected
+            .contains("plan places 0 parameters for a boundary signature with 8 native parameters"),
+        "{rejected}"
+    );
 }

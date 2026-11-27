@@ -52,6 +52,14 @@ impl PackagePolicyBaseline {
         )?;
         self.symbolic_demands()?;
         for row in &self.native_bindings {
+            if self.schema_version < crate::encoding::BASELINE_WITH_UNUSED_GENERIC_IMPORTS
+                && matches!(
+                    row.application,
+                    crate::record::PackagePolicyNativeApplication::UnusedGeneric { .. }
+                )
+            {
+                return Err("this package policy version cannot record unused generic imports");
+            }
             row.validate(self.package, self.target)?;
         }
         if self

@@ -458,7 +458,10 @@ image storage, not a invocation-local owner, so the view is valid at whatever
 lifetime its use requires while that image is retained. A machine may return
 one at a [caller-chosen result lifetime](lifetimes.md#caller-chosen-result-lifetimes).
 Source UTF-8 framing does not make the value text or normalize/transcode its
-contents.
+contents. For example, `"A"` contains the byte `0x41` and `"a"` contains
+`0x61`, so their byte contents differ. A library can define a case-insensitive
+comparison for an explicitly selected [byte domain](domains.md#byte-containers-and-encoding-domains).
+Domain qualification preserves the underlying bytes.
 
 The lexer copies literal-body source bytes except these byte escapes:
 

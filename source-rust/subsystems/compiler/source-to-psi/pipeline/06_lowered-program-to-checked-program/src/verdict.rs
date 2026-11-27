@@ -480,11 +480,20 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
     Ok(())
 }
 
+/// A lowered row exists before the source checker runs. A private-cell
+/// progress obligation only arises after the selected call path identifies
+/// the storage and its possible writers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObligationSource {
+    Lowered(ObligationId),
+    SynchronizationProgress(semantic_vocabulary::OperationId),
+}
+
 /// One obligation the prover could not discharge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnprovedObligation {
     pub machine: MachineId,
-    pub obligation: ObligationId,
+    pub source: ObligationSource,
     pub kind: ObligationKind,
     /// Where the obligation arises in the source, from elaboration's own
     /// source correspondence.
@@ -1421,7 +1430,7 @@ fn conclude(
             };
             unproved.push(UnprovedObligation {
                 machine,
-                obligation,
+                source: ObligationSource::Lowered(obligation),
                 kind: row.kind,
                 site: claim_site.unwrap_or(site),
                 cause,
@@ -1482,7 +1491,7 @@ fn conclude(
             )?;
             unproved.push(UnprovedObligation {
                 machine,
-                obligation: consumed.opened_by,
+                source: ObligationSource::Lowered(consumed.opened_by),
                 kind: row.kind,
                 site,
                 cause,
@@ -1573,6 +1582,45 @@ fn conclude(
             exceeded,
         });
     }
+    if subject == JudgmentSubject::SelectedClosure
+        && let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = elaboration.module.entry
+        && let Some(failure) = terminal_semantics::synchronization::private_wait_failure(
+            &elaboration.module,
+            entry,
+            |_| None,
+        )
+    {
+        use terminal_semantics::synchronization::ProgressFailure;
+        let machine = failure.machine;
+        let at = Construct::Operation(failure.operation);
+        match failure.cause {
+            ProgressFailure::Deadlock => {
+                let violation = refusal(
+                    RefusalReason::Violation,
+                    machine,
+                    at,
+                    "synchronization deadlock: this call retries on an unchanged private atomic cell; no other participant can release it",
+                );
+                return fall_back_or_defect(Roster::of(&elaboration).locate(violation));
+            }
+            ProgressFailure::Unproved => {
+                let sources =
+                    terminal_check_tables::row(&elaboration.sources, machine, machine, at)?;
+                unproved.push(UnprovedObligation {
+                    machine,
+                    source: ObligationSource::SynchronizationProgress(failure.operation),
+                    kind: ObligationKind::OperationSafety {
+                        site: terminal_psi::ExecutionSite::Operation(failure.operation),
+                    },
+                    site: source_of(sources, machine, at)?,
+                    cause: UnprovedCause::NoDerivation,
+                    detail: "the initial value may keep the call waiting and no other participant can change this private cell".into(),
+                    statement: "cannot prove synchronization progress at this call".into(),
+                    consumed: None,
+                });
+            }
+        }
+    }
     if !unproved.is_empty() {
         // Classified after restated clauses are dropped: a published clause
         // fails as `ReturnDoesNotEstablish` even when its return's goal had
@@ -1592,19 +1640,6 @@ fn conclude(
                 }
             },
         );
-    }
-    if subject == JudgmentSubject::SelectedClosure
-        && let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = elaboration.module.entry
-        && let Some((machine, site)) =
-            terminal_semantics::synchronization::stuck_private_wait(&elaboration.module, entry, |_| None)
-    {
-        let violation = refusal(
-            RefusalReason::Violation,
-            machine,
-            Construct::Operation(site),
-            "synchronization deadlock: this call retries on an unchanged private atomic cell; no other participant can release it",
-        );
-        return fall_back_or_defect(Roster::of(&elaboration).locate(violation));
     }
     if let Err(refused) = crate::external_providers::publish(&mut elaboration) {
         return fall_back_or_defect(refused);
@@ -2530,7 +2565,7 @@ fn without_restated_clauses(unproved: Vec<UnprovedObligation>) -> Vec<UnprovedOb
                     && matches!(
                         exit.kind,
                         ObligationKind::NormalGuarantee { published, .. }
-                            if published == candidate.obligation
+                            if candidate.source == ObligationSource::Lowered(published)
                     )
             })
     };

@@ -1,273 +1,42 @@
 //! Instantiate derived wait predicates on fresh, unescaped storage. Borrow
 //! arguments identify the same allocation across checked calls and jumps.
 
-use super::facts::Facts;
+mod activation;
+mod aggregate;
+mod control;
+mod storage;
+mod successor;
+
+use super::progress::{PrivateWaitFailure, ProgressFailure, entry_scalars};
 use super::selected::Summaries;
-use super::spin::{SpinWait, constant};
-use crate::entry_values::TerminalScalarValue as Scalar;
-use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, IntegerValue, MachineId, OperationId, PlaceId, ScalarType, ValueId,
-};
-use std::cell::OnceCell;
+use super::spin::{CellUpdate, SpinWait};
+use activation::{Bindings, Destination, Frame, ScalarArguments};
+use control::{Execution, Frontier};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+use storage::Storage;
 use terminal_psi::{
-    AtomicAccessEvent, Block, Operation, OperationKind, StructuralAccess, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPathSegment, TargetMachineCallable,
-    TerminalAffineCleanupAction, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    StructuralAccess, TargetMachineCallable, TerminalAffineCleanupAction, TerminalModule,
+    Terminator,
 };
-
-/// Independent source fields and fixed indices retain their last proven bits.
-struct Contents {
-    zeroed: bool,
-    writes: Vec<(Vec<StructuralPathSegment>, Option<Scalar>)>,
-}
-
-#[derive(Clone)]
-struct Location {
-    allocation: usize,
-    path: Vec<StructuralPathSegment>,
-}
-
-impl Location {
-    fn read(&self, allocations: &[Contents], ty: ScalarType) -> Option<Scalar> {
-        let memory = &allocations[self.allocation];
-        for (path, value) in memory.writes.iter().rev() {
-            if path == &self.path {
-                return value.filter(|bits| bits.scalar_type() == ty);
-            }
-            if crate::structural_paths_may_overlap(path, &self.path) {
-                return None;
-            }
-        }
-        memory.zeroed.then(|| Scalar::zero(ty)).flatten()
-    }
-
-    fn write(self, allocations: &mut [Contents], value: Option<Scalar>) {
-        let writes = &mut allocations[self.allocation].writes;
-        writes.retain(|(path, _)| path != &self.path);
-        writes.push((self.path, value));
-    }
-}
-
-#[derive(Default)]
-struct Bindings {
-    places: Facts<PlaceId, Location>,
-    references: Facts<PlaceId, Location>,
-    values: Facts<ValueId, Scalar>,
-}
-
-impl Bindings {
-    fn locate(&self, root: PlaceId, path: &[StructuralPathSegment]) -> Option<Location> {
-        let (mut loc, path) = match path {
-            [StructuralPathSegment::Referent, rest @ ..] => {
-                (self.references.get(&root)?.clone(), rest)
-            }
-            _ => (self.places.get(&root)?.clone(), path),
-        };
-        if !path.iter().all(|part| {
-            matches!(
-                part,
-                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
-            )
-        }) {
-            return None;
-        }
-        loc.path.extend_from_slice(path);
-        Some(loc)
-    }
-
-    // Only read and write borrow formals forward the caller's actual storage.
-    // Owned transfers need a separate copy/move and alias argument.
-    fn arguments(
-        &self,
-        formals: &[ValueDeclaration],
-        places: &[StructuralParameterDeclaration],
-        arguments: &[ValueId],
-        actuals: &[StructuralArgument],
-    ) -> Option<Self> {
-        if places.len() != actuals.len() || formals.len() != arguments.len() {
-            return None;
-        }
-        let mut bindings = Self::default();
-        for (formal, actual) in formals.iter().zip(arguments) {
-            if let Some(v) = self.values.get(actual) {
-                bindings.values.insert(formal.id, *v);
-            }
-        }
-        for (formal, actual) in places.iter().zip(actuals) {
-            if actual.access == StructuralAccess::Owned || formal.access != actual.access {
-                return None;
-            }
-            if let Some(loc) = self.locate(actual.place, &actual.path) {
-                bindings.places.insert(formal.place, loc);
-            }
-        }
-        Some(bindings)
-    }
-}
-
-struct Frame<'m> {
-    machine: &'m TerminalMachine,
-    block: &'m Block,
-    position: usize,
-    bindings: Bindings,
-    scalar_types: OnceCell<crate::MachineScalarIndex<'m>>,
-    return_to: Option<ValueId>,
-}
-
-impl<'m> Frame<'m> {
-    fn enter(
-        machine: &'m TerminalMachine,
-        bindings: Bindings,
-        return_to: Option<ValueId>,
-    ) -> Option<Self> {
-        Some(Self {
-            machine,
-            block: machine.block(&machine.entry)?,
-            position: 0,
-            bindings,
-            return_to,
-            scalar_types: OnceCell::new(),
-        })
-    }
-    fn step(&mut self, op: &Operation, allocations: &mut Vec<Contents>) -> Option<()> {
-        let bindings = &mut self.bindings;
-        if let Some(value) = constant(op) {
-            bindings.values.insert(op.result.scalar()?.id, value);
-            return Some(());
-        }
-        match &op.kind {
-            OperationKind::EstablishZeroedStructural {}
-            | OperationKind::EstablishStructuralLocal {} => {
-                let place = op.result.as_structural()?.place;
-                bindings.places.insert(
-                    place,
-                    Location {
-                        allocation: allocations.len(),
-                        path: Vec::new(),
-                    },
-                );
-                allocations.push(Contents {
-                    zeroed: matches!(op.kind, OperationKind::EstablishZeroedStructural {}),
-                    writes: Vec::new(),
-                });
-            }
-            OperationKind::EstablishReference {
-                source,
-                storage: None,
-            } => {
-                if let Some(loc) = bindings.locate(source.place, &source.path) {
-                    bindings
-                        .references
-                        .insert(op.result.as_structural()?.place, loc);
-                }
-            }
-            OperationKind::ReleaseReference { source, path } if path.is_empty() => {
-                bindings.references.remove(source);
-            }
-            OperationKind::AtomicAccess {
-                place,
-                path,
-                event,
-                resident_obligation: None,
-            } => {
-                let location = bindings.locate(*place, path)?;
-                match event {
-                    AtomicAccessEvent::Load { .. } | AtomicAccessEvent::Swap { .. } => {
-                        let result = op.result.scalar()?;
-                        if let Some(value) = location.read(allocations, result.scalar_type) {
-                            bindings.values.insert(result.id, value);
-                        }
-                    }
-                    AtomicAccessEvent::Store { .. } => {}
-                    _ => return None,
-                }
-                if let AtomicAccessEvent::Store { value, .. }
-                | AtomicAccessEvent::Swap { value, .. } = event
-                {
-                    location.write(allocations, bindings.values.get(value).copied());
-                }
-            }
-            _ => {
-                let result = op.result.scalar()?;
-                let types = self
-                    .scalar_types
-                    .get_or_init(|| crate::MachineScalarIndex::new(self.machine));
-                let origin = crate::scalar_operation_origin(op, result.id, types)?;
-                let crate::ScalarConstantOrigin::Computed(term) = origin else {
-                    return None;
-                };
-                let known =
-                    crate::inhabitation::known_scalar_value_with(&term, |id| {
-                        match bindings.values.get(&id)? {
-                            Scalar::Boolean(v) => {
-                                Some((ScalarType::Boolean, IntegerValue::Unsigned(u128::from(*v))))
-                            }
-                            Scalar::Integer { scalar_type, value } => {
-                                Some((ScalarType::Integer(*scalar_type), *value))
-                            }
-                            _ => None,
-                        }
-                    });
-                match known {
-                    Some((ScalarType::Boolean, IntegerValue::Unsigned(v))) => {
-                        bindings.values.insert(result.id, Scalar::Boolean(v == 1));
-                    }
-                    Some((ScalarType::Integer(scalar_type), value)) => {
-                        bindings
-                            .values
-                            .insert(result.id, Scalar::Integer { scalar_type, value });
-                    }
-                    _ if crate::goal_free_scalar_leaf_semantics(op, types)
-                        .ok()?
-                        .is_some() => {}
-                    _ => return None,
-                }
-            }
-        }
-        Some(())
-    }
-
-    fn jump(
-        &mut self,
-        target: BlockId,
-        scalars: &[ValueId],
-        places: &[StructuralArgument],
-        cleanup: &[TerminalAffineCleanupAction],
-    ) -> Option<()> {
-        if !cleanup.is_empty() {
-            return None;
-        }
-        let block = self.machine.block(&target)?;
-        let binding = self.bindings.arguments(
-            &block.parameters,
-            &block.structural_parameters,
-            scalars,
-            places,
-        )?;
-        for formal in &block.parameters {
-            self.bindings.values.remove(&formal.id);
-        }
-        for formal in &block.structural_parameters {
-            self.bindings.places.remove(&formal.place);
-            self.bindings.references.remove(&formal.place);
-        }
-        self.bindings.values.extend(binding.values);
-        self.bindings.places.extend(binding.places);
-        self.block = block;
-        self.position = 0;
-        Some(())
-    }
-}
 
 /// Find a call which can only retry on a permanently unchanged private cell.
 /// The caller supplies summaries only for its exact admitted boundary bodies.
-/// Stop upon unknown effects, control or aliasing; repeat visits to ordinary
-/// blocks also stop, so expanding acyclic helper calls stays bounded by the IR.
+/// Follow returned records and their selected cleanup on the actual edge.
+/// Stop upon unknown effects, control or aliasing and repeated ordinary blocks.
 pub fn stuck_private_wait(
     module: &TerminalModule,
     entry: MachineId,
     boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
 ) -> Option<(MachineId, OperationId)> {
+    let failure = private_wait_failure(module, entry, boundary)?;
+    (failure.cause == ProgressFailure::Deadlock).then_some((failure.machine, failure.operation))
+}
+
+pub fn private_wait_failure(
+    module: &TerminalModule,
+    entry: MachineId,
+    boundary: impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+) -> Option<PrivateWaitFailure> {
     if !module.types.structural_types.iter().any(|ty| {
         matches!(ty.shape, terminal_psi::StructuralTypeShape::AtomicCell(_))
             || ty
@@ -277,51 +46,88 @@ pub fn stuck_private_wait(
     }) {
         return None;
     }
-    let mut stack = vec![Frame::enter(
-        module.machine(entry)?,
-        Bindings::default(),
-        None,
-    )?];
-    let mut allocations = Vec::new();
-    let mut seen = Facts::default();
+    let selected_entry = module.machine(entry)?;
+    let root_bindings = Bindings {
+        values: entry_scalars(selected_entry),
+        ..Default::default()
+    };
+    if crate::inhabitation::predicates_are_false_with(&selected_entry.requires, |value| {
+        root_bindings.values.get(&value)?.known_integer()
+    }) {
+        return None;
+    }
+    let entry = Frame::enter(selected_entry, root_bindings, Destination::Unit)?;
+    let mut paths = Frontier::default();
+    paths.queue(Execution {
+        stack: vec![entry],
+        memory: Storage::default(),
+        coverage: Default::default(),
+    });
     let mut summaries = Summaries::default();
-    while let Some(frame) = stack.last_mut() {
-        if frame.position == 0
-            && seen
-                .insert((frame.machine.id, frame.block.id), ())
-                .is_some()
-        {
-            return None;
+    let mut unproved = None;
+    while let Some(mut path) = paths.next() {
+        match advance(
+            module,
+            &boundary,
+            &mut summaries,
+            &mut path,
+            &selected_entry.requires,
+        ) {
+            Some(Advance::Continue) => paths.queue(path),
+            Some(Advance::Fork(arms)) => path.fork(&arms, |arm| paths.queue(arm)),
+            Some(Advance::Blocked(failure)) if failure.cause == ProgressFailure::Deadlock => {
+                return Some(failure);
+            }
+            Some(Advance::Blocked(failure)) => {
+                unproved.get_or_insert(failure);
+            }
+            None => {}
         }
+    }
+    unproved
+}
+
+enum Advance {
+    Continue,
+    Fork(std::borrow::Cow<'static, [usize]>),
+    Blocked(PrivateWaitFailure),
+}
+
+fn advance<'m>(
+    module: &'m TerminalModule,
+    boundary: &impl Fn(BoundaryMachineId) -> Option<SpinWait>,
+    summaries: &mut Summaries,
+    path: &mut Execution<'m>,
+    requirements: &[semantic_vocabulary::Proposition],
+) -> Option<Advance> {
+    let certain = path.certain();
+    let memory = &mut path.memory;
+    let stack = &mut path.stack;
+    while let Some(frame) = stack.last_mut() {
         if let Some(op) = frame.block.operations.get(frame.position) {
             frame.position += 1;
-            if op.suspension_crossing.is_some() {
-                return None;
-            }
             let Some(call) = op.declared_invocation() else {
-                frame.step(op, &mut allocations)?;
+                frame.step(module, op, memory)?;
                 continue;
             };
             let spin = match call.callee {
                 TargetMachineCallable::Machine(id) => {
-                    if let Some(summary) = summaries.get(module, id, &boundary) {
+                    if let Some(summary) = summaries.get(module, id, boundary) {
                         summary
                     } else {
                         let callee = module.machine(id)?;
-                        if op.result.as_structural().is_some() {
-                            return None;
-                        }
                         let args = frame.bindings.arguments(
+                            memory,
                             &callee.parameters,
                             &callee.structural_parameters,
-                            call.arguments,
+                            ScalarArguments::Values(call.arguments),
                             call.structural_arguments,
                         )?;
-                        stack.push(Frame::enter(
-                            callee,
-                            args,
-                            op.result.scalar().map(|s| s.id),
-                        )?);
+                        let return_to = Destination::of(op);
+                        if stack.iter().any(|active| active.machine.id == id) {
+                            return None;
+                        }
+                        stack.push(Frame::enter(callee, args, return_to)?);
                         continue;
                     }
                 }
@@ -331,67 +137,85 @@ pub fn stuck_private_wait(
             if actual.access != StructuralAccess::SharedBorrow {
                 return None;
             }
-            let mut location = frame.bindings.locate(actual.place, &actual.path)?;
-            location.path.extend(spin.path);
-            let value = location.read(&allocations, spin.while_value.value.scalar_type())?;
-            if spin.while_value.matches(value)
-                && spin
-                    .writes
-                    .is_none_or(|next| spin.while_value.matches(next))
+            let base = memory.locate(&frame.bindings.places, actual.place, &actual.path)?;
+            let location = memory.project(base, &spin.path)?;
+            let mut all_block = true;
+            let mut can_block = false;
+            let mut observe = |initial| {
+                let failure = spin.while_value.failure(initial, spin.update, requirements);
+                all_block &= failure == Some(ProgressFailure::Deadlock);
+                can_block |= failure.is_some();
+            };
+            if memory
+                .get(&location)
+                .visit_scalars(spin.while_value.value.scalar_type(), |value| {
+                    observe(Some(value))
+                })
+                .is_none()
             {
-                return Some((frame.machine.id, op.id));
+                observe(None);
             }
-            if let Some(value) = spin.writes {
-                location.write(&mut allocations, Some(value));
+            if can_block {
+                let cause = if all_block && certain {
+                    ProgressFailure::Deadlock
+                } else {
+                    ProgressFailure::Unproved
+                };
+                return Some(Advance::Blocked(PrivateWaitFailure {
+                    machine: frame.machine.id,
+                    operation: op.id,
+                    cause,
+                }));
+            }
+            if spin.update != CellUpdate::Observe {
+                let next = memory.get(&location).after_update(spin.update);
+                memory.set(&location, next);
             }
             continue;
         }
-        match &frame.block.terminator {
-            Terminator::Jump {
-                target,
-                arguments,
-                structural_arguments,
-                cleanup_actions,
-                ..
-            } => frame.jump(*target, arguments, structural_arguments, cleanup_actions)?,
-            Terminator::Conditional {
-                condition,
-                when_true,
-                when_false,
-            } => {
-                let Scalar::Boolean(test) = frame.bindings.values.get(condition)? else {
-                    return None;
-                };
-                let edge = if *test { when_true } else { when_false };
-                frame.jump(
-                    edge.target,
-                    &edge.arguments,
-                    &edge.structural_arguments,
-                    &edge.cleanup_actions,
+        let cleanup = match successor::prepare(module, frame, memory)? {
+            successor::Selection::Fork(arms) => return Some(Advance::Fork(arms)),
+            successor::Selection::Ready(actions) => actions,
+        };
+        if let Some(action) = cleanup.get(frame.cleanup_cursor) {
+            frame.cleanup_cursor += 1;
+            if let TerminalAffineCleanupAction::InvokeOwned(invocation) = action {
+                let callee = module.machine(invocation.cleanup_machine)?;
+                let args = frame.bindings.arguments(
+                    memory,
+                    &callee.parameters,
+                    &callee.structural_parameters,
+                    ScalarArguments::Values(&[]),
+                    std::slice::from_ref(&invocation.subject),
                 )?;
-            }
-            Terminator::ReturnUnit {
-                cleanup_actions, ..
-            }
-            | Terminator::Return {
-                cleanup_actions, ..
-            } if cleanup_actions
-                .iter()
-                .all(|action| action.invoked_machine().is_none()) =>
-            {
-                let returned = if let Terminator::Return { value, .. } = &frame.block.terminator {
-                    frame
-                        .return_to
-                        .zip(frame.bindings.values.get(value).copied())
-                } else {
-                    None
-                };
-                stack.pop();
-                if let Some((dest, v)) = returned {
-                    stack.last_mut()?.bindings.values.insert(dest, v);
+                if stack.iter().any(|active| active.machine.id == callee.id) {
+                    return None;
                 }
+                stack.push(Frame::enter(callee, args, Destination::Unit)?);
             }
-            _ => return None,
+            continue;
+        }
+        if frame.arrival.is_some() {
+            frame.arrive()?;
+            return Some(Advance::Continue);
+        }
+        let frame = stack.pop()?;
+        if let Some(caller) = stack.last_mut() {
+            match (frame.return_to, &frame.block.terminator) {
+                (Destination::Unit, Terminator::ReturnUnit { .. }) => {}
+                (Destination::Scalar(dest), Terminator::Return { value, .. }) => {
+                    if let Some(value) = frame.bindings.values.get(value) {
+                        caller.bindings.values.insert(dest, *value);
+                    }
+                }
+                (Destination::Structural(dest), Terminator::ReturnStructural { source, .. }) => {
+                    let location = frame.bindings.places.get(source)?;
+                    let returned = memory.allocate(memory.get(location));
+                    caller.bindings.places.insert(dest, returned);
+                }
+                _ => return None,
+            }
+            return Some(Advance::Continue);
         }
     }
     None

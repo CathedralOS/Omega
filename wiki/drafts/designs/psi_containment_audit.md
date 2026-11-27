@@ -88,7 +88,7 @@ The runtime host's bindings, reviewed one by one:
 ## Remaining
 
 1. **A command-line route.** `omega run` names only the trusted route.
-   [Owner question 4](../../../OWNER_QUESTIONS.md#untrusted-psi-run-flag) asks
-   whether to add one.
+   The [untrusted artifact run flag](../../../OWNER_QUESTIONS.md#untrusted-psi-run-flag)
+   is awaiting an owner decision.
 2. **Wider bindings.** Filesystem delegation and native providers stay
    unavailable to contained execution.

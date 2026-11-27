@@ -269,6 +269,14 @@ pub(super) fn judge_build_with_core(
     build: &str,
     core: &[(&str, &str, &str)],
 ) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    judge_build_published(build, core, terminal_codec::TerminalPublication::Invocation)
+}
+
+pub(super) fn judge_build_published(
+    build: &str,
+    core: &[(&str, &str, &str)],
+    publication: terminal_codec::TerminalPublication,
+) -> Result<RouteVerdict, crate::CompilationRefusal> {
     let typed = crate::prepare_fixture(frontier_with_core(
         "machine product_entry() { }",
         build,
@@ -280,7 +288,7 @@ pub(super) fn judge_build_with_core(
         crate::lowering::prepare_compilation(
             &typed,
             roster(&[entry], &[Some(package())], DependencyScope::Build),
-            terminal_codec::TerminalPublication::Invocation,
+            publication,
         )
         .expect("fixture must lower to checker input")
         .program,
