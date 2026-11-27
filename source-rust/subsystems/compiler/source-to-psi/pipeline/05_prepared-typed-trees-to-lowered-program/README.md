@@ -58,9 +58,13 @@ parameter: one with exactly the parameter's formals and result and no
 premise, which is then the definition the signature gives it
 (`machine_argument`). A generic machine may cite another generic machine,
 passing it its own machine parameters or concrete machines; the cited law's
-premises are then owed at those machines. A body that is not generic and
-calls a generic mathematical machine at concrete machines names the closed
-copy the typed trees made for that call, and is refused. A named proposition declared as
+premises are then owed at those machines. A generic machine whose body
+dispatches is lowered instead, with every machine declared inside it: a call
+of a machine parameter, or of a generic machine at some machines, is an
+`ExpressionKind::Applied` the signature reader applies to the parameter's
+variable or to the passed definitions (`read/templates.rs`,
+`mathematical_application`). A body that is not generic calls or cites a
+generic machine at concrete machines through the same form. A named proposition declared as
 one formula is read where a clause of such a machine applies it: the formula,
 with each parameter standing for the argument written for it. Its declaration
 adds nothing to the signature. A quotient of mathematical data

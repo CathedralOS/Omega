@@ -1,7 +1,7 @@
 use main.omg as product;
 use {omega}/language/core/external_binding.omg as native;
-machine build(builder: @mutable Build) {
-    Build::application(builder, "native_boundary_supply");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "native_boundary_supply" };
     Build::bind(builder, alpha_bootstrap::ProgramEntry, |product|::main);
     Build::bind(builder, windows_x86_64::ProgramEntry, |product|::main);
     Build::bind(builder, linux_x86_64::ProgramEntry, |product|::main);

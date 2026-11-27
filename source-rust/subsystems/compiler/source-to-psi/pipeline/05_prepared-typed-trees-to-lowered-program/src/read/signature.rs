@@ -62,8 +62,8 @@ use super::proof_stratum::TemplateField;
 use super::quotients::{LiftArgument, LiftedOperation};
 use crate::Unserved;
 use crate::body::{
-    ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement, Target,
-    ValueType,
+    AppliedHead, ArmGuard, Body, CallTarget, CaseSelector, Expression, ExpressionKind, Statement,
+    Target, ValueType,
 };
 
 /// The trait requirement a mathematical machine satisfies, read at the
@@ -482,6 +482,18 @@ struct Scope<'s> {
     value: Option<&'s Valuing<'s>>,
 }
 
+/// How many variables `scope` binds inside the formals of the machine
+/// being read, which a machine parameter, bound outside them, is past: the
+/// fields of the enclosing cases of a law. A body read for its value has
+/// its machine parameters in place (`by_cases` binds them in each branch).
+fn callable_shift(scope: &Scope<'_>) -> u32 {
+    if scope.value.is_some() {
+        0
+    } else {
+        scope.depth
+    }
+}
+
 /// What reading a body for its value needs beyond its names.
 #[derive(Clone, Copy)]
 struct Valuing<'s> {
@@ -568,6 +580,9 @@ struct Defining<'d> {
     symbol: SymbolHandle,
     name: &'d str,
     formals: &'d [(TermHandle, u32)],
+    /// The type of each machine parameter of a generic machine, bound
+    /// before its formals.
+    callables: &'d [TermHandle],
     result: TermHandle,
     premises: &'d [TermHandle],
 }
@@ -3146,7 +3161,7 @@ impl<'p> Converter<'p, '_> {
             premises.push(premise);
             self.held.push(premise);
         }
-        if let Some(template) = template {
+        if let Some(template) = template.filter(|template| !template.lowered) {
             // A machine generic over machines: its value, read as a term
             // with its contract, under its machine parameters and formals.
             let value = template
@@ -3237,10 +3252,23 @@ impl<'p> Converter<'p, '_> {
             symbol,
             name: &name,
             formals: &formals,
+            callables: &callables,
             result,
             premises: &premises,
         };
         let structural = by_cases.map(|(subject, arms)| self.by_cases(&defining, subject, arms));
+        // A generic machine whose body dispatches is read here, with its
+        // machine parameters bound outside its formals (`enter`), and only
+        // as a definition by cases on one formal.
+        if template.is_some() && !matches!(structural, Some(Ok(_))) {
+            return match structural {
+                Some(Err(refusal)) => Err(refusal),
+                _ => Err(unserved(
+                    id,
+                    "generic mathematical machine that dispatches other than once on a formal",
+                )),
+            };
+        }
         let (mut term, cases) = match (structural, ranked) {
             (Some(Ok((term, cases))), _) => (term, Some(cases)),
             (Some(Err(refusal)), None) => return Err(refusal),
@@ -3263,13 +3291,18 @@ impl<'p> Converter<'p, '_> {
             }
         };
         let mut ty = result;
-        for &(formal, _) in formals.iter().rev() {
-            term = self.signature.arena.insert(Term::Lambda {
-                domain: formal,
-                body: term,
-            });
+        for &domain in formals
+            .iter()
+            .map(|(formal, _)| formal)
+            .rev()
+            .chain(callables.iter().rev())
+        {
+            term = self
+                .signature
+                .arena
+                .insert(Term::Lambda { domain, body: term });
             ty = self.signature.arena.insert(Term::Pi {
-                domain: formal,
+                domain,
                 codomain: ty,
             });
         }
@@ -3311,13 +3344,20 @@ impl<'p> Converter<'p, '_> {
         };
         let shape = shape.clone();
         let others: Vec<usize> = (0..count).filter(|formal| *formal != subject).collect();
-        let rest = others.len() as u32;
+        // A generic machine's machine parameters come first among the
+        // arguments the motive's function takes, so each branch binds them
+        // itself and stays closed: `FunctionCases` records closed branches.
+        let callables = defining.callables;
+        let parameters = callables.len() as u32;
+        let rest = parameters + others.len() as u32;
+        let mut passed: Vec<TermHandle> = callables.to_vec();
+        passed.extend(others.iter().map(|&other| formals[other].0));
         // The motive returns a function of the other formals, so a
         // recursive call may pass them different values.
         let mut landing = defining.result;
-        for &other in others.iter().rev() {
+        for &domain in passed.iter().rev() {
             landing = self.signature.arena.insert(Term::Pi {
-                domain: formals[other].0,
+                domain,
                 codomain: landing,
             });
         }
@@ -3360,20 +3400,36 @@ impl<'p> Converter<'p, '_> {
                 field: None,
             });
             let mut actuals = vec![slots[subject].expect("bound above").term; count];
+            let after = others.len() as u32;
             for (position, &other) in others.iter().enumerate() {
-                let term = self.variable(rest - 1 - position as u32);
+                let term = self.variable(after - 1 - position as u32);
                 slots[other] = Some(Bound { term, field: None });
                 actuals[other] = term;
             }
             // The variables of the branch: the case's fields, the recursion
-            // at each, then the other formals.
+            // at each, the machine parameters, then the other formals.
             let mut context = shape.field_types(&mut self.signature.arena, data, case);
             context.extend(vec![landing; shape.hypotheses(case) as usize]);
-            context.extend(others.iter().map(|&other| formals[other].0));
+            context.extend(passed.iter().copied());
+            // Within the branch a machine parameter is the branch's own
+            // variable, just outside the other formals.
+            let enclosing = std::mem::take(&mut self.callable_scope);
+            self.callable_scope = enclosing
+                .iter()
+                .enumerate()
+                .map(|(position, &(symbol, _))| {
+                    (
+                        symbol,
+                        self.variable(after + parameters - 1 - position as u32),
+                    )
+                })
+                .collect();
+            let mut every = self.callable_actuals(0);
+            every.extend(actuals.iter().copied());
             let premises: Vec<_> = defining
                 .premises
                 .iter()
-                .map(|&premise| instantiate(&mut self.signature.arena, premise, &actuals))
+                .map(|&premise| instantiate(&mut self.signature.arena, premise, &every))
                 .collect();
             let valuing = Valuing {
                 owner: id,
@@ -3393,10 +3449,12 @@ impl<'p> Converter<'p, '_> {
                 induction: true,
                 value: Some(&valuing),
             };
-            let mut branch = self.expression(id, value, &scope)?.term;
-            for &other in others.iter().rev() {
+            let read = self.expression(id, value, &scope);
+            self.callable_scope = enclosing;
+            let mut branch = read?.term;
+            for &domain in passed.iter().rev() {
                 branch = self.signature.arena.insert(Term::Lambda {
-                    domain: formals[other].0,
+                    domain,
                     body: branch,
                 });
             }
@@ -3404,16 +3462,20 @@ impl<'p> Converter<'p, '_> {
         }
         let tree = self.variable((count - 1 - subject) as u32);
         let induction = shape.induct(&mut self.signature.arena, data, motive, &branches, tree);
-        let arguments: Vec<_> = others
-            .iter()
-            .map(|&other| self.variable((count - 1 - other) as u32))
+        let mut arguments: Vec<_> = (0..parameters)
+            .map(|position| self.variable(count as u32 + parameters - 1 - position))
             .collect();
+        arguments.extend(
+            others
+                .iter()
+                .map(|&other| self.variable((count - 1 - other) as u32)),
+        );
         Ok((
             self.signature.arena.apply_arguments(induction, &arguments),
             FunctionCases {
                 data,
-                subject: subject as u32,
-                arity: count as u32,
+                subject: parameters + subject as u32,
+                arity: parameters + count as u32,
                 motive,
                 branches,
             },
@@ -3442,6 +3504,14 @@ impl<'p> Converter<'p, '_> {
         result_entry: u32,
     ) -> Checked<TermHandle> {
         let id = defining.id;
+        // The definition over fuel is a declaration of its own over the
+        // formals, which would leave a machine parameter unbound.
+        if self.template(id).is_some() {
+            return Err(unserved(
+                id,
+                "generic mathematical machine that recurses other than at a field of the case",
+            ));
+        }
         let formals = defining.formals;
         let count = formals.len();
         let body = self
@@ -3879,6 +3949,14 @@ impl<'p> Converter<'p, '_> {
         scope: &Scope<'_>,
         valuing: &Valuing<'_>,
     ) -> Checked<TermHandle> {
+        // The dispatch is a definition of its own over the scope's
+        // variables, which would leave a machine parameter unbound.
+        if self.template(valuing.owner).is_some() {
+            return Err(unserved(
+                machine,
+                "generic mathematical machine that dispatches other than once on a formal",
+            ));
+        }
         let ExpressionKind::Slot(slot) = subject.kind else {
             return Err(unserved(
                 machine,
@@ -4355,6 +4433,74 @@ impl<'p> Converter<'p, '_> {
                     self.signature.arena.apply_arguments(constructor, &operands),
                 ))
             }
+            ExpressionKind::Applied {
+                head,
+                machines,
+                arguments,
+            } => {
+                let outer = callable_shift(scope);
+                let head = match *head {
+                    AppliedHead::Parameter(symbol) => {
+                        let mut operands = Vec::with_capacity(arguments.len());
+                        for argument in arguments {
+                            operands.push(self.expression(id, argument, scope)?.term);
+                        }
+                        let callable = self.callable_term(id, symbol, outer)?;
+                        return Ok(plain(
+                            self.signature.arena.apply_arguments(callable, &operands),
+                        ));
+                    }
+                    AppliedHead::Machine(callee) => callee,
+                };
+                let own = scope
+                    .value
+                    .is_some_and(|valuing| valuing.fuel.is_some_and(|fuel| fuel.machine == head))
+                    || scope.recursion.is_some_and(|(machine, ..)| machine == head);
+                if own {
+                    // The machine calling itself: its machine parameters are
+                    // fixed for the whole definition, so it may only pass
+                    // them on as they are.
+                    if !self.forwards_own(id, machines) {
+                        return Err(unserved(
+                            id,
+                            "generic mathematical machine that calls itself at other machines",
+                        ));
+                    }
+                    let call = Expression {
+                        kind: ExpressionKind::Call {
+                            callee: CallTarget::Machine(head),
+                            required_contract: None,
+                            static_reach_binding: None,
+                            static_reach_arguments: Vec::new(),
+                            proof_arguments: Vec::new(),
+                            arguments: arguments.clone(),
+                            designated: None,
+                        },
+                        ..expression.clone()
+                    };
+                    return self.expression(id, &call, scope);
+                }
+                if self
+                    .program
+                    .signatures
+                    .get(head)
+                    .is_none_or(|called| !called.requires.is_empty())
+                {
+                    return Err(unserved(
+                        id,
+                        "call of a generic mathematical machine that has a premise",
+                    ));
+                }
+                let mut actuals = self.passed(id, machines, outer)?;
+                for argument in arguments {
+                    actuals.push(self.expression(id, argument, scope)?.term);
+                }
+                let function = self.function(head)?;
+                let function = self.constant(function);
+                Ok(plain(
+                    self.signature.arena.apply_arguments(function, &actuals),
+                ))
+            }
             ExpressionKind::Call {
                 callee: CallTarget::Machine(callee),
                 arguments,
@@ -4391,12 +4537,21 @@ impl<'p> Converter<'p, '_> {
                             )
                         })?;
                     self.ranked_on(machine, subject, true)?;
-                    let rest: Vec<_> = operands
-                        .iter()
-                        .enumerate()
-                        .filter(|(position, _)| *position != subject)
-                        .map(|(_, operand)| operand.term)
-                        .collect();
+                    // A generic machine passes itself its own machine
+                    // parameters first.
+                    let outer = callable_shift(scope);
+                    let mut rest = if self.template(machine).is_some() {
+                        self.callable_actuals(outer)
+                    } else {
+                        Vec::new()
+                    };
+                    rest.extend(
+                        operands
+                            .iter()
+                            .enumerate()
+                            .filter(|(position, _)| *position != subject)
+                            .map(|(_, operand)| operand.term),
+                    );
                     let result =
                         results
                             .get(field as usize)
@@ -4578,7 +4733,7 @@ impl<'p> Converter<'p, '_> {
         if goals.is_empty() {
             return Ok(Vec::new());
         }
-        let proof = match template {
+        let proof = match template.filter(|template| !template.lowered) {
             // A machine generic over machines argues by its citations
             // alone, read as terms with its contract.
             Some(template) => {
@@ -4813,6 +4968,83 @@ impl<'p> Converter<'p, '_> {
             self.callable_scope.push((callable.symbol, variable));
         }
         Ok(types)
+    }
+
+    /// The variable of the machine parameter `symbol` of the machine being
+    /// read, in a scope that binds `outer` variables inside its formals.
+    fn callable_term(
+        &mut self,
+        id: MachineId,
+        symbol: SymbolHandle,
+        outer: u32,
+    ) -> Checked<TermHandle> {
+        let variable = self
+            .callable_scope
+            .iter()
+            .find(|(callable, _)| *callable == symbol)
+            .map(|(_, variable)| *variable)
+            .ok_or_else(|| unserved(id, "machine parameter outside the machine that binds it"))?;
+        let Term::Variable(index) = self.signature.arena.get(variable) else {
+            return Err(unserved(
+                id,
+                "machine parameter bound to something other than a variable",
+            ));
+        };
+        Ok(self.variable(index + outer))
+    }
+
+    /// Every machine parameter of the machine being read, outermost first,
+    /// in a scope that binds `outer` variables inside its formals.
+    fn callable_actuals(&mut self, outer: u32) -> Vec<TermHandle> {
+        let indices: Vec<u32> = self
+            .callable_scope
+            .iter()
+            .filter_map(|(_, variable)| match self.signature.arena.get(*variable) {
+                Term::Variable(index) => Some(index),
+                _ => None,
+            })
+            .collect();
+        indices
+            .into_iter()
+            .map(|index| self.variable(index + outer))
+            .collect()
+    }
+
+    /// The machines an application passes, as terms of a scope that binds
+    /// `outer` variables inside the formals of the machine being read: a
+    /// machine parameter is its variable, a concrete machine its
+    /// definition.
+    fn passed(
+        &mut self,
+        id: MachineId,
+        machines: &[crate::body::PassedMachine],
+        outer: u32,
+    ) -> Checked<Vec<TermHandle>> {
+        let mut terms = Vec::with_capacity(machines.len());
+        for machine in machines {
+            terms.push(match *machine {
+                crate::body::PassedMachine::Parameter(symbol) => {
+                    self.callable_term(id, symbol, outer)?
+                }
+                crate::body::PassedMachine::Machine(machine) => {
+                    let function = self.function(machine)?;
+                    self.constant(function)
+                }
+            });
+        }
+        Ok(terms)
+    }
+
+    /// Whether `machines` passes the machine being read its own machine
+    /// parameters, in declared order: a call of itself.
+    fn forwards_own(&self, id: MachineId, machines: &[crate::body::PassedMachine]) -> bool {
+        let own = self
+            .template(id)
+            .map_or(&[][..], |template| template.callables.as_slice());
+        own.len() == machines.len()
+            && own.iter().zip(machines).all(|(callable, passed)| {
+                *passed == crate::body::PassedMachine::Parameter(callable.symbol)
+            })
     }
 
     /// What a call of the machine `member` at `operands` in a clause owes:
@@ -5347,8 +5579,12 @@ impl<'p> Converter<'p, '_> {
             }
             cases.push(script);
         }
+        // A generic law's machine parameters are its first formals.
+        let callables = self
+            .template(id)
+            .map_or(0, |template| template.callables.len());
         Ok(LawProof::Cases {
-            formal: subject as u32,
+            formal: (callables + subject) as u32,
             data,
             cases,
         })
@@ -5379,7 +5615,11 @@ impl<'p> Converter<'p, '_> {
             .copied()
             .flatten()
             .ok_or_else(|| unserved(machine, "law dispatch on an unbound local"))?;
-        let formals = self.formals(law)?.len() as u32;
+        // A generic law's machine parameters are named before its formals.
+        let formals = (self.formals(law)?.len()
+            + self
+                .template(law)
+                .map_or(0, |template| template.callables.len())) as u32;
         let split = match self.signature.arena.get(bound.term) {
             Term::Variable(index) => SplitSubject::Name(
                 (formals + scope.depth)
@@ -5563,6 +5803,25 @@ impl<'p> Converter<'p, '_> {
                 }
                 self.cite(law, machine, expression, scope, script, nested || returns)
             }
+            ExpressionKind::Applied {
+                head, arguments, ..
+            } => {
+                for argument in arguments {
+                    self.cite_within(law, machine, argument, scope, script, true)?;
+                }
+                match head {
+                    AppliedHead::Machine(_) => {
+                        self.cite(law, machine, expression, scope, script, nested || returns)
+                    }
+                    // A machine parameter states no law: as an operand it is a
+                    // term, and as a statement it would say nothing.
+                    AppliedHead::Parameter(_) if nested || returns => Ok(()),
+                    AppliedHead::Parameter(_) => Err(unserved(
+                        machine,
+                        "law body calls a machine parameter as a statement",
+                    )),
+                }
+            }
             ExpressionKind::Case { fields, .. } if nested || returns => {
                 for (_, operand) in fields {
                     self.cite_within(law, machine, operand, scope, script, true)?;
@@ -5592,13 +5851,18 @@ impl<'p> Converter<'p, '_> {
         script: &mut LawCase,
         term: bool,
     ) -> Checked<()> {
-        let ExpressionKind::Call {
-            callee: CallTarget::Machine(callee),
-            arguments,
-            ..
-        } = &call.kind
-        else {
-            return Err(unserved(machine, "law body statement other than a call"));
+        let (callee, machines, arguments) = match &call.kind {
+            ExpressionKind::Call {
+                callee: CallTarget::Machine(callee),
+                arguments,
+                ..
+            } => (callee, &[][..], arguments),
+            ExpressionKind::Applied {
+                head: AppliedHead::Machine(callee),
+                machines,
+                arguments,
+            } => (callee, machines.as_slice(), arguments),
+            _ => return Err(unserved(machine, "law body statement other than a call")),
         };
         let cited = self
             .program
@@ -5626,6 +5890,12 @@ impl<'p> Converter<'p, '_> {
         let mut operands = Vec::with_capacity(arguments.len());
         for argument in arguments {
             operands.push(self.expression(machine, argument, scope)?);
+        }
+        if *callee == law && !self.forwards_own(law, machines) {
+            return Err(unserved(
+                machine,
+                "generic mathematical law that cites itself at other machines",
+            ));
         }
         if *callee == law && self.fueled.iter().any(|(fueled, ..)| *fueled == law) {
             // The law of a machine defined on fuel is proved by induction on
@@ -5656,20 +5926,26 @@ impl<'p> Converter<'p, '_> {
                     )
                 })?;
             self.ranked_on(law, subject, true)?;
-            script.citations.push(Citation {
-                evidence: Evidence::Hypothesis { field },
-                arguments: operands
+            // A generic law's hypothesis is stated over its machine
+            // parameters too, bound outside the formals: they come first.
+            let mut arguments = self.callable_actuals(scope.depth);
+            arguments.extend(
+                operands
                     .iter()
                     .enumerate()
                     .filter(|(position, _)| *position != subject)
-                    .map(|(_, operand)| operand.term)
-                    .collect(),
+                    .map(|(_, operand)| operand.term),
+            );
+            script.citations.push(Citation {
+                evidence: Evidence::Hypothesis { field },
+                arguments,
             });
             return Ok(());
         }
         let laws = self.laws(*callee)?;
         if !laws.is_empty() {
-            let arguments: Vec<_> = operands.iter().map(|operand| operand.term).collect();
+            let mut arguments = self.passed(machine, machines, scope.depth)?;
+            arguments.extend(operands.iter().map(|operand| operand.term));
             for cited in laws {
                 script.citations.push(Citation {
                     evidence: Evidence::Statement(self.signature.laws[cited as usize].statement),
@@ -5677,6 +5953,12 @@ impl<'p> Converter<'p, '_> {
                 });
             }
             return Ok(());
+        }
+        if !machines.is_empty() {
+            return Err(unserved(
+                machine,
+                "law body cites a generic mathematical machine that states nothing",
+            ));
         }
         // A machine that states nothing is read in place, with its formals
         // standing for the arguments of this call.

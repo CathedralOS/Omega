@@ -5,8 +5,8 @@
 use left/left.omg;
 use {omega}/build/dependency.omg;
 
-machine build(builder: @mutable Build) {
-    Build::application(builder, "described_runner_entry_left_exit");
+machine build(builder: @mutable BuildPlan) {
+    builder.product = BuildProduct::Application { name: "described_runner_entry_left_exit" };
     let system_registration: DependencyRegistration = Build::dependency(builder, |dependency|::from_source(Source::Path { location: "../../../../../../../../source/library/system" }));
     Build::select_provider::<|left|::Reader, |left|::ProviderReaderImplementation>(builder, linux_arm64);
     Build::select_provider::<|left|::Reader, |left|::ProviderReaderImplementation>(builder, linux_x86_64);
@@ -26,6 +26,6 @@ machine build(builder: @mutable Build) {
 // The helper selects under this package's own product frontier and hands the
 // opaque description back; `roots.bind` rejoins it to the exact machine the
 // query chose.
-machine choose(builder: @mutable Build, slot: @[u8]) -> ProductEntryRef {
+machine choose(builder: @mutable BuildPlan, slot: @[u8]) -> ProductEntryRef {
     BuildDeclarations::entry(@builder.declarations, "|left|::run", slot)
 }

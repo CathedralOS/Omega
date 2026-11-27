@@ -79,8 +79,8 @@ fn build_with(
 ) -> (bool, String) {
     let source = format!(
         "use main.omg as app;
-machine build(builder: @mutable Build) {{
-    Build::application(builder, \"{name}\");
+machine build(builder: @mutable BuildPlan) {{
+    builder.product = BuildProduct::Application {{ name: \"{name}\" }};
     Build::bind(builder, {target}::ProgramEntry, |app|::main);
 {registration}
 }}"
@@ -283,8 +283,8 @@ fn an_artifact_only_build_runs_its_groups_before_publishing_files() {
 fn rejected_roster(source: &str, requirement: &str) -> [String; 2] {
     let build = format!(
         r#"use main.omg as app;
-machine build(builder: @mutable Build) {{
-        Build::application(builder, "rejected_roster");
+machine build(builder: @mutable BuildPlan) {{
+        builder.product = BuildProduct::Application {{ name: "rejected_roster" }};
         Build::bind(builder, linux_arm64::ProgramEntry, |app|::main);
         _ = builder.tests.group::<|app|::{requirement}>();
     }}"#
@@ -589,7 +589,7 @@ fn a_package_build_runs_registered_tests_without_an_application_entry() {
     };
     let target = host.target_name();
     let package = format!(
-        "use main.omg as app;\nmachine build(builder: @mutable Build) {{ Build::package(builder, \"library\"); {GROUP} }}"
+        "use main.omg as app;\nmachine build(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Package {{ name: \"library\" }}; {GROUP} }}"
     );
     let (ok, report) = build_project(
         &package,
@@ -607,7 +607,7 @@ fn a_package_build_runs_registered_tests_without_an_application_entry() {
 
     let bound_package = format!(
         "use main.omg as app;
-machine build(builder: @mutable Build) {{ Build::package(builder, \"library\");
+machine build(builder: @mutable BuildPlan) {{ builder.product = BuildProduct::Package {{ name: \"library\" }};
          Build::bind(builder, {target}::ProgramEntry, |app|::main); }}"
     );
     let (ok, report) = build_project(&bound_package, "5u32", target, &[]);

@@ -7,7 +7,7 @@ fn reference_only_opaque_data_has_declarations_without_a_physical_representation
     let project = TemporaryDirectory::create("review-opaque-declarations", false).unwrap();
     fs::write(
         project.path().join("build.omg"),
-        r#"machine build(builder: @mutable Build) { Build::package(builder, "tables"); }"#,
+        r#"machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: "tables" }; }"#,
     )
     .unwrap();
     let declarations = "public boundary data EfiSystemTable;\nboundary data PrivateTable;\npublic data TableBytes { word: u64; }";

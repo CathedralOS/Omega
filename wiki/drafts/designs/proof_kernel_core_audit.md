@@ -1361,6 +1361,26 @@ starts with records.
   specialization receipt and cites the generic law. Customers:
   `generic_machine/pass/twice_at_a_concrete_machine` and
   `generic_machine/pass/cited_at_its_own_machine`, each with its twin.
+- **Generic machines that dispatch (2026-11-27).** A generic mathematical
+  machine's body may dispatch once on a formal, and its laws may argue by
+  cases and induction like any other. Such a body is lowered and read by
+  the signature reader instead of the clause reader, and so is every
+  machine declared inside it. A call of a machine parameter is
+  `ExpressionKind::Applied` with that parameter as its head; a call of a
+  generic machine passes its machines first. In a definition by cases each
+  branch binds the machine parameters itself, ahead of the other formals,
+  so the branches stay closed and `FunctionCases` records the subject and
+  arity past them; the recursion passes the same machines on. A law's
+  `Cases` formal and a split's names count the machine parameters first.
+  A body that is not generic may call or cite a generic machine at
+  concrete machines through the same form: the call no longer names the
+  typed trees' closed copy. Still refused, by name: a generic machine that
+  calls itself at other machines, that recurses other than at a field of
+  the case (on fuel) or dispatches on a computed value, a call of a
+  generic machine that has a premise, and citing a generic machine that
+  states nothing. Customers: `generic_machine/pass/iterate_keeps_a_fixed_point`,
+  `pass/cited_by_an_ordinary_law` and `pass/called_by_an_ordinary_definition`,
+  each with its twin.
 - **The order and subtraction operators (2026-11-25).** `nat.omg` declares
   `<=` and `-` as free public operator machines,
   `machine <= less_or_equal(left: Nat, right: Nat) -> bool` and
@@ -1377,10 +1397,9 @@ starts with records.
   program outside core imports both machines to select them by their
   tokens (`nat_order` fixtures).
 - **Not done:**
-  - A generic mathematical machine whose body dispatches, and a body that
-    is not generic citing or calling a generic machine at concrete
-    machines, which names the typed trees' closed copy and is refused.
-    Nothing in the library does either.
+  - A generic mathematical machine defined on fuel, or by a dispatch on a
+    computed value, and a call of a generic machine that has a premise.
+    Each is refused by name; nothing in the library does either.
   - `extent.omg`'s contract over `IntervalSet<Nat>` (the plan's
     `extent.omg:219`) is a clause of a runtime boundary trait over generic
     data. It is read by the carrier clause reader when a program reaches

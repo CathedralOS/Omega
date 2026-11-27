@@ -74,7 +74,7 @@ fn a_selection_row_names_the_exact_file_that_declares_its_requirement() {
         &[
             (
                 "build.omg",
-                "machine build(builder: @mutable Build) { Build::package(builder, \"rows\"); }",
+                "machine build(builder: @mutable BuildPlan) { builder.product = BuildProduct::Package { name: \"rows\" }; }",
             ),
             ("selected.omg", contract),
             ("other.omg", contract),
