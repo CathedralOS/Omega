@@ -542,7 +542,7 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
             "a callback",
         ),
         (
-            !module.execution.task_activation_demands.demands.is_empty(),
+            !module.execution.task_activation_demands.is_empty(),
             "a task activation",
         ),
     ]

@@ -55,6 +55,12 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
+Marker 303 encodes section 54 as a counted list of task activation demands.
+Structural arguments, outcomes and frame residents refer to the module's
+structural storage declarations by ID. The module's target layout applications
+supply their representation on the selected target. Saved programs with an
+earlier marker must be rebuilt.
+
 Marker 302 adds each theorem application's counted sum arguments after its
 fixed scalar subjects: for each of the applied contract's sum subjects, in
 order, the place id of the applying machine's sum formal it reads. Readers
