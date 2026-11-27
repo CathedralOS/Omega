@@ -43,6 +43,23 @@ pub mod types;
 mod exports;
 pub use exports::*;
 
+/// Finds the row with `id` in a declaration table.
+///
+/// The decoder refuses an artifact unless its machines, structural types and
+/// domains are in strictly ascending identity order, so a binary search finds
+/// the row. A module that is still being built may be in any order, so a miss
+/// falls back to the scan.
+pub(crate) fn find_by_identity<Row, Id: Ord + Copy>(
+    rows: &[Row],
+    id: Id,
+    identity: impl Fn(&Row) -> Id,
+) -> Option<&Row> {
+    match rows.binary_search_by_key(&id, &identity) {
+        Ok(position) => Some(&rows[position]),
+        Err(_) => rows.iter().find(|row| identity(row) == id),
+    }
+}
+
 impl Psi {
     pub fn for_entry(entry: semantic_vocabulary::MachineId) -> Self {
         Self {

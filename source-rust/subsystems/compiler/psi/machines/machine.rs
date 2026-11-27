@@ -83,7 +83,14 @@ impl TerminalMachine {
     }
 
     pub fn block(&self, id: &BlockId) -> Option<&Block> {
-        self.blocks.iter().find(|block| block.id == *id)
+        // The interpreter looks up a block on every step. A checked machine
+        // stores block `n` at position `n - 1`, so that slot answers directly;
+        // a machine that is not yet checked falls back to the scan.
+        usize::try_from(id.get() - 1)
+            .ok()
+            .and_then(|position| self.blocks.get(position))
+            .filter(|block| block.id == *id)
+            .or_else(|| self.blocks.iter().find(|block| block.id == *id))
     }
 
     pub fn operations(&self) -> impl Iterator<Item = &Operation> + '_ {

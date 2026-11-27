@@ -540,7 +540,7 @@ pub fn validate_selection_questions(
                 let body = module
                     .machine(*machine)
                     .ok_or("source selection origin has no emitted machine")?;
-                if !body.blocks.iter().any(|block| block.id == *head) {
+                if body.block(head).is_none() {
                     return Err("source selection origin has no actual machine head".into());
                 }
                 origins.push(((*machine, *source), *head));

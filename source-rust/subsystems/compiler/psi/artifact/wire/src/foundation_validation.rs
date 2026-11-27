@@ -6416,9 +6416,10 @@ pub(crate) mod storage_foundations {
                 None => {
                     path.is_empty()
                         && structural_place_type(machine, *destination).is_some_and(|home_type| {
-                            module.types.structural_types.iter().any(|declaration| {
-                                declaration.id == home_type
-                                    && matches!(
+                            module
+                                .structural_type(home_type)
+                                .is_some_and(|declaration| {
+                                    matches!(
                                         declaration.shape,
                                         StructuralTypeShape::ByteSequence(
                                             ByteSequenceCarrier::BorrowedView {
@@ -6426,7 +6427,7 @@ pub(crate) mod storage_foundations {
                                             }
                                         )
                                     )
-                            })
+                                })
                         })
                 }
             };
@@ -6434,9 +6435,9 @@ pub(crate) mod storage_foundations {
                 return malformed("byte view field store does not select a shared view slot");
             }
             if !structural_place_type(machine, *source).is_some_and(|source_type| {
-                module.types.structural_types.iter().any(|declaration| {
-                    declaration.id == source_type && declaration.shape.is_borrowed_byte_view()
-                })
+                module
+                    .structural_type(source_type)
+                    .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
             }) {
                 return malformed("byte view field store source has no descriptor carrier");
             }
@@ -6572,8 +6573,7 @@ pub(crate) mod storage_foundations {
                 }
                 _ => return malformed("byte field store source is not an immutable whole view"),
             };
-            if !module.types.structural_types.iter().any(|declaration| declaration.id == source_type
-                && match declaration.shape {
+            if !module.structural_type(source_type).is_some_and(|declaration| match declaration.shape {
                     StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => !owned_source,
                     StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => owned_source,
                     _ => false,
@@ -6604,15 +6604,16 @@ pub(crate) mod storage_foundations {
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
-                || !module.types.structural_types.iter().any(|row| {
-                    row.id == result.structural_type
-                        && matches!(
+                || !module
+                    .structural_type(result.structural_type)
+                    .is_some_and(|row| {
+                        matches!(
                             row.shape,
                             StructuralTypeShape::ByteSequence(
                                 ByteSequenceCarrier::BorrowedView { .. }
                             )
                         )
-                })
+                    })
                 || !super::super::is_op_result_place(machine, operation, result)
             {
                 return malformed(
@@ -6761,9 +6762,7 @@ pub(crate) mod storage_foundations {
                 })
                 && result.qualification_establishments.is_empty()
                 && result.claims.is_empty()
-                && module.types.structural_types.iter().any(|row| {
-                    row.id == result.structural_type
-                        && (matches!(row.shape, StructuralTypeShape::ElementView { access, .. }
+                && module.structural_type(result.structural_type).is_some_and(|row| (matches!(row.shape, StructuralTypeShape::ElementView { access, .. }
                             if access.is_none_or(|access| match multiplicity {
                                 StructuralMultiplicity::Unrestricted => access == terminal_psi::StructuralAccess::SharedBorrow,
                                 StructuralMultiplicity::Affine => access == terminal_psi::StructuralAccess::MutableBorrow,
@@ -6771,8 +6770,7 @@ pub(crate) mod storage_foundations {
                             }))
                             || row.shape.is_borrowed_byte_view()
                             || (row.shape.is_borrowed_byte_carrier()
-                                && fixed_descriptor_establishment(module, machine, operation, &row.shape)))
-                })
+                                && fixed_descriptor_establishment(module, machine, operation, &row.shape))))
                 && super::super::is_op_result_place(machine, operation, result)
         }
 
@@ -6808,11 +6806,7 @@ pub(crate) mod storage_foundations {
                 extent,
                 region,
                 &source.path,
-                module
-                    .types
-                    .structural_types
-                    .iter()
-                    .find(|declaration| declaration.id == element),
+                module.structural_type(element),
             )
             .is_some()
         }
@@ -7761,9 +7755,9 @@ pub(crate) mod storage_foundations {
             access: StructuralAccess,
         ) -> bool {
             access == StructuralAccess::Owned
-                && module.types.structural_types.iter().any(|declaration| {
-                    declaration.id == structural_type && declaration.shape.is_composite_shape()
-                })
+                && module
+                    .structural_type(structural_type)
+                    .is_some_and(|declaration| declaration.shape.is_composite_shape())
         }
 
         pub(crate) fn validate_scalar_structural_field(
@@ -8108,12 +8102,7 @@ pub(crate) mod storage_foundations {
         else {
             return None;
         };
-        module
-            .types
-            .structural_types
-            .iter()
-            .any(|declaration| declaration.id == referent)
-            .then_some((referent, suffix))
+        module.structural_type(referent).map(|_| (referent, suffix))
     }
 
     fn owned_store_carrier(
@@ -10005,7 +9994,7 @@ pub(crate) mod task_activation {
         let value = |value_type| match value_type {
             TerminalTaskValueType::Unit | TerminalTaskValueType::Scalar(_) => Ok(()),
             TerminalTaskValueType::Structural(id)
-                if bundle.structural_types.iter().any(|row| row.id == id) =>
+                if terminal_psi::find_structural_type(&bundle.structural_types, id).is_some() =>
             {
                 Ok(())
             }
@@ -10018,12 +10007,12 @@ pub(crate) mod task_activation {
         let mut layouts = BTreeSet::new();
         for layout in &bundle.target_layout_applications {
             if !layouts.insert(layout.id)
-                || !bundle.structural_types.iter().any(|row| {
-                    row.id == layout.record
-                        && matches!(row.shape, StructuralTypeShape::Record {
+                || !terminal_psi::find_structural_type(&bundle.structural_types, layout.record)
+                    .is_some_and(|row| {
+                        matches!(row.shape, StructuralTypeShape::Record {
                         storage: StructuralRecordStorage::TargetLayout(id), ..
                     } if id == layout.id)
-                })
+                    })
             {
                 return malformed("task activation layout does not bind one exact record");
             }
@@ -10799,12 +10788,13 @@ pub(crate) mod value_foundations {
             || !result.qualification_establishments.is_empty()
             || result.qualifications != qualifications
             || !super::is_op_result_place(machine, operation, result)
-            || !module.types.structural_types.iter().any(|declaration| {
-                declaration.id == result.structural_type
-                    && declaration.scalar_restriction.is_some() == range_obligation.is_some()
-                    && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(carrier)
+            || !module
+                .structural_type(result.structural_type)
+                .is_some_and(|declaration| {
+                    declaration.scalar_restriction.is_some() == range_obligation.is_some()
+                        && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(carrier)
                         if super::declared_scalar_type(machine, *value) == Some(carrier))
-            })
+                })
         {
             return malformed("primitive local result custody is noncanonical");
         }
@@ -10820,9 +10810,9 @@ pub(crate) mod value_foundations {
             return malformed("byte concatenation requires an owned structural result");
         };
         if !super::is_op_result_place(machine, operation, result)
-            || !module.types.structural_types.iter().any(|row| {
-                row.id == result.structural_type && row.shape.is_bounded_owned_byte_sequence()
-            })
+            || !module
+                .structural_type(result.structural_type)
+                .is_some_and(|row| row.shape.is_bounded_owned_byte_sequence())
         {
             return malformed(
                 "byte concatenation result differs from its owned carrier declaration",
@@ -13156,15 +13146,16 @@ fn owned_byte_view_presentation(
         || !expected.projected_qualifications.is_empty()
         || has_entry_claims(machine, argument.place)
         || byte_owned_result_predicates(module, machine, argument.place).is_none()
-        || !module.types.structural_types.iter().any(|declaration| {
-            declaration.id == expected.structural_type
-                && matches!(
+        || !module
+            .structural_type(expected.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                         access: None | Some(StructuralAccess::SharedBorrow),
                     })
                 )
-        })
+            })
     {
         return false;
     }

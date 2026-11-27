@@ -70,7 +70,7 @@ pub fn find_structural_type(
     types: &[StructuralTypeDeclaration],
     id: StructuralTypeId,
 ) -> Option<&StructuralTypeDeclaration> {
-    types.iter().find(|declaration| declaration.id == id)
+    crate::find_by_identity(types, id, |declaration| declaration.id)
 }
 
 pub fn structural_type_contains_reference(

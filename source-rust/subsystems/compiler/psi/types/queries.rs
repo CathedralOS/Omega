@@ -28,8 +28,8 @@ impl Psi {
         &self,
         id: semantic_vocabulary::StructuralDomainId,
     ) -> Option<&StructuralDomainDeclaration> {
-        self.types.structural_domains
-            .iter()
-            .find(|declaration| declaration.id == id)
+        crate::find_by_identity(&self.types.structural_domains, id, |declaration| {
+            declaration.id
+        })
     }
 }

@@ -35,7 +35,7 @@ pub use crate::interfaces::callback_application::TerminalCallbackApplication;
 pub use crate::interfaces::callback_declarations::{
     CallbackContractEnvelope, CallbackContractRefinement, CallbackDeclarationRoster,
     CallbackEntryResources, CallbackRequirementDeclaration, CallbackRequirementId,
-    CallbackUseDeclaration, CallbackUseId, PreparedCallbackDeclarations,
+    CallbackUseDeclaration, CallbackUseId,
 };
 pub use crate::interfaces::calling_policies;
 pub use crate::interfaces::calling_policies::{
