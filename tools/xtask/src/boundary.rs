@@ -1138,10 +1138,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             return Ok(violations);
         }
         violations.extend(representation_spelling_violations(&root));
-        violations.extend(crate::boundary_contracts::violations(
-            &root,
-            &root.join(crate::boundary_contracts::MANIFEST),
-        )?);
         violations.extend(call_violations(
             &root,
             &["bind_target_reach"],

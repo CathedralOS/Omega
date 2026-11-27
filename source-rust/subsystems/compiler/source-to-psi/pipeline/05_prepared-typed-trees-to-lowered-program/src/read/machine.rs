@@ -580,6 +580,19 @@ impl<'t> Program<'t> {
         }
         let diagnostic = self.next_identity()?;
         let (declared, entry) = self.declaration(diagnostic, symbol)?;
+        // A body that calls a generic mathematical machine at concrete
+        // machines names a closed copy of it. Such a copy would be a second
+        // proof of a law the generic machine proves once, and its contract
+        // is not read; only a clause or a generic machine's citation passes
+        // machines to it (`read::templates`).
+        if self.mathematical && self.generic_mathematical_origin(declared.symbol).is_some() {
+            return Err(refuse_at(
+                diagnostic,
+                Unserved::Machine(
+                    "body that calls a generic mathematical machine at concrete machines",
+                ),
+            ));
+        }
         if self.returns_float_meaning(entry.return_type) {
             return Err(refuse_at(
                 diagnostic,

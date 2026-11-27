@@ -52,7 +52,15 @@ of the parameter is an application of that formal (`read/templates.rs`). Its
 body is not lowered. A body of `let`s, citations and one value is read with
 the machine's contract, through the clause reader, each `let` standing for
 its value; any other body is refused. A clause that calls a machine with a
-`requires` must have that premise among the stating machine's own. A named proposition declared as
+`requires` must have that premise among the stating machine's own. A clause
+may pass such a machine a concrete mathematical machine for a machine
+parameter: one with exactly the parameter's formals and result and no
+premise, which is then the definition the signature gives it
+(`machine_argument`). A generic machine may cite another generic machine,
+passing it its own machine parameters or concrete machines; the cited law's
+premises are then owed at those machines. A body that is not generic and
+calls a generic mathematical machine at concrete machines names the closed
+copy the typed trees made for that call, and is refused. A named proposition declared as
 one formula is read where a clause of such a machine applies it: the formula,
 with each parameter standing for the argument written for it. Its declaration
 adds nothing to the signature. A quotient of mathematical data
@@ -1553,9 +1561,8 @@ case-membership proposition on such a path. Nothing proves or knows a clause
 in that form. Each type's declaration in the module states its clauses
 (`StructuralTypeDeclaration::requires`), so they are encoded with the module
 and part of its identity; the published module proves those clauses outside
-the module text, and its declarations state none. `Elaboration::domains` restates them by the
-type's identity for the checker, which refuses a table that differs from the
-declarations.
+the module text, and its declarations state none. The checker reads them
+from the unsealed module's declarations.
 
 **Domain predicates.** A named domain's `requires`
 ([domains](../../../../../../wiki/spec/language/domains.md#declaration-and-membership))
@@ -1809,9 +1816,9 @@ worked around by adding to `terminal-check-tables`.
 24. **Terminal Psi carries no data `requires`.** For
     `data R requires low <= high`, the published module holds the
     construction and the store with `range_obligation: None` and no clause
-    anywhere: it proves the domain outside the module text. The clauses therefore
-    travel in `Elaboration::domains`, a field of this crate's result, not in
-    the module and not in `terminal-check-tables`.
+    anywhere: it proves the domain outside the module text. The checker
+    reads the clauses from the unsealed module's type declarations, which
+    state them before publication.
 25. **No field in this subset has a `range_obligation`.** The slot is set
     for a field of bounded or refined type (`StructuralFieldType::BoundedInteger`,
     `RefinedScalar`), which a constrained field type or a named domain

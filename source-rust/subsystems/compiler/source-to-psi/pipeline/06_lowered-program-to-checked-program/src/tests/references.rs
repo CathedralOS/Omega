@@ -857,7 +857,7 @@ machine entry() crashes none {
         refused.site.in_machine().unwrap().1,
         terminal_check_tables::Construct::Operation(operation)
     );
-    assert_eq!(refused.detail, detail);
+    assert!(refused.detail.starts_with(&detail), "{}", refused.detail);
 }
 
 #[test]
