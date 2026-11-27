@@ -875,6 +875,58 @@ fn an_applied_record_theorem_concludes_nothing_about_another_field() {
     assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
 }
 
+/// A field that is itself a plain record is one subject for each of its
+/// own scalar fields, in place.
+fn nested(source: &str) -> String {
+    source
+        .replace(
+            "data Pair { x: u8; y: u8; }",
+            "data Inner { x: u8; z: u8; }\n\ndata Pair { inner: Inner; y: u8; }",
+        )
+        .replace("p.x", "p.inner.x")
+        .replace(
+            "Pair { x: 1u8, y: 2u8 }",
+            "Pair { inner: Inner { x: 1u8, z: 3u8 }, y: 2u8 }",
+        )
+}
+
+#[test]
+fn a_theorem_over_a_nested_record_field_supplies_its_alias() {
+    let source = nested(FIRST_IS_NONZERO);
+    assert!(source.contains("requires p.inner.x == 1u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_over_another_nested_field_cannot_supply_its_alias() {
+    let source = nested(FIRST_IS_NONZERO).replacen(
+        "machine first_is_nonzero(p: Pair)\nrequires p.inner.x == 1u8\nensures p.inner.x != 0u8",
+        "machine first_is_nonzero(p: Pair)\nrequires p.inner.z == 1u8\nensures p.inner.z != 0u8",
+        1,
+    );
+    assert!(source.contains("requires p.inner.z == 1u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// The application's conclusion is about the nested field the actual
+/// record holds at that path, not about the outer record's other field.
+#[test]
+fn an_applied_nested_record_theorem_concludes_nothing_about_another_field() {
+    let source = nested(FIRST_IS_NONZERO).replacen(
+        "requires p.inner.x == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p);",
+        "requires p.inner.x == 1u8\nensures p.y != 0u8\n{\n    Step(p);",
+        1,
+    );
+    assert!(
+        source.contains("ensures p.y != 0u8\n{\n    Step(p);"),
+        "{source}"
+    );
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
 /// A data invariant is a premise the contract does not state, so a record
 /// with one is refused by name.
 #[test]
