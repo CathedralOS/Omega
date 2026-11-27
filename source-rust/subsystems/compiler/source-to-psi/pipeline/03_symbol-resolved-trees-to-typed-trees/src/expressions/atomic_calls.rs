@@ -226,22 +226,17 @@ impl AtomicCall<'_> {
         receiver: TypedHandle,
         operands: Vec<TypedHandle>,
     ) -> Result<TypedHandle, Diagnostic> {
-        let (value, result_custody) = match self.operation {
-            Operation::Load => (receiver, AtomicExpressionResultCustody::Scalar),
+        let (exchange_operands, result_custody) = match self.operation {
+            Operation::Load => (None, AtomicExpressionResultCustody::Scalar),
             Operation::Once(observation) => {
-                let arguments = table.insert_expression_handles(operands);
-                let call = table.insert(TypedNode::Call(
-                    crate::source_state::expression::TableCallExpression {
-                        receiver,
-                        arguments,
-                        target: crate::source_state::name::Identifier::generated_static(
-                            observation.single_attempt_member_name(),
-                        ),
-                        ..Default::default()
-                    },
-                ));
+                let [expected, replacement] = operands.as_slice() else {
+                    return Err(
+                        Diagnostic::error("an atomic exchange requires two operands")
+                            .with_source_span(self.span),
+                    );
+                };
                 (
-                    call,
+                    Some([*expected, *replacement]),
                     AtomicExpressionResultCustody::CompareExchangeOnce(
                         AtomicCompareExchangeOnceResultCustody::for_observation(observation),
                     ),
@@ -259,7 +254,8 @@ impl AtomicCall<'_> {
             }
         };
         Ok(table.insert(TypedNode::Atomic(TableAtomicExpression {
-            value,
+            value: receiver,
+            exchange_operands,
             result: TypedHandle::invalid(),
             ordering: self.ordering,
             result_custody,
@@ -322,6 +318,7 @@ impl AtomicCall<'_> {
         };
         let value = table.insert(TypedNode::Atomic(TableAtomicExpression {
             value,
+            exchange_operands: None,
             result: prior,
             ordering: self.ordering,
             result_custody: AtomicExpressionResultCustody::Scalar,
@@ -396,6 +393,7 @@ pub(crate) fn store(
     let table = &mut lowerer.typed_trees.expression_table;
     let value = table.insert(TypedNode::Atomic(TableAtomicExpression {
         value,
+        exchange_operands: None,
         result: TypedHandle::invalid(),
         ordering: operation.ordering,
         result_custody: AtomicExpressionResultCustody::Scalar,

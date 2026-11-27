@@ -3921,7 +3921,9 @@ pub fn visit_expression(
             }
         }
         ExpressionNode::Atomic(atomic) => {
-            visit_expression(program, retained, atomic.value);
+            for input in atomic.inputs() {
+                visit_expression(program, retained, input);
+            }
             visit_expression(program, retained, atomic.result);
         }
         ExpressionNode::Binary(binary) => {

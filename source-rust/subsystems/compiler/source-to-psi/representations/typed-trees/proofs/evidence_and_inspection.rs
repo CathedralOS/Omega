@@ -1502,7 +1502,8 @@ pub mod evidence {
                     saved.capture.generation()
                 ),
                 ExpressionNode::Atomic(atomic) => {
-                    format!("atomic[{:?}]({})", atomic.ordering, render(atomic.value)?)
+                    let inputs = atomic.inputs().map(render).collect::<ProofLabelResult<Vec<_>>>()?;
+                    format!("atomic[{:?}]({})", atomic.ordering, inputs.join(", "))
                 }
                 ExpressionNode::ArrayLiteral(values) => format!(
                     "[{}]",

@@ -33,10 +33,9 @@ operands once and emits one `AtomicAccess` with the complete rooted path.
 The lowered-form checker verifies dedicated atomic storage, exact operand and
 result types, orderings and shared access. A modifying event invalidates its
 exact storage path's facts; it establishes no plain-value equation. Ordinary shared writes and competing exclusive loans stay forbidden.
-This route currently accepts unbounded builtin atomic loads, stores, integer
-fetch operations and swap. Bounded residents and single-attempt source
-operations are still refused; their event, codec and target representations
-below do not by themselves make the source accepted.
+This route accepts unbounded builtin atomic loads and stores. Integer cells also
+support fetch operations, swap and both single-attempt exchange families. A
+bounded resident requires a separately checked resident obligation.
 
 The codec's independent operation verifier
 (`terminal-psi/wire/src/foundation_validation.rs`)
@@ -52,9 +51,10 @@ not stores or non-atomic snapshots. An exact typed atomic loan keeps
 that contract and never becomes a plain scalar reference. Interpreter backing
 selection and native layout use the same complete endpoint.
 
-Single-attempt compare-exchange binds one structural local directly. Its
-receiver and two operands are evaluated as a list, not as an ordinary call. The source checker requires the sealed canonical outcome with the exact
-resident type; Terminal admission rechecks its three-case schema, operand
+The typed tree retains a single-attempt exchange's receiver, expected value and
+replacement in source order. Lowering binds its result directly to structural
+storage. The source checker requires the sealed core outcome for the exact
+resident. Terminal admission rechecks its three cases, multiplicity, operand
 types and orderings. Both single-attempt families share this event. The
 result contract separates observing failure payloads from non-observing
 proposal payloads, and from the displaced value a non-observing success

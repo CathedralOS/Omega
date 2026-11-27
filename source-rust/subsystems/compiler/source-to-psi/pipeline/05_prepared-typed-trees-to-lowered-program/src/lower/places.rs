@@ -2540,8 +2540,30 @@ impl<'a> Lowering<'a> {
             ExpressionKind::TheoremApplication { .. } | ExpressionKind::Applied { .. } => {
                 Err(self.internal("a logical application is used as storage"))
             }
-            ExpressionKind::Atomic(_) => {
-                Err(self.internal("an atomic scalar event is used as structural storage"))
+            ExpressionKind::Atomic(crate::body::AtomicOperation::Access {
+                place,
+                event,
+                operands,
+            }) => {
+                let Value::Record(root) = continuing!(self.atomic_access(
+                    place,
+                    *event,
+                    operands,
+                    Some(value_type),
+                    expression.source
+                )) else {
+                    return Err(self.internal("a structural atomic operation produced no outcome"));
+                };
+                Ok(Reached::Value(Located {
+                    root,
+                    place: self.exact_root(root)?,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
+            ExpressionKind::Atomic(crate::body::AtomicOperation::Fence(_)) => {
+                Err(self.internal("an atomic fence has no result"))
             }
             // `record` forms a block's value before its scope ends.
             ExpressionKind::Block { .. } => {
@@ -3617,7 +3639,7 @@ impl<'a> Lowering<'a> {
         place: &Expression,
         event: terminal_psi::AtomicAccessEvent<usize>,
         operands: &[Expression],
-        result: Option<ScalarType>,
+        result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Evaluation<Value> {
         let (root, steps, exact, _) = continuing!(self.capture_place(place));
@@ -3636,16 +3658,25 @@ impl<'a> Lowering<'a> {
                 self.internal("atomic event operand is outside its evaluation roster")
             })
         })?;
-        let value = self.emit(
-            operation,
-            result,
-            OperationKind::AtomicAccess {
-                place: root,
-                path,
-                event,
-                resident_obligation: None,
-            },
-        )?;
+        let kind = OperationKind::AtomicAccess {
+            place: root,
+            path,
+            event,
+            resident_obligation: None,
+        };
+        let value = match result {
+            Some(ty @ ValueType::Record(..)) => {
+                let (root, stored) = self.produce(operation, ty, kind)?;
+                self.unknown_contents(stored, operation)?;
+                self.name_contents(stored, ty)?;
+                Value::Record(root)
+            }
+            Some(ValueType::Scalar(scalar, _)) => self.emit(operation, Some(scalar), kind)?,
+            None => self.emit(operation, None, kind)?,
+            Some(ValueType::Rigid(_)) => {
+                return Err(self.internal("atomic event has a rigid result"));
+            }
+        };
         if event.modifies_resident() {
             self.write(
                 exact,

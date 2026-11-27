@@ -444,7 +444,7 @@ impl Lowering<'_> {
                     place,
                     event,
                     operands,
-                } => self.atomic_access(place, *event, operands, result, source),
+                } => self.atomic_access(place, *event, operands, expression.result, source),
                 crate::body::AtomicOperation::Fence(ordering) => {
                     let operation = self.operation_identity(source);
                     self.emit(

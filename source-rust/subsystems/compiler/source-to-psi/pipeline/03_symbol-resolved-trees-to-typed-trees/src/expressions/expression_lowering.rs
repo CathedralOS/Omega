@@ -1548,6 +1548,7 @@ pub(crate) mod expression {
                                 .insert(typed::expression::ExpressionNode::Atomic(
                                     typed::expression::TableAtomicExpression {
                                         value,
+                                        exchange_operands: None,
                                         result,
                                         ordering: atomic.ordering,
                                         result_custody: atomic.result_custody,
