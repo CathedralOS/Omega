@@ -92,6 +92,20 @@ impl<'t> Program<'t> {
             })
     }
 
+    /// Whether `machine` is generic over types only, with no bound: each of
+    /// its closed applications is a machine typed preparation generated, so
+    /// the mathematical signature reads those and never the template.
+    pub(crate) fn type_template(&self, machine: &Machine) -> bool {
+        let parameters = self.typed.machine_type_parameters(machine);
+        self.mathematical
+            && self.is_generic_template(machine)
+            && machine.conformance_bounds.is_empty()
+            && !parameters.is_empty()
+            && parameters
+                .iter()
+                .all(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+    }
+
     /// The declared signature of a machine parameter of a generic
     /// mathematical machine.
     pub(super) fn callable_parameter(&self, symbol: SymbolHandle) -> Option<&'t StateSignature> {

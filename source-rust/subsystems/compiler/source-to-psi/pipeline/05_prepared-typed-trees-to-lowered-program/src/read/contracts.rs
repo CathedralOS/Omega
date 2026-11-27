@@ -1044,8 +1044,20 @@ impl Program<'_> {
             || !application.selected_machine_arguments.is_empty()
             || !application.bindings.is_empty()
             || !application.lifetime_bindings.is_empty()
-            || expressions.static_machine_application_arguments(application_handle)
-                != std::slice::from_ref(argument)
+            || !matches!(
+                expressions.static_machine_application_arguments(application_handle),
+                [applied] if applied == argument || {
+                    // A proposition generated at closed types copies the
+                    // call's argument and its application's apart: the same
+                    // written type in two rows.
+                    let table = &typed.type_reference_table;
+                    let mut applied = applied.clone();
+                    applied.type_reference = argument.type_reference;
+                    applied == *argument
+                        && table.type_reference(applied_type(expressions, application_handle))
+                            == table.type_reference(argument.type_reference)
+                }
+            )
         {
             return Err(unavailable(
                 "Identity changed its authored type application",
@@ -2593,4 +2605,12 @@ fn mathematical_relation(
         .map(Proposition::Disjunction),
         _ => Err(refuse_at(id, Unserved::Contract("comparison"))),
     }
+}
+
+/// The written type of the one argument of an `Identity` application.
+fn applied_type(
+    expressions: &crate::source_state::expression::ExpressionTable,
+    application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+) -> crate::source_state::types::TypeReferenceHandle {
+    expressions.static_machine_application_arguments(application)[0].type_reference
 }

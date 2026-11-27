@@ -1774,6 +1774,23 @@ same_sign> as SameSign;` is read into the mathematical signature when
   the selected trait by its declaration, so `|relation|::Equivalence`
   selects it, and package review reads the stored representative's type
   from the declaration's carrier.
+- **Machines and propositions generic over types (2026-11-27).** The
+  first half of what a generic quotient needs: its relation is a
+  proposition generic over the carrier's element type, and that relation
+  calls machines generic over it. Neither is a declaration of the
+  signature. Typed preparation already generates the machine a closed
+  application selects (`count::<u64>`); it now also serves the calls a
+  contract clause writes, of machines generic over types only, and
+  generates the proposition a clause applies at closed types
+  (`same_count::<u64>(a, b)`): the formula copied with each binder replaced
+  by its type and each parameter renamed, once per application, its own
+  calls then served in turn (`specialization/propositions.rs`). The
+  signature reads each generated machine and proposition like an authored
+  one and skips their templates. A machine generic over machines is still
+  read as one term, so its clause calls keep naming the template. Tests in
+  `seq_laws`: `a_machine_generic_over_types_is_judged_at_each_closed_application`,
+  `a_proposition_generic_over_types_is_read_at_each_closed_application`, and
+  a false law of each refused as unproved.
 
 **Step 6 as built (2026-11-24): data indexed by values, theorems over it and
 the machines that run with its evidence.** The three `source_indexed_*`
