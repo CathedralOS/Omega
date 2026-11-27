@@ -225,3 +225,72 @@ fn a_hypothesis_binds_between_the_subjects_and_the_premises() {
     )
     .expect("the hypothesis's declarations arrive with it");
 }
+
+/// `(λ (h : 0 < n). inr h) assumption`: the introduction sits inside an implication proof
+/// that is applied on the spot, so the kernel infers the disjunction's pair rather than
+/// checking it against the goal.
+fn disjunction_under_an_applied_implication(index: usize) -> (Proposition, Proposition, ProofNode) {
+    let (_, _, subject, zero) = fixture();
+    let premise = Proposition::LessThan(zero.clone(), subject.clone());
+    let goal =
+        Proposition::Disjunction(vec![Proposition::LessThan(subject, zero), premise.clone()]);
+    let node = |conclusion, rule| ProofNode { conclusion, rule };
+    let introduced = node(
+        goal.clone(),
+        ProofRule::DisjunctionIntroduction {
+            disjunct: Box::new(node(premise.clone(), ProofRule::Assumption { index: 1 })),
+            index,
+        },
+    );
+    let implication = node(
+        Proposition::Implication {
+            premise: Box::new(premise.clone()),
+            conclusion: Box::new(goal.clone()),
+        },
+        ProofRule::ImplicationIntroduction {
+            body: Box::new(introduced),
+        },
+    );
+    let proof = node(
+        goal.clone(),
+        ProofRule::ImplicationElimination {
+            implication: Box::new(implication),
+            premise: Box::new(node(premise.clone(), ProofRule::Assumption { index: 0 })),
+        },
+    );
+    (premise, goal, proof)
+}
+
+#[test]
+fn a_disjunction_introduced_inside_an_applied_implication_keeps_its_type() {
+    let (integer, id, _, _) = fixture();
+    let (premise, goal, proof) = disjunction_under_an_applied_implication(1);
+    verify_bounded_theorem(
+        &[(id, ScalarType::Integer(integer))],
+        &[],
+        &goal,
+        std::slice::from_ref(&premise),
+        &[],
+        &proof,
+        &mut Budget::default(),
+    )
+    .expect("the pair is checked against the disjunction it introduces");
+}
+
+#[test]
+fn a_disjunction_introduced_inside_an_applied_implication_still_names_its_disjunct() {
+    let (integer, id, _, _) = fixture();
+    let (premise, goal, proof) = disjunction_under_an_applied_implication(0);
+    assert!(
+        verify_bounded_theorem(
+            &[(id, ScalarType::Integer(integer))],
+            &[],
+            &goal,
+            std::slice::from_ref(&premise),
+            &[],
+            &proof,
+            &mut Budget::default(),
+        )
+        .is_err()
+    );
+}
