@@ -71,9 +71,10 @@ it instantiates. A reviewer verifies those citations before the framing.
 **Owner ruling, 2026-11-27.** The adapter passes the returning application a
 typed borrow of this invocation’s console output protocol alongside the image
 and initial storage. Use a descriptive Omega parameter name such as
-`console_output`. The adapter obtains the protocol from the firmware system
-table’s `ConOut` field and lends it for the duration of the call within the
-valid firmware phase.
+`console_output`. Use `ConsoleOut` when naming the firmware field in Omega terms.
+UEFI spells the protocol pointer `EFI_SYSTEM_TABLE.ConOut`. The separate
+`ConsoleOutHandle` field is the device handle. The adapter lends the protocol
+for the duration of the call within the valid firmware phase.
 
 Proposed target-owned entry shape:
 
