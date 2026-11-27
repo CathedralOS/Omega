@@ -52,7 +52,7 @@ The governing clauses are
 [conformances](../../../../wiki/spec/language/conformances.md) and
 [generics](../../../../wiki/spec/language/generics.md).
 
-Linux x86-64 `omega run --both` reports native exit 0 and interpreter exit 0
+Linux x86-64 the native/Psi comparison reports native exit 0 and interpreter exit 0
 for the root and all nine places. All nine `<place>/invalid` twins reject.
 The diagnostic fragment is `` `Other` implements `Loose<>`, which neither is
 nor inherits `Reading` ``. Windows, macOS, and QEMU were not run.

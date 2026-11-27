@@ -6,9 +6,11 @@ with status 70 after printing
 `PASS: 13 bytes round-tripped with every field intact (exit 70)`.
 
 ```sh
-mbx run -p omega -- run --engine native samples/cli/systems/wire_protocol/main.omg < /dev/null
-mbx run -p omega -- run --engine psi samples/cli/systems/wire_protocol/main.omg < /dev/null
+mbx run -p omega -- run samples/cli/systems/wire_protocol/main.omg < /dev/null
 ```
+
+To compare the published native program with the interpreter, run
+`mbx xtask sample-gate --filter samples/cli/systems/wire_protocol` from the repository root.
 
 The packet carries room 300, samples `[150, -2]` in a fixed vector with capacity
 4, and depth −64. Its 13 bytes are `00 00 03 00 AC 02 01 03 AC 02 03 02 7F`.

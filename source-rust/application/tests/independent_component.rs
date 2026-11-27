@@ -145,7 +145,7 @@ fn a_windows_arm64_consumer_imports_the_slot_exported_by_its_component() {
             .unwrap();
         assert!(native.status.success(), "{native:?}");
         let psi = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .args(["run", "--engine", "psi", "--target", "windows_arm64"])
+            .args(["run", "--target", "windows_arm64"])
             .arg(consumer.join("build.omg"))
             .output()
             .unwrap();
@@ -251,7 +251,7 @@ fn independent_packages_can_call_an_independently_compiled_supplier() {
     );
     require_native_suppliers(&consumer, &root.join("out"), 2);
     let interpreted = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--engine", "psi", "--target", "linux_x86_64"])
+        .args(["run", "--target", "linux_x86_64"])
         .arg(build)
         .output()
         .unwrap();

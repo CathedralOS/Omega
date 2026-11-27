@@ -48,13 +48,13 @@ From the repository root, using a compiler built at the recorded base:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega --check --target linux_x86_64 samples/cli/independent/landcover_area_resampling/main.omg
-omega packages update --project samples/cli/independent/landcover_area_resampling --target linux_x86_64
+omega --check --target linux_x86_64 samples/cli/scientific/landcover_area_resampling/main.omg
+omega packages update --project samples/cli/scientific/landcover_area_resampling --target linux_x86_64
 # Read the pending review. Accept only its reviewed decisions, then:
-omega packages update --resume --project samples/cli/independent/landcover_area_resampling
-omega --target linux_x86_64 samples/cli/independent/landcover_area_resampling/main.omg
-printf '2\n' | omega run --both samples/cli/independent/landcover_area_resampling/main.omg
-omega --check samples/cli/independent/landcover_area_resampling/controls/out_of_bounds/main.omg
+omega packages update --resume --project samples/cli/scientific/landcover_area_resampling
+omega --target linux_x86_64 samples/cli/scientific/landcover_area_resampling/main.omg
+printf '2\n' | omega run samples/cli/scientific/landcover_area_resampling/main.omg
+omega --check samples/cli/scientific/landcover_area_resampling/controls/out_of_bounds/main.omg
 ```
 
 The last command must reject specifically for the unprovable array index; an
@@ -64,8 +64,7 @@ Native execution is declared for Linux x86-64; other targets have no advertised
 execution evidence. Generated products and validation observations belong under
 `build/`, while reviewed lock state follows the ordinary package workflow.
 
-`run --both` on the host compares process exit status. An explicit `run --target`
-produces an image without execution. The Terminal validator uses the documented
+The native/Psi comparison on the host compares process exit status. `run --target` selects the environment for interpretation. The Terminal validator uses the documented
 corpus route to compare complete stdout, stderr and exit oracles for both engines.
 The corpus applies its canonical CRLF-to-LF normalization to stream comparisons;
 the direct native validator compares raw bytes. Numerical tolerances are zero.

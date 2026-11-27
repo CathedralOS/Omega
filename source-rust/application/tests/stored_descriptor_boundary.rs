@@ -13,20 +13,17 @@ use terminal_psi::{
 fn a_checked_boundary_returns_its_stored_descriptor() {
     let project = support::repository_root()
         .join("source-rust/application/tests/fixtures/ownership/run/stored_descriptor_boundary");
-    let run = |options: &[&str]| {
-        let output = project::omega(&project, &[&["run"][..], options, &["build.omg"]].concat());
-        let report = String::from_utf8_lossy(&output.stderr);
-        assert!(output.status.success(), "{report}");
-        assert!(output.stdout.is_empty(), "{output:?}");
-        report.into_owned()
-    };
-    let psi = run(&["--engine", "psi"]);
-    assert!(psi.lines().any(|line| line == "Psi exit 0"), "{psi}");
-    let report = run(&["--engine", "native", "--keep"]);
+    let compiled = project::build_and_run(&project, &["build.omg"]);
+    assert!(compiled.status.success(), "{compiled:?}");
     assert!(
-        report.lines().any(|line| line == "native exit 0"),
-        "{report}"
+        compiled.stdout.is_empty() && compiled.stderr.is_empty(),
+        "{compiled:?}"
     );
+    let interpreted = project::omega(&project, &["run", "--keep", "build.omg"]);
+    let report = String::from_utf8_lossy(&interpreted.stderr);
+    assert!(interpreted.status.success(), "{report}");
+    assert!(interpreted.stdout.is_empty(), "{interpreted:?}");
+    assert!(report.lines().any(|line| line == "Psi exit 0"), "{report}");
     let kept = report
         .lines()
         .find_map(|line| line.strip_prefix("build dir kept: "))

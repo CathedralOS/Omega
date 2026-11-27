@@ -21,8 +21,8 @@ omega --emit-psi <file.psi> [--max-psi-output-bytes <bytes>] <root.omg>
 omega --trusted-artifact <manifest-id> [--max-psi-input-bytes <bytes>] <program.psi>
 omega --check [--floor-only] [--verify] [--validator <ExactName>]... [--every-validator] [<root.omg>]
 omega build [--allow Network] [--allow ProgramLaunch] [--program <logical-path> <executable> [--program-read <path>]... [--program-write <path>]... [--program-timeout <milliseconds>]]... [--compare-tests] <root.omg>
-omega run [--engine native|psi] [--target <name>] <root.omg>
-omega run [--engine native|psi] --trusted-artifact <manifest-id> [--max-psi-input-bytes <bytes>] <program.psi>
+omega run [--target <name>] <root.omg>
+omega run --trusted-artifact <manifest-id> [--max-psi-input-bytes <bytes>] <program.psi>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
 omega packages audit --kind <local|git> <locator> [--rev <rev>]
@@ -40,7 +40,7 @@ Omitting it leaves the root offline. Each dependency Build requires an explicit
 [delegation at registration](scoped_execution.md#live-networking-in-a-build).
 `--allow ProgramLaunch` permits the root Build to use the [specific program bindings](program_launch.md#grant-and-delegation) supplied by the invoker.
 `omega build --compare-tests` requests [native/Psi comparison of registered
-tests](testing.md#comparing-native-and-psi-tests). This replaces `omega run --both`.
+tests](testing.md#comparing-native-and-psi-tests).
 
 `--emit-psi` writes the compiled Psi artifact subject to the destination's
 capacity. Pass `--max-psi-output-bytes` to set an inclusive output quota.
@@ -130,7 +130,7 @@ reach. With no extra mappings, the Build has its read-only captured package
 and private, bounded writable scratch.
 
 ```sh
-omega run --engine psi \
+omega run \
   --build-directories-readonly ./grammar::/grammar \
   --run-directories-readonly ./documents::/input \
   build.omg
@@ -160,7 +160,7 @@ The host path can be absolute or relative to the caller's working directory.
 The guest sees the right-hand path.
 
 ```sh
-omega run --engine psi \
+omega run \
   --run-directories-readonly ./documents::/input \
   --run-directories-readwrite ./results::/out \
   parser.omg
@@ -185,17 +185,14 @@ directory. Startup requires no preload into RAM. Compilation uses the captured
 source bytes even if a later runtime read sees different contents.
 [Local Build inputs](#local-build-inputs)
 
-These options describe interpreted Product execution. Keep the existing
-[engine selection](embedding.md#standalone-execution-selection), including its
-native default. A mode that cannot enforce a requested mapping must report
-that before running the Product. See the separate
+The interpreter must report a requested mapping it cannot enforce before
+entering the Product. See the separate
 [memory filesystem proposal](../../drafts/designs/run_memory_filesystem.md).
 
 ## Build-first entry selection
 
 `omega build <file>` and `omega run <file>` start from the file the caller names. Both use the same first-stage rule in the core package.
-A build requests the product artifact. A run requests execution under the
-[engine and target rules](embedding.md#standalone-execution-selection).
+A build requests the product artifact. A run lowers the selected Product to Psi and [interprets its entry](embedding.md#standalone-interpretation).
 Building a package checks its source, runs its registered tests and publishes
 its declared Build outputs. Only an executable Product requires a program entry.
 
@@ -240,10 +237,8 @@ in internal contracts, crate paths and representation identifiers. It is not
 the public artifact name. Source-language terminal transfers/outcomes are
 unrelated terminology and keep their ordinary meaning.
 
-The interpreted engine spelling is `--engine psi`. The interpreted work limit
-is `--psi-work-budget <positive-u64>` wherever that budget is applicable.
-See [standalone execution selection](embedding.md#standalone-execution-selection)
-for the effect of an explicit target on a single-engine run.
+Use `omega run --psi-work-budget <positive-u64>` to set the interpreter's work
+limit. An explicit `--target` selects the [target environment for interpretation](embedding.md#standalone-interpretation).
 
 ## Source rewriting
 

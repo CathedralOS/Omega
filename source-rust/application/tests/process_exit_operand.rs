@@ -8,7 +8,7 @@
 //! requirement ends the process with its code), and
 //! `wiki/spec/language/effects.md`, "Process-exit reach". Each program stages
 //! a package that depends on the bundled `system`, which provides the exit, and
-//! runs its entry through the native and Psi engines.
+//! checks both the interpreter outcome and the compiled program’s exit status.
 
 #[path = "support/project.rs"]
 mod project;
@@ -41,9 +41,9 @@ machine build(builder: @mutable BuildPlan) {{
 /// Stage `build` and `main` as one package, run it both ways, and return the
 /// exit status and everything printed.
 fn run_build(name: &str, build: &str, main: &str) -> [(Option<i32>, String); 2] {
-    ["native", "psi"].map(|engine| {
+    ["build", "run"].map(|command| {
         let scratch = project::stage(name, &[("build.omg", build), ("main.omg", main)]);
-        let output = project::omega(scratch.path(), &["run", "--engine", engine, "build.omg"]);
+        let output = project::observe(scratch.path(), &[command, "build.omg"]);
         let report = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),
@@ -56,10 +56,8 @@ fn run_build(name: &str, build: &str, main: &str) -> [(Option<i32>, String); 2] 
 
 #[track_caller]
 fn exits_with(code: i32, runs: [(Option<i32>, String); 2]) {
-    for ((status, report), engine) in runs.into_iter().zip(["native", "Psi"]) {
-        assert_eq!(status, Some(code), "{engine}: {report}");
-        let expected = format!("{engine} exit {code}");
-        assert!(report.lines().any(|line| line == expected), "{report}");
+    for (status, report) in runs {
+        assert_eq!(status, Some(code), "{report}");
     }
 }
 
@@ -111,7 +109,6 @@ machine main() reaches ProcessExit { let ignored: i32 = stop(6); }
             report.contains("boundary requirement `ProcessExit::exit_process` has no provider on target"),
             "{report}"
         );
-        assert!(!report.contains("native exit 6"), "{report}");
     }
 }
 
@@ -162,7 +159,6 @@ machine main() reaches |process_exit|::ProcessExit { |process_exit|::ProcessExit
             "{report}"
         );
         assert_ne!(status, Some(0), "{report}");
-        assert!(!report.contains("native exit 0"), "{report}");
         assert!(!report.contains("Psi exit 0"), "{report}");
     }
 }

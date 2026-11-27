@@ -10,9 +10,8 @@ only existing standard console and core scalar facilities.
 Run from the repository root:
 
 ```sh
-omega --check samples/cli/independent/operating_envelope/main.omg
-omega run --engine native --keep samples/cli/scientific/operating_envelope/main.omg < samples/cli/scientific/operating_envelope/data/rectangle.txt
-omega run --engine psi --keep samples/cli/scientific/operating_envelope/main.omg < samples/cli/scientific/operating_envelope/data/rectangle.txt
+omega --check samples/cli/scientific/operating_envelope/main.omg
+omega run --keep samples/cli/scientific/operating_envelope/main.omg < samples/cli/scientific/operating_envelope/data/rectangle.txt
 ```
 
 First prepare the ordinary system dependency with `omega packages update --project

@@ -44,13 +44,13 @@ machine main() crashes Trap {
     let user_cache = scratch.path().join("cache");
 
     let omega = |arguments: &[&str]| {
-        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-            .env("XDG_CACHE_HOME", &user_cache)
-            .args(arguments)
-            .current_dir(&app)
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
+        let output = project::observe_command(
+            Command::new(env!("CARGO_BIN_EXE_omega"))
+                .env("XDG_CACHE_HOME", &user_cache)
+                .args(arguments)
+                .current_dir(&app)
+                .stdin(Stdio::null()),
+        );
         let report = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),
@@ -60,9 +60,8 @@ machine main() crashes Trap {
         report
     };
     let run = || {
-        for (engine, expected) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-            let report = omega(&["run", "--engine", engine, "build.omg"]);
-            assert!(report.lines().any(|line| line == expected), "{report}");
+        for command in ["run", "build"] {
+            omega(&[command, "build.omg"]);
         }
     };
     let update = || {

@@ -45,8 +45,7 @@ silently widening.
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/float_comparison_route
-omega run --engine native samples/cli/facts/float_comparison_route/<place>/main.omg
-omega run --engine psi samples/cli/facts/float_comparison_route/<place>/main.omg
+omega run samples/cli/facts/float_comparison_route/<place>/main.omg
 omega --check samples/cli/facts/float_comparison_route/<place>/invalid/main.omg
 ```
 
@@ -69,7 +68,7 @@ target the corpus check leg reads from these bindings).
 ## The declared route is load-bearing
 
 - **The comparison is emitted, not folded.** The retained Terminal Psi artifact
-  (`omega run --both --keep`, then `omega psi inspect --artifact
+  (the native/Psi comparison, then `omega psi inspect --artifact
   <dir>/program.oterm`) contains `IeeeFloatCompare { comparison: Equal }` for
   every place, even where both operands are literals or named constants
   (`local`, `field`, `const_name`, `target_body`). A compile-time fold of
@@ -214,7 +213,7 @@ unproved precondition.
 The integrated selector preserves Product and Invocation scopes separately.
 Matching-host verification at `46a8d4e7c64e2738a34b7bdee0a6e64ea5c18cb6`
 then runs the unchanged named directed-division customer through normal CLI
-update, pending-row review/resume, and `run --both --keep`. Each pilot freezes
+update, pending-row review/resume, and the native/Psi comparison. Each pilot freezes
 its tracked inputs and authenticates an opt-level-1 producer.
 
 | Native host | Native exit | Terminal exit | Source-bound receipt |

@@ -4,7 +4,7 @@ The ordered grid contains 0 through 30; the target is 20. The search probes
 15, 23, 19, 21 and 20. `expected_stdout.txt` records all five 31-cell rows and
 the final prompt, including trailing spaces. `input.txt` supplies Enter.
 
-Run `omega run --both --input input.txt --outputs build/acceptance main.omg`
+Run `omega run --input input.txt --outputs build/acceptance main.omg`
 from this folder. Both engines must exit zero and produce the exact output.
 The sample gate also checks this input and output pair.
 

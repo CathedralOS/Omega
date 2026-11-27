@@ -52,10 +52,10 @@ samples/cli/independent/force_plate_balance --target linux_x86_64`, review the
 proposal and `--resume`. Then:
 
 ```sh
-"$OMEGA" --check --target linux_x86_64 samples/cli/independent/force_plate_balance/main.omg
-"$OMEGA" run --keep samples/cli/independent/force_plate_balance/main.omg < samples/cli/independent/force_plate_balance/data/frames.txt > /tmp/force-plate.stdout
-cmp /tmp/force-plate.stdout samples/cli/independent/force_plate_balance/data/expected_stdout.txt
-"$OMEGA" run --both --keep samples/cli/independent/force_plate_balance/main.omg < samples/cli/independent/force_plate_balance/data/frames.txt
+"$OMEGA" --check --target linux_x86_64 samples/cli/scientific/force_plate_balance/main.omg
+"$OMEGA" run --keep samples/cli/scientific/force_plate_balance/main.omg < samples/cli/scientific/force_plate_balance/data/frames.txt > /tmp/force-plate.stdout
+cmp /tmp/force-plate.stdout samples/cli/scientific/force_plate_balance/data/expected_stdout.txt
+"$OMEGA" run --keep samples/cli/scientific/force_plate_balance/main.omg < samples/cli/scientific/force_plate_balance/data/frames.txt
 ```
 
 Repeat native and Terminal comparison with `data/variants.txt`, checking

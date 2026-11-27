@@ -14,8 +14,10 @@ From the repository root with the development `omega` CLI:
 omega packages update --project samples/gui/windowed_calculator --target macos_arm64 --offline
 # If review is required, inspect the reported file and decide its pending rows.
 omega packages update --resume --project samples/gui/windowed_calculator --offline
-omega run --keep samples/gui/windowed_calculator/main.omg
+omega --build-dir build samples/gui/windowed_calculator/main.omg
 ```
+
+Launch the published application on macOS with `open -n build/windowed_calculator.app`.
 
 The GUI subsystem keeps the console surface to exit plus a status line.
 Build selects explicit Windows and macOS providers backed by ordinary SDK

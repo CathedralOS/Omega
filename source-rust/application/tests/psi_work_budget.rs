@@ -6,7 +6,7 @@ use std::process::{Command, Output, Stdio};
 
 fn run(extra: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--engine", "psi"])
+        .args(["run"])
         .args(extra)
         .arg("main.omg")
         .current_dir(

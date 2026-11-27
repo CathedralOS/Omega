@@ -22,7 +22,7 @@ are `Value<bool>`. The match reads only `Boolean` because `T == bool` refutes
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
-Every positive binds the four hosted targets. `omega run --both` requires
+Every positive binds the four hosted targets. The native/Psi comparison requires
 native and Terminal Psi agreement on exit 0. Each twin changes only the `true`
 formation to `Value::Integer { value: 1 }`; `Value<bool>` cannot hold
 `Integer`, so formation must reject at the construction gate.

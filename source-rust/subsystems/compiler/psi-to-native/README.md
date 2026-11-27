@@ -128,7 +128,7 @@ artifact or a foreign-package boundary reads it.
 | `LivenessIdentity`, `LiveRangeIdentity`, `AllocationLegalityIdentity` and the receipt and manifest digests built on them (06–08) | receipts; the post-allocation manifest digest | deleted, with their per-function digests and the carried-digest cache; legality, spill-choice, fixed-precolored and register-home plans name their program through the shared `selected` plan, and checks compare that plan; custody, completion and recovery receipts and the post-allocation manifest no longer record them, and the post-allocation machine plan drops its copies |
 | `OptimizationUnitIdentity` (04) | the unoptimized program record and its pre-physical manifest, fact keys | keep as the one unit hash |
 | `MachineFunctionIdentity` | sort key in validator replay; program fingerprint plus placement, not a plan hash | keep |
-| `NativeArtifactIdentity` | `native.identity.txt` (`omega run --keep`) | keep; binds emitted bytes, no longer plan hashes |
+| `NativeArtifactIdentity` | physical publication tests | keep; binds emitted bytes, no longer plan hashes |
 
 `NativeArtifactIdentity` already hashes the object, image and text bytes. The
 plan hashes it also chained in changed nothing those bytes did not, and

@@ -1,11 +1,11 @@
 //! A positional pattern, `(first, ..)`, and a `let` pattern that names its
-//! record, `let Pair { first as _, second } = pair;`, compile with the
-//! public `omega` command and run in both engines.
+//! record, `let Pair { first as _, second } = pair;`, select fields in the
+//! same way in the interpreter and in compiled code.
 //!
 //! Each program under `fixtures/patterns/run` ends in a comparison of the
 //! values its patterns bound with the values the record was built from, and
 //! crashes when they differ. So a pattern that bound another field than the
-//! one its place or name selects changes the exit status of both engines.
+//! one its place or name selects changes the program’s exit status.
 //! `wiki/spec/language/patterns.md`, "Data and case decomposition" and
 //! "Irrefutable data bindings", is the rule: a positional pattern binds
 //! fields by their place in declaration order, has exact arity unless it
@@ -47,7 +47,7 @@ fn invoke(arguments: &[&str], tier: &str, form: &str) -> (bool, String) {
         .join("source-rust/application/tests/fixtures/patterns")
         .join(tier)
         .join(form);
-    let output = project::omega(&project, &[arguments, &["main.omg"][..]].concat());
+    let output = project::observe(&project, &[arguments, &["main.omg"][..]].concat());
     let report = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -59,15 +59,11 @@ fn invoke(arguments: &[&str], tier: &str, form: &str) -> (bool, String) {
 }
 
 #[test]
-fn each_pattern_form_binds_the_fields_it_selects_in_both_engines() {
+fn each_pattern_form_binds_the_fields_it_selects_when_interpreted_and_built() {
     for form in FORMS {
-        for (engine, receipt) in [("native", "native exit 0"), ("psi", "Psi exit 0")] {
-            let (success, report) = invoke(&["run", "--engine", engine], "run", form);
+        for command in ["run", "build"] {
+            let (success, report) = invoke(&[command], "run", form);
             assert!(success, "{form}: {report}");
-            assert!(
-                report.lines().any(|line| line == receipt),
-                "{form}: {report}"
-            );
         }
     }
 }
@@ -85,7 +81,7 @@ fn each_twin_is_refused_at_its_pattern() {
         let (success, report) = invoke(&["--check"], "fail", form);
         assert!(!success, "{form}: {report}");
         assert!(
-            !report.contains("native exit") && !report.contains("Psi exit"),
+            !report.contains("Psi exit"),
             "{form}: a refused program must not run: {report}"
         );
         for line in expected.lines().filter(|line| !line.is_empty()) {

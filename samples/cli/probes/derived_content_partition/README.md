@@ -7,7 +7,7 @@ content lineage. The program checks both intervals and cleans up both children.
 
 This is the executable prerequisite for Cathedral's retained-backing allocator,
 not a physical allocator or a claim that these coordinates own memory. Its
-acceptance is `omega run --both main.omg` with native and Terminal exit 0.
+acceptance is `mbx xtask sample-gate --filter samples/cli/probes/derived_content_partition` with native and Terminal exit 0.
 `repeated/main.omg` splits a child again while retaining its sibling, checks
 all three intervals, and retires all three claims.
 Both programs must agree between native and Terminal execution. These interval

@@ -5,7 +5,7 @@
     A named implementation may omit a requirement whose trait supplies a
     default body. Its closed block receives each omitted default as its own
     member row before symbol resolution, so typing, effects, proofs, dispatch
-    and both execution engines reuse the ordinary member path.
+    and code generation reuse the ordinary member path.
 
     A closed `Name satisfies Equatable<T> { }` block that authors no `equals`
     member receives a compiler-emitted `equals` member whose

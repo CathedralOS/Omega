@@ -48,8 +48,8 @@ ordinary production must not silently invent such a request.
 An OS, loader, registry, or deployment system selects and enforces its own
 admission policy. Neither a binary nor its build script can authorize itself,
 select the receiver's policy, or enforce rules on its host.
-`omega run` combines production with a host execution request; production grants
-no host permission. [Build-time authority](execution.md#restricted-build-requests)
+`omega run` requests interpretation of the Product under its admitted host
+bindings. Producing Psi grants no host permission. [Build-time authority](execution.md#restricted-build-requests)
 is a separate concern because the build actually executes on the build host.
 
 [Build-level exclusions](behavior_exclusions.md) may independently forbid exact

@@ -80,16 +80,16 @@ The embedding now has that route.
 producer trust, `TerminalProgram::admit_contained` runs it, and the runtime
 host's `TerminalRuntimeContainment` runs it under a storage account and output
 limits. It refuses native providers, native services, filesystem delegation,
-components and live time, and native lowering never accepts it.
+and components. Live waits require a host-granted ceiling. Native lowering
+requires separate artifact authorization.
 [Containment audit](wiki/drafts/designs/psi_containment_audit.md#contained-interpretation) ·
 [Runtime host](source-rust/subsystems/interpreter/host/src/execution.rs)
 
-`omega run --trusted-artifact <manifest-id>` is the only CLI form, so a user
-cannot run an untrusted artifact without writing an embedding.
+`omega run --trusted-artifact <manifest-id>` is the current CLI form for running a saved artifact.
+Today an untrusted artifact requires an embedding.
 - **Option A (add a flag):** add
-  `omega run --engine psi --untrusted-artifact [--max-psi-input-bytes <bytes>] <program.psi>`.
-  It runs on the contained route with default work, storage and output limits,
-  and refuses `--engine native`.
+  `omega run --untrusted-artifact [--max-psi-input-bytes <bytes>] <program.psi>`.
+  It interprets the admitted artifact with default work, storage and output limits.
 - **Option B (embedding only):** keep the CLI trusted-only. Untrusted
   interpretation stays an embedding capability that a host opts into in code.
 

@@ -228,8 +228,7 @@ public machine main() crashes Trap {
 
 #[test]
 fn loading_eight_lanes_requires_eight_elements() {
-    let (output, report) =
-        observations::run(&project(true), &["run", "--engine", "psi"], &["build.omg"]);
+    let (output, report) = observations::run(&project(true), &["run"], &["build.omg"]);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("expects an array with 8 elements but the supplied array has 7"),
@@ -483,11 +482,7 @@ use {omega}/language/core/assembly_packed_integer.omg as packed;
 
 public machine main() {}
 "#;
-    let (output, report) = observations::run(
-        &project_source(source),
-        &["run", "--engine", "psi"],
-        &["build.omg"],
-    );
+    let (output, report) = observations::run(&project_source(source), &["run"], &["build.omg"]);
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("holds the checked asm instruction contracts"),

@@ -10,7 +10,7 @@ Parent outcome: `STATE-LOCAL-VALUE-FRONTIER` (`TASKS.md`). [Invocation contracts
 
 At recorded baseline `d545ec03095b`, each overlapping no-store program (formerly labeled invalid) wrongly refuses its `agree` contract. The same synthetic-store broadening also refuses the existing direct-choice and nested-machine disjoint-bound samples. Historical refusal labels were not language authority: a known complete empty body frame preserves these facts.
 
-Acceptance is `omega run --both <place>/main.omg` exiting 0 in both engines for all nine places, and each `omega --check <place>/invalid/main.omg` rejecting the actual overlapping write with `cannot prove requires contract`. Producer-bound observations live in the owning qualification/claim record; no unexecuted target is claimed here.
+Acceptance is `mbx xtask sample-gate --filter samples/cli/facts/exclusive_observation_exposure/<place>` exiting 0 in both engines for all nine places, and each `omega --check <place>/invalid/main.omg` rejecting the actual overlapping write with `cannot prove requires contract`. Producer-bound observations live in the owning qualification/claim record; no unexecuted target is claimed here.
 
 ## Places
 

@@ -72,13 +72,13 @@ Run from the repository root with a compiler built from that checkout. Set
 `OMEGA_LIBRARY_ROOT` to its `source/library` when reusing a compiler binary.
 
 ```sh
-omega packages update --project samples/cli/independent/voice_period_tracking --target linux_x86_64
+omega packages update --project samples/cli/scientific/voice_period_tracking --target linux_x86_64
 # Review the pending package decisions; resume only after their acceptance.
-omega packages update --resume --project samples/cli/independent/voice_period_tracking
-omega --check samples/cli/independent/voice_period_tracking/main.omg
-omega run --keep samples/cli/independent/voice_period_tracking/main.omg < samples/cli/independent/voice_period_tracking/data/trajectory.input
-omega --check samples/cli/independent/voice_period_tracking/controls/type_valid/main.omg
-omega --check samples/cli/independent/voice_period_tracking/controls/type_mismatch/main.omg
+omega packages update --resume --project samples/cli/scientific/voice_period_tracking
+omega --check samples/cli/scientific/voice_period_tracking/main.omg
+omega run --keep samples/cli/scientific/voice_period_tracking/main.omg < samples/cli/scientific/voice_period_tracking/data/trajectory.input
+omega --check samples/cli/scientific/voice_period_tracking/controls/type_valid/main.omg
+omega --check samples/cli/scientific/voice_period_tracking/controls/type_mismatch/main.omg
 ```
 
 The separate intended-invalid control assigns `true` to an `i32` period. The

@@ -1,6 +1,6 @@
 # Structural crash contract
 
-`omega run --both samples/cli/generics/structural_crash_contract/main.omg`
+the native/Psi comparison
 must return the authored exit 70 in both engines after ordinary local package
 review. A borrowed call retains a record-identity crash ceiling over a Boolean
 and an exactly eight-element UTF-8-qualified array. The ceiling permits a crash;

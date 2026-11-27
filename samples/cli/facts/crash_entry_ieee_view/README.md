@@ -42,7 +42,7 @@ On base `05a6f6af37e` (Windows x86-64, opt-level 1) every place refused at check
 
 Every positive place (and every `*_through_<place>_exit` fixture) binds
 `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64` and
-`linux_arm64` and declares `Expected exit: 0`. `omega run --both` reports
+`linux_arm64` and declares `Expected exit: 0`. The native/Psi comparison reports
 `native exit 0` alongside `interp exit: 0` for all nine places, measured on
 macOS arm64 with an `opt_level` 1 producer, and each of the nine twins exits 1
 at checking with its intended fragment. The corpus records nine native

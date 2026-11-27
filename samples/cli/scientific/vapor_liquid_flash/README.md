@@ -6,7 +6,7 @@ pressure, temperature, or real-fluid behavior. Feed is on a one-mole basis.
 
 Run `omega packages update --project samples/cli/independent/vapor_liquid_flash --target linux_x86_64`
 using the normal package acceptance flow, then
-`omega run --both --keep samples/cli/independent/vapor_liquid_flash/main.omg < samples/cli/independent/vapor_liquid_flash/data/binary_half.txt`.
+`omega run --keep samples/cli/independent/vapor_liquid_flash/main.omg < samples/cli/independent/vapor_liquid_flash/data/binary_half.txt`.
 The explicit entry is `main`, bound for Linux x86-64, macOS ARM64 and Windows x86-64.
 
 Stdin is `n z0 K0 z1 K1 ...`, with 2–8 ordered species. Tokens are unsigned

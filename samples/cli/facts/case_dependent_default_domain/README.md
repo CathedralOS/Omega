@@ -80,7 +80,7 @@ its entry roots.
   cannot borrow the old ordered relation. Unknown tags/fields supply no proof.
 - **Psi 06–08:** source proof discharges restoration and scalar consumption
   before erasure. Ordinary tagged values, scalar copies, stores and calls lower
-  to Terminal Psi and must execute under `--both`.
+  to Terminal Psi and must execute under the native/Psi comparison.
 - **Omega 00–02:** Build entries, Bundle/interval layouts and ordinary calling
   plans transport the values; domains add no runtime data.
 - **Omega 03–06:** signed/Boolean results, both tags, nonzero neighbor canaries
@@ -99,7 +99,7 @@ consuming call. The optimized producer is SHA-256
 Fresh projects contain identical authored sources and no copied acceptance state;
 raw baseline records are retained in the owning PR/claim evidence.
 
-The restoration row passes all nine `omega run --both` executions on
+The restoration row passes all nine the native/Psi comparison executions on
 `macos_arm64`: native and Terminal Psi both return 0. All nine ceiling twins
 reach the intended `width_range` contract refusal. The stale-snapshot control
 rejects its open default domain at borrowed return on both baseline and repaired
@@ -109,7 +109,7 @@ The repaired optimized CLI is SHA-256
 built from the fixed base plus the owning PR's compiler patch; receipts retain
 those original identities rather than relabeling them as a later checkpoint.
 The focused corpus check observes 11 positives and 19 intended rejects; its
-`--both` leg executes the 11 positives with native/Terminal exit 0. This includes
+native/Psi comparison leg executes the 11 positives with native/Terminal exit 0. This includes
 literal case restoration, ordinary record snapshots and write-only boundaries.
 
 The untouched-sibling production was red at fixed base

@@ -39,7 +39,7 @@ and `cannot prove the value of this cast is in the domain it adds`.
 
 On Linux x86_64, after projecting the selected body into the scalar domain
 predicate, all nine positives report native exit 0 and interpreter exit 0 from
-`omega run --both`. All nine twins reject. Windows, macOS, and QEMU were not run.
+the native/Psi comparison. All nine twins reject. Windows, macOS, and QEMU were not run.
 
 - **Establishment:** `premise(self)` is the domain obligation. The body supplies
   the result; the annotation does not establish itself.

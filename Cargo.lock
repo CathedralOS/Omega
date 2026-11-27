@@ -1713,14 +1713,12 @@ name = "omega"
 version = "0.1.0"
 dependencies = [
  "artifacts",
- "bounded-process",
  "build-declarations",
  "build-execution",
  "build-program-launch",
  "compiler",
  "diagnostics",
  "installation-conditions",
- "libc",
  "mimalloc",
  "native-provider-sponsor",
  "omega-source",
@@ -1744,7 +1742,6 @@ dependencies = [
  "terminal-interpreter",
  "terminal-runtime",
  "terminal-semantics",
- "windows-sys 0.61.2",
  "worker-budget",
  "terminal-work",
 ]

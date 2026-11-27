@@ -52,11 +52,11 @@ never a numerical oracle.
 From the repository root, using a compiler built from a recorded revision:
 
 ```sh
-omega packages update --project samples/cli/independent/conservative_advection --target linux_x86_64
+omega packages update --project samples/cli/scientific/conservative_advection --target linux_x86_64
 # Inspect the exact proposal, then accept/resume only the scoped normal decisions.
-omega run --keep samples/cli/independent/conservative_advection/main.omg < samples/cli/independent/conservative_advection/input.txt
+omega run --keep samples/cli/scientific/conservative_advection/main.omg < samples/cli/scientific/conservative_advection/input.txt
 CARGO_PROFILE_RELEASE_OPT_LEVEL=1 mbx run --release -p advection-terminal-validation -- /absolute/sample/directory/main.omg /absolute/capture/directory
-omega --check samples/cli/independent/conservative_advection/controls/stencil_bound/main.omg < /dev/null
+omega --check samples/cli/scientific/conservative_advection/controls/stencil_bound/main.omg < /dev/null
 ```
 
 The observation harness has explicit `--review` and `--resume-review` modes for

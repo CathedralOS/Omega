@@ -62,7 +62,7 @@ The governing contracts are [dynamic dispatch](../../../../wiki/spec/terminal-ps
 [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
 
 Every positive, including [the root program](main.omg), binds all four hosted targets
-and declares exit zero. Run a place with `omega run --both <place>/main.omg`.
+and declares exit zero. Run a place with `mbx xtask sample-gate --filter samples/cli/facts/dynamic_float_refinement/<place>`.
 
 Linux x86-64 qualification is complete for both nine-place rows. Exact source
 `51ca56236d0f` has eighteen accepted corpus positives, eighteen intended corpus

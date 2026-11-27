@@ -34,7 +34,7 @@ fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
 }
 
 #[test]
-fn every_shift_policy_pair_and_total_bitwise_operation_runs_in_both_engines() {
+fn every_shift_policy_pair_and_total_bitwise_operation_runs_when_interpreted_and_built() {
     declared_exit::assert_declared_exit(&fixture("run"), "main.omg");
 }
 

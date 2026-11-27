@@ -25,7 +25,7 @@ in `copied`; `read` stays selected from `library`.
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The CLI samples use ordinary declared library inputs. They exercise supplied
-owners and run with `omega run --both`; they do not alone establish anonymous
+owners and run with `mbx xtask sample-gate --filter samples/cli/facts/nominal_declaration_owner`; they do not alone establish anonymous
 capture. The `compiler::anonymous_module_owner` integration target copies the
 same library declarations into a root with no Build file, checks it through the
 loose public compiler route, and obtains its content-derived owner. It supplies

@@ -39,8 +39,8 @@ invariant failure and must never appear on admitted scientific inputs.
 Run with the normal product route (activate the documented toolchain first):
 
 ```sh
-omega packages update --project samples/cli/independent/powder_diffraction_indexing --target linux_x86_64
-omega run samples/cli/independent/powder_diffraction_indexing/main.omg < samples/cli/independent/powder_diffraction_indexing/input.txt
+omega packages update --project samples/cli/scientific/powder_diffraction_indexing --target linux_x86_64
+omega run samples/cli/scientific/powder_diffraction_indexing/main.omg < samples/cli/scientific/powder_diffraction_indexing/input.txt
 ```
 
 Complete any generated exact package decisions through ordinary review/resume. The

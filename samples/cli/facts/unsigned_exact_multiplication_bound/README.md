@@ -29,7 +29,7 @@ Claim Ticket: `849de924ec9d4048a9e827cd93136e05`
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted
 targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg`
-and declares `Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter
+and declares `Expected exit: 0`. The native/Psi comparison reports Terminal Psi interpreter
 and native execution agreement:
 
 ```sh
@@ -52,7 +52,7 @@ Each place has an `invalid/` twin that widens `factor` from `factor <= 20u64` to
 With `factor <= 21u64` and `scale <= 4u64`, `product` can reach `84u64`, making exact subtraction `80u64 - product` underflow `u64`.
 The compiler strictly fails closed at compile time with:
 
-| Place | `omega run --both` | Reject twin diagnostic |
+| Place | the native/Psi comparison | Reject twin diagnostic |
 | --- | --- | --- |
 | `local` | native 0 / interp 0 | `exact arithmetic in machine \`probe\` state \`entry\` local \`upper_diff\` may overflow \`u64\`` |
 | `field` | native 0 / interp 0 | `exact arithmetic in machine \`probe\` state \`entry\` local \`upper_diff\` may overflow \`u64\`` |
@@ -76,7 +76,7 @@ contract-entailment changes, then other rows' fixture landings) the row was re-m
 fixtures clean, 0 rows moved — and re-recorded scoped at the landing base, so the row content is
 unchanged and only the provenance stamp moved to the landing base:
 
-- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
+- the native/Psi comparison over the root and the nine places: 10/10 report `native exit 0` and
   `interp exit: 0`.
 - the nine twins refuse at checking (CLI exit 200), each observed diagnostic containing its
   authored `expected.txt` fragment (9/9).
@@ -92,13 +92,13 @@ unchanged and only the provenance stamp moved to the landing base:
   the post-multiplication interval `[30, 80]`, discharging both exact subtractions
   `80u64 - product` and `product - 30u64` across all nine places — transported through `requires`
   facts, `ensures` results, local initializer facts, guards and call results — with Terminal Psi
-  and native execution agreeing (`omega run --both`: root plus nine places, `native exit 0`,
+  and native execution agreeing (the native/Psi comparison: root plus nine places, `native exit 0`,
   `interp exit: 0`).
 - **Establishment**: Precondition bounds `factor >= 10u64 && factor <= 20u64` and `scale >= 3u64 && scale <= 4u64` establish bounded intervals for both multiplier inputs. Unsigned multiplication `factor * scale` synthesizes the post-multiplication interval `[30, 80]`.
 - **Identity and lifetime**: The synthesized interval `product in [30, 80]` is preserved across local bindings, carrier record fields, machine parameters, helper call returns, match join arms, named constants, state transitions, helper forwarding machines, and target-scoped bodies without precision or range loss.
 - **Composition**: In each place, the synthesized interval `product in [30, 80]` composes with both bounds subtractions `80u64 - product` and `product - 30u64`, proving non-negative range and eliminating underflow risk without post-hoc caller equality guards.
 - **Soundness boundaries**: In every reject twin, widening the factor bound to `factor <= 21u64` allows `product` to reach `84u64`, causing compile-time refusal due to unsigned underflow (decision 17 -- exact arithmetic proof obligation), proving that unsafe arithmetic cannot reach binary emission.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: Unsigned multiplication interval synthesis, exact subtraction proof certificates, and control flow lower into target-neutral Terminal Psi (`PSITERM\0`) and execute identically in the Terminal Psi interpreter (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: Unsigned multiplication interval synthesis, exact subtraction proof certificates, and control flow lower into target-neutral Terminal Psi (`PSITERM\0`) and execute identically in the Terminal Psi interpreter.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans assign 64-bit unsigned integer carriers across target ABI calling plans (RCX/RDX on `windows_x86_64`, RDI/RSI on `linux_x86_64`, X0/X1 on `macos_arm64` and `linux_arm64`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering emits target ISA unsigned multiplication and subtraction instructions (`imul` / `mul`, `sub`), managing register allocation and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct PE/ELF/Mach-O image generation resolves entry symbols, basic block layouts, and relocations, emitting native executables that agree with Terminal Psi on exit 0 across all four hosted platforms.

@@ -61,7 +61,7 @@ fact is replaced by a caller equality guard.
 - **Soundness boundaries:** an opaque frame grants no post-state preservation,
   access authority, termination promise or assumption about callback contents.
 - **Psi 06–08:** ordinary checking and Terminal lowering retain the two input
-  facts and return both arithmetic results. Actual `omega run --both` observes
+  facts and return both arithmetic results. Actual native/Psi comparison observes
   the Terminal interpreter alongside native execution.
 - **Omega 00–02:** the four hosted Build entries and the selected provider use
   normal record/view layouts and scalar, reference and aggregate-return plans.

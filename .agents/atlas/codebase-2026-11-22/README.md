@@ -10,6 +10,9 @@ on it.
 
 Track current repairs, earlier fixes and outstanding claims in the [Atlas repair queue](triage/README.md).
 
+For the current CLI contract, see [standalone interpretation](../../../wiki/spec/build/embedding.md#standalone-interpretation).
+The engine-selection examples in this snapshot describe the November 22 implementation.
+
 ## Verified follow-ups
 
 The counts below describe the November 22 survey. The area digests also record fixes verified after that revision.

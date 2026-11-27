@@ -29,7 +29,7 @@ fn a_psi_product_reads_its_own_mount_and_writes_only_to_its_output() {
 
     let run = Command::new(env!("CARGO_BIN_EXE_omega"))
         .current_dir(&package)
-        .args(["run", "--engine", "psi", "--build-directories-readwrite"])
+        .args(["run", "--build-directories-readwrite"])
         .arg(format!("{}::/r", build.display()))
         .arg("--run-directories-readonly")
         .arg(format!("{}::/r", input.display()))

@@ -2,6 +2,8 @@ Built from `records/unit_001.md`, `unit_002.md`, `unit_002_gap_001.md`, `unit_00
 
 # Digest: 01-cli-foundation
 
+The CLI observations refer to the November 22 checkout. For current usage, see [standalone interpretation](../../../../wiki/spec/build/embedding.md#standalone-interpretation).
+
 Paths are relative to the checkout. Words used below: **Psi** is the portable compiled-program form and its interpreter; code names that say "terminal" (`TerminalOutcome`, `terminal_summary`, `program.oterm`) are the internal name of the same stage. A **fail-open** place is one that accepts, or returns a default, when it does not know the answer. A **handle** is an arena row reference made of an `(arena_index, generation)` pair. "Read", "grepped", "inferred", "suspected" and "not traced" are the record readers' own words and keep their meaning: inferred and suspected claims were not followed to the other end.
 
 ## 1. What this area does

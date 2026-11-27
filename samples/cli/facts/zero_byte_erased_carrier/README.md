@@ -7,7 +7,7 @@ Specification Reference: [Layout plans](wiki/spec/layouts/plans.md) and [Structu
 
 This fact row demonstrates that a nominal record `Carrier` containing a zero-byte token field `Token { empty: [u8; 0] }` paired with an executable scalar `value: u64` contributes zero physical byte overhead (`size_of<Token>() == 0` and `size_of<Carrier>() == 8`). The static contract bound `carrier.value >= 100u64 && carrier.value <= 100u64` is preserved across all nine standard places, discharging exact subtraction `carrier.value - 100u64 == 0` and size assertions at exit code 0.
 
-Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines (`omega run --both`) agree on exit code 0.
+Every positive place and the root witness bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry an authored `expected_native_exit.txt` containing `0`. Both engines agree on exit code 0.
 
 ## Places
 
@@ -26,7 +26,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 
 ## Execution
 
-Run each positive place with `omega run --both`:
+Run each positive place with `mbx xtask sample-gate --filter samples/cli/facts/zero_byte_erased_carrier`:
 
 ```sh
 mbx xtask sample-gate --filter samples/cli/facts/zero_byte_erased_carrier
@@ -91,10 +91,10 @@ Full 8-layer specification and lowering evidence:
 - **Identity and lifetime:** The zero-byte token field `empty: [u8; 0]` contributes zero physical bytes to the layout while maintaining distinct nominal type identity. The carrier value and contract bound retain exact identity and scope across all nine places without loss or unexpected field padding.
 - **Composition:** The zero-byte carrier composes through all 9 standard places: local variable assignment (`local`), struct field wrapping (`field`), machine parameter passing (`parameter`), function call return value (`call_result`), match branch convergence join (`match_join`), named constant initialization (`const_name`), state transition arrival (`other_state`), forwarding machine delegation (`other_machine`), and target-scoped body candidates (`target_body`). Each `<place>/invalid/main.omg` differs solely in supplying `value: 99u64`, violating the contract bound.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `cannot prove requires contract for call ...: carrier.value >= 100 && carrier.value <= 100`. The compiler strictly refuses callers that cannot prove the contract precondition before lowering.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Mathematical/proof-only constraints and zero-length array fields lower cleanly into canonical `PSITERM\0`. Proof-term tags (`proof-term-tags`) track semantic contracts, while the runtime carrier executes identically in the Terminal Psi interpreter (`omega run --both`), observing exit code 0.
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Mathematical/proof-only constraints and zero-length array fields lower cleanly into canonical `PSITERM\0`. Proof-term tags (`proof-term-tags`) track semantic contracts, while the runtime carrier executes identically in the Terminal Psi interpreter, observing exit code 0.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout planning evaluates `size_of<Token>() == 0` (zero extent at byte alignment) and `size_of<Carrier>() == 8` (8-byte scalar value with zero padding overhead from the token). In `CallPlan` and `StatePlan`, zero-byte carriers and fields allocate exactly zero registers or stack slots, passing only the 8-byte scalar value in the target ABI integer register (`rcx`/`rdi`/`x0`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects 64-bit integer arithmetic (`sub`) and comparison instructions without emitting storage, moves, or spill slots for the zero-byte token. Disjoint activation frames allocate space only for the executable 8-byte value, verifying worst-case stack usage (WCSU).
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks and conditional branches relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images are emitted that execute and exit with code 0 on `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi (`omega run --both`).
+- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks and conditional branches relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images are emitted that execute and exit with code 0 on `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi.
 
 ## What remains open
 

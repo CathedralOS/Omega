@@ -52,10 +52,10 @@ field before freezing its 20-case data; it never reads Omega output or source.
 Run from the repository root with a current compiler:
 
 ```sh
-omega packages update --project samples/cli/independent/spatial_diffusion --target linux_x86_64
+omega packages update --project samples/cli/scientific/spatial_diffusion --target linux_x86_64
 # Inspect the exact pending package proposal and source-only risks before accepting.
 # Resume the reviewed exact proposal through the normal package workflow.
-printf 0 | omega run samples/cli/independent/spatial_diffusion/main.omg
+printf 0 | omega run samples/cli/scientific/spatial_diffusion/main.omg
 ```
 
 The build only declares an application, system path dependency, and Linux entry.

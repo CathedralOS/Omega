@@ -4,6 +4,8 @@ Built at commit `4f3c255d05599c11b1ea8ac668635f15f2a6eb86` from `digests/01-cli-
 
 This note follows each value that crosses between the `omega` CLI, the package manager, Build, the compiler entry, the Psi interpreter, the repository tools and the Omega-written compiler under `source/`. For each crossing it says what goes across, what the receiver takes on trust, what is checked there and by whose code, and where information travels some other way than in the handed value.
 
+The command behavior below was observed at the survey revision. Today, [`omega run` lowers source to Psi and interprets it](../../../../wiki/spec/build/embedding.md#standalone-interpretation).
+
 Each claim carries one of two marks:
 - **(code: `path:line`)** means the claim was opened in the code for this note.
 - **(record: ...)** means the claim was taken from a digest or record and not reopened. The digests' own words "suspected", "inferred", "traced" and "not traced" are kept.

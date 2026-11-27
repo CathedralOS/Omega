@@ -106,14 +106,12 @@ Run from the repository root. Do not run simultaneous compiler or Rust build
 processes on one executor.
 
 ```sh
-sample=samples/cli/independent/nonlinear_diode_sweep
+sample=samples/cli/scientific/nonlinear_diode_sweep
 omega packages update --project "$sample" --target linux_x86_64
 # Read the resulting proposal, decide its exact review rows, then:
 omega packages update --resume --project "$sample"
 omega --check --target linux_x86_64 "$sample/main.omg"
 omega run --keep "$sample/main.omg" < "$sample/data/mixed_bias.stdin"
-omega run --engine native --keep "$sample/main.omg" < "$sample/data/mixed_bias.stdin"
-omega run --engine psi --keep "$sample/main.omg" < "$sample/data/mixed_bias.stdin"
 omega --check "$sample/controls/intended_invalid/main.omg"
 ```
 
@@ -124,7 +122,7 @@ The same Python 3 entrypoint works on Linux, macOS, and Windows with the
 corresponding available target. The application binds four host targets; validation
 of this candidate is limited to the actual recorded host.
 
-The CLI `--both` route reports exit agreement and exposes native stdout. For full
+The earlier comparison reported exit agreement and forwarded native stdout. For full
 Terminal CSV validation on Linux, the private `validation/terminal-driver` uses
 the normal accepted-project API, retains its exact native report's Terminal
 artifact and provisions, and executes a fresh instance for each fixture. Its

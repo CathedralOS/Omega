@@ -510,7 +510,7 @@ mod tests {
     fn verbose_is_global_between_arguments() {
         for command in [
             &["--verbose", "--check", "main.omg"][..],
-            &["run", "--engine", "psi", "--verbose", "main.omg"],
+            &["run", "--target", "linux_x86_64", "--verbose", "main.omg"],
             &[
                 "packages",
                 "--verbose",
@@ -537,8 +537,8 @@ mod tests {
                 "--report-file requires a path",
             ),
             (
-                &["run", "--engine", "--verbose", "psi", "main.omg"],
-                "--engine requires",
+                &["run", "--target", "--verbose", "linux_x86_64", "main.omg"],
+                "--target requires",
             ),
             (
                 &["packages", "audit", "--project", "--verbose", "."],
@@ -651,15 +651,10 @@ mod tests {
             }
             _ => panic!("artifact inspection did not parse"),
         }
-        match parse_slice(&["run", "--engine", "psi", "main.omg"]).unwrap() {
-            Invocation::Run(arguments) => {
-                assert_eq!(
-                    arguments.selection,
-                    crate::execution::ExecutionSelection::Terminal
-                );
-            }
-            _ => panic!("psi engine did not parse"),
-        }
+        assert!(matches!(
+            parse_slice(&["run", "main.omg"]).unwrap(),
+            Invocation::Run(_)
+        ));
     }
 
     #[test]
@@ -674,7 +669,8 @@ mod tests {
             &["audit", "source", "--kind", "local", "src"],
             &["inspect-terminal", "--artifact", "program.psi"],
             &["inspect-terminal", "--help"],
-            &["run", "--engine", "terminal", "main.omg"],
+            &["run", "--engine", "native", "main.omg"],
+            &["run", "--engine", "psi", "main.omg"],
             &["psi", "inspect-terminal", "--artifact", "program.psi"],
         ] {
             let Err(error) = parse_slice(invocation) else {
@@ -682,7 +678,7 @@ mod tests {
             };
             assert!(
                 error.contains("retired")
-                    || error.contains("requires `native` or `psi`")
+                    || error.contains("unrecognized option `--engine`")
                     || error.contains("unknown psi command"),
                 "{invocation:?} rejected with {error}"
             );
