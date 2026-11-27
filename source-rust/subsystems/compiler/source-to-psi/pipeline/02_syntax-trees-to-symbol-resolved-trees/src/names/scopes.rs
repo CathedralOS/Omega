@@ -347,7 +347,7 @@ impl BinderRole {
 }
 
 /*
-    Binder roles of machines and indexed domain families in declaration order.
+    Binder roles of machines, trait requirements, and indexed domain families in declaration order.
     A call or domain application reads its named arguments in the role each
     slot declares. A generic domain carrier is implicit at use sites.
 */
@@ -382,6 +382,16 @@ impl BinderRoles {
             roles.extend(binders.iter().map(|binder| BinderRole::of(&binder.kind)));
             declarations.push((machine.symbol, start, roles.len() as u32));
         }
+        for definition in &program.traits {
+            for requirement in program.trait_machine_signatures(definition.machines) {
+                let binders = program.data_type_parameters(requirement.type_parameters);
+                if requirement.symbol.is_valid() && !binders.is_empty() {
+                    let start = roles.len() as u32;
+                    roles.extend(binders.iter().map(|binder| BinderRole::of(&binder.kind)));
+                    declarations.push((requirement.symbol, start, roles.len() as u32));
+                }
+            }
+        }
         for domain in &program.domain_definitions {
             let binders = program.data_type_parameters(domain.type_parameters);
             let indices = domain.index_binders(binders);
@@ -414,12 +424,17 @@ impl BinderRoles {
             return BinderRole::Declaration;
         }
         let selected = symbols.get(target);
-        let machine = match selected.kind {
+        let declaration = match selected.kind {
+            symbols::SymbolKind::State
+                if symbols.get(selected.parent).kind == symbols::SymbolKind::Trait =>
+            {
+                target
+            }
             symbols::SymbolKind::State => selected.parent,
             symbols::SymbolKind::Machine => target,
             _ => return BinderRole::Declaration,
         };
-        self.for_declaration(machine)
+        self.for_declaration(declaration)
             .get(position)
             .copied()
             .unwrap_or(BinderRole::Declaration)
