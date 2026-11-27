@@ -2,6 +2,7 @@
 //! Releases precede the operation, or the dispatch, after the last use;
 //! handles the complement. Both are planned by the same owned-region walk.
 
+use crate::lower::machine_order::WalkRefusal;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 use arena::IdTable;
 use semantic_vocabulary::{CanonicalStructuralPathSegment, MachineId};
@@ -11,39 +12,17 @@ use terminal_check_tables::{
     CheckTables, Checked, Construct, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule};
-use terminal_semantics::plain_affine::{AffineSummaries, Error, MachineAffine, Site};
+use terminal_semantics::plain_affine::{AffineSummaries, Error, MachineAffine};
 
 fn planning_refusal(machine: MachineId, error: Error, sources: Option<&MachineSources>) -> Refusal {
-    let (concerns, origin) = match error.site() {
-        Some(Site::Operation(at)) => (
-            Construct::Operation(at),
-            sources.and_then(|sources| sources.operations.get(at)),
-        ),
-        Some(Site::Edge(at)) => (
-            Construct::Edge(at),
-            sources.and_then(|sources| sources.edges.get(at)),
-        ),
-        None => (Construct::Machine, None),
-    };
-    let (reason, detail) = match error {
-        Error::Unavailable(unavailable) => (RefusalReason::Unestablished, unavailable.message()),
-        Error::Unconsumed { at_join, .. } => {
-            (RefusalReason::Violation, Error::unconsumed_message(at_join))
-        }
-        Error::MissingActiveCase { .. } => (
-            RefusalReason::Unsupported,
-            Error::missing_active_case_message(),
-        ),
-        Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
-        Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
-    };
+    let refusal = WalkRefusal::new(&error);
     Refusal {
-        source_span: origin
-            .copied()
+        source_span: refusal
+            .origin(sources)
             .and_then(terminal_check_tables::program::SourceOrigin::authored_span),
-        reason,
-        site: terminal_check_tables::RefusalSite::Machine(machine, concerns),
-        detail: detail.to_owned(),
+        reason: refusal.reason,
+        site: terminal_check_tables::RefusalSite::Machine(machine, refusal.concerns),
+        detail: refusal.detail.to_owned(),
     }
 }
 
@@ -374,6 +353,7 @@ pub(crate) fn install(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use terminal_semantics::plain_affine::Site;
 
     #[test]
     fn planning_refusals_use_the_exact_authored_operation_or_edge() {

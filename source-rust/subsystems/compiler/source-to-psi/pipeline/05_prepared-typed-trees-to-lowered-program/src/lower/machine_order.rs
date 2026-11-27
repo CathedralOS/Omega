@@ -14,8 +14,10 @@
 //! that changes a machine ends that table, and later walks start another.
 
 use semantic_vocabulary::MachineId;
+use terminal_check_tables::program::{MachineSources, SourceOrigin};
+use terminal_check_tables::{Construct, RefusalReason};
 use terminal_psi::{TerminalMachine, TerminalModule};
-use terminal_semantics::plain_affine::AffineSummaries;
+use terminal_semantics::plain_affine::{self, AffineSummaries, Site};
 
 /// Plan every machine of `module` and apply each plan to its machine in
 /// machine order, with the result of the loop that plans machine `k` only
@@ -160,4 +162,55 @@ pub(crate) fn plan_then_apply_from_advance<Plan: Send, Error>(
         }
     }
     Ok(())
+}
+
+/// How every caller reports an ownership walk that refused: the construct the
+/// error names, why the walk refused and the walk's own message. Storage
+/// planning, claim transport and reference ends each add their own context to
+/// `detail`, but the reason for each error kind is the same everywhere.
+pub(crate) struct WalkRefusal {
+    pub(crate) concerns: Construct,
+    pub(crate) reason: RefusalReason,
+    pub(crate) detail: &'static str,
+}
+
+impl WalkRefusal {
+    pub(crate) fn new(error: &plain_affine::Error) -> Self {
+        use plain_affine::Error;
+        let concerns = match error.site() {
+            Some(Site::Operation(at)) => Construct::Operation(at),
+            Some(Site::Edge(at)) => Construct::Edge(at),
+            None => Construct::Machine,
+        };
+        let (reason, detail) = match error {
+            Error::Unavailable(unavailable) => {
+                (RefusalReason::Unestablished, unavailable.message())
+            }
+            Error::Unconsumed { at_join, .. } => (
+                RefusalReason::Violation,
+                Error::unconsumed_message(*at_join),
+            ),
+            Error::MissingActiveCase { .. } => (
+                RefusalReason::Unsupported,
+                Error::missing_active_case_message(),
+            ),
+            Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, *detail),
+            Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, *detail),
+        };
+        Self {
+            concerns,
+            reason,
+            detail,
+        }
+    }
+
+    /// Where the source wrote the operation or edge the error names.
+    pub(crate) fn origin(&self, sources: Option<&MachineSources>) -> Option<SourceOrigin> {
+        let sources = sources?;
+        match self.concerns {
+            Construct::Operation(at) => sources.operations.get(at).copied(),
+            Construct::Edge(at) => sources.edges.get(at).copied(),
+            _ => None,
+        }
+    }
 }
