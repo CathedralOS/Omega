@@ -991,6 +991,139 @@ fn a_nested_record_data_invariant_is_a_premise_of_its_logical_subject() {
 /// A constant record stores a machine in an ordinary callable field. The
 /// same field is invoked under its callable contract and cited as a theorem
 /// (OWNER_QUESTIONS.md#bundle-evidence-field-type).
+/// A theorem over the inner record applied to `p.inner`, a field of the
+/// applying machine's record formal.
+const INNER_FIELD: &str = "data Inner { x: u8; z: u8; }
+
+data Pair { inner: Inner; y: u8; }
+
+data InnerIsNonzero = machine(i: Inner)
+    requires i.x == 1u8
+    ensures i.x != 0u8;
+
+machine inner_is_nonzero(i: Inner)
+requires i.x == 1u8
+ensures i.x != 0u8
+{
+}
+
+machine use_inner<Step: InnerIsNonzero>(p: Pair)
+requires p.inner.x == 1u8
+ensures p.inner.x != 0u8
+{
+    Step(p.inner);
+}
+
+machine entry() -> u8 {
+    use_inner::<inner_is_nonzero>(Pair { inner: Inner { x: 1u8, z: 3u8 }, y: 2u8 });
+    0u8
+}
+";
+
+#[test]
+fn a_theorem_applied_to_a_record_field_of_a_formal_concludes_about_that_field() {
+    let verdict = Program::of(INNER_FIELD).judged(|elaboration| {
+        let application = &elaboration.module.proofs.theorem_applications[0];
+        assert!(
+            application.arguments.iter().all(|argument| matches!(
+                argument,
+                semantic_vocabulary::ScalarTerm::IntegerField { path, .. } if path.len() == 2
+            )),
+            "each subject is read beneath the projected field: {application:?}"
+        );
+    });
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_applied_to_a_record_field_concludes_nothing_about_the_outer_record() {
+    let source = INNER_FIELD.replacen(
+        "requires p.inner.x == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p.inner);",
+        "requires p.inner.x == 1u8\nensures p.y != 0u8\n{\n    Step(p.inner);",
+        1,
+    );
+    assert!(source.contains("ensures p.y != 0u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_theorem_applied_to_a_record_field_owes_its_premise_for_that_field() {
+    let source = INNER_FIELD.replacen(
+        "requires p.inner.x == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p.inner);",
+        "requires p.inner.z == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p.inner);",
+        1,
+    );
+    assert!(source.contains("requires p.inner.z == 1u8"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+/// A record the machine builds itself is not one of its record formals.
+#[test]
+fn a_theorem_applied_to_a_local_record_is_refused_by_name() {
+    let source = INNER_FIELD.replacen(
+        "requires p.inner.x == 1u8\nensures p.inner.x != 0u8\n{\n    Step(p.inner);",
+        "{\n    let i: Inner = Inner { x: 1u8, z: 3u8 };\n    Step(i);",
+        1,
+    );
+    assert!(source.contains("Step(i);"), "{source}");
+    let verdict = Program::of(&source).judged(|_| {});
+    assert!(
+        format!("{verdict:?}")
+            .contains("logical data subject is not a record formal of its machine"),
+        "{verdict:?}"
+    );
+}
+
+/// Terminal Psi may name a theorem over a record directly in an
+/// application. Its subjects are the record's scalar fields, as in a
+/// citation, and its body must return without running anything.
+fn named_over_record() -> String {
+    FIRST_IS_NONZERO.replacen(
+        "machine use_step",
+        "machine touch(n: u8) {\n}\n\nmachine busy(p: Pair)\nrequires p.x == 1u8\nensures p.x != 0u8\n{\n    touch(p.x);\n}\n\nmachine second_is_nonzero(p: Pair)\nrequires p.y == 1u8\nensures p.y != 0u8\n{\n}\n\nmachine use_step",
+        1,
+    )
+}
+
+fn applied_named(program: &Program, path: &str) -> Verdict {
+    let named = program.machine(path).id;
+    program.judged(|elaboration| {
+        let application = &mut elaboration.module.proofs.theorem_applications[0];
+        assert!(matches!(
+            application.source,
+            terminal_psi::TheoremSource::Formal(_)
+        ));
+        application.source = terminal_psi::TheoremSource::Named(named);
+    })
+}
+
+#[test]
+fn a_named_theorem_applied_to_a_record_supplies_its_conclusion() {
+    let program = Program::of(&named_over_record());
+    let verdict = applied_named(&program, "first_is_nonzero");
+    assert!(matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_named_theorem_over_another_field_does_not_supply_the_conclusion() {
+    let program = Program::of(&named_over_record());
+    let verdict = applied_named(&program, "second_is_nonzero");
+    assert!(!matches!(verdict, Verdict::Accepted), "{verdict:?}");
+}
+
+#[test]
+fn a_named_theorem_over_a_record_whose_body_does_work_is_refused() {
+    let program = Program::of(&named_over_record());
+    let verdict = applied_named(&program, "busy");
+    assert!(
+        format!("{verdict:?}")
+            .contains("named theorem application names a machine whose body does work"),
+        "{verdict:?}"
+    );
+}
+
 const CALLABLE_FIELD: &str = "data NonzeroIsPositive = machine(n: u8)
     requires n != 0u8
     ensures n > 0u8
